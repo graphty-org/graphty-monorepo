@@ -413,11 +413,15 @@ export async function writeLine(
 /**
  * Removes a line (or every part of a compound line) from the layer that sets it. The reader's
  * Everything layer is removed when nothing is left on it. One undoable step of the element's.
- * @param session - the element's session.
+ * @param session - the element's session, or a transaction's scope.
  * @param layer - the layer that sets the line.
  * @param channels - the channel, or each part's channel.
  */
-export async function removeLine(session: GraphSession, layer: Layer, ...channels: Channel[]): Promise<void> {
+export async function removeLine(
+    session: Pick<GraphSession, "styles">,
+    layer: Layer,
+    ...channels: Channel[]
+): Promise<void> {
     const set = without(layer.set, ...channels);
     const encode = without(layer.encode, ...channels);
     if (set === undefined && encode === undefined && layer.userData?.[EVERYTHING_KEY] === true) {

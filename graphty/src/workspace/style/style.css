@@ -12,11 +12,12 @@
     padding: 8px 8px 0;
 }
 
-/* A row: the settings button's 24px slot, then its fields side by side. */
+/* A row: the settings button's 24px slot, then its fields. The slot is reserved on every row, so
+   every field of a level starts at one left edge. */
 .ws-property-row {
     display: flex;
     align-items: flex-end;
-    gap: 4px;
+    gap: 2px;
     min-width: 0;
 }
 
@@ -24,18 +25,45 @@
     flex: 0 0 24px;
 }
 
+.ws-property-row-core {
+    align-items: flex-start;
+}
+
+.ws-property-row-lead {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+/* Paired fields side by side while both fit whole, else one per line (each keeps its own Clear). */
+.ws-property-fields {
+    display: flex;
+    flex: 1 1 auto;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 2px 4px;
+    min-width: 0;
+}
+
+/* The width a field needs whole: its control plus the two 24px columns. A color holds its chit,
+   a six-digit hex and an opacity percent; anything else a name like "Icosphere" or a number. */
 .ws-field {
     display: flex;
-    flex: 1 1 0;
+    flex: 1 1 120px;
     flex-direction: column;
     gap: 2px;
     min-width: 0;
 }
 
+.ws-field[data-accepts="color"] {
+    flex-basis: 196px;
+}
+
+/* No gap: the two columns are 24px boxes around 22px buttons, which leaves their own margin, and
+   every pixel goes to the control (a six-digit hex beside an opacity percent in a 240px panel). */
 .ws-field-line {
     display: flex;
     align-items: flex-end;
-    gap: 2px;
     min-width: 0;
 }
 
@@ -44,13 +72,23 @@
     min-width: 0;
 }
 
-/* The vary glyph shows on hover and focus, and always on touch, where nothing hovers. */
-.ws-vary {
+/* The vary and Clear columns: always 24px, empty or not, so a field never changes width. */
+.ws-slot {
     display: inline-flex;
+    flex: 0 0 24px;
+    justify-content: center;
+    width: 24px;
+    min-height: 24px;
 }
 
+/* The vary glyph is drawn at rest, dim, and full on hover and focus. */
 @media (hover: hover) {
-    .ws-field:not(:hover, :focus-within) .ws-vary:not(:has([aria-expanded="true"])) {
-        display: none;
+    .ws-varies:not(:hover, :focus-within) .ws-vary:not(:has([aria-expanded="true"])) button {
+        color: var(--cm-icon-secondary, var(--mantine-color-dimmed));
     }
+}
+
+/* A locked row: its controls stay focusable and say why they do nothing; drawn dimmed. */
+.ws-row-locked .ws-style-panel {
+    opacity: 0.55;
 }

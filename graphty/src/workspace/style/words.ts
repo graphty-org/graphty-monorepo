@@ -51,27 +51,21 @@ export const CORE_ROWS: Readonly<Record<Kind, readonly PropertyRowSpec[]>> = {
             fields: ["node.shape", "node.size"],
             settings: ["node.wireframe", "node.visible"],
         },
-        { id: "fill", title: "Color", fields: ["node.color"], settings: ["node.opacity"] },
+        // Opacity is the color field's own percent box (OPACITY_OF), so Color has no settings.
+        { id: "fill", title: "Color", fields: ["node.color"], settings: [] },
     ],
     edge: [
         {
             id: "line",
             title: "Line",
             fields: ["edge.color", "edge.width"],
-            settings: ["edge.opacity", "edge.style", "edge.patternCount", "edge.curvature", "edge.visible"],
+            settings: ["edge.style", "edge.patternCount", "edge.curvature", "edge.visible"],
         },
         {
             id: "ends",
             title: "Ends",
             fields: ["edge.arrowHead", "edge.arrowTail"],
-            settings: [
-                "edge.arrowHeadSize",
-                "edge.arrowHeadColor",
-                "edge.arrowHeadOpacity",
-                "edge.arrowTailSize",
-                "edge.arrowTailColor",
-                "edge.arrowTailOpacity",
-            ],
+            settings: ["edge.arrowHeadSize", "edge.arrowHeadColor", "edge.arrowTailSize", "edge.arrowTailColor"],
         },
     ],
 };
@@ -218,20 +212,32 @@ export const COMBINE_WORDS = {
 } as const;
 
 /**
- * Whether a channel's line shows the bind icon at rest (round 7: Color and Size). A tooltip has
- * it too: one fixed text on every node says nothing about the node pointed at, so the useful
- * tooltip reads an attribute (the node's id or name).
- * @param descriptor - the channel.
- * @returns true for a node's or an edge's color, a node's size, an edge's width and a node's tooltip.
+ * Whether a field draws the vary glyph: its channel takes a binding (tier3 design, decision 1.12).
+ * Every color, number, choice and text channel the element draws does; a yes-or-no property does
+ * not ("on for these values" is a Which elements rule), nor a channel the element does not draw.
+ * @param descriptor - the element's channel descriptor.
+ * @returns true when the field can vary by a value.
  */
-export function bindsAtRest(descriptor: ChannelDescriptor): boolean {
+export function takesBinding(descriptor: ChannelDescriptor): boolean {
     return (
-        descriptor.accepts === "color" ||
-        descriptor.channel === "node.size" ||
-        descriptor.channel === "edge.width" ||
-        descriptor.channel === "node.tooltip"
+        descriptor.renderable &&
+        (descriptor.accepts === "color" ||
+            descriptor.accepts === "number" ||
+            descriptor.accepts === "enum" ||
+            descriptor.accepts === "text")
     );
 }
+
+/**
+ * The opacity a color field carries as its percent box, as Figma's paint row does, so a color and
+ * its opacity are one row and opacity needs no settings button of its own.
+ */
+export const OPACITY_OF: Partial<Readonly<Record<Channel, Channel>>> = {
+    "node.color": "node.opacity",
+    "edge.color": "edge.opacity",
+    "edge.arrowHeadColor": "edge.arrowHeadOpacity",
+    "edge.arrowTailColor": "edge.arrowTailOpacity",
+};
 
 /**
  * The bind icon's tooltip, which is also its accessible name.

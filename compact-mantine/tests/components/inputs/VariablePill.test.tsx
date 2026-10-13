@@ -1,5 +1,5 @@
 import { MantineProvider } from "@mantine/core";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import React from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -36,6 +36,21 @@ describe("VariablePill", () => {
         const { container } = renderPill(<VariablePill swatch="#0d99ff" name="rsu/brand" />);
         expect(screen.getByRole("button", { name: "rsu/brand" })).toHaveTextContent("rsu/brand");
         expect(container.querySelector(".cm-var-chit")).toHaveStyle({ background: "#0d99ff" });
+    });
+
+    it("takes a caller's accessible name for the pill and the fill row, and a fill row's tooltip says the name whole", async () => {
+        renderPill(<VariablePill name="Degree rank" value="1 to 3" aria-label="Node size: Degree rank, 1 to 3" />);
+        expect(screen.getByRole("button", { name: "Node size: Degree rank, 1 to 3" })).toHaveTextContent("1 to 3");
+        renderPill(<VariablePill swatch="#0d99ff" name="Edge betweenness" aria-label="Edge color: Edge betweenness" />);
+        const fill = screen.getByRole("button", { name: "Edge color: Edge betweenness" });
+        await userEvent.hover(fill);
+        // The theme opens tooltips after a delay and mounts them hidden first.
+        await waitFor(
+            () => {
+                expect(screen.getByRole("tooltip", { hidden: true })).toHaveTextContent("Edge betweenness");
+            },
+            { timeout: 3000 },
+        );
     });
 
     it("the property chip carries its kind", () => {

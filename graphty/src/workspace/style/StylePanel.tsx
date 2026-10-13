@@ -5,7 +5,7 @@ import { type ChannelDescriptor, channelsFor, toColorValue } from "@graphty/grap
 import { DEFAULT_SELECTION_STYLE, type LayerId } from "@graphty/graphty-element/schema";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { ActionIcon, Group, Menu, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import { findTreeRow, isHidden, isLocked, rowLayers as treeRowLayers } from "../graph-place/rows";
@@ -144,38 +144,157 @@ function TreeRowPanel({ session, rowId }: Readonly<{ session: GraphSession; rowI
         return <StateLine>This row is gone</StateLine>;
     }
     const row = treeRowLayers(session, rowId);
-    const locked = isLocked(found);
-    // A reader's own layer says which elements it paints, and its find field picks them anew.
-    const own = row.length > 0 && row.every((id) => session.styles.get(id)?.source.by === "user");
+    // Every layer says which elements it paints, whoever made it: provenance never changes what a
+    // layer offers.
     return (
         <>
-            {locked && <StateLine>This layer is locked</StateLine>}
-            {isHidden(found) && <StateLine>Hidden: changes will not show until it is shown</StateLine>}
-            {/* A native disabled fieldset: the platform disables every control in it. */}
-            <fieldset disabled={locked} className="ws-row-fieldset">
+            {isHidden(found) && (
+                <StateLine icon={<GLYPHS.hide size={14} aria-hidden />}>
+                    Hidden: changes will not show until it is shown
+                </StateLine>
+            )}
+            <LockedGroup locked={isLocked(found)}>
                 <RowStyle
                     key={row.join(" ")}
                     session={session}
                     row={row}
                     below={rowId}
-                    head={own ? <WhichElements session={session} layer={row[0]} /> : undefined}
+                    head={row.length > 0 ? <WhichElements session={session} layer={row[0]} /> : undefined}
                 />
-            </fieldset>
+            </LockedGroup>
+        </>
+    );
+}
+
+/** The controls a locked row keeps focusable and marks as doing nothing. */
+const CONTROLS = "input, textarea, button, [role=combobox], [role=switch], [role=radio], [role=checkbox]";
+
+/** The keys a locked row lets through: moving focus, and closing what is open. */
+const PASSING_KEYS = new Set(["Tab", "Shift", "Escape"]);
+
+/**
+ * A row's controls while it is locked: still in the Tab order, each `aria-disabled` with the
+ * reason as its description, and every press, click and typed key stopped before it reaches them.
+ * A native disabled fieldset took them out of the Tab order, so a keyboard skipped the panel.
+ * @param props - Component props
+ * @param props.locked - whether the row is locked
+ * @param props.children - the row's Style tab
+ * @returns The group
+ */
+function LockedGroup({
+    locked,
+    children,
+}: Readonly<{ locked: boolean; children: React.ReactNode }>): React.JSX.Element {
+    const box = useRef<HTMLDivElement>(null);
+    const reasonId = useId();
+    useEffect(() => {
+        const root = box.current;
+        if (!locked || root === null) {
+            return undefined;
+        }
+        const tokens = (control: Element): string[] =>
+            (control.getAttribute("aria-describedby") ?? "").split(" ").filter((id) => id !== "");
+        // Idempotent, so it can run again whenever a control is drawn or a library rewrites its
+        // description (a tooltip does).
+        const mark = (): void => {
+            for (const control of root.querySelectorAll<HTMLElement>(CONTROLS)) {
+                if (control.getAttribute("aria-disabled") !== "true") {
+                    control.setAttribute("aria-disabled", "true");
+                    control.dataset.wsLocked = "";
+                }
+                const ids = tokens(control);
+                if (!ids.includes(reasonId)) {
+                    control.setAttribute("aria-describedby", [...ids, reasonId].join(" "));
+                }
+                if (
+                    (control instanceof HTMLInputElement || control instanceof HTMLTextAreaElement) &&
+                    !control.readOnly
+                ) {
+                    control.readOnly = true;
+                    control.dataset.wsLockedReadOnly = "";
+                }
+            }
+        };
+        mark();
+        const observer = new MutationObserver(mark);
+        observer.observe(root, {
+            childList: true,
+            subtree: true,
+            attributes: true,
+            attributeFilter: ["aria-describedby", "aria-disabled"],
+        });
+        return () => {
+            observer.disconnect();
+            for (const control of root.querySelectorAll<HTMLElement>(CONTROLS)) {
+                const ids = tokens(control).filter((id) => id !== reasonId);
+                if (ids.length === 0) {
+                    control.removeAttribute("aria-describedby");
+                } else {
+                    control.setAttribute("aria-describedby", ids.join(" "));
+                }
+                if (control.dataset.wsLocked !== undefined) {
+                    control.removeAttribute("aria-disabled");
+                    delete control.dataset.wsLocked;
+                }
+                if (control.dataset.wsLockedReadOnly !== undefined) {
+                    (control as HTMLInputElement).readOnly = false;
+                    delete control.dataset.wsLockedReadOnly;
+                }
+            }
+        };
+    }, [locked, reasonId]);
+    const stop = (event: React.SyntheticEvent): void => {
+        if (locked) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+    };
+    return (
+        <>
+            {locked && (
+                <StateLine icon={<GLYPHS.lock size={14} aria-hidden />} id={reasonId}>
+                    This layer is locked
+                </StateLine>
+            )}
+            <div
+                ref={box}
+                className={locked ? "ws-row-locked" : undefined}
+                onPointerDownCapture={stop}
+                onMouseDownCapture={stop}
+                onClickCapture={stop}
+                onBeforeInputCapture={stop}
+                onPasteCapture={stop}
+                onDropCapture={stop}
+                onKeyDownCapture={(event) => {
+                    if (!PASSING_KEYS.has(event.key)) {
+                        stop(event);
+                    }
+                }}
+            >
+                {children}
+            </div>
         </>
     );
 }
 
 /**
- * A quiet line at the top of a panel.
+ * A line at the top of a panel saying the state of what it shows, at the panel's text size.
  * @param props - Component props
  * @param props.children - the words
+ * @param props.icon - a glyph before the words (a lock, a closed eye)
+ * @param props.id - an id, for controls the line describes
  * @returns The line
  */
-export function StateLine({ children }: Readonly<{ children: React.ReactNode }>): React.JSX.Element {
+export function StateLine({
+    children,
+    icon,
+    id,
+}: Readonly<{ children: React.ReactNode; icon?: React.ReactNode; id?: string }>): React.JSX.Element {
     return (
-        <Text size="xs" c="dimmed" px="md" py={4}>
-            {children}
-        </Text>
+        <Group gap={6} px="md" py={4} wrap="nowrap" id={id}>
+            {icon}
+            <Text size="sm">{children}</Text>
+        </Group>
     );
 }
 
@@ -239,7 +358,7 @@ export function RowStyle({
                             collapsible={false}
                             headingLevel={3}
                         >
-                            <Stack gap={4}>
+                            <Stack gap={2}>
                                 {CORE_ROWS[side].map((spec) => (
                                     <PropertyRow key={spec.id} ctx={ctx} spec={spec} descriptors={descriptors} />
                                 ))}

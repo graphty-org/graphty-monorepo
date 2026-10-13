@@ -135,6 +135,7 @@ export function LabelSection({ target, row, layers, fresh }: Readonly<LabelSecti
         return null;
     }
     const channels = CHANNELS[target];
+    const kindWord = target === "node" ? "Node" : "Edge";
     const words = lineOf(layers, channels.label);
     const styleLine = lineOf(layers, channels.style);
     const style = styleOf(styleLine);
@@ -171,7 +172,8 @@ export function LabelSection({ target, row, layers, fresh }: Readonly<LabelSecti
     );
 
     return (
-        <Stack gap={2} role="group" aria-label="Text" data-section="label">
+        // Named by kind: a layer on nodes and edges draws both lists, and no two controls share a name.
+        <Stack gap={2} role="group" aria-label={`${kindWord} text`} data-section="label">
             <Menu opened={menuOpen} onChange={setMenuOpen} position="bottom-end">
                 <Group gap={4} h={24} wrap="nowrap" justify="space-between">
                     {/* An empty list's title opens the "+" menu too, as Figma's empty Fill title does. */}
@@ -179,7 +181,7 @@ export function LabelSection({ target, row, layers, fresh }: Readonly<LabelSecti
                         title
                     ) : (
                         <UnstyledButton
-                            aria-label="Add text"
+                            aria-label={`Add ${kindWord.toLowerCase()} text`}
                             onClick={() => {
                                 setMenuOpen(true);
                             }}
@@ -189,7 +191,7 @@ export function LabelSection({ target, row, layers, fresh }: Readonly<LabelSecti
                     )}
                     <Menu.Target>
                         <Tooltip label="Add text">
-                            <ActionIcon variant="subtle" size="sm" aria-label="Add to Text">
+                            <ActionIcon variant="subtle" size="sm" aria-label={`Add to ${kindWord.toLowerCase()} text`}>
                                 <GLYPHS.add size={14} aria-hidden />
                             </ActionIcon>
                         </Tooltip>

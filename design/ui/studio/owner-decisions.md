@@ -4,6 +4,22 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-12 -- Decided by the team: a bound value's own accessible name, and its whole name on hover
+
+**What.** compact-mantine's `VariablePill`, additive.
+
+- An optional `aria-label` names the pill (or the bound fill row) when the field around it names
+  nothing, so the Style tab's bound values say their property first: "Node size: Degree rank, 1
+  to 3", "Node color: Degree, Purple to yellow". Left out, the name is as before.
+- The bound fill row now has a tooltip with the variable's whole name, since a long name
+  ("Edge betweenness") is cut to fit a narrow row.
+
+**Also decided, in the graphty app (no public API).** Paired property rows (Shape and Size, Color
+and Width, Head and Tail) stand side by side only when both fields fit whole, with their vary and
+Clear columns; in the default 240 px inspector they stack one field per line. Reason: four
+reserved 24 px columns and two whole controls do not fit in 240 px, and the owner asked that
+values never be cut.
+
 ## 2026-10-12 -- Decided by the team: select what a layer paints, and who paints over it
 
 **What.** graphty-element's session, additive.

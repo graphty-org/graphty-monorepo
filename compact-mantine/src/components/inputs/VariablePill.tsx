@@ -35,6 +35,11 @@ export interface VariablePillProps {
     /** The Detach button's accessible name. @default "Detach variable" */
     detachLabel?: string;
     /**
+     * The pill's (or the fill row's) accessible name, when the field it sits in is not named by
+     * anything else: "Node size: Degree rank, 1 to 3". Left out, it is the variable and its value.
+     */
+    "aria-label"?: string;
+    /**
      * Makes the rest of a bound number field editable, as in Figma: typing after the pill and
      * pressing Enter (or leaving the field) reports the text, and the caller replaces the binding
      * with that literal (detach, then apply). Escape abandons the text. Without it the field after
@@ -85,6 +90,7 @@ export function VariablePill(props: VariablePillProps): React.JSX.Element {
         glyph,
         width,
         detachLabel = "Detach variable",
+        "aria-label": ariaLabel,
         onValueCommit,
         valueLabel = "Value",
         className,
@@ -128,20 +134,23 @@ export function VariablePill(props: VariablePillProps): React.JSX.Element {
                 style={{ width: width ?? FILL_WIDTH, ...style }}
                 data-kind={kind}
             >
-                <button
-                    type="button"
-                    className="cm-var-fill-button"
-                    data-kind={kind}
-                    aria-label={value === undefined ? name : `${name}, ${value}`}
-                    onClick={(event) => {
-                        onClick?.(event);
-                    }}
-                >
-                    {swatch !== undefined && (
-                        <span className="cm-var-chit" style={{ background: swatch }} aria-hidden="true" />
-                    )}
-                    <span className="cm-var-name">{name}</span>
-                </button>
+                {/* The name may be cut to fit the row: the tooltip says it whole. */}
+                <Tooltip label={tooltip} style={{ whiteSpace: "pre-line" }}>
+                    <button
+                        type="button"
+                        className="cm-var-fill-button"
+                        data-kind={kind}
+                        aria-label={ariaLabel ?? (value === undefined ? name : `${name}, ${value}`)}
+                        onClick={(event) => {
+                            onClick?.(event);
+                        }}
+                    >
+                        {swatch !== undefined && (
+                            <span className="cm-var-chit" style={{ background: swatch }} aria-hidden="true" />
+                        )}
+                        <span className="cm-var-name">{name}</span>
+                    </button>
+                </Tooltip>
                 {detach}
             </div>
         );
@@ -165,7 +174,7 @@ export function VariablePill(props: VariablePillProps): React.JSX.Element {
                     <button
                         type="button"
                         className="cm-var-pill cm-focus-outside"
-                        aria-label={value === undefined ? name : `${value}, variable ${name}`}
+                        aria-label={ariaLabel ?? (value === undefined ? name : `${value}, variable ${name}`)}
                         onClick={(event) => {
                             onClick?.(event);
                         }}

@@ -11,6 +11,31 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-12) **Property rows: reserved columns, one Clear, vary everywhere, Which elements on
+  every layer** (test `graphty/src/workspace/style/__tests__/PropertyRows.real-element.test.tsx`;
+  pictures `tier3/build/property-rows/`). Every field is control + a 24 px vary column + a 24 px
+  Clear column, drawn empty when unused, so a field never changes width on set, clear or focus;
+  `.ws-field-line` has no gap and the row gap is 2 px, because a six-digit hex beside the opacity
+  percent needs every pixel of the 240 px inspector (it had 41 px for 42 px of "000000"). Paired
+  rows wrap (`.ws-property-fields`, flex-basis 196 px for a color, 120 px otherwise): at 240 px
+  every pair stacks; side by side only in a wider panel. The settings gear sits in a lead column
+  under a blank label, level with the first field however they wrap. `takesBinding` (every drawn
+  color, number, choice and text channel) replaces the color/size-only list; the vary glyph is
+  drawn at rest in `--cm-icon-secondary` and full on hover/focus; "=" in any non-text field opens
+  it; effect entries got the glyph (`VarySlot`) and show a varied effect as a Field. Opacity is the
+  color field's percent box (`OPACITY_OF`), so Color lost its gear; a varied opacity shows as its
+  own row. Clear is one transaction named "clearing node size on Key people", so Undo reads
+  "Undid clearing ...". Which elements shows on every tree layer row (the `source.by` gate is
+  gone). A locked row is `LockedGroup`: controls keep focus, get `aria-disabled` and the state
+  line as description through a MutationObserver that also watches `aria-describedby` (Mantine's
+  Tooltip rewrites it, so a one-time mark was lost), and capture handlers swallow pointer, click,
+  input and every key but Tab, Shift and Escape. Names: Text list controls carry the kind ("Add to
+  node text"); a bound pill is "Node size: Degree rank, 1 to 3" (new `VariablePill` `aria-label`,
+  additive) and its Detach "Detach node size". Not done: LabelSection's Look and Size still clear
+  with their own "x" (its own unit); opacity cannot be varied from the percent box. Seen failing,
+  not from this: StyleTab "Label entry" timeout, row.test "starting value" (node.labelBackground
+  has no default in the element's uncommitted catalog change).
+
 - (2026-10-12) **Starting rows on in the app; tree marks, row menu and the Graph settings door**
   (test `graphty/src/workspace/graph-place/__tests__/StyleTreeRows.real-element.test.tsx`). The app
   sets `startingRows: true, runPlacement: "top"` in `Workspace.tsx` for every project opened after

@@ -164,7 +164,7 @@ export const BindingPopover: Story = styleStory(async (canvasElement) => {
     await waitFor(() => {
         expect(body().queryByRole("dialog", { name: "From data" })).toBeNull();
     });
-    await userEvent.click(await tab(canvasElement).findByRole("button", { name: /^dept,/ }));
+    await userEvent.click(await tab(canvasElement).findByRole("button", { name: /^Node color: dept,/ }));
     await body().findByRole("group", { name: "Color binding" });
 });
 
@@ -172,7 +172,7 @@ export const BindingPopover: Story = styleStory(async (canvasElement) => {
 export const Palette: Story = styleStory(async (canvasElement) => {
     await userEvent.click(await varyGlyph(canvasElement, "Node color"));
     await userEvent.click(await body().findByRole("option", { name: "dept" }));
-    await userEvent.click(await tab(canvasElement).findByRole("button", { name: /^dept,/ }));
+    await userEvent.click(await tab(canvasElement).findByRole("button", { name: /^Node color: dept,/ }));
     const popover = await body().findByRole("group", { name: "Color binding" });
     await userEvent.click(within(popover).getByRole("combobox", { name: /^Palette/ }));
 });
@@ -191,14 +191,14 @@ export const BindingUnknownPath: Story = styleStory(async (canvasElement, elemen
 
 /** Text "+", then Label: the source list open, nothing written yet (`#/style-pickers/label-new-line`). */
 export const LabelNewLine: Story = styleStory(async (canvasElement) => {
-    await userEvent.click(nodes(canvasElement).getByRole("button", { name: "Add to Text" }));
+    await userEvent.click(nodes(canvasElement).getByRole("button", { name: "Add to node text" }));
     await userEvent.click(await body().findByRole("menuitem", { name: /^Label/ }));
     await body().findByRole("dialog", { name: "From data" });
 });
 
 /** Esc on the source list: no entry is left behind (`#/inspector-group-set-path-row/label-empty`). */
 export const LabelEmpty: Story = styleStory(async (canvasElement) => {
-    await userEvent.click(nodes(canvasElement).getByRole("button", { name: "Add to Text" }));
+    await userEvent.click(nodes(canvasElement).getByRole("button", { name: "Add to node text" }));
     await userEvent.click(await body().findByRole("menuitem", { name: /^Label/ }));
     await body().findByRole("dialog", { name: "From data" });
     await userEvent.keyboard("{Escape}");
@@ -209,7 +209,7 @@ export const LabelEmpty: Story = styleStory(async (canvasElement) => {
 
 /** A label entry reading the name, with the element's count (`#/inspector-group-set-path-row/label-two`). */
 export const LabelBound: Story = styleStory(async (canvasElement, element) => {
-    await userEvent.click(nodes(canvasElement).getByRole("button", { name: "Add to Text" }));
+    await userEvent.click(nodes(canvasElement).getByRole("button", { name: "Add to node text" }));
     await userEvent.click(await body().findByRole("menuitem", { name: /^Label/ }));
     await userEvent.click(await body().findByRole("option", { name: "name" }));
     await nodes(canvasElement).findByRole("button", { name: /^Label source: / });

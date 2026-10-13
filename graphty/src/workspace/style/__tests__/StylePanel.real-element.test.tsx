@@ -397,7 +397,7 @@ describe("the Style tab's rows on the real element", () => {
             assert.isTrue(proposal.ok);
             assert.deepEqual(mine[0].encode?.["node.color"], proposal.ok ? proposal.binding : undefined);
         });
-        assert.isNotNull(within(styleTab()).getByRole("button", { name: /Detach Color/ }));
+        assert.isNotNull(within(styleTab()).getByRole("button", { name: /Detach node color/ }));
     });
 
     it("a declared code column colors one color per group, and a group column cannot size", async () => {
@@ -438,7 +438,7 @@ describe("the Style tab's rows on the real element", () => {
         await pickStyleTab();
         await waitFor(
             () => {
-                assert.isNotNull(within(styleTab()).getByRole("button", { name: /Detach Color/ }));
+                assert.isNotNull(within(styleTab()).getByRole("button", { name: /Detach node color/ }));
             },
             { timeout: TIMEOUT_MS },
         );
@@ -480,7 +480,7 @@ describe("the Style tab's rows on the real element", () => {
             },
             { timeout: TIMEOUT_MS },
         );
-        await userEvent.click(within(styleTab()).getByRole("button", { name: /Detach Size/ }));
+        await userEvent.click(within(styleTab()).getByRole("button", { name: /Detach node size/ }));
         await waitFor(() => {
             const mine = readerLayers(session).filter((l) => l.userData?.graphtyEverything === true);
             assert.lengthOf(mine, 1);
@@ -494,7 +494,7 @@ describe("the Style tab's rows on the real element", () => {
         const { session } = await openEverything();
         await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
         await varyBy("Node color", "code");
-        await userEvent.click(await within(styleTab()).findByRole("button", { name: /^code,/ }));
+        await userEvent.click(await within(styleTab()).findByRole("button", { name: /^Node color: code,/ }));
         const popover = await screen.findByRole("group", { name: "Color binding" });
         const binding = (): Record<string, unknown> => readerLayers(session)[0]?.encode?.["node.color"] ?? {};
         await userEvent.click(within(popover).getByRole("combobox", { name: /^Palette/ }));
@@ -513,7 +513,7 @@ describe("the Style tab's rows on the real element", () => {
         });
     });
 
-    it("binds with the keyboard alone: Tab from the field to the vary glyph, then the list", async () => {
+    it("binds with the keyboard alone: Tab from the field past its opacity to the vary glyph, then the list", async () => {
         await page.viewport(1366, 768);
         const { session } = await openEverything();
         await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
@@ -522,6 +522,9 @@ describe("the Style tab's rows on the real element", () => {
         within(color)
             .getByRole("textbox", { name: /^Node color(,|$)/ })
             .focus();
+        // Past the opacity percent, which is part of the color field.
+        await userEvent.tab();
+        assert.equal(document.activeElement?.getAttribute("aria-label"), "Node color opacity");
         await userEvent.tab();
         assert.equal(document.activeElement?.getAttribute("aria-label"), "Node color by attribute");
         await userEvent.keyboard("{Enter}");
@@ -668,7 +671,9 @@ describe("the Style tab's rows on the real element", () => {
         store.set({ inspected: { kind: "layer-row", id: layer.id } });
         await waitFor(
             () => {
-                assert.isNotNull(within(styleTab()).getByRole("button", { name: "data.department, reads nothing" }));
+                assert.isNotNull(
+                    within(styleTab()).getByRole("button", { name: "Node color: data.department, reads nothing" }),
+                );
             },
             { timeout: TIMEOUT_MS },
         );

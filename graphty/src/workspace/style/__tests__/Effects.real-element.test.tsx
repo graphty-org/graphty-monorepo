@@ -224,7 +224,7 @@ describe("effects and arrow ends on the real element", () => {
 
         await userEvent.click(within(ends).getByRole("button", { name: "Edge ends settings" }));
         const settings = await screen.findByRole("dialog", { name: "Ends settings" });
-        const color = within(settings).getByRole<HTMLInputElement>("textbox", { name: /^Edge head color/ });
+        const color = within(settings).getByRole<HTMLInputElement>("textbox", { name: /^Edge head color(,|$)/ });
         assert.equal(color.value, "");
         assert.equal(color.placeholder, "Line color");
     });

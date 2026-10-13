@@ -158,14 +158,14 @@ describe("the style tree on the real element", () => {
         assert.equal(selected.length, 2);
     });
 
-    it("disables the Style tab's controls on the lock click, and the eye stops the row painting", async () => {
+    it("marks the Style tab's controls disabled on the lock click, and the eye stops the row painting", async () => {
         const { session, key } = await openTree();
         const keyRow = await row("Key people");
         await userEvent.click(keyRow);
         const tab = await screen.findByTestId("style-tab");
         const controls = (): HTMLElement[] => [...tab.querySelectorAll<HTMLElement>("input, button")];
         assert.isTrue(
-            controls().some((control) => !control.matches(":disabled")),
+            controls().some((control) => control.getAttribute("aria-disabled") !== "true"),
             "the open row starts editable",
         );
 
@@ -174,7 +174,12 @@ describe("the style tree on the real element", () => {
         await waitFor(() => {
             assert.isTrue(findTreeRow(session.styles.tree(), key)?.row.locked);
             const now = screen.getByTestId("style-tab");
-            assert.isTrue([...now.querySelectorAll("input, button")].every((control) => control.matches(":disabled")));
+            // Still focusable: each says it does nothing, rather than leaving the Tab order.
+            assert.isTrue(
+                [...now.querySelectorAll("input, button")].every(
+                    (control) => control.getAttribute("aria-disabled") === "true",
+                ),
+            );
         });
         assert.isNotNull(screen.getByText("This layer is locked"));
 

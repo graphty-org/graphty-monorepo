@@ -7,7 +7,7 @@ import React, { useEffect, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
-import { Field, type RowContext } from "./PropertyRow";
+import { Field, type RowContext, VarySlot } from "./PropertyRow";
 import { lineOf, removeLine, sharesBeneath, type Target, writeLine } from "./row";
 import { hexOf } from "./words";
 
@@ -178,6 +178,7 @@ export function Effects({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.Eleme
                         kind={kind}
                         descriptor={descriptor}
                         value={line?.value}
+                        bound={line?.binding !== undefined}
                         pending={!present(kind)}
                         settings={kind.settings.flatMap((c) => descriptorOf(c) ?? [])}
                         onCancel={() => {
@@ -259,6 +260,8 @@ interface EffectEntryProps {
     descriptor: ChannelDescriptor;
     /** What this row writes for the entry's own channel, if anything. */
     value: ChannelValue | undefined;
+    /** Whether the entry's own channel varies by a value: its field is then the bound value. */
+    bound?: boolean;
     /** Picked from the menu and not written yet: its field takes focus, Escape drops it. */
     pending: boolean;
     /** The element's descriptors of its settings. */
@@ -277,6 +280,7 @@ interface EffectEntryProps {
  * @param props.kind - the effect
  * @param props.descriptor - the element's descriptor of its channel
  * @param props.value - what this row writes for it
+ * @param props.bound - whether its own channel varies by a value
  * @param props.pending - whether it is picked and not written yet
  * @param props.settings - its settings
  * @param props.onCancel - drops a pending entry
@@ -289,6 +293,7 @@ function EffectEntry({
     kind,
     descriptor,
     value,
+    bound = false,
     pending,
     settings,
     onCancel,
@@ -302,6 +307,36 @@ function EffectEntry({
     // The value the eye turns back on to, and the field's own default.
     // ponytail: the eye forgets the color it turned off; it comes back as the element's default.
     const onValue: ChannelValue = descriptor.default ?? descriptor.min ?? 1;
+    const literal = color ? (
+        <CompactColorInput
+            label={kind.name}
+            width="100%"
+            color={off ? undefined : (hexOf(value) ?? undefined)}
+            defaultColor={hexOf(descriptor.default) ?? "#000000"}
+            showOpacity={false}
+            showReset={false}
+            swatches={ctx.documentColors}
+            onChangeEnd={(next) => {
+                if (next !== undefined) {
+                    onWrite(next);
+                }
+            }}
+        />
+    ) : (
+        <StyleNumberInput
+            showReset={false}
+            label={`${kind.name} speed`}
+            value={typeof value === "number" && !off ? value : undefined}
+            defaultValue={typeof onValue === "number" ? onValue : 1}
+            min={descriptor.min}
+            step={0.1}
+            onChange={(next) => {
+                if (next !== undefined) {
+                    onWrite(next);
+                }
+            }}
+        />
+    );
     useEffect(() => {
         if (pending) {
             box.current?.querySelector<HTMLInputElement>("input[type=text], input:not([type])")?.focus();
@@ -310,6 +345,7 @@ function EffectEntry({
     return (
         <Group
             ref={box}
+            className="ws-varies"
             gap={4}
             pl={4}
             wrap="nowrap"
@@ -352,36 +388,10 @@ function EffectEntry({
                 </Popout>
             )}
             <div style={{ flex: 1, minWidth: 0 }}>
-                {color ? (
-                    <CompactColorInput
-                        label={kind.name}
-                        width="100%"
-                        color={off ? undefined : (hexOf(value) ?? undefined)}
-                        defaultColor={hexOf(descriptor.default) ?? "#000000"}
-                        showOpacity={false}
-                        showReset={false}
-                        swatches={ctx.documentColors}
-                        onChangeEnd={(next) => {
-                            if (next !== undefined) {
-                                onWrite(next);
-                            }
-                        }}
-                    />
-                ) : (
-                    <StyleNumberInput
-                        label={`${kind.name} speed`}
-                        value={typeof value === "number" && !off ? value : undefined}
-                        defaultValue={typeof onValue === "number" ? onValue : 1}
-                        min={descriptor.min}
-                        step={0.1}
-                        onChange={(next) => {
-                            if (next !== undefined) {
-                                onWrite(next);
-                            }
-                        }}
-                    />
-                )}
+                {/* A varied effect shows its bound value, as any varied field does. */}
+                {bound ? <Field ctx={ctx} descriptor={descriptor} named={false} /> : literal}
             </div>
+            {pending || bound ? null : <VarySlot ctx={ctx} descriptor={descriptor} />}
             {pending ? null : (
                 <>
                     <ToggleIconButton

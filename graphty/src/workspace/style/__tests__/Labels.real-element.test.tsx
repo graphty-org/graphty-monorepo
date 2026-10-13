@@ -76,7 +76,7 @@ function textList(): HTMLElement {
     if (nodes === null) {
         throw new Error("the Style tab draws no Nodes group");
     }
-    return within(nodes).getByRole("group", { name: "Text" });
+    return within(nodes).getByRole("group", { name: "Node text" });
 }
 
 /**
@@ -134,7 +134,7 @@ describe("label entries on the real element", () => {
         await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
 
         // The empty list's title opens the same menu as "+".
-        await userEvent.click(within(textList()).getByRole("button", { name: "Add text" }));
+        await userEvent.click(within(textList()).getByRole("button", { name: "Add node text" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Label/ }));
         // Nothing is written before a source is picked.
         assert.isUndefined(writer(session, "node.label"));
@@ -158,7 +158,7 @@ describe("label entries on the real element", () => {
             "the entry names its source",
         );
         // A second label cannot be added, and "+" says why.
-        await userEvent.click(within(textList()).getByRole("button", { name: "Add to Text" }));
+        await userEvent.click(within(textList()).getByRole("button", { name: "Add to node text" }));
         const item = await screen.findByRole("menuitem", { name: /^Label/ });
         assert.include(item.textContent ?? "", "One label per element");
         assert.isTrue(item.hasAttribute("data-disabled"), "Label is disabled in the menu");
@@ -193,7 +193,7 @@ describe("label entries on the real element", () => {
     it("the entry's eye off removes its labels from the canvas, and the minus removes the entry", async () => {
         const { session, element } = await openWithGraph();
         await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
-        await userEvent.click(within(textList()).getByRole("button", { name: "Add to Text" }));
+        await userEvent.click(within(textList()).getByRole("button", { name: "Add to node text" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Label/ }));
         await userEvent.click(
             within(await screen.findByRole("dialog", { name: "From data" })).getByRole("option", { name: "name" }),
@@ -257,7 +257,7 @@ describe("label entries on the real element", () => {
         const { runId } = await session.runs.start("degree");
         await session.styles.settled();
         await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
-        await userEvent.click(within(textList()).getByRole("button", { name: "Add text" }));
+        await userEvent.click(within(textList()).getByRole("button", { name: "Add node text" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Label/ }));
         await userEvent.click(
             within(await screen.findByRole("dialog", { name: "From data" })).getByRole("option", { name: "name" }),

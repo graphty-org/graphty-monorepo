@@ -3,7 +3,6 @@ import { assert, describe, it } from "vitest";
 
 import {
     bindLabel,
-    bindsAtRest,
     cellOfLocation,
     channelWord,
     clearWords,
@@ -18,6 +17,7 @@ import {
     positionWord,
     refusalWords,
     resultWord,
+    takesBinding,
 } from "../words";
 
 describe("the Style tab's words and arrangement", () => {
@@ -67,17 +67,32 @@ describe("the Style tab's words and arrangement", () => {
         assert.equal(clearWords(undefined), "Clear: back to the default");
     });
 
-    it("shows the bind icon at rest on Color, Size and Tooltip only", () => {
+    it("draws the vary glyph on every channel that takes a binding, never on a yes-or-no one", () => {
         const at = (channel: string): boolean => {
             const d = channelsFor(channel.startsWith("node") ? "node" : "edge").find((c) => c.channel === channel);
-            return d !== undefined && bindsAtRest(d);
+            return d !== undefined && takesBinding(d);
         };
-        assert.isTrue(at("node.color"));
-        assert.isTrue(at("node.size"));
-        assert.isFalse(at("node.shape"));
-        assert.isFalse(at("node.opacity"));
-        assert.isTrue(at("node.tooltip"));
-        assert.isFalse(at("node.label"));
+        for (const channel of [
+            "node.color",
+            "node.size",
+            "node.shape",
+            "node.opacity",
+            "node.glow",
+            "node.haloSize",
+            "node.tooltip",
+            "edge.width",
+            "edge.style",
+            "edge.arrowHead",
+            "edge.arrowTailOpacity",
+            "edge.animationSpeed",
+            "edge.bandColor",
+        ]) {
+            assert.isTrue(at(channel), channel);
+        }
+        assert.isFalse(at("node.wireframe"));
+        assert.isFalse(at("node.visible"));
+        assert.isFalse(at("edge.curvature"));
+        assert.isFalse(at("node.labelStyle"));
         const color = channelsFor("node").find((c) => c.channel === "node.color");
         assert.equal(color === undefined ? "" : bindLabel(color), "Color by attribute");
     });

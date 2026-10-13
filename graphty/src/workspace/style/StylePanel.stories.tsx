@@ -316,14 +316,14 @@ export const EdgeBetweenness: Story = sceneStory(async ({ runs }) => {
 /** Key people's Text "+": the kinds of text a node can carry. */
 export const LabelsMenu: Story = sceneStory(async () => {
     const tab = await openStyle("Key people");
-    await userEvent.click(within(tab).getByRole("button", { name: "Add to Text" }));
+    await userEvent.click(within(tab).getByRole("button", { name: "Add to node text" }));
     await page().findByRole("menuitem", { name: /^Label/ });
 });
 
 /** A label entry on Key people reading the name. */
 export const LabelEntry: Story = sceneStory(async () => {
     const tab = await openStyle("Key people");
-    await userEvent.click(within(tab).getByRole("button", { name: "Add to Text" }));
+    await userEvent.click(within(tab).getByRole("button", { name: "Add to node text" }));
     await userEvent.click(await page().findByRole("menuitem", { name: /^Label/ }));
     await userEvent.click(await page().findByRole("option", { name: "name" }));
     await within(tab).findByRole("button", { name: /^Label source: / });

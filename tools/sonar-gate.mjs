@@ -396,17 +396,21 @@ function judgeIssues(issues, f, prior, out) {
     const found = issues.filter(plain).map((x) => asFound(x, f.lines));
     const masterPlain = prior.master.filter((m) => plain(m) && m.line).map((m) => asFound(m, f.baseLines));
     const vouched = new Set([...vouchedFor(found, masterPlain, f)].map((e) => e.ref));
-    for (const issue of issues) {
-        const kind = isVulnerability(issue) ? "vulnerability" : "issue";
-        const entry = { path: issue.path, line: issue.line, rule: issue.rule, message: issue.message, kind };
-        if (scoredTouched(issue, f)) {
-            const why = scoredVerdict(issue, priorScored(issue, f, prior.base));
-            (why ? out.blocking : out.existing).push(why ? { ...entry, message: why } : entry);
-        } else if (plain(issue) && onChangedLine(f.hunks, issue.line)) {
-            (vouched.has(issue) ? out.existing : out.blocking).push(entry);
-        } else if (!prior.master.some((m) => m.rule === issue.rule && m.message === issue.message)) {
-            out.warnings.push(entry);
-        }
+    for (const issue of issues) placeIssue(issue, f, prior, vouched, out);
+}
+
+// One issue of judgeIssues: blocking, existing, a warning, or nothing.
+function placeIssue(issue, f, prior, vouched, out) {
+    const kind = isVulnerability(issue) ? "vulnerability" : "issue";
+    const entry = { path: issue.path, line: issue.line, rule: issue.rule, message: issue.message, kind };
+    if (scoredTouched(issue, f)) {
+        const why = scoredVerdict(issue, priorScored(issue, f, prior.base));
+        if (why) out.blocking.push({ ...entry, message: why });
+        else out.existing.push(entry);
+    } else if (!SCORE_RULES.test(issue.rule) && onChangedLine(f.hunks, issue.line)) {
+        (vouched.has(issue) ? out.existing : out.blocking).push(entry);
+    } else if (!prior.master.some((m) => m.rule === issue.rule && m.message === issue.message)) {
+        out.warnings.push(entry);
     }
 }
 

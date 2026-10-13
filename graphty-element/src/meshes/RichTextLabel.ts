@@ -1086,7 +1086,7 @@ export class RichTextLabel {
             return;
         }
 
-        const cameraAt = new Vector3();
+        const toward = new Vector3();
         const toLocal = new Matrix();
         this.centerInFrontCallback = () => {
             const camera = this.scene.activeCamera;
@@ -1094,20 +1094,21 @@ export class RichTextLabel {
                 return;
             }
 
-            // The plane is parented to the mesh, so its position is in the mesh's local space:
-            // bring the camera there too, where the bounding radius is measured.
-            camera.getWorldMatrix().getTranslationToRef(cameraAt);
+            // BACK ALONG THE VIEW AXIS, not toward the camera's position: the plane stays over
+            // the node's center on screen, and zoom-to-fit, which moves the camera along that
+            // axis, finds the plane where it measured it. The plane is parented to the mesh, so
+            // the direction is brought into the mesh's local space, where the radius is measured.
+            camera.getDirectionToRef(Vector3.Forward(this.scene.useRightHandedSystem), toward);
             target.getWorldMatrix().invertToRef(toLocal);
-            Vector3.TransformCoordinatesToRef(cameraAt, toLocal, cameraAt);
-            const { center, radius } = target.getBoundingInfo().boundingSphere;
-            const toward = cameraAt.subtractInPlace(center);
+            Vector3.TransformNormalToRef(toward, toLocal, toward);
             const length = toward.length();
             if (length === 0) {
                 return;
             }
 
             // A little past the surface, so the plane does not fight the surface for depth.
-            this.mesh.position.copyFrom(center).addInPlace(toward.scaleInPlace((radius * 1.01) / length));
+            const { center, radius } = target.getBoundingInfo().boundingSphere;
+            this.mesh.position.copyFrom(center).addInPlace(toward.scaleInPlace(-(radius * 1.01) / length));
         };
         this.scene.registerBeforeRender(this.centerInFrontCallback);
     }

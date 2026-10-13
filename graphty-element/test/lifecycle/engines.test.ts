@@ -126,6 +126,25 @@ async function editAndLeaveOnePending(page: Page, tab: string): Promise<string[]
     return before.entries.map((entry) => entry.id);
 }
 
+/**
+ * Close a page the way a reader does, running its `beforeunload` and `pagehide`. Headless WebKit on
+ * Linux (the WPE port) never finishes `page.close({ runBeforeUnload: true })`, not even for
+ * about:blank, so there the page is first navigated away, which runs both, then closed.
+ * @param page - The page.
+ * @param engine - Its engine.
+ */
+async function closeAsReader(page: Page, engine: Engine): Promise<void> {
+    const closed = page.waitForEvent("close");
+    if (engine === "webkit" && process.platform === "linux") {
+        await page.goto(`${fx.origin}/away.html`);
+        await page.close();
+    } else {
+        await page.close({ runBeforeUnload: true });
+    }
+
+    await closed;
+}
+
 describe.each(ENGINES)("%s", (engine) => {
     it("keeps the work when the whole browser is killed, and restores it on a relaunch of the profile", async () => {
         const key = `kill-browser-${engine}`;
@@ -166,9 +185,7 @@ describe.each(ENGINES)("%s", (engine) => {
         await first.mouse.click(10, 10);
         await saved(tab("a"), await next(first));
         assert.isFalse((await check(first)).guard, "no unload guard once saved");
-        const firstClosed = first.waitForEvent("close");
-        await first.close({ runBeforeUnload: true });
-        await firstClosed;
+        await closeAsReader(first, engine);
         assert.deepEqual(dialogs, [], "no dialog when the work is saved");
 
         // Closed while pending: the browser asks, and the page writes.
@@ -176,9 +193,7 @@ describe.each(ENGINES)("%s", (engine) => {
         await second.mouse.click(10, 10);
         await next(second);
         assert.isTrue((await check(second)).guard, "the unload guard is armed while a write is pending");
-        const secondClosed = second.waitForEvent("close");
-        await second.close({ runBeforeUnload: true });
-        await secondClosed;
+        await closeAsReader(second, engine);
         assert.deepEqual(dialogs, ["beforeunload"], "one dialog, while the write was pending");
 
         // Reload: the restore after it is whole.

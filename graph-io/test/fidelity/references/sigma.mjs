@@ -78,6 +78,16 @@ export function sceneFromGraphology(g) {
         property,
         reason: "sigma's drawn size and label placement depend on its camera ratio; this route is read for edge colors only",
     }));
+    // An edge the file gives no color is drawn in sigma's own default, which says nothing about the
+    // file; judging graphty-element against it would score sigma's choice. The gap is scene-wide.
+    // ponytail: one uncolored edge drops the whole property; per-edge gaps if a sample mixes them.
+    const uncolored = g.filterEdges((_key, a) => parseColor(a.color) === null).length;
+    if (uncolored > 0) {
+        gaps.push({
+            property: "edgeColor",
+            reason: `the file gives ${String(uncolored)} of ${String(g.size)} edges no color; sigma draws those in its default ${SIGMA_DEFAULTS.edgeColor}`,
+        });
+    }
     return { nodes, edges, groups: [], gaps };
 }
 

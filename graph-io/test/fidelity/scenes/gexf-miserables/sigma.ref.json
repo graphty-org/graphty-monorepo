@@ -6,7 +6,7 @@
   "version": "graphology-gexf 0.13.2, graphology 0.26.0, sigma 4.0.1",
   "command": "parse(Graph, <file>, { allowUndeclaredAttributes: true })",
   "sourceSha256": "262bfbcb28e691893fb2e1e3b30fbacfbb3870127628898b9c6461407edd3d7c",
-  "generatedAt": "2026-10-13T22:32:31.707Z"
+  "generatedAt": "2026-10-13T22:35:14.780Z"
  },
  "canCarry": {
   "position": "yes",
@@ -8249,6 +8249,10 @@
   {
    "property": "fontSize",
    "reason": "sigma's drawn size and label placement depend on its camera ratio; this route is read for edge colors only"
+  },
+  {
+   "property": "edgeColor",
+   "reason": "the file gives 254 of 254 edges no color; sigma draws those in its default #cccccc"
   }
  ]
 }

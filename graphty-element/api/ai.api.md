@@ -50,61 +50,396 @@ import { WebGPUEngine } from '@babylonjs/core';
 import { WebXRDefaultExperience } from '@babylonjs/core';
 import { XGMML_LOSS } from '@graphty/graph-io';
 import { z } from 'zod';
-import { z as z_2 } from 'zod/v4';
+
+// @public
+export interface AiAgentEndEvent {
+    agent: string;
+    code: AiResultCode;
+    params: AiResultParams;
+    type: "ai-agent-end";
+    usage: AiTokenUsage;
+}
+
+// @public
+export interface AiAgentRole {
+    readonly commands: readonly string[];
+    readonly model?: string;
+    readonly name: string;
+    readonly provider?: AiProviderId;
+    readonly purpose: string;
+    readonly tools?: AiToolOptions;
+}
+
+// @public
+export type AiAgentsSetting = readonly AiAgentRole[] | {
+    readonly roles: readonly AiAgentRole[];
+    readonly router?: AiRouter;
+    readonly classifierModel?: string;
+    readonly confirmPlans?: boolean;
+};
+
+// @public
+export interface AiAgentStartEvent {
+    after?: readonly {
+        readonly agent: string;
+        readonly code: AiResultCode;
+    }[];
+    agent: string;
+    task: string;
+    type: "ai-agent-start";
+}
+
+// @public
+export interface AiApprovalAnswer {
+    readonly approve: boolean;
+    readonly calls?: readonly {
+        readonly arguments?: Readonly<Record<string, unknown>>;
+    }[];
+}
+
+// @public
+export interface AiApprovalPreview {
+    readonly algorithm?: string;
+    readonly changedValues?: number;
+    readonly costClass?: string;
+    readonly edges?: number;
+    readonly ids?: readonly {
+        readonly id: string;
+        readonly label: string;
+    }[];
+    readonly mode?: "merge" | "replace";
+    readonly nodes?: number;
+    readonly removeEdges?: number;
+    readonly removeNodes?: number;
+    readonly run?: string;
+    readonly seconds?: number | "unbounded";
+    readonly url?: string;
+}
+
+// @public
+export interface AiApprovalRequest {
+    readonly agent?: string;
+    readonly calls: readonly {
+        readonly tool: string;
+        readonly arguments: Readonly<Record<string, unknown>>;
+    }[];
+    readonly conversationId?: string;
+    readonly createdAt?: string;
+    readonly gate: "slow" | "large" | "replaces" | "irreversible" | "network" | "policy" | "plan" | "web-content" | (string & {});
+    readonly id: string;
+    readonly messageId?: string;
+    readonly preview: AiApprovalPreview;
+}
+
+// @public
+export interface AiApprovalRequestedEvent {
+    replayed: boolean;
+    request: AiApprovalRequest;
+    type: "ai-approval-requested";
+}
+
+// @public
+export type AiApprovalsSetting = "none" | "writes" | {
+    readonly ask: readonly string[];
+} | {
+    readonly policy: (call: AiToolCallFacts) => AiApprovalVerdict;
+};
+
+// @public
+export type AiApprovalVerdict = "allow" | "ask" | "deny";
+
+// @public
+export interface AiCallRecord {
+    readonly arguments: Readonly<Record<string, unknown>>;
+    readonly code: AiResultCode;
+    readonly command: string;
+    readonly params: AiResultParams;
+}
+
+// @public
+export interface AiCapabilities {
+    readonly model: string;
+    readonly provider: AiProviderId | (string & {});
+    readonly tools: AiToolCapabilities;
+}
+
+// @public
+export interface AiCapabilityUnavailableEvent {
+    code: AiResultCode;
+    params: AiResultParams;
+    tool: AiHostedToolId;
+    type: "ai-capability-unavailable";
+}
+
+// @public
+export interface AiCommandOptions {
+    readonly conversation?: string;
+    readonly pointing?: AiPointing;
+    readonly via?: "text" | "voice";
+}
+
+// @public
+export class AiConfigError extends Error {
+    constructor(params: AiResultParams);
+    readonly code = "AI_CONFIG_INVALID";
+    readonly params: AiResultParams;
+}
 
 // @public
 export class AiController {
     constructor(options: AiControllerOptions);
+    answerQuestion(id: string, answer: string | readonly string[]): Promise<ExecutionResult>;
     cancel(): void;
+    clearHistory(): Promise<void>;
     clearLastError(): void;
+    deleteConversation(id: string): Promise<void>;
     dispose(): void;
-    execute(input: string): Promise<ExecutionResult>;
+    execute(input: string, options?: AiCommandOptions): Promise<ExecutionResult>;
+    exportConversation(id: string): Promise<string | null>;
+    getCapabilities(): AiCapabilities;
+    getConversation(): AiConversationSnapshot | null;
     getLastError(): Error | null;
     getLastInput(): string | null;
+    getPendingApprovals(): readonly AiApprovalRequest[];
+    getPendingQuestions(): readonly AiQuestionRequest[];
     getStatus(): AiStatus;
+    listConversations(options?: {
+        readonly allKeys?: boolean;
+    }): Promise<readonly AiConversationSummary[]>;
+    newConversation(): Promise<AiConversationSnapshot | null>;
     onStatusChange(callback: StatusChangeCallback): () => void;
+    openConversation(id: string): Promise<AiConversationSnapshot | null>;
+    ready(): Promise<void>;
+    resolveAiApproval(id: string, answer: AiApprovalAnswer): Promise<ExecutionResult>;
 }
 
 // @public
 export interface AiControllerOptions {
+    agents?: AiAgentsSetting;
+    allowImportUrl?: (url: URL) => boolean;
+    apiKeys?: Partial<Record<AiProviderId, string>>;
+    approvals?: AiApprovalsSetting;
     commandRegistry: CommandRegistry;
     emitEvent?: AiEventEmitter;
+    gate?: Partial<AssistantGateLimits> | false;
     graph: CommandContext["graph"];
+    history?: "none" | "memory" | "browser" | AiHistoryOptions;
+    model?: string;
     provider: LlmProvider;
+    questions?: boolean;
     schemaManager?: SchemaManager | null;
+    secrets?: () => readonly string[];
+    toolProfile?: "standard" | "small";
+    tools?: AiToolOptions;
+}
+
+// @public
+export interface AiConversationChangedEvent {
+    code?: AiResultCode;
+    conversationId: string;
+    params?: AiResultParams;
+    type: "ai-conversation-changed";
+}
+
+// @public
+export type AiConversationMessage = {
+    readonly id: string;
+    readonly role: "reader";
+    readonly text: string;
+    readonly via: "text" | "voice";
+} | {
+    readonly id: string;
+    readonly role: "assistant";
+    readonly text: string;
+    readonly calls: readonly AiCallRecord[];
+    readonly sources: readonly AiSource[];
+    readonly outcome?: {
+        readonly code: AiResultCode;
+        readonly params: AiResultParams;
+    };
+    readonly agent?: string;
+};
+
+// @public
+export interface AiConversationSnapshot {
+    readonly formatVersion: number;
+    readonly id: string;
+    readonly key: string;
+    readonly messages: readonly AiConversationMessage[];
+    readonly pending: readonly AiApprovalRequest[];
+}
+
+// @public
+export interface AiConversationSummary {
+    readonly createdAt: string;
+    readonly dataKey: string | null;
+    readonly id: string;
+    readonly key: string;
+    readonly messageCount: number;
+    readonly pendingCount: number;
+    readonly updatedAt: string;
 }
 
 // @public
 export type AiEventEmitter = (event: AiEvent) => void;
 
 // @public
+export interface AiExportReadyEvent {
+    data: string | Blob;
+    format: FormatId;
+    losses: readonly ExportLoss[];
+    type: "ai-export-ready";
+}
+
+// @public
+export interface AiHistoryOptions {
+    readonly budgetTokens?: number;
+    readonly database?: string;
+    readonly dataKey?: string;
+    readonly key?: string;
+    readonly store: "memory" | "browser";
+}
+
+// @public
+export interface AiHostedToolOptions {
+    readonly allowedDomains?: readonly string[];
+    readonly maxUses?: number;
+    readonly required?: boolean;
+}
+
+// @public
+export interface AiHostedToolResultEvent {
+    sources: readonly AiSource[];
+    status: "done" | "result-unavailable" | "not-used";
+    tool: AiHostedToolId;
+    type: "ai-hosted-tool-result";
+}
+
+// @public
 export class AiManager {
     constructor();
+    answerQuestion(id: string, answer: string | readonly string[]): Promise<ExecutionResult>;
     cancel(): void;
+    clearHistory(): Promise<void>;
+    deleteConversation(id: string): Promise<void>;
     dispose(): void;
-    execute(input: string): Promise<ExecutionResult>;
+    endLive(): void;
+    execute(input: string, options?: AiCommandOptions): Promise<ExecutionResult>;
+    exportConversation(id: string): Promise<string | null>;
     getApiKeyManager(): ApiKeyManager;
+    getCapabilities(): AiCapabilities | null;
     getCommandRegistry(): CommandRegistry;
     getController(): AiController | null;
+    getConversation(): AiConversationSnapshot | null;
+    getPendingAiApprovals(): readonly AiApprovalRequest[];
+    getPendingQuestions(): readonly AiQuestionRequest[];
     getProvider(): LlmProvider | null;
     getRegisteredCommands(): string[];
     getSchemaManager(): SchemaManager | null;
     getStatus(): AiStatus;
+    getVoiceSupport(): Promise<AiVoiceSupport>;
     init(graph: Graph, config: AiManagerConfig): void;
+    listConversations(options?: {
+        readonly allKeys?: boolean;
+    }): Promise<readonly AiConversationSummary[]>;
+    newConversation(): Promise<AiConversationSnapshot | null>;
     onStatusChange(callback: StatusChangeCallback): () => void;
+    openConversation(id: string): Promise<AiConversationSnapshot | null>;
+    ready(): Promise<void>;
     registerCommand(command: Parameters<CommandRegistry["register"]>[0]): void;
+    resolveAiApproval(id: string, answer: AiApprovalAnswer): Promise<ExecutionResult>;
     retry(): Promise<ExecutionResult>;
     setApiKey(provider: ProviderType, key: string): void;
+    stopSpeech(): void;
+    talk(down: boolean): void;
 }
 
 // @public
 export interface AiManagerConfig {
+    agents?: AiAgentsSetting;
+    allowImportUrl?: (url: URL) => boolean;
     apiKey?: string;
+    apiKeys?: Partial<Record<AiProviderId, string>>;
+    approvals?: AiApprovalsSetting;
+    gate?: Partial<AssistantGateLimits> | false;
+    history?: "none" | "memory" | "browser" | AiHistoryOptions;
     keyPersistence?: KeyPersistenceConfig;
     model?: string;
     provider: ProviderType;
     providerInstance?: LlmProvider;
+    questions?: boolean;
+    reasoningEffort?: AiReasoningEffort;
     registerBuiltinCommands?: boolean;
+    temperature?: number;
+    thinkingBudgetTokens?: number;
+    toolProfile?: "standard" | "small" | "auto";
+    tools?: AiToolOptions;
+    voice?: AiVoiceOptions;
+}
+
+// @public
+export interface AiPendingResolvedEvent {
+    code: AiResultCode;
+    id: string;
+    kind: "approval" | "question" | (string & {});
+    params: AiResultParams;
+    type: "ai-pending-resolved";
+}
+
+// @public
+export interface AiPlan {
+    readonly steps: readonly {
+        readonly agents: readonly string[];
+        readonly order?: "parallel" | "sequence";
+    }[];
+}
+
+// @public
+export interface AiPointing {
+    readonly pointed: readonly NodeId[];
+    readonly selected: readonly NodeId[];
+}
+
+// @public
+export interface AiQuestionAskedEvent {
+    replayed: boolean;
+    request: AiQuestionRequest;
+    type: "ai-question-asked";
+}
+
+// @public
+export interface AiQuestionRequest {
+    readonly choices: readonly string[];
+    readonly conversationId?: string;
+    readonly createdAt?: string;
+    readonly id: string;
+    readonly messageId?: string;
+    readonly multiple: boolean;
+    readonly question: string;
+}
+
+// @public
+export type AiRouter = "model" | "classifier" | ((input: string) => AiPlan);
+
+// @public
+export interface AiSource {
+    readonly contentReturned?: false;
+    readonly retrieval?: AiPageRetrieval;
+    readonly title?: string;
+    readonly tool: AiHostedToolId;
+    readonly url: string;
+}
+
+// @public
+export interface AiSpeechEndEvent {
+    code: AiResultCode;
+    params: AiResultParams;
+    type: "ai-speech-end";
+}
+
+// @public
+export interface AiSpeechStartEvent {
+    type: "ai-speech-start";
 }
 
 // @public
@@ -119,6 +454,10 @@ export interface AiStatus {
     canRetry?: boolean;
     elapsed?: number;
     error?: Error;
+    pending?: {
+        approvals: number;
+        questions: number;
+    };
     stage?: AiStage;
     stageMessage?: string;
     startTime?: number;
@@ -130,13 +469,15 @@ export interface AiStatus {
 // @public
 export class AiStatusManager {
     constructor();
-    addToolCall(name: string): void;
+    addToolCall(name: string, args?: Readonly<Record<string, unknown>>): void;
     appendStreamedText(text: string): void;
     complete(): void;
     get current(): Readonly<AiStatus>;
     getSnapshot(): AiStatus;
     reset(): void;
     setError(error: Error, canRetry: boolean): void;
+    setPending(approvals: number, questions: number): void;
+    setPendingApprovals(approvals: number): void;
     setStage(stage: AiStage, message: string): void;
     startExecuting(): void;
     startStreaming(): void;
@@ -144,6 +485,120 @@ export class AiStatusManager {
     subscribe(callback: StatusChangeCallback): () => void;
     updateElapsed(): void;
     updateToolCallStatus(name: string, status: ToolCallStatusType, result?: unknown): void;
+}
+
+// @public
+export interface AiTokenUsage {
+    readonly inputTokens: number;
+    readonly outputTokens: number;
+}
+
+// @public
+export interface AiToolCallFacts {
+    readonly action?: string;
+    readonly arguments: Readonly<Record<string, unknown>>;
+    readonly command: string;
+    readonly effect: ActionEffect;
+    readonly webContent?: boolean;
+}
+
+// @public
+export interface AiToolOptions {
+    readonly inPageCode?: boolean | Pick<AiHostedToolOptions, "required">;
+    readonly webContentWrites?: "refuse" | "ask" | "allow";
+    readonly webFetch?: boolean | AiHostedToolOptions;
+    readonly webSearch?: boolean | AiHostedToolOptions;
+}
+
+// @public
+export type AiVoiceConversationMode = "turns" | "live";
+
+// @public
+export interface AiVoiceEndEvent {
+    code?: AiResultCode;
+    params?: AiResultParams;
+    // (undocumented)
+    reason: "user" | "timeout" | "error";
+    // (undocumented)
+    type: "ai-voice-end";
+}
+
+// @public
+export interface AiVoiceLevelEvent {
+    level: number;
+    type: "ai-voice-level";
+}
+
+// @public
+export type AiVoiceMode = "auto" | "on" | "browser" | "provider" | "off";
+
+// @public
+export interface AiVoiceOptions {
+    holdKey?: string;
+    input?: AiVoiceMode;
+    language?: string;
+    liveIdleSeconds?: number;
+    liveModel?: string;
+    maxPressSeconds?: number;
+    mode?: AiVoiceConversationMode;
+    output?: AiVoiceMode;
+    push?: "hold" | "toggle";
+    replies?: {
+        approve?: readonly string[];
+        deny?: readonly string[];
+        gates?: readonly string[];
+    };
+    say?: (fact: {
+        code: AiResultCode;
+        params: AiResultParams;
+    }) => string | undefined;
+    speechLevel?: number;
+    transcription?: {
+        provider: AiProviderId;
+        model?: string;
+    };
+    voiceName?: string;
+}
+
+// @public
+export interface AiVoicePath {
+    code?: AiResultCode;
+    destination: AiVoiceDestination;
+    params?: AiResultParams;
+    path: AiVoiceRoute;
+    status: AiVoiceReadiness;
+}
+
+// @public
+export interface AiVoiceStartEvent {
+    code?: AiResultCode;
+    mode?: AiVoiceConversationMode;
+    params?: AiResultParams;
+    // (undocumented)
+    type: "ai-voice-start";
+}
+
+// @public
+export interface AiVoiceSupport {
+    input: AiVoicePath;
+    live?: AiVoicePath;
+    output: AiVoicePath;
+}
+
+// @public
+export interface AiVoiceSupportChangeEvent {
+    support: AiVoiceSupport;
+    type: "ai-voice-support-change";
+}
+
+// @public
+export interface AiVoiceTranscriptEvent {
+    // (undocumented)
+    isFinal: boolean;
+    // (undocumented)
+    transcript: string;
+    // (undocumented)
+    type: "ai-voice-transcript";
 }
 
 // @public
@@ -171,6 +626,15 @@ export interface ApiKeyManagerOptions {
 }
 
 // @public
+export interface AssistantGateLimits {
+    readonly changedValues: number;
+    readonly removeEdges: number;
+    readonly removeNodes: number;
+    readonly removeNodesShare: number;
+    readonly slowSeconds: number;
+}
+
+// @public
 export interface AttributeHistogramBin {
     // (undocumented)
     count: number;
@@ -182,13 +646,13 @@ export interface AttributeHistogramBin {
     range: string;
 }
 
-// @public
+// @public @deprecated
 export const captureScreenshot: GraphCommand;
 
-// @public
+// @public @deprecated
 export const captureVideo: GraphCommand;
 
-// @public
+// @public @deprecated
 export const clearStyles: GraphCommand;
 
 // @public
@@ -222,8 +686,10 @@ export class CommandRegistry {
 export interface CommandResult {
     affectedEdges?: string[];
     affectedNodes?: string[];
+    code?: AiToolCauseCode;
     data?: unknown;
     message: string;
+    params?: Readonly<Record<string, unknown>>;
     success: boolean;
 }
 
@@ -240,6 +706,9 @@ export function createSystemPromptBuilder(): SystemPromptBuilder;
 export function createWebLlmProvider(): Promise<LlmProvider>;
 
 // @public
+export const DEFAULT_ASSISTANT_GATE_LIMITS: Readonly<AssistantGateLimits>;
+
+// @public @deprecated
 export const describeProperty: GraphCommand;
 
 // @public
@@ -247,15 +716,16 @@ export interface ExecutionResult extends CommandResult {
     code?: AiResultCode;
     llmText?: string;
     params?: AiResultParams;
+    usage?: AiTokenUsage;
 }
 
-// @public
+// @public @deprecated
 export const findAndStyleEdges: GraphCommand;
 
-// @public
+// @public @deprecated
 export const findAndStyleNodes: GraphCommand;
 
-// @public
+// @public @deprecated
 export const findNodes: GraphCommand;
 
 // @public
@@ -267,8 +737,11 @@ export function getWebLlmProviderClass(): Promise<WebLlmProvider>;
 // @public
 export interface GraphCommand {
     readonly description: string;
+    readonly effect?: "read" | "write" | "exempt";
     readonly examples: CommandExample[];
     execute(graph: Graph, params: Record<string, unknown>, context?: CommandContext): Promise<CommandResult>;
+    readonly keywords?: readonly string[];
+    readonly load?: "always" | "on-demand";
     readonly name: string;
     readonly parameters: z.ZodType;
 }
@@ -292,6 +765,7 @@ export interface InputOptions {
     continuous?: boolean;
     interimResults?: boolean;
     language?: string;
+    processLocally?: boolean;
 }
 
 // @public
@@ -302,7 +776,7 @@ export interface KeyPersistenceConfig {
     storage?: "localStorage" | "sessionStorage";
 }
 
-// @public
+// @public @deprecated
 export const listAlgorithms: GraphCommand;
 
 // @public
@@ -329,6 +803,18 @@ export interface LlmResponse {
         completionTokens: number;
     };
 }
+
+// @public
+export const MAX_AGENT_NAME_LENGTH = 20;
+
+// @public
+export const MAX_AGENT_PURPOSE_LENGTH = 200;
+
+// @public
+export const MAX_AGENTS = 8;
+
+// @public
+export const MAX_HELPERS_PER_TURN = 4;
 
 // @public
 export interface Message {
@@ -415,19 +901,21 @@ export interface ProviderOptions {
     baseUrl?: string;
     maxTokens?: number;
     model?: string;
+    reasoningEffort?: AiReasoningEffort;
     temperature?: number;
+    thinkingBudgetTokens?: number;
 }
 
 // @public
 export type ProviderType = AiProviderId;
 
-// @public
+// @public @deprecated
 export const queryGraph: GraphCommand;
 
-// @public
+// @public @deprecated
 export const runAlgorithm: GraphCommand;
 
-// @public
+// @public @deprecated
 export const sampleData: GraphCommand;
 
 // @public
@@ -463,16 +951,16 @@ export interface SchemaSummary {
     nodeProperties: PropertySummary[];
 }
 
-// @public
+// @public @deprecated
 export const setCameraPosition: GraphCommand;
 
-// @public
+// @public @deprecated
 export const setDimension: GraphCommand;
 
-// @public
+// @public @deprecated
 export const setImmersiveMode: GraphCommand;
 
-// @public
+// @public @deprecated
 export const setLayout: GraphCommand;
 
 // @public
@@ -530,6 +1018,7 @@ export interface ToolCall {
 
 // @public
 export interface ToolCallStatus {
+    arguments?: Readonly<Record<string, unknown>>;
     name: string;
     result?: unknown;
     status: ToolCallStatusType;
@@ -570,9 +1059,11 @@ export type VercelProviderType = Exclude<AiProviderId, "webllm" | "mock">;
 export class VoiceInputAdapter implements InputAdapter {
     constructor();
     dispose(): void;
+    end(): void;
     get isActive(): boolean;
     get isSupported(): boolean;
     onActiveChange(callback: VoiceActiveCallback): void;
+    onError(callback: (error: string) => void): void;
     onInput(callback: InputCallback): void;
     onStart(callback: VoiceStartCallback): void;
     start(options?: InputOptions): void;
@@ -599,7 +1090,7 @@ export interface WebLlmProviderOptions {
     initializeOnFirstUse?: boolean;
 }
 
-// @public
+// @public @deprecated
 export const zoomToNodes: GraphCommand;
 
 // (No @packageDocumentation comment for this package)

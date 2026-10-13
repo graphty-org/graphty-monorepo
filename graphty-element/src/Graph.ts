@@ -6263,12 +6263,18 @@ export class Graph implements GraphContext {
 
     // AI Manager instance (lazy-initialized)
     private aiManager: import("./ai/AiManager").AiManager | null = null;
+    /** The assistant's XR hooks, which the class keeps off its public surface. */
+    private aiXr: import("./ai/AiManager").AssistantXrHooks | null = null;
+    /** Counts `enableAiControl` and `disableAiControl` calls: an enable a later call superseded does nothing. */
+    private aiGeneration = 0;
 
     /**
      * Enable AI-powered natural language control of the graph.
      *
      * `provider: "webllm"` runs a model in the browser: install the optional package
      * `@mlc-ai/web-llm`; the model downloads on the first command.
+     * A later `enableAiControl` or `disableAiControl` supersedes one still settling: the earlier
+     * call then resolves without changing anything, and the later one decides which assistant is on.
      * @param config - AI configuration including provider and optional API key
      * @returns Promise resolving when AI is ready
      * @throws A `GraphtyError` with `E_MISSING_PACKAGE` when `provider` is `"webllm"` and
@@ -6289,8 +6295,15 @@ export class Graph implements GraphContext {
      * ```
      */
     async enableAiControl(config: import("./ai/AiManager").AiManagerConfig): Promise<void> {
+        const generation = ++this.aiGeneration;
+        // Helpers that cannot run reject before anything is built, and the current assistant stays.
+        if (config.agents !== undefined) {
+            const { checkAgents } = await import("./ai/roles");
+            checkAgents(config.agents, config.providerInstance?.name ?? config.provider);
+        }
+
         // Dynamically import to avoid loading AI code when not needed
-        const { AiManager } = await import("./ai/AiManager");
+        const { AiManager, assistantXr } = await import("./ai/AiManager");
 
         // The in-browser provider loads asynchronously, and only when it is picked. Built before
         // the old assistant goes, so a missing package leaves the current one in place.
@@ -6300,10 +6313,27 @@ export class Graph implements GraphContext {
             providerInstance = await loadWebLlmProvider(config.model);
         }
 
+        // A later enable or a disable came while this one loaded: that call decides.
+        if (generation !== this.aiGeneration) {
+            return;
+        }
+
         // Enabling again replaces the assistant: the previous one is disposed, not leaked.
         this.aiManager?.dispose();
-        this.aiManager = new AiManager();
-        this.aiManager.init(this, { ...config, providerInstance });
+        const manager = new AiManager();
+        this.aiManager = manager;
+        const xr = assistantXr(manager);
+        this.aiXr = xr;
+        manager.init(this, { ...config, providerInstance });
+        // With `history`, the saved conversation is open when this resolves. A call that supersedes
+        // this one meanwhile disposes `manager` itself, and leaves its own in place.
+        await manager.ready();
+        // Enabled inside an immersive session: bind to it now.
+        const xrCameraController = this.scene.metadata?.xrCameraController as
+            import("./cameras/XRPivotCameraController").XRPivotCameraController | null | undefined;
+        if (xrCameraController && this.aiManager === manager) {
+            await xr.enter(xrCameraController.getInputHandler(), this.scene, this.graphContext.getConfig().xr?.ai);
+        }
     }
 
     /**
@@ -6315,9 +6345,11 @@ export class Graph implements GraphContext {
      * ```
      */
     disableAiControl(): void {
+        this.aiGeneration++;
         if (this.aiManager) {
             this.aiManager.dispose();
             this.aiManager = null;
+            this.aiXr = null;
         }
     }
 
@@ -6337,8 +6369,14 @@ export class Graph implements GraphContext {
      * // Switch dimension
      * await graph.aiCommand('Show in 2D');
      * ```
+     * @param options - The saved conversation to send it into (with `history` set); an unknown
+     *     one resolves `AI_HISTORY_UNAVAILABLE` with `{ reason: "unknown-conversation" }`. `via:
+     *     "voice"` records that the reader spoke it (a transcript from `startVoiceInput`).
      */
-    async aiCommand(input: string): Promise<import("./ai/AiController").ExecutionResult> {
+    async aiCommand(
+        input: string,
+        options?: import("./ai/AiController").AiCommandOptions,
+    ): Promise<import("./ai/AiController").ExecutionResult> {
         if (!this.aiManager) {
             return {
                 success: false,
@@ -6348,7 +6386,164 @@ export class Graph implements GraphContext {
             };
         }
 
-        return this.aiManager.execute(input);
+        return this.aiManager.execute(input, options);
+    }
+
+    /**
+     * The assistant's open conversation, as an application draws it: what the reader and the model
+     * said, and the calls the model made with their outcomes as codes. Needs `history` in
+     * `enableAiControl`; `ai-conversation-changed` says when to read it again.
+     * @returns Its snapshot, or null without `history` or before AI is enabled.
+     * @since 4.0.0
+     */
+    getAiConversation(): import("./ai/conversation/snapshot").AiConversationSnapshot | null {
+        return this.aiManager?.getConversation() ?? null;
+    }
+
+    /**
+     * The approval requests waiting on the reader (`ai-approval-requested` asked, nothing ended
+     * yet): held in this page, or reopened from the saved conversation after a reload. Read it any
+     * time to draw approval cards, whether or not the replayed events were heard.
+     * @returns The requests, oldest first; none before AI is enabled.
+     * @since 4.0.0
+     */
+    getPendingAiApprovals(): readonly import("./events").AiApprovalRequest[] {
+        return this.aiManager?.getPendingAiApprovals() ?? [];
+    }
+
+    /**
+     * The questions the model asked the reader and waits on (`ai-question-asked` asked, nothing
+     * ended yet): asked in this page, or reopened from the saved conversation after a reload. Read
+     * it any time to draw questions, whether or not the replayed events were heard.
+     * @returns The questions, oldest first; none before AI is enabled.
+     * @since 4.0.0
+     */
+    getPendingAiQuestions(): readonly import("./events").AiQuestionRequest[] {
+        return this.aiManager?.getPendingQuestions() ?? [];
+    }
+
+    /**
+     * What the assistant can use with its provider and model: web search, reading web pages and
+     * in-page code (`AiToolOptions`), each `"available"`, `"unsupported"`,
+     * `"results-not-returned"` or `"unknown"`. Synchronous.
+     * @returns The capabilities, or null before AI is enabled.
+     * @since 4.0.0
+     */
+    getAiCapabilities(): import("./catalog/ai").AiCapabilities | null {
+        return this.aiManager?.getCapabilities() ?? null;
+    }
+
+    /**
+     * Press (`true`) or release (`false`) talk: while it is held the assistant listens, then sends
+     * what was said as a command (`AiManagerConfig.voice`). Without `voice`, or before AI is
+     * enabled, a press ends at once with `ai-voice-end` `{ code: "AI_NOT_ENABLED" }`.
+     * @param down - True to press, false to release.
+     * @since 4.0.0
+     */
+    aiTalk(down: boolean): void {
+        if (this.aiManager) {
+            this.aiManager.talk(down);
+        } else if (down) {
+            this.eventManager.emit("ai-voice-end", { reason: "error", code: "AI_NOT_ENABLED", params: {} });
+        }
+    }
+
+    /**
+     * Stop speaking an answer at once (`ai-speech-end` `{ code: "AI_CANCELLED" }`).
+     * @since 4.0.0
+     */
+    stopAiSpeech(): void {
+        this.aiManager?.stopSpeech();
+    }
+
+    /**
+     * End a live conversation (`voice.mode: "live"`): its connection closes, a held press ends with
+     * `AI_CANCELLED`, and the next press opens another. Does nothing when none is open.
+     * @since 4.0.0
+     */
+    endAiLive(): void {
+        this.aiManager?.endLive();
+    }
+
+    /**
+     * How speech would be carried in each direction now: the path, whether it is ready, why not,
+     * and where the audio goes. May start the browser's recognition once to find out.
+     * @returns Both directions; unavailable with `AI_NOT_ENABLED` without `voice`.
+     * @since 4.0.0
+     */
+    async getAiVoiceSupport(): Promise<import("./ai/AiManager").AiVoiceSupport> {
+        if (this.aiManager) {
+            return this.aiManager.getVoiceSupport();
+        }
+
+        // Built here rather than imported, so the assistant's chunk stays unloaded until enabled.
+        const none = {
+            path: "none",
+            status: "unavailable",
+            code: "AI_NOT_ENABLED",
+            params: {},
+            destination: "none",
+        } as const;
+        return { input: none, output: none };
+    }
+
+    /**
+     * The assistant's saved conversations, newest first: this element's scope, or every scope.
+     * @param options - Which.
+     * @param options.allKeys - True for every scope's.
+     * @returns Their summaries; none without `history`.
+     * @since 4.0.0
+     */
+    async listAiConversations(options?: {
+        readonly allKeys?: boolean;
+    }): Promise<readonly import("./ai/conversation/snapshot").AiConversationSummary[]> {
+        return (await this.aiManager?.listConversations(options)) ?? [];
+    }
+
+    /**
+     * Make a saved conversation the open one; the next `aiCommand` continues it.
+     * @param id - Its id.
+     * @returns Its snapshot, or null when there is none.
+     * @since 4.0.0
+     */
+    async openAiConversation(id: string): Promise<import("./ai/conversation/snapshot").AiConversationSnapshot | null> {
+        return (await this.aiManager?.openConversation(id)) ?? null;
+    }
+
+    /**
+     * Start a new conversation; the open one stays saved and listed.
+     * @returns Its snapshot, or null without `history`.
+     * @since 4.0.0
+     */
+    async newAiConversation(): Promise<import("./ai/conversation/snapshot").AiConversationSnapshot | null> {
+        return (await this.aiManager?.newConversation()) ?? null;
+    }
+
+    /**
+     * Delete a saved conversation; deleting the open one starts a new one.
+     * @param id - Its id.
+     * @since 4.0.0
+     */
+    async deleteAiConversation(id: string): Promise<void> {
+        await this.aiManager?.deleteConversation(id);
+    }
+
+    /**
+     * Delete every saved conversation, of every scope: for a shared headset's or kiosk's "end session".
+     * @since 4.0.0
+     */
+    async clearAiHistory(): Promise<void> {
+        await this.aiManager?.clearHistory();
+    }
+
+    /**
+     * A saved conversation as JSON, in the published `graphty-ai-conversation` format (version 1).
+     * @param id - Its id.
+     * @returns The JSON text, or null when there is none.
+     * @since 4.0.0
+     */
+    async exportAiConversation(id: string): Promise<string | null> {
+        return (await this.aiManager?.exportConversation(id)) ?? null;
     }
 
     /**
@@ -6405,6 +6600,56 @@ export class Graph implements GraphContext {
      */
     cancelAiCommand(): void {
         this.aiManager?.cancel();
+    }
+
+    /**
+     * Answer a request the assistant made for the reader's approval (`ai-approval-requested`): a
+     * change it held because it was large, slow, replaced the graph, could not be undone, fetched a
+     * URL the reader did not give, or the `approvals` policy asked. The message that made it
+     * continues: approve runs the held calls (with any `calls[].arguments` the reader edited) as
+     * one more step of the message; deny drops them; either way the model hears the decision and
+     * answers. A new message, `cancelAiCommand()` or an undo of the message ends the request
+     * instead (`ai-pending-resolved`).
+     * @param id - The request's id, from the event.
+     * @param answer - The reader's answer: `{ approve }`, and optionally `calls` with edited arguments.
+     * @returns The message's final result, which `ai-command-complete` also carries:
+     *     `AI_COMPLETED`, `AI_APPROVAL_DENIED` or `AI_APPROVAL_STALE` with the model's answer,
+     *     `AI_CONFIRMATION_NEEDED` with a new request when another limit holds the calls again, or
+     *     `AI_NOT_ENABLED`. An answer given while its message is still running waits for it.
+     * @since 4.0.0
+     */
+    async resolveAiApproval(
+        id: string,
+        answer: import("./ai/AiController").AiApprovalAnswer,
+    ): Promise<import("./ai/AiController").ExecutionResult> {
+        if (!this.aiManager) {
+            return { success: false, message: "", code: "AI_NOT_ENABLED", params: {} };
+        }
+
+        return this.aiManager.resolveAiApproval(id, answer);
+    }
+
+    /**
+     * Answer a question the model asked the reader (`ai-question-asked`, with `questions: true`).
+     * The message that asked continues: the answer is its question's result, and the model goes
+     * on. A new message, `cancelAiCommand()` or an undo of the message ends the question instead
+     * (`ai-pending-resolved`).
+     * @param id - The question's id, from the event.
+     * @param answer - One of its choices, by value; or several, for a question that takes several.
+     * @returns The message's final result, which `ai-command-complete` also carries;
+     *     `AI_ANSWER_INVALID` when the answer is not among the choices (the question stays open);
+     *     `AI_APPROVAL_STALE` when the question is no longer open; or `AI_NOT_ENABLED`.
+     * @since 4.0.0
+     */
+    async answerAiQuestion(
+        id: string,
+        answer: string | readonly string[],
+    ): Promise<import("./ai/AiController").ExecutionResult> {
+        if (!this.aiManager) {
+            return { success: false, message: "", code: "AI_NOT_ENABLED", params: {} };
+        }
+
+        return this.aiManager.answerQuestion(id, answer);
     }
 
     /**
@@ -6565,7 +6810,7 @@ export class Graph implements GraphContext {
      *   onTranscript: (text, isFinal) => {
      *     console.log('Transcript:', text, isFinal ? '(final)' : '(interim)');
      *     if (isFinal) {
-     *       graph.aiCommand(text);
+     *       graph.aiCommand(text, { via: "voice" });
      *     }
      *   },
      * });
@@ -6721,6 +6966,9 @@ export class Graph implements GraphContext {
             throw new Error("XR is not initialized");
         }
 
+        // Inside the click that entered, before anything waits: a headset asks for the microphone
+        // and lets speech start only from a click.
+        this.aiXr?.prime();
         const previousCamera = this.camera.getActiveController()?.camera;
 
         if (mode === "immersive-vr") {
@@ -6755,6 +7003,14 @@ export class Graph implements GraphContext {
         // Store for cleanup
         this.scene.metadata.xrCameraController = xrCameraController;
         this.scene.metadata.xrUpdateObserver = xrUpdateObserver;
+
+        // The assistant's talk, approve and deny buttons, pointing and cards (`xr.ai`).
+        await this.aiXr
+            ?.enter(xrCameraController.getInputHandler(), this.scene, this.graphContext.getConfig().xr?.ai)
+            .catch((error: unknown) => {
+                // The session runs on without the assistant's controls.
+                console.warn("[Graph] The assistant could not bind to the XR session:", error);
+            });
     }
 
     /**
@@ -6766,6 +7022,8 @@ export class Graph implements GraphContext {
         }
 
         this.immersiveSince = null;
+        // Leaving XR closes a held microphone without sending, and stops speech.
+        this.aiXr?.leave();
 
         // Clean up XR camera controller
         if (this.scene.metadata?.xrCameraController) {

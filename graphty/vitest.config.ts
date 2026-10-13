@@ -8,7 +8,7 @@ import { defineConfig } from "vitest/config";
 
 import { workerShare } from "../tools/test-slots.mjs";
 import { ciReporters } from "../vitest.ci-junit.mjs";
-import { aliases } from "./vite.aliases";
+import { aliases, elementSourcePlugins } from "./vite.aliases";
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -28,7 +28,7 @@ const chromium = () => ({
 });
 
 export default defineConfig({
-    plugins: [react()],
+    plugins: [react(), ...elementSourcePlugins],
     // The same aliases as the dev server, so tests run graphty-element from source rather
     // than a prebundled copy of its dist that Vite's dependency cache never refreshes.
     resolve: { alias: aliases },

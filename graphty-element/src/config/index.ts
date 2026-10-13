@@ -15,7 +15,16 @@ export type { StyleSchemaV1 } from "./StyleTemplate";
 export { StyleTemplate } from "./StyleTemplate";
 export type { ViewMode } from "./ViewMode";
 export { DEFAULT_VIEW_MODE, isViewMode, VIEW_MODE_VALUES } from "./ViewMode";
-export type { XRConfig, XRInputConfig, XRModeConfig, XRTeleportationConfig, XRUIConfig } from "./XRConfig";
+export type {
+    XRAiConfig,
+    XRAiControlCode,
+    XRConfig,
+    XRControllerButton,
+    XRInputConfig,
+    XRModeConfig,
+    XRTeleportationConfig,
+    XRUIConfig,
+} from "./XRConfig";
 export { defaultXRConfig } from "./XRConfig";
 // Unified options schema system (Zod-based)
 export type { InferOptions, OptionsSchema } from "./OptionsSchema";

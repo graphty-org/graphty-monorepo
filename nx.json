@@ -108,6 +108,7 @@
             "{workspaceRoot}/vite.shared.config.ts",
             "{workspaceRoot}/vitest.shared.config.ts",
             "{workspaceRoot}/vitest.ci-junit.mjs",
+            "{workspaceRoot}/vite.anthropic-sdk-stub.mjs",
             "{workspaceRoot}/vitest.browser-coverage-setup.ts",
             "{workspaceRoot}/pnpm-workspace.yaml",
             "{workspaceRoot}/.npmrc",

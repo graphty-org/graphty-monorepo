@@ -6,7 +6,7 @@
  */
 
 import { expandEdges, fromEdgeArrays } from "@graphty/graph-format";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import type { EdgeId } from "../catalog/types";
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";

@@ -13,6 +13,7 @@ import { z } from "zod";
 
 import { AI_RESULT_CODES } from "../../../catalog";
 import { createGraphSession, type GraphSession } from "../../../session";
+import { AiConfigError } from "../../../src/ai/agents";
 import { AiController, type ExecutionResult } from "../../../src/ai/AiController";
 import { AiManager } from "../../../src/ai/AiManager";
 import { CommandRegistry } from "../../../src/ai/commands";
@@ -20,8 +21,27 @@ import type { CommandContext } from "../../../src/ai/commands/types";
 import { MockLlmProvider } from "../../../src/ai/providers/MockLlmProvider";
 import type { LlmProvider, LlmResponse } from "../../../src/ai/providers/types";
 import { VercelAiProvider } from "../../../src/ai/providers/VercelAiProvider";
+import { installAssistantTools } from "../../../src/ai/tools/install";
+import { Graph } from "../../../src/Graph";
 
 const reached = new Set<string>();
+
+/**
+ * Codes a saved conversation's tool results and the conversation events carry rather than a
+ * command's result (test/ai/conversation/ covers them).
+ */
+const NOT_COMMAND_RESULTS = [
+    "AI_TOOL_NOT_RUN",
+    "AI_HISTORY_UNAVAILABLE",
+    "AI_HISTORY_NEWER_FORMAT",
+    "AI_STORAGE_FAILED",
+    // Declared ahead of the web tools that return them (tools: { webSearch, webFetch }); remove
+    // both once those land, with a test here reaching each.
+    "AI_HOSTED_TOOL_UNSUPPORTED",
+    "AI_PROVIDER_PAUSED",
+    // A voice event's code (ai-voice-end, ai-speech-end), never a command's result.
+    "AI_VOICE_UNAVAILABLE",
+];
 
 /**
  * Record a result's code.
@@ -160,8 +180,99 @@ describe("AI command result codes", () => {
             const result = seen(await assistant().execute("go"));
             assert.isFalse(result.success, code);
             assert.strictEqual(result.code, code);
-            assert.deepEqual(result.params, { tool });
+            assert.strictEqual(result.params?.tool, tool);
         }
+    });
+
+    it("AI_CONFIRMATION_NEEDED for a held change; AI_APPROVAL_DENIED and AI_APPROVAL_STALE for its answers", async () => {
+        await session.data.addNodes([{ id: "a" }, { id: "b" }, { id: "c" }]);
+        installAssistantTools(registry, session);
+        mock.setResponse("empty", call("edit_data", { action: "delete_all" }));
+        const controller = assistant();
+        const held = seen(await controller.execute("empty it"));
+        assert.isTrue(held.success);
+        assert.strictEqual(held.code, "AI_CONFIRMATION_NEEDED");
+        assert.strictEqual(held.params?.gate, "replaces");
+        const denied = seen(await controller.resolveAiApproval(String(held.params?.request), { approve: false }));
+        assert.strictEqual(denied.code, "AI_APPROVAL_DENIED");
+        const again = seen(await controller.resolveAiApproval(String(held.params?.request), { approve: true }));
+        assert.strictEqual(again.code, "AI_APPROVAL_STALE");
+        assert.strictEqual(session.status.counts.nodes, 3);
+    });
+
+    it("AI_QUESTION_ASKED for a question to the reader; AI_ANSWER_INVALID for an answer not among its choices", async () => {
+        mock.setResponse("which", call("ask_reader", { question: "Which?", choices: ["a", "b"] }));
+        const controller = new AiController({
+            provider: mock,
+            commandRegistry: registry,
+            graph: { getSession: () => session } as unknown as CommandContext["graph"],
+            questions: true,
+        });
+        const asked = seen(await controller.execute("which one"));
+        assert.isTrue(asked.success);
+        assert.strictEqual(asked.code, "AI_QUESTION_ASKED");
+        const invalid = seen(await controller.answerQuestion(String(asked.params?.request), "c"));
+        assert.isFalse(invalid.success);
+        assert.strictEqual(invalid.code, "AI_ANSWER_INVALID");
+        assert.deepEqual(invalid.params, { request: String(asked.params?.request) });
+    });
+
+    it("AI_TOOL_DENIED_BY_POLICY when the host's approval policy refuses a call", async () => {
+        await session.data.addNodes([{ id: "a" }]);
+        installAssistantTools(registry, session);
+        mock.setResponse("empty", call("edit_data", { action: "delete_all" }));
+        const controller = new AiController({
+            provider: mock,
+            commandRegistry: registry,
+            graph: { getSession: () => session } as unknown as CommandContext["graph"],
+            approvals: { policy: (facts) => (facts.effect === "write" ? "deny" : "allow") },
+        });
+        const denied = seen(await controller.execute("empty it"));
+        assert.strictEqual(denied.code, "AI_TOOL_DENIED_BY_POLICY");
+        assert.strictEqual(denied.params?.tool, "edit_data");
+        assert.strictEqual(session.status.counts.nodes, 1);
+    });
+
+    it("AI_ROLLBACK_PARTIAL when taking a failed message back stops at the reader's own edit", async () => {
+        let asks = 0;
+        let markAsked: () => void = () => undefined;
+        const asked = new Promise<void>((resolve) => {
+            markAsked = resolve;
+        });
+        let release: () => void = () => undefined;
+        const released = new Promise<void>((resolve) => {
+            release = resolve;
+        });
+        const provider: LlmProvider = {
+            name: "pausing",
+            supportsStreaming: false,
+            supportsTools: true,
+            configure: () => undefined,
+            generate: async () => {
+                asks++;
+                if (asks === 1) {
+                    return call("addNode", { id: "x" });
+                }
+
+                if (asks === 2) {
+                    markAsked();
+                    await released;
+                    return call("refuse");
+                }
+
+                return { text: "it failed", toolCalls: [] };
+            },
+            generateStream: () => Promise.reject(new Error("not used")),
+            validateApiKey: () => Promise.resolve(true),
+        };
+        const running = assistant(provider).execute("add x, then fail");
+        await asked;
+        // The reader's own edit lands on top of the message's step while the model thinks.
+        await session.data.addNodes([{ id: "reader" }]);
+        release();
+        const result = seen(await running);
+        assert.strictEqual(result.code, "AI_ROLLBACK_PARTIAL");
+        assert.exists(session.data.node("reader"));
     });
 
     it("AI_PROVIDER_ERROR and AI_KEY_REJECTED name the provider and the HTTP status", async () => {
@@ -225,7 +336,28 @@ describe("AI command result codes", () => {
         assert.strictEqual(seen(await manager.execute("hello")).code, "AI_DISPOSED");
     });
 
+    it("AI_CONFIG_INVALID: enableAiControl rejects helpers that cannot run, and builds no assistant", async () => {
+        const graph = { aiManager: null } as unknown as Graph;
+
+        const error: unknown = await Graph.prototype.enableAiControl
+            .call(graph, {
+                provider: "mock",
+                agents: [{ name: "counter", purpose: "Count nodes.", commands: ["paint"] }],
+            })
+            .catch((caught: unknown) => caught);
+
+        assert.instanceOf(error, AiConfigError);
+        const { code, params } = error;
+        reached.add(code);
+        assert.deepInclude(params, { agent: "counter", field: "commands", reason: "unknown-command" });
+        assert.isNull((graph as unknown as { aiManager: unknown }).aiManager);
+    });
+
     afterAll(() => {
-        assert.sameMembers([...reached], [...AI_RESULT_CODES], "every code in AI_RESULT_CODES is reached");
+        assert.sameMembers(
+            [...reached],
+            AI_RESULT_CODES.filter((code) => !NOT_COMMAND_RESULTS.includes(code)),
+            "every code in AI_RESULT_CODES is reached",
+        );
     });
 });

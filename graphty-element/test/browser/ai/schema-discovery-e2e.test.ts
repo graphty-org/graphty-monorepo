@@ -91,6 +91,7 @@ describe("Schema Discovery End-to-End", () => {
             nodes: SCHEMA_TEST_NODES,
             edges: SCHEMA_TEST_EDGES,
             enableAi: true,
+            legacyCommands: true,
         });
         ({ graph } = result);
     });

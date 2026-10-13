@@ -1,5 +1,5 @@
 import type { F32 } from "@graphty/graph-format";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { defineOptions, type OptionsSchema } from "../config";
 import type { Node } from "../Node";

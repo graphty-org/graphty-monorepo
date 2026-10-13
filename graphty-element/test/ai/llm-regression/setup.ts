@@ -13,11 +13,20 @@ afterEach(() => {
     (globalThis as { __GRAPHTY_STRICT_SWEEP__?: () => void }).__GRAPHTY_STRICT_SWEEP__?.();
 });
 
-// What a run cost: the harness counts every request it sends to the model.
-const counter = globalThis as { __LLM_REGRESSION_API_CALLS__?: number };
+// What a run cost: the harness counts every request it sends to the model (each live response is
+// one) and sums the tokens the provider reports.
+const counter = globalThis as {
+    __LLM_REGRESSION_API_CALLS__?: number;
+    __LLM_REGRESSION_TOKENS__?: { input: number; output: number };
+};
 beforeAll(() => {
     counter.__LLM_REGRESSION_API_CALLS__ = 0;
+    counter.__LLM_REGRESSION_TOKENS__ = { input: 0, output: 0 };
 });
 afterAll(() => {
-    console.log(`[llm-regression] API calls: ${counter.__LLM_REGRESSION_API_CALLS__ ?? 0}`);
+    const tokens = counter.__LLM_REGRESSION_TOKENS__ ?? { input: 0, output: 0 };
+    console.log(
+        `[llm-regression] API calls: ${counter.__LLM_REGRESSION_API_CALLS__ ?? 0}; ` +
+            `tokens in: ${tokens.input}, out: ${tokens.output}`,
+    );
 });

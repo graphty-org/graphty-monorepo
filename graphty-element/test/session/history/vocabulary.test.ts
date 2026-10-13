@@ -12,12 +12,12 @@
  */
 
 import { assert, describe, it } from "vitest";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { type CommandMeta, COMMANDS } from "../../../commands";
 import { DataConfig } from "../../../src/config/DataConfig";
-import { CONFIG_KEYS } from "../../../src/session/commands/config";
 import { DEFINITIONS } from "../../../src/session/commands/index";
+import { CONFIG_KEYS } from "../../../src/session/configKeys";
 import { dispatcherOf } from "../../../src/session/GraphSession";
 import type { SessionCommand } from "../../../src/session/planning";
 import { stateDigest } from "../../../src/session/project/digest";

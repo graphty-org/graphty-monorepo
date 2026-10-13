@@ -303,6 +303,22 @@ export interface GraphtyElementJSXProps {
      */
     "acceleration-min-nodes"?: string;
     /**
+     * A helper finished its task.
+     */
+    "onai-agent-end"?: (event: CustomEvent<EventOfType<"ai-agent-end">>) => void;
+    /**
+     * The assistant handed a task to a helper (`AiAgentRole`), which starts on it.
+     */
+    "onai-agent-start"?: (event: CustomEvent<EventOfType<"ai-agent-start">>) => void;
+    /**
+     * The assistant held a batch of its changes for the reader's approval: it was large, slow, replaced the graph, could not be undone or fetched a URL the reader did not give. Nothing it asked for has happened. Answer with `resolveAiApproval(request.id, { approve })`; the id expires at the reader's next message. A host that listens for none of these never runs a held batch.
+     */
+    "onai-approval-requested"?: (event: CustomEvent<EventOfType<"ai-approval-requested">>) => void;
+    /**
+     * A tool the configuration asked for (`AiToolOptions`) cannot be used with this provider and model, so it is left out of every turn; emitted once each time the assistant is enabled.
+     */
+    "onai-capability-unavailable"?: (event: CustomEvent<EventOfType<"ai-capability-unavailable">>) => void;
+    /**
      * Emitted when an AI command is cancelled
      */
     "onai-command-cancelled"?: (event: CustomEvent<EventOfType<"ai-command-cancelled">>) => void;
@@ -319,11 +335,39 @@ export interface GraphtyElementJSXProps {
      */
     "onai-command-start"?: (event: CustomEvent<EventOfType<"ai-command-start">>) => void;
     /**
+     * The open conversation changed: it was saved, reopened, switched to, started anew (`newAiConversation`, `clearAiHistory`) or changed by another tab, or its store failed. Read it again with `getAiConversation()`. Only with `history` set.
+     */
+    "onai-conversation-changed"?: (event: CustomEvent<EventOfType<"ai-conversation-changed">>) => void;
+    /**
+     * The assistant exported the graph or captured a picture or a video: the document is handed to the application, which saves or shows it. The model receives only its size.
+     */
+    "onai-export-ready"?: (event: CustomEvent<EventOfType<"ai-export-ready">>) => void;
+    /**
+     * A tool the provider ran for the assistant (a web search, reading a web page) finished, or a helper that had it answered without using it. Draw its sources as text or as links, http and https only.
+     */
+    "onai-hosted-tool-result"?: (event: CustomEvent<EventOfType<"ai-hosted-tool-result">>) => void;
+    /**
+     * Something the assistant waited on the reader for ended: an approval was answered, superseded by a new message or a new conversation (`AI_APPROVAL_STALE` with `reason: "superseded"`), cancelled (`AI_CANCELLED`) or undone (`AI_UNDONE`). Remove what was drawn for it.
+     */
+    "onai-pending-resolved"?: (event: CustomEvent<EventOfType<"ai-pending-resolved">>) => void;
+    /**
+     * The model asked the reader a question with a few choices, and the message waits for the answer (the command resolved `AI_QUESTION_ASKED`). Draw the question and its choices; answer with `answerAiQuestion(request.id, choice)`, by the choice's value. Only with `questions: true`.
+     */
+    "onai-question-asked"?: (event: CustomEvent<EventOfType<"ai-question-asked">>) => void;
+    /**
+     * The assistant stopped speaking.
+     */
+    "onai-speech-end"?: (event: CustomEvent<EventOfType<"ai-speech-end">>) => void;
+    /**
+     * The assistant started speaking an answer.
+     */
+    "onai-speech-start"?: (event: CustomEvent<EventOfType<"ai-speech-start">>) => void;
+    /**
      * Main event for UI binding - single source of truth for AI status
      */
     "onai-status-change"?: (event: CustomEvent<EventOfType<"ai-status-change">>) => void;
     /**
-     * Emitted during streaming when text chunks arrive (throttled)
+     * Emitted once for each piece of text the provider streams, not throttled.
      */
     "onai-stream-chunk"?: (event: CustomEvent<EventOfType<"ai-stream-chunk">>) => void;
     /**
@@ -339,9 +383,17 @@ export interface GraphtyElementJSXProps {
      */
     "onai-voice-end"?: (event: CustomEvent<EventOfType<"ai-voice-end">>) => void;
     /**
+     * How loud the microphone is while talk is held, at most once per animation frame.
+     */
+    "onai-voice-level"?: (event: CustomEvent<EventOfType<"ai-voice-level">>) => void;
+    /**
      * Emitted when voice input starts
      */
     "onai-voice-start"?: (event: CustomEvent<EventOfType<"ai-voice-start">>) => void;
+    /**
+     * How speech would be carried changed since `getAiVoiceSupport()` last said: a press asked for the microphone or learned whether the browser recognizes speech, a key was set, an immersive session began or ended. Redraw what depends on it from `support`.
+     */
+    "onai-voice-support-change"?: (event: CustomEvent<EventOfType<"ai-voice-support-change">>) => void;
     /**
      * Emitted when voice transcript is available
      */
@@ -351,7 +403,7 @@ export interface GraphtyElementJSXProps {
     "oncamera-state-changed"?: (event: CustomEvent<EventOfType<"camera-state-changed">>) => void;
     "ondata-added"?: (event: CustomEvent<EventOfType<"data-added">>) => void;
     /**
-     * Emitted once every time the graph's data is cleared -- by `clearData()`, and by a load that
+     * Emitted once every time the graph's data is cleared -- by `clearData()`, and by a load that replaces the dataset -- after every node and edge is gone. It carries nothing, so it survives structured cloning; a consumer that wants the new counts reads them.
      */
     "ondata-cleared"?: (event: CustomEvent<EventOfType<"data-cleared">>) => void;
     "ondata-loaded"?: (event: CustomEvent<EventOfType<"data-loaded">>) => void;

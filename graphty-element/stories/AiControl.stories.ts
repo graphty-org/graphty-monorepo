@@ -10,12 +10,27 @@
 
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 import { html, type TemplateResult } from "lit";
+import { userEvent, waitFor } from "storybook/test";
 
+import type { ExecutionResult } from "../src/ai/AiController";
+import type { AiManagerConfig } from "../src/ai/AiManager";
 import type { AiStatus } from "../src/ai/AiStatus";
+import { registerProviderApiEngine } from "../src/ai/engine/load";
+import type { AiEngine } from "../src/ai/engine/types";
 import { ApiKeyManager } from "../src/ai/keys/ApiKeyManager";
+import type { MockLlmProvider } from "../src/ai/providers/MockLlmProvider";
 import type { WebLlmProvider } from "../src/ai/providers/WebLlmProvider";
 import { type GraphtyElement } from "../src/graphty-element";
-import { assertControlsPresent, assertGraphLoaded, assertLayoutPlaced, drawn } from "./assertions";
+import { scriptedLiveEngine } from "../src/testing/fakeLive";
+import { QueuedProvider } from "../test/helpers/queued-provider";
+import {
+    assertControlsPresent,
+    assertGraphLoaded,
+    assertLayoutPlaced,
+    drawn,
+    holds,
+    renderedElement,
+} from "./assertions";
 
 // Sample network infrastructure graph
 const SAMPLE_NODES = [
@@ -705,7 +720,7 @@ async function setupShowcase(): Promise<void> {
 
                             if (shouldAutoExecute) {
                                 // Auto-execute: send command immediately
-                                void graph.aiCommand(text).then((result) => {
+                                void graph.aiCommand(text, { via: "voice" }).then((result) => {
                                     ui.responseOutput.textContent = result.message;
                                     logCommand(
                                         `🎤 ${text}`,
@@ -1395,5 +1410,1029 @@ export const Default: Story = {
             "#command-history",
             "#response-output",
         ]);
+    },
+};
+
+/**
+ * A small page around the element, as a consumer writes it from the AI guide: an input and a Send
+ * button, a transcript redrawn on `ai-conversation-changed`, and an approval card drawn from
+ * `ai-approval-requested`. The assistant runs on the mock provider with scripted answers, so the
+ * story needs no key and draws the same picture every time.
+ */
+interface AssistantPage {
+    /** The page's root. */
+    readonly root: HTMLElement;
+    /** Settles when the assistant is enabled and scripted. */
+    readonly ready: Promise<void>;
+    /** The last message the reader sent, until it resolves. */
+    sent?: Promise<ExecutionResult>;
+    /** The last answer the reader gave an approval request, until it resolves. */
+    decided?: Promise<ExecutionResult>;
+    /** The last answer the reader gave a question, until it resolves. */
+    answered?: Promise<ExecutionResult>;
+}
+
+/** One scripted answer of the mock provider. */
+type ScriptedResponse = Parameters<MockLlmProvider["setResponse"]>[1];
+
+/** Each rendered page, by its root, for the play function. */
+const assistantPages = new WeakMap<Element, AssistantPage>();
+
+/**
+ * Draw the page and enable the assistant. With `questions` the page also draws a question card from
+ * `ai-question-asked`; with `agents`, a list of what each helper did from `ai-agent-start` and
+ * `ai-agent-end`; with `tools.inPageCode`, the programs the model ran, from the conversation; with
+ * `voice`, a talk button held by pointer or by Space (the AI guide's simple path) and a line
+ * showing what is heard, the microphone's level and how the last press ended.
+ * @param config - The assistant's history, approvals, questions and helpers.
+ * @param scripted - The mock provider's answers: by a phrase of the reader's message, or every
+ *     model turn in order (the main model's and its helpers'), for a message with several turns.
+ * @param engine - An engine the mock provider runs on instead (a scripted live conversation).
+ * @returns The page's root.
+ */
+function assistantPage(
+    config: Pick<AiManagerConfig, "history" | "approvals" | "questions" | "agents" | "tools" | "voice">,
+    scripted: Readonly<Record<string, ScriptedResponse>> | readonly ScriptedResponse[],
+    engine?: AiEngine,
+): HTMLElement {
+    const root = document.createElement("div");
+    // Room on the right for the console-capture button Storybook floats in the top-right corner,
+    // which would otherwise sit over Send.
+    root.style.cssText = "display:flex;gap:16px;height:600px;font:14px sans-serif;padding-right:56px;";
+
+    const element = document.createElement("graphty-element");
+    element.id = "assistant-graph";
+    element.style.cssText = "flex:1;min-width:0;display:block;height:100%;";
+    element.layout = "circular";
+    element.nodeData = SAMPLE_NODES;
+    element.edgeData = SAMPLE_EDGES;
+
+    const panel = document.createElement("div");
+    panel.style.cssText = "width:340px;display:flex;flex-direction:column;gap:8px;";
+    const form = document.createElement("form");
+    form.style.cssText = "display:flex;gap:8px;";
+    const input = document.createElement("input");
+    input.id = "ask";
+    input.placeholder = "Ask the assistant";
+    input.style.cssText = "flex:1;padding:6px;";
+    const send = document.createElement("button");
+    send.id = "send";
+    send.type = "submit";
+    send.textContent = "Send";
+    form.append(input, send);
+    const transcript = document.createElement("ol");
+    transcript.id = "transcript";
+    transcript.style.cssText = "margin:0;padding-left:20px;";
+    const card = document.createElement("div");
+    card.id = "approval";
+    card.style.cssText = "display:flex;flex-direction:column;gap:6px;";
+    panel.append(form, transcript, card);
+    root.append(element, panel);
+
+    // The question card: the model's question and one button per choice, as text.
+    const question = document.createElement("div");
+    question.id = "question";
+    question.style.cssText = "display:flex;flex-direction:column;gap:6px;";
+    if (config.questions === true) {
+        panel.append(question);
+    }
+
+    element.addEventListener("ai-question-asked", (e) => {
+        const { request } = e.detail;
+        question.replaceChildren();
+        const asked = document.createElement("p");
+        asked.style.cssText = "margin:0;font-weight:bold;";
+        asked.textContent = request.question;
+        question.append(asked);
+        for (const choice of request.choices) {
+            const button = document.createElement("button");
+            button.textContent = choice;
+            button.addEventListener("click", () => {
+                question.replaceChildren();
+                page.answered = element.answerAiQuestion(request.id, choice);
+            });
+            question.append(button);
+        }
+    });
+
+    // What each helper did: started, and how it ended with the tokens it used.
+    const helpers = document.createElement("ul");
+    helpers.id = "helpers";
+    helpers.style.cssText = "margin:0;padding-left:20px;color:#555;";
+    if (config.agents !== undefined) {
+        panel.append(helpers);
+    }
+
+    element.addEventListener("ai-agent-start", (e) => {
+        const item = document.createElement("li");
+        item.textContent = `${e.detail.agent} started: ${e.detail.task}`;
+        helpers.append(item);
+    });
+    element.addEventListener("ai-agent-end", (e) => {
+        const { agent, code, usage } = e.detail;
+        const tokens = usage.inputTokens + usage.outputTokens;
+        const item = document.createElement("li");
+        item.textContent = `${agent} ended ${code}, ${String(tokens)} tokens`;
+        helpers.append(item);
+    });
+
+    // The talk button: held by pointer or by Space, as the AI guide wires it. The release is read
+    // on the window, so letting go off the button still ends the press.
+    const talk = document.createElement("button");
+    talk.id = "talk";
+    talk.type = "button";
+    talk.textContent = "Hold to talk";
+    talk.style.cssText = "padding:8px;";
+    const heard = document.createElement("p");
+    heard.id = "voice-status";
+    heard.style.cssText = "margin:0;color:#555;min-height:1.2em;";
+    const level = document.createElement("meter");
+    level.id = "voice-level";
+    level.style.cssText = "width:100%;";
+    if (config.voice !== undefined) {
+        panel.append(talk, level, heard);
+    }
+
+    const release = (): void => {
+        talk.removeAttribute("aria-pressed");
+        element.aiTalk(false);
+    };
+    talk.addEventListener("pointerdown", () => {
+        talk.setAttribute("aria-pressed", "true");
+        element.aiTalk(true);
+        window.addEventListener("pointerup", release, { once: true });
+        window.addEventListener("pointercancel", release, { once: true });
+    });
+    talk.addEventListener("keydown", (e) => {
+        if (e.key === " " && !e.repeat) {
+            e.preventDefault();
+            talk.setAttribute("aria-pressed", "true");
+            element.aiTalk(true);
+        }
+    });
+    talk.addEventListener("keyup", (e) => {
+        if (e.key === " ") {
+            release();
+        }
+    });
+    element.addEventListener("ai-voice-start", (e) => {
+        heard.textContent = e.detail.mode === "live" ? "Listening (live)" : "Listening";
+    });
+    element.addEventListener("ai-voice-transcript", (e) => {
+        heard.textContent = e.detail.transcript;
+    });
+    element.addEventListener("ai-voice-level", (e) => {
+        level.value = e.detail.level;
+    });
+    element.addEventListener("ai-voice-end", (e) => {
+        level.value = 0;
+        heard.textContent = `Ended: ${e.detail.code ?? e.detail.reason}`;
+    });
+
+    // The programs the model ran (`run_code` calls), as text.
+    const programs = document.createElement("div");
+    programs.id = "programs";
+    programs.style.cssText = "display:flex;flex-direction:column;gap:6px;";
+    if (config.tools?.inPageCode !== undefined) {
+        panel.append(programs);
+    }
+
+    // The transcript: the reader's words and the assistant's, with the tools each answer used.
+    element.addEventListener("ai-conversation-changed", () => {
+        programs.replaceChildren(
+            ...(element.getAiConversation()?.messages ?? [])
+                .flatMap((message) => (message.role === "assistant" ? message.calls : []))
+                .filter((call) => call.command === "run_code")
+                .map((call) => {
+                    const program = document.createElement("pre");
+                    program.style.cssText = "margin:0;white-space:pre-wrap;background:#f3f3f3;padding:6px;";
+                    program.textContent = `${String(call.arguments.code)}\n-> ${call.code}`;
+                    return program;
+                }),
+        );
+        transcript.replaceChildren(
+            ...(element.getAiConversation()?.messages ?? []).map((message) => {
+                const item = document.createElement("li");
+                const calls = message.role === "assistant" ? message.calls.map((call) => call.command) : [];
+                const reader = message.role === "reader" && message.via === "voice" ? "You (spoken)" : "You";
+                const who = message.role === "reader" ? reader : (message.agent ?? "Assistant");
+                item.textContent = `${who}: ${message.text}${calls.length > 0 ? ` [${calls.join(", ")}]` : ""}`;
+                return item;
+            }),
+        );
+    });
+
+    // The approval card: what the model asked for, as text, and the reader's two answers.
+    element.addEventListener("ai-approval-requested", (e) => {
+        const { request } = e.detail;
+        card.replaceChildren();
+        for (const call of request.calls) {
+            const line = document.createElement("pre");
+            line.style.cssText = "margin:0;white-space:pre-wrap;background:#f3f3f3;padding:6px;";
+            line.textContent = `${call.tool} ${JSON.stringify(call.arguments)}`;
+            card.append(line);
+        }
+
+        for (const approve of [true, false]) {
+            const button = document.createElement("button");
+            button.textContent = approve ? "Approve" : "Deny";
+            button.addEventListener("click", () => {
+                card.replaceChildren();
+                page.decided = element.resolveAiApproval(request.id, { approve });
+            });
+            card.append(button);
+        }
+    });
+    element.addEventListener("ai-pending-resolved", (e) => {
+        (e.detail.kind === "question" ? question : card).replaceChildren();
+    });
+
+    form.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const text = input.value.trim();
+        input.value = "";
+        if (text !== "") {
+            page.sent = element.aiCommand(text);
+        }
+    });
+
+    const page: AssistantPage = {
+        root,
+        ready: (async () => {
+            if (Array.isArray(scripted)) {
+                const queued = new QueuedProvider();
+                queued.queue.push(...(scripted as readonly ScriptedResponse[]));
+                await element.enableAiControl({ provider: "mock", providerInstance: queued, ...config });
+                return;
+            }
+
+            await element.enableAiControl({ provider: "mock", ...config });
+            const provider = element.getAiManager()?.getProvider() as MockLlmProvider;
+            if (engine !== undefined) {
+                registerProviderApiEngine(provider, () => engine);
+            }
+
+            for (const [phrase, response] of Object.entries(scripted)) {
+                provider.setResponse(phrase, response);
+            }
+        })(),
+    };
+    assistantPages.set(root, page);
+    return root;
+}
+
+/**
+ * The page a story rendered, ready for the reader.
+ * @param canvasElement - Where the story was rendered.
+ * @returns The page.
+ */
+async function readyPage(canvasElement: HTMLElement): Promise<AssistantPage> {
+    const root = canvasElement.firstElementChild;
+    const page = root === null ? undefined : assistantPages.get(root);
+    await holds(page !== undefined, "the story rendered no assistant page");
+    if (page === undefined) {
+        throw new Error("the story rendered no assistant page");
+    }
+
+    await page.ready;
+    return page;
+}
+
+/**
+ * Type a message into the page's input and press Send, as a reader does.
+ * @param canvasElement - Where the story was rendered.
+ * @param page - The page.
+ * @param text - What the reader types.
+ * @returns The message's result.
+ */
+async function ask(canvasElement: HTMLElement, page: AssistantPage, text: string): Promise<ExecutionResult> {
+    const input = canvasElement.querySelector<HTMLInputElement>("#ask");
+    const send = canvasElement.querySelector<HTMLButtonElement>("#send");
+    await holds(input !== null && send !== null, "the page has no input and Send button");
+    const previous = page.sent;
+    // A reader's pointer lands on Send wherever on it they press, not on anything drawn over it.
+    const box = (send as HTMLButtonElement).getBoundingClientRect();
+    const covered = [0.1, 0.5, 0.9]
+        .flatMap((fx) => [0.1, 0.5, 0.9].map((fy) => [box.left + fx * box.width, box.top + fy * box.height]))
+        .map(([x, y]) => document.elementFromPoint(x, y))
+        .find((hit) => hit !== send);
+    await holds(covered === undefined, `${covered?.id ?? "something"} is drawn over part of Send`);
+    await userEvent.type(input as HTMLInputElement, text);
+    await userEvent.click(send as HTMLButtonElement);
+    const { sent } = page;
+    await holds(sent !== undefined && sent !== previous, `pressing Send did not send "${text}"`);
+    return (await sent) as ExecutionResult;
+}
+
+/**
+ * The assistant remembers the conversation (`history: "memory"`): the reader asks to color the
+ * servers red, then says "now make them bigger", and the model is sent the first exchange with
+ * the second message. The transcript beside the graph is the page's, read from
+ * `getAiConversation()`.
+ */
+export const RememberedConversation: Story = {
+    name: "Remembered conversation",
+    render: () =>
+        assistantPage(
+            { history: "memory" },
+            {
+                "servers red": {
+                    text: "I colored the four servers red.",
+                    toolCalls: [
+                        {
+                            id: "c1",
+                            name: "style",
+                            arguments: {
+                                action: "add",
+                                where: "data.type == 'server'",
+                                values: { "node.color": "red" },
+                            },
+                        },
+                    ],
+                },
+                "make them bigger": {
+                    text: "The servers are bigger now.",
+                    toolCalls: [
+                        {
+                            id: "c2",
+                            name: "style",
+                            arguments: { action: "add", where: "data.type == 'server'", values: { "node.size": 2 } },
+                        },
+                    ],
+                },
+            },
+        ),
+    play: async ({ canvasElement }) => {
+        const page = await readyPage(canvasElement);
+        await drawn(canvasElement, "AI Control Remembered conversation");
+
+        const first = await ask(canvasElement, page, "Color the servers red");
+        await holds(first.code === "AI_COMPLETED", `the first message ended ${String(first.code)}`);
+        const second = await ask(canvasElement, page, "Now make them bigger");
+        await holds(second.code === "AI_COMPLETED", `the second message ended ${String(second.code)}`);
+
+        // Remembered: the model was sent the first exchange along with the second message.
+        const element = canvasElement.querySelector("graphty-element");
+        const provider = element?.getAiManager()?.getProvider() as MockLlmProvider | undefined;
+        const lastAsk = (provider?.getCallHistory() ?? [])
+            .filter((call) =>
+                call.messages.some((m) => m.role === "user" && m.content.includes("Now make them bigger")),
+            )
+            .at(-1);
+        await holds(
+            lastAsk?.messages.some((m) => m.role === "user" && m.content.includes("Color the servers red")) === true,
+            "the second message was sent without the first: the conversation was not remembered",
+        );
+
+        const said = (element?.getAiConversation()?.messages ?? []).map((m) => `${m.role}:${m.text}`);
+        await holds(
+            JSON.stringify(said) ===
+                JSON.stringify([
+                    "reader:Color the servers red",
+                    "assistant:I colored the four servers red.",
+                    "reader:Now make them bigger",
+                    "assistant:The servers are bigger now.",
+                ]),
+            `the conversation holds ${JSON.stringify(said)}`,
+        );
+        await holds(
+            canvasElement.querySelectorAll("#transcript li").length === 4,
+            "the page's transcript does not show the four messages",
+        );
+        await drawn(canvasElement, "AI Control Remembered conversation");
+    },
+};
+
+/**
+ * The assistant asks before it changes the graph (`approvals: "writes"`): the reader asks to
+ * remove the monitoring node, the page draws the held call and Approve and Deny from
+ * `ai-approval-requested`, nothing changes until the reader clicks Approve, and then the node goes
+ * and the message ends with the model's answer.
+ */
+export const Approvals: Story = {
+    render: () =>
+        assistantPage(
+            { history: "memory", approvals: "writes" },
+            {
+                "remove the monitoring": {
+                    text: "I removed the monitoring node.",
+                    toolCalls: [
+                        { id: "r1", name: "edit_data", arguments: { action: "remove_nodes", ids: ["monitor"] } },
+                    ],
+                },
+            },
+        ),
+    play: async ({ canvasElement }) => {
+        const page = await readyPage(canvasElement);
+        const before = await drawn(canvasElement, "AI Control Approvals");
+        await assertGraphLoaded(before, { nodes: 12, edges: 20 });
+
+        const held = await ask(canvasElement, page, "Remove the monitoring node");
+        await holds(held.code === "AI_CONFIRMATION_NEEDED", `the message was not held: ${String(held.code)}`);
+        await holds(before.session.status.counts.nodes === 12, "the node was removed before the reader approved");
+
+        const approve = [...canvasElement.querySelectorAll<HTMLButtonElement>("#approval button")].find(
+            (button) => button.textContent === "Approve",
+        );
+        await holds(approve !== undefined, "the page drew no Approve button for the request");
+        await userEvent.click(approve as HTMLButtonElement);
+        const { decided } = page;
+        await holds(decided !== undefined, "clicking Approve did not answer the request");
+        const final = (await decided) as ExecutionResult;
+
+        await holds(final.code === "AI_COMPLETED", `approving ended ${String(final.code)}`);
+        const after = await drawn(canvasElement, "AI Control Approvals");
+        await holds(
+            after.session.status.counts.nodes === 11 && after.session.data.node("monitor") === undefined,
+            "approving did not remove the monitoring node",
+        );
+        await holds(canvasElement.querySelectorAll("#approval button").length === 0, "the approval card stayed up");
+    },
+};
+
+/**
+ * The assistant hands a task to a helper (`agents`): the reader asks to color the servers red, the
+ * main model hands it to the `stylist` helper, which has only the `style` tool, and the page lists
+ * what the helper did from `ai-agent-start` and `ai-agent-end`, with the tokens it used. The
+ * transcript names the helper beside its own words. Every model turn is scripted, in order.
+ */
+export const Helpers: Story = {
+    render: () =>
+        assistantPage(
+            {
+                history: "memory",
+                agents: [{ name: "stylist", purpose: "Color and size nodes", commands: ["style"] }],
+            },
+            [
+                // The main model hands the task on.
+                {
+                    text: "",
+                    toolCalls: [
+                        {
+                            id: "d1",
+                            name: "delegate",
+                            arguments: { agent: "stylist", task: "Color the four server nodes red" },
+                        },
+                    ],
+                },
+                // The stylist styles, then answers.
+                {
+                    text: "",
+                    toolCalls: [
+                        {
+                            id: "s1",
+                            name: "style",
+                            arguments: {
+                                action: "add",
+                                where: "data.type == 'server'",
+                                values: { "node.color": "red" },
+                            },
+                        },
+                    ],
+                    usage: { promptTokens: 400, completionTokens: 40 },
+                },
+                {
+                    text: "I colored the four servers red.",
+                    toolCalls: [],
+                    usage: { promptTokens: 450, completionTokens: 10 },
+                },
+                // The main model answers the reader.
+                { text: "The stylist colored the four servers red.", toolCalls: [] },
+            ],
+        ),
+    play: async ({ canvasElement }) => {
+        const page = await readyPage(canvasElement);
+        await drawn(canvasElement, "AI Control Helpers");
+
+        const result = await ask(canvasElement, page, "Color the servers red");
+        await holds(result.code === "AI_COMPLETED", `the message ended ${String(result.code)}`);
+        await holds(
+            result.llmText === "The stylist colored the four servers red.",
+            `the main model answered ${JSON.stringify(result.llmText)}`,
+        );
+
+        const logged = [...canvasElement.querySelectorAll("#helpers li")].map((item) => item.textContent);
+        await holds(
+            JSON.stringify(logged) ===
+                JSON.stringify([
+                    "stylist started: Color the four server nodes red",
+                    "stylist ended AI_COMPLETED, 900 tokens",
+                ]),
+            `the page's helper list shows ${JSON.stringify(logged)}`,
+        );
+
+        // The helper's words and its style call are in the conversation, under its name.
+        const element = canvasElement.querySelector("graphty-element");
+        const said = (element?.getAiConversation()?.messages ?? []).filter(
+            (message) => message.role === "assistant" && message.agent === "stylist",
+        );
+        await holds(
+            said.some(
+                (message) =>
+                    message.role === "assistant" &&
+                    message.calls.some((call) => call.command === "style" && call.code === "AI_COMPLETED"),
+            ),
+            "the conversation has no style call by the stylist",
+        );
+        await holds(
+            canvasElement
+                .querySelector("#transcript")
+                ?.textContent?.includes("stylist: I colored the four servers red.") === true,
+            "the page's transcript does not name the helper beside its answer",
+        );
+        await drawn(canvasElement, "AI Control Helpers");
+    },
+};
+
+/**
+ * The model asks the reader a question (`questions: true`): the reader asks to color their favorite
+ * kind of node, the page draws the model's question and one button per choice from
+ * `ai-question-asked`, nothing changes until the reader clicks one, and then the message goes on
+ * with that answer and colors the databases. Every model turn is scripted, in order.
+ */
+export const Question: Story = {
+    render: () =>
+        assistantPage({ history: "memory", questions: true }, [
+            {
+                text: "",
+                toolCalls: [
+                    {
+                        id: "q1",
+                        name: "ask_reader",
+                        arguments: {
+                            question: "Which kind of node should I color red?",
+                            choices: ["server", "database", "worker"],
+                        },
+                    },
+                ],
+            },
+            // After the reader's answer.
+            {
+                text: "",
+                toolCalls: [
+                    {
+                        id: "s1",
+                        name: "style",
+                        arguments: { action: "add", where: "data.type == 'database'", values: { "node.color": "red" } },
+                    },
+                ],
+            },
+            { text: "I colored the two databases red.", toolCalls: [] },
+        ]),
+    play: async ({ canvasElement }) => {
+        const page = await readyPage(canvasElement);
+        await drawn(canvasElement, "AI Control Question");
+
+        const asked = await ask(canvasElement, page, "Color my favorite kind of node red");
+        await holds(asked.code === "AI_QUESTION_ASKED", `the model asked nothing: ${String(asked.code)}`);
+        const choices = [...canvasElement.querySelectorAll<HTMLButtonElement>("#question button")];
+        await holds(
+            JSON.stringify(choices.map((button) => button.textContent)) ===
+                JSON.stringify(["server", "database", "worker"]),
+            "the page did not draw one button per choice",
+        );
+        await holds(
+            canvasElement.querySelector("#question p")?.textContent === "Which kind of node should I color red?",
+            "the page did not draw the model's question",
+        );
+        const element = canvasElement.querySelector("graphty-element");
+        await holds(element?.getPendingAiQuestions().length === 1, "the question is not pending");
+
+        const database = choices.find((button) => button.textContent === "database");
+        await holds(database !== undefined, "the page drew no database button");
+        await userEvent.click(database as HTMLButtonElement);
+        const { answered } = page;
+        await holds(answered !== undefined, "clicking a choice did not answer the question");
+        const final = (await answered) as ExecutionResult;
+
+        await holds(final.code === "AI_COMPLETED", `answering ended ${String(final.code)}`);
+        await holds(
+            final.llmText === "I colored the two databases red.",
+            `the model answered ${String(final.llmText)}`,
+        );
+        await holds(element?.getPendingAiQuestions().length === 0, "the question stayed open");
+        await holds(canvasElement.querySelectorAll("#question button").length === 0, "the question card stayed up");
+        const said = (element?.getAiConversation()?.messages ?? []).map((m) => `${m.role}:${m.text}`);
+        await holds(
+            said.includes("reader:database"),
+            `the answer is not the reader's message: ${JSON.stringify(said)}`,
+        );
+        await drawn(canvasElement, "AI Control Question");
+    },
+};
+
+/** The program the model writes: the mean degree from the query tool's counts. */
+const MEAN_DEGREE = `const seen = await tools.query({ action: "overview" });
+return (2 * seen.data.edges) / seen.data.nodes;`;
+
+/**
+ * The model runs a program in the page (`tools: { inPageCode: true }`): the reader asks for the
+ * average degree, the model writes a short program that reads the graph's counts through
+ * `tools.query` and returns the mean degree, the program runs in the page's sandbox, and the model
+ * answers from its value. The page shows the program beside the transcript. Every model turn is
+ * scripted, in order; the program itself really runs.
+ */
+export const RunCode: Story = {
+    name: "Run code",
+    render: () =>
+        assistantPage({ history: "memory", tools: { inPageCode: true } }, [
+            {
+                text: "",
+                toolCalls: [{ id: "code1", name: "run_code", arguments: { code: MEAN_DEGREE } }],
+            },
+            // After the program's value.
+            { text: "The average degree is 3.33.", toolCalls: [] },
+        ]),
+    play: async ({ canvasElement }) => {
+        const page = await readyPage(canvasElement);
+        const before = await drawn(canvasElement, "AI Control Run code");
+        const element = canvasElement.querySelector("graphty-element");
+        await holds(
+            element?.getAiCapabilities()?.tools["in-page-code"] === "available",
+            "in-page code is not available on this page",
+        );
+
+        const result = await ask(canvasElement, page, "Use code to compute the average degree");
+        await holds(result.code === "AI_COMPLETED", `the message ended ${String(result.code)}`);
+
+        // The model was sent the program's value, and it is the graph's own mean degree.
+        const provider = element?.getAiManager()?.getProvider() as QueuedProvider | undefined;
+        const sent = (provider?.sent.at(-1) ?? []).find((message) => message.toolCallId === "code1")?.content ?? "";
+        const json = sent.slice(sent.indexOf("{"), sent.lastIndexOf("}") + 1);
+        const value = (JSON.parse(json === "" ? "{}" : json) as { data?: { value?: unknown } }).data?.value;
+        const { nodes, edges } = before.session.status.counts;
+        await holds(
+            typeof value === "number" && Math.abs(value - (2 * edges) / nodes) < 1e-5,
+            `the program returned ${JSON.stringify(value)}, not the mean degree ${String((2 * edges) / nodes)}`,
+        );
+
+        await holds(
+            canvasElement.querySelector("#programs pre")?.textContent?.includes("tools.query") === true,
+            "the page does not show the program the model ran",
+        );
+        await holds(
+            canvasElement.querySelector("#transcript")?.textContent?.includes("[run_code]") === true,
+            "the page's transcript does not show the run_code call",
+        );
+        await holds(before.session.status.counts.nodes === 12, "running code changed the graph");
+        await drawn(canvasElement, "AI Control Run code");
+    },
+};
+
+/**
+ * How long the first press may take to load the voice chunk and read the page's speech support;
+ * later presses take a frame. A budget for a condition, never a wait.
+ */
+const VOICE_LOAD_BUDGET_MS = 10_000;
+
+/**
+ * Throw unless `condition` holds, for `waitFor` to retry.
+ * @param condition - What must hold.
+ * @param complaint - What to say when it does not.
+ */
+function need(condition: boolean, complaint: string): void {
+    if (!condition) {
+        throw new Error(complaint);
+    }
+}
+
+/** What the scripted recognizer hears, one utterance per press, in order. */
+const SPOKEN: string[] = [];
+
+/** Every microphone stream the scripted page opened. */
+const OPENED: MediaStream[] = [];
+
+/**
+ * A recognizer that hears the next scripted utterance as soon as it starts, in place of the
+ * browser's under automation, where nobody speaks.
+ */
+class ScriptedRecognition {
+    continuous = false;
+    interimResults = false;
+    lang = "";
+    processLocally?: boolean;
+    onresult: ((event: unknown) => void) | null = null;
+    onerror: ((event: { error: string }) => void) | null = null;
+    onend: (() => void) | null = null;
+    onstart: (() => void) | null = null;
+
+    start(): void {
+        const said = SPOKEN.shift() ?? "";
+        queueMicrotask(() => {
+            this.onstart?.();
+            this.onresult?.({
+                resultIndex: 0,
+                results: [Object.assign([{ transcript: said, confidence: 1 }], { isFinal: true })],
+            });
+        });
+    }
+
+    stop(): void {
+        queueMicrotask(() => this.onend?.());
+    }
+
+    abort(): void {
+        this.stop();
+    }
+}
+
+/**
+ * Under automation (Playwright sets `navigator.webdriver`), replace the browser's recognizer with
+ * {@link ScriptedRecognition} and the microphone with a silent stream; on a real device, change
+ * nothing, so the story runs the device's own speech paths.
+ * @returns Puts the browser's own back.
+ */
+function scriptSpeech(): (() => void) | undefined {
+    if (!navigator.webdriver) {
+        return undefined;
+    }
+
+    const names = ["SpeechRecognition", "webkitSpeechRecognition"] as const;
+    const saved = names.map((name) => Object.getOwnPropertyDescriptor(window, name));
+    for (const name of names) {
+        Object.defineProperty(window, name, {
+            value: name === "webkitSpeechRecognition" ? ScriptedRecognition : undefined,
+            configurable: true,
+            writable: true,
+        });
+    }
+
+    const { mediaDevices } = navigator;
+    mediaDevices.getUserMedia = () => {
+        const { stream } = new AudioContext().createMediaStreamDestination();
+        OPENED.push(stream);
+        return Promise.resolve(stream);
+    };
+    try {
+        // A probe remembered by an earlier run would choose the path for this one.
+        localStorage.removeItem("@graphty-ai-voice:recognition");
+    } catch {
+        // No storage: nothing is remembered either.
+    }
+
+    return () => {
+        names.forEach((name, i) => {
+            const descriptor = saved[i];
+            if (descriptor === undefined) {
+                Reflect.deleteProperty(window, name);
+            } else {
+                Object.defineProperty(window, name, descriptor);
+            }
+        });
+        Reflect.deleteProperty(mediaDevices, "getUserMedia");
+        SPOKEN.length = 0;
+        OPENED.length = 0;
+    };
+}
+
+/**
+ * Hold the page's talk button, as a reader does, until the recognizer has heard `utterance`, then
+ * let go.
+ * @param canvasElement - Where the story was rendered.
+ * @param utterance - What the reader says.
+ * @returns How the press ended (`ai-voice-end`'s code).
+ */
+async function speak(canvasElement: HTMLElement, utterance: string): Promise<string | undefined> {
+    const element = await renderedElement(canvasElement, "the story rendered no <graphty-element>");
+    const talk = canvasElement.querySelector<HTMLButtonElement>("#talk");
+    await holds(talk !== null, "the page has no talk button");
+    SPOKEN.push(utterance);
+    const ended = new Promise<string | undefined>((resolve) => {
+        element.addEventListener(
+            "ai-voice-end",
+            (e) => {
+                resolve(e.detail.code);
+            },
+            { once: true },
+        );
+    });
+    // One user for the whole press, so the release lets go of the button the press holds.
+    const user = userEvent.setup();
+    await user.pointer({ keys: "[MouseLeft>]", target: talk as HTMLButtonElement });
+    await waitFor(
+        () => {
+            need(
+                canvasElement.querySelector("#voice-status")?.textContent === utterance,
+                `"${utterance}" was not heard`,
+            );
+        },
+        { timeout: VOICE_LOAD_BUDGET_MS },
+    );
+    await user.pointer({ keys: "[/MouseLeft]", target: talk as HTMLButtonElement });
+    return ended;
+}
+
+/**
+ * The reader talks to the assistant (`voice`): they hold "Hold to talk" and say "Color the servers
+ * red", and the message is sent as spoken; they say "Remove the monitoring node", which is held
+ * for approval (`approvals: { ask: ["edit_data"] }`), and answer it by saying "Yes.". The page
+ * draws what is heard and the microphone's level from the voice events. The answers are the mock
+ * provider's, scripted.
+ *
+ * Under automation the recognizer and the microphone are scripted fakes and the play function
+ * talks. On a real device -- a desktop browser, Quest Browser, Galaxy XR, Vision Pro -- nothing is
+ * faked and the play function does nothing: hold the button (or, in VR, B or Y, or the wrist orb)
+ * and say one of the two requests, then "yes" or "no", to check the device's own recognition,
+ * speech and in-scene approval.
+ */
+export const Voice: Story = {
+    beforeEach: scriptSpeech,
+    render: () => {
+        const root = assistantPage(
+            { history: "memory", approvals: { ask: ["edit_data"] }, voice: { input: "auto", output: "auto" } },
+            {
+                "servers red": {
+                    text: "I colored the four servers red.",
+                    toolCalls: [
+                        {
+                            id: "c1",
+                            name: "style",
+                            arguments: {
+                                action: "add",
+                                where: "data.type == 'server'",
+                                values: { "node.color": "red" },
+                            },
+                        },
+                    ],
+                },
+                "remove the monitoring": {
+                    text: "I removed the monitoring node.",
+                    toolCalls: [
+                        { id: "r1", name: "edit_data", arguments: { action: "remove_nodes", ids: ["monitor"] } },
+                    ],
+                },
+            },
+        );
+        // On a headset the story is the device check, so it offers VR and AR.
+        const element = root.querySelector("graphty-element");
+        if (element !== null && !navigator.webdriver) {
+            element.xr = { enabled: true };
+        }
+
+        return root;
+    },
+    play: async ({ canvasElement }) => {
+        if (!navigator.webdriver) {
+            return;
+        }
+
+        await readyPage(canvasElement);
+        const before = await drawn(canvasElement, "AI Control Voice");
+        await assertGraphLoaded(before, { nodes: 12, edges: 20 });
+        const element = await renderedElement(canvasElement, "the story rendered no <graphty-element>");
+        const support = await element.getAiVoiceSupport();
+        await holds(support.input.path === "browser", `speech would be heard by ${support.input.path}`);
+
+        const first = await speak(canvasElement, "Color the servers red");
+        await holds(first === "AI_COMPLETED", `the first press ended ${String(first)}`);
+        await waitFor(() => {
+            need(element.getAiConversation()?.messages.length === 2, "the spoken request was not answered");
+        });
+        const spoken = element.getAiConversation()?.messages[0];
+        await holds(
+            spoken?.role === "reader" && spoken.via === "voice" && spoken.text === "Color the servers red",
+            `the first message is ${JSON.stringify(spoken)}, not the spoken request`,
+        );
+        await holds(
+            canvasElement.querySelector("#transcript")?.textContent?.includes("You (spoken): Color the servers red") ===
+                true,
+            "the page's transcript does not show the spoken message",
+        );
+
+        await speak(canvasElement, "Remove the monitoring node");
+        await waitFor(() => {
+            need(element.getPendingAiApprovals().length === 1, "the spoken removal was not held for approval");
+        });
+        await holds(before.session.status.counts.nodes === 12, "the node was removed before the reader approved");
+
+        // Answered by voice: "Yes." approves the held request, and is not sent as a message.
+        await speak(canvasElement, "Yes.");
+        await waitFor(() => {
+            need(before.session.status.counts.nodes === 11, "saying yes did not remove the monitoring node");
+        });
+        await holds(element.getPendingAiApprovals().length === 0, "the approval stayed open");
+        await holds(
+            !(element.getAiConversation()?.messages ?? []).some((m) => m.role === "reader" && m.text === "Yes."),
+            "the spoken answer was sent as a message",
+        );
+
+        const live = OPENED.flatMap((stream) => stream.getTracks()).filter((track) => track.readyState === "live");
+        await holds(
+            OPENED.length === 3 && live.length === 0,
+            `${String(live.length)} microphone tracks are still open`,
+        );
+        await drawn(canvasElement, "AI Control Voice");
+    },
+};
+
+/** What the "Live voice" story's scripted provider hears and does, one press. */
+const LIVE_SCRIPT = [
+    {
+        heard: "Make the servers red",
+        calls: [
+            {
+                id: "live1",
+                name: "style",
+                arguments: { action: "add", where: "data.type == 'server'", values: { "node.color": "red" } },
+            },
+        ],
+        answer: "I colored the four servers red.",
+    },
+];
+
+/** The scripted live engine of each "Live voice" page, by its root, for the play function. */
+const liveEngines = new WeakMap<Element, ReturnType<typeof scriptedLiveEngine>>();
+
+/**
+ * The reader holds a live conversation with the assistant (`voice: { mode: "live" }`): they hold
+ * "Hold to talk", say "Make the servers red" and let go; the provider hears it, the model colors
+ * the four servers red through the assistant's own tools, and its answer is spoken and saved as
+ * one voice message. The page is the AI guide's simple path, unchanged from turn by turn.
+ *
+ * The provider is a scripted live connection (`src/testing/fakeLive.ts`), so nothing is sent
+ * anywhere and no key is needed, on a device as in a test: on a headset it checks the talk
+ * bindings (B or Y, the wrist orb) and the in-scene panel in live mode, not the provider's audio.
+ *
+ * Live voice needs a secure page: open this Storybook over HTTPS or on localhost. Over plain HTTP
+ * on a hostname, live is unavailable (`insecure-context`) and the play function fails.
+ */
+export const LiveVoice: Story = {
+    name: "Live voice",
+    render: () => {
+        const engine = scriptedLiveEngine(LIVE_SCRIPT);
+        const root = assistantPage({ history: "memory", voice: { mode: "live", output: "on" } }, {}, engine);
+        liveEngines.set(root, engine);
+        const element = root.querySelector("graphty-element");
+        if (element !== null && !navigator.webdriver) {
+            element.xr = { enabled: true };
+        }
+
+        return root;
+    },
+    play: async ({ canvasElement }) => {
+        await readyPage(canvasElement);
+        const before = await drawn(canvasElement, "AI Control Live voice");
+        await assertGraphLoaded(before, { nodes: 12, edges: 20 });
+        const element = await renderedElement(canvasElement, "the story rendered no <graphty-element>");
+        const engine =
+            canvasElement.firstElementChild === null ? undefined : liveEngines.get(canvasElement.firstElementChild);
+        const support = await element.getAiVoiceSupport();
+        await holds(
+            support.live?.path === "provider",
+            `a live conversation cannot run here: ${JSON.stringify(support.live?.params)}`,
+        );
+
+        // Hold "Hold to talk" with the real pointer, then let go.
+        const talk = canvasElement.querySelector<HTMLButtonElement>("#talk");
+        await holds(talk !== null, "the page has no talk button");
+        const user = userEvent.setup();
+        await user.pointer({ keys: "[MouseLeft>]", target: talk as HTMLButtonElement });
+        await waitFor(
+            () => {
+                need(
+                    canvasElement.querySelector("#voice-status")?.textContent === "Listening (live)",
+                    "the press did not start a live conversation",
+                );
+            },
+            { timeout: VOICE_LOAD_BUDGET_MS },
+        );
+        await user.pointer({ keys: "[/MouseLeft]", target: talk as HTMLButtonElement });
+
+        await waitFor(() => {
+            need(
+                (element.getAiConversation()?.messages ?? []).some(
+                    (m) => m.role === "assistant" && m.text === "I colored the four servers red.",
+                ),
+                "the spoken request was not answered",
+            );
+        });
+        const messages = element.getAiConversation()?.messages ?? [];
+        const [spoken] = messages;
+        await holds(
+            spoken?.role === "reader" && spoken.via === "voice" && spoken.text === "Make the servers red",
+            `the first message is ${JSON.stringify(spoken)}, not the spoken request`,
+        );
+        await holds(
+            messages.filter((m) => m.role === "reader").length === 1 &&
+                messages.some(
+                    (m) =>
+                        m.role === "assistant" &&
+                        m.calls.some((call) => call.command === "style" && call.code === "AI_COMPLETED"),
+                ),
+            "the spoken request was not one message whose style call ran",
+        );
+        await waitFor(() => {
+            need(
+                canvasElement
+                    .querySelector("#transcript")
+                    ?.textContent?.includes("Assistant: I colored the four servers red.") === true,
+                "the page's transcript does not show the spoken answer",
+            );
+        });
+        await holds(
+            JSON.stringify(engine?.liveConnections.map((connection) => connection.captures)) === "[[true,false]]",
+            "the microphone was not sent exactly while talk was held, on one connection",
+        );
+        await drawn(canvasElement, "AI Control Live voice");
     },
 };

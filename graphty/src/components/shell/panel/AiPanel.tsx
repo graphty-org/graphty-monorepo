@@ -1,12 +1,17 @@
-import { ActionRow, PANEL_GRID, PANEL_INK, ProseBlock } from "@graphty/compact-mantine";
-import { ActionIcon, Box, Button, Textarea } from "@mantine/core";
-import React, { useState } from "react";
+import { ActionRow, PANEL_GRID, PANEL_INK, ProseBlock, UiGlyph } from "@graphty/compact-mantine";
+import type { AiApprovalRequest, AiQuestionRequest, AiVoiceConversationMode } from "@graphty/graphty-element/ai";
+import { ActionIcon, Box, Button, Group, Paper, Text, Textarea, Tooltip } from "@mantine/core";
+import React, { useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
+import { keyed } from "../../../utils/text";
 import { AiMessageBubble, type ChatMessage } from "../../ai/AiMessageBubble";
+import { approvalLines } from "../../ai/aiResultText";
 import { keyChipFor } from "../bindings";
 import { AiGlyph } from "./aiGlyphs";
 import { PanelQuietButton } from "./panelButtons";
-import { ComingTag, PanelRows, PanelSection } from "./PanelSection";
+import { PanelRows } from "./PanelSection";
+import { usePanelHeaderSlot } from "./usePanelHeaderSlot";
 
 /** The console input's tooltip, with the binding the one table owns. */
 const ASK_LABEL = "Ask the assistant";
@@ -25,6 +30,8 @@ const SEND_LABEL = "Send";
  * coined here.
  */
 const STOP_LISTENING_LABEL = "Stop listening";
+/** How a press reached the model, in the app's words (the microphone's tooltip). */
+const VOICE_MODE_WORDS = { live: "Live conversation", turns: "Turn by turn" } as const;
 
 /** The verb 6.8's never list keeps in words, in every form. */
 const CANCEL_LABEL = "Cancel";
@@ -38,8 +45,26 @@ const RETRY_LABEL = "Retry";
  */
 const SETUP_PROMPT = "No provider is configured. Open Settings to connect one.";
 
-/** The Provider row's name (AiPanel.dc.html). */
-const PROVIDER_LABEL = "Provider";
+/** The approval card's heading. */
+const APPROVAL_TITLE = "Approve this change?";
+
+/** The question card's name; the model's question is its text. */
+const QUESTION_TITLE = "The assistant asks";
+
+/** The header control that starts a new conversation (the old one stays saved). */
+const NEW_CONVERSATION_LABEL = "New conversation";
+
+/** The control that scrolls the transcript back to its newest message. */
+const JUMP_LABEL = "Jump to latest";
+
+/** The busy row's words when the element has not said what it is doing yet. */
+const WORKING_LABEL = "Working...";
+
+/**
+ * How close to the bottom, in pixels, still counts as reading the newest message: a reader a
+ * line's breadth away has not scrolled up to read.
+ */
+const STICK_DISTANCE = 24;
 
 /**
  * One step the assistant took: a tool call, drawn as the RT-10 run record.
@@ -90,32 +115,52 @@ export interface AiPanelProps {
     readonly followUps?: readonly AiFollowUp[];
     /** Whether a provider is configured. The setup prompt draws only when none is. */
     readonly providerConfigured?: boolean;
-    /** The provider and model in words, e.g. "claude-sonnet-5". */
-    readonly providerLabel?: string;
-    /** The provider row's full reading. */
-    readonly providerTitle?: string;
-    /** Whether a call is in flight, which is what puts Cancel on screen. */
+    /** Whether a call is in flight, which is what puts Cancel on screen and holds Send. */
     readonly isProcessing?: boolean;
-    /** Whether the browser offers speech recognition. The mic draws only if it does. */
+    /** The reply so far, as it streams in; drawn as the assistant's last message while a call is in flight. */
+    readonly streamingText?: string;
+    /** What the assistant is doing now, in the app's words; the busy row says it. */
+    readonly activity?: string;
+    /** Whether speech can be heard here (graphty-element's voice support). The mic draws only if it can. */
     readonly speechAvailable?: boolean;
-    /** Whether dictation is currently listening. */
+    /** Whether the assistant is listening. */
     readonly listening?: boolean;
+    /** Where speech goes, in the app's words; the microphone's tooltip says it. */
+    readonly speechDestination?: string;
+    /** How the last press reached the model (`ai-voice-start`'s `mode`); the microphone's tooltip says it. */
+    readonly voiceMode?: AiVoiceConversationMode | null;
     /** Sends the console's text. */
     readonly onSend?: (text: string) => void;
     /** Cancels the in-flight message. */
     readonly onCancel?: () => void;
     /** Retries a failed message. */
     readonly onRetry?: (message: ChatMessage) => void;
-    /** Starts or stops dictation. */
+    /**
+     * Holds talk (true) or lets go (false). The microphone calls it on press and release of the
+     * pointer or Space, and toggles it on a click with no hold (Enter, a switch, assistive tech).
+     */
     readonly onListeningChange?: (listening: boolean) => void;
     /** Opens Settings, from the setup prompt and the Provider row. */
     readonly onOpenSettings?: () => void;
+    /** The changes waiting on the reader's approval; one card each. */
+    readonly approvals?: readonly AiApprovalRequest[];
+    /** Approves a held change, by its request's id. */
+    readonly onApprove?: (id: string) => void;
+    /** Declines a held change, by its request's id. */
+    readonly onDeny?: (id: string) => void;
+    /** The questions the model waits on the reader for; one card each. */
+    readonly questions?: readonly AiQuestionRequest[];
+    /** Answers a question, by its request's id and the choice the reader clicked. */
+    readonly onAnswer?: (id: string, answer: string) => void;
+    /** Starts a new conversation. The header's control for it draws only when this is set. */
+    readonly onNewConversation?: () => void;
 }
 
 /**
- * The AI panel body: the transcript, the per-step record of what the assistant
- * did, the follow-up chips, the Provider row, the console section, and the chat
- * input.
+ * The AI panel body: the transcript (with the reply streaming in as it arrives),
+ * the per-step record of what the assistant did, the follow-up chips, the busy row
+ * that says what it is doing now, and the chat input. The provider, its key and its
+ * model are chosen in Settings; New conversation sits in the panel's header.
  *
  * This panel is the transcript's new home. The internals of the app's existing
  * chat dialog are reused rather than rewritten: `AiMessageBubble` and its
@@ -129,58 +174,247 @@ export function AiPanel(props: AiPanelProps): React.JSX.Element {
         steps = [],
         followUps = [],
         providerConfigured = false,
-        providerLabel,
-        providerTitle,
         isProcessing = false,
+        streamingText = "",
+        activity,
         speechAvailable = false,
         listening = false,
+        speechDestination,
+        voiceMode,
         onSend,
         onCancel,
         onRetry,
         onListeningChange,
         onOpenSettings,
+        approvals = [],
+        onApprove,
+        onDeny,
+        questions = [],
+        onAnswer,
+        onNewConversation,
     } = props;
 
     const [draft, setDraft] = useState("");
+    const headerSlot = usePanelHeaderSlot();
+
+    /* The transcript follows the newest message while the reader is at its foot, and stays where
+       the reader put it once they scroll up to read; the jump control brings them back. */
+    const transcriptRef = useRef<HTMLDivElement>(null);
+    const following = useRef(true);
+    const [atLatest, setAtLatest] = useState(true);
+    const shownReply = isProcessing ? streamingText : "";
+    useLayoutEffect(() => {
+        const transcript = transcriptRef.current;
+        if (transcript !== null && following.current) {
+            transcript.scrollTop = transcript.scrollHeight;
+        }
+    }, [messages, shownReply, approvals.length, questions.length, isProcessing]);
+    const jumpToLatest = (): void => {
+        const transcript = transcriptRef.current;
+        following.current = true;
+        setAtLatest(true);
+        if (transcript !== null) {
+            transcript.scrollTop = transcript.scrollHeight;
+        }
+    };
+    // Set by a press of the pointer or Space, so the click that follows its release does not toggle.
+    const held = useRef(false);
+    const hold = (): void => {
+        held.current = true;
+        onListeningChange?.(true);
+    };
+    const letGo = (): void => {
+        onListeningChange?.(false);
+        // The click a release makes comes in the same task; a release with no click (a cancelled
+        // pointer) must not swallow the next keyboard toggle.
+        setTimeout(() => {
+            held.current = false;
+        }, 0);
+    };
+    const microphoneTitle = [
+        STOP_LISTENING_LABEL,
+        voiceMode === null || voiceMode === undefined ? undefined : VOICE_MODE_WORDS[voiceMode],
+        speechDestination,
+    ]
+        .filter((part) => part !== undefined)
+        .join(". ");
 
     const askChip = keyChipFor("focusAssistant");
     const askTooltip = askChip === null ? ASK_LABEL : `${ASK_LABEL} (${askChip})`;
     const sendChip = keyChipFor("assistantSend");
     const sendTooltip = sendChip === null ? SEND_LABEL : `${SEND_LABEL} (${sendChip})`;
 
+    const canSend = draft.trim() !== "" && !isProcessing;
     const send = (): void => {
-        const text = draft.trim();
-
-        if (text === "") {
+        if (!canSend) {
             return;
         }
 
-        onSend?.(text);
+        onSend?.(draft.trim());
         setDraft("");
+        // The reader's own message and its answer are what they want to see next.
+        jumpToLatest();
     };
 
     const lastFailed = [...messages].reverse().find((message) => message.isError === true);
 
     return (
         <>
-            <Box
-                data-testid="ai-transcript"
-                style={{
-                    flex: "1 1 auto",
-                    minHeight: 0,
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: PANEL_GRID.TRAIL_GAP,
-                    paddingInlineStart: PANEL_GRID.PAD_LEFT,
-                    paddingInlineEnd: PANEL_GRID.PAD_RIGHT,
-                    paddingBlockStart: PANEL_GRID.TRAIL_GAP,
-                    overflowY: "auto",
-                }}
-            >
-                {messages.map((message) => (
-                    <AiMessageBubble key={message.id} message={message} onRetry={onRetry} />
-                ))}
+            {headerSlot !== null &&
+                onNewConversation !== undefined &&
+                createPortal(
+                    <Tooltip label={NEW_CONVERSATION_LABEL} withinPortal>
+                        <ActionIcon
+                            type="button"
+                            variant="subtle"
+                            size={PANEL_GRID.CONTROL_HEIGHT}
+                            radius="sm"
+                            c={PANEL_INK.CHROME}
+                            aria-label={NEW_CONVERSATION_LABEL}
+                            data-testid="ai-new-conversation"
+                            disabled={isProcessing}
+                            onClick={() => {
+                                onNewConversation();
+                                jumpToLatest();
+                            }}
+                        >
+                            <UiGlyph name="plus" size={PANEL_GRID.GLYPH} />
+                        </ActionIcon>
+                    </Tooltip>,
+                    headerSlot,
+                )}
+
+            <Box style={{ position: "relative", flex: "1 1 auto", minHeight: 0, display: "flex" }}>
+                <Box
+                    ref={transcriptRef}
+                    data-testid="ai-transcript"
+                    onScroll={(event) => {
+                        const { scrollHeight, scrollTop, clientHeight } = event.currentTarget;
+                        const latest = scrollHeight - scrollTop - clientHeight <= STICK_DISTANCE;
+                        following.current = latest;
+                        setAtLatest(latest);
+                    }}
+                    style={{
+                        flex: "1 1 auto",
+                        minHeight: 0,
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: PANEL_GRID.TRAIL_GAP,
+                        paddingInlineStart: PANEL_GRID.PAD_LEFT,
+                        paddingInlineEnd: PANEL_GRID.PAD_RIGHT,
+                        paddingBlock: PANEL_GRID.TRAIL_GAP,
+                        overflowY: "auto",
+                    }}
+                >
+                    {messages.map((message) => (
+                        <AiMessageBubble key={message.id} message={message} onRetry={onRetry} />
+                    ))}
+                    {shownReply !== "" && (
+                        <Box data-testid="ai-streaming-reply" aria-live="polite">
+                            <AiMessageBubble message={{ id: "streaming", role: "assistant", content: shownReply }} />
+                        </Box>
+                    )}
+                </Box>
+
+                {!atLatest && (
+                    <Button
+                        variant="default"
+                        size="xs"
+                        radius="xl"
+                        data-testid="ai-jump-to-latest"
+                        leftSection={<UiGlyph name="chevronDown" size={PANEL_GRID.GLYPH} />}
+                        onClick={jumpToLatest}
+                        style={{
+                            position: "absolute",
+                            insetBlockEnd: PANEL_GRID.TRAIL_GAP,
+                            insetInlineStart: "50%",
+                            transform: "translateX(-50%)",
+                        }}
+                    >
+                        {JUMP_LABEL}
+                    </Button>
+                )}
             </Box>
+
+            {approvals.length > 0 && (
+                <PanelRows>
+                    {approvals.map((request) => (
+                        <Paper
+                            key={request.id}
+                            withBorder
+                            p="xs"
+                            my={PANEL_GRID.TRIPLE_GAP}
+                            role="group"
+                            aria-label={APPROVAL_TITLE}
+                            data-testid="ai-approval"
+                        >
+                            <Text size="sm" fw={600}>
+                                {APPROVAL_TITLE}
+                            </Text>
+                            {keyed(approvalLines(request), (line) => line).map(({ key, item: line }) => (
+                                <Text key={key} size="sm" c={PANEL_INK.CHROME} style={{ overflowWrap: "anywhere" }}>
+                                    {line}
+                                </Text>
+                            ))}
+                            <Group gap={PANEL_GRID.TRIPLE_GAP} mt={PANEL_GRID.TRIPLE_GAP} justify="flex-end">
+                                <Button
+                                    variant="default"
+                                    size="xs"
+                                    onClick={() => {
+                                        onDeny?.(request.id);
+                                    }}
+                                >
+                                    Deny
+                                </Button>
+                                <Button
+                                    size="xs"
+                                    onClick={() => {
+                                        onApprove?.(request.id);
+                                    }}
+                                >
+                                    Approve
+                                </Button>
+                            </Group>
+                        </Paper>
+                    ))}
+                </PanelRows>
+            )}
+
+            {questions.length > 0 && (
+                <PanelRows>
+                    {questions.map((request) => (
+                        <Paper
+                            key={request.id}
+                            withBorder
+                            p="xs"
+                            my={PANEL_GRID.TRIPLE_GAP}
+                            role="group"
+                            aria-label={QUESTION_TITLE}
+                            data-testid="ai-question"
+                        >
+                            <Text size="sm" fw={600} style={{ overflowWrap: "anywhere" }}>
+                                {request.question}
+                            </Text>
+                            {/* ponytail: one click answers with one choice, also when several may be picked;
+                                add checkboxes and an Answer button when a reader needs to pick several. */}
+                            <Group gap={PANEL_GRID.TRIPLE_GAP} mt={PANEL_GRID.TRIPLE_GAP}>
+                                {request.choices.map((choice) => (
+                                    <Button
+                                        key={choice}
+                                        variant="default"
+                                        size="xs"
+                                        onClick={() => {
+                                            onAnswer?.(request.id, choice);
+                                        }}
+                                    >
+                                        {choice}
+                                    </Button>
+                                ))}
+                            </Group>
+                        </Paper>
+                    ))}
+                </PanelRows>
+            )}
 
             {steps.length > 0 && (
                 <PanelRows>
@@ -240,7 +474,7 @@ export function AiPanel(props: AiPanelProps): React.JSX.Element {
             {(isProcessing || lastFailed !== undefined) && (
                 <PanelRows>
                     <ActionRow
-                        state={isProcessing ? "Working..." : "That message failed"}
+                        state={isProcessing ? activity || WORKING_LABEL : "That message failed"}
                         busy={isProcessing}
                         residentActions={
                             isProcessing ? (
@@ -278,27 +512,6 @@ export function AiPanel(props: AiPanelProps): React.JSX.Element {
                 </PanelRows>
             )}
 
-            {providerConfigured && (
-                <PanelRows>
-                    <Box title={providerTitle}>
-                        <ActionRow
-                            state={PROVIDER_LABEL}
-                            residentActions={
-                                <Box
-                                    component="span"
-                                    data-testid="ai-provider"
-                                    style={{ fontSize: "var(--mantine-font-size-sm)", color: PANEL_INK.CHROME }}
-                                >
-                                    {providerLabel}
-                                </Box>
-                            }
-                        />
-                    </Box>
-                </PanelRows>
-            )}
-
-            <PanelSection sectionId="ai.console" label="Console" empty actions={<ComingTag />} />
-
             <PanelRows>
                 {/* flex-end, not the artboard's center: once both items are 24 px the two
                     render identically at rest, and flex-end is what keeps the mic and Send on
@@ -328,12 +541,10 @@ export function AiPanel(props: AiPanelProps): React.JSX.Element {
                             setDraft(event.currentTarget.value);
                         }}
                         onKeyDown={(event) => {
-                            // The platform key plus Enter sends, which is the gesture the
-                            // inspector's note input already established (the table's
-                            // `assistantSend` and `noteSave` rows). Bare Enter is claimed by
-                            // nothing here, so the platform's own newline runs -- a composer
-                            // that grows to four rows has to be typable.
-                            if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+                            // Enter sends and Shift+Enter starts a new line, as chat apps do (the
+                            // table's `assistantSend` row). An Enter that ends an input method's
+                            // composition belongs to the composition, never to Send.
+                            if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
                                 event.preventDefault();
                                 send();
                             }
@@ -346,11 +557,34 @@ export function AiPanel(props: AiPanelProps): React.JSX.Element {
                             size={PANEL_GRID.CONTROL_HEIGHT}
                             radius="sm"
                             c={PANEL_INK.CHROME}
-                            title={STOP_LISTENING_LABEL}
+                            title={microphoneTitle}
                             aria-label={STOP_LISTENING_LABEL}
                             aria-pressed={listening}
                             data-testid="ai-microphone"
+                            onPointerDown={(event) => {
+                                if (event.button === 0) {
+                                    event.currentTarget.setPointerCapture(event.pointerId);
+                                    hold();
+                                }
+                            }}
+                            onPointerUp={letGo}
+                            onPointerCancel={letGo}
+                            onKeyDown={(event) => {
+                                if (event.key === " " && !event.repeat) {
+                                    hold();
+                                }
+                            }}
+                            onKeyUp={(event) => {
+                                if (event.key === " ") {
+                                    letGo();
+                                }
+                            }}
                             onClick={() => {
+                                if (held.current) {
+                                    held.current = false;
+                                    return;
+                                }
+
                                 onListeningChange?.(!listening);
                             }}
                         >
@@ -365,6 +599,7 @@ export function AiPanel(props: AiPanelProps): React.JSX.Element {
                         title={sendTooltip}
                         aria-label={SEND_LABEL}
                         data-testid="ai-send"
+                        disabled={!canSend}
                         onClick={send}
                     >
                         <AiGlyph name="send" />

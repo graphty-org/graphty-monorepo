@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { DataConfig } from "./DataConfig";
 import { EdgeStyle } from "./EdgeStyle";

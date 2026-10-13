@@ -14,32 +14,51 @@
 
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
+import { createGraphSession } from "../../../session";
+import { buildToolset } from "../../../src/ai/tools/toolset";
 import { getLlmRegressionCaseTimeoutMs, skipIfNoApiKey } from "../../helpers/llm-regression-env";
-import { type LlmRegressionResult, LlmRegressionTestHarness } from "../../helpers/llm-regression-harness";
+import {
+    actionOf,
+    type LlmRegressionResult,
+    LlmRegressionTestHarness,
+    reachedCalls,
+} from "../../helpers/llm-regression-harness";
 import { serverNetworkFixture } from "./fixtures/test-graph-fixtures";
 
-/** The built-in tools that only read: a model may call these to look before it acts. */
-const READ_ONLY_TOOLS = new Set([
-    "queryGraph",
-    "findNodes",
-    "getSchema",
-    "sampleData",
-    "describeProperty",
-    "listAlgorithms",
-]);
+/** Every action of the generated tools that only reads: a model may call these to look before it acts. */
+const READ_ONLY_ACTIONS = new Set(
+    buildToolset(createGraphSession()).tools.flatMap((tool) => [
+        ...tool.definition.actions
+            .filter((action) => action.effect === "read")
+            .map((action) => `${tool.name}.${action.name}`),
+        // A call naming no action, to a tool that only reads, reads or is refused: it changes nothing.
+        ...(tool.definition.actions.every((action) => action.effect === "read") ? [`${tool.name}.run`] : []),
+    ]),
+);
 
 /**
- * The tools a prompt made the model call that change the graph, its styles or the view.
+ * The calls of a prompt that change the graph or the view, as `tool.action`.
  * @param result - The prompt's result.
- * @returns Their names, in call order.
+ * @returns The actions.
  */
 function actionsOf(result: LlmRegressionResult): string[] {
-    return result.toolCalls.map((call) => call.name).filter((name) => !READ_ONLY_TOOLS.has(name));
+    return reachedCalls(result)
+        .map((call) => `${call.name}.${actionOf(call) || "run"}`)
+        .filter((action) => !READ_ONLY_ACTIONS.has(action));
 }
 
 /**
- * Assert that a prompt changed nothing and that the model said something to the reader: what a
- * prompt with nothing to act on, or asking for something the element cannot do, should get.
+ * Whether an action is one of the allowed ones: `tool.action`, or `tool.*` for every action of a tool.
+ * @param action - The action.
+ * @param allowed - The allowed actions.
+ * @returns True when it is.
+ */
+function allowedAction(action: string, allowed: readonly string[]): boolean {
+    return allowed.some((each) => each === action || (each.endsWith(".*") && action.startsWith(each.slice(0, -1))));
+}
+
+/**
+ * Assert the model answered in text and changed nothing.
  * @param result - The prompt's result.
  */
 function assertAnsweredWithoutActing(result: LlmRegressionResult): void {
@@ -66,10 +85,10 @@ describe.skipIf(skipIfNoApiKey())("Edge Cases LLM Regression", () => {
 
             // Ambiguous: camera, layout or dimension are all reasonable, and so is asking which.
             // What is not reasonable is changing anything else.
-            const validTools = ["setCameraPosition", "setLayout", "setDimension", "zoomToNodes"];
+            const validTools = ["view.*", "layout.set"];
             const actions = actionsOf(result);
             for (const action of actions) {
-                assert.include(validTools, action, `Expected only view changes but got '${action}'`);
+                assert.ok(allowedAction(action, validTools), `Expected only view changes but got '${action}'`);
             }
 
             assert.ok(
@@ -83,17 +102,13 @@ describe.skipIf(skipIfNoApiKey())("Edge Cases LLM Regression", () => {
 
             // Subjective: restyling, re-laying-out and reframing the view are all reasonable, and so
             // is asking what "pretty" means. Running algorithms or entering VR is not.
-            const styleTools = [
-                "findAndStyleNodes",
-                "findAndStyleEdges",
-                "clearStyles",
-                "setLayout",
-                "setCameraPosition",
-                "zoomToNodes",
-            ];
+            const styleTools = ["style.*", "layout.set", "view.camera", "view.fit", "view.zoom_to", "view.dimension"];
             const actions = actionsOf(result);
             for (const action of actions) {
-                assert.include(styleTools, action, `Expected only style or layout changes but got '${action}'`);
+                assert.ok(
+                    allowedAction(action, styleTools),
+                    `Expected only style or layout changes but got '${action}'`,
+                );
             }
 
             assert.ok(
@@ -107,7 +122,7 @@ describe.skipIf(skipIfNoApiKey())("Edge Cases LLM Regression", () => {
 
             // Analysis reads the graph or runs an algorithm; it restyles and moves nothing.
             for (const action of actionsOf(result)) {
-                assert.strictEqual(action, "runAlgorithm", `Expected only analysis but got '${action}'`);
+                assert.strictEqual(action, "run_algorithm.run", `Expected only analysis but got '${action}'`);
             }
 
             assert.ok(
@@ -121,17 +136,28 @@ describe.skipIf(skipIfNoApiKey())("Edge Cases LLM Regression", () => {
         it("handles 'show me server nodes and make them blue'", async () => {
             const result = await harness.testPrompt("show me server nodes and make them blue");
 
-            // Two parts, finding and styling. The model may look first (findNodes), but the
-            // styling has to happen: a style layer on the server nodes with a color.
-            const styled = result.toolCalls.find((call) => call.name === "findAndStyleNodes");
-            assert.ok(styled, `Expected findAndStyleNodes among ${result.toolCalls.map((c) => c.name).join(", ")}`);
-            const selector = typeof styled.arguments.selector === "string" ? styled.arguments.selector : "";
-            const style = styled.arguments.style as Record<string, unknown> | undefined;
-            assert.ok(
-                selector.toLowerCase().includes("server"),
-                `Expected selector to reference 'server' but got '${selector}'`,
+            // Two parts, finding and styling. The model may look first (query), but the styling has
+            // to happen: a style layer on the server nodes with a color.
+            const styled = reachedCalls(result).find(
+                (call) => call.name === "style" && call.arguments.action === "add",
             );
-            assert.ok(style?.color !== undefined, "Expected style to include color property");
+            assert.ok(styled, `Expected a style add among ${actionsOf(result).join(", ")}`);
+            const target = JSON.stringify([styled.arguments.where, styled.arguments.ids]);
+            assert.ok(
+                target.toLowerCase().includes("server") || target.includes('"1"'),
+                `Expected the target to name the servers but got '${target}'`,
+            );
+            // What the session paints, not how the model spelled the channel: the tool reads
+            // `nodeColor` and `node_color` as node.color too.
+            const session = harness.getGraph().getSession();
+            for (const id of ["1", "2"]) {
+                const color = session.styles.explain({ node: id }).merged["node.color" as never] as
+                    { r: number; g: number; b: number } | undefined;
+                assert.ok(
+                    color !== undefined && color.b > color.r && color.b > color.g,
+                    `Expected server ${id} to be blue but it is ${JSON.stringify(color)}`,
+                );
+            }
         });
 
         it("handles 'highlight nodes with high weight connections'", async () => {
@@ -141,9 +167,9 @@ describe.skipIf(skipIfNoApiKey())("Edge Cases LLM Regression", () => {
             // model needs to choose a threshold.
             const actions = actionsOf(result);
             assert.ok(actions.length > 0, "Expected the model to highlight something");
-            const validTools = ["findAndStyleNodes", "findAndStyleEdges", "clearStyles", "runAlgorithm"];
+            const validTools = ["style.*", "run_algorithm.run", "select.set", "select.add"];
             for (const action of actions) {
-                assert.include(validTools, action, `Expected a highlighting tool but got '${action}'`);
+                assert.ok(allowedAction(action, validTools), `Expected a highlighting tool but got '${action}'`);
             }
         });
     });

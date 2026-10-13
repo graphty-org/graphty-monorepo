@@ -2,7 +2,7 @@ import type { NodeMask } from "@graphty/graph-format";
 import ngraphCreateLayout, { Layout as NGraphLayout } from "ngraph.forcelayout";
 import createGraph, { Graph as NGraph, Link as NGraphLink, Node as NGraphNode } from "ngraph.graph";
 import random from "ngraph.random";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { defineOptions, type OptionsSchema } from "../config";
 import type { Edge } from "../Edge";

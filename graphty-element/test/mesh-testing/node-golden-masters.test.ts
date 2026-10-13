@@ -24,7 +24,7 @@
 
 import { Color3, InstancedMesh, Mesh, StandardMaterial } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, test } from "vitest";
-import type { z } from "zod/v4";
+import type { z } from "zod";
 
 import { NodeShapes } from "../../src/config/NodeStyle";
 import { NodeMesh } from "../../src/meshes/NodeMesh";

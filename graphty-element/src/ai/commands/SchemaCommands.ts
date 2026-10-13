@@ -140,6 +140,8 @@ function stratifiedSample<T>(items: T[], count: number, getStratumKey: (item: T)
 /**
  * Command to get sample data from the graph.
  * Returns sample nodes and/or edges for LLMs to inspect actual data structures.
+ * @deprecated The assistant registers generated tools instead: this one is the `query (nodes, edges)` tool
+ * now. Register it yourself to keep it; it is removed in the next major release.
  */
 export const sampleData: GraphCommand = {
     name: "sampleData",
@@ -571,6 +573,8 @@ function analyzeMixedProperty(
 /**
  * Command to describe a specific property in detail.
  * Provides statistics, distributions, and value information for analysis.
+ * @deprecated The assistant registers generated tools instead: this one is the `query (histogram)` tool
+ * now. Register it yourself to keep it; it is removed in the next major release.
  */
 export const describeProperty: GraphCommand = {
     name: "describeProperty",

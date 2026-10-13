@@ -503,6 +503,22 @@ export function createSetsApi(
         createAs(concrete.definition, name, concrete.createdFrom, concrete.refs, concrete.seeds);
 
     /**
+     * Where a materialising door's commit goes: into the transaction or command the call was made
+     * inside. The routing that puts a dispatch there lasts for the synchronous part of the call
+     * only, and the commit comes after an await, so it is captured when the call starts.
+     * @returns A runner for the commit.
+     */
+    const commitWhereCalled = (): (<T>(fn: () => T) => T) => {
+        const { dispatcher } = store;
+        if (!dispatcher.routing) {
+            return (fn) => fn();
+        }
+
+        const via = dispatcher.capturedDispatch();
+        return (fn) => dispatcher.routed(via, fn);
+    };
+
+    /**
      * The offering, or the refusal of a session built without one.
      * @returns The offering.
      * @throws `E_UNSUPPORTED` when the session has no results to offer from.
@@ -677,6 +693,7 @@ export function createSetsApi(
             options: { readonly name?: string; readonly reading?: EdgeReading; readonly follow?: boolean } = {},
         ): Promise<SetId> {
             const reading = readingOption(options.reading);
+            const where = commitWhereCalled();
             if (isOffer(source)) {
                 const offer = requireCurrent(source);
                 if (options.follow === true) {
@@ -686,12 +703,12 @@ export function createSetsApi(
                 const concrete = await materialiser().from(offer, reading);
                 requireCurrent(offer);
 
-                return commit(concrete, options.name);
+                return where(() => commit(concrete, options.name));
             }
 
             const concrete = await materialiser().from(readScope(source), reading);
 
-            return commit(concrete, options.name);
+            return where(() => commit(concrete, options.name));
         },
 
         async combine(
@@ -718,18 +735,20 @@ export function createSetsApi(
             }
 
             const reading = readingOption(options.reading);
+            const where = commitWhereCalled();
             const concrete = await materialiser().combine(op, of.map(readScope), reading);
 
-            return commit(concrete, options.name);
+            return where(() => commit(concrete, options.name));
         },
 
         async createPath(source: SetOffer | "selection", options: { readonly name?: string } = {}): Promise<SetId> {
+            const where = commitWhereCalled();
             if (isOffer(source)) {
                 const offer = requireCurrent(source);
                 const concrete = await materialiser().path(offer);
                 requireCurrent(offer);
 
-                return commit(concrete, options.name);
+                return where(() => commit(concrete, options.name));
             }
 
             if (source !== "selection") {
@@ -743,7 +762,7 @@ export function createSetsApi(
 
             const concrete = await materialiser().path(source);
 
-            return commit(concrete, options.name);
+            return where(() => commit(concrete, options.name));
         },
 
         rename(id: SetId, name: string): void {

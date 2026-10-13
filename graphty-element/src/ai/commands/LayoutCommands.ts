@@ -29,6 +29,8 @@ const DimensionSchema = z.enum(["2d", "3d"]).describe("Dimension mode: '2d' or '
 
 /**
  * Command to change the graph layout algorithm.
+ * @deprecated The assistant registers generated tools instead: this one is the `layout (set)` tool
+ * now. Register it yourself to keep it; it is removed in the next major release.
  */
 export const setLayout: GraphCommand = {
     name: "setLayout",
@@ -36,7 +38,7 @@ export const setLayout: GraphCommand = {
         "Change the graph layout algorithm. Common layouts include 'circular' (nodes in a circle), 'ngraph' (force-directed physics), 'random', 'spiral', 'shell', 'd3' (D3 force simulation), 'spring', 'planar', 'spectral', and 'forceatlas2'.",
     parameters: z.object({
         type: LayoutTypeSchema,
-        options: z.record(z.unknown()).optional().describe("Additional layout-specific options"),
+        options: z.record(z.string(), z.unknown()).optional().describe("Additional layout-specific options"),
     }),
     examples: [
         { input: "Use circular layout", params: { type: "circular" } },
@@ -85,6 +87,8 @@ export const setLayout: GraphCommand = {
 
 /**
  * Command to change graph dimension (2D/3D).
+ * @deprecated The assistant registers generated tools instead: this one is the `view (dimension)` tool
+ * now. Register it yourself to keep it; it is removed in the next major release.
  */
 export const setDimension: GraphCommand = {
     name: "setDimension",

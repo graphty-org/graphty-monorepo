@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
+import { offersLiveChoice } from "../../../hooks/useAiManager";
 import { fireEvent, render, screen, waitFor } from "../../../test/test-utils";
 import type { ProviderType } from "../../../types/ai";
 import { AiProviderSettings, type AiProviderSettingsProps } from "../AiProviderSettings";
@@ -296,6 +298,190 @@ describe("AiProviderSettings", () => {
             fireEvent.change(screen.getByTestId("ai-default-provider"), { target: { value: "" } });
 
             expect(onDefaultProviderChange).toHaveBeenCalledWith(null);
+        });
+    });
+
+    describe("the assistant's tools", () => {
+        const OFF = { webSearch: false, webFetch: false, inPageCode: false } as const;
+
+        it("draws no tool switches without a place to send a change", () => {
+            render(<AiProviderSettings {...keyStore()} />);
+
+            expect(screen.queryByTestId("ai-tool-settings")).not.toBeInTheDocument();
+        });
+
+        it("draws the three switches off, with their own words, and reports a click", async () => {
+            const onToolChange = vi.fn();
+            render(<AiProviderSettings {...keyStore({ tools: OFF, onToolChange })} />);
+
+            for (const name of [/^Search the web/, /^Read web pages/, /^Run code/]) {
+                expect(screen.getByRole("switch", { name })).not.toBeChecked();
+            }
+            expect(screen.getByText(/may charge for each search/)).toBeInTheDocument();
+            expect(screen.getByText(/can only read the graph/)).toBeInTheDocument();
+            // What a program computes reaches the provider as a tool result: the words never say it stays here.
+            expect(screen.getByText(/What they compute is sent to your AI provider/)).toBeInTheDocument();
+
+            await userEvent.click(screen.getByRole("switch", { name: /^Run code/ }));
+
+            expect(onToolChange).toHaveBeenCalledWith("inPageCode", true);
+        });
+
+        it("draws a tool the provider cannot use disabled and off, naming the provider, the loss and who can", () => {
+            render(
+                <AiProviderSettings
+                    {...keyStore({
+                        tools: { ...OFF, webFetch: true },
+                        onToolChange: vi.fn(),
+                        toolCapabilities: {
+                            provider: "openai",
+                            model: "gpt-4o",
+                            tools: {
+                                "web-search": "available",
+                                "web-fetch": "unsupported",
+                                "in-page-code": "available",
+                            },
+                        },
+                    })}
+                />,
+            );
+
+            const fetch = screen.getByRole("switch", { name: /^Read web pages/ });
+            expect(fetch).toBeDisabled();
+            expect(fetch).not.toBeChecked();
+            expect(screen.getByTestId("ai-tool-webFetch-reason")).toHaveTextContent(
+                "OpenAI cannot read web pages, so the assistant cannot open an address you give it. Anthropic and Google can.",
+            );
+            expect(screen.getByRole("switch", { name: /^Search the web/ })).toBeEnabled();
+            expect(screen.getByRole("switch", { name: /^Run code/ })).toBeEnabled();
+        });
+
+        it("names the model when only the model lacks a tool, and the page when code cannot run", () => {
+            render(
+                <AiProviderSettings
+                    {...keyStore({
+                        tools: OFF,
+                        onToolChange: vi.fn(),
+                        toolCapabilities: {
+                            provider: "openai",
+                            model: "gpt-4o-audio-preview",
+                            tools: {
+                                "web-search": "unsupported",
+                                "web-fetch": "unsupported",
+                                "in-page-code": "unsupported",
+                            },
+                        },
+                    })}
+                />,
+            );
+
+            expect(screen.getByTestId("ai-tool-webSearch-reason")).toHaveTextContent(
+                "The model gpt-4o-audio-preview cannot search the web, so the assistant cannot look up anything beyond what the model already knows. Other OpenAI models can, and so can Anthropic and Google.",
+            );
+            expect(screen.getByTestId("ai-tool-inPageCode-reason")).toHaveTextContent(
+                "This page does not allow programs to run",
+            );
+        });
+
+        it("says what a provider that keeps its results loses, and an unknown status as unknown", () => {
+            render(
+                <AiProviderSettings
+                    {...keyStore({
+                        tools: OFF,
+                        onToolChange: vi.fn(),
+                        toolCapabilities: {
+                            provider: "my-gateway",
+                            model: "",
+                            tools: {
+                                "web-search": "results-not-returned",
+                                "web-fetch": "unknown",
+                                "in-page-code": "available",
+                            },
+                        },
+                    })}
+                />,
+            );
+
+            expect(screen.getByTestId("ai-tool-webSearch-reason")).toHaveTextContent(
+                "my-gateway can search the web but does not share what it finds, so the assistant cannot show where an answer came from. OpenAI, Anthropic and Google can.",
+            );
+            expect(screen.getByTestId("ai-tool-webFetch-reason")).toHaveTextContent(
+                "It is not known whether my-gateway can read web pages, so this stays off and the assistant cannot open an address you give it. Anthropic and Google can.",
+            );
+        });
+    });
+
+    describe("voice", () => {
+        const voice = { speakAnswers: "off", transcription: "none", mode: "turns" } as const;
+
+        it("draws speak-answers off, and reports a change", async () => {
+            const onVoiceChange = vi.fn();
+            render(<AiProviderSettings {...keyStore({ voice, onVoiceChange, defaultProvider: "openai" })} />);
+
+            const select = screen.getByLabelText("Speak answers");
+            expect(select).toHaveValue("off");
+            await userEvent.selectOptions(select, "In VR and AR only");
+            expect(onVoiceChange).toHaveBeenCalledWith("speakAnswers", "vr");
+        });
+
+        it("offers a live conversation, turn by turn until chosen, where the element can hold one", async () => {
+            const onVoiceChange = vi.fn();
+            const ready = { path: "provider", status: "ready", destination: "provider" } as const;
+            const voiceSupport = { input: ready, output: ready, live: ready };
+            render(
+                <AiProviderSettings {...keyStore({ voice, onVoiceChange, voiceSupport, defaultProvider: "openai" })} />,
+            );
+
+            const select = screen.getByLabelText("Conversation");
+            expect(select).toHaveValue("turns");
+            await userEvent.selectOptions(select, "Live");
+            expect(onVoiceChange).toHaveBeenCalledWith("mode", "live");
+        });
+
+        it("offers live when only unspoken answers hold it back, and hides it for any other reason", () => {
+            const ready = { path: "provider", status: "ready", destination: "provider" } as const;
+            const held = (reason: string) =>
+                ({
+                    input: ready,
+                    output: ready,
+                    live: {
+                        path: "none",
+                        status: "unavailable",
+                        code: "AI_VOICE_UNAVAILABLE",
+                        params: { path: "input", reason },
+                        destination: "none",
+                    },
+                }) as const;
+            expect(offersLiveChoice(held("output-off"))).toBe(true);
+            expect(offersLiveChoice(held("no-provider-live"))).toBe(false);
+            expect(offersLiveChoice(held("no-live-transport"))).toBe(false);
+            expect(offersLiveChoice({ input: ready, output: ready })).toBe(false);
+            expect(offersLiveChoice(null)).toBe(false);
+
+            render(
+                <AiProviderSettings
+                    {...keyStore({
+                        voice,
+                        onVoiceChange: vi.fn(),
+                        voiceSupport: held("no-provider-live"),
+                        defaultProvider: "anthropic",
+                    })}
+                />,
+            );
+            expect(screen.getByTestId("ai-voice-settings")).toBeInTheDocument();
+            expect(screen.queryByTestId("ai-voice-mode")).not.toBeInTheDocument();
+        });
+
+        it("offers a transcription provider only when the chat provider has none", async () => {
+            const onVoiceChange = vi.fn();
+            const { rerender } = render(
+                <AiProviderSettings {...keyStore({ voice, onVoiceChange, defaultProvider: "openai" })} />,
+            );
+            expect(screen.queryByTestId("ai-transcription-provider")).not.toBeInTheDocument();
+
+            rerender(<AiProviderSettings {...keyStore({ voice, onVoiceChange, defaultProvider: "anthropic" })} />);
+            await userEvent.selectOptions(screen.getByLabelText("Turn speech into text with"), "OpenAI");
+            expect(onVoiceChange).toHaveBeenCalledWith("transcription", "openai");
         });
     });
 });

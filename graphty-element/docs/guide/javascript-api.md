@@ -480,9 +480,42 @@ const unsubscribe = graph.onAiStatusChange((status) => {
 graph.disableAiControl();
 ```
 
+The assistant's events (`ai-status-change`, `ai-command-complete` and the others in `AiEvent`) are
+an open union: a later minor release may add events. A listener subscribed by name receives only
+the event it named; code that switches over `AiEvent["type"]` needs a `default`.
+
 One message is one undoable step. A command you register with
 `graph.getAiManager()?.registerCommand(...)` joins that step only through `ctx.tx`; see
 [Undo and History](./undo#commands-you-register-with-the-ai-assistant).
+
+`ai-stream-chunk` is sent once for each piece of text the provider streams: `text` is that piece
+and `accumulated` is the message's text so far. OpenAI and Anthropic stream in small pieces, so a
+long answer sends many of these events, each with an `ai-status-change`; render on
+`accumulated`, and throttle your own rendering if you need to.
+
+An answer the provider cuts off at its output limit (`maxTokens`, or a thinking model's own
+limit) still ends as `AI_COMPLETED`, with the text it had and the tool calls it finished. A tool
+call whose arguments were cut off, or are not valid JSON, does not run: it ends as
+`AI_TOOL_INVALID_ARGUMENTS`, and the model is told why.
+
+#### What the built-in providers broadcast on the page
+
+The OpenAI, Anthropic and Google providers run on TanStack AI, which graphty-element builds in.
+On every model turn TanStack AI broadcasts the turn as `tanstack-dispatch-event` events on
+`window`: the system prompt (which describes your graph's columns), every message of the
+conversation, the tool calls and their arguments, the tool results (which hold graph data), the
+streamed text and the model options. The API key is not in them. A script on the page receives
+them after answering TanStack's `tanstack-connect` handshake, which TanStack Devtools does: an app
+that ships TanStack Devtools shows the assistant's conversation in its AI panel. graphty-element
+cannot turn this off.
+
+TanStack AI also stores its event client on `globalThis` (under
+`Symbol.for("tanstack.ai.devtools.eventClient")`) when it loads: on the first turn, or when the
+page loads with the single-file `./bundle`, which carries TanStack AI and the three provider SDKs
+inline. On the first turn, when nothing answers the handshake, it asks five times, 300 ms apart,
+and then stops for the life of the page. That timer is TanStack's and is not stopped by
+`disableAiControl()`. WebLLM and your own `LlmProvider` do not run on TanStack AI and broadcast
+nothing.
 
 ### Building an AI Settings Screen
 
@@ -511,7 +544,9 @@ catalogue holds no labels and no order: choose your own.
 
 Every result of `aiCommand()` carries a `code` and its `params`, so you can tell a missing key
 from a cancelled command or a failed tool without reading `result.message`, which is English
-for a log and may change. `AI_RESULT_CODES` lists every code:
+for a log and may change. `AI_RESULT_CODES` lists every code this release has. `AiResultCode` is
+an open union: a later minor release may add codes, so handle an unknown code (by `success` alone,
+for example):
 
 ```typescript
 import type { AiResultCode } from "@graphty/graphty-element/catalog";
@@ -533,7 +568,7 @@ show(result.success ? (result.llmText ?? "Done.") : (words[result.code] ?? "Some
 | `AI_NOT_ENABLED`            | false     |                       | `enableAiControl()` was not called                       |
 | `AI_DISPOSED`               | false     |                       | The assistant was shut down                              |
 | `AI_KEY_MISSING`            | false     | `provider`            | The provider needs an API key and has none               |
-| `AI_KEY_REJECTED`           | false     | `provider`, `status`  | The provider refused the key (HTTP 401 or 403)           |
+| `AI_KEY_REJECTED`           | false     | `provider`, `status`  | The provider refused the key (HTTP 401, 403; Google 400) |
 | `AI_PROVIDER_ERROR`         | false     | `provider`, `status`? | The provider or the network failed                       |
 | `AI_CANCELLED`              | false     |                       | `cancelAiCommand()` ended it; its changes are taken back |
 | `AI_UNDONE`                 | false     |                       | It was undone while it ran; its changes are taken back   |
@@ -542,6 +577,137 @@ show(result.success ? (result.llmText ?? "Done.") : (words[result.code] ?? "Some
 | `AI_TOOL_FAILED`            | false     | `tool`                | A tool ran and reported failure                          |
 | `AI_TOOL_THREW`             | false     | `tool`                | A tool threw; the command's changes are taken back       |
 | `AI_FAILED`                 | false     |                       | Anything else went wrong                                 |
+| `AI_CONFIRMATION_NEEDED`    | true      | `gate`, `request`     | A change waits for the reader's approval (see below)     |
+| `AI_ROLLBACK_PARTIAL`       | false     | `steps`               | Taking a failed message back stopped at your own edit    |
+| `AI_APPROVAL_STALE`         | false     | `request`             | An approval came after the graph changed, or expired     |
+| `AI_APPROVAL_DENIED`        | true      | `request`             | The reader declined a held change                        |
+
+`resolveAiApproval` answers with the approved batch's own result: `AI_COMPLETED`, a failure code
+(with `request`), or `AI_CONFIRMATION_NEEDED` when the batch is held again for another reason.
+
+`AI_TOOL_FAILED` also carries `cause`, the failed tool's own code (one of `AI_TOOL_CAUSE_CODES`
+from `@graphty/graphty-element/catalog`, or an `E_*` error code), and `rolledBack`, how many of the
+message's earlier changes were taken back with it.
+
+### What the assistant can do
+
+The assistant reaches everything the element can do: every algorithm, layout, file format,
+palette, scale, style channel and camera view in the catalog, the ones a plugin registers included.
+It does not get one tool per method. It gets eleven tools, each a family of actions, and finds the
+rest by searching the catalog:
+
+| Tool            | What it does                                                                   |
+| --------------- | ------------------------------------------------------------------------------ |
+| `catalog`       | Finds and describes algorithms, layouts, formats, palettes, channels and tools |
+| `query`         | Reads the data: counts, records, neighbors, attributes, distributions, paged   |
+| `select`        | Changes the selection                                                          |
+| `run_algorithm` | Runs any algorithm in the catalog, its options checked against the catalog     |
+| `results`       | Reads, reruns, cancels and removes runs                                        |
+| `style`         | Paints values on a target, colors or sizes by data, clears its own layers      |
+| `filter`        | Shows and hides elements without deleting them                                 |
+| `layout`        | Lays the graph out, pins nodes, places them                                    |
+| `view`          | The camera, 2D or 3D, saved views                                              |
+| `edit_data`     | Adds, changes and removes nodes and edges                                      |
+| `undo`          | Undoes or redoes its own last change, never the reader's                       |
+
+Seven more are offered once a catalog search names them: `sets`, `notes`, `import_data`,
+`export_graph`, `project`, `capture` and `immersive`. `ASSISTANT_TOOLS` in
+`@graphty/graphty-element/catalog` lists every tool and its actions, for a transcript that names
+them in your own words.
+
+A model that cannot hold eleven tools -- a small model running in the browser -- gets four
+instead (`catalog`, `query`, `undo`, and `call`, which calls any other tool by name). That is the
+default for WebLLM; choose it for any provider with `toolProfile`:
+
+```typescript
+await graph.enableAiControl({ provider: "google", apiKey, toolProfile: "small" }); // "standard", "small", or "auto"
+```
+
+Every call is checked before it runs, the calls the model makes at once run together or not at
+all, and one message is one undo step. What the model reads back is a code and its facts, never
+the element's English: a large answer comes in pages, and a run's result is summarized.
+Messages run one at a time, in the order they were sent; `cancelAiCommand()` ends the one running
+and every one waiting. While a run the assistant started computes, your own edits go through, and
+cancelling stops the run.
+
+#### Changes that wait for the reader
+
+A change the reader might not want is held, not made: removing many nodes or edges, changing many
+values, a run estimated to be slow, emptying or replacing the graph, cancelling a run the reader
+started, or loading a URL the reader did not type. The element asks your page, and only your page
+can say yes; the model cannot approve anything.
+
+```typescript
+graph.on("ai-approval-requested", async ({ request }) => {
+    // request.gate says why ("large", "slow", "replaces", "irreversible", "network");
+    // request.preview holds the counts, the seconds and the first affected ids.
+    const approve = window.confirm(`Apply this change? (${request.gate})`);
+    await graph.resolveAiApproval(request.id, { approve });
+});
+
+await graph.enableAiControl({
+    provider: "anthropic",
+    apiKey,
+    gate: { removeNodes: 200 }, // hold a message that removes 200 or more nodes
+    allowImportUrl: (url) => url.origin === location.origin, // URLs the reader did not type, still asked about
+});
+```
+
+The message itself ends with `AI_CONFIRMATION_NEEDED`, and the assistant changes nothing more in
+it. An approval answered from inside the listener waits for the message to end, then runs. An
+approved change becomes part of the message's undo step; a request expires when the reader sends
+the next message. Approving lets through only the hold the reader saw: a batch that is also over
+another limit is held again, and `resolveAiApproval` returns `AI_CONFIRMATION_NEEDED` with the new
+request. `gate: false` runs every change without asking, for a page with no way to ask.
+`DEFAULT_ASSISTANT_GATE_LIMITS` from `@graphty/graphty-element/ai` holds the defaults.
+
+#### Exports and pictures go to your page
+
+When the reader asks for a file or a picture, the assistant writes it and hands it to your page in
+`ai-export-ready`, once the change it was part of has been kept; the model is told only its size.
+Save it or show it as you like:
+
+```typescript
+graph.on("ai-export-ready", ({ format, data }) => {
+    const blob = typeof data === "string" ? new Blob([data]) : data;
+    download(blob, `graph.${format}`);
+});
+```
+
+#### Your own commands
+
+A command you register is offered beside the built-in tools. Say what it does to the project and
+how the model finds it, and return a code rather than a sentence:
+
+```typescript
+import { z } from "zod";
+
+graph.getAiManager()?.registerCommand({
+    name: "tag_nodes",
+    description: "Sets the attribute 'tag' on the given nodes. Use for 'mark these as hubs'.",
+    parameters: z.object({ ids: z.array(z.string()).max(500), tag: z.string().max(100) }),
+    examples: [],
+    effect: "write", // the default; "read" adds no undo step and is never held
+    load: "on-demand", // offered once a catalog search finds it, instead of on every turn
+    keywords: ["mark", "label"],
+    async execute(_graph, params, ctx) {
+        const { ids, tag } = params as { ids: string[]; tag: string };
+        await ctx!.tx.data.updateNodes(ids.map((id) => ({ id, values: { tag } })));
+        return { success: true, message: "", code: "acme.tagged", params: { nodes: ids.length } };
+    },
+});
+```
+
+The model reads `{ code, params }`; a command that sets no `code` still has its `message` read, as
+`params.message`. A command named like one of the built-in tools (`ASSISTANT_TOOLS`, which may
+grow in a minor release) keeps working: the model is offered it as `app_<name>`.
+`assistantReach()` from `@graphty/graphty-element/extend` tells a plugin's own test whether what it
+registered reaches the assistant: an option no schema can carry, an entry with no description, an
+algorithm class with no descriptor, a command named like a built-in tool.
+
+The commands earlier releases registered by default (`queryGraph`, `setLayout`,
+`findAndStyleNodes` and the rest) are still exported and still work when you register them
+yourself; they are deprecated and are removed in the next major release.
 
 ### Remembering API Keys
 

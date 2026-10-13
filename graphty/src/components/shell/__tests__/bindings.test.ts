@@ -199,10 +199,10 @@ describe("shell key bindings", () => {
         it("owns the AI composer's send chip, so no surface invents one", () => {
             const send = findShellKeyBinding("assistantSend");
 
-            expect(send?.chords).toEqual(["Mod+Enter"]);
+            expect(send?.chords).toEqual(["Enter"]);
             expect(send?.owner).toBe("widget");
-            expect(keyChipFor("assistantSend", true)).toBe("Cmd+Enter");
-            expect(keyChipFor("assistantSend", false)).toBe("Ctrl+Enter");
+            expect(keyChipFor("assistantSend", true)).toBe("Enter");
+            expect(keyChipFor("assistantSend", false)).toBe("Enter");
         });
 
         it("prints no chip for an action that has not shipped", () => {

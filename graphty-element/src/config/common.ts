@@ -1,6 +1,5 @@
 import Color from "colorjs.io";
-import { z } from "zod/v4";
-// import * as z4 from "zod/v4/core";
+import { z } from "zod";
 
 /**
  * A record the element ingests: a node's or an edge's keys and values, as a reader yields them.

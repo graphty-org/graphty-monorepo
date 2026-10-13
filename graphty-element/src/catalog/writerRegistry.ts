@@ -82,13 +82,24 @@ export const COMMON_WRITER_OPTIONS: readonly OptionDescriptor[] = [
     },
 ];
 
+/**
+ * A writer's options with the common ones after them; a common option the writer declares itself
+ * (the CX2 writer's own `sanitizeIds`, with its own default) is the writer's, listed once.
+ * @param own - The writer's options.
+ * @returns Every option it accepts, each name once.
+ */
+export function withCommonWriterOptions(own: readonly OptionDescriptor[] = []): readonly OptionDescriptor[] {
+    const names = new Set(own.map((option) => option.name));
+    return [...own, ...COMMON_WRITER_OPTIONS.filter((option) => !names.has(option.name))];
+}
+
 const registry = createPluginRegistry<FormatWriterRegistration, FormatDescriptor>({
     kind: "writer",
     idOf: (entry) => entry.descriptor.id,
     descriptorOf: (entry) =>
         Object.freeze({
             ...entry.descriptor,
-            writerOptions: [...(entry.writerOptions ?? []), ...COMMON_WRITER_OPTIONS],
+            writerOptions: withCommonWriterOptions(entry.writerOptions),
         }),
     implementationOf: (entry) => entry.exporter,
     builtInIds: () => KNOWN_FORMAT_IDS,

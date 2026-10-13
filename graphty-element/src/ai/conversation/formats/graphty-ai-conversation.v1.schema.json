@@ -1,0 +1,1151 @@
+{
+    "additionalProperties": false,
+    "properties": {
+        "createdAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+            "type": "string"
+        },
+        "format": {
+            "const": "graphty-ai-conversation",
+            "type": "string"
+        },
+        "graph": {
+            "additionalProperties": false,
+            "properties": {
+                "dataKey": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "fingerprint": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                }
+            },
+            "required": [
+                "dataKey",
+                "fingerprint"
+            ],
+            "type": "object"
+        },
+        "id": {
+            "minLength": 1,
+            "type": "string"
+        },
+        "key": {
+            "type": "string"
+        },
+        "messages": {
+            "items": {
+                "additionalProperties": false,
+                "properties": {
+                    "id": {
+                        "minLength": 1,
+                        "type": "string"
+                    },
+                    "parts": {
+                        "items": {
+                            "oneOf": [
+                                {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "origin": {
+                                            "enum": [
+                                                "reader",
+                                                "model",
+                                                "graph-data",
+                                                "graphty",
+                                                "web"
+                                            ],
+                                            "type": "string"
+                                        },
+                                        "text": {
+                                            "type": "string"
+                                        },
+                                        "type": {
+                                            "const": "text",
+                                            "type": "string"
+                                        },
+                                        "via": {
+                                            "enum": [
+                                                "text",
+                                                "voice"
+                                            ],
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "type",
+                                        "origin",
+                                        "text"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "arguments": {
+                                            "additionalProperties": {},
+                                            "propertyNames": {
+                                                "type": "string"
+                                            },
+                                            "type": "object"
+                                        },
+                                        "callId": {
+                                            "minLength": 1,
+                                            "type": "string"
+                                        },
+                                        "command": {
+                                            "minLength": 1,
+                                            "type": "string"
+                                        },
+                                        "origin": {
+                                            "enum": [
+                                                "model",
+                                                "graphty"
+                                            ],
+                                            "type": "string"
+                                        },
+                                        "providerState": {
+                                            "additionalProperties": false,
+                                            "properties": {
+                                                "data": {},
+                                                "engine": {
+                                                    "minLength": 1,
+                                                    "type": "string"
+                                                },
+                                                "model": {
+                                                    "minLength": 1,
+                                                    "type": "string"
+                                                },
+                                                "provider": {
+                                                    "minLength": 1,
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "engine",
+                                                "provider",
+                                                "model",
+                                                "data"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "type": {
+                                            "const": "tool-call",
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "type",
+                                        "origin",
+                                        "callId",
+                                        "command",
+                                        "arguments"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "callId": {
+                                            "minLength": 1,
+                                            "type": "string"
+                                        },
+                                        "code": {
+                                            "pattern": "^AI_[A-Z0-9_]+$",
+                                            "type": "string"
+                                        },
+                                        "content": {
+                                            "maxLength": 8000,
+                                            "type": "string"
+                                        },
+                                        "origin": {
+                                            "enum": [
+                                                "graph-data",
+                                                "reader",
+                                                "web"
+                                            ],
+                                            "type": "string"
+                                        },
+                                        "params": {
+                                            "additionalProperties": {
+                                                "type": [
+                                                    "string",
+                                                    "number"
+                                                ]
+                                            },
+                                            "propertyNames": {
+                                                "type": "string"
+                                            },
+                                            "type": "object"
+                                        },
+                                        "type": {
+                                            "const": "tool-result",
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "type",
+                                        "origin",
+                                        "callId",
+                                        "code",
+                                        "params",
+                                        "content"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "origin": {
+                                            "const": "model",
+                                            "type": "string"
+                                        },
+                                        "providerState": {
+                                            "additionalProperties": false,
+                                            "properties": {
+                                                "data": {},
+                                                "engine": {
+                                                    "minLength": 1,
+                                                    "type": "string"
+                                                },
+                                                "model": {
+                                                    "minLength": 1,
+                                                    "type": "string"
+                                                },
+                                                "provider": {
+                                                    "minLength": 1,
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "engine",
+                                                "provider",
+                                                "model",
+                                                "data"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "text": {
+                                            "type": "string"
+                                        },
+                                        "type": {
+                                            "const": "reasoning",
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "type",
+                                        "origin"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "code": {
+                                            "pattern": "^AI_[A-Z0-9_]+$",
+                                            "type": "string"
+                                        },
+                                        "origin": {
+                                            "const": "graphty",
+                                            "type": "string"
+                                        },
+                                        "params": {
+                                            "additionalProperties": {
+                                                "type": [
+                                                    "string",
+                                                    "number"
+                                                ]
+                                            },
+                                            "propertyNames": {
+                                                "type": "string"
+                                            },
+                                            "type": "object"
+                                        },
+                                        "type": {
+                                            "const": "outcome",
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "type",
+                                        "origin",
+                                        "code",
+                                        "params"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "agent": {
+                                            "minLength": 1,
+                                            "type": "string"
+                                        },
+                                        "callId": {
+                                            "minLength": 1,
+                                            "type": "string"
+                                        },
+                                        "messages": {
+                                            "items": {
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                    "id": {
+                                                        "minLength": 1,
+                                                        "type": "string"
+                                                    },
+                                                    "parts": {
+                                                        "items": {
+                                                            "oneOf": [
+                                                                {
+                                                                    "additionalProperties": false,
+                                                                    "properties": {
+                                                                        "origin": {
+                                                                            "enum": [
+                                                                                "reader",
+                                                                                "model",
+                                                                                "graph-data",
+                                                                                "graphty",
+                                                                                "web"
+                                                                            ],
+                                                                            "type": "string"
+                                                                        },
+                                                                        "text": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "type": {
+                                                                            "const": "text",
+                                                                            "type": "string"
+                                                                        },
+                                                                        "via": {
+                                                                            "enum": [
+                                                                                "text",
+                                                                                "voice"
+                                                                            ],
+                                                                            "type": "string"
+                                                                        }
+                                                                    },
+                                                                    "required": [
+                                                                        "type",
+                                                                        "origin",
+                                                                        "text"
+                                                                    ],
+                                                                    "type": "object"
+                                                                },
+                                                                {
+                                                                    "additionalProperties": false,
+                                                                    "properties": {
+                                                                        "arguments": {
+                                                                            "additionalProperties": {},
+                                                                            "propertyNames": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "type": "object"
+                                                                        },
+                                                                        "callId": {
+                                                                            "minLength": 1,
+                                                                            "type": "string"
+                                                                        },
+                                                                        "command": {
+                                                                            "minLength": 1,
+                                                                            "type": "string"
+                                                                        },
+                                                                        "origin": {
+                                                                            "enum": [
+                                                                                "model",
+                                                                                "graphty"
+                                                                            ],
+                                                                            "type": "string"
+                                                                        },
+                                                                        "providerState": {
+                                                                            "additionalProperties": false,
+                                                                            "properties": {
+                                                                                "data": {},
+                                                                                "engine": {
+                                                                                    "minLength": 1,
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "model": {
+                                                                                    "minLength": 1,
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "provider": {
+                                                                                    "minLength": 1,
+                                                                                    "type": "string"
+                                                                                }
+                                                                            },
+                                                                            "required": [
+                                                                                "engine",
+                                                                                "provider",
+                                                                                "model",
+                                                                                "data"
+                                                                            ],
+                                                                            "type": "object"
+                                                                        },
+                                                                        "type": {
+                                                                            "const": "tool-call",
+                                                                            "type": "string"
+                                                                        }
+                                                                    },
+                                                                    "required": [
+                                                                        "type",
+                                                                        "origin",
+                                                                        "callId",
+                                                                        "command",
+                                                                        "arguments"
+                                                                    ],
+                                                                    "type": "object"
+                                                                },
+                                                                {
+                                                                    "additionalProperties": false,
+                                                                    "properties": {
+                                                                        "callId": {
+                                                                            "minLength": 1,
+                                                                            "type": "string"
+                                                                        },
+                                                                        "code": {
+                                                                            "pattern": "^AI_[A-Z0-9_]+$",
+                                                                            "type": "string"
+                                                                        },
+                                                                        "content": {
+                                                                            "maxLength": 8000,
+                                                                            "type": "string"
+                                                                        },
+                                                                        "origin": {
+                                                                            "enum": [
+                                                                                "graph-data",
+                                                                                "reader",
+                                                                                "web"
+                                                                            ],
+                                                                            "type": "string"
+                                                                        },
+                                                                        "params": {
+                                                                            "additionalProperties": {
+                                                                                "type": [
+                                                                                    "string",
+                                                                                    "number"
+                                                                                ]
+                                                                            },
+                                                                            "propertyNames": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "type": "object"
+                                                                        },
+                                                                        "type": {
+                                                                            "const": "tool-result",
+                                                                            "type": "string"
+                                                                        }
+                                                                    },
+                                                                    "required": [
+                                                                        "type",
+                                                                        "origin",
+                                                                        "callId",
+                                                                        "code",
+                                                                        "params",
+                                                                        "content"
+                                                                    ],
+                                                                    "type": "object"
+                                                                },
+                                                                {
+                                                                    "additionalProperties": false,
+                                                                    "properties": {
+                                                                        "origin": {
+                                                                            "const": "model",
+                                                                            "type": "string"
+                                                                        },
+                                                                        "providerState": {
+                                                                            "additionalProperties": false,
+                                                                            "properties": {
+                                                                                "data": {},
+                                                                                "engine": {
+                                                                                    "minLength": 1,
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "model": {
+                                                                                    "minLength": 1,
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "provider": {
+                                                                                    "minLength": 1,
+                                                                                    "type": "string"
+                                                                                }
+                                                                            },
+                                                                            "required": [
+                                                                                "engine",
+                                                                                "provider",
+                                                                                "model",
+                                                                                "data"
+                                                                            ],
+                                                                            "type": "object"
+                                                                        },
+                                                                        "text": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "type": {
+                                                                            "const": "reasoning",
+                                                                            "type": "string"
+                                                                        }
+                                                                    },
+                                                                    "required": [
+                                                                        "type",
+                                                                        "origin"
+                                                                    ],
+                                                                    "type": "object"
+                                                                },
+                                                                {
+                                                                    "additionalProperties": false,
+                                                                    "properties": {
+                                                                        "code": {
+                                                                            "pattern": "^AI_[A-Z0-9_]+$",
+                                                                            "type": "string"
+                                                                        },
+                                                                        "origin": {
+                                                                            "const": "graphty",
+                                                                            "type": "string"
+                                                                        },
+                                                                        "params": {
+                                                                            "additionalProperties": {
+                                                                                "type": [
+                                                                                    "string",
+                                                                                    "number"
+                                                                                ]
+                                                                            },
+                                                                            "propertyNames": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "type": "object"
+                                                                        },
+                                                                        "type": {
+                                                                            "const": "outcome",
+                                                                            "type": "string"
+                                                                        }
+                                                                    },
+                                                                    "required": [
+                                                                        "type",
+                                                                        "origin",
+                                                                        "code",
+                                                                        "params"
+                                                                    ],
+                                                                    "type": "object"
+                                                                },
+                                                                {
+                                                                    "additionalProperties": false,
+                                                                    "properties": {
+                                                                        "origin": {
+                                                                            "const": "web",
+                                                                            "type": "string"
+                                                                        },
+                                                                        "providerState": {
+                                                                            "additionalProperties": false,
+                                                                            "properties": {
+                                                                                "data": {},
+                                                                                "engine": {
+                                                                                    "minLength": 1,
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "model": {
+                                                                                    "minLength": 1,
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "provider": {
+                                                                                    "minLength": 1,
+                                                                                    "type": "string"
+                                                                                }
+                                                                            },
+                                                                            "required": [
+                                                                                "engine",
+                                                                                "provider",
+                                                                                "model",
+                                                                                "data"
+                                                                            ],
+                                                                            "type": "object"
+                                                                        },
+                                                                        "sources": {
+                                                                            "items": {
+                                                                                "additionalProperties": false,
+                                                                                "properties": {
+                                                                                    "contentReturned": {
+                                                                                        "const": false,
+                                                                                        "type": "boolean"
+                                                                                    },
+                                                                                    "retrieval": {
+                                                                                        "minLength": 1,
+                                                                                        "type": "string"
+                                                                                    },
+                                                                                    "title": {
+                                                                                        "type": "string"
+                                                                                    },
+                                                                                    "url": {
+                                                                                        "pattern": "^https?:\\/\\/",
+                                                                                        "type": "string"
+                                                                                    }
+                                                                                },
+                                                                                "required": [
+                                                                                    "url"
+                                                                                ],
+                                                                                "type": "object"
+                                                                            },
+                                                                            "type": "array"
+                                                                        },
+                                                                        "status": {
+                                                                            "enum": [
+                                                                                "done",
+                                                                                "result-unavailable"
+                                                                            ],
+                                                                            "type": "string"
+                                                                        },
+                                                                        "tool": {
+                                                                            "minLength": 1,
+                                                                            "type": "string"
+                                                                        },
+                                                                        "type": {
+                                                                            "const": "hosted-tool",
+                                                                            "type": "string"
+                                                                        }
+                                                                    },
+                                                                    "required": [
+                                                                        "type",
+                                                                        "origin",
+                                                                        "tool",
+                                                                        "status",
+                                                                        "sources"
+                                                                    ],
+                                                                    "type": "object"
+                                                                }
+                                                            ]
+                                                        },
+                                                        "type": "array"
+                                                    },
+                                                    "role": {
+                                                        "enum": [
+                                                            "user",
+                                                            "assistant",
+                                                            "tool"
+                                                        ],
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "id",
+                                                    "role",
+                                                    "parts"
+                                                ],
+                                                "type": "object"
+                                            },
+                                            "type": "array"
+                                        },
+                                        "origin": {
+                                            "const": "graphty",
+                                            "type": "string"
+                                        },
+                                        "type": {
+                                            "const": "agent-ref",
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "type",
+                                        "origin",
+                                        "agent",
+                                        "callId",
+                                        "messages"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "origin": {
+                                            "const": "web",
+                                            "type": "string"
+                                        },
+                                        "providerState": {
+                                            "additionalProperties": false,
+                                            "properties": {
+                                                "data": {},
+                                                "engine": {
+                                                    "minLength": 1,
+                                                    "type": "string"
+                                                },
+                                                "model": {
+                                                    "minLength": 1,
+                                                    "type": "string"
+                                                },
+                                                "provider": {
+                                                    "minLength": 1,
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "engine",
+                                                "provider",
+                                                "model",
+                                                "data"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "sources": {
+                                            "items": {
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                    "contentReturned": {
+                                                        "const": false,
+                                                        "type": "boolean"
+                                                    },
+                                                    "retrieval": {
+                                                        "minLength": 1,
+                                                        "type": "string"
+                                                    },
+                                                    "title": {
+                                                        "type": "string"
+                                                    },
+                                                    "url": {
+                                                        "pattern": "^https?:\\/\\/",
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "url"
+                                                ],
+                                                "type": "object"
+                                            },
+                                            "type": "array"
+                                        },
+                                        "status": {
+                                            "enum": [
+                                                "done",
+                                                "result-unavailable"
+                                            ],
+                                            "type": "string"
+                                        },
+                                        "tool": {
+                                            "minLength": 1,
+                                            "type": "string"
+                                        },
+                                        "type": {
+                                            "const": "hosted-tool",
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "type",
+                                        "origin",
+                                        "tool",
+                                        "status",
+                                        "sources"
+                                    ],
+                                    "type": "object"
+                                }
+                            ]
+                        },
+                        "type": "array"
+                    },
+                    "role": {
+                        "enum": [
+                            "user",
+                            "assistant",
+                            "tool"
+                        ],
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "id",
+                    "role",
+                    "parts"
+                ],
+                "type": "object"
+            },
+            "type": "array"
+        },
+        "pending": {
+            "items": {
+                "oneOf": [
+                    {
+                        "additionalProperties": false,
+                        "properties": {
+                            "agent": {
+                                "minLength": 1,
+                                "type": "string"
+                            },
+                            "calls": {
+                                "items": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "arguments": {
+                                            "additionalProperties": {},
+                                            "propertyNames": {
+                                                "type": "string"
+                                            },
+                                            "type": "object"
+                                        },
+                                        "callId": {
+                                            "minLength": 1,
+                                            "type": "string"
+                                        },
+                                        "command": {
+                                            "minLength": 1,
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "callId",
+                                        "command",
+                                        "arguments"
+                                    ],
+                                    "type": "object"
+                                },
+                                "minItems": 1,
+                                "type": "array"
+                            },
+                            "claim": {
+                                "anyOf": [
+                                    {
+                                        "minLength": 1,
+                                        "type": "string"
+                                    },
+                                    {
+                                        "type": "null"
+                                    }
+                                ]
+                            },
+                            "createdAt": {
+                                "format": "date-time",
+                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+                                "type": "string"
+                            },
+                            "gate": {
+                                "minLength": 1,
+                                "type": "string"
+                            },
+                            "graph": {
+                                "additionalProperties": false,
+                                "properties": {
+                                    "dataKey": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ]
+                                    },
+                                    "edges": {
+                                        "maximum": 9007199254740991,
+                                        "minimum": 0,
+                                        "type": "integer"
+                                    },
+                                    "fingerprint": {
+                                        "type": "string"
+                                    },
+                                    "nodes": {
+                                        "maximum": 9007199254740991,
+                                        "minimum": 0,
+                                        "type": "integer"
+                                    }
+                                },
+                                "required": [
+                                    "dataKey",
+                                    "fingerprint",
+                                    "nodes",
+                                    "edges"
+                                ],
+                                "type": "object"
+                            },
+                            "historyRevision": {
+                                "maximum": 9007199254740991,
+                                "minimum": 0,
+                                "type": "integer"
+                            },
+                            "id": {
+                                "minLength": 1,
+                                "type": "string"
+                            },
+                            "kind": {
+                                "const": "approval",
+                                "type": "string"
+                            },
+                            "messageId": {
+                                "minLength": 1,
+                                "type": "string"
+                            },
+                            "preview": {
+                                "additionalProperties": false,
+                                "properties": {
+                                    "algorithm": {
+                                        "type": "string"
+                                    },
+                                    "changedValues": {
+                                        "maximum": 9007199254740991,
+                                        "minimum": 0,
+                                        "type": "integer"
+                                    },
+                                    "costClass": {
+                                        "type": "string"
+                                    },
+                                    "edges": {
+                                        "maximum": 9007199254740991,
+                                        "minimum": 0,
+                                        "type": "integer"
+                                    },
+                                    "ids": {
+                                        "items": {
+                                            "additionalProperties": false,
+                                            "properties": {
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "label": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "id",
+                                                "label"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "type": "array"
+                                    },
+                                    "mode": {
+                                        "enum": [
+                                            "merge",
+                                            "replace"
+                                        ],
+                                        "type": "string"
+                                    },
+                                    "nodes": {
+                                        "maximum": 9007199254740991,
+                                        "minimum": 0,
+                                        "type": "integer"
+                                    },
+                                    "removeEdges": {
+                                        "maximum": 9007199254740991,
+                                        "minimum": 0,
+                                        "type": "integer"
+                                    },
+                                    "removeNodes": {
+                                        "maximum": 9007199254740991,
+                                        "minimum": 0,
+                                        "type": "integer"
+                                    },
+                                    "run": {
+                                        "type": "string"
+                                    },
+                                    "seconds": {
+                                        "anyOf": [
+                                            {
+                                                "minimum": 0,
+                                                "type": "number"
+                                            },
+                                            {
+                                                "const": "unbounded",
+                                                "type": "string"
+                                            }
+                                        ]
+                                    },
+                                    "url": {
+                                        "type": "string"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        },
+                        "required": [
+                            "kind",
+                            "id",
+                            "messageId",
+                            "gate",
+                            "calls",
+                            "preview",
+                            "graph",
+                            "historyRevision",
+                            "claim",
+                            "createdAt"
+                        ],
+                        "type": "object"
+                    },
+                    {
+                        "additionalProperties": false,
+                        "properties": {
+                            "callId": {
+                                "minLength": 1,
+                                "type": "string"
+                            },
+                            "choices": {
+                                "items": {
+                                    "type": "string"
+                                },
+                                "maxItems": 10,
+                                "minItems": 2,
+                                "type": "array"
+                            },
+                            "claim": {
+                                "anyOf": [
+                                    {
+                                        "minLength": 1,
+                                        "type": "string"
+                                    },
+                                    {
+                                        "type": "null"
+                                    }
+                                ]
+                            },
+                            "createdAt": {
+                                "format": "date-time",
+                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+                                "type": "string"
+                            },
+                            "id": {
+                                "minLength": 1,
+                                "type": "string"
+                            },
+                            "kind": {
+                                "const": "question",
+                                "type": "string"
+                            },
+                            "messageId": {
+                                "minLength": 1,
+                                "type": "string"
+                            },
+                            "multiple": {
+                                "type": "boolean"
+                            },
+                            "question": {
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "kind",
+                            "id",
+                            "messageId",
+                            "callId",
+                            "question",
+                            "choices",
+                            "multiple",
+                            "claim",
+                            "createdAt"
+                        ],
+                        "type": "object"
+                    },
+                    {
+                        "additionalProperties": false,
+                        "properties": {
+                            "claim": {
+                                "anyOf": [
+                                    {
+                                        "minLength": 1,
+                                        "type": "string"
+                                    },
+                                    {
+                                        "type": "null"
+                                    }
+                                ]
+                            },
+                            "createdAt": {
+                                "format": "date-time",
+                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+                                "type": "string"
+                            },
+                            "id": {
+                                "minLength": 1,
+                                "type": "string"
+                            },
+                            "kind": {
+                                "const": "plan-step",
+                                "type": "string"
+                            },
+                            "messageId": {
+                                "minLength": 1,
+                                "type": "string"
+                            },
+                            "next": {
+                                "maximum": 9007199254740991,
+                                "minimum": 0,
+                                "type": "integer"
+                            },
+                            "plan": {
+                                "additionalProperties": false,
+                                "properties": {
+                                    "steps": {
+                                        "items": {
+                                            "additionalProperties": false,
+                                            "properties": {
+                                                "agents": {
+                                                    "items": {
+                                                        "minLength": 1,
+                                                        "type": "string"
+                                                    },
+                                                    "minItems": 1,
+                                                    "type": "array"
+                                                },
+                                                "order": {
+                                                    "enum": [
+                                                        "parallel",
+                                                        "sequence"
+                                                    ],
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "agents"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "minItems": 1,
+                                        "type": "array"
+                                    }
+                                },
+                                "required": [
+                                    "steps"
+                                ],
+                                "type": "object"
+                            }
+                        },
+                        "required": [
+                            "kind",
+                            "id",
+                            "messageId",
+                            "plan",
+                            "next",
+                            "claim",
+                            "createdAt"
+                        ],
+                        "type": "object"
+                    }
+                ]
+            },
+            "type": "array"
+        },
+        "revision": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+        },
+        "updatedAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+            "type": "string"
+        },
+        "version": {
+            "const": 1,
+            "type": "number"
+        }
+    },
+    "required": [
+        "format",
+        "version",
+        "revision",
+        "id",
+        "key",
+        "createdAt",
+        "updatedAt",
+        "graph",
+        "messages",
+        "pending"
+    ],
+    "type": "object"
+}

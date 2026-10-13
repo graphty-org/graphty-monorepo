@@ -8,8 +8,7 @@ import {
     ImportReportBuilder,
     readText,
 } from "@graphty/graph-io";
-import { z } from "zod/v4";
-import * as z4 from "zod/v4/core";
+import { z } from "zod";
 
 import { MIN_CONTENT_CONFIDENCE } from "../catalog/detect";
 import { type GraphLister, publishFormatDescriptor } from "../catalog/formatRegistry";
@@ -332,8 +331,8 @@ export abstract class DataSource {
      */
     static listGraphs?: GraphLister;
 
-    edgeSchema: z4.$ZodObject | null = null;
-    nodeSchema: z4.$ZodObject | null = null;
+    edgeSchema: z.core.$ZodObject | null = null;
+    nodeSchema: z.core.$ZodObject | null = null;
     protected errorAggregator: ErrorAggregator;
     protected chunkSize: number;
     /** Backing field of {@link declaredDirection}; written only by {@link declareDirection}. */
@@ -761,8 +760,8 @@ export abstract class DataSource {
      * @param obj - Data object to validate
      * @returns Promise resolving to true if validation succeeds, false otherwise
      */
-    async dataValidator(schema: z4.$ZodObject, obj: object): Promise<boolean> {
-        const res = await z4.safeParseAsync(schema, obj);
+    async dataValidator(schema: z.core.$ZodObject, obj: object): Promise<boolean> {
+        const res = await z.core.safeParseAsync(schema, obj);
 
         if (!res.success) {
             const errMsg = z.prettifyError(res.error);

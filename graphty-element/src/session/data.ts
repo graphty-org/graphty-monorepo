@@ -20,6 +20,7 @@ import type {
     AttributeUse,
     EdgeId,
     MeasurementDeclaration,
+    Query,
     RunId,
     ScopeInput,
 } from "../catalog/types";
@@ -151,6 +152,13 @@ interface PageSources {
      * @returns The test
      */
     textTest(text: string, mode: SelectionTextMode, target: "node" | "edge"): (index: number) => boolean;
+    /**
+     * The ids an expression matches: a page's `where`, over the query engine.
+     * @param where - The expression
+     * @param target - Nodes or edges
+     * @returns The matching ids
+     */
+    matchWhere(where: Query, target: "node" | "edge"): ReadonlySet<NodeId | EdgeId>;
     /**
      * One run, for a page's result columns and result sort.
      * @param id - the run id
@@ -1057,7 +1065,14 @@ export class SessionData implements SessionDataApi {
         const touching = target === "edge" ? options.touching : undefined;
         const { sort } = options;
         const matching = matchingOf(options.matching);
-        if (scope === undefined && touching === undefined && sort === undefined && matching === undefined) {
+        const { where } = options;
+        if (
+            scope === undefined &&
+            touching === undefined &&
+            sort === undefined &&
+            matching === undefined &&
+            where === undefined
+        ) {
             return null;
         }
 
@@ -1066,7 +1081,7 @@ export class SessionData implements SessionDataApi {
         // resolved to, never by the run handle it was given.
         const sortKey =
             result === undefined ? sort : { run: result.run, field: result.field, descending: sort?.descending };
-        const key = JSON.stringify([target, scope, sortKey, touching, matching]);
+        const key = JSON.stringify([target, scope, sortKey, touching, matching, where]);
         return this.orders.get(key, () => {
             const space = edgeSpaceOf(snapshot);
             const order =
@@ -1082,7 +1097,17 @@ export class SessionData implements SessionDataApi {
                                         )
                                   : rowReader(resultSortValue(result, target), snapshot, target),
                       };
-            const matches = matching === undefined ? null : this.pages.textTest(matching.text, matching.mode, target);
+            const texts = matching === undefined ? null : this.pages.textTest(matching.text, matching.mode, target);
+            const wanted = where === undefined ? null : this.pages.matchWhere(where, target);
+            const ids =
+                target === "node"
+                    ? (index: number): unknown => snapshot.ids.idOf(index)
+                    : (index: number): unknown => space.idOf(index);
+            const matches =
+                wanted === null
+                    ? texts
+                    : (index: number): boolean =>
+                          (texts === null || texts(index)) && wanted.has(ids(index) as NodeId | EdgeId);
             return this.computeOrder(snapshot, target, scope, touching, order, matches);
         });
     }

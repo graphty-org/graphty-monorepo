@@ -1,0 +1,438 @@
+{
+    "createdAt": "2026-10-11T09:00:00.000Z",
+    "format": "graphty-ai-conversation",
+    "graph": {
+        "dataKey": null,
+        "fingerprint": "n=120;e=340;h=9f2c"
+    },
+    "id": "c-every-kind",
+    "key": "graph-1:/explore",
+    "messages": [
+        {
+            "id": "m1",
+            "parts": [
+                {
+                    "origin": "reader",
+                    "text": "Remove the isolated nodes",
+                    "type": "text",
+                    "via": "voice"
+                },
+                {
+                    "origin": "graph-data",
+                    "text": "nodes: 120, edges: 340",
+                    "type": "text"
+                }
+            ],
+            "role": "user"
+        },
+        {
+            "id": "m2",
+            "parts": [
+                {
+                    "origin": "model",
+                    "providerState": {
+                        "data": {
+                            "signature": "c2ln"
+                        },
+                        "engine": "provider-api",
+                        "model": "claude-haiku-4-5-20251001",
+                        "provider": "anthropic"
+                    },
+                    "text": "Find degree 0 first.",
+                    "type": "reasoning"
+                },
+                {
+                    "origin": "model",
+                    "text": "Removing them.",
+                    "type": "text"
+                },
+                {
+                    "arguments": {
+                        "selector": "degree == `0`"
+                    },
+                    "callId": "t1",
+                    "command": "removeNodes",
+                    "origin": "model",
+                    "providerState": {
+                        "data": {
+                            "thoughtSignature": "dGhvdWdodA=="
+                        },
+                        "engine": "provider-api",
+                        "model": "gemini-3.8-flash",
+                        "provider": "google"
+                    },
+                    "type": "tool-call"
+                }
+            ],
+            "role": "assistant"
+        },
+        {
+            "id": "m3",
+            "parts": [
+                {
+                    "callId": "t1",
+                    "code": "AI_CONFIRMATION_NEEDED",
+                    "content": "{\"code\":\"AI_CONFIRMATION_NEEDED\",\"params\":{}}",
+                    "origin": "graph-data",
+                    "params": {
+                        "gate": "large",
+                        "tool": "removeNodes"
+                    },
+                    "type": "tool-result"
+                },
+                {
+                    "callId": "t2",
+                    "code": "AI_TOOL_NOT_RUN",
+                    "content": "{\"code\":\"AI_TOOL_NOT_RUN\",\"params\":{\"tool\":\"setStyle\"}}",
+                    "origin": "graph-data",
+                    "params": {
+                        "tool": "setStyle"
+                    },
+                    "type": "tool-result"
+                }
+            ],
+            "role": "tool"
+        },
+        {
+            "id": "m4",
+            "parts": [
+                {
+                    "code": "AI_PROVIDER_ERROR",
+                    "origin": "graphty",
+                    "params": {
+                        "provider": "google",
+                        "status": 503
+                    },
+                    "type": "outcome"
+                }
+            ],
+            "role": "assistant"
+        },
+        {
+            "id": "m5",
+            "parts": [
+                {
+                    "origin": "reader",
+                    "text": "thanks",
+                    "type": "text"
+                }
+            ],
+            "role": "user"
+        },
+        {
+            "id": "m6",
+            "parts": [
+                {
+                    "arguments": {
+                        "choices": [
+                            "Sales",
+                            "Ops",
+                            "R&D"
+                        ],
+                        "question": "Which department?"
+                    },
+                    "callId": "q0",
+                    "command": "ask_reader",
+                    "origin": "model",
+                    "type": "tool-call"
+                }
+            ],
+            "role": "assistant"
+        },
+        {
+            "id": "m7",
+            "parts": [
+                {
+                    "callId": "q0",
+                    "code": "AI_COMPLETED",
+                    "content": "\"Sales\"",
+                    "origin": "reader",
+                    "params": {},
+                    "type": "tool-result"
+                }
+            ],
+            "role": "tool"
+        },
+        {
+            "id": "m8",
+            "parts": [
+                {
+                    "arguments": {
+                        "agent": "stylist",
+                        "task": "Color the Sales nodes red"
+                    },
+                    "callId": "d1",
+                    "command": "delegate",
+                    "origin": "model",
+                    "type": "tool-call"
+                },
+                {
+                    "agent": "stylist",
+                    "callId": "d1",
+                    "messages": [
+                        {
+                            "id": "h1",
+                            "parts": [
+                                {
+                                    "origin": "graphty",
+                                    "text": "Color the Sales nodes red",
+                                    "type": "text"
+                                }
+                            ],
+                            "role": "user"
+                        },
+                        {
+                            "id": "h2",
+                            "parts": [
+                                {
+                                    "arguments": {
+                                        "action": "highlight",
+                                        "selector": "dept == 'Sales'"
+                                    },
+                                    "callId": "s1",
+                                    "command": "style",
+                                    "origin": "model",
+                                    "type": "tool-call"
+                                }
+                            ],
+                            "role": "assistant"
+                        },
+                        {
+                            "id": "h3",
+                            "parts": [
+                                {
+                                    "callId": "s1",
+                                    "code": "AI_CONFIRMATION_NEEDED",
+                                    "content": "{\"code\":\"AI_CONFIRMATION_NEEDED\",\"params\":{}}",
+                                    "origin": "graph-data",
+                                    "params": {
+                                        "gate": "policy"
+                                    },
+                                    "type": "tool-result"
+                                }
+                            ],
+                            "role": "tool"
+                        }
+                    ],
+                    "origin": "graphty",
+                    "type": "agent-ref"
+                },
+                {
+                    "arguments": {
+                        "choices": [
+                            "yes",
+                            "no"
+                        ],
+                        "question": "Also the edges?"
+                    },
+                    "callId": "q1",
+                    "command": "ask_reader",
+                    "origin": "model",
+                    "type": "tool-call"
+                }
+            ],
+            "role": "assistant"
+        },
+        {
+            "id": "m9",
+            "parts": [
+                {
+                    "arguments": {
+                        "agent": "research",
+                        "task": "When did the Eiffel Tower open?"
+                    },
+                    "callId": "d2",
+                    "command": "delegate",
+                    "origin": "model",
+                    "type": "tool-call"
+                },
+                {
+                    "arguments": {
+                        "agent": "counter",
+                        "task": "Count the nodes"
+                    },
+                    "callId": "d3",
+                    "command": "delegate",
+                    "origin": "graphty",
+                    "type": "tool-call"
+                }
+            ],
+            "role": "assistant"
+        },
+        {
+            "id": "m10",
+            "parts": [
+                {
+                    "agent": "research",
+                    "callId": "d2",
+                    "messages": [
+                        {
+                            "id": "h4",
+                            "parts": [
+                                {
+                                    "origin": "graphty",
+                                    "text": "When did the Eiffel Tower open?",
+                                    "type": "text"
+                                }
+                            ],
+                            "role": "user"
+                        },
+                        {
+                            "id": "h5",
+                            "parts": [
+                                {
+                                    "origin": "web",
+                                    "sources": [
+                                        {
+                                            "title": "Eiffel Tower",
+                                            "url": "https://en.wikipedia.org/wiki/Eiffel_Tower"
+                                        },
+                                        {
+                                            "url": "http://example.org/tower"
+                                        }
+                                    ],
+                                    "status": "done",
+                                    "tool": "web-search",
+                                    "type": "hosted-tool"
+                                },
+                                {
+                                    "origin": "web",
+                                    "sources": [],
+                                    "status": "result-unavailable",
+                                    "tool": "web-fetch",
+                                    "type": "hosted-tool"
+                                },
+                                {
+                                    "origin": "web",
+                                    "text": "The tower opened on 31 March 1889.",
+                                    "type": "text"
+                                },
+                                {
+                                    "origin": "model",
+                                    "text": "It opened in 1889.",
+                                    "type": "text"
+                                }
+                            ],
+                            "role": "assistant"
+                        }
+                    ],
+                    "origin": "graphty",
+                    "type": "agent-ref"
+                },
+                {
+                    "callId": "d2",
+                    "code": "AI_COMPLETED",
+                    "content": "\"It opened in 1889.\"",
+                    "origin": "web",
+                    "params": {},
+                    "type": "tool-result"
+                }
+            ],
+            "role": "tool"
+        }
+    ],
+    "pending": [
+        {
+            "calls": [
+                {
+                    "arguments": {
+                        "selector": "degree == `0`"
+                    },
+                    "callId": "t1",
+                    "command": "removeNodes"
+                }
+            ],
+            "claim": null,
+            "createdAt": "2026-10-11T09:01:00.000Z",
+            "gate": "large",
+            "graph": {
+                "dataKey": null,
+                "edges": 340,
+                "fingerprint": "n=120;e=340;h=9f2c",
+                "nodes": 120
+            },
+            "historyRevision": 4,
+            "id": "a1",
+            "kind": "approval",
+            "messageId": "m2",
+            "preview": {
+                "ids": [
+                    {
+                        "id": "n1",
+                        "label": "Alice"
+                    }
+                ],
+                "removeEdges": 0,
+                "removeNodes": 12
+            }
+        },
+        {
+            "agent": "stylist",
+            "calls": [
+                {
+                    "arguments": {
+                        "action": "highlight",
+                        "selector": "dept == 'Sales'"
+                    },
+                    "callId": "s1",
+                    "command": "style"
+                }
+            ],
+            "claim": null,
+            "createdAt": "2026-10-11T09:02:00.000Z",
+            "gate": "policy",
+            "graph": {
+                "dataKey": null,
+                "edges": 340,
+                "fingerprint": "n=120;e=340;h=9f2c",
+                "nodes": 120
+            },
+            "historyRevision": 4,
+            "id": "a2",
+            "kind": "approval",
+            "messageId": "m8",
+            "preview": {}
+        },
+        {
+            "callId": "q1",
+            "choices": [
+                "yes",
+                "no"
+            ],
+            "claim": "tab-2",
+            "createdAt": "2026-10-11T09:03:00.000Z",
+            "id": "q1",
+            "kind": "question",
+            "messageId": "m8",
+            "multiple": false,
+            "question": "Also the edges?"
+        },
+        {
+            "claim": null,
+            "createdAt": "2026-10-11T09:04:00.000Z",
+            "id": "p1",
+            "kind": "plan-step",
+            "messageId": "m8",
+            "next": 1,
+            "plan": {
+                "steps": [
+                    {
+                        "agents": [
+                            "counter",
+                            "stylist"
+                        ],
+                        "order": "parallel"
+                    },
+                    {
+                        "agents": [
+                            "stylist"
+                        ]
+                    }
+                ]
+            }
+        }
+    ],
+    "revision": 7,
+    "updatedAt": "2026-10-11T09:05:00.000Z",
+    "version": 1
+}

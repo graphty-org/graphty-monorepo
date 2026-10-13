@@ -16,6 +16,9 @@ import { z } from "zod";
  * ```
  */
 
+/** A Quest Touch face button. */
+const xrControllerButton = z.enum(["a", "b", "x", "y"]);
+
 export const xrConfigSchema = z
     .object({
         /**
@@ -54,7 +57,7 @@ export const xrConfigSchema = z
                  */
                 showAvailabilityWarning: z.boolean().default(false),
             })
-            .default({}),
+            .prefault({}),
 
         /**
          * VR mode configuration
@@ -85,7 +88,7 @@ export const xrConfigSchema = z
                  */
                 optionalFeatures: z.array(z.string()).default([]),
             })
-            .default({}),
+            .prefault({}),
 
         /**
          * AR mode configuration
@@ -112,7 +115,7 @@ export const xrConfigSchema = z
                  */
                 optionalFeatures: z.array(z.string()).default(["hit-test"]),
             })
-            .default({}),
+            .prefault({}),
 
         /**
          * XR input and interaction configuration
@@ -160,7 +163,7 @@ export const xrConfigSchema = z
                  */
                 enableZAmplificationInDesktop: z.boolean().default(false),
             })
-            .default({}),
+            .prefault({}),
 
         /**
          * Teleportation configuration
@@ -179,9 +182,34 @@ export const xrConfigSchema = z
                  */
                 easeTime: z.number().positive().default(200),
             })
-            .default({}),
+            .prefault({}),
+
+        /**
+         * The assistant in an immersive session (XRAiConfig). Optional with no default, so a
+         * configuration that leaves it out parses exactly as before; its defaults apply where it
+         * is read.
+         */
+        ai: z
+            .object({
+                pushToTalk: z
+                    .object({
+                        buttons: z.array(xrControllerButton).optional(),
+                        wristOrb: z.boolean().optional(),
+                    })
+                    .optional(),
+                pendingButtons: z
+                    .object({
+                        approve: z.array(xrControllerButton).optional(),
+                        deny: z.array(xrControllerButton).optional(),
+                    })
+                    .optional(),
+                pendingControl: z.boolean().optional(),
+                panel: z.boolean().optional(),
+                labels: z.record(z.string(), z.string()).optional(),
+            })
+            .optional(),
     })
-    .default({});
+    .prefault({});
 
 /**
  * Type for partial XR configuration (user input)

@@ -3,6 +3,23 @@
  * @module test/helpers/e2e-graph-setup
  */
 
+import {
+    clearStyles,
+    describeProperty,
+    findAndStyleEdges,
+    findAndStyleNodes,
+    findNodes,
+    listAlgorithms,
+    queryGraph,
+    runAlgorithm,
+    sampleData,
+    setCameraPosition,
+    setDimension,
+    setImmersiveMode,
+    setLayout,
+    zoomToNodes,
+} from "../../src/ai/commands";
+import { getSchema } from "../../src/ai/commands/QueryCommands";
 import { Graph } from "../../src/Graph";
 import { configureGraph } from "./testSetup";
 
@@ -33,6 +50,12 @@ export interface E2EGraphOptions {
     edges?: TestEdgeData[];
     /** Whether to enable AI control (default: true) */
     enableAi?: boolean;
+    /**
+     * Also register the deprecated hand-written commands (`queryGraph`, `setLayout`, ...), which
+     * the assistant no longer registers by default: the tests that pin their behavior until they
+     * are removed in the next major release.
+     */
+    legacyCommands?: boolean;
     /** Container width in pixels (default: 800) */
     width?: number;
     /** Container height in pixels (default: 600) */
@@ -48,6 +71,25 @@ export interface E2EGraphResult {
     /** The Graph instance */
     graph: Graph;
 }
+
+/** The deprecated hand-written commands, in the order the assistant used to offer them. */
+const LEGACY_COMMANDS = [
+    queryGraph,
+    findNodes,
+    getSchema,
+    sampleData,
+    describeProperty,
+    listAlgorithms,
+    runAlgorithm,
+    setLayout,
+    setDimension,
+    setImmersiveMode,
+    findAndStyleNodes,
+    findAndStyleEdges,
+    clearStyles,
+    setCameraPosition,
+    zoomToNodes,
+];
 
 /**
  * Container element for e2e tests.
@@ -77,7 +119,7 @@ let container: HTMLElement | null = null;
  * ```
  */
 export async function createE2EGraph(options: E2EGraphOptions = {}): Promise<E2EGraphResult> {
-    const { nodes = [], edges = [], enableAi = true, width = 800, height = 600 } = options;
+    const { nodes = [], edges = [], enableAi = true, legacyCommands = false, width = 800, height = 600 } = options;
 
     // Clean up any previous test container
     if (container) {
@@ -113,6 +155,11 @@ export async function createE2EGraph(options: E2EGraphOptions = {}): Promise<E2E
     // Enable AI control if requested
     if (enableAi) {
         await graph.enableAiControl({ provider: "mock" });
+        if (legacyCommands) {
+            for (const command of LEGACY_COMMANDS) {
+                graph.getAiManager()?.registerCommand(command);
+            }
+        }
     }
 
     return { element: container, graph };

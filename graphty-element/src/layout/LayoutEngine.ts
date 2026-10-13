@@ -10,7 +10,7 @@ import {
     type NodeMask,
 } from "@graphty/graph-format";
 import { fromPositionColumn, type LayoutResult, toPositionColumn } from "@graphty/layout";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { publishLayoutDescriptor } from "../catalog/layoutRegistry";
 import { type RegisterOptions, SharedImplementationMap } from "../catalog/pluginRegistry";

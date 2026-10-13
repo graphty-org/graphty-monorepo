@@ -156,4 +156,52 @@ describe("AiMessageBubble", () => {
             expect(screen.getByText("Hello")).toBeInTheDocument();
         });
     });
+
+    describe("sources", () => {
+        it("lists each web source as a link that opens apart from the page, named by title or host", () => {
+            render(
+                <AiMessageBubble
+                    message={createMessage({
+                        role: "assistant",
+                        content: "Paris",
+                        sources: [
+                            { url: "https://example.org/fr", title: "France" },
+                            { url: "http://cities.example.com/list" },
+                        ],
+                    })}
+                />,
+            );
+
+            const titled = screen.getByRole("link", { name: "France" });
+            expect(titled).toHaveAttribute("href", "https://example.org/fr");
+            expect(titled).toHaveAttribute("target", "_blank");
+            expect(titled).toHaveAttribute("rel", "noopener noreferrer");
+            expect(screen.getByRole("link", { name: "cities.example.com" })).toHaveAttribute(
+                "href",
+                "http://cities.example.com/list",
+            );
+        });
+
+        it("draws an address that is not http or https as plain text, never a link", () => {
+            render(
+                <AiMessageBubble
+                    message={createMessage({
+                        role: "assistant",
+                        content: "Paris",
+                        sources: [{ url: "javascript:alert(1)" }, { url: "data:text/html,hi", title: "Data" }],
+                    })}
+                />,
+            );
+
+            expect(screen.queryAllByRole("link")).toHaveLength(0);
+            expect(screen.getByText("javascript:alert(1)")).toBeInTheDocument();
+            expect(screen.getByText("Data")).toBeInTheDocument();
+        });
+
+        it("draws no list for a message without sources", () => {
+            render(<AiMessageBubble message={createMessage({ role: "assistant" })} />);
+
+            expect(screen.queryByTestId("ai-message-sources")).not.toBeInTheDocument();
+        });
+    });
 });

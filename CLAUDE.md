@@ -351,6 +351,8 @@ The `tools/` directory contains build scripts:
 | `prepush-inputs.mjs` | Content hashes for the gate: the checkout's fingerprint, and each test shard's input key (its package and the packages it depends on or reads by relative path, their build outputs, the root files, the Node version). `prepush-tests.mjs` skips a shard that already passed on this branch with the same key and prints `[SKIP]` with when and where; `PREPUSH_RERUN_ALL=1` runs every shard |
 | `commit-changes.sh` | Lands the working tree as a sequence of conventional commits. `--dry-run` first: it stages nothing |
 | `lfs-pre-push.sh` | Git LFS's pre-push upload, run first by `.husky/pre-push` (git-lfs cannot install its own hook beside husky's). Without git-lfs it refuses a push holding LFS files |
+| `check-peer-deps-stable.mjs` | Fails when a published package removes, adds, makes required, moves into dependencies or narrows a peer dependency since origin/master without a breaking commit scoped to it. `--self-test`. CI and pre-push |
+| `ai-framework-packages.mjs` | The AI framework and provider SDK packages graphty-element keeps behind its engine seam, read by the API report, published-deps, lint and chunk checks |
 | `check-data-source-migration.mjs` | Fails when a graphty-element data source parses files itself instead of importing from graph-io (papaparse, fast-xml-parser, hand-written tokenisers). Any problem fails. CI and pre-push |
 | `check-links.sh` | Dead-link check (see "Dead Links" under CI/CD). `--offline` for the fast half |
 | `assemble-pages-site.sh` | Builds the graphty.app site from the build outputs; deploy-pages.yml and the link check both run it |

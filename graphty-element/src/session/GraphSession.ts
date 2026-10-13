@@ -1950,6 +1950,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             // And the query engine, below that.
             search: (text, request) => requireQuery(query).search(text, request),
             textTest: (text, mode, target) => requireQuery(query).textTest(text, mode, target),
+            matchWhere: (where, target) =>
+                new Set<NodeId | EdgeId>(
+                    target === "node" ? requireQuery(query).nodes(where) : requireQuery(query).edges(where),
+                ),
             // Read through calls: the runs are built below.
             run: (id: RunId) => runs.get(id),
             runIds: () => runs.list().map((run) => run.id),

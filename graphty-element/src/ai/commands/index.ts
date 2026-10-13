@@ -6,6 +6,7 @@
 // Registry
 export { CommandRegistry } from "./CommandRegistry";
 
+/* eslint-disable @typescript-eslint/no-deprecated -- still published until the next major release for consumers that register the hand-written commands themselves */
 // Query Commands
 export { findNodes, queryGraph } from "./QueryCommands";
 
@@ -29,3 +30,4 @@ export { captureScreenshot, captureVideo } from "./CaptureCommands";
 
 // Schema Commands
 export { describeProperty, sampleData } from "./SchemaCommands";
+/* eslint-enable @typescript-eslint/no-deprecated */

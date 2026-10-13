@@ -5,7 +5,19 @@
 ```ts
 
 import { GraphListing } from '@graphty/graph-io';
-import { z } from 'zod/v4';
+import { z } from 'zod';
+
+// @public
+export const AI_CONVERSATION_FORMAT = "graphty-ai-conversation";
+
+// @public
+export const AI_CONVERSATION_FORMAT_VERSION = 1;
+
+// @public
+export const AI_HOSTED_TOOL_CAPABILITIES: Readonly<Record<AiProviderId, AiToolCapabilities>>;
+
+// @public
+export const AI_HOSTED_TOOL_IDS: readonly ["web-search", "web-fetch", "in-page-code"];
 
 // @public
 export const AI_PROVIDER_DESCRIPTORS: readonly AiProviderDescriptor[];
@@ -14,7 +26,10 @@ export const AI_PROVIDER_DESCRIPTORS: readonly AiProviderDescriptor[];
 export const AI_PROVIDER_IDS: readonly ["openai", "anthropic", "google", "webllm", "mock"];
 
 // @public
-export const AI_RESULT_CODES: readonly ["AI_COMPLETED", "AI_NO_RESPONSE", "AI_NOT_ENABLED", "AI_DISPOSED", "AI_KEY_MISSING", "AI_KEY_REJECTED", "AI_PROVIDER_ERROR", "AI_CANCELLED", "AI_UNDONE", "AI_TOOL_UNKNOWN", "AI_TOOL_INVALID_ARGUMENTS", "AI_TOOL_FAILED", "AI_TOOL_THREW", "AI_FAILED"];
+export const AI_REASONING_EFFORTS: readonly ["minimal", "low", "medium", "high"];
+
+// @public
+export const AI_RESULT_CODES: readonly ["AI_COMPLETED", "AI_NO_RESPONSE", "AI_NOT_ENABLED", "AI_DISPOSED", "AI_KEY_MISSING", "AI_KEY_REJECTED", "AI_PROVIDER_ERROR", "AI_CANCELLED", "AI_UNDONE", "AI_TOOL_UNKNOWN", "AI_TOOL_INVALID_ARGUMENTS", "AI_TOOL_FAILED", "AI_TOOL_THREW", "AI_FAILED", "AI_CONFIRMATION_NEEDED", "AI_ROLLBACK_PARTIAL", "AI_APPROVAL_STALE", "AI_APPROVAL_DENIED", "AI_TOOL_DENIED_BY_POLICY", "AI_TOOL_NOT_RUN", "AI_HISTORY_UNAVAILABLE", "AI_HISTORY_NEWER_FORMAT", "AI_STORAGE_FAILED", "AI_QUESTION_ASKED", "AI_ANSWER_INVALID", "AI_CONFIG_INVALID", "AI_HOSTED_TOOL_UNSUPPORTED", "AI_PROVIDER_PAUSED", "AI_VOICE_UNAVAILABLE"];
 
 // @public
 export const AI_STAGES: readonly ["processing", "generating", "executing"];
@@ -24,6 +39,34 @@ export const AI_STATES: readonly ["ready", "submitted", "streaming", "executing"
 
 // @public
 export const AI_TOOL_CALL_STATUSES: readonly ["pending", "executing", "complete", "error"];
+
+// @public
+export const AI_TOOL_CAUSE_CODES: readonly ["AI_OK", "AI_UNKNOWN_ACTION", "AI_ARG_INVALID", "AI_ARG_OUT_OF_RANGE", "AI_UNKNOWN_ENTRY", "AI_UNKNOWN_NODE", "AI_UNKNOWN_EDGE", "AI_UNKNOWN_COLUMN", "AI_UNKNOWN_RUN", "AI_BAD_SELECTOR", "AI_EMPTY_MATCH", "AI_NOT_AVAILABLE", "AI_CONFIRM_REQUIRED", "AI_IMPORT_URL_REFUSED", "AI_UNDO_NOTHING", "AI_UNDO_NOT_ALONE", "AI_UNDO_NOT_MINE", "AI_UNDO_IN_MESSAGE", "AI_CURSOR_STALE", "AI_TOOL_NOT_RUN", "AI_UNKNOWN_TOOL", "AI_PAINTED_NOTHING"];
+
+// @public
+export const AI_VOICE_APPROVABLE_GATES: readonly string[];
+
+// @public
+export const AI_VOICE_CAPABILITIES: Readonly<Record<AiProviderId, AiProviderVoice>>;
+
+// @public
+export const AI_VOICE_UNAVAILABLE_REASONS: readonly ["no-recognition", "no-microphone", "permission-denied", "insecure-context", "no-provider-transcription", "no-provider-speech", "no-key", "no-synthesis", "playback-failed", "unknown-voice", "recognition-network", "no-provider-live", "live-custom-base-url", "no-live-transport", "output-off", "live-busy"];
+
+// @public
+export interface AiCapabilities {
+    readonly model: string;
+    readonly provider: AiProviderId | (string & {});
+    readonly tools: AiToolCapabilities;
+}
+
+// @public
+export type AiCapabilityStatus = "available" | "unsupported" | "results-not-returned" | "unknown";
+
+// @public
+export type AiHostedToolId = (typeof AI_HOSTED_TOOL_IDS)[number];
+
+// @public
+export function aiHostedToolStatus(provider: AiProviderId, model: string, tool: AiHostedToolId): AiCapabilityStatus;
 
 // @public
 export interface AiKeyShape {
@@ -60,8 +103,25 @@ export interface AiModelDescriptor {
     readonly downloadMB?: number;
     readonly id: string;
     readonly plainName: string;
+    readonly reasoning?: AiModelReasoning;
     readonly supportsTools: boolean;
+    readonly temperature?: {
+        readonly min: number;
+        readonly max: number;
+    };
 }
+
+// @public
+export type AiModelReasoning = {
+    readonly efforts: readonly AiReasoningEffort[];
+} | {
+    readonly budgetTokens: {
+        readonly min: number;
+    };
+};
+
+// @public
+export type AiPageRetrieval = "loaded" | "failed" | "paywalled" | "unsafe" | "unknown";
 
 // @public
 export interface AiProviderDescriptor {
@@ -82,10 +142,54 @@ export function aiProviderDescriptor(id: AiProviderId): AiProviderDescriptor;
 export type AiProviderId = (typeof AI_PROVIDER_IDS)[number];
 
 // @public
+export interface AiProviderVoice {
+    readonly live?: {
+        readonly status: AiCapabilityStatus;
+        readonly model?: string;
+    };
+    readonly speech: {
+        readonly status: AiCapabilityStatus;
+        readonly model?: string;
+    };
+    readonly transcription: {
+        readonly status: AiCapabilityStatus;
+        readonly model?: string;
+        readonly viaChatModel?: boolean;
+    };
+}
+
+// @public
+export type AiReasoningEffort = (typeof AI_REASONING_EFFORTS)[number];
+
+// @public
 export type AiResultCode = (typeof AI_RESULT_CODES)[number];
 
 // @public
 export type AiResultParams = Readonly<Record<string, string | number>>;
+
+// @public
+export type AiToolCapabilities = Readonly<Record<AiHostedToolId, AiCapabilityStatus>>;
+
+// @public
+export type AiToolCauseCode = (typeof AI_TOOL_CAUSE_CODES)[number] | (string & {});
+
+// @public
+export type AiVoiceDestination = "on-device" | "browser-vendor" | "provider" | "none";
+
+// @public
+export type AiVoiceDirection = "input" | "output";
+
+// @public
+export type AiVoiceReadiness = "ready" | "needs-permission" | "unavailable";
+
+// @public
+export type AiVoiceRoute = "browser" | "provider" | "on-device" | "none";
+
+// @public
+export function aiVoiceStatus(provider: AiProviderId, direction: AiVoiceDirection): AiCapabilityStatus;
+
+// @public
+export type AiVoiceUnavailableReason = (typeof AI_VOICE_UNAVAILABLE_REASONS)[number];
 
 // @public
 export function algorithmByKey(key: string): BuiltInAlgorithmDescriptor | undefined;
@@ -135,6 +239,21 @@ export interface AlgorithmDescriptor {
 
 // @public
 export type AlgorithmKey = KnownAlgorithm | (string & {});
+
+// @public
+export const ASSISTANT_TOOLS: readonly AssistantToolDescriptor[];
+
+// @public
+export interface AssistantToolDescriptor {
+    readonly actions: readonly string[];
+    readonly core: boolean;
+    readonly name: string;
+    readonly plainName: string;
+    readonly profiles: readonly AssistantToolProfile[];
+}
+
+// @public
+export type AssistantToolProfile = "standard" | "small";
 
 // @public
 export const ATTRIBUTE_TYPES: readonly ["string", "number", "integer", "boolean", "time", "category", "mixed"];
@@ -242,6 +361,9 @@ export type CameraId = (typeof KNOWN_CAMERA_IDS)[number] | (string & {});
 export function camerasForMode(mode: DrawingMode): readonly CameraDescriptor[];
 
 // @public
+export const CATALOG_KINDS: readonly ["algorithm", "layout", "format", "palette", "scale", "channel", "camera", "setting", "tool"];
+
+// @public
 export interface CatalogApi {
     // (undocumented)
     algorithms(): readonly AlgorithmDescriptor[];
@@ -273,6 +395,9 @@ export interface CatalogApi {
         kind?: "selector" | "filter" | "formula";
     }): QueryValidation;
 }
+
+// @public
+export type CatalogKind = (typeof CATALOG_KINDS)[number];
 
 // @public
 export type Channel = "node.color" | "node.size" | "node.shape" | "node.label" | "node.labelStyle" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.glow" | "node.glowStrength" | "node.wireframe" | "node.flat" | "node.marker" | "edge.color" | "edge.width" | "edge.opacity" | "edge.style" | "edge.patternCount" | "edge.curvature" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailColor" | "edge.arrowTailOpacity" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle";

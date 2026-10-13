@@ -226,25 +226,32 @@ const config: KnipConfig = {
             ignoreDependencies: [
                 // Peer dependencies (provided by consumer)
                 "@mlc-ai/web-llm",
-                // The optional peers: the GPU package, the AI SDK and its key store. Each is an
-                // optional peer and an exact devDependency, imported from src so the element works
-                // without it and lights up with it. `lint:knip:prod` runs --strict, which reads only
-                // peers and dependencies, and would report them as unlisted; the default run
-                // resolves them as devDependencies and hints an ignore as redundant.
-                ...(production
-                    ? [
-                          "@graphty/webgpu-graph-algorithms",
-                          "@ai-sdk/anthropic",
-                          "@ai-sdk/google",
-                          "@ai-sdk/openai",
-                          "ai",
-                          "encrypt-storage",
-                      ]
-                    : []),
+                // The optional peers: the GPU package and the key store. Each is an optional peer
+                // and an exact devDependency, imported from src so the element works without it and
+                // lights up with it. `lint:knip:prod` runs --strict, which reads only peers and
+                // dependencies, and would report them as unlisted; the default run resolves them as
+                // devDependencies and hints an ignore as redundant.
+                ...(production ? ["@graphty/webgpu-graph-algorithms", "encrypt-storage"] : []),
                 // Copied into dist by vite.config.ts (`bundledDependencies`, and ngraph.random because
                 // nothing externalises it), so each is a devDependency that production source imports.
+                // TanStack AI is built into the AI engine's own chunks the same way, imported only by
+                // src/ai/engine/tanstack/ (design/ai/tanstack-ai-harness-design.md, section 3.2), and so
+                // is the in-page code sandbox (TanStack Code Mode's QuickJS driver and its WebAssembly).
                 // Only `lint:knip:prod` would report them, as unlisted.
-                ...(production ? ["lodash", "ngraph.random", "@graphty/remote-logger"] : []),
+                ...(production
+                    ? [
+                          "lodash",
+                          "ngraph.random",
+                          "@graphty/remote-logger",
+                          "@tanstack/ai",
+                          "@tanstack/ai-anthropic",
+                          "@tanstack/ai-gemini",
+                          "@tanstack/ai-openai",
+                          "@tanstack/ai-code-mode",
+                          "@tanstack/ai-isolate-quickjs",
+                          "@jitl/quickjs-wasmfile-release-sync",
+                      ]
+                    : []),
                 // Storybook addons
                 "@storybook/addon-console",
                 "@storybook/test",

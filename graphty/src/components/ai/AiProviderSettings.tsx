@@ -23,12 +23,31 @@
  */
 
 import { PANEL_GRID, PANEL_INK, UiGlyph } from "@graphty/compact-mantine";
-import { aiProviderDescriptor, checkApiKeyShape } from "@graphty/graphty-element/catalog";
-import { Box, Button, Checkbox, NativeSelect, PasswordInput } from "@mantine/core";
+import type { AiVoiceSupport } from "@graphty/graphty-element/ai";
+import {
+    AI_HOSTED_TOOL_CAPABILITIES,
+    AI_PROVIDER_DESCRIPTORS,
+    type AiCapabilities,
+    type AiHostedToolId,
+    aiProviderDescriptor,
+    checkApiKeyShape,
+} from "@graphty/graphty-element/catalog";
+import { Box, Button, Checkbox, NativeSelect, PasswordInput, Switch } from "@mantine/core";
 import React, { useCallback, useState } from "react";
 
+import {
+    AI_TOOL_SWITCHES,
+    type AiToolSwitch,
+    type AiToolSwitches,
+    type AiVoiceSettings,
+    needsTranscriptionProvider,
+    offersLiveChoice,
+} from "../../hooks/useAiManager";
 import { getCreateProvider, type ProviderType } from "../../types/ai";
+import type { AiModelChoice, AiModelChoices } from "../../workspace/settings/preferences";
 import { PanelOutlineButton } from "../shell/panel/panelButtons";
+import { AiModelSettings } from "./AiModelSettings";
+import { speechDestinationText } from "./aiResultText";
 
 /**
  * The column every block in this pane is measured against
@@ -173,6 +192,306 @@ export interface AiProviderSettingsProps {
     readonly onEnablePersistence: (encryptionKey?: string) => void;
     /** Stops remembering keys. */
     readonly onDisablePersistence: (clearStorage?: boolean) => void;
+    /** Which of the assistant's optional tools are on. The tool switches draw only with `onToolChange`. */
+    readonly tools?: AiToolSwitches;
+    /** Switches an optional tool on or off. */
+    readonly onToolChange?: (name: AiToolSwitch, on: boolean) => void;
+    /** What the current provider can use, as graphty-element reports it; null until the assistant is on. */
+    readonly toolCapabilities?: AiCapabilities | null;
+    /** The model and options the reader chose for each provider. The model fields draw only with `onModelChoiceChange`. */
+    readonly modelChoices?: AiModelChoices;
+    /** Changes one provider's model choice. */
+    readonly onModelChoiceChange?: (provider: ProviderType, choice: AiModelChoice) => void;
+    /** The reader's voice settings. The voice block draws only with `onVoiceChange`. */
+    readonly voice?: AiVoiceSettings;
+    /** Changes one voice setting. */
+    readonly onVoiceChange?: <K extends keyof AiVoiceSettings>(name: K, value: AiVoiceSettings[K]) => void;
+    /** How speech is carried, as graphty-element reports it; null until the assistant is on. */
+    readonly voiceSupport?: AiVoiceSupport | null;
+}
+
+/** The speak-answers choices, in the app's words. */
+const SPEAK_CHOICES: readonly { value: AiVoiceSettings["speakAnswers"]; label: string }[] = [
+    { value: "off", label: "Off" },
+    { value: "vr", label: "In VR and AR only" },
+    { value: "always", label: "Always" },
+];
+
+/** The conversation choices, in the app's words. */
+const MODE_CHOICES: readonly { value: AiVoiceSettings["mode"]; label: string }[] = [
+    { value: "turns", label: "Turn by turn" },
+    { value: "live", label: "Live" },
+];
+
+/**
+ * The assistant's voice: when answers are spoken, for a provider that cannot turn speech into
+ * text which provider does it instead, and, where graphty-element can hold one, a live conversation.
+ * @param props - The settings and what to call on a change.
+ * @param props.voice - The reader's choices.
+ * @param props.onVoiceChange - Changes one.
+ * @param props.provider - The chat provider.
+ * @param props.support - Where speech goes now, as graphty-element reports it.
+ * @returns The block.
+ */
+export function AiVoiceSettingsBlock({
+    voice,
+    onVoiceChange,
+    provider,
+    support,
+}: {
+    readonly voice: AiVoiceSettings;
+    readonly onVoiceChange: <K extends keyof AiVoiceSettings>(name: K, value: AiVoiceSettings[K]) => void;
+    readonly provider: ProviderType | null;
+    readonly support?: AiVoiceSupport | null;
+}): React.JSX.Element {
+    const transcribers = PROVIDER_WORDS.filter((entry) => !needsTranscriptionProvider(entry.type));
+    return (
+        <Box
+            style={{ display: "flex", flexDirection: "column", maxWidth: PANE_COLUMN }}
+            data-testid="ai-voice-settings"
+        >
+            <Box style={{ height: 1, background: PANEL_INK.DIVIDER }} />
+            <Box
+                style={{
+                    display: "flex",
+                    alignItems: "center",
+                    height: PANEL_GRID.SECTION_HEADER,
+                    fontSize: NAME_FONT_SIZE,
+                    fontWeight: 500,
+                    lineHeight: 1.2,
+                    color: PANEL_INK.VALUE,
+                }}
+            >
+                Voice
+            </Box>
+            <Box
+                style={{ display: "flex", flexDirection: "column", gap: PANEL_GRID.TRAIL_GAP, width: NAME_FIELD_WIDTH }}
+            >
+                <NativeSelect
+                    label="Speak answers"
+                    data-testid="ai-speak-answers"
+                    value={voice.speakAnswers}
+                    data={SPEAK_CHOICES.map((choice) => ({ ...choice }))}
+                    onChange={(event) => {
+                        onVoiceChange("speakAnswers", event.currentTarget.value as AiVoiceSettings["speakAnswers"]);
+                    }}
+                />
+                {offersLiveChoice(support) && (
+                    <NativeSelect
+                        label="Conversation"
+                        title="Live talks with your provider as you speak and hears you interrupt it. Turn by turn sends what you said when you let go."
+                        data-testid="ai-voice-mode"
+                        value={voice.mode}
+                        data={MODE_CHOICES.map((choice) => ({ ...choice }))}
+                        onChange={(event) => {
+                            onVoiceChange("mode", event.currentTarget.value as AiVoiceSettings["mode"]);
+                        }}
+                    />
+                )}
+                {provider !== null && needsTranscriptionProvider(provider) && (
+                    <NativeSelect
+                        label="Turn speech into text with"
+                        title="Your provider cannot turn speech into text. Without another provider, the browser does it where it can, which may send your speech to the browser's maker."
+                        data-testid="ai-transcription-provider"
+                        value={voice.transcription}
+                        data={[
+                            { value: "none", label: "The browser's recognition (may go to its maker)" },
+                            ...transcribers.map((entry) => ({ value: entry.type, label: entry.name })),
+                        ]}
+                        onChange={(event) => {
+                            onVoiceChange(
+                                "transcription",
+                                event.currentTarget.value as AiVoiceSettings["transcription"],
+                            );
+                        }}
+                    />
+                )}
+                {support !== undefined && support !== null && (
+                    <Box
+                        component="span"
+                        data-testid="ai-speech-destination"
+                        style={{ fontSize: READING_FONT_SIZE, lineHeight: 1.4, color: PANEL_INK.PROSE }}
+                    >
+                        {speechDestinationText(support).join(" ")}
+                    </Box>
+                )}
+            </Box>
+        </Box>
+    );
+}
+
+/** The app's words for each optional tool: its name, and what it costs the reader. */
+const TOOL_WORDS: Readonly<Record<AiToolSwitch, { readonly label: string; readonly description: string }>> = {
+    webSearch: {
+        label: "Search the web",
+        description:
+            "The assistant may search the web through your provider, which may charge for each search. " +
+            "The model writes the searches, so they can include names from your graph.",
+    },
+    webFetch: {
+        label: "Read web pages",
+        description:
+            "The assistant may read a web page whose address you put in your message. " +
+            "Your provider fetches the page and may charge for it.",
+    },
+    inPageCode: {
+        label: "Run code",
+        description:
+            "The assistant may write small programs and run them in this page to work out answers. " +
+            "They can only read the graph, never change it. What they compute is sent to your AI provider, " +
+            "like anything else the assistant reads.",
+    },
+};
+
+/** What each tool lets the assistant do, as the end of "<provider> cannot ...", and what is lost without it. */
+const TOOL_ABILITY: Readonly<Record<AiToolSwitch, { readonly can: string; readonly lost: string }>> = {
+    webSearch: { can: "search the web", lost: "look up anything beyond what the model already knows" },
+    webFetch: { can: "read web pages", lost: "open an address you give it" },
+    inPageCode: { can: "run code", lost: "compute answers with a program" },
+};
+
+/**
+ * Names as a reader lists them: "A", "A and B", "A, B and C".
+ * @param names - The names.
+ * @returns The list.
+ */
+function listed(names: readonly string[]): string {
+    return names.length < 2 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names.at(-1) ?? ""}`;
+}
+
+/**
+ * A provider's name, as graphty-element's catalog gives it; a provider of the host's own by its id.
+ * @param id - The provider.
+ * @returns Its name.
+ */
+function providerName(id: string): string {
+    return AI_PROVIDER_DESCRIPTORS.find((entry) => entry.id === id)?.plainName ?? id;
+}
+
+/**
+ * Why a tool cannot be switched on, in the app's words: which provider or model cannot use it, what
+ * the reader goes without, and which providers can.
+ * @param name - The switch.
+ * @param tool - The tool behind it.
+ * @param capabilities - What graphty-element reported, or undefined before the assistant is on.
+ * @returns The reason, or undefined when the switch is usable.
+ */
+function unavailableReason(
+    name: AiToolSwitch,
+    tool: AiHostedToolId,
+    capabilities: AiCapabilities | null | undefined,
+): string | undefined {
+    const status = capabilities?.tools[tool];
+    if (capabilities === null || capabilities === undefined || status === undefined || status === "available") {
+        return undefined;
+    }
+
+    const { can, lost } = TOOL_ABILITY[name];
+    const provider = providerName(capabilities.provider);
+    const others = AI_PROVIDER_DESCRIPTORS.filter(
+        (entry) =>
+            !entry.testOnly &&
+            entry.id !== capabilities.provider &&
+            AI_HOSTED_TOOL_CAPABILITIES[entry.id][tool] === "available",
+    ).map((entry) => entry.plainName);
+    const elsewhere = others.length === 0 ? "No other provider can either." : `${listed(others)} can.`;
+    // In-page code runs in the page, whatever the provider: only the page can rule it out.
+    if (tool === "in-page-code") {
+        return `This page does not allow programs to run (its security settings, or this build of the app), so the assistant cannot ${lost}, with any provider.`;
+    }
+
+    const known = AI_PROVIDER_DESCRIPTORS.find((entry) => entry.id === capabilities.provider);
+    if (
+        known !== undefined &&
+        AI_HOSTED_TOOL_CAPABILITIES[known.id][tool] === "available" &&
+        status === "unsupported"
+    ) {
+        const also = others.length === 0 ? "" : `, and so can ${listed(others)}`;
+        return `The model ${capabilities.model} cannot ${can}, so the assistant cannot ${lost}. Other ${provider} models can${also}.`;
+    }
+
+    if (status === "unsupported") {
+        return `${provider} cannot ${can}, so the assistant cannot ${lost}. ${elsewhere}`;
+    }
+
+    if (status === "results-not-returned") {
+        return `${provider} can ${can} but does not share what it finds, so the assistant cannot show where an answer came from. ${elsewhere}`;
+    }
+
+    return `It is not known whether ${provider} can ${can}, so this stays off and the assistant cannot ${lost}. ${elsewhere}`;
+}
+
+/**
+ * The assistant's optional tools: one switch each, off until the reader turns it on. A tool the
+ * current provider cannot use is drawn switched off and disabled, with the reason under it.
+ * @param props - The switches' state and what to call on a change.
+ * @param props.tools - Which are on.
+ * @param props.onToolChange - Switches one.
+ * @param props.capabilities - What the current provider can use.
+ * @returns The block.
+ */
+export function AiToolSettings({
+    tools,
+    onToolChange,
+    capabilities,
+}: {
+    readonly tools: AiToolSwitches;
+    readonly onToolChange: (name: AiToolSwitch, on: boolean) => void;
+    readonly capabilities?: AiCapabilities | null;
+}): React.JSX.Element {
+    return (
+        <Box style={{ display: "flex", flexDirection: "column", maxWidth: PANE_COLUMN }} data-testid="ai-tool-settings">
+            <Box style={{ height: 1, background: PANEL_INK.DIVIDER }} />
+            <Box
+                style={{
+                    display: "flex",
+                    alignItems: "center",
+                    height: PANEL_GRID.SECTION_HEADER,
+                    fontSize: NAME_FONT_SIZE,
+                    fontWeight: 500,
+                    lineHeight: 1.2,
+                    color: PANEL_INK.VALUE,
+                }}
+            >
+                Assistant tools
+            </Box>
+            <Box style={{ display: "flex", flexDirection: "column", gap: PANEL_GRID.TRAIL_GAP }}>
+                {AI_TOOL_SWITCHES.map(({ name, tool }) => {
+                    const reason = unavailableReason(name, tool, capabilities);
+                    return (
+                        <Box key={name}>
+                            <Switch
+                                label={TOOL_WORDS[name].label}
+                                description={TOOL_WORDS[name].description}
+                                checked={reason === undefined && tools[name]}
+                                disabled={reason !== undefined}
+                                data-testid={`ai-tool-${name}`}
+                                styles={{
+                                    label: { fontSize: READING_FONT_SIZE, color: PANEL_INK.VALUE },
+                                    description: { fontSize: READING_FONT_SIZE, color: PANEL_INK.PROSE },
+                                }}
+                                onChange={(event) => {
+                                    onToolChange(name, event.currentTarget.checked);
+                                }}
+                            />
+                            {reason !== undefined && (
+                                <Box
+                                    component="span"
+                                    data-testid={`ai-tool-${name}-reason`}
+                                    style={{ fontSize: READING_FONT_SIZE, color: PANEL_INK.WARNING }}
+                                >
+                                    {reason}
+                                </Box>
+                            )}
+                        </Box>
+                    );
+                })}
+                <Box component="span" style={{ fontSize: READING_FONT_SIZE, lineHeight: 1.4, color: PANEL_INK.PROSE }}>
+                    After the assistant reads the web, every change it makes to the graph waits for your approval.
+                </Box>
+            </Box>
+        </Box>
+    );
 }
 
 /**
@@ -242,6 +561,14 @@ export function AiProviderSettings(props: AiProviderSettingsProps): React.JSX.El
         isPersistenceEnabled,
         onEnablePersistence,
         onDisablePersistence,
+        tools,
+        onToolChange,
+        toolCapabilities,
+        voice,
+        onVoiceChange,
+        voiceSupport,
+        modelChoices,
+        onModelChoiceChange,
     } = props;
 
     /* The row that is open. One at a time, like the nav it sits inside: the form is
@@ -675,12 +1002,35 @@ export function AiProviderSettings(props: AiProviderSettingsProps): React.JSX.El
                                             </Button>
                                         )}
                                     </Box>
+
+                                    {onModelChoiceChange !== undefined && (
+                                        <AiModelSettings
+                                            provider={entry.type}
+                                            choice={modelChoices?.[entry.type] ?? {}}
+                                            onChange={(choice) => {
+                                                onModelChoiceChange(entry.type, choice);
+                                            }}
+                                        />
+                                    )}
                                 </Box>
                             )}
                         </Box>
                     );
                 })}
             </Box>
+
+            {tools !== undefined && onToolChange !== undefined && (
+                <AiToolSettings tools={tools} onToolChange={onToolChange} capabilities={toolCapabilities} />
+            )}
+
+            {voice !== undefined && onVoiceChange !== undefined && (
+                <AiVoiceSettingsBlock
+                    voice={voice}
+                    onVoiceChange={onVoiceChange}
+                    provider={defaultProvider}
+                    support={voiceSupport}
+                />
+            )}
 
             {/* Key storage. */}
             <Box style={{ display: "flex", flexDirection: "column", maxWidth: PANE_COLUMN }}>

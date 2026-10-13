@@ -115,8 +115,7 @@ import { CAT_SOCIAL_NETWORK, CAT_SOCIAL_NETWORK_NAME } from "../../data/sampleGr
 import { SAMPLE_MANIFEST, type SampleRecord, sampleSizeString } from "../../data/sampleManifest";
 import { useAiKeyStorage } from "../../hooks/useAiKeyStorage";
 import { useAiManager } from "../../hooks/useAiManager";
-import type { ChatMessage } from "../ai/AiMessageBubble";
-import { aiResultText } from "../ai/aiResultText";
+import { aiActivityText, aiTranscript, speechDestinationText } from "../ai/aiResultText";
 import { FeedbackModal } from "../FeedbackModal";
 import type { GraphtyHandle, SelectionChangedDetail, StylesChangedDetail } from "../Graphty";
 import type { LoadDataRequest } from "../LoadDataModal";
@@ -1465,7 +1464,23 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         defaultProvider: aiProvider,
         getKey: aiKeyStorage.getKey,
     });
-    const [aiMessages, setAiMessages] = useState<readonly ChatMessage[]>([]);
+    const {
+        conversation: aiConversation,
+        historyNotice: aiHistoryNotice,
+        capabilityNotices: aiCapabilityNotices,
+        voiceNotice: aiVoiceNotice,
+    } = aiManager;
+    // The element's saved conversation is the transcript; the shell keeps no copy of it.
+    const aiMessages = useMemo(
+        () =>
+            aiTranscript({
+                conversation: aiConversation,
+                historyNotice: aiHistoryNotice,
+                capabilityNotices: aiCapabilityNotices,
+                voiceNotice: aiVoiceNotice,
+            }),
+        [aiConversation, aiHistoryNotice, aiCapabilityNotices, aiVoiceNotice],
+    );
 
     /* The key store's own surface, as Settings takes it. Assembled here rather than in
        the overlay: this shell holds the ONE `useAiKeyStorage` instance, and a pane that
@@ -1484,8 +1499,24 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             isPersistenceEnabled: aiKeyStorage.isPersistenceEnabled,
             onEnablePersistence: aiKeyStorage.enablePersistence,
             onDisablePersistence: aiKeyStorage.disablePersistence,
+            tools: aiManager.toolSwitches,
+            onToolChange: aiManager.setToolSwitch,
+            toolCapabilities: aiManager.capabilities,
+            voice: aiManager.voiceSettings,
+            onVoiceChange: aiManager.setVoiceSetting,
+            voiceSupport: aiManager.voiceSupport,
+            modelChoices: aiManager.modelChoices,
+            onModelChoiceChange: aiManager.setModelChoice,
         }),
         [
+            aiManager.modelChoices,
+            aiManager.setModelChoice,
+            aiManager.voiceSupport,
+            aiManager.capabilities,
+            aiManager.setVoiceSetting,
+            aiManager.voiceSettings,
+            aiManager.setToolSwitch,
+            aiManager.toolSwitches,
             aiKeyStorage.configuredProviders,
             aiKeyStorage.disablePersistence,
             aiKeyStorage.enablePersistence,
@@ -3877,29 +3908,42 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                     <AiPanel
                         messages={aiMessages}
                         providerConfigured={aiKeyStorage.hasAnyProvider}
-                        providerLabel={aiManager.currentProvider ?? undefined}
                         isProcessing={aiManager.isProcessing}
+                        streamingText={aiManager.status?.streamedText}
+                        activity={aiActivityText(aiManager.status)}
+                        speechAvailable={
+                            aiManager.voiceSupport !== null && aiManager.voiceSupport.input.status !== "unavailable"
+                        }
+                        listening={aiManager.listening}
+                        speechDestination={
+                            aiManager.voiceSupport === null
+                                ? undefined
+                                : speechDestinationText(aiManager.voiceSupport).join(" ") || undefined
+                        }
+                        voiceMode={aiManager.voiceMode}
+                        onListeningChange={aiManager.talk}
                         onSend={(text) => {
-                            const id = `${Date.now()}`;
-
-                            setAiMessages((current) => [
-                                ...current,
-                                { id, role: "user", content: text, timestamp: Date.now() },
-                            ]);
-
-                            void aiManager.execute(text).then((result) => {
-                                setAiMessages((current) => [
-                                    ...current,
-                                    {
-                                        id: `${id}-reply`,
-                                        role: "assistant",
-                                        content: aiResultText(result),
-                                        timestamp: Date.now(),
-                                        isError: !result.success,
-                                    },
-                                ]);
-                            });
+                            void aiManager.execute(text);
                         }}
+                        approvals={aiManager.approvals}
+                        onApprove={(id) => {
+                            void aiManager.resolveApproval(id, true);
+                        }}
+                        onDeny={(id) => {
+                            void aiManager.resolveApproval(id, false);
+                        }}
+                        questions={aiManager.questions}
+                        onAnswer={(id, answer) => {
+                            void aiManager.answerQuestion(id, answer);
+                        }}
+                        // Offered once the assistant is on: before that there is no conversation to act on.
+                        onNewConversation={
+                            aiManager.isReady
+                                ? () => {
+                                      void aiManager.newConversation();
+                                  }
+                                : undefined
+                        }
                         onCancel={aiManager.cancel}
                         onOpenSettings={() => {
                             openFullPanelOverlay("settings", "ai");
@@ -5440,6 +5484,13 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                                 opened={settingsOpen}
                                 section={settingsSection}
                                 aiProviders={aiProviderSettings}
+                                onClearAiHistory={
+                                    aiManager.isReady
+                                        ? () => {
+                                              void aiManager.clearHistory();
+                                          }
+                                        : undefined
+                                }
                                 accelerationPolicy={accelerationPolicy}
                                 onAccelerationPolicyChange={changeAccelerationPolicy}
                                 labelShortfall={labelShortfall}

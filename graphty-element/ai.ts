@@ -33,15 +33,84 @@ export type {
 export { AiStatusManager } from "./src/ai/index";
 
 // AI Controller
-export type { AiControllerOptions, AiEventEmitter, ExecutionResult } from "./src/ai/index";
+export type {
+    AiApprovalAnswer,
+    AiApprovalsSetting,
+    AiApprovalVerdict,
+    AiCommandOptions,
+    AiControllerOptions,
+    AiEventEmitter,
+    AiHistoryOptions,
+    AiPointing,
+    AiToolCallFacts,
+    ExecutionResult,
+} from "./src/ai/index";
+
+// Saved conversations, as an application reads them
+export type {
+    AiCallRecord,
+    AiConversationMessage,
+    AiConversationSnapshot,
+    AiConversationSummary,
+    AiSource,
+} from "./src/ai/index";
 export { AiController } from "./src/ai/index";
 
+// Helpers the assistant hands tasks to, the plans that order them, and a configuration error
+export type {
+    AiAgentRole,
+    AiAgentsSetting,
+    AiCapabilities,
+    AiHostedToolOptions,
+    AiPlan,
+    AiRouter,
+    AiTokenUsage,
+    AiToolOptions,
+} from "./src/ai/index";
+export { MAX_AGENT_NAME_LENGTH, MAX_AGENT_PURPOSE_LENGTH, MAX_AGENTS, MAX_HELPERS_PER_TURN } from "./src/ai/index";
+export { AiConfigError } from "./src/ai/index";
+
 // AI Manager
-export type { AiManagerConfig, KeyPersistenceConfig } from "./src/ai/index";
+export type {
+    AiManagerConfig,
+    AiVoiceConversationMode,
+    AiVoiceMode,
+    AiVoiceOptions,
+    AiVoicePath,
+    AiVoiceSupport,
+    KeyPersistenceConfig,
+} from "./src/ai/index";
 export { AiManager, createAiManager } from "./src/ai/index";
+
+// The assistant's approval gate: the limits past which a change waits for the reader, and what
+// the host is asked and handed.
+export type { AssistantGateLimits } from "./src/ai/tools/types";
+export { DEFAULT_ASSISTANT_GATE_LIMITS } from "./src/ai/tools/types";
+export type {
+    AiAgentEndEvent,
+    AiAgentStartEvent,
+    AiApprovalPreview,
+    AiApprovalRequest,
+    AiApprovalRequestedEvent,
+    AiCapabilityUnavailableEvent,
+    AiConversationChangedEvent,
+    AiExportReadyEvent,
+    AiHostedToolResultEvent,
+    AiPendingResolvedEvent,
+    AiQuestionAskedEvent,
+    AiQuestionRequest,
+    AiSpeechEndEvent,
+    AiSpeechStartEvent,
+    AiVoiceEndEvent,
+    AiVoiceLevelEvent,
+    AiVoiceStartEvent,
+    AiVoiceSupportChangeEvent,
+    AiVoiceTranscriptEvent,
+} from "./src/events";
 
 // AI Commands
 export type { CommandContext, CommandExample, CommandResult, GraphCommand } from "./src/ai/index";
+/* eslint-disable @typescript-eslint/no-deprecated -- still published until the next major release for consumers that register the hand-written commands themselves */
 export {
     captureScreenshot,
     captureVideo,
@@ -61,6 +130,7 @@ export {
     setLayout,
     zoomToNodes,
 } from "./src/ai/index";
+/* eslint-enable @typescript-eslint/no-deprecated */
 
 // AI Providers
 export type {

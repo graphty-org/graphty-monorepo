@@ -6,7 +6,7 @@
 
 import type { DuplicatePolicy } from '@graphty/graph-format';
 import type { NodeId as NodeId_2 } from '@graphty/graph-format';
-import { z } from 'zod/v4';
+import { z } from 'zod';
 
 // @public
 export type CommandMeta = {

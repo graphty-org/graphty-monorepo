@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
 import { GraphtyError } from "../errors";

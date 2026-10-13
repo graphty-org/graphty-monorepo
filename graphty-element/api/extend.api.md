@@ -66,9 +66,7 @@ import { Vector3 } from '@babylonjs/core';
 import { WebGPUEngine } from '@babylonjs/core';
 import { WebXRDefaultExperience } from '@babylonjs/core';
 import { XGMML_LOSS } from '@graphty/graph-io';
-import { z } from 'zod/v4';
-import * as z4 from 'zod/v4/core';
-import { z as z_2 } from 'zod';
+import { z } from 'zod';
 
 // @public
 export type AccelerationPrecision = "f32" | "f64";
@@ -262,6 +260,14 @@ export interface AlgorithmStatics {
 }
 
 // @public
+export function assistantReach(commands?: readonly {
+    readonly name: string;
+}[]): readonly CodedFact<AssistantReachCode>[];
+
+// @public
+export type AssistantReachCode = "ai.option-unoffered" | "ai.no-description" | "ai.name-reserved" | "ai.no-descriptor";
+
+// @public
 export type AuthoredLayoutDescriptor = Omit<LayoutDescriptor, "honoursWeights" | "scoped">;
 
 // @public
@@ -451,7 +457,7 @@ export abstract class DataSource {
     protected chunkData(nodes: AdHocData[], edges: AdHocData[]): Generator<DataSourceChunk, void, unknown>;
     // (undocumented)
     protected chunkSize: number;
-    dataValidator(schema: z4.$ZodObject, obj: object): Promise<boolean>;
+    dataValidator(schema: z.core.$ZodObject, obj: object): Promise<boolean>;
     get declaredDirection(): DeclaredDirection | null;
     protected declareDirection(directed: boolean, statedBy: string, conflictingEdges?: number): void;
     // (undocumented)
@@ -459,7 +465,7 @@ export abstract class DataSource {
     static descriptor?: FormatDescriptor;
     static detect?: (sample: string) => boolean;
     // (undocumented)
-    edgeSchema: z4.$ZodObject | null;
+    edgeSchema: z.core.$ZodObject | null;
     // (undocumented)
     protected errorAggregator: ErrorAggregator;
     protected get errorMessages(): {
@@ -482,7 +488,7 @@ export abstract class DataSource {
     protected graphChoice(): GraphChoiceOptions;
     static listGraphs?: GraphLister;
     // (undocumented)
-    nodeSchema: z4.$ZodObject | null;
+    nodeSchema: z.core.$ZodObject | null;
     static register<T extends DataSourceClass>(cls: T, options?: RegisterOptions): T;
     protected resolveOptions(passed: object): Record<string, unknown>;
     // (undocumented)

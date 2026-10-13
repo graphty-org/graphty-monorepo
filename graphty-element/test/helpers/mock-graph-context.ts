@@ -15,6 +15,7 @@ import type { Graph } from "../../src/Graph";
 import type { DataManager } from "../../src/managers";
 import { StylePainter } from "../../src/managers/StylePainter";
 import type { GraphSession } from "../../src/session";
+import { SESSION_CATALOG_TABLES } from "../../src/session/catalog";
 import { createStylesApi } from "../../src/session/styles";
 import { columnsFor, compileExpressionPredicate, type SelectorSource } from "../../src/session/styles/predicate";
 import { createLayerRepaint } from "../../src/session/styles/repaint";
@@ -273,11 +274,31 @@ export function createMockGraphContext(options: MockGraphContextOptions = {}): G
                 }),
         },
         layout: {
+            get id() {
+                return currentLayoutType;
+            },
+            get dimension() {
+                return currentTwoD ? "2d" : "3d";
+            },
             set: async (id: string, options?: { engine?: string }) => {
                 await mockGraph.setLayout(options?.engine ?? id);
             },
             setDimension: (dimension: "2d" | "3d") => mockGraph.setViewMode(dimension),
         },
+        // What the assistant's facts about the graph read: counts, attributes, runs, the selection.
+        status: {
+            counts: { nodes: nodeCount, edges: edgeCount, visibleNodes: nodeCount, visibleEdges: edgeCount },
+            directed: false,
+        },
+        // What the facts block reads: the node ids, in order, and how many there are.
+        data: {
+            attributes: () => [],
+            snapshot: () => ({ nodeCount, ids: { idOf: (index: number) => nodeId(index) } }),
+            fingerprint: () => `mock:${String(nodeCount)}:${String(edgeCount)}`,
+        },
+        runs: { list: () => [] },
+        catalog: SESSION_CATALOG_TABLES,
+        selection: { size: 0 },
         transaction: <T>(_label: string, fn: (tx: GraphSession, signal: AbortSignal) => T | Promise<T>) =>
             Promise.resolve().then(() => fn(mockSession, new AbortController().signal)),
         // A history that records nothing, so an assistant message has no step to continue or undo.

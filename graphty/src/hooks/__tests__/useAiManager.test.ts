@@ -1,12 +1,32 @@
 import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
-import type { AiStatus } from "@graphty/graphty-element/ai";
+import type {
+    AiApprovalRequest,
+    AiConversationSnapshot,
+    AiQuestionRequest,
+    AiStatus,
+} from "@graphty/graphty-element/ai";
+import type { AiCapabilities } from "@graphty/graphty-element/catalog";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-// The element's assistant doors, as a stand-in element exposes them.
+import { aiSay } from "../../components/ai/aiResultText";
+
+// The element's assistant doors, as a stand-in element exposes them, on a real EventTarget so the
+// hook's listeners hear the events the test sends.
 const mockStatusCallback = vi.fn();
+const events = new EventTarget();
 const mockDoors = {
+    addEventListener: events.addEventListener.bind(events),
+    removeEventListener: events.removeEventListener.bind(events),
+    getAiConversation: vi.fn((): AiConversationSnapshot | null => null),
+    getPendingAiApprovals: vi.fn((): readonly AiApprovalRequest[] => []),
+    getPendingAiQuestions: vi.fn((): readonly AiQuestionRequest[] => []),
+    answerAiQuestion: vi.fn().mockResolvedValue({ success: true, message: "", code: "AI_COMPLETED", params: {} }),
+    resolveAiApproval: vi.fn().mockResolvedValue({ success: true, message: "", code: "AI_COMPLETED", params: {} }),
+    newAiConversation: vi.fn().mockResolvedValue(null),
+    clearAiHistory: vi.fn().mockResolvedValue(undefined),
     enableAiControl: vi.fn().mockResolvedValue(undefined),
+    getAiCapabilities: vi.fn((): AiCapabilities | null => null),
     disableAiControl: vi.fn(),
     onAiStatusChange: vi.fn((callback: (status: AiStatus) => void) => {
         mockStatusCallback.mockImplementation(callback);
@@ -14,12 +34,27 @@ const mockDoors = {
     }),
     aiCommand: vi.fn().mockResolvedValue({ success: true, message: "Done" }),
     cancelAiCommand: vi.fn(),
+    aiTalk: vi.fn(),
+    getAiVoiceSupport: vi.fn().mockResolvedValue({
+        input: { path: "browser", status: "ready", destination: "browser-vendor" },
+        output: { path: "none", status: "unavailable", destination: "none" },
+    }),
 };
 const mockElement = mockDoors as unknown as GraphtyElement;
 
 describe("useAiManager", () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        mockDoors.getAiConversation.mockReturnValue(null);
+        mockDoors.getPendingAiApprovals.mockReturnValue([]);
+        mockDoors.getPendingAiQuestions.mockReturnValue([]);
+        mockDoors.getAiCapabilities.mockReturnValue(null);
+        localStorage.removeItem("graphty.ai.webSearch.v1");
+        localStorage.removeItem("graphty.ai.webFetch.v1");
+        localStorage.removeItem("graphty.ai.inPageCode.v1");
+        localStorage.removeItem("graphty.ai.speakAnswers.v1");
+        localStorage.removeItem("graphty.ai.voiceMode.v1");
+        localStorage.removeItem("graphty.ai.transcription.v1");
     });
 
     afterEach(() => {
@@ -71,6 +106,10 @@ describe("useAiManager", () => {
         expect(mockDoors.enableAiControl).toHaveBeenCalledWith({
             provider: "openai",
             apiKey: undefined,
+            history: "browser",
+            questions: true,
+            tools: { webContentWrites: "ask" },
+            voice: { output: "off", mode: "turns", say: aiSay },
         });
     });
 
@@ -90,6 +129,10 @@ describe("useAiManager", () => {
             expect(mockDoors.enableAiControl).toHaveBeenCalledWith({
                 provider: "anthropic",
                 apiKey: "test-api-key",
+                history: "browser",
+                questions: true,
+                tools: { webContentWrites: "ask" },
+                voice: { output: "off", mode: "turns", say: aiSay },
             });
         });
 
@@ -103,7 +146,14 @@ describe("useAiManager", () => {
             renderHook(() => useAiManager({ element: mockElement, defaultProvider: "webllm" }));
 
             await waitFor(() => {
-                expect(mockDoors.enableAiControl).toHaveBeenCalledWith({ provider: "webllm", apiKey: undefined });
+                expect(mockDoors.enableAiControl).toHaveBeenCalledWith({
+                    provider: "webllm",
+                    apiKey: undefined,
+                    history: "browser",
+                    questions: true,
+                    tools: { webContentWrites: "ask" },
+                    voice: { output: "off", mode: "turns", say: aiSay },
+                });
             });
         });
 
@@ -327,5 +377,494 @@ describe("useAiManager", () => {
         rerender({ defaultProvider: "openai" });
 
         expect(result.current.currentProvider).toBe("openai");
+    });
+
+    describe("the conversation and its approvals", () => {
+        const snapshot = (text: string, pending: readonly AiApprovalRequest[] = []): AiConversationSnapshot => ({
+            id: "c1",
+            key: "k",
+            formatVersion: 1,
+            messages: [{ id: "m1", role: "reader", text, via: "text" }],
+            pending,
+        });
+        const request: AiApprovalRequest = {
+            id: "req-1",
+            gate: "replaces",
+            calls: [{ tool: "edit_data", arguments: { action: "delete_all" } }],
+            preview: { nodes: 3, edges: 1 },
+        };
+
+        it("reads the element's snapshot and pending approvals once the assistant is on", async () => {
+            mockDoors.getAiConversation.mockReturnValue(snapshot("hello", [request]));
+            mockDoors.getPendingAiApprovals.mockReturnValue([request]);
+            const { useAiManager } = await import("../useAiManager");
+
+            const { result } = renderHook(() => useAiManager({ element: mockElement, defaultProvider: "openai" }));
+
+            await waitFor(() => {
+                expect(result.current.conversation?.messages).toHaveLength(1);
+            });
+            expect(result.current.approvals.map((each) => each.id)).toEqual(["req-1"]);
+        });
+
+        it("reads them again on ai-conversation-changed, ai-approval-requested and ai-pending-resolved", async () => {
+            mockDoors.getAiConversation.mockReturnValue(snapshot("first"));
+            mockDoors.getPendingAiApprovals.mockReturnValue([]);
+            const { useAiManager } = await import("../useAiManager");
+            const { result } = renderHook(() => useAiManager({ element: mockElement, defaultProvider: "openai" }));
+            await waitFor(() => {
+                expect(result.current.isReady).toBe(true);
+            });
+
+            mockDoors.getAiConversation.mockReturnValue(snapshot("second"));
+            act(() => {
+                events.dispatchEvent(new CustomEvent("ai-conversation-changed", { detail: { conversationId: "c1" } }));
+            });
+            expect(result.current.conversation?.messages[0]).toMatchObject({ text: "second" });
+
+            mockDoors.getPendingAiApprovals.mockReturnValue([request]);
+            act(() => {
+                events.dispatchEvent(new CustomEvent("ai-approval-requested", { detail: { request, replayed: true } }));
+            });
+            expect(result.current.approvals).toEqual([request]);
+
+            mockDoors.getPendingAiApprovals.mockReturnValue([]);
+            act(() => {
+                events.dispatchEvent(
+                    new CustomEvent("ai-pending-resolved", {
+                        detail: { id: "req-1", kind: "approval", code: "AI_COMPLETED", params: {} },
+                    }),
+                );
+            });
+            expect(result.current.approvals).toEqual([]);
+        });
+
+        it("reads the questions again on ai-question-asked and ai-pending-resolved, and answers them", async () => {
+            const question: AiQuestionRequest = {
+                id: "q-1",
+                question: "Which department?",
+                choices: ["Sales", "Ops"],
+                multiple: false,
+            };
+            const { useAiManager } = await import("../useAiManager");
+            const { result } = renderHook(() => useAiManager({ element: mockElement, defaultProvider: "openai" }));
+            await waitFor(() => {
+                expect(result.current.isReady).toBe(true);
+            });
+            expect(result.current.questions).toEqual([]);
+
+            mockDoors.getPendingAiQuestions.mockReturnValue([question]);
+            act(() => {
+                events.dispatchEvent(
+                    new CustomEvent("ai-question-asked", { detail: { request: question, replayed: false } }),
+                );
+            });
+            expect(result.current.questions).toEqual([question]);
+
+            let answered: { code?: string } = {};
+            await act(async () => {
+                answered = await result.current.answerQuestion("q-1", "Sales");
+            });
+            expect(answered.code).toBe("AI_COMPLETED");
+            expect(mockDoors.answerAiQuestion).toHaveBeenCalledWith("q-1", "Sales");
+
+            mockDoors.getPendingAiQuestions.mockReturnValue([]);
+            act(() => {
+                events.dispatchEvent(
+                    new CustomEvent("ai-pending-resolved", {
+                        detail: { id: "q-1", kind: "question", code: "AI_COMPLETED", params: {} },
+                    }),
+                );
+            });
+            expect(result.current.questions).toEqual([]);
+        });
+
+        it("keeps a store failure the element reported", async () => {
+            const { useAiManager } = await import("../useAiManager");
+            const { result } = renderHook(() => useAiManager({ element: mockElement, defaultProvider: "openai" }));
+            await waitFor(() => {
+                expect(result.current.isReady).toBe(true);
+            });
+
+            act(() => {
+                events.dispatchEvent(
+                    new CustomEvent("ai-conversation-changed", {
+                        detail: {
+                            conversationId: "c1",
+                            code: "AI_STORAGE_FAILED",
+                            params: { reason: "QuotaExceededError" },
+                        },
+                    }),
+                );
+            });
+
+            expect(result.current.historyNotice).toEqual({
+                code: "AI_STORAGE_FAILED",
+                params: { reason: "QuotaExceededError" },
+            });
+        });
+
+        it("answers approvals and starts and clears conversations through the element", async () => {
+            const { useAiManager } = await import("../useAiManager");
+            const { result } = renderHook(() => useAiManager({ element: mockElement, defaultProvider: "openai" }));
+            await waitFor(() => {
+                expect(result.current.isReady).toBe(true);
+            });
+
+            let approved: { code?: string } = {};
+            await act(async () => {
+                approved = await result.current.resolveApproval("req-1", true);
+                await result.current.resolveApproval("req-2", false);
+                await result.current.newConversation();
+                await result.current.clearHistory();
+            });
+
+            expect(approved.code).toBe("AI_COMPLETED");
+            expect(mockDoors.resolveAiApproval).toHaveBeenNthCalledWith(1, "req-1", { approve: true });
+            expect(mockDoors.resolveAiApproval).toHaveBeenNthCalledWith(2, "req-2", { approve: false });
+            expect(mockDoors.newAiConversation).toHaveBeenCalledTimes(1);
+            expect(mockDoors.clearAiHistory).toHaveBeenCalledTimes(1);
+        });
+
+        it("returns the element's result and keeps no copy of the message beside its conversation", async () => {
+            const { useAiManager } = await import("../useAiManager");
+            const { result } = renderHook(() => useAiManager({ element: mockElement, defaultProvider: "openai" }));
+            await waitFor(() => {
+                expect(result.current.isReady).toBe(true);
+            });
+
+            mockDoors.aiCommand.mockResolvedValueOnce({
+                success: false,
+                message: "",
+                code: "AI_PROVIDER_ERROR",
+                params: { provider: "openai" },
+            });
+            let outcome: { code?: string } = {};
+            await act(async () => {
+                outcome = await result.current.execute("again");
+            });
+
+            expect(outcome.code).toBe("AI_PROVIDER_ERROR");
+            // The transcript, the failed message included, is the element's conversation alone.
+            expect(Object.keys(result.current)).not.toContain("failure");
+            expect(Object.keys(result.current)).not.toContain("pendingInput");
+        });
+    });
+
+    describe("the optional tools", () => {
+        it("starts with every tool off, and asks the reader about a change after web content", async () => {
+            const { useAiManager } = await import("../useAiManager");
+            const { result } = renderHook(() => useAiManager({ element: mockElement, defaultProvider: "mock" }));
+
+            await waitFor(() => {
+                expect(result.current.isReady).toBe(true);
+            });
+            expect(result.current.toolSwitches).toEqual({ webSearch: false, webFetch: false, inPageCode: false });
+            expect(mockDoors.enableAiControl.mock.calls[0][0]).toHaveProperty("tools", { webContentWrites: "ask" });
+        });
+
+        it("saves a switch, and switches the assistant on again with that tool", async () => {
+            const { useAiManager } = await import("../useAiManager");
+            const { result } = renderHook(() => useAiManager({ element: mockElement, defaultProvider: "mock" }));
+            await waitFor(() => {
+                expect(result.current.isReady).toBe(true);
+            });
+
+            act(() => {
+                result.current.setToolSwitch("inPageCode", true);
+            });
+
+            await waitFor(() => {
+                expect(mockDoors.enableAiControl).toHaveBeenLastCalledWith(
+                    expect.objectContaining({ tools: { inPageCode: true, webContentWrites: "ask" } }),
+                );
+            });
+            expect(localStorage.getItem("graphty.ai.inPageCode.v1")).toBe("on");
+            expect(result.current.toolSwitches.inPageCode).toBe(true);
+        });
+
+        it("reads the reader's saved switches", async () => {
+            localStorage.setItem("graphty.ai.webSearch.v1", "on");
+            const { useAiManager } = await import("../useAiManager");
+            renderHook(() => useAiManager({ element: mockElement, defaultProvider: "mock" }));
+
+            await waitFor(() => {
+                expect(mockDoors.enableAiControl).toHaveBeenCalledWith(
+                    expect.objectContaining({ tools: { webSearch: true, webContentWrites: "ask" } }),
+                );
+            });
+        });
+
+        it("reports what the element says the provider can use", async () => {
+            const capabilities: AiCapabilities = {
+                provider: "mock",
+                model: "mock",
+                tools: { "web-search": "unsupported", "web-fetch": "unsupported", "in-page-code": "available" },
+            };
+            mockDoors.getAiCapabilities.mockReturnValue(capabilities);
+            const { useAiManager } = await import("../useAiManager");
+            const { result } = renderHook(() => useAiManager({ element: mockElement, defaultProvider: "mock" }));
+
+            await waitFor(() => {
+                expect(result.current.capabilities).toEqual(capabilities);
+            });
+        });
+
+        it("notices each tool the element left out once, however often it says so", async () => {
+            const { useAiManager } = await import("../useAiManager");
+            const { result } = renderHook(() => useAiManager({ element: mockElement, defaultProvider: "mock" }));
+            await waitFor(() => {
+                expect(result.current.isReady).toBe(true);
+            });
+
+            const unavailable = (): void => {
+                events.dispatchEvent(
+                    new CustomEvent("ai-capability-unavailable", {
+                        detail: {
+                            tool: "web-search",
+                            code: "AI_HOSTED_TOOL_UNSUPPORTED",
+                            params: { provider: "mock", model: "mock", tool: "web-search" },
+                        },
+                    }),
+                );
+            };
+            act(() => {
+                unavailable();
+                unavailable();
+            });
+
+            expect(result.current.capabilityNotices).toEqual([
+                {
+                    code: "AI_HOSTED_TOOL_UNSUPPORTED",
+                    params: { provider: "mock", model: "mock", tool: "web-search" },
+                },
+            ]);
+        });
+
+        it("notices a tool the next provider also lacks, after the reader switches provider", async () => {
+            const { useAiManager } = await import("../useAiManager");
+            const { result } = renderHook(() => useAiManager({ element: mockElement, defaultProvider: "mock" }));
+            await waitFor(() => {
+                expect(result.current.isReady).toBe(true);
+            });
+            const unavailable = (provider: string): void => {
+                events.dispatchEvent(
+                    new CustomEvent("ai-capability-unavailable", {
+                        detail: {
+                            tool: "web-fetch",
+                            code: "AI_HOSTED_TOOL_UNSUPPORTED",
+                            params: { provider, model: "m", tool: "web-fetch" },
+                        },
+                    }),
+                );
+            };
+            act(() => {
+                unavailable("mock");
+            });
+
+            act(() => {
+                result.current.setProvider("openai");
+            });
+            await waitFor(() => {
+                expect(mockDoors.enableAiControl).toHaveBeenLastCalledWith(
+                    expect.objectContaining({ provider: "openai" }),
+                );
+            });
+            await waitFor(() => {
+                expect(result.current.isReady).toBe(true);
+            });
+            act(() => {
+                unavailable("openai");
+            });
+
+            expect(result.current.capabilityNotices).toEqual([
+                { code: "AI_HOSTED_TOOL_UNSUPPORTED", params: { provider: "openai", model: "m", tool: "web-fetch" } },
+            ]);
+        });
+
+        it("a switch flipped while the assistant is still switching on never switches the newer one off", async () => {
+            let settleFirst = (): void => undefined;
+            const first = new Promise<void>((resolve) => {
+                settleFirst = resolve;
+            });
+            mockDoors.enableAiControl.mockImplementationOnce(() => first);
+            const { useAiManager } = await import("../useAiManager");
+            const { result } = renderHook(() => useAiManager({ element: mockElement, defaultProvider: "mock" }));
+            await waitFor(() => {
+                expect(mockDoors.enableAiControl).toHaveBeenCalledTimes(1);
+            });
+
+            act(() => {
+                result.current.setToolSwitch("webSearch", true);
+            });
+            await waitFor(() => {
+                expect(result.current.isReady).toBe(true);
+            });
+            const offs = mockDoors.disableAiControl.mock.calls.length;
+
+            // The hook awaits `first` before this test does, so its continuation has run once this
+            // await returns.
+            await act(async () => {
+                settleFirst();
+                await first;
+            });
+
+            expect(mockDoors.disableAiControl.mock.calls.length).toBe(offs);
+            expect(result.current.isReady).toBe(true);
+        });
+    });
+
+    describe("voice", () => {
+        it("speaks no answers until the reader says so, and passes the saved choice", async () => {
+            const { useAiManager } = await import("../useAiManager");
+            const { result } = renderHook(() => useAiManager({ element: mockElement, defaultProvider: "openai" }));
+
+            await waitFor(() => {
+                expect(result.current.isReady).toBe(true);
+            });
+            expect(result.current.voiceSettings.speakAnswers).toBe("off");
+            expect(mockDoors.enableAiControl.mock.calls[0][0]).toHaveProperty("voice.output", "off");
+
+            act(() => {
+                result.current.setVoiceSetting("speakAnswers", "vr");
+            });
+            await waitFor(() => {
+                expect(mockDoors.enableAiControl).toHaveBeenLastCalledWith(
+                    expect.objectContaining({ voice: { output: "auto", mode: "turns", say: aiSay } }),
+                );
+            });
+            expect(localStorage.getItem("graphty.ai.speakAnswers.v1")).toBe("vr");
+        });
+
+        it("talks turn by turn until the reader chooses live, saves it and passes it as the mode", async () => {
+            const { useAiManager } = await import("../useAiManager");
+            const { result } = renderHook(() => useAiManager({ element: mockElement, defaultProvider: "openai" }));
+
+            await waitFor(() => {
+                expect(result.current.isReady).toBe(true);
+            });
+            expect(result.current.voiceSettings.mode).toBe("turns");
+            expect(mockDoors.enableAiControl.mock.calls[0][0]).toHaveProperty("voice.mode", "turns");
+
+            act(() => {
+                result.current.setVoiceSetting("mode", "live");
+            });
+            await waitFor(() => {
+                expect(mockDoors.enableAiControl.mock.lastCall?.[0]).toHaveProperty("voice.mode", "live");
+            });
+            expect(localStorage.getItem("graphty.ai.voiceMode.v1")).toBe("live");
+        });
+
+        it("follows how a press reached the model, and says why live ran turn by turn", async () => {
+            const { useAiManager } = await import("../useAiManager");
+            const { result } = renderHook(() => useAiManager({ element: mockElement, defaultProvider: "anthropic" }));
+            await waitFor(() => {
+                expect(result.current.isReady).toBe(true);
+            });
+
+            const reason = { path: "input", reason: "no-provider-live" };
+            act(() => {
+                events.dispatchEvent(
+                    new CustomEvent("ai-voice-start", {
+                        detail: { mode: "turns", code: "AI_VOICE_UNAVAILABLE", params: reason },
+                    }),
+                );
+            });
+            expect(result.current.voiceMode).toBe("turns");
+            expect(result.current.voiceNotice).toEqual({ code: "AI_VOICE_UNAVAILABLE", params: reason });
+
+            act(() => {
+                events.dispatchEvent(new CustomEvent("ai-voice-start", { detail: { mode: "live" } }));
+            });
+            expect(result.current.voiceMode).toBe("live");
+            expect(result.current.voiceNotice).toBeNull();
+        });
+
+        it("reads a saved choice back", async () => {
+            localStorage.setItem("graphty.ai.speakAnswers.v1", "always");
+            const { useAiManager } = await import("../useAiManager");
+            renderHook(() => useAiManager({ element: mockElement, defaultProvider: "openai" }));
+
+            await waitFor(() => {
+                expect(mockDoors.enableAiControl.mock.calls[0]?.[0]).toHaveProperty("voice.output", "on");
+            });
+        });
+
+        it("transcribes through the chosen provider, with its key, for a provider that cannot", async () => {
+            localStorage.setItem("graphty.ai.transcription.v1", "openai");
+            const getKey = vi.fn((provider: string) => `key-${provider}`);
+            const { useAiManager } = await import("../useAiManager");
+            renderHook(() => useAiManager({ element: mockElement, defaultProvider: "anthropic", getKey }));
+
+            await waitFor(() => {
+                expect(mockDoors.enableAiControl).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        voice: { output: "off", mode: "turns", say: aiSay, transcription: { provider: "openai" } },
+                        apiKeys: { openai: "key-openai" },
+                    }),
+                );
+            });
+        });
+
+        it("leaves transcription to a provider that has its own", async () => {
+            localStorage.setItem("graphty.ai.transcription.v1", "openai");
+            const { useAiManager } = await import("../useAiManager");
+            renderHook(() => useAiManager({ element: mockElement, defaultProvider: "google" }));
+
+            await waitFor(() => {
+                expect(mockDoors.enableAiControl).toHaveBeenCalled();
+            });
+            const config = mockDoors.enableAiControl.mock.calls[0][0] as Record<string, unknown>;
+            expect(config.voice).toEqual({ output: "off", mode: "turns", say: aiSay });
+            expect(config).not.toHaveProperty("apiKeys");
+        });
+
+        it("reads voice support once per enable, holds talk through the element and follows listening", async () => {
+            const { useAiManager } = await import("../useAiManager");
+            const { result } = renderHook(() => useAiManager({ element: mockElement, defaultProvider: "openai" }));
+
+            await waitFor(() => {
+                expect(result.current.voiceSupport?.input.status).toBe("ready");
+            });
+            expect(mockDoors.getAiVoiceSupport).toHaveBeenCalledTimes(1);
+
+            act(() => {
+                result.current.talk(true);
+            });
+            expect(mockDoors.aiTalk).toHaveBeenCalledWith(true);
+
+            act(() => {
+                events.dispatchEvent(new CustomEvent("ai-voice-start", { detail: {} }));
+            });
+            expect(result.current.listening).toBe(true);
+            act(() => {
+                events.dispatchEvent(
+                    new CustomEvent("ai-voice-end", {
+                        detail: {
+                            reason: "error",
+                            code: "AI_VOICE_UNAVAILABLE",
+                            params: { path: "input", reason: "permission-denied" },
+                        },
+                    }),
+                );
+            });
+            expect(result.current.listening).toBe(false);
+            expect(result.current.voiceNotice).toEqual({
+                code: "AI_VOICE_UNAVAILABLE",
+                params: { path: "input", reason: "permission-denied" },
+            });
+        });
+
+        it("gives the element the app's words for the controls drawn in VR and AR", async () => {
+            const { useAiManager } = await import("../useAiManager");
+            renderHook(() => useAiManager({ element: mockElement, defaultProvider: "openai" }));
+
+            await waitFor(() => {
+                expect(mockDoors.enableAiControl).toHaveBeenCalled();
+            });
+            expect(
+                (mockElement as unknown as { xr: { ai: { labels: Record<string, string> } } }).xr.ai.labels.XR_APPROVE,
+            ).toBe("Approve");
+        });
     });
 });

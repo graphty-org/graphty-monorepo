@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { EDGE_CONSTANTS } from "../constants/meshConstants";
 import { ColorStyle } from "./common";

@@ -1,8 +1,45 @@
 import { fileURLToPath } from "node:url";
 
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
+
+import { stubAnthropicNodeToolset } from "../vite.anthropic-sdk-stub.mjs";
+import { thirdPartyLicenses } from "./vite.config";
 
 const here = fileURLToPath(new URL(".", import.meta.url));
+
+const NO_PROGRAM = "\0graphty-no-program";
+
+/**
+ * Leaves the in-page code sandbox out of `./bundle`: one file cannot carry QuickJS's WebAssembly
+ * beside it, and inlined it would add 700 kB to every page. `loadProgramRunner()` gets a sandbox
+ * that refuses every program, and `PROGRAM_IN_BUILD` is false, so `./bundle` reports in-page code
+ * unsupported.
+ * @returns The plugin.
+ */
+function withoutProgram(): Plugin {
+    return {
+        name: "graphty-bundle-without-program",
+        // Before Vite's own resolver, which would otherwise resolve the real module first.
+        enforce: "pre",
+        resolveId(source, importer): string | undefined {
+            return source === "./tanstack/program" && importer?.endsWith("/src/ai/engine/load.ts") === true
+                ? NO_PROGRAM
+                : undefined;
+        },
+        load(id): string | undefined {
+            if (id.endsWith("/src/ai/engine/programBuild.ts")) {
+                return "export const PROGRAM_IN_BUILD = false;";
+            }
+
+            return id === NO_PROGRAM
+                ? [
+                      'export const runProgram = () => Promise.reject(new Error("E_PROGRAM_UNSUPPORTED"));',
+                      "export const openProgramContexts = () => 0;",
+                  ].join("\n")
+                : undefined;
+        },
+    };
+}
 
 /**
  * The self-contained build behind the `./bundle` export.
@@ -22,6 +59,9 @@ const here = fileURLToPath(new URL(".", import.meta.url));
  * emits, so the same run cannot produce both.
  */
 export default defineConfig({
+    // The AI providers' SDKs are built in; this one needs its Node-only toolset stubbed (vite.config.ts).
+    // Everything is copied in here, so its license list is the package's whole list.
+    plugins: [stubAnthropicNodeToolset(), thirdPartyLicenses(), withoutProgram()],
     define: {
         // A page loading this from a CDN is running the shipped build, never a dev build, and
         // Lit's dev-mode warning would otherwise fire on every load.

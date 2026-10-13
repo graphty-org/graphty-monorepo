@@ -5,7 +5,7 @@
  * @module mcp/tools/logs-get-all
  */
 
-import * as z from "zod/v3";
+import { z } from "zod";
 
 import type { LogEntry, LogStorage } from "../../server/log-storage.js";
 

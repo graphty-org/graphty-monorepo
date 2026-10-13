@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import type { Graph } from "../Graph";
 import type { Node as GraphNode } from "../Node";

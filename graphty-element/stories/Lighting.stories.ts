@@ -27,7 +27,7 @@ import {
     type Drawn,
     drawn,
     holds,
-    pixelsOfColour,
+    pixelsOfColours,
     renderedElement,
 } from "./assertions";
 import { eventWaitingDecorator, renderFn, type StoryArgs, storySetup, waitForGraphSettled } from "./helpers";
@@ -312,10 +312,18 @@ function modeFrom(mode: Lighting, view: View): Story {
             // Unlit means the exact style colour, so a tight window around each one finds it on
             // screen. Read once, from the front: each read renders and copies the whole canvas,
             // and the angle does not change what an unlit pixel is.
-            for (const [name, hex] of Object.entries(COLORS)) {
-                const count = await pixelsOfColour(scene, hex, 4);
+            const entries = Object.entries(COLORS);
+            const counts = await pixelsOfColours(
+                scene,
+                entries.map(([, hex]) => hex),
+                4,
+            );
 
-                await holds(count > 0, `Styles/Lighting ${story}: no pixel is drawn in the ${name} style color ${hex}`);
+            for (const [index, [name, hex]] of entries.entries()) {
+                await holds(
+                    counts[index] > 0,
+                    `Styles/Lighting ${story}: no pixel is drawn in the ${name} style color ${hex}`,
+                );
             }
         },
     };

@@ -529,6 +529,9 @@ export function sessionToolSet(ctx) {
                 const cwd = sessionCwd(client, session, state.sessions?.[session]?.cwd, ctx.home);
                 const record = board.heartbeat(state, { session, cwd }, now);
                 record.protocol = client?.protocol;
+                // A tool call is the session itself acting, unlike the MCP server's heartbeat: what
+                // ends a stall (stalls.mjs).
+                record.calledAt = now.toISOString();
                 // An owner session's claude process, whose registry entry names the session.
                 if (!client?.job && client?.pid) record.pid = client.pid;
             }

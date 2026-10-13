@@ -5,6 +5,10 @@ export const SHAPE_CONSTANTS = {
     TORUSKNOT_TUBE_MULTIPLIER: 0.2,
     TORUSKNOT_RADIAL_SEGMENTS: 128,
     ICOSPHERE_RADIUS_MULTIPLIER: 0.75,
+    // A capsule is `size` tall (caps included) and `size / 2` wide; a torus ring is `size` across
+    // its centre line and `size / 2` thick. At size 1 these are Babylon's own defaults.
+    CAPSULE_RADIUS_MULTIPLIER: 0.25,
+    TORUS_THICKNESS_MULTIPLIER: 0.5,
 } as const;
 
 export enum PolyhedronType {
@@ -59,4 +63,11 @@ export const EDGE_CONSTANTS = {
     // Bezier curve parameters
     BEZIER_CONTROL_POINT_OFFSET: 0.3,
     BEZIER_POINT_DENSITY: 8, // Lowered from 20 to reduce segment count and improve rendering
+    // The most segments one curve is drawn with, however long it is (issue #2249). The density
+    // above is per world unit, and a layout of a few hundred nodes spreads them over hundreds of
+    // units, so without a ceiling one curve took about 1,200 segments and 359 curves took 430,000
+    // -- over ten seconds to settle. A curve this program draws bows by a fixed fraction of its
+    // length, so its shape needs the same number of segments at any length: at 64 the chords stray
+    // from the true curve by about 1/30,000 of its length, under a pixel on any screen.
+    BEZIER_MAX_SEGMENTS: 64,
 } as const;

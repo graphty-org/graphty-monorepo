@@ -154,7 +154,9 @@ async function open(
 afterEach(async () => {
     confirmFinish = false;
     await page?.close();
-    server?.close();
+    // Until every request has been answered: a list refresh still running would write its state
+    // into the repository after the test file removed it (tempDir).
+    await new Promise((resolve) => (server ? server.close(() => resolve()) : resolve()));
     await openApp?.idle();
     openApp = null;
 });
@@ -205,6 +207,15 @@ const box = (part = null) =>
         }
         return name ? globalThis.document.getElementById(`wait-${name}`).textContent : "open";
     }, part);
+// Waits until the open wait box's line `part` matches `pattern`, as long as Playwright's own waits
+// do: expect.poll gives up after a second, which the page's first asks can outlast on a busy machine.
+const boxSays = (part, pattern) =>
+    page.waitForFunction(
+        ([name, source]) =>
+            globalThis.document.getElementById("wait")?.open === true &&
+            new RegExp(source).test(globalThis.document.getElementById(`wait-${name}`).textContent),
+        [part, pattern.source],
+    );
 // The targets screen shows the whole list: no refresh running, every capture downloaded.
 const listSettled = () => page.locator("#listline[data-settled]").waitFor();
 // The page's GUARD_MS: a decision this soon after an item's images appeared is ignored.
@@ -1623,7 +1634,6 @@ describe("review page: the decision bar", () => {
         [1180, 820],
         [768, 1024],
     ]) {
-        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
         it(`keeps every button in one place across items, decisions, zooms and scrolling at ${w} x ${h}`, async () => {
             await open((r) => ({ gh: onePr()(r) }), { viewport: { width: w, height: h } });
             await page.locator(".component").first().waitFor();
@@ -1668,7 +1678,7 @@ describe("review page: the decision bar", () => {
             await page.locator("#accept").click({ force: true });
             await expect.poll(status).not.toBe("");
             expect(await boxes()).toEqual(seen.at(-1));
-        }, 60000);
+        });
     }
 
     it("never types a decision key into the reason box: R, type, Enter, then A accepts the next item", async () => {
@@ -1717,9 +1727,35 @@ describe("review page: the decision bar", () => {
         await ready();
         await stopClock();
         await page.locator("#accept").click();
-        await page.locator("#accept").click();
+        // The second tap lands once the next item is on screen: a tap still in flight while the
+        // first decision saves is the next test's.
         await expect.poll(position).toMatch(/^3 of /);
-        await expect.poll(status).toMatch(/^(Ignored|Loading images|Still saving)/);
+        await page.locator("#accept").click();
+        await expect
+            .poll(status)
+            .toMatch(
+                /^(Ignored: this image appeared less than a quarter second ago\.|Loading images: Accept waits for them\.)$/,
+            );
+        expect(await page.locator("#accept").getAttribute("aria-pressed")).toBe("false");
+    });
+
+    it("refuses the second tap of a double tap that comes while the first decision is saving", async () => {
+        await open((r) => ({ gh: onePr()(r) }));
+        await page.locator("#review-undecided").click();
+        await page.keyboard.press("k");
+        await ready();
+        let release;
+        const held = new Promise((resolve) => (release = resolve));
+        await page.route("**/api/decide**", async (route) => {
+            await held;
+            await route.continue();
+        });
+        await page.locator("#accept").click();
+        await page.locator("#accept").click();
+        await expect.poll(status).toBe("Still saving the last decision.");
+        release();
+        // The first decision's message replaces it, and the second tap decided nothing.
+        await expect.poll(status).toBe("Accepted #2. Now #3, 3 of 6: slider--sizes, changed.");
         expect(await page.locator("#accept").getAttribute("aria-pressed")).toBe("false");
     });
 });
@@ -1755,7 +1791,6 @@ describe("review page: waits that say what they wait for", () => {
         await expect.poll(() => page.locator("#listline").textContent()).toMatch(/^Updated \d+ s agoRefresh$/);
     });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("lists captures still downloading, and fills the rows in when they land", async () => {
         let release;
         const held = new Promise((resolve) => (release = resolve));
@@ -1787,7 +1822,7 @@ describe("review page: waits that say what they wait for", () => {
         release();
         await page.getByRole("button", { name: "Review", exact: true }).first().waitFor({ timeout: 10000 });
         expect(await downloading.count()).toBe(0);
-    }, 30000);
+    });
 
     it("says what a slow project waits for", async () => {
         await open((r) => ({ gh: onePr()(r) }), { review: false });
@@ -1845,7 +1880,6 @@ describe("review page: the wait box", () => {
     };
     const geRow = () => page.locator('.card[data-target="123"] tr', { hasText: "graphty-element" });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("shows a project still downloading in the middle of an iPad's screen, with its progress, and opens it when it lands", async () => {
         const { options, release } = heldDownload();
         const viewport = { width: 820, height: 1180 };
@@ -1865,8 +1899,12 @@ describe("review page: the wait box", () => {
         expect(Math.abs(at.x + at.width / 2 - viewport.width / 2)).toBeLessThan(2);
         expect(Math.abs(at.y + at.height / 2 - viewport.height / 2)).toBeLessThan(2);
         expect(at.x).toBeGreaterThanOrEqual(16);
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await new Promise((resolve) => setTimeout(resolve, 1100));
+        // Once the time spent has ticked on, it is still where it was.
+        const elapsed = await box("elapsed");
+        await page.waitForFunction(
+            (was) => globalThis.document.getElementById("wait-elapsed").textContent !== was,
+            elapsed,
+        );
         expect(await page.locator("#wait").boundingBox()).toEqual(at);
         // Cancel closes it and leaves the targets as they were; the download goes on.
         expect(await page.locator("#wait-retry").isVisible()).toBe(false);
@@ -1879,44 +1917,49 @@ describe("review page: the wait box", () => {
         await page.locator(".component").first().waitFor({ timeout: 10000 });
         expect(await box()).toBeNull();
         expect(await page.locator("#pick-project").inputValue()).toBe("graphty-element");
-    }, 30000);
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("says in the box which GitHub call waits to retry, then turns a failure into an error with Retry", async () => {
-        let fails = 1;
-        let down = false;
+        // The list's GitHub call: "offline" fails on the network, so the server waits to retry it;
+        // "refusing" fails for real; "up" answers. Offline, every try fails at once, and a try runs
+        // in the same turn as the wait before it ends, so the server says it is waiting to retry
+        // whenever the page asks, for as long as the test keeps GitHub offline (the waits add up to
+        // more than the suite's test limit). The test reads the box, then changes GitHub's answer:
+        // it never races the page's first asks against a retry's timer (#2422).
+        let github = "offline";
         await open(
             (r) => {
                 const gh = onePr()(r);
                 return {
-                    gh: withRetries(
-                        async (args, input) => {
-                            if ((args[1] ?? "").includes("/pulls?")) {
-                                if (down) {
-                                    throw new Error("HTTP 401: Bad credentials");
-                                }
-                                if (fails-- > 0) {
-                                    throw new Error("Could not resolve host: api.github.com");
-                                }
+                    gh: withRetries(async (args, input) => {
+                        if ((args[1] ?? "").includes("/pulls?")) {
+                            if (github === "refusing") {
+                                throw new Error("HTTP 401: Bad credentials");
                             }
-                            return gh(args, input);
-                        },
-                        [1500],
-                    ),
+                            if (github === "offline") {
+                                throw new Error("Could not resolve host: api.github.com");
+                            }
+                        }
+                        return gh(args, input);
+                    }, Array(200).fill(500)),
                 };
             },
             { review: false },
         );
-        await expect
-            .poll(() => box("net"))
-            .toMatch(
-                /^GitHub did not answer \(Could not resolve host: api\.github\.com\)\. Trying again in \d s, try 2 of 2\.$/,
-            );
+        await boxSays(
+            "net",
+            /^GitHub did not answer \(Could not resolve host: api\.github\.com\)\. Trying again in \d s, try \d+ of 201\.$/,
+        );
+        github = "refusing";
+        await boxSays("error", /^Could not read the pull requests from GitHub: HTTP 401: Bad credentials$/);
+        expect(await box("net")).toBe("");
+        expect(await page.locator("#wait-retry").isVisible()).toBe(true);
+        github = "up";
+        await page.locator("#wait-retry").click();
         await page.getByRole("button", { name: "Review", exact: true }).first().waitFor({ timeout: 10000 });
         expect(await box()).toBeNull();
-    }, 30000);
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("turns the first load into an error with Retry when GitHub refuses, and Retry loads the list", async () => {
         let down = true;
         await open(
@@ -1944,9 +1987,8 @@ describe("review page: the wait box", () => {
         await page.locator("#wait-retry").click();
         await page.getByRole("button", { name: "Review", exact: true }).first().waitFor({ timeout: 10000 });
         expect(await box()).toBeNull();
-    }, 30000);
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("never shows the box for a refresh in the background: the status row says it", async () => {
         let release = () => {};
         let hold = false;
@@ -1968,11 +2010,12 @@ describe("review page: the wait box", () => {
         hold = true;
         await page.getByRole("button", { name: "Refresh" }).click();
         await expect.poll(status).toMatch(/^Checking GitHub for new CI runs Listing pull requests, \d+ s$/);
-        for (let i = 0; i < 5; i++) {
-            expect(await box()).toBeNull();
-            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-            await new Promise((resolve) => setTimeout(resolve, 200));
-        }
+        // The box would show once a wait has taken 300 ms; the status row's own count says a
+        // whole second has gone.
+        await page.waitForFunction(() =>
+            /, [1-9]\d* s$/.test(globalThis.document.getElementById("elapsed").textContent),
+        );
+        expect(await box()).toBeNull();
         // The targets stay usable meanwhile.
         expect(await page.getByRole("button", { name: "Review", exact: true }).first().isEnabled()).toBe(true);
         // After the release the server still fetches the branches and checks the baselines, and
@@ -1983,7 +2026,7 @@ describe("review page: the wait box", () => {
         release();
         await over;
         await expect.poll(status).toBe("");
-    }, 30000);
+    });
 });
 
 describe("review page: moving on", () => {
@@ -2028,7 +2071,6 @@ describe("review page: moving on", () => {
         );
     });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("offers Finish and the next target when every project of a target is decided", async () => {
         await open((r) => ({ gh: twoPrs(r) }));
         await page.locator(".component").first().waitFor();
@@ -2069,9 +2111,8 @@ describe("review page: moving on", () => {
         await page.getByRole("button", { name: "Next: #124 (7 undecided)" }).click();
         await expect.poll(() => page.locator("#pick-target").inputValue()).toBe("124");
         await expect.poll(position).toMatch(/^1 of 6 /);
-    }, 30000);
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("suggests Finish only once every project of the target is decided, and says what is left where", async () => {
         await open((r) => ({ gh: onePr()(r) }));
         await page.locator(".component").first().waitFor();
@@ -2114,7 +2155,7 @@ describe("review page: moving on", () => {
         await expect
             .poll(() => page.locator(".empty").textContent())
             .toBe("Everything is decided. Finish #123 when ready.");
-    }, 30000);
+    });
 
     it("jumps to another target and project from the header's pickers", async () => {
         await open((r) => ({ gh: twoPrs(r) }));
@@ -2466,7 +2507,6 @@ describe("review page: Finish", () => {
         expect(r.repo).toBeTruthy();
     });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("shows each step, survives a reload without offering a second Finish, then shows the result", async () => {
         let release;
         const gate = new Promise((resolve) => (release = resolve));
@@ -2540,9 +2580,8 @@ describe("review page: Finish", () => {
                 .getByRole("button", { name: /^Finish #123/ })
                 .getAttribute("aria-disabled"),
         ).toBe("true");
-    }, 60000);
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("says a step is retrying after a network error", async () => {
         let release;
         const gate = new Promise((resolve) => (release = resolve));
@@ -2574,7 +2613,7 @@ describe("review page: Finish", () => {
         release();
         await expect.poll(() => page.locator(".finish-outcome").textContent(), slow).toMatch(/^Finished #123\./);
         expect(await page.locator(".finish-outcome").textContent()).not.toContain("status not posted");
-    }, 60000);
+    });
 });
 
 // The passkeys file on the default branch, as merging a registration pull request leaves it.
@@ -2621,7 +2660,6 @@ describe("review page: update from master", () => {
 describe("review page: the passkey", () => {
     // Chromium's virtual authenticator (CDP) stands in for Face ID: a real browser makes the
     // registration and the approval, and the server's own checks verify them.
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("registers a passkey, then Finish asks for it; a refused approval changes nothing", async () => {
         const opened = [];
         const r = await open(
@@ -2706,9 +2744,8 @@ describe("review page: the passkey", () => {
         expect(record).toMatchObject({ version: 2, pr: 123 });
         expect(verifyApproval(record, [entry], { origin })).toBeNull();
         expect(new Set(await page.evaluate(() => globalThis.whileAsking))).toEqual(new Set([true]));
-    }, 90000);
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("says plainly that accepts are not yet protected while no passkey is registered", async () => {
         const r = await open((repo) => ({ gh: onePr()(repo) }), { review: false });
         await expect
@@ -2731,9 +2768,8 @@ describe("review page: the passkey", () => {
         const files = git(r.remote, "show", "--name-only", "--format=", "feature").split("\n");
         const record = JSON.parse(git(r.remote, "show", `feature:${files.find((f) => f.includes("reviews/"))}`));
         expect(record).toMatchObject({ version: 1, unproven: true });
-    }, 60000);
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("finishes rejects alone without asking for a passkey to be registered first", async () => {
         // The passkeys file is on the default branch with no key yet: what master holds once this
         // tool's passkey support merges, before the owner registers one.
@@ -2759,7 +2795,7 @@ describe("review page: the passkey", () => {
             .poll(() => page.locator(".finish-outcome h2").textContent(), { timeout: 30000 })
             .toBe("Finished #123.");
         expect(dialogs.at(-1)).not.toContain("passkey");
-    }, 60000);
+    });
 });
 
 describe("review page: narrow windows, touch and wording", () => {

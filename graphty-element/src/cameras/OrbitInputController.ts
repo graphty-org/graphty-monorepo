@@ -8,8 +8,8 @@ import { OrbitCameraController, OrbitConfig } from "./OrbitCameraController";
  * Processes mouse, touch, and keyboard input for camera manipulation.
  */
 export class OrbitInputController {
-    private canvas: HTMLCanvasElement;
-    private controller: OrbitCameraController;
+    private readonly canvas: HTMLCanvasElement;
+    private readonly controller: OrbitCameraController;
     private isPointerDown = false;
     private lastX = 0;
     private lastY = 0;
@@ -17,12 +17,12 @@ export class OrbitInputController {
     private rotationVelocityX = 0;
     private rotationVelocityY = 0;
     private keysDown: Record<string, boolean> = {};
-    private config: OrbitConfig;
+    private readonly config: OrbitConfig;
     private hammer: HammerManager | null = null;
     private enabled = false;
 
     // Store handlers for attach/detach
-    private pointerDownHandler = (evt: PointerEvent): void => {
+    private readonly pointerDownHandler = (evt: PointerEvent): void => {
         if (evt.button === 0 && !this.isMultiTouch) {
             this.isPointerDown = true;
             this.lastX = evt.clientX;
@@ -32,11 +32,11 @@ export class OrbitInputController {
         }
     };
 
-    private pointerUpHandler = (): void => {
+    private readonly pointerUpHandler = (): void => {
         this.isPointerDown = false;
     };
 
-    private pointerMoveHandler = (evt: PointerEvent): void => {
+    private readonly pointerMoveHandler = (evt: PointerEvent): void => {
         if (!this.isPointerDown || this.isMultiTouch) {
             return;
         }
@@ -48,11 +48,11 @@ export class OrbitInputController {
         this.controller.rotate(dx, dy);
     };
 
-    private keyDownHandler = (evt: KeyboardEvent): void => {
+    private readonly keyDownHandler = (evt: KeyboardEvent): void => {
         this.keysDown[evt.key.toLowerCase()] = true;
     };
 
-    private keyUpHandler = (evt: KeyboardEvent): void => {
+    private readonly keyUpHandler = (evt: KeyboardEvent): void => {
         this.keysDown[evt.key.toLowerCase()] = false;
     };
 
@@ -91,8 +91,8 @@ export class OrbitInputController {
         });
 
         this.hammer.on("pinchmove rotatemove", (ev: HammerInput) => {
-            const scaleDelta = ev.scale - lastScale;
-            this.controller.zoom(-scaleDelta * this.config.pinchZoomSensitivity);
+            // The distance follows the finger gap: spreading the fingers to twice the gap halves it
+            this.controller.zoomBy(lastScale / ev.scale);
             lastScale = ev.scale;
 
             const rotationDelta = (ev.rotation - lastRotation) * (Math.PI / 180) * this.config.twistYawSensitivity;
@@ -159,29 +159,34 @@ export class OrbitInputController {
 
         const keys = this.keysDown;
         const cam = this.controller;
+        // The velocity is damped every frame, so a held key settles where the push and the damping
+        // balance: push / (1 - damping). Pushing by speed * (1 - damping) settles a held arrow at
+        // exactly keyboardRotationSpeed radians a frame, as A and D turn by keyboardYawSpeed.
+        const push = this.config.keyboardRotationSpeed * (1 - this.config.inertiaDamping);
 
         if (keys.arrowleft) {
-            this.rotationVelocityY += this.config.keyboardRotationSpeed;
+            this.rotationVelocityY += push;
         }
 
         if (keys.arrowright) {
-            this.rotationVelocityY -= this.config.keyboardRotationSpeed;
+            this.rotationVelocityY -= push;
         }
 
         if (keys.arrowup) {
-            this.rotationVelocityX += this.config.keyboardRotationSpeed;
+            this.rotationVelocityX += push;
         }
 
         if (keys.arrowdown) {
-            this.rotationVelocityX -= this.config.keyboardRotationSpeed;
+            this.rotationVelocityX -= push;
         }
 
+        // W and S are exact inverses, so a press of one undoes the same press of the other
         if (keys.w) {
-            cam.zoom(-this.config.keyboardZoomSpeed);
+            cam.zoomBy(1 - this.config.keyboardZoomSpeed);
         }
 
         if (keys.s) {
-            cam.zoom(this.config.keyboardZoomSpeed);
+            cam.zoomBy(1 / (1 - this.config.keyboardZoomSpeed));
         }
 
         if (keys.a) {

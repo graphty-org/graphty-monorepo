@@ -29,36 +29,25 @@ describe("Phase 7 edge-mesh work counts", () => {
     });
 
     describe("Bezier Generation", () => {
+        const pointsFor = (length: number): number =>
+            EdgeMesh.createBezierLine(new Vector3(0, 0, 0), new Vector3(length, 0, 0)).length / 3;
+
         test("a longer edge generates more points, at the stated density", () => {
-            const pointsFor = (length: number): number =>
-                EdgeMesh.createBezierLine(new Vector3(0, 0, 0), new Vector3(length, 0, 0)).length / 3;
             const expected = (length: number): number =>
                 Math.max(10, Math.ceil(length * 1.5 * EDGE_CONSTANTS.BEZIER_POINT_DENSITY)) + 1;
 
-            assert.strictEqual(pointsFor(10), expected(10));
-            assert.strictEqual(pointsFor(200), expected(200));
-            assert.isAbove(pointsFor(200), pointsFor(10), "point count grows with edge length");
+            assert.strictEqual(pointsFor(1), expected(1));
+            assert.strictEqual(pointsFor(3), expected(3));
+            assert.isAbove(pointsFor(3), pointsFor(1), "point count grows with edge length");
         });
-        test("bezier point density follows expected formula", () => {
-            // Test point density calculation matches EDGE_CONSTANTS
-            const src = new Vector3(0, 0, 0);
-            const dst = new Vector3(100, 0, 0);
 
-            const points = EdgeMesh.createBezierLine(src, dst);
-            const pointCount = points.length / 3;
+        test("no curve is drawn with more than the ceiling's segments, however long (issue #2249)", () => {
+            // A circular layout of 330 nodes puts edges about a hundred units long; at the density
+            // alone each took about 1,200 segments, and 359 of them took ten seconds to settle.
+            const ceiling = EDGE_CONSTANTS.BEZIER_MAX_SEGMENTS + 1;
 
-            // Expected: max(10, ceil(distance * 1.5 * BEZIER_POINT_DENSITY)) + 1
-            const distance = 100;
-            const estimatedLength = distance * 1.5;
-            const expectedPoints = Math.max(10, Math.ceil(estimatedLength * EDGE_CONSTANTS.BEZIER_POINT_DENSITY)) + 1;
-
-            // Allow 20% tolerance
-            assert.closeTo(
-                pointCount,
-                expectedPoints,
-                expectedPoints * 0.2,
-                `Expected ~${expectedPoints} points, got ${pointCount}`,
-            );
+            assert.strictEqual(pointsFor(100), ceiling);
+            assert.strictEqual(pointsFor(10_000), ceiling);
         });
     });
 

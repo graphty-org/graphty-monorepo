@@ -48,7 +48,6 @@ export const AdvancedColorStyle = z.discriminatedUnion("colorType", [
         opacity: z.number().min(0).max(1).optional(),
     }),
 ]);
-// const ColorScheme = z.array(ColorStyle);
 
 export const TextLocation = z.enum([
     "top",

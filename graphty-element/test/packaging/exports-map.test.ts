@@ -84,7 +84,7 @@ const REGISTRATION_MODULES = [
  * and its Storybook do -- and writes the documented `import "@graphty/graphty-element"` gets
  * nothing if these are declared pure: the bundler drops the import, the tag is never defined, and
  * the page shows an empty box where the graph should be. The dev server does not tree-shake, so
- * only a production build (a static Storybook, a Chromatic snapshot) shows it.
+ * only a production build (a static Storybook, a visual-review capture) shows it.
  */
 const SOURCE_ENTRY_MODULES = ["./index.ts", "./src/graphty-element.ts"];
 

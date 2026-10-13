@@ -553,15 +553,14 @@ export class PatternedLineRenderer {
             const nz = 1 / normalLength;
 
             // Apply thickness along the normal direction (perpendicular to curve)
-            positions.push(x + nx * thickness, 0, z + nz * thickness); // Bottom
-            positions.push(x - nx * thickness, 0, z - nz * thickness); // Top
+            // Bottom vertex, then top vertex
+            positions.push(x + nx * thickness, 0, z + nz * thickness, x - nx * thickness, 0, z - nz * thickness);
         }
 
         // Create triangle indices for quad strip
         for (let i = 0; i < segments; i++) {
             const base = i * 2;
-            indices.push(base, base + 1, base + 2);
-            indices.push(base + 1, base + 3, base + 2);
+            indices.push(base, base + 1, base + 2, base + 1, base + 3, base + 2);
         }
 
         const vertexData = new VertexData();
@@ -632,13 +631,9 @@ export class PatternedLineRenderer {
             }
 
             const phase = i % 4;
-            let z = 0;
-            if (phase === 0) {
-                z = 0; // Baseline
-            } else if (phase === 1) {
+            let z = 0; // Baseline (phases 0 and 2)
+            if (phase === 1) {
                 z = amplitude; // Peak
-            } else if (phase === 2) {
-                z = 0; // Baseline
             } else if (phase === 3) {
                 z = -amplitude; // Valley
             }
@@ -648,15 +643,14 @@ export class PatternedLineRenderer {
 
         // Create quad strip with thickness
         for (const [px, py, pz] of points) {
-            positions.push(px, py, pz - thickness); // Bottom
-            positions.push(px, py, pz + thickness); // Top
+            // Bottom vertex, then top vertex
+            positions.push(px, py, pz - thickness, px, py, pz + thickness);
         }
 
         // Create triangle indices for quad strip
         for (let i = 0; i < points.length - 1; i++) {
             const base = i * 2;
-            indices.push(base, base + 1, base + 2);
-            indices.push(base + 1, base + 3, base + 2);
+            indices.push(base, base + 1, base + 2, base + 1, base + 3, base + 2);
         }
 
         const vertexData = new VertexData();
@@ -686,15 +680,14 @@ export class PatternedLineRenderer {
             const x = t * lineLength;
             const z = amplitude * Math.sin(2 * Math.PI * periods * lineLength * t);
 
-            positions.push(x, 0, z - thickness); // Bottom
-            positions.push(x, 0, z + thickness); // Top
+            // Bottom vertex, then top vertex
+            positions.push(x, 0, z - thickness, x, 0, z + thickness);
         }
 
         // Create triangle indices for quad strip
         for (let i = 0; i < segments; i++) {
             const base = i * 2;
-            indices.push(base, base + 1, base + 2);
-            indices.push(base + 1, base + 3, base + 2);
+            indices.push(base, base + 1, base + 2, base + 1, base + 3, base + 2);
         }
 
         const vertexData = new VertexData();
@@ -736,15 +729,14 @@ export class PatternedLineRenderer {
 
         // Create quad strip with thickness
         for (const [x, y, z] of points) {
-            positions.push(x, y, z - thickness); // Bottom
-            positions.push(x, y, z + thickness); // Top
+            // Bottom vertex, then top vertex
+            positions.push(x, y, z - thickness, x, y, z + thickness);
         }
 
         // Create triangle indices
         for (let i = 0; i < points.length - 1; i++) {
             const base = i * 2;
-            indices.push(base, base + 1, base + 2);
-            indices.push(base + 1, base + 3, base + 2);
+            indices.push(base, base + 1, base + 2, base + 1, base + 3, base + 2);
         }
 
         const vertexData = new VertexData();

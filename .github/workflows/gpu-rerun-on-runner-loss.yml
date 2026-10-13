@@ -8,9 +8,9 @@
 # Which runs it watches, and why "Release" is one of them: a workflow_run event fires for the workflow a run
 # belongs to, and when release.yml calls gpu.yml (job "t4") the T4 job is a job of the RELEASE run -- no "GPU" run
 # exists, so a watch on "GPU" alone would never see the release train's T4. Re-running the Release run's failed
-# jobs re-runs the T4 job and its dependents (held, train) while CI, Hosts and the audit keep their first
-# attempt's results and builds, so the train opens its release pull request on the second attempt exactly as if
-# the T4 had passed the first time. "GPU" covers a manual dispatch of gpu.yml; the weekly paired benchmark is its
+# jobs re-runs the T4 job and its dependents (held, version, land, publish) while CI, Hosts and the audit keep
+# their first attempt's results and builds, so the train releases on the second attempt exactly as if the T4 had
+# passed the first time. "GPU" covers a manual dispatch of gpu.yml; the weekly paired benchmark is its
 # own workflow.
 name: GPU rerun on runner loss
 on:
@@ -25,17 +25,27 @@ jobs:
         steps:
             - uses: actions/checkout@v4
               with:
-                  sparse-checkout: tools/gpu-runner-lost.sh
+                  sparse-checkout: |
+                      tools/gpu-runner-lost.sh
+                      tools/release-status.mjs
                   sparse-checkout-cone-mode: false
             - name: Re-run the failed jobs once when they only lost their runner
               env:
                   GH_TOKEN: ${{ github.token }}
                   RUN: ${{ github.event.workflow_run.id }}
+                  WORKFLOW: ${{ github.event.workflow_run.name }}
+                  RUN_URL: ${{ github.event.workflow_run.html_url }}
+                  HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+                  PUSHOVER_APP_TOKEN: ${{ secrets.PUSHOVER_APP_TOKEN }}
+                  PUSHOVER_USER_KEY: ${{ secrets.PUSHOVER_USER_KEY }}
               run: |
                   set -euo pipefail
                   if tools/gpu-runner-lost.sh "$RUN" 1; then
                       echo "run $RUN lost its runner; re-running its failed jobs once"
                       gh run rerun "$RUN" --failed --repo "$GITHUB_REPOSITORY"
+                      # a release train retrying tells the owner's phone (tools/release-status.mjs started)
+                      [ "$WORKFLOW" != Release ] || node tools/release-status.mjs started --attempt 2 --sha "$HEAD_SHA" \
+                          --what "Re-run 2 after the T4 runner was lost" --run "$RUN_URL" || true
                   else
                       echo "run $RUN failed on its own; not re-run"
                   fi

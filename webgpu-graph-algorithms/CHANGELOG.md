@@ -1,3 +1,93 @@
+## 0.6.52 (2026-10-13)
+
+### 🧱 Updated Dependencies
+
+- Updated layout to 2.5.1
+
+## 0.6.51 (2026-10-13)
+
+### 🧱 Updated Dependencies
+
+- Updated layout to 2.5.0
+
+## 0.6.50 (2026-10-13)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.3.15
+- Updated algorithms to 3.4.5
+- Updated layout to 2.4.5
+
+## 0.6.49 (2026-10-13)
+
+### 🩹 Fixes
+
+- **webgpu-graph-algorithms:** pass a node shard that finishes after a hang snapshot ([#2181](https://github.com/graphty-org/graphty-monorepo/issues/2181))
+- **tools:** cap each test slot's Node workers at its share of the cores ([9daf98f16](https://github.com/graphty-org/graphty-monorepo/commit/9daf98f16))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.3.14
+- Updated algorithms to 3.4.4
+- Updated layout to 2.4.4
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.6.48 (2026-10-12)
+
+### 🩹 Fixes
+
+- **webgpu-graph-algorithms:** keep long GPU-lane tests talking and the advance grid case in budget ([#2158](https://github.com/graphty-org/graphty-monorepo/issues/2158), [#2132](https://github.com/graphty-org/graphty-monorepo/issues/2132))
+- **webgpu-graph-algorithms:** fail a browser run that exits 0 without its JSON report ([#2111](https://github.com/graphty-org/graphty-monorepo/issues/2111))
+- **webgpu-graph-algorithms:** fail a hung node shard instead of passing it ([#2111](https://github.com/graphty-org/graphty-monorepo/issues/2111))
+
+### 🧱 Updated Dependencies
+
+- Updated layout to 2.4.3
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.6.47 (2026-10-12)
+
+### 🧱 Updated Dependencies
+
+- Updated layout to 2.4.2
+
+## 0.6.46 (2026-10-12)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.3.13
+- Updated algorithms to 3.4.3
+- Updated layout to 2.4.1
+
+## 0.6.45 (2026-10-11)
+
+### 🚀 Features
+
+- **tools:** fail a CI test that uses more than 25% of its time limit ([#1602](https://github.com/graphty-org/graphty-monorepo/issues/1602))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.3.12
+- Updated algorithms to 3.4.2
+- Updated layout to 2.4.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.6.44 (2026-10-11)
+
+### 🧱 Updated Dependencies
+
+- Updated algorithms to 3.4.1
+- Updated layout to 2.3.1
+
 ## 0.6.43 (2026-10-10)
 
 ### 🩹 Fixes

@@ -55,7 +55,16 @@ import type {
     Position,
 } from "cytoscape";
 
-import { type Backend, backendOf, checkGpuMode, cpuWithoutAsking, gpuFor, type GpuMode, warnIfFixable } from "./gpu.js";
+import {
+    type Backend,
+    backendOf,
+    checkGpuMode,
+    coreDestroyedError,
+    cpuWithoutAsking,
+    gpuFor,
+    type GpuMode,
+    warnIfFixable,
+} from "./gpu.js";
 import { type CytoscapeSnapshot, hold, indexOf, indicesOf, type NodeSelection, toSnapshot } from "./snapshot.js";
 
 /**
@@ -107,8 +116,8 @@ export interface LayoutOptionFields {
      */
     readonly dim?: 2 | 3;
     /**
-     * Seed of the layouts that draw random numbers: graphty-random, graphty-spectral, graphty-planar, graphty-arf and
-     * the three simulations. The same seed gives the same positions; without one, positions that depend on random
+     * Seed of the layouts that draw random numbers: graphty-random, graphty-spectral (above 500 nodes), graphty-arf
+     * and the three simulations. The same seed gives the same positions; without one, positions that depend on random
      * numbers differ from run to run. The other layouts ignore it.
      */
     readonly seed?: number;
@@ -363,7 +372,10 @@ export const LAYOUT_NAMES: readonly string[] = [...Object.keys(STATIC), ...Objec
  */
 function box(bb: BoundingBox12 | BoundingBoxWH | undefined, cy: Core): BoundingBoxWH {
     if (bb === undefined) {
-        return { x1: 0, y1: 0, w: cy.width(), h: cy.height() };
+        // a container detached from the page reads NaN (its computed padding is empty); use Cytoscape's own size
+        // for a core without a container, 1 x 1
+        const finite = (v: number): number => (Number.isFinite(v) ? v : 1);
+        return { x1: 0, y1: 0, w: finite(cy.width()), h: finite(cy.height()) };
     }
     return "w" in bb ? bb : { x1: bb.x1, y1: bb.y1, w: bb.x2 - bb.x1, h: bb.y2 - bb.y1 };
 }
@@ -567,7 +579,7 @@ function runStatic(layout: LayoutThis, fn: StaticLayout): void {
  * @returns a promise only when the simulation is asynchronous
  */
 function stepToEnd(sim: LayoutSimulation, layout: LayoutThis): void | Promise<void> {
-    while (!sim.settled && !layout.stopped) {
+    while (!sim.settled && !layout.stopped && !layout.options.cy.destroyed()) {
         const r = sim.step(50);
         if (r instanceof Promise) {
             return r.then(() => stepToEnd(sim, layout));
@@ -610,7 +622,7 @@ function runSimulation(layout: LayoutThis, type: SimulationType): void {
             layout.looping = false;
             layout.backend = backendOf(d, d.gpu !== null, "");
             warnIfFixable(d, o.eles.nodes().length);
-            if (layout.stopped) {
+            if (layout.stopped || o.cy.destroyed()) {
                 layout.emit({ type: "layoutstop", layout });
                 return;
             }
@@ -618,7 +630,10 @@ function runSimulation(layout: LayoutThis, type: SimulationType): void {
         })
         .catch((error: unknown) => {
             layout.looping = false;
-            layout.emit("layouterror", [error]);
+            // the core destroyed meanwhile ends the run as stop() would
+            if (!o.cy.destroyed()) {
+                layout.emit("layouterror", [error]);
+            }
             layout.emit({ type: "layoutstop", layout });
         });
 }
@@ -658,12 +673,7 @@ function simulate(layout: LayoutThis, type: SimulationType, accelerator: LayoutA
             `graphty-spring-electrical has no CPU simulation and runs only on the GPU; no GPU ran because ${reason}`,
         );
         // reported as gpu: "require" reports it, after run() returns, whether or not the GPU was asked for
-        layout.looping = true;
-        void Promise.resolve().then(() => {
-            layout.looping = false;
-            layout.emit("layouterror", [error]);
-            layout.emit({ type: "layoutstop", layout });
-        });
+        failLater(layout, error);
         return;
     }
     const cs = layoutSnapshot(o);
@@ -735,10 +745,14 @@ function simulate(layout: LayoutThis, type: SimulationType, accelerator: LayoutA
 
     // Fitted to the box as a static result is; with a locked node, the free nodes are scaled about the locked ones
     const xy = (): ArrayLike<number> => (anyLocked ? fitAroundLocked(pos, fixed, n, b) : fitRows(pos, 3, n, b));
+    // A core destroyed mid-run ends the run as stop() would: its device is gone with it ("GpuContext is disposed"),
+    // and a write to it fails in Cytoscape ("reading 'notify'" of its null renderer).
     const fail = (error: unknown): void => {
         layout.looping = false;
         dispose();
-        layout.emit("layouterror", [error]);
+        if (!o.cy.destroyed()) {
+            layout.emit("layouterror", [error]);
+        }
         layout.emit({ type: "layoutstop", layout });
     };
 
@@ -746,7 +760,11 @@ function simulate(layout: LayoutThis, type: SimulationType, accelerator: LayoutA
         const done = (): void => {
             layout.looping = false;
             dispose();
-            finishDiscrete(layout, cs.nodes, xy());
+            if (o.cy.destroyed()) {
+                layout.emit({ type: "layoutstop", layout });
+            } else {
+                finishDiscrete(layout, cs.nodes, xy());
+            }
         };
         const r = stepToEnd(sim, layout);
         if (r === undefined) {
@@ -766,7 +784,19 @@ function simulate(layout: LayoutThis, type: SimulationType, accelerator: LayoutA
         typeof requestAnimationFrame === "function"
             ? requestAnimationFrame
             : (f: () => void): unknown => setTimeout(f, 16);
+    const end = (): void => {
+        layout.looping = false;
+        dispose();
+        if (o.stop !== undefined) {
+            layout.one("layoutstop", o.stop);
+        }
+        layout.emit({ type: "layoutstop", layout });
+    };
     const draw = (): void => {
+        if (o.cy.destroyed()) {
+            end();
+            return;
+        }
         cs.nodes.positions(positionOf(xy()));
         if (o.fit !== false) {
             o.cy.fit(o.eles, o.padding);
@@ -779,18 +809,13 @@ function simulate(layout: LayoutThis, type: SimulationType, accelerator: LayoutA
             layout.emit({ type: "layoutready", layout });
         }
         if (sim.settled || layout.stopped) {
-            layout.looping = false;
-            dispose();
-            if (o.stop !== undefined) {
-                layout.one("layoutstop", o.stop);
-            }
-            layout.emit({ type: "layoutstop", layout });
+            end();
         } else {
             schedule(tick);
         }
     };
     const tick = (): void => {
-        if (layout.stopped) {
+        if (layout.stopped || o.cy.destroyed()) {
             draw();
             return;
         }
@@ -810,15 +835,33 @@ function simulate(layout: LayoutThis, type: SimulationType, accelerator: LayoutA
     tick();
 }
 
+/**
+ * Ends a run that never started: layouterror with the error, then layoutstop, after run() returns.
+ * @param layout - the layout
+ * @param error - the error
+ */
+function failLater(layout: LayoutThis, error: Error): void {
+    layout.looping = true;
+    void Promise.resolve().then(() => {
+        layout.looping = false;
+        layout.emit("layouterror", [error]);
+        layout.emit({ type: "layoutstop", layout });
+    });
+}
+
 /** Each layout object's run body, set by its registrant's constructor. */
 const RUN_BODIES = new WeakMap<LayoutThis, (layout: LayoutThis) => void>();
 
 /**
- * A registrant's run(): runs the layout's body.
+ * A registrant's run(): runs the layout's body, or refuses a destroyed core with E_CORE_DESTROYED.
  * @returns the layout
  */
 function runLayout(this: LayoutThis): LayoutThis {
-    RUN_BODIES.get(this)?.(this);
+    if (this.options.cy.destroyed()) {
+        failLater(this, coreDestroyedError());
+    } else {
+        RUN_BODIES.get(this)?.(this);
+    }
     return this;
 }
 
@@ -850,10 +893,12 @@ function registrant(run: (layout: LayoutThis) => void, withStop: boolean): unkno
         this.looping = false;
         RUN_BODIES.set(this, run);
     }
-    GraphtyLayout.prototype.run = runLayout;
+    const methods: { run: typeof runLayout; stop?: typeof stopLayout } = { run: runLayout };
     if (withStop) {
-        GraphtyLayout.prototype.stop = stopLayout;
+        methods.stop = stopLayout;
     }
+    // A function's prototype is typed any; assigning through Object.assign keeps the methods typed.
+    Object.assign(GraphtyLayout.prototype, methods);
     return GraphtyLayout;
 }
 

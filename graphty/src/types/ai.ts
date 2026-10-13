@@ -9,9 +9,9 @@
  * The class and provider types are the element's own, imported type-only so nothing loads.
  */
 
-import type { ApiKeyManager, createProvider, ProviderType } from "@graphty/graphty-element/ai";
+import type { ApiKeyManager, createProvider } from "@graphty/graphty-element/ai";
 
-export type { ProviderType };
+export type { ProviderType } from "@graphty/graphty-element/ai";
 
 // Lazy-load the AI layer to avoid module loading issues in Safari
 // The actual classes are loaded on first access

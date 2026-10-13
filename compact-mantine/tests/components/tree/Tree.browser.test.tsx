@@ -8,6 +8,7 @@ import React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
+import { ToggleIconButton } from "../../../src/components/buttons";
 import {
     InlineRename,
     PageList,
@@ -179,17 +180,22 @@ describe("Tree: keyboard", () => {
     it("jumps by type-ahead, and a quick run of keys matches a longer prefix", async () => {
         await renderThemed(<Tree items={ITEMS} defaultExpanded={["frame"]} />);
         await tabIn();
-        await userEvent.keyboard("l");
-        expect(focused()).toBe("leaf");
-        // A new run starts once the 500ms type-ahead window has passed.
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await new Promise((resolve) => setTimeout(resolve, 600));
-        await userEvent.keyboard("g");
-        expect(focused()).toBe("group");
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await new Promise((resolve) => setTimeout(resolve, 600));
-        await userEvent.keyboard("{Home}ot");
-        expect(focused()).toBe("other");
+        // The type-ahead window is read from Date.now(): hold the clock still and move it by hand.
+        let now = Date.now();
+        vi.setSystemTime(now);
+        try {
+            await userEvent.keyboard("l");
+            expect(focused()).toBe("leaf");
+            // A new run starts once the 500ms type-ahead window has passed.
+            vi.setSystemTime((now += 600));
+            await userEvent.keyboard("g");
+            expect(focused()).toBe("group");
+            vi.setSystemTime((now += 600));
+            await userEvent.keyboard("{Home}ot");
+            expect(focused()).toBe("other");
+        } finally {
+            vi.useRealTimers();
+        }
     });
 
     it("opens every sibling with *", async () => {
@@ -336,6 +342,128 @@ describe("Tree: keyboard move", () => {
         await userEvent.keyboard("{Alt>}{ArrowDown}{/Alt}");
         expect(focused()).toBe("b");
         expect(order()).toEqual(["a", "b", "c"]);
+    });
+});
+
+describe("Tree: row actions", () => {
+    /**
+     * A tree whose rows carry real lock and eye toggles, each holding its own state.
+     * @returns The tree between two buttons
+     */
+    function LayerTree(): React.JSX.Element {
+        const [locked, setLocked] = React.useState<string[]>([]);
+        const [hidden, setHidden] = React.useState<string[]>([]);
+        const toggles = (id: string, name: string): React.ReactNode => (
+            <>
+                <ToggleIconButton
+                    label={`Lock ${name}`}
+                    checked={locked.includes(id)}
+                    onChange={(on) => setLocked((l) => (on ? [...l, id] : l.filter((x) => x !== id)))}
+                    withTooltip={false}
+                    icon={<span>L</span>}
+                />
+                <ToggleIconButton
+                    label={`Hide ${name}`}
+                    checked={hidden.includes(id)}
+                    onChange={(on) => setHidden((h) => (on ? [...h, id] : h.filter((x) => x !== id)))}
+                    withTooltip={false}
+                    icon={<span>H</span>}
+                />
+            </>
+        );
+        const items: TreeNodeData[] = [
+            {
+                id: "frame",
+                name: "Frame",
+                actions: toggles("frame", "Frame"),
+                children: [{ id: "rect", name: "Rect", actions: toggles("rect", "Rect") }],
+            },
+            { id: "a", name: "A", actions: toggles("a", "A") },
+            { id: "b", name: "B", actions: toggles("b", "B") },
+        ];
+        return (
+            <>
+                <button type="button">before</button>
+                <Tree items={items} defaultExpanded={["frame"]} />
+                <button type="button">after</button>
+            </>
+        );
+    }
+
+    /** Tab into the tree from the button before it. */
+    async function enter(): Promise<void> {
+        screen.getByRole("button", { name: "before" }).focus();
+        await userEvent.tab();
+    }
+
+    it("is one Tab stop: Tab enters at a row and the next Tab leaves the tree, past every toggle", async () => {
+        await renderThemed(<LayerTree />);
+        screen.getByRole("button", { name: "before" }).focus();
+        await userEvent.tab();
+        expect(focused()).toBe("frame");
+        await userEvent.tab();
+        expect(document.activeElement).toBe(screen.getByRole("button", { name: "after" }));
+        await userEvent.tab({ shift: true });
+        expect(focused()).toBe("frame");
+    });
+
+    it("keeps every toggle named, with its state, in the accessibility tree", async () => {
+        await renderThemed(<LayerTree />);
+        const lock = screen.getByRole("button", { name: "Lock A" });
+        expect(lock).toHaveAttribute("aria-pressed", "false");
+        expect(screen.getByRole("button", { name: "Hide A" })).toHaveAttribute("aria-pressed", "false");
+    });
+
+    it("reaches a leaf row's toggles with ArrowRight and walks them with the arrows", async () => {
+        await renderThemed(<LayerTree />);
+        await enter();
+        await userEvent.keyboard("{ArrowDown}{ArrowDown}");
+        expect(focused()).toBe("a");
+        await userEvent.keyboard("{ArrowRight}");
+        expect(document.activeElement).toBe(screen.getByRole("button", { name: "Lock A" }));
+        await userEvent.keyboard("{ArrowRight}");
+        expect(document.activeElement).toBe(screen.getByRole("button", { name: "Hide A" }));
+        // The last toggle holds focus; ArrowLeft walks back, and from the first returns to the row.
+        await userEvent.keyboard("{ArrowRight}{ArrowLeft}");
+        expect(document.activeElement).toBe(screen.getByRole("button", { name: "Lock A" }));
+        await userEvent.keyboard("{ArrowLeft}");
+        expect(focused()).toBe("a");
+    });
+
+    it("toggles with Enter and Space as a click does, without selecting the row", async () => {
+        await renderThemed(<LayerTree />);
+        await enter();
+        await userEvent.keyboard("{ArrowDown}{ArrowDown}{ArrowRight}{Enter}");
+        expect(screen.getByRole("button", { name: "Lock A" })).toHaveAttribute("aria-pressed", "true");
+        await userEvent.keyboard("{ArrowRight} ");
+        expect(screen.getByRole("button", { name: "Hide A" })).toHaveAttribute("aria-pressed", "true");
+        expect(row("A")).toHaveAttribute("aria-selected", "false");
+        await userEvent.click(screen.getByRole("button", { name: "Hide A" }));
+        expect(screen.getByRole("button", { name: "Hide A" })).toHaveAttribute("aria-pressed", "false");
+    });
+
+    it("reaches any row's toggles with Alt+ArrowRight, keeping ArrowRight on a parent unchanged", async () => {
+        await renderThemed(<LayerTree />);
+        await enter();
+        await userEvent.keyboard("{ArrowRight}");
+        expect(focused()).toBe("rect");
+        await userEvent.keyboard("{ArrowUp}{Alt>}{ArrowRight}{/Alt}");
+        expect(document.activeElement).toBe(screen.getByRole("button", { name: "Lock Frame" }));
+    });
+
+    it("leaves the toggles with Escape, or with ArrowUp / ArrowDown to the next row", async () => {
+        await renderThemed(<LayerTree />);
+        await enter();
+        await userEvent.keyboard("{ArrowDown}{ArrowDown}{ArrowRight}{Escape}");
+        expect(focused()).toBe("a");
+        await userEvent.keyboard("{ArrowRight}{ArrowRight}{ArrowDown}");
+        expect(focused()).toBe("b");
+        await userEvent.keyboard("{ArrowRight}{ArrowUp}");
+        expect(focused()).toBe("a");
+        // Tab from inside the toggles still leaves the tree.
+        await userEvent.keyboard("{ArrowRight}");
+        await userEvent.tab();
+        expect(document.activeElement).toBe(screen.getByRole("button", { name: "after" }));
     });
 });
 

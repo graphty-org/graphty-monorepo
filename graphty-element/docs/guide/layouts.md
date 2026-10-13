@@ -91,8 +91,34 @@ graph.setLayout("ngraph", {
     dragCoefficient: 0.02, // Damping
     theta: 0.8, // Barnes-Hut approximation
     seed: 7, // Starting positions; unset, they differ on every load
+    nodeGap: 2, // Space kept between nodes' drawn surfaces; unset, nodes may overlap
+    nodeGapFront: false, // In 3D, measure that space as seen from the front
 });
 ```
+
+### Keeping nodes from being drawn inside each other
+
+The force layout treats every node as a point, so two nodes drawn large -- a size bound to a
+ranking, say -- can land inside each other. Set `nodeGap` and the layout keeps every two nodes at
+least their drawn radii plus `nodeGap` apart, in the same units as `springLength`. It reads each
+node's size as it is drawn, so a style that makes nodes larger after the layout came to rest starts
+the layout again until no two of them overlap. `0` lets nodes touch; unset (`null`, the default)
+keeps the layout as it always was.
+
+```typescript
+element.layoutConfig = { nodeGap: 2 };
+```
+
+In 3D, two nodes kept apart in space still cover each other on screen when one is behind the
+other. Add `nodeGapFront: true` to measure the gap across x and y only, as the starting view sees
+the graph from the front, so no node is drawn over another until the camera is turned:
+
+```typescript
+element.layoutConfig = { nodeGap: 2, nodeGapFront: true };
+```
+
+`nodeGap` is honored by the `ngraph` engine; from two thousand nodes, with a hardware accelerator
+attached, the element draws the default arrangement with `spring-electrical`, which does not read it.
 
 ### The same drawing every time
 
@@ -154,12 +180,12 @@ graph.setLayout("grid", {
 
 ### radial
 
-Puts one node at the centre and every other node on a ring by its hop distance from it. Nodes the
+Puts one node at the center and every other node on a ring by its hop distance from it. Nodes the
 root cannot reach share one extra outer ring:
 
 ```typescript
 graph.setLayout("radial", {
-    root: "node-1", // The node at the centre (default: the node with the most edges)
+    root: "node-1", // The node at the center (default: the node with the most edges)
     scale: 1, // Radius of the outermost ring
 });
 ```
@@ -298,6 +324,37 @@ You can also listen to the event:
 graph.on("graph-settled", () => {
     console.log("Layout complete");
     graph.zoomToFit();
+});
+```
+
+## When a layout refuses the graph
+
+Some layouts only arrange certain graphs: `planar` needs a graph that can be drawn without crossing
+edges, and `bfs` needs every node reachable from its start. Given another graph, the layout places
+nothing -- every node stays where it was -- and the element reports the refusal on its `error`
+event as a `GraphtyError` with a code to switch on: `E_NOT_PLANAR` or `E_NOT_CONNECTED`, with the
+graph's size in `details`. The layout stays the chosen one and runs again when the graph changes.
+
+A layout refused for its options places nothing either, and the refusal carries the option's name
+in `details.option`:
+
+| Code                  | When                                                                                   |
+| --------------------- | -------------------------------------------------------------------------------------- |
+| `E_UNKNOWN_ELEMENT`   | an option names a node the graph does not hold (a `bfs` start, a `radial` root)        |
+| `E_OPTION_RANGE`      | an option is missing (`bfs` with no `start`) or has a value the layout does not accept |
+| `E_UNKNOWN_OPTION`    | the layout has no option of that name                                                  |
+| `E_UNKNOWN_ATTRIBUTE` | an option names a node attribute the graph does not hold                               |
+| `E_ATTRIBUTE_TYPE`    | an option names a node attribute whose values the layout cannot read                   |
+| `E_BAD_WEIGHT`        | an edge weight the layout cannot use, such as a negative `kamada-kawai` distance       |
+
+What to do about it is the application's choice, such as picking another layout:
+
+```typescript
+element.addEventListener("error", (event) => {
+    const { error } = event.detail;
+    if (isGraphtyError(error) && error.code === "E_NOT_PLANAR") {
+        element.layout = "spring";
+    }
 });
 ```
 

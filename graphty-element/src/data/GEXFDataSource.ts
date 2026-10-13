@@ -334,7 +334,7 @@ function gexfMapping(snapshot: GraphSnapshot, graphDirected: boolean): RecordMap
 export class GEXFDataSource extends DataSource {
     static readonly type = "gexf";
 
-    private config: GEXFDataSourceConfig;
+    private readonly config: GEXFDataSourceConfig;
 
     /**
      * Creates a new GEXFDataSource instance.

@@ -124,289 +124,254 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
         await page.viewport(1366, 768);
     });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "T6: the graph's Overview shows the element's counts for karate",
-        async () => {
-            const { session } = await openWorkspace();
-            await session.data.import({ config: { url: "/samples/karate.gml" } });
-            await waitFor(
-                () => {
-                    assert.equal(session.data.statistics().nodeCount, 34);
-                },
-                { timeout: TIMEOUT_MS },
-            );
-            const statistics = session.data.statistics();
+    it("T6: the graph's Overview shows the element's counts for karate", async () => {
+        const { session } = await openWorkspace();
+        await session.data.import({ config: { url: "/samples/karate.gml" } });
+        await waitFor(
+            () => {
+                assert.equal(session.data.statistics().nodeCount, 34);
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        const statistics = session.data.statistics();
 
-            await waitFor(() => {
-                assert.include(inspector().getByRole("group", { name: "Nodes" }).textContent, "34");
-            });
-            assert.include(inspector().getByRole("group", { name: "Edges" }).textContent, String(statistics.edgeCount));
-            assert.include(inspector().getByRole("group", { name: "Direction" }).textContent, "Undirected");
-            assert.include(
-                inspector().getByRole("group", { name: "Components" }).textContent,
-                String(statistics.components.count),
-            );
-            // The header names the source once.
-            assert.isNotNull(inspector().getByRole("button", { name: "From karate.gml" }));
-        },
-        TIMEOUT_MS * 2,
-    );
+        await waitFor(() => {
+            assert.include(inspector().getByRole("group", { name: "Nodes" }).textContent, "34");
+        });
+        assert.include(inspector().getByRole("group", { name: "Edges" }).textContent, String(statistics.edgeCount));
+        assert.include(inspector().getByRole("group", { name: "Direction" }).textContent, "Undirected");
+        assert.include(
+            inspector().getByRole("group", { name: "Components" }).textContent,
+            String(statistics.components.count),
+        );
+        // The header names the source once.
+        assert.isNotNull(inspector().getByRole("button", { name: "From karate.gml" }));
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "T12: a picked node opens on Values, and Degree lists its neighbors by name, strongest first",
-        async () => {
-            const { session } = await openRings();
-            await pick(session, "n0");
+    it("T12: a picked node opens on Values, and Degree lists its neighbors by name, strongest first", async () => {
+        const { session } = await openRings();
+        await pick(session, "n0");
 
-            const values = await inspector().findByRole("tab", { name: "Values" });
-            assert.equal(values.getAttribute("aria-selected"), "true");
-            await userEvent.click(inspector().getByRole("button", { name: /Degree/ }));
+        const values = await inspector().findByRole("tab", { name: "Values" });
+        assert.equal(values.getAttribute("aria-selected"), "true");
+        await userEvent.click(inspector().getByRole("button", { name: /Degree/ }));
 
-            const list = await inspector().findByRole("region", { name: "n0's 3 connections" });
-            const rows = rowButtons(list);
-            // The bridge (9) first, then the ring's two ties (6 and 1).
-            assert.deepEqual(
-                rows.map((row) => row.textContent),
-                ["Node 69", "Node 56", "Node 11"],
-            );
-            await userEvent.click(rows[1]);
-            await waitFor(() => {
-                assert.deepEqual([...session.selection.nodes], ["n5"]);
-            });
-        },
-        TIMEOUT_MS * 2,
-    );
+        const list = await inspector().findByRole("region", { name: "n0's 3 connections" });
+        const rows = rowButtons(list);
+        // The bridge (9) first, then the ring's two ties (6 and 1).
+        assert.deepEqual(
+            rows.map((row) => row.textContent),
+            ["Node 69", "Node 56", "Node 11"],
+        );
+        await userEvent.click(rows[1]);
+        await waitFor(() => {
+            assert.deepEqual([...session.selection.nodes], ["n5"]);
+        });
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "T12 by keyboard only: Degree, the neighbor names, and Esc back to the node",
-        async () => {
-            const { session } = await openRings();
-            await pick(session, "n0");
+    it("T12 by keyboard only: Degree, the neighbor names, and Esc back to the node", async () => {
+        const { session } = await openRings();
+        await pick(session, "n0");
 
-            inspector()
-                .getByRole("button", { name: /Degree/ })
-                .focus();
-            await userEvent.keyboard("{Enter}");
-            const list = await inspector().findByRole("region", { name: "n0's 3 connections" });
-            assert.equal(document.activeElement, list);
+        inspector()
+            .getByRole("button", { name: /Degree/ })
+            .focus();
+        await userEvent.keyboard("{Enter}");
+        const list = await inspector().findByRole("region", { name: "n0's 3 connections" });
+        assert.equal(document.activeElement, list);
 
-            await userEvent.keyboard("{Escape}");
-            await waitFor(() => {
-                assert.deepEqual([...session.selection.nodes], ["n0"]);
-            });
-            // Focus is back on Degree, so Enter opens the list again with no mouse.
-            await waitFor(() => {
-                assert.equal(document.activeElement, inspector().getByRole("button", { name: /Degree/ }));
-            });
-            await userEvent.keyboard("{Enter}");
-            await inspector().findByRole("region", { name: "n0's 3 connections" });
-            await userEvent.tab();
-            await userEvent.keyboard("{Enter}");
-            await waitFor(() => {
-                assert.deepEqual([...session.selection.nodes], ["n6"]);
-            });
-        },
-        TIMEOUT_MS * 2,
-    );
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.deepEqual([...session.selection.nodes], ["n0"]);
+        });
+        // Focus is back on Degree, so Enter opens the list again with no mouse.
+        await waitFor(() => {
+            assert.equal(document.activeElement, inspector().getByRole("button", { name: /Degree/ }));
+        });
+        await userEvent.keyboard("{Enter}");
+        await inspector().findByRole("region", { name: "n0's 3 connections" });
+        await userEvent.tab();
+        await userEvent.keyboard("{Enter}");
+        await waitFor(() => {
+            assert.deepEqual([...session.selection.nodes], ["n6"]);
+        });
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "T7: a measure row shows its top 10, a node its rank, and Rerun revises the same row",
-        async () => {
-            const { session, store } = await openRings();
-            const id = await runToEnd(session, "pagerank");
+    it("T7: a measure row shows its top 10, a node its rank, and Rerun revises the same row", async () => {
+        const { session, store } = await openRings();
+        const id = await runToEnd(session, "pagerank");
 
-            await pick(session, "n0");
-            // The run's readable name, as the element gives it.
-            const label = session.runs.get(id)?.label ?? "";
-            const rank = await inspector().findByRole("group", { name: label });
-            assert.match(rank.textContent ?? "", /#\d+ of 12/);
+        await pick(session, "n0");
+        // The run's readable name, as the element gives it.
+        const label = session.runs.get(id)?.label ?? "";
+        const rank = await inspector().findByRole("group", { name: label });
+        assert.match(rank.textContent ?? "", /#\d+ of 12/);
 
-            // Opened from Why this look, PageRank's row is a Measure, not Groups.
-            await userEvent.click(inspector().getByRole("tab", { name: "Style" }));
-            const lines: HTMLElement[] = await inspector().findAllByTestId("why-line");
-            const line = lines.find((why) => why.textContent.startsWith(label));
-            if (line === undefined) {
-                throw new Error(`no Why this look line for ${label}`);
-            }
-            await userEvent.click(within(line).getByRole("button"));
-            await waitFor(() => {
-                assert.equal(
-                    screen
-                        .getByRole("complementary", { name: "Inspector" })
-                        .querySelector("[data-inspected]")
-                        ?.getAttribute("data-inspected"),
-                    "measure-row",
-                );
-            });
-            assert.isNotNull(inspector().getByText("Measure"));
-            assert.isNull(inspector().queryByText("Groups"));
-
-            act(() => {
-                store.set({ inspected: { kind: "measure-row", id } });
-            });
-            const top = await inspector().findByRole("group", { name: "Top 10" });
-            assert.isAtMost(rowButtons(top).length, 10);
-            assert.isAbove(rowButtons(top).length, 0);
-
-            const madeWith = inspector().getByRole("group", { name: "Made with" });
-            const field = within(madeWith).getByRole("spinbutton", { name: "Damping Factor" });
-            const before = field.getAttribute("value");
-            await userEvent.clear(field);
-            await userEvent.type(field, "0.5{Enter}");
-            // Revert drops the change: the bar goes and the field shows the run's value again.
-            await userEvent.click(
-                within(await inspector().findByRole("status")).getByRole("button", { name: "Revert" }),
-            );
-            await waitFor(() => {
-                assert.isNull(inspector().queryByRole("status"));
-            });
+        // Opened from Why this look, PageRank's row is a Measure, not Groups.
+        await userEvent.click(inspector().getByRole("tab", { name: "Style" }));
+        const lines: HTMLElement[] = await inspector().findAllByTestId("why-line");
+        const line = lines.find((why) => why.textContent.startsWith(label));
+        if (line === undefined) {
+            throw new Error(`no Why this look line for ${label}`);
+        }
+        await userEvent.click(within(line).getByRole("button"));
+        await waitFor(() => {
             assert.equal(
-                within(inspector().getByRole("group", { name: "Made with" }))
-                    .getByRole("spinbutton", { name: "Damping Factor" })
-                    .getAttribute("value"),
-                before,
-            );
-
-            const again = within(inspector().getByRole("group", { name: "Made with" })).getByRole("spinbutton", {
-                name: "Damping Factor",
-            });
-            await userEvent.clear(again);
-            await userEvent.type(again, "0.5{Enter}");
-            const bar = await inspector().findByRole("status");
-            assert.include(bar.textContent, "Settings changed since the run");
-            await userEvent.click(within(bar).getByRole("button", { name: "Rerun" }));
-
-            await waitFor(
-                () => {
-                    const runs = session.runs.list().filter((run) => run.algorithm === "pagerank");
-                    assert.lengthOf(runs, 1);
-                    assert.equal(runs[0].status, "succeeded");
-                    assert.include(Object.values(runs[0].params), 0.5);
-                },
-                { timeout: TIMEOUT_MS },
-            );
-            assert.isNull(inspector().queryByRole("status"));
-        },
-        TIMEOUT_MS * 2,
-    );
-
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "T8: Louvain's row shows its groups, a group its members, and Why this look names it for Color",
-        async () => {
-            const { session, store } = await openRings();
-            await runToEnd(session, "betweenness");
-            const id = await runToEnd(session, "louvain");
-
-            await pick(session, "n3");
-            await userEvent.click(await inspector().findByRole("tab", { name: "Style" }));
-            const why: HTMLElement[] = await inspector().findAllByTestId("why-line");
-            const label = session.runs.get(id)?.label ?? "";
-            const louvain = why.find((line) => line.textContent.startsWith(label));
-            if (louvain === undefined) {
-                throw new Error(`no Why this look line for ${label}`);
-            }
-            assert.include(louvain.textContent, "Color");
-            // The line and the header each show the color Louvain painted.
-            assert.isNotNull(louvain.querySelector(".mantine-ColorSwatch-root"));
-            assert.isNotNull(
                 screen
                     .getByRole("complementary", { name: "Inspector" })
-                    .querySelector("[data-inspected] .mantine-ColorSwatch-root"),
+                    .querySelector("[data-inspected]")
+                    ?.getAttribute("data-inspected"),
+                "measure-row",
             );
-            // The line's name opens Louvain's row.
-            await userEvent.click(within(louvain).getByRole("button"));
-            assert.equal(store.get().inspected?.id, id);
-            await userEvent.click(await inspector().findByRole("tab", { name: "Values" }));
-            const groups = Number(inspector().getByRole("group", { name: "Groups" }).textContent?.replace(/\D/g, ""));
-            assert.equal(groups, session.runs.get(id)?.result?.summary().groups?.length);
+        });
+        assert.isNotNull(inspector().getByText("Measure"));
+        assert.isNull(inspector().queryByText("Groups"));
 
-            const sizes = inspector().getByRole("group", { name: "Sizes" });
-            await userEvent.click(rowButtons(sizes)[0]);
-            const members = await inspector().findByRole("button", { name: /^Size/ });
-            await userEvent.click(members);
-            await waitFor(() => {
-                assert.isAbove(session.selection.nodes.length, 1);
-                // The selection change closed the row: the inspector shows the selection.
-                assert.isNull(store.get().inspected);
-            });
-        },
-        TIMEOUT_MS * 2,
-    );
+        act(() => {
+            store.set({ inspected: { kind: "measure-row", id } });
+        });
+        const top = await inspector().findByRole("group", { name: "Top 10" });
+        assert.isAtMost(rowButtons(top).length, 10);
+        assert.isAbove(rowButtons(top).length, 0);
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "an edge, an attribute, the Everything row and a group's members each show the element's values",
-        async () => {
-            const { session, store } = await openRings();
-            const id = await runToEnd(session, "louvain");
+        const madeWith = inspector().getByRole("group", { name: "Made with" });
+        const field = within(madeWith).getByRole("spinbutton", { name: "Damping Factor" });
+        const before = field.getAttribute("value");
+        await userEvent.clear(field);
+        await userEvent.type(field, "0.5{Enter}");
+        // Revert drops the change: the bar goes and the field shows the run's value again.
+        await userEvent.click(within(await inspector().findByRole("status")).getByRole("button", { name: "Revert" }));
+        await waitFor(() => {
+            assert.isNull(inspector().queryByRole("status"));
+        });
+        assert.equal(
+            within(inspector().getByRole("group", { name: "Made with" }))
+                .getByRole("spinbutton", { name: "Damping Factor" })
+                .getAttribute("value"),
+            before,
+        );
 
-            // An edge: its two ends, each selecting its node, and the file's weight.
-            const bridge = session.data.edges().find((edge) => edge.source === "n0" && edge.target === "n6");
-            if (bridge === undefined) {
-                throw new Error("the bridge edge is missing");
-            }
-            await act(async () => {
-                await session.selection.apply({ edges: [bridge.id] });
-            });
-            assert.include((await inspector().findByRole("button", { name: /^From/ })).textContent, "n0");
-            assert.include(inspector().getByRole("button", { name: /^To/ }).textContent, "n6");
-            assert.include(inspector().getByRole("group", { name: "weight" }).textContent, "9");
-            assert.deepEqual(controlNames(), [...new Set(controlNames())]);
+        const again = within(inspector().getByRole("group", { name: "Made with" })).getByRole("spinbutton", {
+            name: "Damping Factor",
+        });
+        await userEvent.clear(again);
+        await userEvent.type(again, "0.5{Enter}");
+        const bar = await inspector().findByRole("status");
+        assert.include(bar.textContent, "Settings changed since the run");
+        await userEvent.click(within(bar).getByRole("button", { name: "Rerun" }));
 
-            // An attribute: its table and completeness.
-            act(() => {
-                session.selection.clear();
-            });
-            act(() => {
-                store.set({ inspected: { kind: "attribute", id: "data.label" } });
-            });
-            assert.include((await inspector().findByRole("group", { name: "Table" })).textContent, "Nodes");
-            assert.include(inspector().getByRole("group", { name: "Has a value" }).textContent, "100%");
+        await waitFor(
+            () => {
+                const runs = session.runs.list().filter((run) => run.algorithm === "pagerank");
+                assert.lengthOf(runs, 1);
+                assert.equal(runs[0].status, "succeeded");
+                assert.include(Object.values(runs[0].params), 0.5);
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        assert.isNull(inspector().queryByRole("status"));
+    });
 
-            // The Everything row: what it covers, from the element's counts.
-            act(() => {
-                store.set({ inspected: { kind: "everything-row" }, tabs: { "everything-row": "values" } });
-            });
-            assert.include(
-                (await inspector().findByText(/^Covers every node and edge/)).textContent,
-                "12 nodes, 13 edges",
-            );
+    it("T8: Louvain's row shows its groups, a group its members, and Why this look names it for Color", async () => {
+        const { session, store } = await openRings();
+        await runToEnd(session, "betweenness");
+        const id = await runToEnd(session, "louvain");
 
-            // A group row: its members are the nodes Louvain put in that group.
-            const group = session.runs.get(id)?.result?.summary().groups?.[0];
-            if (group === undefined) {
-                throw new Error("Louvain found no groups");
-            }
-            act(() => {
-                store.set({ inspected: { kind: "group-row", id: JSON.stringify([id, group.group]) } });
-            });
-            const members = await inspector().findByRole("group", { name: "Members" });
-            const names = rowButtons(members).map((row) => row.textContent);
-            assert.lengthOf(names, Math.min(10, group.size));
-            const louvain = session.runs.get(id);
-            const field = louvain === undefined ? null : RESULT_SHAPE_CONTRACTS[louvain.shape].primaryField;
-            assert.isNotNull(field);
-            for (const name of names) {
-                assert.equal(louvain?.result?.node(name)?.[field ?? ""], group.group);
-            }
-            assert.deepEqual(controlNames(), [...new Set(controlNames())]);
+        await pick(session, "n3");
+        await userEvent.click(await inspector().findByRole("tab", { name: "Style" }));
+        const why: HTMLElement[] = await inspector().findAllByTestId("why-line");
+        const label = session.runs.get(id)?.label ?? "";
+        const louvain = why.find((line) => line.textContent.startsWith(label));
+        if (louvain === undefined) {
+            throw new Error(`no Why this look line for ${label}`);
+        }
+        assert.include(louvain.textContent, "Color");
+        // The line and the header each show the color Louvain painted.
+        assert.isNotNull(louvain.querySelector(".mantine-ColorSwatch-root"));
+        assert.isNotNull(
+            screen
+                .getByRole("complementary", { name: "Inspector" })
+                .querySelector("[data-inspected] .mantine-ColorSwatch-root"),
+        );
+        // The line's name opens Louvain's row.
+        await userEvent.click(within(louvain).getByRole("button"));
+        assert.equal(store.get().inspected?.id, id);
+        await userEvent.click(await inspector().findByRole("tab", { name: "Values" }));
+        const groups = Number(inspector().getByRole("group", { name: "Groups" }).textContent?.replace(/\D/g, ""));
+        assert.equal(groups, session.runs.get(id)?.result?.summary().groups?.length);
 
-            // The run row and a neighborhood: no two reachable controls share a name.
-            act(() => {
-                store.set({ inspected: { kind: "run-row", id } });
-            });
-            await inspector().findByRole("group", { name: "Sizes" });
-            assert.deepEqual(controlNames(), [...new Set(controlNames())]);
-            await pick(session, "n0");
-            await userEvent.click(await inspector().findByRole("button", { name: /Degree/ }));
-            await inspector().findByRole("region", { name: "n0's 3 connections" });
-            assert.deepEqual(controlNames(), [...new Set(controlNames())]);
-        },
-        TIMEOUT_MS * 2,
-    );
+        const sizes = inspector().getByRole("group", { name: "Sizes" });
+        await userEvent.click(rowButtons(sizes)[0]);
+        const members = await inspector().findByRole("button", { name: /^Size/ });
+        await userEvent.click(members);
+        await waitFor(() => {
+            assert.isAbove(session.selection.nodes.length, 1);
+            // The selection change closed the row: the inspector shows the selection.
+            assert.isNull(store.get().inspected);
+        });
+    });
+
+    it("an edge, an attribute, the Everything row and a group's members each show the element's values", async () => {
+        const { session, store } = await openRings();
+        const id = await runToEnd(session, "louvain");
+
+        // An edge: its two ends, each selecting its node, and the file's weight.
+        const bridge = session.data.edges().find((edge) => edge.source === "n0" && edge.target === "n6");
+        if (bridge === undefined) {
+            throw new Error("the bridge edge is missing");
+        }
+        await act(async () => {
+            await session.selection.apply({ edges: [bridge.id] });
+        });
+        assert.include((await inspector().findByRole("button", { name: /^From/ })).textContent, "n0");
+        assert.include(inspector().getByRole("button", { name: /^To/ }).textContent, "n6");
+        assert.include(inspector().getByRole("group", { name: "weight" }).textContent, "9");
+        assert.deepEqual(controlNames(), [...new Set(controlNames())]);
+
+        // An attribute: its table and completeness.
+        act(() => {
+            session.selection.clear();
+        });
+        act(() => {
+            store.set({ inspected: { kind: "attribute", id: "data.label" } });
+        });
+        assert.include((await inspector().findByRole("group", { name: "Table" })).textContent, "Nodes");
+        assert.include(inspector().getByRole("group", { name: "Has a value" }).textContent, "100%");
+
+        // The Everything row: what it covers, from the element's counts.
+        act(() => {
+            store.set({ inspected: { kind: "everything-row" }, tabs: { "everything-row": "values" } });
+        });
+        assert.include((await inspector().findByText(/^Covers every node and edge/)).textContent, "12 nodes, 13 edges");
+
+        // A group row: its members are the nodes Louvain put in that group.
+        const group = session.runs.get(id)?.result?.summary().groups?.[0];
+        if (group === undefined) {
+            throw new Error("Louvain found no groups");
+        }
+        act(() => {
+            store.set({ inspected: { kind: "group-row", id: JSON.stringify([id, group.group]) } });
+        });
+        const members = await inspector().findByRole("group", { name: "Members" });
+        const names = rowButtons(members).map((row) => row.textContent);
+        assert.lengthOf(names, Math.min(10, group.size));
+        const louvain = session.runs.get(id);
+        const field = louvain === undefined ? null : RESULT_SHAPE_CONTRACTS[louvain.shape].primaryField;
+        assert.isNotNull(field);
+        for (const name of names) {
+            assert.equal(louvain?.result?.node(name)?.[field ?? ""], group.group);
+        }
+        assert.deepEqual(controlNames(), [...new Set(controlNames())]);
+
+        // The run row and a neighborhood: no two reachable controls share a name.
+        act(() => {
+            store.set({ inspected: { kind: "run-row", id } });
+        });
+        await inspector().findByRole("group", { name: "Sizes" });
+        assert.deepEqual(controlNames(), [...new Set(controlNames())]);
+        await pick(session, "n0");
+        await userEvent.click(await inspector().findByRole("button", { name: /Degree/ }));
+        await inspector().findByRole("region", { name: "n0's 3 connections" });
+        assert.deepEqual(controlNames(), [...new Set(controlNames())]);
+    });
 });

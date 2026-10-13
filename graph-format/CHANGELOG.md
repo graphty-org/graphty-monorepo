@@ -1,3 +1,31 @@
+## 1.3.15 (2026-10-13)
+
+This was a version bump only for graph-format to align it with other projects, there were no code changes.
+
+## 1.3.14 (2026-10-13)
+
+### 🩹 Fixes
+
+- **tools:** cap each test slot's Node workers at its share of the cores ([9daf98f16](https://github.com/graphty-org/graphty-monorepo/commit/9daf98f16))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 1.3.13 (2026-10-12)
+
+This was a version bump only for graph-format to align it with other projects, there were no code changes.
+
+## 1.3.12 (2026-10-11)
+
+### 🚀 Features
+
+- **tools:** fail a CI test that uses more than 25% of its time limit ([#1602](https://github.com/graphty-org/graphty-monorepo/issues/1602))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 1.3.11 (2026-10-09)
 
 This was a version bump only for graph-format to align it with other projects, there were no code changes.

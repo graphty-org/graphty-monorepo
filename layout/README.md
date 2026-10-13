@@ -4,7 +4,7 @@
 [![Coverage Status](https://coveralls.io/repos/github/graphty-org/graphty-monorepo/badge.svg?branch=master)](https://coveralls.io/github/graphty-org/graphty-monorepo?branch=master)
 [![npm version](https://img.shields.io/npm/v/@graphty/layout.svg)](https://www.npmjs.com/package/@graphty/layout)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Documentation](https://img.shields.io/badge/docs-vitepress-blue)](https://graphty.app/docs/layout/api/generated/)
+[![Documentation](https://img.shields.io/badge/docs-vitepress-blue)](https://graphty.app/docs/layout/)
 [![Storybook](https://img.shields.io/badge/storybook-interactive%20demos-ff4785)](https://graphty.app/storybook/layout/)
 
 **[View Interactive Storybook ->](https://graphty.app/storybook/layout/)**
@@ -184,6 +184,23 @@ const byCommunity = shell(groups, { nlist: "community" });
 console.log(hubFirst.n, byCommunity.n); // 8 30
 ```
 
+By default every shell starts on the positive x axis, so the first node of each shell lines up there. `rotate` turns
+each shell further than the one inside it, as NetworkX's `shell_layout` does: shell k starts at `(k + 1) * rotate`
+radians. `rotate: "networkx"` is NetworkX 2.8.8's default, `Math.PI` divided by the number of shells:
+
+<!-- doc-check -->
+
+```typescript
+import { fromEdgeArrays } from "@graphty/graph-format";
+import { starGraph } from "@graphty/graph-samples/generators";
+import { shell } from "@graphty/layout";
+
+const star = fromEdgeArrays(starGraph({ n: 8 }));
+const turned = shell(star, { nlist: [[0], [1, 2, 3, 4, 5, 6, 7]], rotate: "networkx" }); // as nx.shell_layout
+const quarter = shell(star, { nlist: [[0], [1, 2, 3, 4, 5, 6, 7]], rotate: Math.PI / 4 });
+console.log(turned.n, quarter.n); // 8 8
+```
+
 ### Fruchterman-Reingold (spring)
 
 <!-- doc-check -->
@@ -307,6 +324,25 @@ const rings = radial(s, { root: 0 }); // rings by hop distance from node index 0
 console.log(lattice.n, rings.n); // 15 15
 ```
 
+`radial` spaces each ring's nodes evenly, in breadth-first order, which is NetworkX's `shell_layout` over the
+breadth-first rings; `rotate` turns the rings as it does for `shell` (`"networkx"` is `Math.PI` over the number of
+rings, so you do not need to count them). `arrangement: "sectors"` instead keeps each node inside its parent's sector,
+so the edges of the breadth-first tree never cross, at the price of crowded rings: on a large tree many nodes end up
+almost on top of one another.
+
+<!-- doc-check -->
+
+```typescript
+import { fromEdgeArrays } from "@graphty/graph-format";
+import { randomTreeGraph } from "@graphty/graph-samples/generators";
+import { radial } from "@graphty/layout";
+
+const tree = fromEdgeArrays(randomTreeGraph({ n: 200, seed: 42 }));
+const turned = radial(tree, { rotate: "networkx" }); // even rings, each turned past the one inside it
+const sectors = radial(tree, { arrangement: "sectors" }); // no tree edge crosses another
+console.log(turned.n, sectors.n); // 200 200
+```
+
 ### Bipartite
 
 `top` names the nodes of the first line, as a node mask (bit `i` of word `i >> 5` set means node `i`) or as the name of
@@ -367,7 +403,8 @@ console.log(result.n); // 10
 
 ### Planar
 
-`planar` throws `G is not planar.` when its check rejects the graph:
+`planar` throws `G is not planar.` when its check rejects the graph, an `Error` whose `code` is `E_NOT_PLANAR` and
+whose `params` are `{ nodeCount, edgeCount }`:
 
 <!-- doc-check -->
 
@@ -383,7 +420,7 @@ console.log(result.n); // 16
 try {
     planar(fromEdgeArrays(completeGraph({ n: 5 })));
 } catch (error) {
-    console.log((error as Error).message); // "G is not planar."
+    console.log((error as Error & { code?: string }).code); // "E_NOT_PLANAR"
 }
 ```
 
@@ -544,7 +581,16 @@ A test runs every layout to check its entry, so the catalog changes when a layou
 
 ## Error Handling
 
-Invalid input throws an `Error` whose message names the problem:
+A layout that refuses its input throws an `Error` with a stable `code` (a `LayoutErrorCode`) and `params` holding
+the facts. Switch on the code; the message is for people and may change:
+
+- `E_BAD_OPTION`: an option is out of range or not one of its values; `params` `{ option, value }`, or
+  `{ option, length, expected }` for an array of the wrong length
+- `E_BAD_NODE`: `start`, `root`, `nlist` or `subsets` names a node index that is not a node; `{ option, index }`
+- `E_UNKNOWN_COLUMN`: `subsets`, `nlist` or `top` names a node column the snapshot does not hold; `{ option, column }`
+- `E_COLUMN_TYPE`: that column has a dtype the layout cannot read; `{ option, column, dtype, expected }`
+- `E_BAD_WEIGHT`: a `kamadaKawai` weight is negative; `{ weight }`
+- `E_NOT_PLANAR`, `E_NOT_CONNECTED`, `E_TOO_LARGE`: see `planar`, `bfs` and `kamadaKawai`
 
 <!-- doc-check -->
 
@@ -557,7 +603,9 @@ const s = fromEdgeArrays(completeGraph({ n: 5 }));
 try {
     arf(s, { a: 0.5 });
 } catch (error) {
-    console.log((error as Error).message); // "The parameter a should be larger than 1"
+    const { code, params } = error as Error & { code?: string; params?: object };
+    console.log(code); // "E_BAD_OPTION"
+    console.log(params); // {"option":"a","value":0.5}
 }
 ```
 

@@ -54,8 +54,8 @@ const DEFAULT_OPTIONS: Required<SchemaExtractorOptions> = {
  * Tracks string values for enum detection using Capital One's algorithm.
  */
 class EnumTracker {
-    private values = new Map<string, string[]>();
-    private options: Required<SchemaExtractorOptions>;
+    private readonly values = new Map<string, string[]>();
+    private readonly options: Required<SchemaExtractorOptions>;
 
     constructor(options: Required<SchemaExtractorOptions>) {
         this.options = options;
@@ -134,7 +134,8 @@ class EnumTracker {
         const allValuesShort = unique.every((v) => v.length <= this.options.enumMaxStringLength);
 
         if (passesCardinalityCheck && allValuesShort) {
-            return { isEnum: true, values: unique.sort() };
+            unique.sort((a, b) => (a < b ? -1 : Number(a > b)));
+            return { isEnum: true, values: unique };
         }
 
         return { isEnum: false };
@@ -148,8 +149,8 @@ class EnumTracker {
  * Capital One's enum detection algorithm.
  */
 export class SchemaExtractor {
-    private graph: Graph;
-    private options: Required<SchemaExtractorOptions>;
+    private readonly graph: Graph;
+    private readonly options: Required<SchemaExtractorOptions>;
 
     /**
      * Creates a new SchemaExtractor instance.

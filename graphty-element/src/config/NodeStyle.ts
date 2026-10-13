@@ -120,7 +120,8 @@ export const NodeStyle = z.strictObject({
                 .strictObject({
                     // https://doc.babylonjs.com/features/featuresDeepDive/mesh/glowLayer
                     color: ColorStyle.optional(),
-                    strength: z.number().positive().optional(),
+                    // 0 draws no glow at all (NodeEffects.applyGlowEffect), the same as no colour.
+                    strength: z.number().nonnegative().optional(),
                 })
                 .optional(),
             outline: z

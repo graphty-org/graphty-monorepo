@@ -76,6 +76,7 @@ import {
     type XRConfig,
 } from "./config";
 import { type AlgorithmOnLoad, DataConfig } from "./config/DataConfig";
+import { RenderSettingsOpts } from "./config/GraphBehavior";
 import { type PartialXRConfig, xrConfigSchema } from "./config/xr-config-schema";
 import { type ExportGraphOptions, type ExportResult, exportSession } from "./data/export";
 import { sampleOf } from "./data/source-bytes";
@@ -168,7 +169,6 @@ import { Styles } from "./Styles";
 import { XRUIManager } from "./ui/XRUIManager";
 import type { QueueableOptions, RunAlgorithmOptions, SetLayoutOptions } from "./utils/queue-migration";
 import { type XRSessionEndCause, XRSessionManager } from "./xr/XRSessionManager";
-// import {createXrButton} from "./xr-button";
 
 /**
  * A catalogue key the element can start as a run, and the parameters that go with it.
@@ -200,6 +200,43 @@ function isAbort(error: unknown): boolean {
 
 /** The three layout-behaviour settings a project file saves. The others are the view's. */
 const PROJECT_LAYOUT_KEYS: ReadonlySet<string> = new Set(["preSteps", "stepMultiplier", "minDelta"]);
+
+/**
+ * Check what `setRenderSettings` was handed, before anything is queued or changed.
+ * @param settings - The caller's settings.
+ * @returns The settings, checked.
+ * @throws A `GraphtyError`: `E_UNKNOWN_OPTION` for a field that is no render setting,
+ *     `E_OPTION_RANGE` for a value the setting does not take.
+ */
+function parseRenderSettings(settings: Record<string, unknown>): GraphBehaviorConfig["rendering"] {
+    const available = Object.keys(RenderSettingsOpts.shape);
+    const unknown = Object.keys(settings).filter((key) => !available.includes(key));
+    if (unknown.length > 0) {
+        throw new GraphtyError({
+            code: "E_UNKNOWN_OPTION",
+            message: `not a render setting: ${unknown.join(", ")}. The render settings are: ${available.join(", ")}`,
+            source: "view",
+            details: { unknown, available },
+        });
+    }
+
+    const parsed = RenderSettingsOpts.partial().safeParse(settings);
+    if (!parsed.success) {
+        const [issue] = parsed.error.issues;
+        const option = String(issue?.path[0]);
+        throw new GraphtyError({
+            code: "E_OPTION_RANGE",
+            message: `the render setting "${option}" was refused: ${issue?.message}`,
+            source: "view",
+            details: { option, value: settings[option] },
+            cause: parsed.error,
+        });
+    }
+
+    // The caller's own fields, not the parse's: a field left out is filled with its default there,
+    // which would reset a setting the caller did not name.
+    return settings;
+}
 
 /**
  * The settings of this view that a project file does not save (design/undo/undo-design.md section
@@ -375,7 +412,7 @@ export class Graph implements GraphContext {
     private wasSettled = false; // Track previous settlement state
     /** How many loads `addDataFromSource` has started; the last one's id. */
     private loadCount = 0;
-    private resizeHandler = (): void => {
+    private readonly resizeHandler = (): void => {
         this.engine.resize();
         // If we've already zoomed to fit, re-zoom after resize to ensure content still fits
         // if (this.updateManager.zoomToFitCompleted) {
@@ -424,7 +461,7 @@ export class Graph implements GraphContext {
     /** Told the node label counts once the view is still and they changed. */
     readonly onNodeLabelCounts = new Observable<NodeLabelCounts>();
     private renderManager: RenderManager;
-    private lifecycleManager: LifecycleManager;
+    private readonly lifecycleManager: LifecycleManager;
     /** The managers the lifecycle manager runs, kept so the renderer chosen at init can replace its own. */
     private readonly managers: Map<string, Manager>;
     /** Whether input is mocked, kept so the input manager can be rebuilt on the renderer chosen at init. */
@@ -435,11 +472,11 @@ export class Graph implements GraphContext {
     #rendererStatus: RendererStatus | null = null;
     /** Set when {@link Graph.init} starts opening the renderer; from then on the request is fixed. */
     #rendererChosen = false;
-    private dataManager: DataManager;
-    private layoutManager: LayoutManager;
-    private statsManager: StatsManager;
-    private updateManager: UpdateManager;
-    private algorithmManager: AlgorithmManager;
+    private readonly dataManager: DataManager;
+    private readonly layoutManager: LayoutManager;
+    private readonly statsManager: StatsManager;
+    private readonly updateManager: UpdateManager;
+    private readonly algorithmManager: AlgorithmManager;
     private inputManager: InputManager;
     /** While an immersive session is active: its mode and when it started, stamped on steps. */
     private immersiveSince: string | null = null;
@@ -459,7 +496,7 @@ export class Graph implements GraphContext {
         this.updateManager.frameIsStable && (this.xrSessionManager?.getActiveMode() ?? null) === null;
     /** How many `batchOperations` callbacks are open. */
     private openBatches = 0;
-    private selectionManager: SelectionManager;
+    private readonly selectionManager: SelectionManager;
 
     /**
      * What the session's style stack resolved for each element, and which stack owns the paint.
@@ -791,6 +828,7 @@ export class Graph implements GraphContext {
                 layers: change.layers.length,
                 painted: change.painted,
                 unresolvedPaths: [...change.unresolvedPaths],
+                warnings: change.warnings,
             });
         });
 
@@ -1495,6 +1533,10 @@ export class Graph implements GraphContext {
 
             // Initialize all managers through lifecycle manager
             await this.lifecycleManager.init();
+            // Shut down while the managers were initialising: they are disposed, so nothing starts.
+            if (this.#teardown.signal.aborted) {
+                return;
+            }
 
             // The configured background reaches the scene here, whether it was set through
             // `element.background` before the element was attached or left at its default.
@@ -2969,14 +3011,27 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Update rendering settings for the graph visualization.
-     * @param _settings - Object containing rendering configuration options (reserved for future use)
-     * @param options - Queue options for operation ordering
+     * Update rendering settings for the graph visualization: the `layoutBehavior.rendering` group.
+     *
+     * `onDemand` is the one setting: whether a frame is drawn only when the picture can have
+     * changed, the same switch as the element's `renderOnDemand`. Merged, not replaced: a field
+     * left out keeps its value. A preference of this view, so it records no undo step and is not
+     * saved in a project file.
+     * @param settings - The fields to change, e.g. `{ onDemand: true }`.
+     * @param options - Queue options for operation ordering. With `skipQueue` the settings apply
+     *     before this returns; otherwise they apply when the queue reaches them.
+     * @throws A `GraphtyError` with `E_UNKNOWN_OPTION` for a field that is not a render setting
+     *     (`details.available` lists them), or `E_OPTION_RANGE` for a value the setting does not take.
+     *     Nothing is changed then.
      */
-    async setRenderSettings(_settings: Record<string, unknown>, options?: QueueableOptions): Promise<void> {
+    async setRenderSettings(settings: Record<string, unknown>, options?: QueueableOptions): Promise<void> {
+        const rendering = parseRenderSettings(settings);
+        const apply = (): void => {
+            this.setLayoutBehavior({ rendering });
+        };
+
         if (options?.skipQueue) {
-            // Apply render settings directly
-            // TODO: Add render settings support when available
+            apply();
             return;
         }
 
@@ -2987,7 +3042,7 @@ export class Graph implements GraphContext {
                     throw new Error("Operation cancelled");
                 }
 
-                // TODO: Add render settings support when available
+                apply();
             },
             {
                 description: "Updating render settings",
@@ -4178,6 +4233,10 @@ export class Graph implements GraphContext {
 
     /**
      * Where a node is drawn on screen, in the same pixels {@link worldToScreen} returns.
+     * @remarks
+     * Read off the node's mesh, which a frame places: before the first frame after a node is
+     * created it reports the hidden mesh template's position, off screen and not visible. Wait
+     * for {@link Graph.waitForStableFrame} first.
      * @param nodeId - The node's id.
      * @returns The centre, whether it is drawn on screen, and its radius in pixels; undefined for
      *     an id the graph does not hold.
@@ -4289,6 +4348,11 @@ export class Graph implements GraphContext {
      * regression snapshot -- wait for {@link Graph.waitForStableFrame} instead, which waits for
      * this queue AND for the layout to converge AND for the camera to finish framing AND for a
      * frame to be drawn in that state.
+     *
+     * Nor does it wait for a frame, and a node's mesh is moved to its layout position only by a
+     * frame. So `Node.getPosition()` and {@link Graph.nodeScreenPosition} read right after this
+     * resolves can still see a new node at its mesh template's position; wait for
+     * {@link Graph.waitForStableFrame} before reading where nodes are drawn.
      * @returns Promise that resolves when all operations are complete
      * @since 1.0.0
      * @see {@link zoomToFit} to zoom after settling
@@ -4349,7 +4413,8 @@ export class Graph implements GraphContext {
      * @remarks
      * Resolves when all four of these are true, in this order: every queued operation has run,
      * the layout has converged, the camera has finished framing what the layout arrived at, and a
-     * frame has been drawn showing it.
+     * frame has been drawn showing it. Every node's mesh is then where the layout put it, so this
+     * is what to wait for before reading `Node.getPosition()` or {@link Graph.nodeScreenPosition}.
      *
      * The `graph-settled` event is NOT that moment. It fires the instant the layout engine
      * reports convergence, in the same update pass that merely ASKS for the final framing, so a
@@ -4363,7 +4428,8 @@ export class Graph implements GraphContext {
      * @param options - How the wait is bounded.
      * @param options.timeoutMs - How long to wait before giving up; 30 seconds by default.
      * @returns Promise that resolves once a frame of the finished picture has been drawn.
-     * @throws Error when the picture is still changing when the timeout expires.
+     * @throws Error when the picture is still changing when the timeout expires; the message names
+     *   what was still unfinished and how many frames were drawn while it waited.
      * @since 2.0.0
      * @example
      * ```typescript
@@ -4375,6 +4441,10 @@ export class Graph implements GraphContext {
      */
     async waitForStableFrame(options: { timeoutMs?: number } = {}): Promise<void> {
         const timeoutMs = options.timeoutMs ?? DEFAULT_STABLE_FRAME_TIMEOUT_MS;
+        // Counted so a timeout can tell a picture that kept changing from a page that stopped
+        // drawing: a GPU far behind blocks the page for seconds per frame, and whatever the last
+        // frame left unfinished is then all the reason names.
+        const firstFrame = this.scene.getRenderId();
         let listenerId: symbol | undefined;
         let timer: ReturnType<typeof setTimeout> | undefined;
 
@@ -4385,10 +4455,12 @@ export class Graph implements GraphContext {
                 }),
                 new Promise<never>((_resolve, reject) => {
                     timer = setTimeout(() => {
+                        const frames = this.scene.getRenderId() - firstFrame;
                         reject(
                             new Error(
                                 `The graph was still changing ${String(timeoutMs)} ms after ` +
-                                    `waitForStableFrame() was called: ${this.whyTheFrameIsNotStable()}.`,
+                                    `waitForStableFrame() was called: ${this.whyTheFrameIsNotStable()}; ` +
+                                    `${String(frames)} ${frames === 1 ? "frame was" : "frames were"} drawn while it waited.`,
                             ),
                         );
                     }, timeoutMs);

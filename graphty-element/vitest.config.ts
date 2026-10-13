@@ -32,7 +32,8 @@ import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
-import { ciJunitReporter } from "../vitest.ci-junit.mjs";
+import { workerShare } from "../tools/test-slots.mjs";
+import { ciReporters } from "../vitest.ci-junit.mjs";
 import { getLlmRegressionCaseTimeoutMs } from "./test/helpers/llm-regression-env";
 
 /**
@@ -82,6 +83,13 @@ const XR_BROWSER_TESTS = [
 ];
 
 const dirname = typeof __dirname !== "undefined" ? __dirname : path.dirname(fileURLToPath(import.meta.url));
+
+/**
+ * First in the setupFiles of every browser project that runs one file at a time under --coverage:
+ * frees the previous test files' pages, which V8 precise coverage otherwise keeps alive for the
+ * whole run (issue #2247).
+ */
+const BROWSER_COVERAGE_SETUP = path.join(dirname, "../vitest.browser-coverage-setup.ts");
 
 /**
  * The package's published names, resolved to its own source. The docs' examples
@@ -246,7 +254,10 @@ export default defineConfig({
     test: {
         // The machine-wide limit on concurrent test runs (tools/test-slots.mjs; off on GitHub Actions).
         globalSetup: ["../tools/test-slots.mjs"],
-        reporters: ["default", ...ciJunitReporter()],
+        // At most this run's share of the cores for the Node projects (tools/test-slots.mjs); browser
+        // projects keep their own maxWorkers or fileParallelism.
+        maxWorkers: workerShare(),
+        reporters: ["default", ...ciReporters()],
         onConsoleLog: appendBenchRow,
         // Vitest 4 also copies each failure screenshot into an attachments directory, by default
         // .vitest-attachments/ beside this file. Same diagnostics, same place as the screenshots.
@@ -420,7 +431,7 @@ export default defineConfig({
                         "test/browser/style-layer-ordering.test.ts",
                         "test/browser/first-paint-after-load.test.ts",
                         "test/browser/story-contract.test.ts",
-                        // Every story Chromatic snapshots is seeded, pre-stepped and settled. It
+                        // Every story the visual capture snapshots is seeded, pre-stepped and settled. It
                         // imports every story module, which is why it is here and not in "default".
                         "test/browser/story-determinism.test.ts",
                         // Proves a channel the table calls renderable really changes the picture,
@@ -482,7 +493,7 @@ export default defineConfig({
                 optimizeDeps: { include: ["iwer", ...PREBUNDLED] },
                 test: {
                     name: "xr",
-                    setupFiles: ["./test/setup.ts"],
+                    setupFiles: [BROWSER_COVERAGE_SETUP, "./test/setup.ts"],
                     include: XR_BROWSER_TESTS,
                     fileParallelism: false,
                     browser: {
@@ -535,7 +546,7 @@ export default defineConfig({
                 resolve: { alias: OWN_ENTRY_POINTS },
                 test: {
                     name: "browser",
-                    setupFiles: ["./test/setup.ts"],
+                    setupFiles: [BROWSER_COVERAGE_SETUP, "./test/setup.ts"],
                     include: [
                         "test/browser/**/*.test.ts",
                         "test/managers/DataManager.test.ts",
@@ -608,7 +619,7 @@ export default defineConfig({
                 optimizeDeps: { include: ["iwer", ...PREBUNDLED] },
                 test: {
                     name: "interactions",
-                    setupFiles: ["./test/setup.ts"],
+                    setupFiles: [BROWSER_COVERAGE_SETUP, "./test/setup.ts"],
                     include: ["test/interactions/**/*.test.ts"],
                     exclude: [
                         // Exclude experimental/temporary folders ending with ~
@@ -675,7 +686,7 @@ export default defineConfig({
                         provider: playwright(),
                         instances: [{ browser: "chromium" }],
                     },
-                    setupFiles: [".storybook/vitest.setup.ts"],
+                    setupFiles: [BROWSER_COVERAGE_SETUP, ".storybook/vitest.setup.ts"],
                     // Storybook tests load complex 3D scenes and need longer timeout
                     testTimeout: 30000,
                 },

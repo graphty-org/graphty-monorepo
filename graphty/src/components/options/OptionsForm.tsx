@@ -23,14 +23,14 @@ import { optionDefaults } from "./optionDefaults";
  * the graph draws these itself. They are skipped here rather than dropped from the descriptor
  * list, so a caller that does have the graph can still find them.
  */
-const UNDRAWABLE_TYPES: readonly OptionDescriptor["type"][] = [
+const UNDRAWABLE_TYPES: ReadonlySet<OptionDescriptor["type"]> = new Set([
     "node-id",
     "node-set",
     "attribute",
     "partition",
     "ordering",
     "unknown",
-];
+]);
 
 /**
  * A bound the element resolved to a number. A bound that is still a reference to something
@@ -58,7 +58,7 @@ interface FieldRendererProps {
  * @param root0.onChange - Called with the new value.
  * @returns The control, or null when the option has no control here.
  */
-function FieldRenderer({ option, value, onChange }: FieldRendererProps): React.JSX.Element | null {
+function FieldRenderer({ option, value, onChange }: Readonly<FieldRendererProps>): React.JSX.Element | null {
     const label = option.plainName;
     const { description } = option;
     const labelStyles = {
@@ -169,13 +169,13 @@ export function OptionsForm({
     onChange,
     showAdvanced = false,
     hiddenFields = [],
-}: OptionsFormProps): React.JSX.Element {
+}: Readonly<OptionsFormProps>): React.JSX.Element {
     const defaults = useMemo(() => optionDefaults(options), [options]);
 
     const visible = useMemo(
         () =>
             options.filter((option) => {
-                if (UNDRAWABLE_TYPES.includes(option.type) || option.internal === true) {
+                if (UNDRAWABLE_TYPES.has(option.type) || option.internal === true) {
                     return false;
                 }
 

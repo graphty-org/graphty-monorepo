@@ -147,6 +147,13 @@ export interface RepaintSources {
     readonly measured?: (path: Path, target: SelectorTarget) => ArrayLike<number> | undefined;
     /** The scales a binding may name. Absent builds a registry holding the built-ins. */
     readonly scales?: ScaleRegistry;
+    /**
+     * The clock a pass's slices are timed on. Absent is `performance.now()`; a test that drives
+     * the session's clock itself hands it in, so how often a pass yields depends on that clock and
+     * not on how busy the machine is.
+     * @returns Milliseconds.
+     */
+    readonly now?: () => number;
 }
 
 /**
@@ -427,7 +434,7 @@ const FLAG_TRUE = 2;
  * The generation counter is reset before it can overflow a signed 32-bit stamp, because a wrapped
  * generation would mark every element of the previous pass as already dirty in this one.
  */
-const MAX_GENERATION = 0x7fff_fffe;
+const MAX_GENERATION = 0x7f_ff_ff_fe;
 
 /** One channel's values, in the shape that channel's kind of value packs into. */
 type ChannelColumn =
@@ -909,6 +916,7 @@ function reasonOf(edits: readonly LayerEdit[]): RepaintReason {
  */
 export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
     const scales = sources.scales ?? createScaleRegistry();
+    const now = sources.now ?? ((): number => performance.now());
 
     /**
      * Prepared layers, keyed by the compiled layer they were built from.
@@ -1176,7 +1184,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
             // A channel of the wrong target, a channel the element cannot draw and a name that is
             // not a channel are all refused by the layer check before a layer is accepted. Here
             // they are simply not painted: a repaint is not the place to relitigate a spec.
-            if (descriptor === undefined || descriptor.target !== layer.target || !descriptor.renderable) {
+            if (descriptor?.target !== layer.target || !descriptor.renderable) {
                 return;
             }
 
@@ -1398,7 +1406,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
      * @throws The signal's reason when the pass has been cancelled.
      */
     const breathe = async (context: RepaintContext, deadline: number): Promise<number> => {
-        if (performance.now() < deadline) {
+        if (now() < deadline) {
             return deadline;
         }
 
@@ -1410,7 +1418,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
             throw context.signal.reason as Error;
         }
 
-        return performance.now() + SLICE_MS;
+        return now() + SLICE_MS;
     };
 
     /**
@@ -1700,7 +1708,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         const total = nodes.dirtyCount + edges.dirtyCount;
         context.report({ phase: "painting", completed: 0, total });
 
-        const deadline = performance.now() + SLICE_MS;
+        const deadline = now() + SLICE_MS;
         const node = await paintTarget(nodes, stack, context, deadline, skipBelow);
         context.report({ phase: "painting", completed: node.painted, total });
         const edge = await paintTarget(edges, stack, context, node.deadline, skipBelow);

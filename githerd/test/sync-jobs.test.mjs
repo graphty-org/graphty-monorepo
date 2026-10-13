@@ -1,0 +1,1444 @@
+import { describe, expect, it } from "vitest";
+
+import { move } from "../lib/board.mjs";
+import { normalizeConfig } from "../lib/config.mjs";
+import { jobText } from "../lib/job-text.mjs";
+import { backfillTriaged, finishedJobsToPrune, syncJobs, tombstoneOf } from "../lib/jobs.mjs";
+import { issueRefusal, jobInUse, jobOrder } from "../lib/queue.mjs";
+import { accumulateMerged, commitRefs } from "../lib/merged.mjs";
+
+const NOW = new Date("2026-10-04T12:00:00Z");
+const CONFIG = normalizeConfig({
+    repo: "o/r",
+    lanes: { ci: { workflow: "ci.yml", gating: "required" } },
+    labels: {
+        types: ["bug", "enhancement", "infrastructure"],
+        priorities: ["priority:critical", "priority:high", "priority:medium", "priority:low"],
+        efforts: ["effort:high", "effort:medium", "effort:low"],
+    },
+});
+const LABELED = ["bug", "priority:high", "effort:low"];
+
+/**
+ * A quiet state with the owner's login resolved.
+ * @returns {any} the state
+ */
+function base() {
+    return {
+        trust: { login: "owner" },
+        master: { verdict: "green", lanes: {} },
+        incidents: {},
+        escalations: {},
+        prs: {},
+        issues: { byNumber: {} },
+        mergeGate: { heads: {} },
+        merged: { count: 0, pending: [], closed: [] },
+        // The one-time type-refresh pass is done; its own test removes this.
+        triagePasses: { refreshAt: 0, fullAt: 0, queue: [], seq: 0, typesQueued: true },
+        jobs: {},
+    };
+}
+
+/**
+ * The owner's pull request with a failing required check, its files read.
+ * @param {any} state the state
+ * @param {number} n its number
+ * @param {any} [over] fields to override
+ * @param {string[]} [files] the files it changes
+ */
+function failingPr(state, n, over = {}, files = ["layout/src/a.ts"]) {
+    state.prs[n] = {
+        author: "owner",
+        draft: false,
+        headRef: `fix/${n}`,
+        headSha: `${n}`.padEnd(40, "0"),
+        createdAt: "2026-10-01T00:00:00Z",
+        labels: [],
+        required: { "All Checks Pass": "FAILURE" },
+        conflictSightings: 0,
+        stackedOn: null,
+        ...over,
+    };
+    state.mergeGate.heads[n] = { files, filesTruncated: false };
+}
+
+/**
+ * The owner's open issue.
+ * @param {any} state the state
+ * @param {number} n its number
+ * @param {string[]} labels its labels
+ * @param {any} [over] fields to override
+ */
+function issue(state, n, labels, over = {}) {
+    state.issues.byNumber[n] = {
+        state: "open",
+        author: "owner",
+        createdAt: `2026-0${(n % 9) + 1}-01T00:00:00Z`,
+        updatedAt: "2026-10-03T00:00:00Z",
+        labels,
+        ...over,
+    };
+}
+
+const sync = (/** @type {any} */ state) => syncJobs(state, { config: CONFIG, now: NOW });
+
+describe("syncJobs: incidents", () => {
+    it("tells a verdict job when the red commit is a merge batch, and which pull requests it merged", () => {
+        const state = base();
+        state.master.lanes.ci = { sha: "c".repeat(40), redJobs: [{ id: 55, runId: 5, key: "CI / Build / Lint all" }] };
+        state.incidents.i1 = {
+            id: "i1",
+            status: "open",
+            openedAt: "2026-10-04T11:05:00Z",
+            lastGreenSha: "a".repeat(40),
+            redBatch: [42, 43],
+            keys: { "CI / Build / Lint all": { lane: "ci", outcome: "waiting" } },
+        };
+        sync(state);
+        const job = state.jobs["verdict-ci-build-lint-all"];
+        expect(job.facts.batch).toEqual([42, 43]);
+        expect(jobText(job)).toContain(
+            'BATCH COMMIT: the red commit merged #42, #43 as one Mergify batch. Its tree is exactly what "Queue Checks Pass" passed',
+        );
+        // A red commit that is no batch says nothing of one.
+        delete state.incidents.i1.redBatch;
+        delete state.jobs["verdict-ci-build-lint-all"];
+        sync(state);
+        expect(jobText(state.jobs["verdict-ci-build-lint-all"])).not.toContain("BATCH COMMIT");
+    });
+
+    it("makes one urgent verdict job per key Claude has not judged, then a fix job once it is judged code", () => {
+        const state = base();
+        state.master.lanes.ci = {
+            redSince: "2026-10-04T11:00:00Z",
+            sha: "c".repeat(40),
+            redJobs: [{ id: 55, runId: 5, key: "CI / Build / Run build", textClass: "unclassified" }],
+        };
+        state.incidents.i1 = {
+            id: "i1",
+            status: "open",
+            openedAt: "2026-10-04T11:05:00Z",
+            lastGreenSha: "a".repeat(40),
+            keys: { "CI / Build / Run build": { lane: "ci", outcome: "waiting" } },
+        };
+        expect(sync(state).created).toEqual(["verdict-ci-build-run-build"]);
+        expect(state.jobs["verdict-ci-build-run-build"]).toMatchObject({
+            kind: "incident",
+            target: "CI / Build / Run build",
+            priority: "urgent",
+            facts: {
+                scope: "verdict",
+                lane: "ci",
+                runId: 5,
+                jobId: 55,
+                redSha: "c".repeat(40),
+                greenSha: "a".repeat(40),
+            },
+        });
+        state.master.lanes.ci.verdicts = { "CI / Build / Run build": { verdict: "code" } };
+        const after = sync(state);
+        expect(after.created).toEqual(["incident-ci-build-run-build"]);
+        expect(after.cancelled).toEqual([
+            { job: "verdict-ci-build-run-build", reason: "a verdict was recorded, or master's incident ended" },
+        ]);
+        // An environment verdict makes no fix job.
+        const env = base();
+        env.master.lanes.ci = { verdicts: { "CI / Build / Run build": { verdict: "environment" } } };
+        env.incidents.i1 = { ...state.incidents.i1 };
+        expect(sync(env).created).toEqual([]);
+    });
+
+    it("makes ids from failure keys that match the tools' job id pattern, and keeps a live job saved under an old id", () => {
+        const KEY = "CI / Build / Security audit";
+        const state = base();
+        state.master.lanes.ci = { redJobs: [{ id: 1, runId: 2, key: KEY, textClass: "unclassified" }] };
+        state.incidents.i1 = {
+            id: "i1",
+            status: "open",
+            openedAt: "x",
+            keys: { [KEY]: { lane: "ci", outcome: "waiting" } },
+        };
+        const [id] = sync(state).created;
+        expect(id).toBe("verdict-ci-build-security-audit");
+        expect(id).toMatch(/^[a-z][a-z0-9-]{1,119}$/);
+        expect(state.jobs[id].facts.key).toBe(KEY);
+        // A job saved before ids were normalized stays the job for its key, neither cancelled nor doubled.
+        const old = base();
+        old.master.lanes.ci = state.master.lanes.ci;
+        old.incidents.i1 = state.incidents.i1;
+        const legacy = { ...state.jobs[id], id: "verdict-CI-Build-Security-audit" };
+        old.jobs = { [legacy.id]: legacy };
+        expect(sync(old)).toEqual({ created: [], cancelled: [], lapsed: [] });
+        expect(Object.keys(old.jobs)).toEqual(["verdict-CI-Build-Security-audit"]);
+    });
+
+    it("makes one urgent job per key judged code that did not go intermittent, and cancels it when the incident ends", () => {
+        const state = base();
+        const code = { verdict: "code" };
+        state.master.lanes.ci = {
+            redSince: "2026-10-04T11:00:00Z",
+            verdicts: { "CI / Build / Run build": code, "CI / Test / Run tests": code },
+        };
+        state.incidents.i1 = {
+            id: "i1",
+            status: "open",
+            openedAt: "2026-10-04T11:05:00Z",
+            keys: {
+                "CI / Build / Run build": { lane: "ci", outcome: "fix-forward" },
+                "CI / Test / Run tests": { lane: "ci", outcome: "intermittent", issue: 9 },
+            },
+        };
+        expect(sync(state).created).toEqual(["incident-ci-build-run-build"]);
+        expect(state.jobs["incident-ci-build-run-build"]).toMatchObject({
+            kind: "incident",
+            target: "CI / Build / Run build",
+            priority: "urgent",
+            state: "queued",
+            facts: { scope: "master", since: "2026-10-04T11:00:00Z", lane: "ci", incident: "i1" },
+        });
+        // A second sync makes nothing new.
+        expect(sync(state)).toEqual({ created: [], cancelled: [], lapsed: [] });
+        state.incidents.i1.status = "resolved";
+        expect(sync(state).cancelled).toEqual([
+            { job: "incident-ci-build-run-build", reason: "master's incident ended or went intermittent" },
+        ]);
+    });
+
+    it("makes a release incident from a failed or stalled release, and cancels it when the release recovers", () => {
+        const state = base();
+        state.escalations["release-failed:77"] = {
+            key: "release-failed:77",
+            kind: "release-failed",
+            summary: "release run 77 failed",
+            raisedAt: "2026-10-04T10:00:00Z",
+            resolvedAt: null,
+        };
+        expect(sync(state).created).toEqual(["incident-release-failed-77"]);
+        expect(state.jobs["incident-release-failed-77"].facts).toMatchObject({ scope: "release" });
+        state.escalations["release-failed:77"].resolvedAt = NOW.toISOString();
+        expect(sync(state).cancelled.map((c) => c.job)).toEqual(["incident-release-failed-77"]);
+    });
+
+    it("leaves a release incident whose fix another pull request carries to githerd, until a later run fails", () => {
+        const state = base();
+        const key = "release-failed:77";
+        state.escalations[key] = {
+            key,
+            kind: "release-failed",
+            summary: "release run 77 on abc failed: LLM regression failed",
+            raisedAt: "2026-10-04T10:00:00Z",
+            resolvedAt: null,
+            runId: 77,
+        };
+        sync(state);
+        expect(state.jobs["incident-release-failed-77"].facts.failure).toBe(
+            "release run 77 on abc failed: LLM regression failed",
+        );
+        state.jobs["incident-release-failed-77"].state = "done";
+        state.releaseFixes = { [key]: { pr: 1819, commits: ["abc1234"], runId: 77 } };
+        expect(sync(state).created).toEqual([]);
+        // The restart after the fix merged failed too: offered again, naming the new run.
+        Object.assign(state.escalations[key], { runId: 90, summary: "release run 90 on def failed" });
+        expect(sync(state).created).toEqual(["incident-release-failed-77"]);
+        expect(state.jobs["incident-release-failed-77"]).toMatchObject({
+            state: "queued",
+            facts: { failure: "release run 90 on def failed" },
+        });
+        state.escalations[key].resolvedAt = NOW.toISOString();
+        sync(state);
+        expect(state.releaseFixes).toEqual({});
+    });
+
+    it("cancels a release incident an owner session holds once the release recovers, and tells it why", () => {
+        const state = base();
+        const key = "release-stalled:114ae7f8";
+        state.escalations[key] = { key, kind: "release-stalled", summary: "stalled", raisedAt: "2026-10-04T10:00:00Z" };
+        sync(state);
+        const job = state.jobs["incident-release-stalled-114ae7f8"];
+        move(job, "starting", NOW, { holder: { session: "s1", window: null, startedBy: "owner" } });
+        move(job, "working", NOW);
+        move(job, "waiting", NOW, { waitingFor: { lane: "release" } });
+        state.escalations[key].resolvedAt = NOW.toISOString();
+        expect(sync(state).cancelled).toEqual([
+            { job: job.id, reason: "the release recovered", session: "s1", startedBy: "owner" },
+        ]);
+        expect(job).toMatchObject({ state: "cancelled", holder: null, reason: "the release recovered" });
+        expect(job.news.at(-1).text).toBe("job cancelled: the release recovered; stop work on it");
+    });
+});
+
+describe("syncJobs: pull requests", () => {
+    it("makes a pr job for the owner's failing pull request only, githerd's own files for the owner's sessions", () => {
+        const state = base();
+        failingPr(state, 4);
+        failingPr(state, 5, { author: "stranger" });
+        failingPr(state, 6, { draft: true });
+        failingPr(state, 7, { stackedOn: 4 });
+        failingPr(state, 8, {}, ["githerd/lib/daemon.mjs"]);
+        failingPr(state, 9, {}, [".claude/settings.json"]);
+        failingPr(state, 10, { required: {}, conflictSightings: 2 });
+        failingPr(state, 11, { ownerGate: true });
+        failingPr(state, 12);
+        state.mergeGate.heads[12].files = null; // not read yet: wait
+        expect(sync(state).created).toEqual(["pr-4", "pr-8", "pr-9", "pr-10"]);
+        expect([4, 8, 9].map((n) => state.jobs[`pr-${n}`].facts.ownerOnly)).toEqual([false, true, true]);
+        expect(state.jobs["pr-4"]).toMatchObject({
+            target: "#4",
+            pr: 4,
+            branch: "fix/4",
+            reason: "required check failing: All Checks Pass",
+        });
+        expect(state.jobs["pr-10"].reason).toBe("conflicting with its base (GitHub: CONFLICTING)");
+    });
+
+    it("keeps the pr job of a conflicting pull request when its only failing check becomes the visual review", () => {
+        // #1535 (issue #2081): claimed, then CI ended with only the owner's review failing, and its
+        // job was cancelled as "no longer needs a worker" while it still conflicted with master.
+        const state = base();
+        failingPr(state, 1535, { required: {}, conflictSightings: 2, mergeable: "CONFLICTING" });
+        expect(sync(state).created).toEqual(["pr-1535"]);
+        state.prs[1535].required = { "All Checks Pass": "FAILURE" };
+        state.prs[1535].ownerGate = true;
+        expect(sync(state).cancelled).toEqual([]);
+        expect(state.jobs["pr-1535"]).toMatchObject({
+            state: "queued",
+            reason: "conflicting with its base (GitHub: CONFLICTING)",
+        });
+        // Once it merges cleanly, the review is the owner's again: no job.
+        state.prs[1535].conflictSightings = 0;
+        expect(sync(state).cancelled).toEqual([{ job: "pr-1535", reason: "#1535 no longer needs a worker" }]);
+    });
+
+    it("makes a pr job, never an owner item, for a stacked pull request that conflicts with its base", () => {
+        const state = base();
+        failingPr(state, 617, { stackedOn: 490, required: {}, conflictSightings: 2, mergeable: "CONFLICTING" });
+        failingPr(state, 618, { stackedOn: 490 }); // failing, not conflicting: waits on its base
+        expect(sync(state).created).toEqual(["pr-617"]);
+        expect(state.jobs["pr-617"]).toMatchObject({
+            kind: "pr",
+            pr: 617,
+            branch: "fix/617",
+            reason: "conflicting with its base #490 (GitHub: CONFLICTING)",
+        });
+        expect(state.ownerItems).toBeUndefined();
+    });
+
+    it("makes a pr job for a held pull request that is broken, and its text says it stays held", () => {
+        const state = base();
+        const conflict = { required: {}, conflictSightings: 2, mergeable: "CONFLICTING" };
+        failingPr(state, 676, { ...conflict, breaking: true }); // held for a grouped major
+        failingPr(state, 702, { breaking: true }); // failing
+        failingPr(state, 703, { ...conflict, labels: ["hold"] });
+        failingPr(state, 704, { ...conflict, labels: ["breaking-hold"] });
+        failingPr(state, 705, { required: {}, breaking: true }); // held and healthy: nothing to fix
+        failingPr(state, 706);
+        expect(sync(state).created).toEqual(["pr-676", "pr-702", "pr-703", "pr-704", "pr-706"]);
+        expect([676, 702, 703, 704, 706].map((n) => state.jobs[`pr-${n}`].facts.held)).toEqual([
+            true,
+            true,
+            true,
+            true,
+            false,
+        ]);
+        expect(jobText(state.jobs["pr-676"])).toContain(
+            "HELD: this pull request is held from merging (breaking, held for a grouped major, or a hold label) and stays held. " +
+                "Fix only: make its required checks green, bringing master in only as the rules below allow. Never merge it, and never change its title or labels.",
+        );
+        expect(jobText(state.jobs["pr-706"])).not.toContain("HELD:");
+    });
+
+    it("acts on github-actions' critical revert and red-master issue: a stale revert gets a job to verify and close it", () => {
+        const state = base();
+        state.trust.bots = ["github-actions[bot]"];
+        const revert = {
+            author: "github-actions[bot]",
+            title: "revert: pull request #1118, master CI red at e339bf6",
+            labels: ["priority:critical"],
+            required: { "All Checks Pass": "SUCCESS" },
+        };
+        failingPr(state, 1203, revert);
+        issue(state, 1124, ["bug", "priority:critical", "effort:low"], {
+            author: "github-actions[bot]",
+            text: "Red master: CI failed on 7edecd1\n",
+        });
+        expect(sync(state).created).toEqual(expect.arrayContaining(["pr-1203", "issue-1124"]));
+        expect(state.jobs["pr-1203"].reason).toMatch(/^stale revert: master is green again/);
+        // While master is still red the revert is live: no stale job.
+        const live = base();
+        live.trust.bots = ["github-actions[bot]"];
+        live.master.verdict = "red";
+        failingPr(live, 1203, revert);
+        sync(live);
+        expect(live.jobs["pr-1203"]).toBeUndefined();
+    });
+
+    it("gives a stale master-guard issue a critical verify-and-close job past a queued lower one; a live one is the incident's", () => {
+        const state = base();
+        state.trust.bots = ["github-actions[bot]"];
+        state.master.lanes = {
+            ci: { workflowName: "CI", verdict: "green" },
+            gpu: { workflowName: "GPU", verdict: "red" },
+        };
+        issue(state, 1229, ["bug", "priority:medium", "effort:low"]);
+        sync(state);
+        expect(state.jobs["issue-1229"].state).toBe("queued");
+        const guard = { author: "github-actions[bot]" };
+        issue(state, 1124, ["bug", "priority:critical", "effort:low"], {
+            ...guard,
+            text: "Red master: CI failed on 7edecd1\n",
+        });
+        issue(state, 1227, ["bug", "priority:critical", "effort:medium"], {
+            ...guard,
+            text: "GPU lane red on master\n",
+        });
+        sync(state);
+        expect(state.jobs["issue-1124"]).toMatchObject({
+            priority: "critical",
+            reason: "stale CI red-master issue: the lane is green again; verify its failure is gone and close it",
+        });
+        expect(state.jobs["issue-1227"]).toBeUndefined();
+        state.master.lanes.gpu.verdict = "green";
+        sync(state);
+        expect(state.jobs["issue-1227"]?.reason).toMatch(/^stale GPU red-master issue/);
+    });
+
+    it("never makes a job from the release train's pull request, failing or conflicting", () => {
+        const state = base();
+        const train = { author: "github-actions", headRef: "release/train-1", title: "chore(release): publish" };
+        failingPr(state, 1092, { ...train, conflictSightings: 2, labels: ["priority:critical"] });
+        expect(sync(state).created).toEqual([]);
+    });
+
+    it("cancels a queued pr job whose pull request closed or stopped needing work, and makes it again later", () => {
+        const state = base();
+        failingPr(state, 4);
+        failingPr(state, 5);
+        sync(state);
+        delete state.prs[4];
+        state.prs[5].required = { "All Checks Pass": "SUCCESS" };
+        expect(sync(state).cancelled).toEqual([
+            { job: "pr-4", reason: "#4 closed or merged" },
+            { job: "pr-5", reason: "#5 no longer needs a worker" },
+        ]);
+        state.prs[5].required = { "All Checks Pass": "FAILURE" };
+        expect(sync(state).created).toEqual(["pr-5"]);
+        expect(state.jobs["pr-5"].state).toBe("queued");
+    });
+
+    it("keeps a queued pr job's reason on GitHub's current answer and drops it once the conflict clears (#942)", () => {
+        const state = base();
+        failingPr(state, 942, { baseRef: "master" });
+        sync(state);
+        expect(state.jobs["pr-942"].reason).toBe("required check failing: All Checks Pass");
+        // Its checks pass, and GitHub reports a conflict with master, seen twice.
+        Object.assign(state.prs[942], {
+            required: { "All Checks Pass": "SUCCESS" },
+            mergeable: "CONFLICTING",
+            mergeState: "DIRTY",
+            conflictSightings: 2,
+        });
+        expect(sync(state)).toEqual({ created: [], cancelled: [], lapsed: [] });
+        expect(state.jobs["pr-942"].reason).toBe("conflicting with master (GitHub: DIRTY)");
+        // Master merged in: GitHub says MERGEABLE, the sightings reset, the job goes.
+        Object.assign(state.prs[942], { mergeable: "MERGEABLE", mergeState: "BLOCKED", conflictSightings: 0 });
+        expect(sync(state).cancelled).toEqual([{ job: "pr-942", reason: "#942 no longer needs a worker" }]);
+    });
+
+    it("cancels a held pr job whose pull request stopped needing work, with news for its holder", () => {
+        const state = base();
+        failingPr(state, 4);
+        failingPr(state, 5);
+        sync(state);
+        const owner = { session: "s1", window: null, startedBy: "owner" };
+        move(state.jobs["pr-4"], "starting", NOW, { holder: owner });
+        move(state.jobs["pr-4"], "working", NOW);
+        const worker = { session: "w1", pane: "%3", startedBy: "githerd" };
+        move(state.jobs["pr-5"], "starting", NOW, { holder: worker });
+        state.prs[4].required = { "All Checks Pass": "SUCCESS" };
+        delete state.prs[5];
+        expect(sync(state).cancelled).toEqual([
+            { job: "pr-4", reason: "#4 no longer needs a worker", session: "s1", startedBy: "owner" },
+            { job: "pr-5", reason: "#5 closed or merged", session: "w1", startedBy: "githerd" },
+        ]);
+        expect(state.jobs["pr-4"]).toMatchObject({ state: "cancelled", holder: null });
+        expect(state.jobs["pr-4"].news).toEqual([
+            {
+                at: NOW.toISOString(),
+                text: "job cancelled: #4 no longer needs a worker; stop work on it",
+                acked: false,
+            },
+        ]);
+        // A githerd worker's session is ended, as any job that lets its worker go.
+        expect(state.retiring).toEqual([expect.objectContaining({ job: "pr-5", holder: worker })]);
+    });
+
+    it("leaves a held pr job whose holder pushed, and a verifying job, to the done check", () => {
+        const state = base();
+        failingPr(state, 4);
+        failingPr(state, 5);
+        sync(state);
+        const holder = { session: "s1", window: null, startedBy: "owner" };
+        move(state.jobs["pr-4"], "starting", NOW, { holder });
+        move(state.jobs["pr-4"], "working", NOW);
+        state.jobs["pr-4"].pushedHead = "b".repeat(40);
+        move(state.jobs["pr-5"], "starting", NOW, { holder });
+        move(state.jobs["pr-5"], "working", NOW);
+        move(state.jobs["pr-5"], "verifying", NOW);
+        state.prs[4].required = { "All Checks Pass": "PENDING" };
+        delete state.prs[5];
+        expect(sync(state).cancelled).toEqual([]);
+        expect(state.jobs["pr-4"].state).toBe("working");
+        expect(state.jobs["pr-5"].state).toBe("verifying");
+    });
+});
+
+describe("syncJobs: titles and the local gate", () => {
+    it("makes a title job when only Lint PR Title fails, and a local incident when the gate fails on green", () => {
+        const state = base();
+        failingPr(state, 4, { required: { "Lint PR Title": "FAILURE", "All Checks Pass": "SUCCESS" } });
+        state.master.greenSha = "g".repeat(40);
+        state.reference = { gate: { verdict: "fail", sha: "g".repeat(40), steps: ["Knip"] }, at: "x" };
+        expect(sync(state).created).toEqual(["incident-local-knip", "title-4"]);
+        expect(state.jobs["title-4"]).toMatchObject({ kind: "title", pr: 4 });
+        expect(state.jobs["incident-local-knip"]).toMatchObject({ target: "gate: Knip", facts: { scope: "local" } });
+        state.reference.gate = { verdict: "pass", sha: "g".repeat(40) };
+        state.prs[4].required["Lint PR Title"] = "SUCCESS";
+        expect(sync(state).cancelled.map((c) => c.job)).toEqual(["incident-local-knip", "title-4"]);
+    });
+});
+
+describe("syncJobs: reviews", () => {
+    it("makes a review for each new patch of a pull request a job made, and moves a queued one to the new patch", () => {
+        const state = base();
+        issue(state, 3, LABELED);
+        sync(state);
+        const job = state.jobs["issue-3"];
+        job.pr = 20;
+        failingPr(state, 20, { required: {}, patchId: "p1".padEnd(40, "a") });
+        expect(sync(state).created).toEqual(["review-20"]);
+        expect(state.jobs["review-20"].facts).toMatchObject({ patchId: "p1".padEnd(40, "a"), pr: 20, urgent: false });
+        state.prs[20].patchId = "p2".padEnd(40, "b");
+        expect(sync(state).created).toEqual([]);
+        expect(state.jobs["review-20"].facts.patchId).toBe("p2".padEnd(40, "b"));
+        move(state.jobs["review-20"], "starting", NOW);
+        move(state.jobs["review-20"], "working", NOW);
+        move(state.jobs["review-20"], "verifying", NOW);
+        move(state.jobs["review-20"], "done", NOW);
+        state.prs[20].patchId = "p3".padEnd(40, "c");
+        expect(sync(state).created).toEqual(["review-20"]);
+        expect(state.jobs["review-20"]).toMatchObject({ state: "queued", facts: { patchId: "p3".padEnd(40, "c") } });
+    });
+});
+
+describe("syncJobs: triage", () => {
+    it("names the label kinds each issue lacks, never calling a partly labeled issue unlabeled", () => {
+        const state = base();
+        // Issue #441 had bug and priority:medium since 2026-09-26; only its effort was missing.
+        issue(state, 441, ["bug", "priority:medium"]);
+        issue(state, 442, []);
+        expect(sync(state).created).toEqual(["triage-new-1"]);
+        const job = state.jobs["triage-new-1"];
+        expect(job.reason).toBe("missing labels: #441 effort, #442 type+priority+effort");
+        expect(job.facts.missing).toEqual({ 441: ["effort"], 442: ["type", "priority", "effort"] });
+        expect(jobText(job)).toContain(
+            "MISSING LABELS (add only these kinds; keep the labels each issue already has):\n  #441: effort\n  #442: type, priority, effort\n",
+        );
+    });
+
+    it("batches issues missing labels 20 at a time, one triage job at a time", () => {
+        const state = base();
+        for (let n = 1; n <= 25; n++) issue(state, n, []);
+        issue(state, 30, [], { author: "stranger" });
+        expect(sync(state).created).toEqual(["triage-new-1"]);
+        const batch = state.jobs["triage-new-1"].facts.batch;
+        expect(batch).toHaveLength(20);
+        expect(batch).not.toContain(30);
+        expect(sync(state).created).toEqual([]);
+        move(state.jobs["triage-new-1"], "cancelled", NOW);
+        for (const n of batch) state.issues.byNumber[n].labels = LABELED;
+        // The labeled ones are ranked now, so the front one gets its issue job as well.
+        expect(sync(state).created).toEqual(["triage-new-2", "issue-9"]);
+        expect(state.jobs["triage-new-2"].facts.batch).toHaveLength(5);
+    });
+
+    it("hands the last 20 merges and the open issues to one refresh job, and passes over every issue after 100", () => {
+        const state = base();
+        issue(state, 1, LABELED, { text: "layout breaks\nin layout/src/force.ts" });
+        issue(state, 2, LABELED, { text: "unrelated" });
+        issue(state, 3, LABELED, { text: "closed by a merge" });
+        issue(state, 4, LABELED, { text: "named by a merge" });
+        sync(state);
+        let merged = state.merged;
+        const prs = Array.from({ length: 20 }, (_, i) => ({
+            number: 100 + i,
+            title: `pr ${i}`,
+            mergedAt: `2026-10-04T11:${String(i).padStart(2, "0")}:00Z`,
+            mergeSha: null,
+            closes: i === 0 ? [3] : [],
+            mentions: i === 1 ? [4, 999] : [],
+            paths: ["layout/src/force.ts"],
+            truncated: false,
+        }));
+        merged = accumulateMerged({ ...merged, lastScanAt: "2026-10-04T10:00:00Z" }, /** @type {any} */ (prs));
+        expect(merged.count).toBe(20);
+        state.merged = merged;
+        expect(sync(state).created).toEqual(["triage-refresh-1"]);
+        // No issue is picked by matching text: every open issue the merges do not close is listed,
+        // and the session judges which ones they affect. A mentioned open issue must be judged.
+        const facts = state.jobs["triage-refresh-1"].facts;
+        expect(facts).toMatchObject({ scope: "refresh", batch: [4] });
+        expect(facts.open).toEqual([
+            { number: 1, title: "layout breaks" },
+            { number: 2, title: "unrelated" },
+            { number: 4, title: "named by a merge" },
+        ]);
+        expect(facts.merged.map((/** @type {any} */ p) => p.number)).toHaveLength(20);
+        expect(state.merged.pending).toEqual([]);
+        move(state.jobs["triage-refresh-1"], "cancelled", NOW);
+        state.merged.count = 120;
+        expect(sync(state).created).toEqual(["triage-full-2"]);
+        expect(state.jobs["triage-full-2"].facts.batch).toEqual([1, 2, 3, 4]);
+    });
+});
+
+describe("syncJobs: a full triage pass judges each issue once per change", () => {
+    const triage = (/** @type {any} */ state) =>
+        sync(state).created.filter((/** @type {string} */ id) => id.startsWith("triage"));
+    // 2026-10-11: triage-full-60 offered the same 20 issues as triage-full-49, accepted that
+    // morning, though none of them had changed since: the accepted verdicts were not recorded.
+    it("skips issues judged since their last change, ends when none are left, and takes back one that changed", () => {
+        const state = base();
+        for (let n = 1; n <= 25; n++) issue(state, n, LABELED, { lastTriagedAt: "2026-10-03T06:00:00Z" });
+        // Judged before its last change: due.
+        state.issues.byNumber[7].lastTriagedAt = "2026-10-02T00:00:00Z";
+        // Never judged: due.
+        delete state.issues.byNumber[9].lastTriagedAt;
+        state.merged.count = 100;
+        expect(triage(state)).toEqual(["triage-full-1"]);
+        expect(state.jobs["triage-full-1"].facts.batch).toEqual([7, 9]);
+        expect(state.triagePasses.queue).toEqual([]);
+        // Its verdicts accepted (done.mjs stamps each issue it judged).
+        move(state.jobs["triage-full-1"], "cancelled", NOW);
+        state.issues.byNumber[7].lastTriagedAt = NOW.toISOString();
+        state.issues.byNumber[9].lastTriagedAt = NOW.toISOString();
+        // A hundred merges later nothing changed: the pass ends with no job.
+        state.merged.count = 200;
+        expect(triage(state)).toEqual([]);
+        expect(state.triagePasses.queue).toEqual([]);
+        // One issue gets a comment: it alone comes back.
+        state.issues.byNumber[12].updatedAt = "2026-10-04T13:00:00Z";
+        state.merged.count = 300;
+        expect(triage(state)).toEqual(["triage-full-2"]);
+        expect(state.jobs["triage-full-2"].facts.batch).toEqual([12]);
+    });
+});
+
+describe("backfillTriaged: verdicts accepted before they were stamped", () => {
+    /**
+     * A ledger record line of a triage job.
+     * @param {string} id the job
+     * @param {string} jobState its state
+     * @param {string} stateSince when it entered it
+     * @param {number[]} batch its issues
+     * @returns {any} the entry
+     */
+    const line = (id, jobState, stateSince, batch) => ({
+        kind: "record",
+        collection: "jobs",
+        id,
+        record: { id, kind: "triage", state: jobState, stateSince, facts: { batch } },
+    });
+
+    it("stamps each judged issue with its latest acceptance, only where none is stamped, and the full pass skips them", () => {
+        const state = base();
+        for (let n = 1; n <= 4; n++) issue(state, n, LABELED);
+        state.issues.byNumber[4].lastTriagedAt = "2026-10-03T09:00:00Z";
+        const ledger = [
+            line("triage-full-23", "working", "2026-10-03T01:00:00Z", [1, 2]),
+            line("triage-full-23", "done", "2026-10-03T02:00:00Z", [1, 2]),
+            // The same record again, unchanged, as a later save writes it.
+            line("triage-full-23", "done", "2026-10-03T02:00:00Z", [1, 2]),
+            line("triage-full-49", "done", "2026-10-03T06:00:00Z", [2, 4]),
+            line("triage-full-50", "cancelled", "2026-10-03T07:00:00Z", [3]),
+            { kind: "done-verify", job: "triage-full-49", action: "done" },
+        ];
+        expect(backfillTriaged(state, ledger)).toBe(2);
+        expect([1, 2, 3, 4].map((n) => state.issues.byNumber[n].lastTriagedAt)).toEqual([
+            "2026-10-03T02:00:00Z",
+            "2026-10-03T06:00:00Z",
+            undefined,
+            "2026-10-03T09:00:00Z",
+        ]);
+        // Run again at the next start: nothing left to stamp.
+        expect(backfillTriaged(state, ledger)).toBe(0);
+        // The issues updated 2026-10-03T00:00 were judged since: only the never-judged #3 is due.
+        state.merged.count = 100;
+        sync(state);
+        expect(state.jobs["triage-full-1"].facts.batch).toEqual([3]);
+    });
+});
+
+describe("syncJobs: the one-time type refresh (owner decision 2026-10-06)", () => {
+    it("re-judges every open issue's type once, 20 per job, after the new issues' triage", () => {
+        const state = base();
+        delete state.triagePasses;
+        for (let n = 1; n <= 22; n++) issue(state, n, LABELED);
+        issue(state, 30, []);
+        expect(sync(state).created).toEqual(["triage-new-1", "issue-9"]);
+        move(state.jobs["triage-new-1"], "cancelled", NOW);
+        state.issues.byNumber[30].labels = LABELED;
+        expect(sync(state).created).toEqual(["triage-types-2"]);
+        const job = state.jobs["triage-types-2"];
+        expect(job.reason).toBe("re-judge each issue's type label now that infrastructure exists");
+        expect(job.facts.batch).toHaveLength(20);
+        expect(jobText(job)).toContain("TYPE REFRESH");
+        move(job, "cancelled", NOW);
+        expect(sync(state).created).toEqual(["triage-types-3"]);
+        expect(state.jobs["triage-types-3"].facts.batch).toEqual([21, 22, 30]);
+        move(state.jobs["triage-types-3"], "cancelled", NOW);
+        // Once only.
+        expect(sync(state).created).toEqual([]);
+        expect(state.triagePasses.typesQueued).toBe(true);
+    });
+});
+
+describe("syncJobs: issues", () => {
+    it("keeps one issue job queued: an open order first, then priority and bugs first", () => {
+        const state = base();
+        issue(state, 1, ["enhancement", "priority:critical", "effort:low"]);
+        issue(state, 2, ["bug", "priority:critical", "effort:low"]);
+        issue(state, 3, ["bug", "priority:low", "effort:low"]);
+        issue(state, 4, ["bug", "priority:low", "effort:low", "blocked"]);
+        expect(sync(state).created).toEqual(["issue-2"]);
+        expect(state.jobs["issue-2"]).toMatchObject({ priority: "critical", facts: { bug: true } });
+        expect(sync(state).created).toEqual([]);
+        move(state.jobs["issue-2"], "starting", NOW);
+        state.orders = [{ id: "order-1", issues: [3] }];
+        expect(sync(state).created).toEqual(["issue-3"]);
+        expect(state.jobs["issue-3"].facts.order).toBe(0);
+    });
+
+    it("keeps one issue job queued per session githerd may invite, so one every session passes on starves none", () => {
+        // 2026-10-07: issue-1229 sat queued from 21:30 past midnight, heard and passed on by all
+        // three sessions, and while it did no other issue job was made for any of them.
+        const config = normalizeConfig({
+            repo: "o/r",
+            lanes: { ci: { workflow: "ci.yml", gating: "required" } },
+            labels: CONFIG.labels,
+            workers: { slots: 0, sessions: ["a", "b", "c"] },
+        });
+        const state = base();
+        for (const n of [11, 12, 13, 14]) issue(state, n, LABELED);
+        const run = () => syncJobs(state, { config, now: NOW }).created;
+        // Every free place is filled in one pass, not one job per poll.
+        expect(run()).toEqual(["issue-11", "issue-12", "issue-13"]);
+        expect(run()).toEqual([]);
+        move(state.jobs["issue-12"], "starting", NOW, { holder: { session: "b", startedBy: "owner" } });
+        expect(run()).toEqual(["issue-14"]);
+        expect(run()).toEqual([]);
+    });
+
+    it("queues as many issue jobs as the invitable sessions reported room for, capped per session", () => {
+        const config = normalizeConfig({
+            repo: "o/r",
+            lanes: { ci: { workflow: "ci.yml", gating: "required" } },
+            labels: CONFIG.labels,
+            workers: { slots: 0, sessions: ["a", "b"], maxActive: 2 },
+        });
+        const state = base();
+        for (let n = 11; n <= 20; n++) issue(state, n, LABELED);
+        // Session a has room for 4, session b never answered: 4 + 1.
+        state.capacity = { a: { n: 4, at: NOW.toISOString(), held: [] } };
+        const run = () => syncJobs(state, { config, now: NOW }).created;
+        expect(run()).toHaveLength(5);
+        expect(run()).toEqual([]);
+        // A report above twice maxActive counts as 4; b reporting 0 still counts one. Queued jobs stay.
+        state.capacity = {
+            a: { n: 9, at: NOW.toISOString(), held: [] },
+            b: { n: 0, at: NOW.toISOString(), held: [] },
+        };
+        expect(run()).toEqual([]);
+        state.capacity.b.n = 3;
+        expect(run()).toHaveLength(2);
+    });
+
+    it("offers bugs, then infrastructure, each by priority and effort, and never an enhancement", () => {
+        const state = base();
+        issue(state, 40, ["enhancement", "priority:critical", "effort:low"]);
+        issue(state, 50, ["infrastructure", "priority:critical", "effort:low"]);
+        issue(state, 125, ["bug", "priority:high", "effort:high"]);
+        issue(state, 123, ["bug", "priority:high", "effort:low"]);
+        issue(state, 126, ["bug", "priority:low", "effort:low"]);
+        const order = [];
+        for (let i = 0; i < 6; i++) {
+            const made = sync(state).created;
+            order.push(...made);
+            for (const id of made) move(state.jobs[id], "starting", NOW);
+        }
+        expect(order).toEqual(["issue-123", "issue-125", "issue-126", "issue-50"]);
+        expect(state.jobs["issue-123"].reason).toBe("front of the issue queue: high bug, effort low");
+        expect(state.jobs["issue-50"].reason).toBe("front of the issue queue: critical infrastructure, effort low");
+        expect(state.jobs["issue-40"]).toBeUndefined();
+    });
+
+    it("offers an enhancement only when backlog.issueTypes names it or the owner picks it", () => {
+        const withEnhancements = normalizeConfig({
+            repo: "o/r",
+            lanes: { ci: { workflow: "ci.yml", gating: "required" } },
+            labels: CONFIG.labels,
+            backlog: { issueTypes: ["bug", "infrastructure", "enhancement"] },
+        });
+        const state = base();
+        issue(state, 40, ["enhancement", "priority:high", "effort:low"]);
+        expect(sync(state).created).toEqual([]);
+        expect(syncJobs(state, { config: withEnhancements, now: NOW }).created).toEqual(["issue-40"]);
+
+        const picked = base();
+        issue(picked, 41, ["enhancement", "priority:low", "effort:low"]);
+        picked.orders = [{ id: "order-1", issues: [41] }];
+        expect(sync(picked).created).toEqual(["issue-41"]);
+    });
+
+    it("offers no verify job for an enhancement master names, nor for a needs-decision issue", () => {
+        const state = base();
+        issue(state, 42, ["enhancement", "priority:critical", "effort:low"]);
+        issue(state, 43, ["bug", "priority:critical", "effort:low", "needs-decision"]);
+        state.merged.commitRefs = commitRefs(
+            "958d8e9c6\tfeat: a thing\n\nRefs #42\x1e1234567ab\tfix: Refs #43",
+            [42, 43],
+        );
+        expect(sync(state).created).toEqual([]);
+        // The owner's pick still brings it in, as the verify it is.
+        state.orders = [{ id: "order-1", issues: [42] }];
+        expect(sync(state).created).toEqual(["issue-42"]);
+        expect(state.jobs["issue-42"].facts.references).toEqual(["958d8e9c6"]);
+    });
+
+    it("never cancels a queued verify job or bundle the rule now refuses", () => {
+        const state = base();
+        for (const n of [42, 43]) issue(state, n, ["enhancement", "priority:high", "effort:low"]);
+        issue(state, 44, ["bug", "priority:high", "effort:low"]);
+        issue(state, 45, ["bug", "priority:high", "effort:low"]);
+        const job = (/** @type {number} */ n, /** @type {any} */ facts) => ({
+            id: `issue-${n}`,
+            kind: "issue",
+            target: `#${n}`,
+            state: "queued",
+            holder: null,
+            facts,
+        });
+        state.jobs = {
+            "issue-42": job(42, { references: ["#347"] }),
+            "issue-43": { ...job(43, { references: ["#347"] }), state: "working", holder: { session: "s1" } },
+            "issue-44": job(44, { batch: [44, 45] }),
+        };
+        state.issues.byNumber[45].labels.push("needs-decision");
+        const out = sync(state);
+        expect(out.cancelled).toEqual([]);
+        expect(state.jobs["issue-42"].state).toBe("queued");
+        expect(state.jobs["issue-44"].state).toBe("queued");
+        expect(state.jobs["issue-43"].state).toBe("working");
+    });
+
+    it("keeps a queued enhancement job when enhancements stop being offered", () => {
+        const withEnhancements = normalizeConfig({
+            repo: "o/r",
+            lanes: { ci: { workflow: "ci.yml", gating: "required" } },
+            labels: CONFIG.labels,
+            backlog: { issueTypes: ["bug", "infrastructure", "enhancement"] },
+        });
+        const state = base();
+        issue(state, 40, ["enhancement", "priority:high", "effort:low"]);
+        issue(state, 41, ["enhancement", "priority:high", "effort:medium"]);
+        syncJobs(state, { config: withEnhancements, now: NOW });
+        move(state.jobs["issue-40"], "starting", NOW, { holder: { session: "s1", startedBy: "owner" } });
+        syncJobs(state, { config: withEnhancements, now: NOW });
+        expect(state.jobs["issue-41"].state).toBe("queued");
+        const out = sync(state);
+        expect(out.cancelled).toEqual([]);
+        expect(state.jobs["issue-41"].state).toBe("queued");
+        expect(state.jobs["issue-40"].state).toBe("starting");
+    });
+
+    it("never offers an issue labeled needs-decision, whatever its priority", () => {
+        const state = base();
+        issue(state, 1, ["bug", "priority:critical", "effort:low", "needs-decision"]);
+        issue(state, 2, ["infrastructure", "priority:low", "effort:high"]);
+        expect(sync(state).created).toEqual(["issue-2"]);
+        move(state.jobs["issue-2"], "starting", NOW);
+        expect(sync(state).created).toEqual([]);
+        expect(state.jobs["issue-1"]).toBeUndefined();
+    });
+
+    it("leaves out an issue an open pull request works on, and cancels a queued one whose issue closed", () => {
+        const state = base();
+        issue(state, 1, LABELED);
+        issue(state, 2, LABELED);
+        failingPr(state, 50, { required: {}, references: [1] });
+        expect(sync(state).created).toEqual(["issue-2"]);
+        state.issues.byNumber[2].state = "closed";
+        expect(sync(state).cancelled).toEqual([{ job: "issue-2", reason: "the issue closed" }]);
+    });
+
+    it("withdraws a queued issue job whose fix waits in the push queue, and makes it again when the push goes", () => {
+        // 2026-10-12 (#2085): a session filed #2085 and queued its fix; githerd queued the issue,
+        // offered it while the push waited 90 minutes for a gate slot, and a second session fixed it.
+        const state = base();
+        issue(state, 2085, LABELED);
+        expect(sync(state).created).toEqual(["issue-2085"]);
+        state.pushTickets = [{ branch: "fix/a", cwd: "/r/.worktrees/fix-a", session: "s1", closes: [2085] }];
+        expect(sync(state).cancelled).toEqual([
+            { job: "issue-2085", reason: "a queued push of fix/a already fixes #2085" },
+        ]);
+        expect(sync(state).created).toEqual([]);
+        state.pushTickets = [];
+        expect(sync(state).created).toEqual(["issue-2085"]);
+        // A held job is its holder's: the push may be that session's own.
+        move(state.jobs["issue-2085"], "starting", NOW);
+        state.jobs["issue-2085"].holder = { session: "s1" };
+        state.pushTickets = [{ branch: "fix/a", cwd: "/r/.worktrees/fix-a", session: "s1", closes: [2085] }];
+        expect(sync(state).cancelled).toEqual([]);
+    });
+
+    it("never makes a job of a tracking issue, and says why", () => {
+        // 2026-10-08 (#1570): #1183 "SonarQube burn-down" lists its stages as other issues, has no
+        // work of its own and must stay open, yet sat queued all day and was offered again and again.
+        const state = base();
+        issue(state, 1183, ["infrastructure", "priority:medium", "effort:high", "tracking"]);
+        expect(sync(state).created).toEqual([]);
+        expect(issueRefusal(state, 1183, CONFIG)).toBe("the issue is labelled tracking");
+    });
+
+    it("neither triages nor offers a standing issue the repository's automation keeps", () => {
+        // 2026-10-10: the release status issue (#1749, github-actions[bot]) was triaged, then
+        // queued as issue-1749 and claimed. A "Release held:" issue by the same bot is work.
+        const state = base();
+        state.trust.bots = ["github-actions[bot]"];
+        const bot = { author: "github-actions[bot]" };
+        issue(state, 1749, ["release-status"], bot);
+        issue(state, 1750, ["dead-links"], bot);
+        issue(state, 1751, ["infrastructure", "priority:low", "effort:low", "release-status"], bot);
+        issue(state, 1752, ["bug", "priority:high", "effort:medium"], bot);
+        expect(sync(state).created).toEqual(["issue-1752"]);
+        expect(issueRefusal(state, 1751, CONFIG)).toBe("the issue is labelled release-status");
+        // A full pass judges every open issue but the standing ones.
+        state.triagePasses.queue.push({ scope: "full", issues: [1749, 1750, 1751, 1752] });
+        expect(sync(state).created).toEqual(["triage-full-1"]);
+        expect(state.jobs["triage-full-1"].facts.batch).toEqual([1752]);
+    });
+
+    it("does not offer an issue again after a session reported it not-needed", () => {
+        const state = base();
+        issue(state, 1, LABELED);
+        expect(sync(state).created).toEqual(["issue-1"]);
+        move(state.jobs["issue-1"], "starting", NOW);
+        move(state.jobs["issue-1"], "working", NOW);
+        move(state.jobs["issue-1"], "verifying", NOW);
+        move(state.jobs["issue-1"], "done", NOW);
+        state.issues.byNumber[1].updatedAt = "2026-10-04T09:00:00Z";
+        expect(sync(state).created).toEqual([]);
+    });
+
+    it("holds a deferred issue while its revision is unchanged, and offers it again once it changes", () => {
+        const state = base();
+        issue(state, 1, LABELED);
+        expect(sync(state).created).toEqual(["issue-1"]);
+        move(state.jobs["issue-1"], "cancelled", NOW, { reason: "deferred: declined" });
+        state.deferred = { 1: { reason: "declined", revision: "2026-10-03T00:00:00Z" } };
+        expect(sync(state).created).toEqual([]);
+        expect(state.deferred[1]).toBeDefined();
+        // The owner commented: a new revision ends the deferral.
+        state.issues.byNumber[1].updatedAt = "2026-10-04T09:00:00Z";
+        expect(sync(state).created).toEqual(["issue-1"]);
+        expect(state.deferred).toEqual({});
+        expect(state.jobs["issue-1"].state).toBe("queued");
+    });
+
+    it("counts the Decision comment posted just before a deferral as part of it, and ends it on a later change", () => {
+        const state = base();
+        issue(state, 1205, LABELED);
+        expect(sync(state).created).toEqual(["issue-1205"]);
+        move(state.jobs["issue-1205"], "cancelled", NOW, { reason: "deferred: declined" });
+        // githerd last polled the issue at 10:00; the session commented at 10:05, then deferred at 10:06.
+        state.deferred = {
+            1205: { reason: "declined", revision: "2026-10-07T10:00:00Z", at: "2026-10-07T10:06:00.000Z" },
+        };
+        state.issues.byNumber[1205].updatedAt = "2026-10-07T10:05:00Z";
+        expect(sync(state).created).toEqual([]);
+        expect(state.deferred[1205]).toBeDefined();
+        // Someone comments after the deferral: it ends.
+        state.issues.byNumber[1205].updatedAt = "2026-10-07T10:30:00Z";
+        expect(sync(state).created).toEqual(["issue-1205"]);
+        expect(state.deferred).toEqual({});
+    });
+
+    it("offers an issue a master commit or a merged pull request already names as a verify job", () => {
+        const state = base();
+        issue(state, 906, LABELED);
+        state.merged.commitRefs = commitRefs(
+            "958d8e9c6\tfix: a legend swatch\n\nRefs #906\x1eabc123456\tfix: other\n\nRefs #9060\x1edef123456\tfix: names #906 in prose",
+            [906],
+        );
+        state.merged = accumulateMerged(state.merged, [
+            /** @type {any} */ ({ number: 550, mergedAt: "2026-09-30T00:00:00Z", closes: [906], mentions: [] }),
+        ]);
+        expect(sync(state).created).toEqual(["issue-906"]);
+        const job = state.jobs["issue-906"];
+        expect(job.reason).toBe("referenced by 958d8e9c6, #550 on master");
+        expect(job.facts.references).toEqual(["958d8e9c6", "#550"]);
+        expect(jobText(job)).toContain(
+            "WHAT FOR: Already referenced on master by 958d8e9c6, #550: first check whether it is fixed;",
+        );
+    });
+
+    it("does not offer a verify job for a fix merged into another pull request's branch", () => {
+        const state = base();
+        issue(state, 619, LABELED);
+        state.merged = accumulateMerged(state.merged, [
+            /** @type {any} */ ({
+                number: 696,
+                base: "feat/x",
+                mergedAt: "2026-10-03T00:00:00Z",
+                closes: [],
+                mentions: [619],
+            }),
+        ]);
+        expect(sync(state).created).toEqual(["issue-619"]);
+        expect(state.jobs["issue-619"].facts.references).toBeUndefined();
+    });
+
+    it("offers no verify job for references a triage keep already weighed, and does for a later one", () => {
+        // #966: a commit on master named it, and the session that read it left the issue open.
+        const state = base();
+        issue(state, 966, LABELED, { judgedRefs: ["b702301a5"] });
+        state.merged.commitRefs = commitRefs("b702301a5\ttest(graphty): space out the fixture\n\nRefs #966", [966]);
+        expect(sync(state).created).toEqual(["issue-966"]);
+        expect(state.jobs["issue-966"].reason).toBe("front of the issue queue: high bug, effort low");
+        expect(state.jobs["issue-966"].facts.references).toBeUndefined();
+        delete state.jobs["issue-966"];
+        state.merged.commitRefs = commitRefs(
+            "1234567ab\tfix: the rest, refs #966\x1eb702301a5\ttest: refs #966",
+            [966],
+        );
+        expect(sync(state).created).toEqual(["issue-966"]);
+        expect(state.jobs["issue-966"].facts.references).toEqual(["1234567ab"]);
+    });
+
+    it("has the next refresh judge an issue only a commit on master names", () => {
+        const state = base();
+        issue(state, 966, LABELED);
+        issue(state, 967, LABELED, { judgedRefs: ["aaaaaaaaa"] });
+        state.merged.commitRefs = commitRefs("b702301a5\tfix: Refs #966\x1eaaaaaaaaa\tfix: Refs #967", [966, 967]);
+        sync(state);
+        const prs = Array.from({ length: 20 }, (_, i) => ({
+            number: 100 + i,
+            mergedAt: `2026-10-04T11:${String(i).padStart(2, "0")}:00Z`,
+            closes: [],
+            mentions: [],
+            paths: [],
+        }));
+        state.merged = accumulateMerged(state.merged, /** @type {any} */ (prs));
+        expect(sync(state).created).toEqual(["triage-refresh-1"]);
+        // No merge mentions #966, yet a commit names it and no verdict weighed that yet.
+        expect(state.jobs["triage-refresh-1"].facts.batch).toEqual([966]);
+    });
+
+    it("leaves an issue nothing on master names unchanged", () => {
+        const state = base();
+        issue(state, 906, LABELED);
+        state.merged.commitRefs = commitRefs(
+            "abc123456\tfix: other, refs #9060\x1edef123456\tfix: as #906 asked",
+            [906],
+        );
+        expect(sync(state).created).toEqual(["issue-906"]);
+        expect(state.jobs["issue-906"].reason).toBe("front of the issue queue: high bug, effort low");
+        expect(state.jobs["issue-906"].facts.references).toBeUndefined();
+    });
+
+    it("re-lands a pull request a revert took out, once the revert is no longer open", () => {
+        const state = base();
+        state.incidentActions = { reverts: { 718: 730 } };
+        failingPr(state, 730, { required: {} });
+        expect(sync(state).created).toEqual([]);
+        delete state.prs[730];
+        expect(sync(state).created).toEqual(["issue-reland-718"]);
+        expect(state.jobs["issue-reland-718"]).toMatchObject({ kind: "issue", target: "#718" });
+        expect(sync(state).created).toEqual([]);
+    });
+});
+
+describe("syncJobs: pull requests in use (owner decision 2026-10-04)", () => {
+    it("offers a held pull request that conflicts: hold stops its merge, not its fix", () => {
+        const state = base();
+        failingPr(state, 943, { labels: ["hold"], required: {}, mergeable: "CONFLICTING", conflictSightings: 2 });
+        expect(sync(state).created).toEqual(["pr-943"]);
+        const inUse = (/** @type {any} */ j) => jobInUse(state, j, { config: CONFIG, now: NOW });
+        // Like a failed head, a conflicting head someone else pushed is asked about first.
+        expect(jobOrder(state.jobs, { inUse }).inUse[0].reason).toMatch(
+            /conflicts with its base; githerd is asking the sessions/,
+        );
+        const head = state.prs[943].headSha;
+        state.asks = { 943: { head, askedAt: NOW.toISOString(), sessions: [], sent: [], failed: [], owner: null } };
+        expect(jobOrder(state.jobs, { inUse }).items.map((i) => i.job)).toEqual(["pr-943"]);
+    });
+
+    it("gives a job back to the queue when the owner session that claimed it ends", () => {
+        const state = base();
+        failingPr(state, 7);
+        sync(state);
+        const job = state.jobs["pr-7"];
+        move(job, "starting", NOW, { holder: { session: "o1", window: null, startedBy: "owner" } });
+        move(job, "working", NOW);
+        move(job, "waiting", NOW, { waitingFor: { checks: "abc" } });
+        const ended = new Set();
+        const gone = (/** @type {string} */ s) => ended.has(s);
+        expect(syncJobs(state, { config: CONFIG, now: NOW, sessionGone: gone }).lapsed).toEqual([]);
+        expect(job.state).toBe("waiting");
+        ended.add("o1");
+        expect(syncJobs(state, { config: CONFIG, now: NOW, sessionGone: gone }).lapsed).toEqual([
+            { job: "pr-7", session: "o1" },
+        ]);
+        // Queued again, it says what the pull request needs now.
+        expect(job).toMatchObject({ state: "queued", holder: null, reason: "required check failing: All Checks Pass" });
+    });
+});
+
+describe("syncJobs: advisory check promotions", () => {
+    const advisory = (enforce) => ({
+        entries: [{ id: "links", job: "links", step: null, enforce, issue: 1120 }],
+        names: { links: "^Links$" },
+    });
+    const syncOn = (state, day) => syncJobs(state, { config: CONFIG, now: new Date(`${day}T12:00:00Z`) });
+
+    it("makes one owner-session job from three days before the enforce date, in the keep-things-running tier", () => {
+        const state = base();
+        state.advisory = advisory("2026-10-08");
+        expect(syncOn(state, "2026-10-04").created).toEqual([]);
+        expect(syncOn(state, "2026-10-05").created).toEqual(["issue-promote-links"]);
+        const job = state.jobs["issue-promote-links"];
+        expect(job).toMatchObject({
+            kind: "issue",
+            target: "#1120",
+            priority: "high",
+            facts: { scope: "promote", check: "links", enforce: "2026-10-08", ownerOnly: true },
+        });
+        expect(jobText(job)).toContain(
+            'moves its entry from "advisory" into "required" and removes its warning wiring from .github/workflows/ci.yml',
+        );
+        expect(jobText(job)).toContain("Refs #1120");
+        // Ahead of a fresh bug: it finishes what CI's plan started.
+        issue(state, 7, LABELED);
+        syncOn(state, "2026-10-05");
+        const order = jobOrder(state.jobs).items;
+        expect(order.map((i) => i.job)).toEqual(["issue-promote-links", "issue-7"]);
+        expect(order[0].reason).toContain("finishes #1120: promote advisory check links, enforced from 2026-10-08");
+        // Never a second one, even once it is done and the entry is still listed.
+        expect(syncOn(state, "2026-10-09").created).toEqual([]);
+        move(job, "starting", NOW);
+        move(job, "working", NOW);
+        move(job, "verifying", NOW);
+        move(job, "done", NOW);
+        expect(syncOn(state, "2026-10-10").created).toEqual([]);
+    });
+
+    it("is cancelled once master no longer lists the check as advisory", () => {
+        const state = base();
+        state.advisory = advisory("2026-10-08");
+        syncOn(state, "2026-10-06");
+        state.advisory = { entries: [], names: {} };
+        expect(syncOn(state, "2026-10-06").cancelled).toEqual([
+            { job: "issue-promote-links", reason: "links is no longer an advisory check on master" },
+        ]);
+        // Before the registry was ever read, nothing is made or cancelled.
+        const fresh = base();
+        expect(syncOn(fresh, "2026-10-06").created).toEqual([]);
+    });
+});
+
+describe("syncJobs: issue bundles (owner decision 2026-10-06)", () => {
+    const BUG = (/** @type {string} */ priority, /** @type {string} */ effort = "low") => [
+        "bug",
+        `priority:${priority}`,
+        `effort:${effort}`,
+    ];
+    /**
+     * An issue whose title names its package.
+     * @param {any} state the state
+     * @param {number} n its number
+     * @param {string} pkg the package
+     * @param {string[]} labels its labels
+     */
+    const titled = (state, n, pkg, labels) => {
+        issue(state, n, labels, { text: `${pkg}: issue ${n}\nbody` });
+    };
+
+    it("offers up to three more small issues of the anchor's type and package, in queue order", () => {
+        const state = base();
+        titled(state, 964, "graph-io", BUG("high"));
+        titled(state, 962, "graph-io", BUG("medium"));
+        titled(state, 965, "graph-io", BUG("low"));
+        titled(state, 969, "graph-io", BUG("low"));
+        titled(state, 971, "graph-io", BUG("low"));
+        titled(state, 961, "algorithms", BUG("medium"));
+        titled(state, 963, "graph-io", BUG("medium", "medium"));
+        titled(state, 966, "graph-io", [...BUG("medium"), "needs-decision"]);
+        titled(state, 967, "graph-io", [...BUG("low"), "hold"]);
+        titled(state, 973, "graph-io", [...BUG("medium"), "visual"]);
+        titled(state, 968, "graph-io", ["infrastructure", "priority:high", "effort:low"]);
+        expect(sync(state).created).toEqual(["issue-964"]);
+        const job = state.jobs["issue-964"];
+        expect(job.facts).toMatchObject({ batch: [964, 962, 965, 969], package: "graph-io" });
+        expect(job.reason).toBe("front of the issue queue: high bug, effort low; bundled with #962, #965, #969");
+        expect(jobText(job)).toContain("(Fixes #964, Fixes #962, Fixes #965, Fixes #969)");
+
+        // Held: each bundled issue is in use and gets no job of its own.
+        move(job, "starting", NOW, { holder: { session: "s1", startedBy: "owner" } });
+        const probe = { id: "issue-962", kind: "issue", target: "#962" };
+        expect(jobInUse(state, probe, { config: CONFIG, now: NOW })).toBe(
+            "#962 is in issue-964, claimed by session s1",
+        );
+        const next = sync(state).created;
+        expect(next).toHaveLength(1);
+        expect([962, 965, 969].map((n) => `issue-${n}`)).not.toContain(next[0]);
+
+        // Ended: free again.
+        move(job, "cancelled", NOW);
+        expect(jobInUse(state, probe, { config: CONFIG, now: NOW })).toBeNull();
+    });
+
+    it("bundles only an effort:low anchor that is not critical, and skips one already in use", () => {
+        const medium = base();
+        titled(medium, 1, "layout", BUG("high", "medium"));
+        titled(medium, 2, "layout", BUG("high"));
+        sync(medium);
+        expect(medium.jobs["issue-2"].facts.batch).toBeUndefined();
+
+        const critical = base();
+        titled(critical, 1, "layout", BUG("critical"));
+        titled(critical, 2, "layout", BUG("high"));
+        sync(critical);
+        expect(critical.jobs["issue-1"].facts.batch).toBeUndefined();
+
+        const used = base();
+        titled(used, 1, "layout", BUG("high"));
+        titled(used, 2, "layout", BUG("high"));
+        titled(used, 3, "layout", BUG("high"));
+        used.jobs["triage-full-1"] = { id: "triage-full-1", kind: "triage", state: "working", facts: { batch: [2] } };
+        sync(used);
+        expect(used.jobs["issue-1"].facts.batch).toEqual([1, 3]);
+    });
+
+    it("reads the package from a package: label, and follows backlog.bundle and backlog.bundleMax", () => {
+        const labeled = base();
+        for (const n of [1, 2, 3]) issue(labeled, n, [...BUG("high"), "package:layout"]);
+        sync(labeled);
+        expect(labeled.jobs["issue-1"].facts).toMatchObject({ batch: [1, 2, 3], package: "layout" });
+
+        const config = (/** @type {any} */ backlog) =>
+            normalizeConfig({
+                repo: "o/r",
+                lanes: { ci: { workflow: "ci.yml", gating: "required" } },
+                labels: CONFIG.labels,
+                backlog,
+            });
+        const off = base();
+        for (const n of [1, 2, 3]) titled(off, n, "layout", BUG("high"));
+        syncJobs(off, { config: config({ bundle: false }), now: NOW });
+        expect(off.jobs["issue-1"].facts.batch).toBeUndefined();
+
+        const two = base();
+        for (const n of [1, 2, 3]) titled(two, n, "layout", BUG("high"));
+        syncJobs(two, { config: config({ bundleMax: 2 }), now: NOW });
+        expect(two.jobs["issue-1"].facts.batch).toEqual([1, 2]);
+    });
+
+    it("offers an issue a bundle left out alone until it changes", () => {
+        const state = base();
+        for (const n of [1, 2, 3]) titled(state, n, "layout", BUG("high"));
+        state.unbundled = { 1: "2026-10-03T00:00:00Z", 2: "2026-10-03T00:00:00Z" };
+        sync(state);
+        expect(state.jobs["issue-1"].facts.batch).toBeUndefined();
+        delete state.jobs["issue-1"];
+        state.issues.byNumber[1].updatedAt = "2026-10-04T09:00:00Z";
+        sync(state);
+        expect(state.jobs["issue-1"].facts.batch).toEqual([1, 3]);
+        expect(state.unbundled).toEqual({ 2: "2026-10-03T00:00:00Z" });
+    });
+});
+
+/**
+ * One prune pass as the daemon applies it: tombstones replace their jobs, dropped jobs go.
+ * @param {any} state the state, changed in place
+ * @param {(id: string) => boolean} [busy] whether a start task runs for a job
+ * @returns {{tombstone: string[], drop: string[]}} what the pass did
+ */
+function prune(state, busy) {
+    const out = finishedJobsToPrune(state, busy);
+    for (const id of out.tombstone) state.jobs[id] = tombstoneOf(state.jobs[id]);
+    for (const id of out.drop) delete state.jobs[id];
+    return out;
+}
+
+/**
+ * Moves a job through a verified finish to done.
+ * @param {any} job the job
+ */
+function finish(job) {
+    for (const s of ["starting", "working", "verifying", "done"]) move(job, s, NOW);
+}
+
+describe("finishedJobsToPrune (issue #2366)", () => {
+    it("drops a finished job nothing reads, and leaves every job not finished alone", () => {
+        const state = base();
+        issue(state, 1, LABELED);
+        sync(state);
+        failingPr(state, 9);
+        sync(state);
+        move(state.jobs["pr-9"], "cancelled", NOW, { reason: "#9 closed or merged" });
+        delete state.prs[9];
+        state.jobs["triage-full-3"] = { id: "triage-full-3", kind: "triage", state: "done", stateSince: "x" };
+        state.jobs["incident-x"] = { id: "incident-x", kind: "incident", state: "failed", stateSince: "x" };
+        expect(prune(state)).toEqual({ tombstone: [], drop: ["pr-9", "triage-full-3"] });
+        expect(Object.keys(state.jobs).sort()).toEqual(["incident-x", "issue-1"]);
+    });
+
+    it("keeps a finished job whole while a holder, a worktree, a waiter, a retiring session or a start task names it", () => {
+        const state = base();
+        const done = (/** @type {string} */ id, /** @type {any} */ more = {}) => {
+            state.jobs[id] = { id, kind: "triage", state: "done", stateSince: "x", ...more };
+        };
+        done("triage-new-1", { holder: { session: "s" } });
+        done("triage-new-2", { worktree: "/w" });
+        done("triage-new-3");
+        done("triage-new-4");
+        done("triage-new-5");
+        state.jobs["issue-8"] = { id: "issue-8", kind: "issue", state: "blocked", waitingFor: { job: "triage-new-3" } };
+        state.retiring = [{ job: "triage-new-4" }];
+        expect(prune(state, (id) => id === "triage-new-5")).toEqual({ tombstone: [], drop: [] });
+        // Each ends on its own event.
+        state.jobs["triage-new-1"].holder = null;
+        state.jobs["triage-new-2"].worktree = null;
+        state.jobs["issue-8"].state = "queued";
+        state.jobs["issue-8"].waitingFor = null;
+        state.retiring = [];
+        expect(prune(state).drop.sort()).toEqual([
+            "triage-new-1",
+            "triage-new-2",
+            "triage-new-3",
+            "triage-new-4",
+            "triage-new-5",
+        ]);
+    });
+
+    it("keeps a done issue job as a tombstone while its issue is in the state: the issue is not offered again", () => {
+        const state = base();
+        issue(state, 1, LABELED);
+        sync(state);
+        finish(state.jobs["issue-1"]);
+        state.jobs["issue-1"].claim = { session: "s", plan: "a long plan", at: NOW.toISOString() };
+        expect(prune(state)).toEqual({ tombstone: ["issue-1"], drop: [] });
+        expect(state.jobs["issue-1"]).toEqual({
+            id: "issue-1",
+            kind: "issue",
+            target: "#1",
+            state: "done",
+            stateSince: NOW.toISOString(),
+            tombstone: true,
+            facts: {},
+            sessions: [],
+            claim: { session: "s", at: NOW.toISOString() },
+            report: null,
+            news: [],
+        });
+        // The same decision as with the whole job: not offered again.
+        state.issues.byNumber[1].updatedAt = "2026-10-04T09:00:00Z";
+        expect(sync(state).created).toEqual([]);
+        expect(prune(state)).toEqual({ tombstone: [], drop: [] });
+        // The closed-issue prune dropped the issue: nothing reads the tombstone now.
+        delete state.issues.byNumber[1];
+        expect(prune(state)).toEqual({ tombstone: [], drop: ["issue-1"] });
+    });
+
+    it("offers a deferred issue again once it changes, from its tombstone as from the whole job", () => {
+        const state = base();
+        issue(state, 1, LABELED);
+        sync(state);
+        move(state.jobs["issue-1"], "cancelled", NOW, { reason: "deferred: declined" });
+        state.deferred = { 1: { reason: "declined", revision: "2026-10-03T00:00:00Z" } };
+        prune(state);
+        expect(state.jobs["issue-1"].tombstone).toBe(true);
+        expect(sync(state).created).toEqual([]);
+        state.issues.byNumber[1].updatedAt = "2026-10-04T09:00:00Z";
+        expect(sync(state).created).toEqual(["issue-1"]);
+        expect(state.jobs["issue-1"]).toMatchObject({ state: "queued" });
+        expect(state.jobs["issue-1"].tombstone).toBeUndefined();
+    });
+
+    it("makes reviews from a finished maker's tombstone and never reviews the same patch twice", () => {
+        const state = base();
+        issue(state, 3, LABELED);
+        sync(state);
+        state.jobs["issue-3"].pr = 20;
+        failingPr(state, 20, { required: {}, patchId: "p1".padEnd(40, "a") });
+        sync(state);
+        finish(state.jobs["issue-3"]);
+        finish(state.jobs["review-20"]);
+        state.jobs["review-20"].report = { pr: 20, result: { verdict: "pass", notes: "long" }, findings: "x" };
+        expect(prune(state).tombstone.sort()).toEqual(["issue-3", "review-20"]);
+        expect(state.jobs["review-20"]).toMatchObject({
+            facts: { patchId: "p1".padEnd(40, "a"), pr: 20 },
+            report: { pr: 20, result: { verdict: "pass" } },
+        });
+        expect(sync(state).created).toEqual([]);
+        state.prs[20].patchId = "p2".padEnd(40, "b");
+        expect(sync(state).created).toEqual(["review-20"]);
+        // The pull request closed: its jobs' tombstones go.
+        delete state.prs[20];
+        delete state.issues.byNumber[3];
+        sync(state);
+        expect(prune(state).drop.sort()).toEqual(["issue-3", "review-20"]);
+    });
+
+    it("keeps a claim a session's capacity answer still counts, until it answers again", () => {
+        const state = base();
+        state.capacity = { s: { n: 2, at: "2026-10-04T11:00:00Z", held: ["issue-5"] } };
+        const claimed = (/** @type {string} */ id, /** @type {string} */ at) => {
+            state.jobs[id] = { id, kind: "title", state: "cancelled", stateSince: at, claim: { session: "s", at } };
+        };
+        claimed("title-5", "2026-10-04T11:30:00Z");
+        claimed("title-6", "2026-10-04T10:00:00Z");
+        state.jobs["issue-5"] = { id: "issue-5", kind: "issue", target: "#5", state: "done", stateSince: "x" };
+        expect(prune(state)).toEqual({ tombstone: ["title-5", "issue-5"], drop: ["title-6"] });
+        state.capacity.s = { n: 1, at: "2026-10-04T12:00:00Z", held: [] };
+        expect(prune(state).drop.sort()).toEqual(["issue-5", "title-5"]);
+    });
+
+    it("keeps a re-land, a promotion and a release queue job while the rule that would make them again reads them", () => {
+        const state = base();
+        state.incidentActions = { reverts: { 718: 730 } };
+        sync(state);
+        finish(state.jobs["issue-reland-718"]);
+        state.jobs["issue-promote-x"] = {
+            id: "issue-promote-x",
+            kind: "issue",
+            state: "done",
+            stateSince: "x",
+            facts: { scope: "promote", check: "x" },
+        };
+        state.advisory = { entries: [{ id: "x" }] };
+        state.jobs["incident-queue-1-2"] = {
+            id: "incident-queue-1-2",
+            kind: "incident",
+            state: "done",
+            stateSince: "x",
+            facts: { scope: "queue", release: 1 },
+        };
+        state.releaseQueue = { 1: { draft: 2, tests: [] } };
+        expect(prune(state).tombstone.sort()).toEqual(["incident-queue-1-2", "issue-promote-x", "issue-reland-718"]);
+        expect(sync(state).created).toEqual([]);
+        state.incidentActions.reverts = {};
+        state.advisory.entries = [];
+        state.releaseQueue = {};
+        expect(prune(state).drop.sort()).toEqual(["incident-queue-1-2", "issue-promote-x", "issue-reland-718"]);
+    });
+});

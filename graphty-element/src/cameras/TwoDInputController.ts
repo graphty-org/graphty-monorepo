@@ -34,15 +34,15 @@ export class InputController {
     private pointerObserverHandle: Observer<PointerInfo> | null = null;
     private prePointerObserverHandle: Observer<PointerInfoPre> | null = null;
 
-    private pointerDownHandler = (): void => {
+    private readonly pointerDownHandler = (): void => {
         this.cam.canvas.focus({ preventScroll: true });
     };
 
-    private keyDownHandler = (e: KeyboardEvent): void => {
+    private readonly keyDownHandler = (e: KeyboardEvent): void => {
         this.keyState[e.key] = true;
     };
 
-    private keyUpHandler = (e: KeyboardEvent): void => {
+    private readonly keyUpHandler = (e: KeyboardEvent): void => {
         this.keyState[e.key] = false;
     };
 
@@ -53,9 +53,9 @@ export class InputController {
      * @param config - Configuration options for 2D camera controls
      */
     constructor(
-        private cam: TwoDCameraController,
-        private canvas: HTMLCanvasElement,
-        private config: TwoDCameraControlsConfigType,
+        private readonly cam: TwoDCameraController,
+        private readonly canvas: HTMLCanvasElement,
+        private readonly config: TwoDCameraControlsConfigType,
     ) {
         this.canvas.setAttribute("tabindex", "0"); // Make focusable
         // Note: setupMouse() and setupTouch() are called in enable() to allow re-enabling
@@ -243,6 +243,11 @@ export class InputController {
 
         const v = this.cam.velocity;
         const c = this.config;
+        // The velocity is damped every frame, so a held key settles at push / (1 - damping).
+        // Scaling the push by (1 - damping) makes a held key zoom and turn by the configured
+        // amount per frame, rather than many times it.
+        const zoomPush = c.zoomFactorPerFrame * (1 - c.zoomDamping);
+        const rotatePush = c.rotateSpeedPerFrame * (1 - c.rotateDamping);
 
         if (this.keyState.w || this.keyState.ArrowUp) {
             v.y += c.panAcceleration;
@@ -261,19 +266,19 @@ export class InputController {
         }
 
         if (this.keyState["+"] || this.keyState["="]) {
-            v.zoom -= c.zoomFactorPerFrame;
+            v.zoom -= zoomPush;
         }
 
         if (this.keyState["-"] || this.keyState._) {
-            v.zoom += c.zoomFactorPerFrame;
+            v.zoom += zoomPush;
         }
 
         if (this.keyState.q) {
-            v.rotate += c.rotateSpeedPerFrame;
+            v.rotate += rotatePush;
         }
 
         if (this.keyState.e) {
-            v.rotate -= c.rotateSpeedPerFrame;
+            v.rotate -= rotatePush;
         }
     }
 

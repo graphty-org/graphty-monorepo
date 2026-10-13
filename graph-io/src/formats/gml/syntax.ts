@@ -209,7 +209,7 @@ export class GmlTokens {
             // a line break inside a string is part of it, as LF whatever the file's line ends
             text = text.replaceAll(/\r\n?/g, "\n");
         }
-        if (text.indexOf("&") < 0) {
+        if (!text.includes("&")) {
             return text;
         }
         const report = this.onUnknownEntity;
@@ -615,7 +615,7 @@ export function parseRecord(tokens: GmlTokens, open: number): Record<string, unk
  */
 function storeValue(frame: RecordFrame, key: string, value: unknown): void {
     const { record } = frame;
-    if (frame.listKeys !== null && frame.listKeys.has(key)) {
+    if (frame.listKeys?.has(key)) {
         (record[key] as unknown[]).push(value);
     } else if (key in record) {
         record[key] = [record[key], value];

@@ -29,6 +29,7 @@ import { AdvancedButton } from "../../src/components/rows/TrailingSlot";
 import { UiGlyph } from "../../src/icons";
 import { CM_COLORS, CM_HIGH_CONTRAST } from "../../src/theme/tokens";
 import {
+    animationsSettled,
     drive,
     type DriveState,
     expectMeasured,
@@ -186,8 +187,7 @@ describe.skipIf(!(await figmaAvailable()))("buttons against Figma", () => {
             const { container } = await renderFigma(<Button loading>Button</Button>);
             const button = part(container, "button");
             expectMeasured(button, figmaSpec(figma, ["width", "height", "cursor", ...FILL]));
-            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-            await new Promise((r) => setTimeout(r, 300));
+            await animationsSettled(button);
             const loader = part(button, ".mantine-Loader-root");
             expectMeasured(
                 loader,
@@ -442,8 +442,11 @@ describe.skipIf(!(await figmaAvailable()))("buttons against Figma", () => {
                     figmaElement(base, { tag: "svg" }),
                 ]);
                 const iconInk = await figmaElement(base, { cls: "base-icon-button__icon" });
-                // Figma draws a disabled toggle exactly like an enabled one, pointer states included.
-                const ink = iconInk.style.fill;
+                // Figma's disabled capture draws the enabled look; the spec text (4.4) dims it instead
+                // (issue #2102): --cm-icon-disabled, an "on" toggle on --cm-bg-disabled, no pointer states.
+                const ink = disabled ? "#0000004d" : iconInk.style.fill;
+                const disabledGround = checked ? "#d9d9d9" : "#00000000";
+                const ground = disabled ? disabledGround : undefined;
                 const { container, unmount } = await renderFigma(
                     <ToggleIconButton
                         label="Lock aspect ratio"
@@ -461,7 +464,7 @@ describe.skipIf(!(await figmaAvailable()))("buttons against Figma", () => {
                 await drive(button, state);
                 expectMeasured(button, {
                     ...figmaSpec(icon, ["width", "height"]),
-                    backgroundColor: label ? label.style.backgroundColor : "#00000000",
+                    backgroundColor: ground ?? (label ? label.style.backgroundColor : "#00000000"),
                     borderRadius: "5px",
                     color: ink,
                 });

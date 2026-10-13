@@ -6,6 +6,7 @@ export type { FigmaElement } from "../harness/figma";
 export { figmaAvailable, figmaCapture, figmaElement, figmaSpec } from "../harness/figma";
 export type { DriveState, MeasureSpec } from "../harness/measure";
 export {
+    animationsSettled,
     computed,
     drive,
     expectMeasured,

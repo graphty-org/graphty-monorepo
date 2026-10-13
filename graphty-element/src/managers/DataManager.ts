@@ -483,7 +483,7 @@ export class DataManager implements Manager {
      * @param styles - Styles instance for applying styles to data
      */
     constructor(
-        private eventManager: EventManager,
+        private readonly eventManager: EventManager,
         private styles: Styles,
     ) {
         this.meshCache = new MeshCache();
@@ -1287,10 +1287,11 @@ export class DataManager implements Manager {
      * cache and is only ever freed here. Before this existed, roughly sixty arrowheads per
      * dataset stayed in the scene forever; see Edge.dispose for the full account.
      *
-     * NOTE ON THE LAYOUT ENGINE: this class still does not notify it (the standing TODO in
-     * `clear`), so the engine keeps its own lists of these now-disposed objects and UpdateManager
-     * keeps walking them. Node and Edge both carry a `disposed` guard for exactly that reason --
-     * without it, the next frame would rebuild the meshes this method just freed.
+     * NOTE ON THE LAYOUT ENGINE: `clear()` takes every node and edge out of it before calling
+     * this (#121); `dispose()` does not, so there the engine keeps its own lists of these
+     * now-disposed objects and UpdateManager can keep walking them. Node and Edge both carry a
+     * `disposed` guard for exactly that reason -- without it, the next frame would rebuild the
+     * meshes this method just freed.
      */
     private disposeNodesAndEdges(): void {
         releaseFromScene(this.nodes.values(), this.edges.values());

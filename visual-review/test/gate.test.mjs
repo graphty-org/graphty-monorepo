@@ -1,6 +1,6 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -23,7 +23,7 @@ import {
 } from "../trusted/gate.mjs";
 import { PASSKEYS_FILE } from "../trusted/lib/approval.mjs";
 import { normalizeConfig } from "../trusted/lib/config.mjs";
-import { CONFIG, FIXTURE, git, isolateGit, makeRepo } from "./helpers.mjs";
+import { CONFIG, FIXTURE, git, isolateGit, makeRepo, tempDir } from "./helpers.mjs";
 import { approve, makeKey, passkeysJson } from "./passkey-vectors.mjs";
 
 beforeAll(isolateGit);
@@ -53,7 +53,7 @@ const results = (statuses, extra = {}) => ({
 });
 
 function artifacts(map) {
-    const dir = mkdtempSync(join(tmpdir(), "vr-gate-"));
+    const dir = tempDir("vr-gate-");
     for (const [name, r] of Object.entries(map)) {
         mkdirSync(join(dir, name));
         if (r) {
@@ -402,7 +402,7 @@ describe("the not-affected marker (skipped.json)", () => {
         });
 
         it("fails the same artifacts in a merge-queue run", () => {
-            const file = join(mkdtempSync(join(tmpdir(), "vr-event-")), "event.json");
+            const file = join(tempDir("vr-event-"), "event.json");
             const r = makeRepo();
             const body = `\`\`\`yaml\nchecking_base_sha: ${git(r.repo, "rev-parse", "master")}\npull_requests:\n  - number: 7\n\`\`\`\n`;
             writeFileSync(file, JSON.stringify({ pull_request: { number: 995, body } }));
@@ -841,6 +841,106 @@ describe("passkey approvals", () => {
         });
     });
 
+    describe("an approval survives a merge of the base branch into the pull request", () => {
+        const GATE = fileURLToPath(new URL("../trusted/gate.mjs", import.meta.url));
+        const OTHER = "visual-baselines/compact-mantine/button--primary.dark.png";
+        const ADDED = "visual-baselines/compact-mantine/card--added.png";
+        const NOT_TAKEN = `${PATH}: changed with no review record taking it from its base branch contents to these`;
+
+        /**
+         * Pull request 7 approved PATH; then master changed `onMaster` (another pull request's
+         * work), and master was merged into the pull request, keeping the pull request's side of a
+         * conflict.
+         * @param {string} [onMaster] the baseline master changes
+         * @returns {object} the repository, on branch pr
+         */
+        function merged(onMaster = OTHER) {
+            const r = repoWith(passkeysJson(KEY));
+            commit(r, { [PATH]: "new image", "visual-baselines/reviews/r.json": signed(v2()) });
+            git(r.repo, "checkout", "-q", "master");
+            commit(r, { [onMaster]: "master's newer image", "lib.txt": "master's code" });
+            git(r.repo, "checkout", "-q", "pr");
+            git(r.repo, "merge", "-q", "--no-edit", "-X", "ours", "master");
+            return r;
+        }
+        const gate = (r, statuses = ["unchanged"], pr = "7") =>
+            spawnSync(
+                process.execPath,
+                [
+                    GATE,
+                    "--captures",
+                    artifacts(
+                        Object.fromEntries(
+                            Object.keys(CONFIG.projects).map((p) => [`visual-${p}-1`, results(statuses)]),
+                        ),
+                    ),
+                    "--base",
+                    "master",
+                    "--head",
+                    "pr",
+                    "--pr",
+                    pr,
+                ],
+                { cwd: r.repo, encoding: "utf8" },
+            );
+
+        it("passes with no new review when the merge left every approved file's base contents alone", () => {
+            const r = merged();
+            expect(check(r)).toEqual([]);
+            expect(gate(r).status).toBe(0);
+        });
+
+        it("fails when master changed the baseline under an approved file", () => {
+            expect(check(merged(PATH))).toEqual([NOT_TAKEN]);
+        });
+
+        it("fails a new changed image: one committed with no record, and one the capture shows", () => {
+            const r = merged();
+            commit(r, { [ADDED]: "added image" });
+            expect(check(r)).toEqual([
+                `${ADDED}: changed with no review record taking it from its base branch contents to these`,
+            ]);
+            const s = merged();
+            const out = gate(s, ["unchanged", "changed"]);
+            expect(out.stdout).toContain("1 changed (not accepted");
+            expect(out.status).toBe(1);
+        });
+
+        it("fails for another pull request", () => {
+            expect(check(merged(), 8)).toEqual([
+                "visual-baselines/reviews/r.json: the record is for pull request #7, not #8",
+                NOT_TAKEN,
+            ]);
+        });
+
+        it("fails a record edited after it was approved", () => {
+            const r = merged();
+            const tampered = {
+                ...signed(v2()),
+                items: [{ path: PATH, from: LEGACY, to: sha256("other"), reason: null }],
+            };
+            commit(r, { [PATH]: "other", "visual-baselines/reviews/r.json": tampered });
+            expect(check(r)).toEqual([
+                "visual-baselines/reviews/r.json: the challenge does not match: it was signed for other contents than these",
+                NOT_TAKEN,
+            ]);
+        });
+
+        it("still fails on a rejected image, which the capture of the merge still shows", () => {
+            const r = repoWith(passkeysJson(KEY));
+            const rejected = { ...v2(), rejects: [{ path: OTHER, capture: sha256("ugly"), reason: "ugly" }] };
+            commit(r, { [PATH]: "new image", "visual-baselines/reviews/r.json": signed(rejected) });
+            git(r.repo, "checkout", "-q", "master");
+            commit(r, { "lib.txt": "master's code" });
+            git(r.repo, "checkout", "-q", "pr");
+            git(r.repo, "merge", "-q", "--no-edit", "master");
+            expect(check(r)).toEqual([]);
+            const out = gate(r, ["unchanged", "changed"]);
+            expect(out.stdout).toContain("a rejected item needs a code change");
+            expect(out.status).toBe(1);
+        });
+    });
+
     it("needs a record for any settings file the pull request adds or changes, not for a deletion or renames.json", () => {
         const r = repoWith(passkeysJson(KEY));
         const SETTINGS = "visual-baselines/compact-mantine/card--legacy.json";
@@ -938,7 +1038,7 @@ describe("passkey approvals", () => {
             });
             // The draft's event; the batch sits on `base` (a ref of r, or null for no checking_base_sha).
             const event = (r, base, ...prs) => {
-                const file = join(mkdtempSync(join(tmpdir(), "vr-event-")), "event.json");
+                const file = join(tempDir("vr-event-"), "event.json");
                 const list = prs.map((n) => `  - number: ${n}\n    scopes: []\n`).join("");
                 const sha = base === null ? "" : `checking_base_sha: ${git(r.repo, "rev-parse", base)}\n`;
                 const body = `### Queue\n\n\`\`\`yaml\n---\n${sha}pull_requests:\n${list}scopes: []\n...\n\n\`\`\`\n`;
@@ -1007,7 +1107,7 @@ describe("passkey approvals", () => {
 
             it("fails closed on an event that names no pull request, and refuses --pr with it", () => {
                 const r = batch();
-                const empty = join(mkdtempSync(join(tmpdir(), "vr-event-")), "event.json");
+                const empty = join(tempDir("vr-event-"), "event.json");
                 writeFileSync(empty, JSON.stringify({ pull_request: { body: "no yaml here" } }));
                 expect(run(r, "--queue-event", empty).status).toBe(1);
                 expect(run(r, "--queue-event", join(r.repo, "missing.json")).status).toBe(1);
@@ -1039,7 +1139,7 @@ describe("passkey approvals", () => {
                 const missing = run(r, "--queue-event", event(r, null, 7, 8));
                 expect(missing.stdout).toContain("names no checking_base_sha the gate can read (missing)");
                 expect(missing.status).toBe(1);
-                const file = join(mkdtempSync(join(tmpdir(), "vr-event-")), "event.json");
+                const file = join(tempDir("vr-event-"), "event.json");
                 const body = `\`\`\`yaml\nchecking_base_sha: ${"f".repeat(40)}\npull_requests:\n  - number: 7\n\`\`\`\n`;
                 writeFileSync(file, JSON.stringify({ pull_request: { body } }));
                 const unknown = run(r, "--queue-event", file);

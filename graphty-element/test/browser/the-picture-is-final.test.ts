@@ -436,6 +436,25 @@ describe("knowing the picture is final", () => {
 
         await loading;
     });
+
+    it("says how many frames were drawn while it waited", async () => {
+        // A page whose GPU is behind draws a frame every few seconds, and the picture then stays
+        // wherever the last frame left it -- the camera mid-framing, a shader still on its way.
+        // Naming only that state sent the reader after the camera (issue #1947); the frame count
+        // says the page stopped drawing.
+        await graph.addNodes(NODES);
+        graph.engine.stopRenderLoop();
+        let message = "";
+
+        try {
+            await graph.waitForStableFrame({ timeoutMs: 1 });
+            assert.fail("the wait resolved on a graph that never drew its picture");
+        } catch (error) {
+            message = error instanceof Error ? error.message : String(error);
+        }
+
+        assert.include(message, "0 frames were drawn while it waited", "the failure counts the frames drawn");
+    });
 });
 
 describe("pumping frames by hand", () => {

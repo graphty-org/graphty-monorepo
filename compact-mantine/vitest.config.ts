@@ -6,7 +6,8 @@ import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 import type { BrowserCommand } from "vitest/node";
 
-import { ciJunitReporter } from "../vitest.ci-junit.mjs";
+import { workerShare } from "../tools/test-slots.mjs";
+import { ciReporters } from "../vitest.ci-junit.mjs";
 
 /**
  * The Figma study (design/ui/figma), found by walking up from this package so it resolves from
@@ -89,6 +90,46 @@ const mouseUp: BrowserCommand<[]> = async (ctx) => {
     await ctx.page.mouse.up();
 };
 
+/** One node of Chromium's accessibility tree, reduced to what a screen reader announces. */
+interface AxNode {
+    /** The computed role. */
+    role: string;
+    /** The computed accessible name. */
+    name: string;
+    /** The computed accessible description. */
+    description: string;
+}
+
+/**
+ * Chromium's own accessibility tree of the test frame, read over the DevTools protocol: the role,
+ * name and description a screen reader is given, computed by the browser rather than by a
+ * JavaScript reimplementation of the accessible-name algorithm. Ignored nodes are left out.
+ * @param ctx - the browser command context
+ * @returns every node the browser exposes in the test frame
+ */
+const accessibilityTree: BrowserCommand<[]> = async (ctx): Promise<AxNode[]> => {
+    const frame = await ctx.frame();
+    const cdp = await ctx.page.context().newCDPSession(ctx.page);
+    try {
+        type FrameTree = { frame: { id: string; url: string }; childFrames?: FrameTree[] };
+        const find = (tree: FrameTree): string | undefined =>
+            tree.frame.url === frame.url()
+                ? tree.frame.id
+                : (tree.childFrames ?? []).map(find).find((id) => id !== undefined);
+        const { frameTree } = (await cdp.send("Page.getFrameTree")) as { frameTree: FrameTree };
+        const { nodes } = await cdp.send("Accessibility.getFullAXTree", { frameId: find(frameTree) });
+        return nodes
+            .filter((node) => !node.ignored)
+            .map((node) => ({
+                role: String(node.role?.value ?? ""),
+                name: String(node.name?.value ?? ""),
+                description: String(node.description?.value ?? ""),
+            }));
+    } finally {
+        await cdp.detach();
+    }
+};
+
 /**
  * Node-side helpers for the measurement harness (tests/harness) and tests/setup.browser.ts. Both
  * browser projects load that setup file, so both register the same commands.
@@ -100,6 +141,7 @@ const browserCommands = {
     mouseDown,
     mouseUp,
     emulateReducedMotion,
+    accessibilityTree,
 };
 
 export default defineConfig({
@@ -107,7 +149,10 @@ export default defineConfig({
     test: {
         // The machine-wide limit on concurrent test runs (tools/test-slots.mjs; off on GitHub Actions).
         globalSetup: ["../tools/test-slots.mjs"],
-        reporters: ["default", ...ciJunitReporter()],
+        // At most this run's share of the cores for the Node projects (tools/test-slots.mjs); browser
+        // projects keep their own maxWorkers or fileParallelism.
+        maxWorkers: workerShare(),
+        reporters: ["default", ...ciReporters()],
         projects: [
             // Default project - runs in JSDOM
             {
@@ -136,7 +181,8 @@ export default defineConfig({
                 test: {
                     name: "browser",
                     globals: true,
-                    setupFiles: ["./tests/setup.browser.ts"],
+                    // First: frees earlier files' pages, which v8 coverage keeps alive (issue #2247).
+                    setupFiles: ["../vitest.browser-coverage-setup.ts", "./tests/setup.browser.ts"],
                     include: ["tests/**/*.browser.test.{ts,tsx}"],
                     exclude: ["**/node_modules/**", "**/dist/**"],
                     // Disable file parallelism to prevent race conditions
@@ -157,7 +203,8 @@ export default defineConfig({
                 optimizeDeps: { include: ["react/jsx-dev-runtime"] },
                 test: {
                     name: "storybook",
-                    setupFiles: ["./tests/setup.browser.ts"],
+                    // First: frees earlier files' pages, which v8 coverage keeps alive (issue #2247).
+                    setupFiles: ["../vitest.browser-coverage-setup.ts", "./tests/setup.browser.ts"],
                     include: ["tests/**/*.storybook.test.{ts,tsx}"],
                     fileParallelism: false,
                     browser: {

@@ -1,16 +1,6 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import {
-    chmodSync,
-    cpSync,
-    existsSync,
-    mkdirSync,
-    mkdtempSync,
-    readFileSync,
-    symlinkSync,
-    writeFileSync,
-} from "node:fs";
+import { chmodSync, cpSync, existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { beforeAll, describe, expect, it } from "vitest";
@@ -29,7 +19,18 @@ import {
 } from "../trusted/lib/accept.mjs";
 import { parsePasskeys, recordHash, verifyRecord } from "../trusted/lib/approval.mjs";
 import { classify, isLfsPointer, sha256 } from "../trusted/lib/compare.mjs";
-import { CONFIG, copyFixture, FIXTURE, git, isolateGit, lfsObject, makeRepo, pushCommit, ROOT } from "./helpers.mjs";
+import {
+    CONFIG,
+    copyFixture,
+    FIXTURE,
+    git,
+    isolateGit,
+    lfsObject,
+    makeRepo,
+    pushCommit,
+    ROOT,
+    tempDir,
+} from "./helpers.mjs";
 import { approve, makeKey, passkeysJson } from "./passkey-vectors.mjs";
 
 beforeAll(isolateGit);
@@ -332,7 +333,7 @@ describe("finish: Git LFS", () => {
 
     it("says how to install git-lfs when it is missing", async () => {
         const s = setup();
-        const bin = mkdtempSync(join(tmpdir(), "vr-bin-"));
+        const bin = tempDir("vr-bin-");
         symlinkSync(execFileSync("sh", ["-c", "command -v git"], { encoding: "utf8" }).trim(), join(bin, "git"));
         const path = process.env.PATH;
         process.env.PATH = bin;
@@ -450,7 +451,7 @@ describe("finish: git", () => {
             chmodSync(join(hooks, hook), 0o755);
         }
         git(s.repo, "config", "core.hooksPath", hooks);
-        const key = join(mkdtempSync(join(tmpdir(), "vr-key-")), "key");
+        const key = join(tempDir("vr-key-"), "key");
         execFileSync("ssh-keygen", ["-q", "-t", "ed25519", "-N", "", "-f", key]);
         git(s.repo, "config", "gpg.format", "ssh");
         git(s.repo, "config", "user.signingkey", key);
@@ -658,7 +659,7 @@ describe("finish and the gate's record check", () => {
         expect(unrecordedChanges(s.master, "origin/feature", s.repo)).toEqual([]);
 
         // A PNG and two settings files without Finish: any settings file can loosen the comparison.
-        const clone = mkdtempSync(join(tmpdir(), "vr-forge-"));
+        const clone = tempDir("vr-forge-");
         git(clone, "clone", "-q", "-b", "feature", s.remote, ".");
         const dir = join(clone, "visual-baselines/compact-mantine");
         writeFileSync(join(dir, "badge--default.light.png"), "copied capture");
@@ -750,7 +751,7 @@ describe("finish when master has newer baselines", () => {
         let s;
         beforeAll(async () => {
             s = setup();
-            const other = mkdtempSync(join(tmpdir(), "vr-other-"));
+            const other = tempDir("vr-other-");
             git(other, "clone", "-q", "-b", "master", s.remote, ".");
             writeFileSync(join(other, BUTTON), theirs);
             git(other, "-c", "user.name=O", "-c", "user.email=o@example.com", "commit", "-q", "-am", "accept");
@@ -855,7 +856,7 @@ describe("finish: approvals from before passkeys", () => {
         template = legacySetup();
     });
     const legacyCopy = () => {
-        const dir = mkdtempSync(join(tmpdir(), "vr-repo-"));
+        const dir = tempDir("vr-repo-");
         cpSync(template.dir, dir, { recursive: true });
         const repo = join(dir, "repo");
         const remote = join(dir, "remote.git");
@@ -1054,6 +1055,71 @@ describe("finish with a passkey approval", () => {
         expect(JSON.parse(show(s, "feature", RECORD))).toEqual(approval.record);
     });
 
+    describe("after the default branch was merged into the pull request", () => {
+        const LEGACY = "visual-baselines/compact-mantine/card--legacy.png";
+        const decisions = [accept("card--legacy.png")];
+
+        // Merges master into feature on the remote, as another clone (an update from master) would.
+        function mergeMaster(s) {
+            const clone = tempDir("vr-merge-");
+            git(clone, "clone", "-q", "-b", "feature", s.remote, ".");
+            git(
+                clone,
+                "-c",
+                "user.name=O",
+                "-c",
+                "user.email=o@example.com",
+                "merge",
+                "-q",
+                "--no-edit",
+                "origin/master",
+            );
+            git(clone, "push", "-q", "origin", "feature");
+            return git(clone, "rev-parse", "HEAD");
+        }
+
+        it("commits the approval on the merge, and the gate's check passes it", async () => {
+            const s = setup();
+            const approval = await approved(s, decisions);
+            pushCommit(s.remote, "master", "visual-baselines/graphty-element/other.png");
+            pushCommit(s.remote, "master", "lib.txt");
+            const merge = mergeMaster(s);
+            const out = await run(s, decisions, approval);
+            expect(git(s.remote, "rev-parse", `${out.commit}^`)).toBe(merge);
+            expect(JSON.parse(show(s, "feature", RECORD))).toEqual(approval.record);
+            git(s.repo, "fetch", "-q", "origin");
+            expect(
+                unrecordedChanges("origin/master", "origin/feature", s.repo, "visual-baselines", {
+                    keys: [KEY.entry],
+                    pr: 123,
+                }),
+            ).toEqual([]);
+        });
+
+        it("refuses when the default branch changed a file the review decides", async () => {
+            const s = setup();
+            const approval = await approved(s, decisions);
+            pushCommit(s.remote, "master", LEGACY);
+            const merge = mergeMaster(s);
+            await expect(run(s, decisions, approval)).rejects.toThrow(
+                `capture is stale, wait for CI: the branch has moved past the captured head (the default branch changed ${LEGACY}, which this review decides, so review its new capture)`,
+            );
+            expect(remoteLog(s, "feature")[0]).toBe(merge);
+        });
+
+        it("refuses when the pull request changed anything of its own since", async () => {
+            const s = setup();
+            const approval = await approved(s, decisions);
+            pushCommit(s.remote, "master", "lib.txt");
+            mergeMaster(s);
+            const later = pushCommit(s.remote, "feature", "later.txt");
+            await expect(run(s, decisions, approval)).rejects.toThrow(
+                /moved past the captured head \(it changed later.txt since\)/,
+            );
+            expect(remoteLog(s, "feature")[0]).toBe(later);
+        });
+    });
+
     it("refuses, before committing, a record that differs from the approved one", async () => {
         const s = setup();
         const approval = await approved(s, [accept("badge--default.light.png")]);
@@ -1079,7 +1145,7 @@ describe("finish with a passkey approval", () => {
 
     it("takes the keys from the default branch as fetched", async () => {
         const s = setup();
-        const other = mkdtempSync(join(tmpdir(), "vr-keys-"));
+        const other = tempDir("vr-keys-");
         git(other, "clone", "-q", "-b", "master", s.remote, ".");
         mkdirSync(join(other, "visual-review"));
         writeFileSync(join(other, "visual-review/passkeys.json"), passkeysJson(KEY));
@@ -1212,7 +1278,7 @@ describe("proposeKey", () => {
     const withFirstKey = () => {
         const s = setup();
         pushCommit(s.remote, "master", "unrelated.txt");
-        const clone = mkdtempSync(join(tmpdir(), "vr-keys-"));
+        const clone = tempDir("vr-keys-");
         git(clone, "clone", "-q", "-b", "master", s.remote, ".");
         mkdirSync(join(clone, "visual-review"));
         writeFileSync(join(clone, "visual-review/passkeys.json"), passkeysJson(FIRST));

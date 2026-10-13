@@ -1,3 +1,66 @@
+## 0.2.27 (2026-10-13)
+
+### 🩹 Fixes
+
+- **visual-review:** check an update's merge before pushing it ([#2296](https://github.com/graphty-org/graphty-monorepo/issues/2296))
+- **visual-review:** an accept counts as published only while the branch's baseline holds it ([bab1e4cfc](https://github.com/graphty-org/graphty-monorepo/commit/bab1e4cfc))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.2.26 (2026-10-13)
+
+### 🩹 Fixes
+
+- **visual-review:** ask for the session token when the page has none ([affee9300](https://github.com/graphty-org/graphty-monorepo/commit/affee9300))
+- **visual-review:** keep a screenshot approval across a merge of master ([#2272](https://github.com/graphty-org/graphty-monorepo/issues/2272))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.2.25 (2026-10-13)
+
+### 🩹 Fixes
+
+- **visual-review:** drop a double click's second click by item, and time the guard from the paint ([#2175](https://github.com/graphty-org/graphty-monorepo/issues/2175))
+- **tools:** cap each test slot's Node workers at its share of the cores ([9daf98f16](https://github.com/graphty-org/graphty-monorepo/commit/9daf98f16))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.2.24 (2026-10-12)
+
+This was a version bump only for visual-review to align it with other projects, there were no code changes.
+
+## 0.2.23 (2026-10-11)
+
+### 🩹 Fixes
+
+- **visual-review:** wait for the redraw the settling capture starts before measuring ([#1982](https://github.com/graphty-org/graphty-monorepo/issues/1982))
+- **visual-review:** size every capture to the settled page, not the page before the first capture ([#1982](https://github.com/graphty-org/graphty-monorepo/issues/1982))
+- **visual-review:** stitch tall captures whose page shrinks after the first slice ([#1976](https://github.com/graphty-org/graphty-monorepo/issues/1976))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.2.22 (2026-10-11)
+
+### 🚀 Features
+
+- **tools:** fail a CI test that uses more than 25% of its time limit ([#1602](https://github.com/graphty-org/graphty-monorepo/issues/1602))
+
+### 🩹 Fixes
+
+- **visual-review:** capture stories taller than 8,192 device px in stitched slices ([#1958](https://github.com/graphty-org/graphty-monorepo/issues/1958))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.2.21 (2026-10-10)
 
 ### 🩹 Fixes

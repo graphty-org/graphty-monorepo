@@ -123,7 +123,7 @@ function runEscapeLadder(ladder: EscapeLadderHandlers): boolean {
     for (const rung of ESCAPE_LADDER) {
         const handler = ladder[rung];
 
-        if (handler !== undefined && handler()) {
+        if (handler?.()) {
             return true;
         }
     }

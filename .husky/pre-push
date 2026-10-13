@@ -17,13 +17,19 @@
 # baseline images, run `git lfs push origin <branch>`)
 # To run manually: pnpm run prepush:fast
 
+# The gate's scripts are the ones beside this hook; the checkout being pushed is the working
+# directory git runs the hook in. They are the same checkout unless the push queue (tools/push-queue.sh)
+# pointed core.hooksPath at the gate's live copy, .worktrees/gate-live, so every branch is checked by
+# the current gate (CLAUDE.md, "Where a change takes effect").
+GATE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+
 # Git LFS first: upload the baseline images this push points at (tools/lfs-pre-push.sh says why
 # it is here and not in git-lfs's own hook). It reads git's ref lines on stdin; nothing below does.
-./tools/lfs-pre-push.sh "$@" || exit 1
+"$GATE_DIR/tools/lfs-pre-push.sh" "$@" || exit 1
 
 # Secret scan of every file this branch changes since it left origin/master. It runs here as
 # well as in pre-commit because a commit made with a temporary core.hooksPath skips pre-commit.
-./tools/scan-secrets.sh "$(git merge-base origin/master HEAD)" HEAD || exit 1
+PREPUSH_ROOT="$PWD" "$GATE_DIR/tools/scan-secrets.sh" "$(git merge-base origin/master HEAD)" HEAD || exit 1
 
 # Run the prepush validation script
-pnpm run prepush:fast
+PREPUSH_ROOT="$PWD" "$GATE_DIR/tools/prepush.sh"

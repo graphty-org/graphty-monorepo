@@ -3,15 +3,18 @@
  * iframe.html whose preview object answers what capture reads from a real one.
  */
 
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { PNG } from "pngjs";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { chromium } from "playwright";
 
-import { capture, CHROMIUM_ARGS, hasEmojiFont } from "../capture/capture.mjs";
+/* global document, requestAnimationFrame -- read only inside the page */
+
+import { capture, CHROMIUM_ARGS, hasEmojiFont, MAX_SHOT_HEIGHT, screenshotWholePage } from "../capture/capture.mjs";
+
+import { tempDir } from "./helpers.mjs";
 
 const PARAMS = {
     "demo--plain": {},
@@ -60,7 +63,7 @@ window.__STORYBOOK_PREVIEW__ = {
 </script></body></html>`;
 
 function storybook() {
-    const dir = mkdtempSync(join(tmpdir(), "vr-sb-"));
+    const dir = tempDir("vr-sb-");
     const entries = Object.fromEntries(Object.keys(PARAMS).map((id) => [id, { id, type: "story" }]));
     entries["demo--docs"] = { id: "demo--docs", type: "docs" };
     writeFileSync(join(dir, "index.json"), JSON.stringify({ entries }));
@@ -77,14 +80,13 @@ beforeAll(() => {
 afterAll(() => vi.unstubAllEnvs());
 
 describe("capture", () => {
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("classifies new, unchanged, excluded, failed, and a story newly excluded by its parameters", async () => {
         const sb = storybook();
-        const baselines = mkdtempSync(join(tmpdir(), "vr-bl-"));
+        const baselines = tempDir("vr-bl-");
         const run = (out) =>
             capture({ project: "demo", storybook: sb, baselines, out, workers: 2, waitFor: null, log: () => {} });
 
-        const firstOut = mkdtempSync(join(tmpdir(), "vr-out-"));
+        const firstOut = tempDir("vr-out-");
         const first = await run(firstOut);
         expect(first.seeded).toBe(false);
         expect(first.complete).toBe(true);
@@ -109,7 +111,7 @@ describe("capture", () => {
         copyFileSync(join(firstOut, "demo--plain.png"), join(baselines, "demo--plain.png"));
         copyFileSync(join(firstOut, "demo--plain.png"), join(baselines, "demo--excluded-here.png"));
 
-        const second = await run(mkdtempSync(join(tmpdir(), "vr-out-")));
+        const second = await run(tempDir("vr-out-"));
         expect(second.seeded).toBe(true);
         items = byFile(second);
         expect(items["demo--plain.png"].status).toBe("unchanged");
@@ -119,12 +121,11 @@ describe("capture", () => {
         });
         expect(items["demo--always-excluded.png"].status).toBe("excluded");
         expect(second.expected).toBe(second.items.length);
-    }, 120_000);
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("marks a story with no baseline unseeded when it looks as in master's capture", async () => {
         const sb = storybook();
-        const baselines = mkdtempSync(join(tmpdir(), "vr-bl-"));
+        const baselines = tempDir("vr-bl-");
         const run = (out, extra) =>
             capture({
                 project: "demo",
@@ -137,11 +138,11 @@ describe("capture", () => {
                 ...extra,
             });
         // Master's capture: demo--plain is new there, captured twice and stable.
-        const master = mkdtempSync(join(tmpdir(), "vr-master-"));
+        const master = tempDir("vr-master-");
         const masterResults = await run(master, { stories: ["demo--plain"] });
         writeFileSync(join(master, "results.json"), JSON.stringify({ ...masterResults, runId: 77 }));
 
-        const prOut = mkdtempSync(join(tmpdir(), "vr-out-"));
+        const prOut = tempDir("vr-out-");
         const pr = await run(prOut, { reference: master, stories: ["demo--plain"] });
         expect(pr.reference).toBe(77);
         expect(pr.items.map((i) => [i.file, i.status])).toEqual([["demo--plain.png", "unseeded"]]);
@@ -149,31 +150,30 @@ describe("capture", () => {
         // A reference whose item is already unseeded serves as well as a new one, so the status
         // does not alternate between master runs.
         writeFileSync(join(prOut, "results.json"), JSON.stringify({ ...pr, runId: 78 }));
-        const next = await run(mkdtempSync(join(tmpdir(), "vr-out-")), { reference: prOut, stories: ["demo--plain"] });
+        const next = await run(tempDir("vr-out-"), { reference: prOut, stories: ["demo--plain"] });
         expect(next.reference).toBe(78);
         expect(next.items.map((i) => [i.file, i.status])).toEqual([["demo--plain.png", "unseeded"]]);
 
         // A reference image that is not what master's results.json names is ignored: new.
         writeFileSync(join(master, "demo--plain.png"), "tampered");
-        const tampered = await run(mkdtempSync(join(tmpdir(), "vr-out-")), {
+        const tampered = await run(tempDir("vr-out-"), {
             reference: master,
             stories: ["demo--plain"],
         });
         expect(tampered.items[0].status).toBe("new");
-    }, 120_000);
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("compares a renamed story with its old id's baseline and reports a broken rename", async () => {
         const sb = storybook();
-        const seedOut = mkdtempSync(join(tmpdir(), "vr-out-"));
+        const seedOut = tempDir("vr-out-");
         const run = (out, baselines) =>
             capture({ project: "demo", storybook: sb, baselines, out, workers: 2, waitFor: null, log: () => {} });
-        await run(seedOut, mkdtempSync(join(tmpdir(), "vr-bl-")));
+        await run(seedOut, tempDir("vr-bl-"));
 
         // Baselines under old ids: one that looks the same as its new story, one that does not,
         // one whose rename names no story, and one renamed from an id that is still a story (which
         // is no move, so it does nothing).
-        const baselines = mkdtempSync(join(tmpdir(), "vr-bl-"));
+        const baselines = tempDir("vr-bl-");
         copyFileSync(join(seedOut, "demo--plain.png"), join(baselines, "old--plain.png"));
         copyFileSync(join(seedOut, "demo--plain.png"), join(baselines, "old--small.png"));
         copyFileSync(join(seedOut, "demo--plain.png"), join(baselines, "old--lost.dark.png"));
@@ -187,7 +187,7 @@ describe("capture", () => {
                 { from: "demo--tall", to: "demo--late-font" },
             ]),
         );
-        const out = mkdtempSync(join(tmpdir(), "vr-out-"));
+        const out = tempDir("vr-out-");
         const r = await run(out, baselines);
         const items = byFile(r);
         expect(items["demo--plain.png"]).toMatchObject({ status: "moved", from: "old--plain" });
@@ -214,54 +214,49 @@ describe("capture", () => {
                 .sort(),
         ).toEqual(["demo--nowhere.dark.png", "demo--plain.png", "demo--small.png"]);
         expect(r.expected).toBe(r.items.length);
-    }, 120_000);
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("refuses a renames file that is not a list of distinct renames", async () => {
-        const baselines = mkdtempSync(join(tmpdir(), "vr-bl-"));
+        const baselines = tempDir("vr-bl-");
         writeFileSync(join(baselines, "renames.json"), JSON.stringify([{ from: "a--b", to: "a--b" }]));
         await expect(
             capture({
                 project: "demo",
                 storybook: storybook(),
                 baselines,
-                out: mkdtempSync(join(tmpdir(), "vr-out-")),
+                out: tempDir("vr-out-"),
                 workers: 1,
                 waitFor: null,
                 log: () => {},
             }),
         ).rejects.toThrow(/renames.json: entry 0 must be/);
-    }, 60_000);
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("captures the whole canvas at scale 2, never cropped to the content", async () => {
-        const sb = storybook();
-        const run = async (story) => {
-            const out = mkdtempSync(join(tmpdir(), "vr-out-"));
-            const r = await capture({
-                project: "demo",
-                storybook: sb,
-                baselines: mkdtempSync(join(tmpdir(), "vr-bl-")),
-                out,
-                workers: 1,
-                waitFor: null,
-                stories: [story],
-                log: () => {},
-            });
-            return { size: r.items[0].size, png: PNG.sync.read(readFileSync(join(out, r.items[0].file))) };
-        };
+        // The four stories in one capture: one browser, as a project's run has.
+        const out = tempDir("vr-out-");
+        const r = await capture({
+            project: "demo",
+            storybook: storybook(),
+            baselines: tempDir("vr-bl-"),
+            out,
+            workers: 1,
+            waitFor: null,
+            stories: ["demo--small", "demo--plain", "demo--tall", "demo--late-font"],
+            log: () => {},
+        });
+        const items = byFile(r);
         // A small component sits in the full 1200 x 900 viewport, doubled.
-        expect((await run("demo--small")).size).toEqual([1200 * 2, 900 * 2]);
-        expect((await run("demo--plain")).size).toEqual([1200 * 2, 900 * 2]);
+        expect(items["demo--small.png"].size).toEqual([1200 * 2, 900 * 2]);
+        expect(items["demo--plain.png"].size).toEqual([1200 * 2, 900 * 2]);
         // A story taller than the viewport is captured to its full scroll height.
-        expect((await run("demo--tall")).size).toEqual([1200 * 2, 2000 * 2]);
+        expect(items["demo--tall.png"].size).toEqual([1200 * 2, 2000 * 2]);
         // The capture waits for the page's fonts: the box drawn at (400, 300) when they settle is in it.
-        const { png } = await run("demo--late-font");
+        const png = PNG.sync.read(readFileSync(join(out, "demo--late-font.png")));
         const at = (405 * 2 + 305 * 2 * png.width) * 4;
         expect([...png.data.subarray(at, at + 3)]).toEqual([255, 0, 0]);
-    }, 120_000);
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("launches every browser with GPU rasterization off, so text renders the same each time", async () => {
         expect(CHROMIUM_ARGS).toContain("--disable-gpu-rasterization");
         const launch = vi.spyOn(chromium, "launch");
@@ -269,8 +264,8 @@ describe("capture", () => {
             await capture({
                 project: "demo",
                 storybook: storybook(),
-                baselines: mkdtempSync(join(tmpdir(), "vr-bl-")),
-                out: mkdtempSync(join(tmpdir(), "vr-out-")),
+                baselines: tempDir("vr-bl-"),
+                out: tempDir("vr-out-"),
                 workers: 2,
                 waitFor: null,
                 stories: ["demo--plain"],
@@ -283,11 +278,10 @@ describe("capture", () => {
         } finally {
             launch.mockRestore();
         }
-    }, 60_000);
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("fails with a clear message when a baseline is a Git LFS pointer", async () => {
-        const baselines = mkdtempSync(join(tmpdir(), "vr-bl-"));
+        const baselines = tempDir("vr-bl-");
         writeFileSync(
             join(baselines, "demo--plain.png"),
             `version https://git-lfs.github.com/spec/v1\noid sha256:${"a".repeat(64)}\nsize 9\n`,
@@ -297,12 +291,95 @@ describe("capture", () => {
                 project: "demo",
                 storybook: storybook(),
                 baselines,
-                out: mkdtempSync(join(tmpdir(), "vr-out-")),
+                out: tempDir("vr-out-"),
                 workers: 1,
                 waitFor: null,
                 stories: ["demo--plain"],
                 log: () => {},
             }),
         ).rejects.toThrow(/demo--plain.png: baseline is an LFS pointer; run git lfs pull/);
-    }, 60_000);
+    });
+});
+
+describe("screenshotWholePage", () => {
+    // Bands 100 CSS px tall, each its own red value, so a row of the image names the band it shows.
+    // The page is 100 CSS px wide: the PNGs stay small, so the test pays for the slicing, not for
+    // encoding megapixels.
+    const bands = (n) =>
+        `<body style="margin:0">${Array.from({ length: n }, (_, i) => `<div style="height:100px;background:rgb(${i * 5},0,0)"></div>`).join("")}</body>`;
+    const redAt = (png, y) => png.data[(y * png.width + 10) * 4];
+
+    let browser;
+    beforeAll(async () => {
+        browser = await chromium.launch({ args: CHROMIUM_ARGS });
+    });
+    afterAll(async () => {
+        await browser?.close();
+    });
+
+    async function withPage(html, use) {
+        const page = await browser.newPage({ viewport: { width: 100, height: 900 }, deviceScaleFactor: 2 });
+        try {
+            await page.setContent(html);
+            // As capture does: a screenshot before the page's first frame fails in Chromium.
+            await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+            return await use(page);
+        } finally {
+            await page.close();
+        }
+    }
+
+    it("is Playwright's own full-page screenshot, byte for byte, within the limit", async () => {
+        await withPage(bands(40), async (page) => {
+            const own = await page.screenshot({ animations: "disabled", caret: "hide", fullPage: true });
+            const ours = await screenshotWholePage(page);
+            expect(ours.readUInt32BE(20)).toBe(8000);
+            expect(ours.equals(own)).toBe(true);
+        });
+    });
+
+    it("draws the bottom of a page taller than the limit, not a copy of its top", async () => {
+        // 4,200 CSS px is 8,400 device px: two slices, the second 208 px.
+        await withPage(bands(42), async (page) => {
+            const png = PNG.sync.read(await screenshotWholePage(page));
+            expect([png.width, png.height]).toEqual([200, 8400]);
+            expect(MAX_SHOT_HEIGHT).toBe(8192);
+            // Every band, both sides of the seam and the last row included, is where the page has it.
+            for (const y of [0, 199, 200, 8191, 8192, 8199, 8200, 8399]) {
+                expect(redAt(png, y), `row ${y}`).toBe(Math.floor(y / 200) * 5);
+            }
+        });
+    });
+
+    it("is the settled page's height when the first capture shrinks a page within the limit", async () => {
+        // Chromium's first screenshot beyond the viewport lays text out again: 11px monospace
+        // with line-height: normal is 21 CSS px a row before it and 20 after, so these 150 rows
+        // are 3,160 CSS px on load and 3,010 once captured (#1982). The image is the settled page,
+        // ending on its red block, with no background below it.
+        const rows = Array.from(
+            { length: 150 },
+            (_, i) => `<div style="padding:4px 6px;font:11px monospace">${i}</div>`,
+        );
+        const html = `<body style="margin:0">${rows.join("")}<div style="height:10px;background:rgb(200,0,0)"></div></body>`;
+        await withPage(html, async (page) => {
+            const png = PNG.sync.read(await screenshotWholePage(page));
+            const height = await page.evaluate(() => document.documentElement.scrollHeight);
+            expect(height).toBe(150 * 20 + 10);
+            expect([png.width, png.height]).toEqual([200, height * 2]);
+            expect(redAt(png, png.height - 1)).toBe(200);
+        });
+    });
+
+    it("is the settled page's height when the first capture shrinks a page taller than the limit", async () => {
+        // The label is 21 CSS px before the first capture beyond the viewport and 20 after, so the
+        // page is 4,221 CSS px on load and 4,220 once captured (#1976, #1982).
+        const label = `<div style="padding:4px 6px;font:600 11px ui-monospace, monospace">ak</div>`;
+        await withPage(`<!doctype html>${bands(42).replace('<body style="margin:0">', `$&${label}`)}`, async (page) => {
+            const png = PNG.sync.read(await screenshotWholePage(page));
+            expect([png.width, png.height]).toEqual([200, 8440]);
+            // The label 20 px tall, the bands below it, and the last band down to the last row.
+            expect(redAt(png, 40)).toBe(0);
+            expect(redAt(png, 8439)).toBe(41 * 5);
+        });
+    });
 });

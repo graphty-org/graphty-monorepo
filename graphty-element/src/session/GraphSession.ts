@@ -323,7 +323,8 @@ interface SessionParts {
 
 /**
  * What the element's own tests hand a session besides its options: the clock of the coalescing
- * window and the queue queued commands take their turn on, so a random sequence can drive both.
+ * window and the repaint's slices, and the queue queued commands take their turn on, so a random
+ * sequence can drive both.
  */
 interface SessionInternals {
     readonly now?: () => number;
@@ -2461,6 +2462,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             // the elements one run measured walks that run's 300 rows, not the graph's 50,000.
             measured: elements.measured,
             scales,
+            ...(internals.now === undefined ? {} : { now: internals.now }),
         }),
         snapshot,
     );
@@ -2493,9 +2495,11 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         layerScopes.dispose();
         notifier.dispose();
     });
+    const nodeIndex = nodeIndexOf(snapshot);
+    const edgeIndex = edgeIndexOf(snapshot);
     const styles = createStylesApi({
         dispatcher,
-        elements: { ...elements, scope: (spec: Scope) => layerScopes.live(spec) },
+        elements: { ...elements, nodeIndex, edgeIndex, scope: (spec: Scope) => layerScopes.live(spec) },
         admitScope: (spec: unknown) => scope.admit(spec),
         base: elementBaseLayers(),
         paths,
@@ -2505,8 +2509,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             attributes: () => data.attributes(),
             declaration: (column) => dispatcher.state.attributes.get(declarationKey(column)),
         },
-        nodeIndex: nodeIndexOf(snapshot),
-        edgeIndex: edgeIndexOf(snapshot),
+        nodeIndex,
+        edgeIndex,
         field: fieldWordsOf(data, runs),
         groupRanks: groupRanksOf(runs),
         repaint: painter.repaint,

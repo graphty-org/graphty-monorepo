@@ -28,7 +28,7 @@ import type { PersistedShellLayout, PrimaryActivityId, SectionOpenMap } from "./
  */
 export const SHELL_LAYOUT_STORAGE_KEY = "graphty.shell.layout.v3";
 
-const PRIMARY_ACTIVITY_IDS: readonly string[] = ["data", "explore", "analyze", "style", "present", "ai"];
+const PRIMARY_ACTIVITY_IDS: ReadonlySet<string> = new Set(["data", "explore", "analyze", "style", "present", "ai"]);
 
 /**
  * Only the six panel activities are restorable. Settings is a full-panel overlay and
@@ -38,7 +38,7 @@ const PRIMARY_ACTIVITY_IDS: readonly string[] = ["data", "explore", "analyze", "
  * @returns true when the value names one of the six panel activities.
  */
 function isRestorableActivityId(value: unknown): value is PrimaryActivityId {
-    return typeof value === "string" && PRIMARY_ACTIVITY_IDS.includes(value);
+    return typeof value === "string" && PRIMARY_ACTIVITY_IDS.has(value);
 }
 
 /**
@@ -79,7 +79,7 @@ export function readPersistedShellLayout(): Partial<PersistedShellLayout> {
     let raw: string | null = null;
 
     try {
-        raw = window.localStorage.getItem(SHELL_LAYOUT_STORAGE_KEY);
+        raw = globalThis.localStorage.getItem(SHELL_LAYOUT_STORAGE_KEY);
     } catch {
         return {};
     }
@@ -142,7 +142,7 @@ export function readPersistedShellLayout(): Partial<PersistedShellLayout> {
  */
 export function writePersistedShellLayout(layout: PersistedShellLayout): void {
     try {
-        window.localStorage.setItem(SHELL_LAYOUT_STORAGE_KEY, JSON.stringify(layout));
+        globalThis.localStorage.setItem(SHELL_LAYOUT_STORAGE_KEY, JSON.stringify(layout));
     } catch {
         // A full or unavailable store is not an error the shell can act on: the
         // layout simply does not survive the session.

@@ -1,15 +1,5 @@
-import {
-    chmodSync,
-    existsSync,
-    mkdirSync,
-    mkdtempSync,
-    readdirSync,
-    readFileSync,
-    rmSync,
-    writeFileSync,
-} from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer, request } from "node:http";
-import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
@@ -23,9 +13,9 @@ import { notifyOnce } from "../trusted/lib/inbox.mjs";
 import {
     capturedItems,
     copyFixture,
+    fakeGh,
     FIXTURE,
     FIXTURE_CONFIG,
-    fakeGh,
     git,
     isolateGit,
     job,
@@ -34,6 +24,8 @@ import {
     onePr,
     pushCommit,
     seedTiles,
+    tempDir,
+    until,
     withMoved,
 } from "./helpers.mjs";
 import { approve, makeKey, passkeysJson, register } from "./passkey-vectors.mjs";
@@ -45,7 +37,9 @@ let app;
 // The app's tiles made in advance run on after the server closes: wait for them, or their reads of
 // a later-deleted download log into the next test's console.error spy.
 afterEach(async () => {
-    server?.close();
+    // Until every request has been answered: a list refresh still running would write its state
+    // into the repository after the test file removed it (tempDir).
+    await new Promise((resolve) => (server ? server.close(() => resolve()) : resolve()));
     await app?.idle();
     app = null;
 });
@@ -102,14 +96,12 @@ async function start({ tiles: seed = true, ...options } = {}) {
  * @returns {Promise<object | null>} the ended job
  */
 async function endedJob(s) {
-    for (;;) {
-        const { job } = (await s.api("GET", "/api/finish-status")).body;
-        if (!job?.running) {
-            return job;
-        }
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await new Promise((resolve) => setTimeout(resolve, 20));
-    }
+    let ended;
+    await until(async () => {
+        ({ job: ended } = (await s.api("GET", "/api/finish-status")).body);
+        return !ended?.running;
+    });
+    return ended;
 }
 
 /**
@@ -292,7 +284,7 @@ describe("serve: pull requests", () => {
         // blocked every request, and a git that stalled for seconds timed out the list (#1496).
         // On such a server the test cannot release it, so the hold ends by itself after 10 s and
         // the test fails on its timeout instead of hanging.
-        const bin = mkdtempSync(join(tmpdir(), "vr-git-"));
+        const bin = tempDir("vr-git-");
         const real = process.env.PATH.split(delimiter)
             .map((d) => join(d, "git"))
             .find((f) => existsSync(f));
@@ -318,10 +310,7 @@ describe("serve: pull requests", () => {
         });
         const s = await start({ gh: onePr() });
         const list = s.api("GET", "/api/prs");
-        while (!existsSync(gate.held)) {
-            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-            await new Promise((resolve) => setTimeout(resolve, 10));
-        }
+        await until(() => existsSync(gate.held));
         expect((await s.api("GET", "/api/inbox")).status).toBe(200);
         writeFileSync(gate.release, "");
         expect((await list).status).toBe(200);
@@ -829,6 +818,37 @@ describe("serve: decisions and Finish", () => {
             "slider--sizes.png": { decision: "reject", reason: "thumb moved", posted: true },
         });
         expect(await unpublished()).toBe(1);
+    });
+
+    it("treats a finished accept as unpublished when the branch's baseline no longer holds its image", async () => {
+        vi.spyOn(console, "log").mockImplementation(() => {});
+        onTestFinished(() => vi.restoreAllMocks());
+        const s = await start({ gh: onePr() });
+        await s.api("GET", "/api/prs");
+        await s.api("POST", "/api/decide", {
+            id: "123",
+            project: "compact-mantine",
+            file: "badge--default.light.png",
+            decision: "accept",
+        });
+        const { job } = await finishJob(s, "123");
+        expect(job.error).toBeNull();
+        await s.api("GET", "/api/prs");
+        expect((await s.api("GET", "/api/target/123")).body.unpublished).toBe(0);
+        // An update from the default branch takes its side of the baseline: the review record stays
+        // on the branch, but the file holds the old image again, so the gate sees the change unaccepted.
+        const clone = join(s.dir, "updater");
+        git(s.dir, "clone", "-q", "-b", "feature", s.remote, clone);
+        git(clone, "config", "user.name", "Other");
+        git(clone, "config", "user.email", "other@example.com");
+        git(clone, "rm", "-q", "visual-baselines/compact-mantine/badge--default.light.png");
+        git(clone, "commit", "-q", "-m", "take the default branch's baseline");
+        git(clone, "push", "-q", "origin", "feature");
+        await s.api("GET", "/api/prs");
+        expect((await s.api("GET", "/api/pr/123/compact-mantine")).body.decisions).toEqual({
+            "badge--default.light.png": { decision: "accept", reason: null },
+        });
+        expect((await s.api("GET", "/api/target/123")).body.unpublished).toBe(1);
     });
 
     it("runs Finish in the background, reports its step, and refuses a second one and new decisions", async () => {
@@ -1534,18 +1554,6 @@ describe("serve: safe filters", () => {
 describe("serve: what the page waits on", () => {
     const decide = (s, file, decision, reason, project = "compact-mantine") =>
         s.api("POST", "/api/decide", { id: "123", project, file, decision, reason });
-    const until = async (check) => {
-        for (let i = 0; i < 300; i++) {
-            const value = await check();
-            if (value) {
-                return value;
-            }
-            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-            await new Promise((resolve) => setTimeout(resolve, 20));
-        }
-        throw new Error("timed out");
-    };
-
     it("answers the cached list at once, with the refresh's step while one runs", async () => {
         let release;
         const held = new Promise((resolve) => (release = resolve));
@@ -1753,27 +1761,12 @@ describe("serve: what the page waits on", () => {
 });
 
 describe("serve: loading without waiting", () => {
-    const until = async (check, ms = 6000) => {
-        for (const end = Date.now() + ms; Date.now() < end;) {
-            const value = await check();
-            if (value) {
-                return value;
-            }
-            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-            await new Promise((resolve) => setTimeout(resolve, 20));
-        }
-        throw new Error("timed out");
+    // GitHub with every call counted by kind.
+    const counted = (inner, calls) => (args, input) => {
+        const kind = args[0] === "run" ? "download" : (args[1] ?? "").replace(/\?.*/, "").replace(/\d+/g, "N");
+        calls.push(kind);
+        return inner(args, input);
     };
-    // A slow GitHub: every call takes `ms`, and the calls are counted by kind.
-    const slow =
-        (inner, calls, ms = 30) =>
-        async (args, input) => {
-            const kind = args[0] === "run" ? "download" : (args[1] ?? "").replace(/\?.*/, "").replace(/\d+/g, "N");
-            calls.push(kind);
-            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-            await new Promise((resolve) => setTimeout(resolve, ms));
-            return inner(args, input);
-        };
 
     it("shows the list a restarted server kept at once, and refreshes it behind", async () => {
         const first = await start({ warm: true, gh: onePr() });
@@ -1812,7 +1805,7 @@ describe("serve: loading without waiting", () => {
 
     it("asks GitHub about a finished run's jobs and artifacts once, and keeps the answers with its downloads", async () => {
         const calls = [];
-        const s = await start({ gh: (r) => slow(onePr()(r), calls, 0) });
+        const s = await start({ gh: (r) => counted(onePr()(r), calls) });
         await s.api("GET", "/api/prs");
         await s.api("GET", "/api/prs");
         const count = (kind) => calls.filter((c) => c === kind).length;
@@ -1833,20 +1826,25 @@ describe("serve: loading without waiting", () => {
         const inner = fakeGh({ artifacts: Object.fromEntries(ids.map((id) => [id, both(1)])) });
         const started = [];
         const releases = [];
+        let listed = 0;
         const gh = async (args, input) => {
             if (args[0] === "run") {
                 started.push(`${args[2]}/${/^visual-(.+)-\d+$/.exec(args[4])[1]}`);
                 await new Promise((resolve) => releases.push(resolve));
             }
-            return inner(args, input);
+            const answer = await inner(args, input);
+            listed += args[0] === "run" ? 0 : 1;
+            return answer;
         };
         const runs = [];
         for (const id of ids) {
             runs.push(downloadCaptures(gh, { id }, names, tmp));
             await until(() => started.length === Math.min(8, 2 * runs.length));
         }
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await new Promise((resolve) => setTimeout(resolve, 50));
+        // Every run has its artifact list, so every transfer is queued (one more turn of the event
+        // loop takes each from its list to the queue): a ninth would have started by now.
+        await until(() => listed === ids.length);
+        await new Promise((resolve) => setImmediate(resolve));
         // Both projects of a run at once, and no more than eight transfers.
         expect(started).toEqual(ids.slice(0, 4).flatMap((id) => names.map((p) => `${id}/${p}`)));
         hurry((dir) => dir.endsWith(join("1004-1", "graphty-element")));
@@ -1897,27 +1895,28 @@ describe("serve: loading without waiting", () => {
     it("says which gh call waits to retry, and why the list could not be read at all", async () => {
         const logged = vi.spyOn(console, "error").mockImplementation(() => {});
         onTestFinished(() => logged.mockRestore());
-        let fails = 1;
+        // The list fails on the network until the test has read the wait: each retry fails again
+        // in the same turn its wait ends, so the server is waiting whenever it is asked, with no
+        // window for the first ask to miss (#2422).
+        let offline = true;
         const before = Date.now();
         const s = await start({
             warm: true,
             gh: (r) => {
                 const inner = onePr()(r);
-                return withRetries(
-                    async (args, input) => {
-                        if ((args[1] ?? "").includes("/pulls?") && fails-- > 0) {
-                            throw new Error("Could not resolve host: api.github.com");
-                        }
-                        return inner(args, input);
-                    },
-                    [300],
-                );
+                return withRetries(async (args, input) => {
+                    if ((args[1] ?? "").includes("/pulls?") && offline) {
+                        throw new Error("Could not resolve host: api.github.com");
+                    }
+                    return inner(args, input);
+                }, Array(200).fill(300));
             },
         });
         const retry = await until(async () => (await s.api("GET", "/api/prs?cached=1")).body.network);
-        expect(retry).toMatchObject({ error: "Could not resolve host: api.github.com", attempt: 2, of: 2 });
+        expect(retry).toMatchObject({ error: "Could not resolve host: api.github.com", of: 201 });
         // The retry is due 300 ms after a failure that happened during this test.
         expect(retry.until).toBeGreaterThanOrEqual(before + 300);
+        offline = false;
         const loaded = await until(async () => {
             const b = (await s.api("GET", "/api/prs?cached=1")).body;
             return b.targets && b;
@@ -1998,14 +1997,22 @@ describe("downloadCaptures", () => {
 
     it("downloads a run once when two refreshes ask for it at the same time", async () => {
         const { inner, calls, tmp, run } = setup();
+        // The first caller's extraction lasts until the second caller has its artifact list and
+        // (one turn of the event loop later) has asked for the same download, mid-way through it.
+        let listed = 0;
+        let bothAsked;
+        const asked = new Promise((resolve) => (bothAsked = resolve));
         const gh = async (args, input) => {
             if (args[0] === "run") {
                 calls.push(args);
-                // Extraction takes a while: the second caller arrives while the first is mid-way.
-                // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-                await new Promise((resolve) => setTimeout(resolve, 20));
+                await asked;
+                return inner(args, input);
             }
-            return inner(args, input);
+            const answer = await inner(args, input);
+            if (++listed === 2) {
+                setImmediate(bothAsked);
+            }
+            return answer;
         };
         const [a, b] = await Promise.all([
             downloadCaptures(gh, run, ["compact-mantine"], tmp),
@@ -2126,6 +2133,8 @@ describe("network failures", () => {
 
     it("starts downloading at startup, and a request during it shares that refresh", async () => {
         const calls = [];
+        let arrived;
+        const requested = new Promise((resolve) => (arrived = resolve));
         const s = await start({
             warm: true,
             gh: (r) => {
@@ -2133,13 +2142,16 @@ describe("network failures", () => {
                 return async (args, input) => {
                     calls.push(args.slice(0, 2).join(" "));
                     if (args[0] === "run") {
-                        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-                        await new Promise((resolve) => setTimeout(resolve, 50));
+                        // The startup refresh downloads until the request below has arrived.
+                        await requested;
                     }
                     return inner(args, input);
                 };
             },
         });
+        // The request's handler runs as it arrives; one turn of the event loop later it waits on
+        // the refresh, and the downloads go on.
+        server.once("request", () => setImmediate(arrived));
         const { body } = await s.api("GET", "/api/prs");
         expect(body.targets.map((t) => t.id)).toEqual(["123"]);
         expect(calls.filter((c) => c === "run download")).toHaveLength(2);

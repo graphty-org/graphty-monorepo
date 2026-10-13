@@ -2,7 +2,6 @@ import { jsonImporter } from "@graphty/graph-io";
 import jmespath from "jmespath";
 import { z } from "zod";
 
-// import {JSONParser} from "@streamparser/json";
 import type { AdHocData } from "../config/common";
 import { GraphtyError } from "../errors";
 import { BaseDataSourceConfig, DataSource, DataSourceChunk } from "./DataSource";

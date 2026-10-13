@@ -78,33 +78,33 @@ export type OperationCategory =
  * Ensures operations execute in the correct order based on their dependencies
  */
 export class OperationQueueManager implements Manager {
-    private queue: PQueue;
-    private pendingOperations = new Map<string, Operation>();
+    private readonly queue: PQueue;
+    private readonly pendingOperations = new Map<string, Operation>();
     private operationCounter = 0;
     private batchingEnabled = true;
-    private currentBatch = new Set<string>();
-    private logger: Logger = GraphtyLogger.getLogger(["graphty", "operation"]);
+    private readonly currentBatch = new Set<string>();
+    private readonly logger: Logger = GraphtyLogger.getLogger(["graphty", "operation"]);
 
     // Progress tracking
-    private operationProgress = new Map<string, OperationProgress>();
+    private readonly operationProgress = new Map<string, OperationProgress>();
 
     // Active operation controllers for cancellation
-    private activeControllers = new Map<string, AbortController>();
+    private readonly activeControllers = new Map<string, AbortController>();
 
     // Track running vs queued operations
-    private runningOperations = new Map<string, Operation>();
-    private queuedOperations = new Map<string, Operation>();
+    private readonly runningOperations = new Map<string, Operation>();
+    private readonly queuedOperations = new Map<string, Operation>();
 
     // Track completed operation categories for cross-batch dependency resolution
-    private completedCategories = new Set<OperationCategory>();
+    private readonly completedCategories = new Set<OperationCategory>();
 
     // Batch mode support
     private batchMode = false;
-    private batchOperations = new Set<string>();
-    private batchPromises = new Map<string, Promise<void>>();
+    private readonly batchOperations = new Set<string>();
+    private readonly batchPromises = new Map<string, Promise<void>>();
 
     // Trigger system
-    private triggers = new Map<
+    private readonly triggers = new Map<
         OperationCategory,
         ((metadata?: OperationMetadata) => {
             category: OperationCategory;
@@ -181,7 +181,7 @@ export class OperationQueueManager implements Manager {
      * @param options.interval - Time interval in milliseconds
      */
     constructor(
-        private eventManager: EventManager,
+        private readonly eventManager: EventManager,
         options: {
             concurrency?: number;
             autoStart?: boolean;
@@ -352,7 +352,7 @@ export class OperationQueueManager implements Manager {
         const customObsoletes = metadata?.obsoletes ?? [];
         const defaultObsoletes = defaultRule?.obsoletes ?? [];
 
-        const categoriesToObsolete = [...new Set([...customObsoletes, ...defaultObsoletes])];
+        const categoriesToObsolete = new Set([...customObsoletes, ...defaultObsoletes]);
         const shouldObsolete = metadata?.shouldObsolete;
         const skipRunning = metadata?.skipRunning ?? defaultRule?.skipRunning ?? false;
         const respectProgress = metadata?.respectProgress ?? defaultRule?.respectProgress ?? true;
@@ -373,7 +373,7 @@ export class OperationQueueManager implements Manager {
             let shouldCancel = false;
 
             // Check category-based obsolescence
-            if (categoriesToObsolete.includes(operation.category)) {
+            if (categoriesToObsolete.has(operation.category)) {
                 shouldCancel = true;
             }
 
@@ -878,8 +878,6 @@ export class OperationQueueManager implements Manager {
      */
     enableBatching(): void {
         this.batchingEnabled = true;
-        // TODO: Operations queued while batching was disabled will be executed
-        // when waitForCompletion() is called
     }
 
     /**

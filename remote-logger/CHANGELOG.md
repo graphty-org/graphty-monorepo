@@ -1,3 +1,37 @@
+## 2.0.17 (2026-10-13)
+
+### 🩹 Fixes
+
+- **graphty-element:** free each test file's page under v8 coverage in browser tests ([#2247](https://github.com/graphty-org/graphty-monorepo/issues/2247))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 2.0.16 (2026-10-13)
+
+### 🩹 Fixes
+
+- **tools:** cap each test slot's Node workers at its share of the cores ([9daf98f16](https://github.com/graphty-org/graphty-monorepo/commit/9daf98f16))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 2.0.15 (2026-10-12)
+
+This was a version bump only for @graphty/remote-logger to align it with other projects, there were no code changes.
+
+## 2.0.14 (2026-10-11)
+
+### 🚀 Features
+
+- **tools:** fail a CI test that uses more than 25% of its time limit ([#1602](https://github.com/graphty-org/graphty-monorepo/issues/1602))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 2.0.13 (2026-10-09)
 
 This was a version bump only for @graphty/remote-logger to align it with other projects, there were no code changes.

@@ -16,7 +16,7 @@ import path from "node:path";
 import { afterAll, afterEach, assert, beforeAll, describe, it, onTestFailed } from "vitest";
 
 import { type Chrome, launchChrome, type Tab } from "./cdp-harness";
-import { assertInvariant, kill, profile } from "./engines";
+import { assertInvariant, browserProcesses, kill, profile } from "./engines";
 import { type Fixture, type LogEvent, type PageCheck, startFixture } from "./fixture";
 
 /** 50,000 and 100,000 nodes run only on the release train. */
@@ -360,7 +360,9 @@ describe("Chrome for Testing, without Playwright's lifecycle flags", () => {
         await saved(tab("a"), await next(a));
         const before = (await check(a)).entries.map((entry) => entry.id);
         await next(a);
-        kill([{ pid: chrome.pid, ppid: 0, cmdline: "" }]);
+        // The whole browser, as the OS kills it: helpers orphaned by a root-only kill kept writing
+        // to the profile after the test.
+        kill(browserProcesses(dir));
         await chrome.exited;
 
         const again = await start(dir);
@@ -389,7 +391,9 @@ describe("Chrome for Testing, without Playwright's lifecycle flags", () => {
         await untilWritten(path.join(dir, "Default", "Sessions"), encodeURIComponent(tab("b")));
 
         const mark = fx.log.length;
-        kill([{ pid: chrome.pid, ppid: 0, cmdline: "" }]);
+        // The whole browser, as the OS kills it: helpers orphaned by a root-only kill kept writing
+        // to the profile after the test.
+        kill(browserProcesses(dir));
         await chrome.exited;
         const again = await start(dir, ["--restore-last-session"]);
         const ra = await reattach(again, tab("a"), mark);

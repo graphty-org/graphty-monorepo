@@ -169,9 +169,11 @@ const rows = () => { el.nodeData = nodes; el.edgeData = edges; };
 if (params.get("rows") !== "late") rows();
 document.body.appendChild(el);
 const summary = (r) => r && { revision: r.revision, entry: r.entry.id, wasDiscarded: r.wasDiscarded, copiedFrom: r.copiedFrom, others: r.others };
+// Ready once both halves of the page's load (nodes, then edges) are in, so a test's first edit
+// does not land between them, where the edges load would replace it as a new project.
 const ready = el.autosaver.ready.then(async (restored) => {
     if (params.get("rows") === "late") rows();
-    for (let f = 0; f < 6000 && el.session.data.snapshot().nodeCount < n; f++) await new Promise((r) => setTimeout(r, 10));
+    for (let f = 0; f < 6000 && (el.session.data.snapshot().nodeCount < n || el.session.data.snapshot().edgeCount < n); f++) await new Promise((r) => setTimeout(r, 10));
     const s = el.autosaver.status;
     const probes = [...new Set(Array.from(el.session.data.nodes(), (node) => node.probe ?? null))];
     report("ready", { restored: summary(restored), probes, state: s.state, revision: s.revision, ephemeral: s.ephemeral, persisted: s.persisted, quota: s.storage?.quota ?? null, problem: s.problem?.code ?? null });

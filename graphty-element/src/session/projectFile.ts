@@ -16,6 +16,7 @@
 import type { EdgeId, FieldDescriptor, NodeId, ResultShape, RunId, SetDefinitionInput } from "../catalog/types";
 import { type GraphtyErrorCode, type GraphtyWarningCode } from "../errors/codes";
 import { GraphtyError, isGraphtyError } from "../errors/GraphtyError";
+import { projectBoundary } from "./project/boundary";
 import type { Dispatcher, TransactionOptions } from "./project/Dispatcher";
 import { createRunResult, type ResultElementValues } from "./results/RunResult";
 import { type Caveats, ENGINE_VERSIONS, type RunExecutionContext, type RunExecutor, type RunOutcome } from "./runs";
@@ -1561,6 +1562,7 @@ export function projectOf(
                 const graph = nodeLinkOf(data);
                 const name = doc.name ?? nameOfFile(typeof fileName === "string" ? fileName : undefined);
                 const opening: TransactionOptions = { fact: { code: "project.open", params: { name: name ?? null } } };
+                projectBoundary(session, "open");
                 await session.transaction(
                     "Open project",
                     (tx) => readProject({ tx, problems, restored }, doc, graph, name, canned),

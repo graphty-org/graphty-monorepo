@@ -252,6 +252,27 @@ export interface AnimationResult {
 }
 
 // @public
+export type AutosaveCode = "E_AUTOSAVE_UNAVAILABLE" | "E_AUTOSAVE_KEY_AMBIGUOUS" | "E_AUTOSAVE_QUOTA" | "E_AUTOSAVE_STALLED" | "E_AUTOSAVE_CONNECTION_LOST" | "E_AUTOSAVE_TOO_LARGE" | "E_AUTOSAVE_FAILED" | "E_AUTOSAVE_ENTRY_TAKEN" | "E_AUTOSAVE_UNKNOWN_ENTRY" | "E_AUTOSAVE_FORMAT_NEWER" | "E_AUTOSAVE_RESTORE_CRASHED" | "W_AUTOSAVE_ORIGIN_EPHEMERAL";
+
+// @public
+export interface AutosaveStatus {
+    readonly entry: string | null;
+    readonly ephemeral: "likely" | "unknown";
+    readonly persisted: boolean | null;
+    readonly problem: CodedFact<AutosaveCode> | null;
+    readonly revision: number;
+    readonly savedAt: string | null;
+    readonly state: "off" | "saved" | "pending" | "failing";
+    readonly storage: {
+        readonly usage: number;
+        readonly quota: number;
+        readonly entries: number;
+        readonly bytes: number;
+    } | null;
+    readonly unexported: boolean;
+}
+
+// @public
 export interface BaseDataSourceConfig {
     // (undocumented)
     chunkSize?: number;

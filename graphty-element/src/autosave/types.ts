@@ -7,6 +7,8 @@
  * @module autosave
  */
 
+import type { CodedFact } from "../session/shared";
+
 /**
  * The parts of an entry: each one the text (or bytes) of some members of the project document.
  * Part names and values are private to the element; a store keeps parts it does not recognize.
@@ -115,4 +117,69 @@ export function isAutosaveConflict(error: unknown): error is AutosaveConflict {
  */
 export function autosaveAbortError(): DOMException {
     return new DOMException("The autosave commit was aborted", "AbortError");
+}
+
+/**
+ * Every code autosave reports, in `AutosaveStatus.problem` and its events. Switch on the code and
+ * write the words yourself; leave out a code you do not know, since codes may be added in a minor
+ * release.
+ *
+ * | Code | Params | When |
+ * | --- | --- | --- |
+ * | `E_AUTOSAVE_UNAVAILABLE` | `{ api }` | IndexedDB is missing or throws on open |
+ * | `E_AUTOSAVE_KEY_AMBIGUOUS` | `{ elements }` | a bare `autosave` on several elements without an `id` |
+ * | `E_AUTOSAVE_QUOTA` | `{ usage, quota }` | the storage quota is full, even after old clean entries were removed |
+ * | `E_AUTOSAVE_STALLED` | `{ afterMs, step }` | the listing or a write did not finish in time |
+ * | `E_AUTOSAVE_CONNECTION_LOST` | `{}` | the database connection is gone and reopening it failed |
+ * | `E_AUTOSAVE_TOO_LARGE` | `{ part }` | a part of the project could not be built (string length limit) |
+ * | `E_AUTOSAVE_FAILED` | `{ name }` | any other write failure; `name` is the error's name |
+ * | `E_AUTOSAVE_ENTRY_TAKEN` | `{ id }` | an entry another tab holds |
+ * | `E_AUTOSAVE_UNKNOWN_ENTRY` | `{ id }` | an entry that does not exist |
+ * | `E_AUTOSAVE_FORMAT_NEWER` | `{ formatVersion }` | an entry written by newer code; left untouched |
+ * | `E_AUTOSAVE_RESTORE_CRASHED` | `{ attempts }` | an entry whose automatic restore did not finish twice |
+ * | `W_AUTOSAVE_ORIGIN_EPHEMERAL` | `{ persisted, ephemeral, unexported }` | the browser may delete this site's storage |
+ */
+export type AutosaveCode =
+    | "E_AUTOSAVE_UNAVAILABLE"
+    | "E_AUTOSAVE_KEY_AMBIGUOUS"
+    | "E_AUTOSAVE_QUOTA"
+    | "E_AUTOSAVE_STALLED"
+    | "E_AUTOSAVE_CONNECTION_LOST"
+    | "E_AUTOSAVE_TOO_LARGE"
+    | "E_AUTOSAVE_FAILED"
+    | "E_AUTOSAVE_ENTRY_TAKEN"
+    | "E_AUTOSAVE_UNKNOWN_ENTRY"
+    | "E_AUTOSAVE_FORMAT_NEWER"
+    | "E_AUTOSAVE_RESTORE_CRASHED"
+    | "W_AUTOSAVE_ORIGIN_EPHEMERAL";
+
+/** Where autosave stands: a neutral fact, worded by the application. */
+export interface AutosaveStatus {
+    /**
+     * `"off"`: not saving. `"saved"`: everything is committed. `"pending"`: a change or a write is
+     * outstanding. `"failing"`: the last write failed; `problem` says why, and the next change
+     * tries again.
+     */
+    readonly state: "off" | "saved" | "pending" | "failing";
+    /** When the last write committed (ISO 8601 UTC), or null before the first. */
+    readonly savedAt: string | null;
+    /** The number of committed changes the last write contains. */
+    readonly revision: number;
+    /** The id of the entry this element writes, or null before its first write. */
+    readonly entry: string | null;
+    /** Whether there is work that was never saved to a file: the same as `project.dirty`. */
+    readonly unexported: boolean;
+    /** Whether the browser granted persistent storage; null when unknown. */
+    readonly persisted: boolean | null;
+    /** Storage use, where the browser reports it; `entries` and `bytes` are this key's. */
+    readonly storage: {
+        readonly usage: number;
+        readonly quota: number;
+        readonly entries: number;
+        readonly bytes: number;
+    } | null;
+    /** `"likely"` when the storage is probably deleted with the window (a private window). */
+    readonly ephemeral: "likely" | "unknown";
+    /** Why the state is `"failing"` (or `"off"`), or null. */
+    readonly problem: CodedFact<AutosaveCode> | null;
 }

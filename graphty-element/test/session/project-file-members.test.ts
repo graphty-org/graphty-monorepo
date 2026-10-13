@@ -22,8 +22,8 @@ import {
     styleMember,
     viewStateMember,
 } from "../../src/session/projectFile";
-import { createRunResult } from "../../src/session/results";
-import { ENGINE_VERSIONS, type RunExecutionContext, type RunOutcome } from "../../src/session/runs";
+import { ENGINE_VERSIONS } from "../../src/session/runs";
+import { baseSession, sessionWithRuns } from "../helpers/project-session";
 
 /** One slice: how a test changes it, and how it reads it back. */
 interface SliceCase {
@@ -117,77 +117,6 @@ const SLICES: Record<ProjectSlice, SliceCase> = {
                 .map((column) => [column.kind, column.name, column.measurement]),
     },
 };
-
-/**
- * A session whose runs count each node's links, and give each edge its source.
- * @returns The session.
- */
-function sessionWithRuns(): GraphSession {
-    const session: GraphSession = createGraphSession({
-        runs: {
-            execute: (context: RunExecutionContext): Promise<RunOutcome> => {
-                const snapshot = session.data.snapshot();
-                const degrees = snapshot.degree();
-                const ids = graphIdsOf(session);
-                return Promise.resolve({
-                    result: createRunResult({
-                        runId: context.runId,
-                        shape: "node-metric",
-                        fields: [
-                            {
-                                name: "value",
-                                plainName: "Links",
-                                technicalName: "degree",
-                                kind: "node",
-                                type: "number",
-                                path: "results.$.value",
-                            },
-                            {
-                                name: "from",
-                                plainName: "From",
-                                technicalName: "from",
-                                kind: "edge",
-                                type: "number",
-                                path: "results.$.from",
-                            },
-                        ],
-                        measured: { nodes: snapshot.nodeCount, edges: snapshot.edgeCount },
-                        nodes: ids.nodes.map((id, at) => ({ id, values: { value: degrees[at] } })),
-                        edges: ids.edges.map((id, at) => ({ id, values: { from: snapshot.edgeSource(at) } })),
-                        caveats: {
-                            exact: true,
-                            direction: "as-loaded",
-                            precision: "f64",
-                            method: "degree",
-                            facts: [],
-                            notes: [],
-                        },
-                        durationMs: 1,
-                    }),
-                });
-            },
-        },
-    });
-    return session;
-}
-
-/**
- * A session holding a small graph and nothing else.
- * @returns The session.
- */
-async function baseSession(): Promise<GraphSession> {
-    const session = sessionWithRuns();
-    await session.data.addNodes([
-        { id: "a", dept: 1 },
-        { id: "b", dept: 2 },
-        { id: "c", dept: 1 },
-    ]);
-    await session.data.addEdges([
-        { source: "a", target: "b", weight: 2 },
-        { source: "b", target: "c", weight: 3 },
-    ]);
-    return session;
-}
 
 /**
  * Save a session and open the file in a fresh one.

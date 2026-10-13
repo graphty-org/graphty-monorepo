@@ -103,20 +103,29 @@ function selectedPart(session: GraphSession, target: "node" | "edge"): ReturnTyp
 }
 
 describe("the Selected starting row's ring", () => {
-    it("stands 3:1 off the light and dark backgrounds and a black node, and one tone 3:1 off every default color", async () => {
+    it("is the selection settings' gold, carried by a near-black glow wherever the gold alone is faint", async () => {
         const session = await lesMis();
         await session.config.set({ startingRows: true });
         const set = selectedPart(session, "node")?.set ?? {};
         const ring = set["node.haloColor"] as string;
         const glow = set["node.glow"] as string;
 
-        assert.strictEqual(ring, STARTING_SELECTED_LOOK.ring);
+        assert.strictEqual(ring, session.config.selectionStyle.color, "the yellow highlight readers expect");
+        assert.strictEqual(ring, "#FFD700");
         assert.strictEqual(glow, STARTING_SELECTED_LOOK.glow);
         assert.strictEqual(set["node.haloOpacity"], 1, "solid, so the ring is the color measured");
         const band = selectedPart(session, "edge")?.set?.["edge.bandColor"] as string;
+        assert.strictEqual(band, session.config.selectionStyle.edgeColor);
         for (const background of [DEFAULT_BACKGROUND, ...DARK_BACKGROUNDS]) {
-            assert.isAtLeast(contrast(ring, background), 3, `ring on ${background}`);
+            assert.isAtLeast(
+                Math.max(contrast(ring, background), contrast(glow, background)),
+                3,
+                `ring on ${background}`,
+            );
             assert.isAtLeast(contrast(band, background), 3, `band on ${background}`);
+        }
+        for (const background of DARK_BACKGROUNDS) {
+            assert.isAtLeast(contrast(ring, background), 3, `the gold alone on ${background}`);
         }
         // The halo is what touches a black node (a route's): the glow is the same dark as the node.
         assert.isAtLeast(contrast(ring, "#000000"), 3, "ring on a black node");

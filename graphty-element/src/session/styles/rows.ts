@@ -244,28 +244,32 @@ export interface StartingRow {
 }
 
 /**
- * The ring a Selected row starts with: a solid mid-gray halo, with a near-black glow between it
- * and the node.
+ * The glow a Selected row starts with, between the node and its halo.
  *
- * The halo meets the background on its outside and, on a black node, the node on its inside, so
- * it must stand 3:1 off both default backgrounds (whitesmoke and the dark #101010 and #202020)
- * and off black. Only a mid gray does all three: #868686 is 3.3:1 or better against each. It is
- * close to most palette colors, so the near-black glow carries the ring against those (4:1 or
- * better against every color of the default categorical palette and the default node color).
- * No single color can stand 3:1 off black and off every palette color, which is why there are
- * two tones. `test/session/style-panel-facts.test.ts` measures both. The selection settings' own
- * default look (a pale gold halo) is unchanged; a Selected row takes only their sizes.
+ * The halo is the selection settings' own color (a gold ring by default, the yellow highlight
+ * readers expect), and a gold ring meets the light background and the default palette's yellow
+ * at well under 3:1. The near-black glow is the second tone that carries the ring there: 4:1 or
+ * better against whitesmoke, every color of the default categorical palette and the default node
+ * color, while the gold stands well off the dark backgrounds and a black node.
+ * `test/session/style-panel-facts.test.ts` measures both.
  */
-export const STARTING_SELECTED_LOOK = { ring: "#868686", glow: "#111111" } as const;
+export const STARTING_SELECTED_LOOK = { glow: "#111111" } as const;
 
 /**
- * The starting rows, with the Selected row's sizes from the selection settings.
+ * The starting rows, with the Selected row's look from the selection settings.
  * @param look - The selection settings' node halo and edge band.
+ * @param look.color - The halo's color.
  * @param look.scale - The halo's size, as a multiple of the node's drawn radius.
+ * @param look.edgeColor - The band's color.
  * @param look.edgeScale - The band's width, as a multiple of twice the line's width.
  * @returns The three rows, in the order they are added: Everything, Selected, Hovered.
  */
-export function startingRows(look: { readonly scale: number; readonly edgeScale: number }): readonly StartingRow[] {
+export function startingRows(look: {
+    readonly color: string;
+    readonly scale: number;
+    readonly edgeColor: string;
+    readonly edgeScale: number;
+}): readonly StartingRow[] {
     const source = (templateId: StartingRowId): RowSpec["source"] => ({ by: "template", templateId });
 
     return [
@@ -287,11 +291,11 @@ export function startingRows(look: { readonly scale: number; readonly edgeScale:
                 target: "both",
                 selector: { match: "state", state: "selected" },
                 set: {
-                    "node.haloColor": STARTING_SELECTED_LOOK.ring,
+                    "node.haloColor": look.color,
                     "node.haloSize": look.scale,
                     "node.haloOpacity": 1,
                     "node.glow": STARTING_SELECTED_LOOK.glow,
-                    "edge.bandColor": STARTING_SELECTED_LOOK.ring,
+                    "edge.bandColor": look.edgeColor,
                     "edge.bandWidth": look.edgeScale,
                     "edge.bandOpacity": 1,
                 },

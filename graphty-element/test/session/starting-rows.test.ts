@@ -146,7 +146,7 @@ describe("the starting rows", () => {
         assert.strictEqual(session.styles.counts(node).matched, 1);
         assert.strictEqual(session.styles.counts(node).painted["node.haloColor"], 1);
         assert.deepStrictEqual(session.styles.get(node)?.set, {
-            "node.haloColor": "#868686",
+            "node.haloColor": "#FFD700",
             "node.haloSize": 1.45,
             "node.haloOpacity": 1,
             "node.glow": "#111111",

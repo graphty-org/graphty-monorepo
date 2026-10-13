@@ -69,8 +69,8 @@ export interface AiModelDescriptor {
     readonly temperature?: { readonly min: number; readonly max: number };
 }
 
-/** Gemini 3 Flash's thinking levels. */
-const GEMINI_FLASH_EFFORTS: readonly AiReasoningEffort[] = ["minimal", "low", "medium", "high"];
+/** Gemini 3 Flash's thinking levels: gemini-3.8-flash refuses "minimal" (checked 2026-10-12). */
+const GEMINI_FLASH_EFFORTS: readonly AiReasoningEffort[] = ["low", "medium", "high"];
 /** Anthropic's extended thinking: a budget of at least 1,024 tokens. */
 const ANTHROPIC_THINKING: AiModelReasoning = { budgetTokens: { min: 1024 } };
 

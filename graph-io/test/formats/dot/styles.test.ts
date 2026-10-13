@@ -16,6 +16,7 @@ import { DOT_STYLE_BLOCK_ATTRIBUTE } from "../../../src/formats/dot/index.js";
 import { createRegistry } from "../../../src/registry.js";
 import {
     type ExtractedStyles,
+    extractStyles,
     featuresOf,
     planStyles,
     resolveStyles,
@@ -24,6 +25,7 @@ import {
     type StyleRule,
     type StyleTarget,
 } from "../../../src/styles/internal.js";
+import { charactersExamined } from "../../helpers/work-meter.js";
 import { editDotNodeFill, replaceDotBlock } from "../../styles/formats/dot.js";
 
 const registry = createRegistry();
@@ -911,6 +913,33 @@ describe("DOT styles: writing", () => {
         const back = await load(text);
         expect(drawn(back.styles, back.snapshot, "node", "label")).toEqual(["1", "2", "3"]);
         expect(plain(back.styles)).toEqual(plain(styles));
+    });
+
+    it("reads, writes and reads back styles examining characters in proportion to the graph", async () => {
+        const importer = registry.importer("dot");
+        const work = async (n: number): Promise<number[]> => {
+            const bytes = readFileSync(join(GENERATED, `random-${String(n)}.gv`));
+            const a = await registry.importGraph(bytes, { format: "dot" });
+            let ex: ExtractedStyles | null = null;
+            const read = await charactersExamined(() => {
+                ex = extractStyles(importer, a.snapshot, a.report);
+            });
+            let written: Uint8Array = new Uint8Array();
+            const write = await charactersExamined(async () => {
+                written = await registry.exportGraphToBytes(a.snapshot, "dot", { styles: ex });
+            });
+            const b = await registry.importGraph(written, { format: "dot" });
+            const readBack = await charactersExamined(() => {
+                extractStyles(importer, b.snapshot, b.report);
+            });
+            return [read, write, readBack];
+        };
+        const small = await work(100);
+        const large = await work(1000);
+        // ten times the elements; a step that examines a growing text per element is a hundred times the work
+        for (let k = 0; k < small.length; k++) {
+            expect(large[k] / small[k]).toBeLessThan(12);
+        }
     });
 });
 

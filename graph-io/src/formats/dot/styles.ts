@@ -1521,6 +1521,30 @@ export function dotStyledExport(
     if (input === undefined) {
         return null;
     }
+    // an export with styles checks before it writes, with the same graph and styles: work them out once
+    const done = STYLED_EXPORTS.get(input);
+    if (done?.snapshot === snapshot && done.onMixedDirection === onMixedDirection) {
+        return done.styled;
+    }
+    const styled = styledExport(snapshot, input, onMixedDirection);
+    STYLED_EXPORTS.set(input, { snapshot, onMixedDirection, styled });
+    return styled;
+}
+
+/** The last styled export worked out for each styles input, with the graph and option it was for. */
+const STYLED_EXPORTS = new WeakMap<
+    ExporterStyleInput,
+    { readonly snapshot: GraphSnapshot; readonly onMixedDirection: unknown; readonly styled: DotStyledExport }
+>();
+
+/**
+ * Works out a DOT export with styles: dotStyledExport() without the memo.
+ * @param snapshot - the graph handed to the exporter
+ * @param input - the styles
+ * @param onMixedDirection - the exporter's option
+ * @returns the styled export
+ */
+function styledExport(snapshot: GraphSnapshot, input: ExporterStyleInput, onMixedDirection: unknown): DotStyledExport {
     const approximated = new StyleApproximations();
     const replaced: LossNote[] = [];
     const out = snapshot.withColumns();

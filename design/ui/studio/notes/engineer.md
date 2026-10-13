@@ -1125,6 +1125,21 @@ conditions.ts` (a `.tsx` exporting functions trips react-refresh), the rows in `
   `undoWords.real-element` "says what Escape cleared ..." fail on this branch (no Selection
   treeitem; no hidden listbox), after the starting-rows commit.
 
+- (2026-10-12) WORKED: the owner-review stories open Les Miserables from the start screen
+  ("Open the Les Miserables sample"), so the app turns the starting rows and `runPlacement: "top"`
+  on itself, exactly as for a reader; a story that hands the Workspace a ready project is left as
+  its maker set it (`startProjectId` in `Workspace.tsx`) and would need the setting by hand. The
+  sample loads by URL, and both the storybook test project and `storybook build` serve
+  `graphty/public/samples/` (no `staticDirs` needed). Graph settings is reached by the tree footer's
+  "Graph settings" button, not `store.set`. Iteration 2's pictures are in
+  `tier3/build/owner-review/i2/` (local, gitignored).
+- (2026-10-12) `npm run docs:build` in graphty-element type-checks the tests through TypeDoc: a
+  test passing a `readonly` array to `assert.sameMembers` failed the docs build while lint passed.
+  Spread it (`[...session.selection.nodes]`). Guide pages with a runnable example get a test in
+  `test/documentation/<page>-guide.test.ts` that checks the page's first `ts` block is the code it
+  runs (`readable-values-guide.test.ts`). `readableValues()` lists the data's `id` column as
+  `data.id` beside the node id `id`.
+
 ## Sources
 
 - Digests in `design/ui/studio/digests/` (`tier1.md`, `decisions.md`, `study-rounds.md`,

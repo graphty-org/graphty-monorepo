@@ -5,9 +5,8 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import type { Meta, StoryObj } from "@storybook/react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
-import lesMiserables from "../../../public/samples/les-miserables.gml?raw";
 import { fixWallClock } from "../../test/fixedWallClock";
-import { createWorkspaceStore, type WorkspaceStore } from "../state/store";
+import { createWorkspaceStore } from "../state/store";
 import { Workspace } from "../Workspace";
 
 type GraphtyElement = HTMLElementTagNameMap["graphty-element"];
@@ -23,27 +22,38 @@ interface Scene {
 /** The people the Key people layer paints. */
 const KEY_PEOPLE = ["Valjean", "Javert", "Cosette", "Marius"];
 
+/** The page: the story's own root and the popovers Mantine renders in the body. */
+const page = (): ReturnType<typeof within> => within(document.body);
+
 /**
- * Loads Les Miserables (77 characters) into the story's element on a circle, so every capture
- * draws the same picture, and builds the panel's rows the way a reader would have by now: the
- * starting rows (Everything, Selected, Hovered); an Annotations folder holding Key people; a route
- * from Myriel to Marius on top; Louvain with community 3 given its own color; Edge betweenness;
- * Degree.
+ * Opens Les Miserables (77 characters) from the start screen, as a reader does, so the app gives
+ * it the starting rows (Everything, Selected, Hovered) itself. Lays it on a circle, so every
+ * capture draws the same picture, and builds the rest of the rows a reader would have by now: an
+ * Annotations folder holding Key people; a route from Myriel to Marius on top; Louvain with
+ * community 3 given its own color; Edge betweenness; Degree.
  * Each story then reaches its own state by real input.
  * @param canvasElement - the story's root.
  * @returns the scene.
  */
 async function loadScene(canvasElement: HTMLElement): Promise<Scene> {
+    await userEvent.click(await page().findByRole("button", { name: "Open the Les Miserables sample" }));
     await customElements.whenDefined("graphty-element");
-    const element = canvasElement.querySelector("graphty-element");
-    if (element === null) {
-        throw new Error("the story rendered no <graphty-element>");
-    }
+    const element = await waitFor(() => {
+        const found = canvasElement.querySelector("graphty-element");
+        expect(found).not.toBeNull();
+        return found as GraphtyElement;
+    });
     const { session } = element;
+    // The app loads the sample once the project's element is up.
+    await waitFor(
+        () => {
+            expect(session.data.statistics().nodeCount).toBe(77);
+        },
+        { timeout: 10_000 },
+    );
+    expect(session.config.startingRows).toBe(true);
     await session.layout.setDimension("2d");
     await session.layout.set("circular");
-    await session.data.import({ type: "gml", name: "les-miserables.gml", config: { data: lesMiserables } });
-    await session.config.set({ startingRows: true });
     const idOf = (name: string): string => {
         const node = session.data.nodes().find((n) => n.name === name);
         if (node === undefined) {
@@ -98,9 +108,6 @@ async function loadScene(canvasElement: HTMLElement): Promise<Scene> {
         runs: { degree, louvain, "edge-betweenness": betweenness, "shortest-path": route },
     };
 }
-
-/** The page: the story's own root and the popovers Mantine renders in the body. */
-const page = (): ReturnType<typeof within> => within(document.body);
 
 /**
  * Clicks a row of the style tree, as the reader picks it.
@@ -179,18 +186,16 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 /**
- * A story on a fresh store with the Les Miserables scene loaded.
+ * A story on a fresh store, opening on the start screen, with the Les Miserables scene loaded.
  * @param play - what the reader does once the scene is built.
  * @returns the story.
  */
-function sceneStory(play: (scene: Scene, store: WorkspaceStore) => Promise<void>): Story {
-    const store = createWorkspaceStore({ project: { name: "Les Miserables", id: 1 } });
+function sceneStory(play: (scene: Scene) => Promise<void>): Story {
     return {
-        args: { store },
+        args: { store: createWorkspaceStore() },
         play: async ({ canvasElement }) => {
-            store.set({ inspected: null });
             const scene = await loadScene(canvasElement);
-            await play(scene, store);
+            await play(scene);
             await scene.element.waitForStableFrame();
         },
     };
@@ -360,8 +365,7 @@ export const RouteValues: Story = sceneStory(async ({ runs }) => {
 });
 
 /** Graph settings: lighting, label rules and the highlight color. */
-export const GraphSettings: Story = sceneStory(async (_scene, store) => {
-    store.set({ inspected: { kind: "graph" } });
-    await clickTab("Style");
+export const GraphSettings: Story = sceneStory(async () => {
+    await userEvent.click(page().getByRole("button", { name: "Graph settings" }));
     await page().findByRole("combobox", { name: "Lighting" });
 });

@@ -36,6 +36,9 @@ This prints `Colors 2 of 4 nodes`, then `1 have no score; 1 cannot be placed on 
 - `noValue` -- matched elements that have no value (absent or null) for the field the layer reads.
 - `outsideScale` -- matched elements whose value the scale has no place for, such as 0 or a
   negative number on a logarithmic scale.
+- `paintedBy` -- the ids of the other layers the picture shows instead, on the elements this layer
+  matches but does not win, the layer that takes the most elements first. Empty when the layer
+  wins everywhere. Use it to say which layer paints over this one.
 - `revision` -- changes whenever the counts may have changed. Keep it beside a number you show and
   read the counts again when it would differ.
 
@@ -59,3 +62,12 @@ session.on("style:changed", () => {
 `styles.legend()` draws, but for any layer, including the element's own base layers. A layer that
 sets a fixed color answers one block with one swatch, so a layer list can draw a color chip
 beside the count. A hidden layer paints nothing and answers no blocks.
+
+Each block also carries `painted`: how many elements that block's layer paints on the block's
+channel right now, the same number `counts(layerId).painted[channel]` gives. It is 0 when the layer
+matches nothing (the Selected row with nothing selected) or when a layer above paints over all of
+it, so a legend can leave that block out instead of listing paint nobody can see:
+
+```ts
+const shown = session.styles.legend().filter((block) => block.painted !== 0);
+```

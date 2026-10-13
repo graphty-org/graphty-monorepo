@@ -102,6 +102,23 @@ sets the same channel:
 
 Layers that came from earlier runs never hold a later run back.
 
+## A run's layers in the style tree
+
+A run's layers are ordinary layers: rename, hide, move, edit and delete them as you would your
+own. A route paints nodes and edges, so it adds two layers, but they share one row of
+`session.styles.tree()` and one name, the way a row made with `target: "both"` does (see
+[One Row for Nodes & Edges](./style-rows-both-kinds)).
+
+To edit what a run's layer selects, read its selector as a rule with `selectorRule(layer.selector)`
+(from `@graphty/graphty-element/session`). It comes back as a condition on the run's value, such as
+"has a degree value" or "on the route", that matches the same elements, so the layer opens in a
+rule editor like any other (see [Rules & Text Matching](./style-rules)).
+
+Where a new run's layers land is the `runPlacement` setting (see
+[Everything, Selected & Hovered](./starting-rows)). With `"top"`, each run's layers land on top of the
+unpinned rows (beneath a row pinned to the top, such as Selected), so a later run sits above an
+earlier one.
+
 ## Choosing the color of a route
 
 A route or a chosen set of nodes is painted in graphty-element's own highlight color, indigo

@@ -65,6 +65,7 @@ export default defineConfig({
                         { text: "Styling", link: "/guide/styling" },
                         { text: "Coloring by a Column", link: "/guide/column-encoding" },
                         { text: "Counting What a Layer Paints", link: "/guide/layer-counts" },
+                        { text: "Listing Readable Values", link: "/guide/readable-values" },
                         { text: "Folders, Pins & Locks", link: "/guide/style-tree" },
                         { text: "One Row for Nodes & Edges", link: "/guide/style-rows-both-kinds" },
                         { text: "Everything, Selected & Hovered", link: "/guide/starting-rows" },

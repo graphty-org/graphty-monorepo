@@ -39,13 +39,13 @@ describe("selecting what a style layer paints", () => {
         assert.isDefined(row.edge);
 
         await session.selection.apply({ layer: row.node ?? "" });
-        assert.sameMembers(session.selection.nodes, ROUTE);
+        assert.sameMembers([...session.selection.nodes], ROUTE);
         assert.strictEqual(session.selection.edges.length, 0);
 
         await session.selection.apply({ layer: row.edge ?? "" }, "add");
         assert.strictEqual(session.selection.edges.length, session.styles.counts(row.edge ?? "").matched);
         assert.strictEqual(session.selection.edges.length, 4);
-        assert.sameMembers(session.selection.nodes, ROUTE);
+        assert.sameMembers([...session.selection.nodes], ROUTE);
     });
 
     it("refuses a layer the stack does not hold", async () => {

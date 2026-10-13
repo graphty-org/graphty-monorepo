@@ -9,7 +9,7 @@ import { DATA } from "./data.js";
 export { contiguousUsaMeta } from "./meta.js";
 
 /**
- * Contiguous United States: the 48 contiguous states and DC, joined by land borders, with their centres of population.
+ * Contiguous United States: the 48 contiguous states and DC, joined by land borders, with their centers of population.
  * @returns a fresh copy of the graph as typed arrays
  */
 export function contiguousUsa(): SampleGraph {

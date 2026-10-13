@@ -318,7 +318,7 @@ export function isPairConfig(config: Readonly<Record<string, unknown>>): boolean
 export class CSVDataSource extends DataSource {
     static readonly type = "csv";
 
-    private config: CSVDataSourceConfig;
+    private readonly config: CSVDataSourceConfig;
 
     /**
      * Creates a new CSVDataSource instance.

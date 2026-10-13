@@ -1215,9 +1215,9 @@ property the format cannot hold (`W_STYLE_` codes). See
 
 ## Try it
 
-- [Generators gallery](https://graphty.app/storybook/cytoscape-extensions/?path=/story/gallery--generators) draws a graph from every generator.
-- [Datasets gallery](https://graphty.app/storybook/cytoscape-extensions/?path=/story/gallery--datasets) draws every dataset.
-- [Formats gallery](https://graphty.app/storybook/cytoscape-extensions/?path=/story/gallery--formats) shows one graph in every format.
+- [Generators gallery](https://graphty.app/storybook/cytoscape-extensions/?path=/story/gallery-generators--overview) draws a graph from every generator.
+- [Datasets gallery](https://graphty.app/storybook/cytoscape-extensions/?path=/story/gallery-datasets--overview) draws every dataset.
+- [Formats gallery](https://graphty.app/storybook/cytoscape-extensions/?path=/story/gallery-formats--overview) shows one graph in every format.
 
 ## See also
 

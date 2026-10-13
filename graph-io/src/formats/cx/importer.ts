@@ -371,8 +371,8 @@ const TABLE_STYLE_ASPECTS: readonly string[] = ["tableVisualProperties", "cyTabl
 const OWN_EXTRA_KEYS: readonly string[] = ["groups", "subnetwork"];
 
 /** The first keys that make a head CX for sure, and the other aspect names a CX document may start with. */
-const CX_FIRST_KEYS: readonly string[] = ["numberVerification", "metaData"];
-const CX_ASPECT_KEYS: readonly string[] = [
+const CX_FIRST_KEYS: ReadonlySet<string> = new Set(["numberVerification", "metaData"]);
+const CX_ASPECT_KEYS: ReadonlySet<string> = new Set([
     "nodes",
     "edges",
     "nodeAttributes",
@@ -396,7 +396,7 @@ const CX_ASPECT_KEYS: readonly string[] = [
     "citations",
     "supports",
     "functionTerms",
-];
+]);
 
 // ============================================================ values
 
@@ -798,7 +798,7 @@ function isCxAspect(name: string): boolean {
     return (
         READ_ASPECTS.has(name) ||
         OLD_ASPECT_NAMES.has(name) ||
-        CX_ASPECT_KEYS.includes(name) ||
+        CX_ASPECT_KEYS.has(name) ||
         TABLE_STYLE_ASPECTS.includes(name)
     );
 }
@@ -3358,10 +3358,10 @@ export const cxImporter: GraphImporter<CxImportOptions> = Object.freeze({
         if (match === null) {
             return 0;
         }
-        if (CX_FIRST_KEYS.includes(match[1])) {
+        if (CX_FIRST_KEYS.has(match[1])) {
             return 0.95;
         }
-        return CX_ASPECT_KEYS.includes(match[1]) ? 0.7 : 0;
+        return CX_ASPECT_KEYS.has(match[1]) ? 0.7 : 0;
     },
 
     /**

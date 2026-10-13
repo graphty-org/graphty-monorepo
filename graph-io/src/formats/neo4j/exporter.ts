@@ -1170,10 +1170,7 @@ class ExportPlan {
             return null;
         }
         if (labels.dtype === "list") {
-            return labels
-                .sliceOf(index)
-                .map((item) => String(item))
-                .join(this.options.arrayDelimiter);
+            return labels.sliceOf(index).map(String).join(this.options.arrayDelimiter);
         }
         return textOf(labels, index);
     }

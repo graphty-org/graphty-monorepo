@@ -43,7 +43,7 @@ export class VercelAiProvider implements LlmProvider {
     private baseUrl?: string;
     private maxTokens?: number;
     private temperature?: number;
-    private providerType: VercelProviderType;
+    private readonly providerType: VercelProviderType;
 
     /**
      * Creates a new VercelAiProvider instance.

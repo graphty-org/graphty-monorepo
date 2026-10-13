@@ -374,7 +374,7 @@ const gexf = await exportElements(eles, "gexf");
 
 ## Next
 
-- [Export and import demo](https://graphty.app/storybook/cytoscape-extensions/?path=/story/demo-graphs--export-and-import): try every format in the browser.
+- [Karate club story](https://graphty.app/storybook/cytoscape-extensions/?path=/story/gallery-datasets--karate): pick a format in its round-trip control to write the graph and read it back in the browser.
 
 - [Load a GraphML file](./recipes/load-graphml-file): let a user pick a file, show it, and save it back.
 - [Generators, datasets and formats](../reference/graphs): every option, size and license, and the galleries.

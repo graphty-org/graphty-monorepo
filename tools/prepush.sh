@@ -221,7 +221,7 @@ echo ""
 # Tests: the test shards CI's test job runs for this push, with CI's commands and environment, read
 # from tools/ci-test-matrix.mjs (the list ci.yml plans from) by tools/prepush-tests.mjs, so this gate
 # and CI cannot drift -- except the shards whose "local" policy there leaves them to CI: graphty-element's
-# ten browser and storybook shards (about 15 minutes) run here only when the push changes a file they
+# eleven browser and storybook shards (about 15 minutes) run here only when the push changes a file they
 # test, compared with $BASE (PREPUSH_ALL=1 has no base and runs them all). Browser shards share the machine's four-browser cap; the first failing shard
 # stops the rest. Each shard's log is in tmp/prepush-tests/. The whole stage fails past
 # PREPUSH_TESTS_TIMEOUT (default 90m), counted from its start, so time spent queued for a browser slot

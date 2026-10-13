@@ -38,11 +38,11 @@ export function cameraForViewMode(viewMode: string): CameraKey | undefined {
  * Provides functionality to register, activate, and switch between different camera types.
  */
 export class CameraManager {
-    private scene: Scene;
+    private readonly scene: Scene;
     private activeCameraController: CameraController | null = null;
     private activeInputHandler: InputHandler | null = null;
-    private controllers = new Map<CameraKey, CameraController>();
-    private inputs = new Map<CameraKey, InputHandler>();
+    private readonly controllers = new Map<CameraKey, CameraController>();
+    private readonly inputs = new Map<CameraKey, InputHandler>();
 
     /**
      * Creates a new CameraManager instance.

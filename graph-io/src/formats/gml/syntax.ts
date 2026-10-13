@@ -218,7 +218,7 @@ export class GmlTokens {
         if (this.backslashEscapes && text.includes("\\")) {
             text = text.replaceAll(/\\([\s\S])/g, "$1");
         }
-        if (text.indexOf("&") < 0) {
+        if (!text.includes("&")) {
             return text;
         }
         const report = this.onUnknownEntity;

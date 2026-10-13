@@ -204,10 +204,10 @@ export function meshChannelsFor(target: "node" | "edge"): readonly Channel[] {
 // ---------------------------------------------------------------------------------------------
 
 /** The 32-bit FNV-1a offset basis, which is where every sequence's fold starts. */
-const HASH_SEED = 0x811c_9dc5;
+const HASH_SEED = 0x81_1c_9d_c5;
 
 /** The 32-bit FNV-1a prime, which is what each pushed value is folded in with. */
-const HASH_PRIME = 0x0100_0193;
+const HASH_PRIME = 0x01_00_01_93;
 
 /** The value an absent channel contributes. */
 const ABSENT_TOKEN = 0;
@@ -267,7 +267,7 @@ const INT_VIEW = new Int32Array(FLOAT_BITS);
  */
 function finish(hash: number): number {
     let mixed = hash ^ (hash >>> 16);
-    mixed = Math.imul(mixed, 0x85eb_ca6b);
+    mixed = Math.imul(mixed, 0x85_eb_ca_6b);
     mixed ^= mixed >>> 13;
 
     return mixed | 0;

@@ -1,3 +1,18 @@
+## 0.1.29 (2026-10-13)
+
+### 🩹 Fixes
+
+- **tools:** cap each test slot's Node workers at its share of the cores ([9daf98f16](https://github.com/graphty-org/graphty-monorepo/commit/9daf98f16))
+- **graph-samples:** use American spelling in the dataset descriptions ([#2105](https://github.com/graphty-org/graphty-monorepo/issues/2105))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.3.14
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.1.28 (2026-10-12)
 
 ### 🧱 Updated Dependencies

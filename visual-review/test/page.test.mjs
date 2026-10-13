@@ -1726,10 +1726,25 @@ describe("review page: the decision bar", () => {
         await page.keyboard.press("k");
         await ready();
         await stopClock();
+        // The first tap's decision is held at the server until both taps are in, so the second
+        // lands while it saves, as a quick double tap does. Released at once, the first decision
+        // could finish between the taps, or replace the second tap's message before the test read
+        // it (#2422). A second tap after the next image showed is the Space-twice test above.
+        let release;
+        const held = new Promise((resolve) => (release = resolve));
+        let decides = 0;
+        await page.route("**/api/decide*", async (route) => {
+            decides++;
+            await held;
+            await route.continue();
+        });
         await page.locator("#accept").click();
         await page.locator("#accept").click();
+        expect(await status()).toBe("Still saving the last decision.");
+        release();
         await expect.poll(position).toMatch(/^3 of /);
-        await expect.poll(status).toMatch(/^(Ignored|Loading images|Still saving)/);
+        // The second tap decided nothing: one decision went to the server, and #3 is undecided.
+        expect(decides).toBe(1);
         expect(await page.locator("#accept").getAttribute("aria-pressed")).toBe("false");
     });
 });

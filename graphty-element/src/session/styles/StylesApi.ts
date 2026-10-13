@@ -523,7 +523,7 @@ export interface StylesApi {
      *
      * That covers every route and chosen set a finished run paints by itself, and every
      * `highlight()` called without `set`. A highlighted edge is still drawn three times as wide.
-     * The element's own colour is Paul Tol's indigo `#332288`; a consumer whose drawings need a
+     * The element's own colour is ultramarine `#0000AA`; a consumer whose drawings need a
      * route to stand apart from its own node colours more strongly sets its own.
      *
      * A view setting, not a step: it records nothing in the history, is not saved with the
@@ -546,7 +546,7 @@ export interface StylesApi {
      * a highlight would give them.
      *
      * ```ts
-     * session.styles.highlightStyle("edge"); // { "edge.color": "#332288", "edge.width": 24 }
+     * session.styles.highlightStyle("edge"); // { "edge.color": "#0000AA", "edge.width": 24 }
      * ```
      * @param target - Nodes or edges.
      * @returns A fresh object; changing it changes nothing in the session.
@@ -1132,25 +1132,27 @@ const NO_INDEX = (): number | undefined => undefined;
  * {@link StylesApi.setHighlightColor}.
  *
  * A highlight is drawn OVER the default indigo node, the default darkgrey edge, the whitesmoke
- * background AND whatever a measurement painted the other nodes, so it is chosen against all of
- * them rather than on its own. Paul Tol's indigo is at least Delta E 19 from each of them -- every
- * colour of the default measurement palette included -- at normal vision and under all three
- * kinds of colour blindness, and 11:1 against the background. The Okabe-Ito vermilion it replaced
- * sat inside the default measurement palette (Delta E 1 from its second step), so a route drawn
- * over nodes coloured by a score read as low-scored nodes; the blue before that was Delta E 13
- * from the default node. `test/catalog/default-palette-quality.test.ts` measures it.
+ * background AND whatever a measurement or a group encoding painted the other nodes, so it is
+ * chosen against all of them rather than on its own. Ultramarine `#0000AA` is at least Delta E 15
+ * from the default node, the default edge, the background and every colour of the default
+ * measurement palette for every kind of colour vision, 12:1 against the background, and at least
+ * Delta E 20 from every colour of the default group palette and its grey (8 or more under
+ * protanopia and deuteranopia), so a route drawn over communities never reads as one of them.
+ * Paul Tol's indigo, the colour before it, is in the Tol muted group palette, and black, a common
+ * choice for a route, is the default group palette's seventh; the Okabe-Ito vermilion before the
+ * indigo sat inside the default measurement palette. `test/catalog/default-palette-quality.test.ts`
+ * measures it.
  *
- * It is a neutral default, not the best colour for every drawing: rendered as lit spheres on a
- * drawing with no measure, an indigo route's nodes sit close to the default nodes in lightness.
- * A consumer that wants a route to stand out more on its own drawings chooses its colour with
- * {@link StylesApi.setHighlightColor}.
+ * It is a neutral default, not the best colour for every drawing: a group encoding that names
+ * another palette may hold a colour close to it. A consumer that wants a route to stand out more
+ * on its own drawings chooses its colour with {@link StylesApi.setHighlightColor}.
  *
  * Colour alone is not enough for an edge: a thin line at the default width reads as a thin line
  * whatever its colour, so a highlighted edge is also drawn three times as wide. A node gets no
  * size, because a size here would flatten whatever size encoding the layers beneath it drew.
  */
 export const DEFAULT_HIGHLIGHT = {
-    color: "#332288",
+    color: "#0000AA",
     edgeWidth: EDGE_CONSTANTS.DEFAULT_LINE_WIDTH * 3,
 } as const;
 

@@ -1142,8 +1142,8 @@ describe("highlight(), which is exclusive", () => {
         assert.deepStrictEqual(nodes?.set, { "node.color": DEFAULT_HIGHLIGHT.color });
     });
 
-    it("keeps Paul Tol's indigo as the element's own highlight colour", () => {
-        assert.strictEqual(DEFAULT_HIGHLIGHT.color, "#332288");
+    it("keeps ultramarine as the element's own highlight colour", () => {
+        assert.strictEqual(DEFAULT_HIGHLIGHT.color, "#0000AA");
     });
 
     it("paints the consumer's highlight colour on both halves, and the element's again once cleared", async () => {

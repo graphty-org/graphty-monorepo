@@ -20,7 +20,7 @@ import { assert, describe, it } from "vitest";
 import { defaultEdgeStyle } from "../../src/config/EdgeStyle";
 import { DEFAULT_SELECTION_STYLE, GraphStyle } from "../../src/config/GraphStyle";
 import { defaultNodeStyle } from "../../src/config/NodeStyle";
-import { OTHER_GROUP_COLOR } from "../../src/config/palettes/categorical";
+import { OKABE_ITO_COLORS, OTHER_GROUP_COLOR } from "../../src/config/palettes/categorical";
 import { prepareRamp } from "../../src/session/styles/palettes";
 import { createScaleRegistry } from "../../src/session/styles/scales";
 import { DEFAULT_HIGHLIGHT } from "../../src/session/styles/StylesApi";
@@ -329,6 +329,25 @@ describe("the element's own highlight colour", () => {
                     deltaE(DEFAULT_HIGHLIGHT.color, color, vision),
                     15,
                     `${vision ?? "normal"}: ${DEFAULT_HIGHLIGHT.color} vs the measurement colour ${color}`,
+                );
+            }
+        }
+    });
+});
+
+describe("the element's own highlight colour among the group colours", () => {
+    // A route is often found on a graph coloured by community: a highlight that is one of the
+    // group colours (black is the seventh) reads as one more community.
+    const groups = [...OKABE_ITO_COLORS, OTHER_GROUP_COLOR];
+
+    it("is apart from every colour of the default group palette and its grey (Delta E >= 15, >= 6 under protanopia and deuteranopia)", () => {
+        for (const color of groups) {
+            assert.isAtLeast(deltaE(DEFAULT_HIGHLIGHT.color, color), 15, `${DEFAULT_HIGHLIGHT.color} vs ${color}`);
+            for (const vision of ["protan", "deutan"] as const) {
+                assert.isAtLeast(
+                    deltaE(DEFAULT_HIGHLIGHT.color, color, vision),
+                    6,
+                    `${vision}: ${DEFAULT_HIGHLIGHT.color} vs ${color}`,
                 );
             }
         }

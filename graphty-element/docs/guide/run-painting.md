@@ -121,10 +121,10 @@ earlier one.
 
 ## Choosing the color of a route
 
-A route or a chosen set of nodes is painted in graphty-element's own highlight color, indigo
-`#332288`, and a highlighted edge is drawn three times as wide. To use your own color for every
-highlight a run paints, and for every `session.styles.highlight()` you call without `set`, set it
-once:
+A route or a chosen set of nodes is painted in graphty-element's own highlight color, ultramarine
+`#0000AA`, which stands apart from every color of the default group palette, and a highlighted edge
+is drawn three times as wide. To use your own color for every highlight a run paints, and for every
+`session.styles.highlight()` you call without `set`, set it once:
 
 ```ts
 session.styles.setHighlightColor("#000000");

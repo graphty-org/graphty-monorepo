@@ -2,6 +2,9 @@ import { fileURLToPath } from "node:url";
 
 import { defineConfig } from "vitest/config";
 
+import { workerShare } from "../tools/test-slots.mjs";
+import { ciReporters } from "../vitest.ci-junit.mjs";
+
 // Standalone rather than vitest.shared.config.ts, like graph-format: the shared factory runs happy-dom, and
 // headless Cytoscape needs no DOM. @graphty/* resolve through their dist/, so build them first (nx does).
 export default defineConfig({
@@ -17,6 +20,9 @@ export default defineConfig({
     test: {
         // The machine-wide limit on concurrent test runs (tools/test-slots.mjs; off on GitHub Actions).
         globalSetup: ["../tools/test-slots.mjs"],
+        // At most this run's share of the cores for the Node projects (tools/test-slots.mjs); browser
+        // projects keep their own maxWorkers or fileParallelism.
+        maxWorkers: workerShare(),
         globals: true,
         // The workspace packages resolve to their built dist/ outside node_modules, so vitest would transform them
         // (graph-io's 13 MB took 2 s on its first import); load them as plain Node modules like any dependency.
@@ -31,7 +37,7 @@ export default defineConfig({
         // child Node and wait for it to exit (6 s for the strict-consumer tsc run on an idle machine).
         testTimeout: 30000,
         hookTimeout: 30000,
-        reporters: process.env.CI ? ["default"] : ["verbose"],
+        reporters: [...(process.env.CI ? ["default"] : ["verbose"]), ...ciReporters()],
         coverage: {
             provider: "v8",
             reporter: ["text", "json-summary", "json", "lcov", "html"],

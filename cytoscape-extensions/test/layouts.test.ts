@@ -429,3 +429,63 @@ describe("library fixes found by the docs review", () => {
         expect(change(before, shape(cy))).toBeLessThan(0.05);
     });
 });
+
+describe("a destroyed core", () => {
+    for (const name of LAYOUT_NAMES) {
+        it(`graphty-${name}: a run started on a destroyed core is refused with E_CORE_DESTROYED, then layoutstop`, async () => {
+            const cy = makeCy();
+            cy.destroy();
+            const seen: string[] = [];
+            const errors: unknown[] = [];
+            const layout = cy.layout({ name: `graphty-${name}`, boundingBox: BOX } as unknown as LayoutOptions);
+            layout.on(EVENTS, (e: EventObject) => seen.push(e.type));
+            layout.on("layouterror", (_e: EventObject, error: unknown) => errors.push(error));
+            const done = layout.pon("layoutstop");
+            layout.run();
+            await done;
+            expect(seen).toEqual(["layoutstop"]);
+            expect(errors).toHaveLength(1);
+            expect((errors[0] as { code?: string }).code).toBe("E_CORE_DESTROYED");
+        });
+    }
+
+    it("a continuous run whose core is destroyed stops at its next frame with layoutstop alone", async () => {
+        const cy = makeCy();
+        const seen: string[] = [];
+        const layout = cy.layout({
+            name: "graphty-forceatlas2",
+            animate: true,
+            maxIter: 1_000_000,
+            settleThreshold: 0,
+            boundingBox: BOX,
+        } as unknown as LayoutOptions);
+        layout.on(`${EVENTS} layouterror`, (e: EventObject) => seen.push(e.type));
+        vi.useFakeTimers();
+        try {
+            const done = layout.pon("layoutstop");
+            layout.run();
+            expect(seen).toEqual(["layoutstart", "layoutready"]);
+            cy.destroy();
+            // the next frame would write positions to the destroyed core ("reading 'notify'" of its null renderer)
+            vi.runAllTimers();
+            await done;
+            expect(vi.getTimerCount()).toBe(0);
+        } finally {
+            vi.useRealTimers();
+        }
+        expect(seen).toEqual(["layoutstart", "layoutready", "layoutstop"]);
+    });
+
+    it("a container whose size reads NaN (detached from the page) lays out in a 1 x 1 box, not NaN", async () => {
+        for (const name of ["graphty-forceatlas2", "graphty-circular"]) {
+            const cy = makeCy();
+            vi.spyOn(cy, "width").mockReturnValue(Number.NaN);
+            vi.spyOn(cy, "height").mockReturnValue(Number.NaN);
+            const layout = cy.layout({ name, seed: 7 } as unknown as LayoutOptions);
+            const done = layout.pon("layoutstop");
+            layout.run();
+            await done;
+            expectPlaced(cy);
+        }
+    });
+});

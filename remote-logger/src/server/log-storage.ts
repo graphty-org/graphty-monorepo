@@ -205,10 +205,10 @@ export interface LogStorageOptions {
  * multiple sessions with support for project marker filtering.
  */
 export class LogStorage {
-    private sessions = new Map<string, SessionData>();
-    private startTime = Date.now();
-    private jsonlWriter?: JsonlWriter;
-    private retentionDays: number;
+    private readonly sessions = new Map<string, SessionData>();
+    private readonly startTime = Date.now();
+    private readonly jsonlWriter?: JsonlWriter;
+    private readonly retentionDays: number;
     private cleanupTimer?: ReturnType<typeof setInterval>;
     private serverConfig?: ServerConfig;
 

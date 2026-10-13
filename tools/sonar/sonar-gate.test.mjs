@@ -13,7 +13,19 @@ import { after, describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { isolatedGitEnv } from "../isolated-git-env.mjs";
-import { decide, globToRegExp, lineHash, mapOldLine, nosonarComment, parseHunks } from "../sonar-gate.mjs";
+import { ApiError } from "./api.mjs";
+import {
+    decide,
+    globToRegExp,
+    isNetworkError,
+    lineHash,
+    mapOldLine,
+    mapOldLineExact,
+    nosonarComment,
+    parseHunks,
+    scannerFailure,
+    spanText,
+} from "../sonar-gate.mjs";
 
 const GATE = join(dirname(fileURLToPath(import.meta.url)), "..", "sonar-gate.mjs");
 const TOKEN = "squ_fake_token_0123456789abcdef";
@@ -69,9 +81,24 @@ console.log("INFO: fake scan done");
 );
 chmodSync(scanner, 0o755);
 
+// A scanner that fails: prints the recorded output named by SCANNER_FIXTURE (plus, to check the
+// redaction, the token it was given and a URL with credentials in it) and exits 1.
+const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), "fixtures");
+const failingScanner = join(scratch, "failing-scanner.mjs");
+writeFileSync(
+    failingScanner,
+    `#!/usr/bin/env node
+import { readFileSync } from "node:fs";
+process.stdout.write(readFileSync(process.env.SCANNER_FIXTURE, "utf8"));
+console.log("[ERROR] Bootstrapper: token " + process.env.SONAR_TOKEN + " at http://user:" + process.env.SONAR_TOKEN + "@host/");
+process.exit(1);
+`,
+);
+chmodSync(failingScanner, 0o755);
+
 // A fake SonarQube. `local` are <key>-local's issues, `master` master's issues by file, `hotspots`
 // <key>-local's hotspots. Records every request with whether it carried the token.
-async function server({ local = [], master = {}, hotspots = [], admin = false } = {}) {
+async function server({ local = [], master = {}, hotspots = [], admin = false, fail = {} } = {}) {
     const seen = [];
     const json = (res, code, body) => {
         res.writeHead(code, { "Content-Type": "application/json" });
@@ -83,6 +110,7 @@ async function server({ local = [], master = {}, hotspots = [], admin = false } 
         const authed = req.headers.authorization === `Bearer ${TOKEN}`;
         seen.push({ path: url.pathname, authed, auth: req.headers.authorization ?? "" });
         const page = (field, items) => json(res, 200, { paging: { total: items.length }, [field]: items });
+        if (fail[url.pathname]) return json(res, fail[url.pathname], { errors: [{ msg: "failed" }] });
         switch (url.pathname) {
             case "/api/system/status":
                 return json(res, 200, { id: SERVER_ID, status: "UP" });
@@ -201,6 +229,73 @@ describe("sonar-gate: when it cannot check", () => {
     });
 });
 
+// Every recorded scanner failure: the gate's verdict, and a line of the cause it must print.
+// bootstrap-* are the Node bootstrapper's own errors, engine-* the Java engine's. The first, and the
+// two non-network engine ones, come from pre-push logs of 2026-10-03 to 2026-10-10 (the old gate kept
+// only the last 20 lines); the rest were recorded on 2026-10-10 against the real server through a
+// proxy that answered 503 or closed the connection on one request. Host names and home directories
+// are replaced.
+const SCANNER_FAILURES = [
+    ["bootstrap-enotfound.txt", "skipped:server-fault", /getaddrinfo ENOTFOUND sonarqube\.example\.lan/],
+    ["bootstrap-econnrefused.txt", "skipped:server-fault", /connect ECONNREFUSED 127\.0\.0\.1:9/],
+    ["bootstrap-socket-hang-up.txt", "skipped:server-fault", /socket hang up/],
+    ["engine-unknown-host.txt", "skipped:server-fault", /Caused by: java\.net\.UnknownHostException/],
+    ["engine-http-503.txt", "skipped:server-fault", /Caused by: org\.sonarqube\.ws\.client\.HttpException: Error 503/],
+    ["engine-http-503-on-submit.txt", "skipped:server-fault", /Failed to upload report: Error 503/],
+    ["engine-end-of-stream.txt", "skipped:server-fault", /Caused by: java\.io\.IOException: unexpected end of stream/],
+    ["engine-connection-refused-on-submit.txt", "skipped:server-fault", /Caused by: java\.net\.ConnectException/],
+    ["bootstrap-http-401.txt", "blocked", /Request failed with status code 401/],
+    ["engine-nosuchfile.txt", "blocked", /Caused by: java\.nio\.file\.NoSuchFileException/],
+    ["engine-bridge-timeout.txt", "blocked", /Failed to start the bridge server/],
+];
+
+describe("sonar-gate: when the scanner fails", () => {
+    for (const [fixture, outcome, cause] of SCANNER_FAILURES) {
+        it(`${fixture}: ${outcome}, printing the cause`, async () => {
+            const s = await server();
+            const r = await gate(repo(HEAD_NEW), {
+                SONAR_HOST_URL: s.url,
+                SONAR_SCAN_TOKEN: TOKEN,
+                SONAR_GATE_SCANNER: failingScanner,
+                SCANNER_FIXTURE: join(FIXTURES, fixture),
+            });
+            assert.equal(r.code, outcome === "blocked" ? 1 : 0, r.out);
+            assert.match(r.log, new RegExp(` ${outcome} `));
+            assert.match(r.out, cause);
+            if (outcome === "blocked") assert.match(r.out, /SonarQube step cannot run: the scanner failed \(exit 1\)/);
+            else assert.match(r.out, /SonarQube did NOT check this push/);
+            assert.doesNotMatch(r.out, /^\s+at /m, "no stack frames");
+            assert.ok(!r.out.includes(TOKEN), "the token is not in the output");
+        });
+    }
+
+    it("passes with the warning when the server fails after the scan (HTTP 503 on api/ce/task)", async () => {
+        const s = await server({ fail: { "/api/ce/task": 503 } });
+        const r = await gate(repo(HEAD_NEW), { SONAR_HOST_URL: s.url, SONAR_SCAN_TOKEN: TOKEN });
+        assert.equal(r.code, 0, r.out);
+        assert.match(r.out, /SonarQube did NOT check this push/);
+        assert.match(r.log, / skipped:server-fault /);
+    });
+
+    it("blocks when the server refuses a read (HTTP 403 on api/issues/search)", async () => {
+        const s = await server({ fail: { "/api/issues/search": 403 } });
+        const r = await gate(repo(HEAD_NEW), { SONAR_HOST_URL: s.url, SONAR_SCAN_TOKEN: TOKEN });
+        assert.equal(r.code, 1, r.out);
+        assert.match(r.log, / blocked /);
+    });
+
+    it("blocks when the scratch project is missing, and passes when the server fails on that check", async () => {
+        const missing = await server({ fail: { "/api/components/show": 404 } });
+        const r1 = await gate(repo(HEAD_NEW), { SONAR_HOST_URL: missing.url, SONAR_SCAN_TOKEN: TOKEN });
+        assert.equal(r1.code, 1, r1.out);
+        assert.match(r1.out, /project proj-local is missing/);
+        const down = await server({ fail: { "/api/components/show": 502 } });
+        const r2 = await gate(repo(HEAD_NEW), { SONAR_HOST_URL: down.url, SONAR_SCAN_TOKEN: TOKEN });
+        assert.equal(r2.code, 0, r2.out);
+        assert.match(r2.log, / skipped:server-fault /);
+    });
+});
+
 describe("sonar-gate: the verdict", () => {
     it("blocks a new issue on a changed line, and never leaks the token", async () => {
         const s = await server({ local: [issue(2, "    return 1 + 1;")] });
@@ -294,6 +389,29 @@ describe("sonar-gate: the verdict", () => {
 });
 
 describe("sonar-gate: helpers", () => {
+    it("keeps only the scanner's error and cause lines, credentials masked", () => {
+        const { cause, network } = scannerFailure(
+            readFileSync(join(FIXTURES, "engine-connection-refused-on-submit.txt"), "utf8") +
+                "[ERROR] see http://user:secret@host/x\n",
+        );
+        assert.ok(network);
+        assert.equal(cause[0], "[ERROR] ScannerEngine: Error during SonarScanner Engine execution");
+        assert.match(cause[1], /^java\.lang\.IllegalStateException: Failed to upload report/);
+        assert.ok(cause.every((l) => !/^at /.test(l)));
+        assert.ok(cause.includes("Caused by: java.net.ConnectException: Connection refused"));
+        assert.equal(cause.at(-1), "[ERROR] see http://***@host/x");
+        assert.deepEqual(scannerFailure("no errors here\n"), { cause: [], network: false });
+    });
+
+    it("tells a network or server fault of an API call from a refusal", () => {
+        assert.ok(isNetworkError(new ApiError(503, "api/ce/task", "")));
+        assert.ok(!isNetworkError(new ApiError(401, "api/users/current", "")));
+        assert.ok(isNetworkError(new TypeError("fetch failed", { cause: { code: "ENOTFOUND" } })));
+        assert.ok(isNetworkError(new TypeError("fetch failed", { cause: { code: "UND_ERR_SOCKET" } })));
+        assert.ok(isNetworkError(new DOMException("timed out", "TimeoutError")));
+        assert.ok(!isNetworkError(new TypeError("Cannot read properties of undefined")));
+    });
+
     it("computes SonarQube's line hash (whitespace removed)", () => {
         assert.equal(lineHash("  a = 1;"), lineHash("a=1;"));
         // Two lines of graph-io/src/formats/json/importer.ts at 5ba15bb7 and the `hash` the server's
@@ -378,5 +496,185 @@ describe("sonar-gate: helpers", () => {
         assert.ok(nosonarComment("f(); // NOSONAR(S1234): a good reason here"));
         assert.equal(nosonarComment('const s = "// NOSONAR";'), null);
         assert.equal(nosonarComment(" * `// NOSONAR(<rule>)` is the form"), null);
+    });
+});
+// Issue #2166: an edit to a line that already carries a finding on master must not make that
+// finding look new, and must not let a new one through either.
+describe("sonar-gate: findings on a line edited in place", () => {
+    const S1234 = "typescript:S1234";
+    const S5852 = "typescript:S5852";
+    const BASE_LINES = ["const a = 1;", 's = s.replace(/(a+)+$/g, "");', "const c = 3;"];
+    const EDITED = ["const a = 1;", 's = s.replaceAll(/(a+)+$/g, "");', "const c = 3;"];
+    const REGEX = "/(a+)+$/g";
+    const ONE_LINE_EDIT = [{ oldStart: 2, oldCount: 1, newStart: 2, newCount: 1 }];
+    const file = (lines = EDITED, hunks = ONE_LINE_EDIT, baseLines = BASE_LINES) =>
+        new Map([["f.ts", { oldPath: "f.ts", hunks, lines, baseLines }]]);
+    // The range of `code` on `line` of `lines`, as the APIs report it.
+    const range = (lines, line, code = REGEX) => {
+        const startOffset = lines[line - 1].indexOf(code);
+        assert.ok(startOffset >= 0, `${code} on line ${line}`);
+        return { startLine: line, endLine: line, startOffset, endOffset: startOffset + code.length };
+    };
+    const finding = (lines, line, rule, more = {}) => ({
+        line,
+        rule,
+        message: "Do not do that.",
+        hash: lineHash(lines[line - 1]),
+        textRange: range(lines, line),
+        type: "CODE_SMELL",
+        ...more,
+    });
+    const local = (line, rule = S1234, more = {}, lines = EDITED) => ({
+        path: "f.ts",
+        ...finding(lines, line, rule, more),
+    });
+    const prior = (line, rule = S1234, more = {}) => finding(BASE_LINES, line, rule, more);
+    const hotspot = (lines, line, more = {}) => ({
+        ruleKey: S5852,
+        line,
+        message: "Make sure the regex used here cannot lead to denial of service.",
+        textRange: range(lines, line),
+        status: "TO_REVIEW",
+        ...more,
+    });
+    const localHotspot = (line, lines = EDITED) => ({ path: "f.ts", ...hotspot(lines, line) });
+    const run = ({ issues = [], hotspots = [], masterIssues = [], masterHotspots = [] }, files = file()) =>
+        decide({
+            local: { issues, hotspots },
+            master: {
+                issuesByFile: () => masterIssues,
+                hotspotsByFile: () => masterHotspots,
+                lineAt: (_p, line) => BASE_LINES[line - 1] ?? null,
+            },
+            files,
+        });
+
+    it("maps an old line through an edit in place, and not through a hunk that changed the line count", () => {
+        const hunks = [
+            { oldStart: 2, oldCount: 2, newStart: 2, newCount: 2 },
+            { oldStart: 6, oldCount: 1, newStart: 6, newCount: 3 },
+        ];
+        assert.equal(mapOldLineExact(hunks, 1), 1);
+        assert.equal(mapOldLineExact(hunks, 3), 3);
+        assert.equal(mapOldLineExact(hunks, 6), null);
+        assert.equal(mapOldLineExact(hunks, 7), 9);
+    });
+
+    it("cuts the code a finding points at out of the file", () => {
+        assert.equal(spanText(BASE_LINES, range(BASE_LINES, 2)), REGEX);
+        const multi = { startLine: 1, endLine: 2, startOffset: 6, endOffset: 5 };
+        assert.equal(spanText(BASE_LINES, multi), "a = 1;\ns = s");
+        assert.equal(spanText(BASE_LINES, { startLine: 2, endLine: 2, startOffset: 3, endOffset: 3 }), null);
+        assert.equal(spanText(BASE_LINES, { startLine: 3, endLine: 4, startOffset: 0, endOffset: 1 }), null);
+        assert.equal(spanText(BASE_LINES, undefined), null);
+    });
+
+    it("lets through master's hotspot, to review or reviewed SAFE, on a line edited for another reason", () => {
+        for (const more of [{}, { status: "REVIEWED", resolution: "SAFE" }]) {
+            const v = run({ hotspots: [localHotspot(2)], masterHotspots: [hotspot(BASE_LINES, 2, more)] });
+            assert.equal(v.blocking.length, 0, JSON.stringify(v.blocking));
+            assert.equal(v.existing.length, 1);
+        }
+    });
+
+    it("lets through master's issue, open or marked a false positive, on a line edited for another reason", () => {
+        for (const more of [{}, { issueStatus: "FALSE_POSITIVE" }]) {
+            const v = run({ issues: [local(2)], masterIssues: [prior(2, S1234, more)] });
+            assert.equal(v.blocking.length, 0);
+            assert.equal(v.existing.length, 1);
+        }
+    });
+
+    it("blocks a new finding of a different rule on that edited line", () => {
+        const v = run({
+            issues: [local(2, "typescript:S7781")],
+            hotspots: [localHotspot(2)],
+            masterHotspots: [hotspot(BASE_LINES, 2)],
+        });
+        assert.deepEqual(
+            v.blocking.map((b) => b.rule),
+            ["typescript:S7781"],
+        );
+        // An issue never borrows a hotspot of the same rule key, nor the other way round.
+        const swapped = run({ issues: [local(2, S5852)], masterHotspots: [hotspot(BASE_LINES, 2)] });
+        assert.equal(swapped.blocking.length, 1);
+    });
+
+    it("blocks an extra occurrence of the same rule on the edited line", () => {
+        const v = run({ issues: [local(2), local(2)], masterIssues: [prior(2)] });
+        assert.equal(v.blocking.length, 1);
+        assert.equal(v.existing.length, 1);
+        const h = run({ hotspots: [localHotspot(2), localHotspot(2)], masterHotspots: [hotspot(BASE_LINES, 2)] });
+        assert.equal(h.blocking.length, 1);
+    });
+
+    it("blocks the same rule on the edited line when it points at different code", () => {
+        // The edit replaced the regex: the old hotspot was about code that is gone.
+        const lines = [EDITED[0], 's = s.replaceAll(/(b+)+c/g, "");', EDITED[2]];
+        const at = { ...localHotspot(2), textRange: range(lines, 2, "/(b+)+c/g") };
+        for (const more of [{}, { status: "REVIEWED", resolution: "SAFE" }]) {
+            const v = run({ hotspots: [at], masterHotspots: [hotspot(BASE_LINES, 2, more)] }, file(lines));
+            assert.equal(v.blocking.length, 1);
+        }
+    });
+
+    it("blocks a copy of a line with master's issue while the original still has it", () => {
+        // Line 2 kept; a copy of it added as line 3. The copy's issue has master's hash, but master's
+        // one issue already belongs to the unchanged original.
+        const lines = [BASE_LINES[0], BASE_LINES[1], BASE_LINES[1], BASE_LINES[2]];
+        const files = file(lines, [{ oldStart: 2, oldCount: 0, newStart: 3, newCount: 1 }]);
+        const v = run(
+            { issues: [local(2, S1234, {}, lines), local(3, S1234, {}, lines)], masterIssues: [prior(2)] },
+            files,
+        );
+        assert.deepEqual(
+            v.blocking.map((b) => b.line),
+            [3],
+        );
+    });
+
+    it("keeps a vulnerability to the line hash", () => {
+        const vuln = { type: "VULNERABILITY", impacts: [{ softwareQuality: "SECURITY" }] };
+        const v = run({
+            issues: [local(2, "typescript:S2076", vuln)],
+            masterIssues: [prior(2, "typescript:S2076", vuln)],
+        });
+        assert.equal(v.blocking.length, 1);
+    });
+
+    it("does not match in place when the edit changed the line count", () => {
+        const lines = [EDITED[0], EDITED[1], "// added", EDITED[2]];
+        const files = file(lines, [{ oldStart: 2, oldCount: 1, newStart: 2, newCount: 2 }]);
+        const v = run({ hotspots: [localHotspot(2, lines)], masterHotspots: [hotspot(BASE_LINES, 2)] }, files);
+        assert.equal(v.blocking.length, 1);
+    });
+
+    it("does not match in place when master's analysis numbers the lines differently from the merge base", () => {
+        const base = ["// a line master's analysis does not have", ...BASE_LINES];
+        const v = run(
+            { hotspots: [localHotspot(2)], masterHotspots: [hotspot(BASE_LINES, 2)] },
+            file(EDITED, ONE_LINE_EDIT, base),
+        );
+        assert.equal(v.blocking.length, 1);
+    });
+
+    it("still lets through a moved but unchanged line by its hash", () => {
+        // Old line 2 moved below line 3: the hunks remove it and add it back a line lower.
+        const lines = [BASE_LINES[0], BASE_LINES[2], BASE_LINES[1]];
+        const hunks = [
+            { oldStart: 2, oldCount: 1, newStart: 1, newCount: 0 },
+            { oldStart: 3, oldCount: 0, newStart: 3, newCount: 1 },
+        ];
+        const v = run(
+            {
+                issues: [local(3, S1234, {}, lines)],
+                hotspots: [localHotspot(3, lines)],
+                masterIssues: [prior(2)],
+                masterHotspots: [hotspot(BASE_LINES, 2)],
+            },
+            file(lines, hunks),
+        );
+        assert.equal(v.blocking.length, 0, JSON.stringify(v.blocking));
+        assert.equal(v.existing.length, 2);
     });
 });

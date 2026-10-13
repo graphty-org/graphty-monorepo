@@ -283,7 +283,7 @@ function openSelectList(input: EventTarget | null): HTMLElement | null {
     if (
         !(input instanceof HTMLInputElement) ||
         !input.readOnly ||
-        !input.hasAttribute("data-expanded") ||
+        input.dataset.expanded === undefined ||
         !input.closest(".cm-input-wrapper")
     ) {
         return null;
@@ -306,10 +306,10 @@ function openSelectList(input: EventTarget | null): HTMLElement | null {
 function walkHighlight(input: HTMLInputElement, list: HTMLElement, target: HTMLElement): void {
     const items = [...list.querySelectorAll<HTMLElement>("[data-combobox-option]")];
     const goal = items.indexOf(target);
-    const enabled = items.filter((item) => !item.hasAttribute("data-combobox-disabled"));
+    const enabled = items.filter((item) => item.dataset.comboboxDisabled === undefined);
     const lastEnabled = items.indexOf(enabled[enabled.length - 1]);
     for (let i = 0; i <= items.length + 1; i++) {
-        const at = items.findIndex((item) => item.hasAttribute("data-combobox-selected"));
+        const at = items.findIndex((item) => item.dataset.comboboxSelected !== undefined);
         if (at === goal) {
             return;
         }
@@ -351,7 +351,7 @@ export function ensureListboxKeyboard(): void {
     const noteClosed = (event: Event): void => {
         const input = event.target;
         closedTrigger =
-            event.isTrusted && input instanceof HTMLInputElement && !input.hasAttribute("data-expanded") ? input : null;
+            event.isTrusted && input instanceof HTMLInputElement && input.dataset.expanded === undefined ? input : null;
     };
     const announceOpened = (event: Event): void => {
         const input = event.target;
@@ -359,13 +359,13 @@ export function ensureListboxKeyboard(): void {
             return;
         }
         closedTrigger = null;
-        window.setTimeout(() => {
+        globalThis.setTimeout(() => {
             const list = openSelectList(input);
             if (!list || !(input instanceof HTMLInputElement) || input.hasAttribute("aria-activedescendant")) {
                 return;
             }
             const checked = list.querySelector<HTMLElement>("[data-combobox-option][data-combobox-active]");
-            if (!checked || checked.hasAttribute("data-combobox-disabled")) {
+            if (!checked || checked.dataset.comboboxDisabled !== undefined) {
                 return;
             }
             // The walk may scroll a row into view; the list was placed around its scroll position.
@@ -389,7 +389,7 @@ export function ensureListboxKeyboard(): void {
                 return;
             }
             const options = [...list.querySelectorAll<HTMLElement>("[data-combobox-option]")].filter(
-                (option) => !option.hasAttribute("data-combobox-disabled"),
+                (option) => option.dataset.comboboxDisabled === undefined,
             );
             if (options.length === 0) {
                 return;
@@ -406,7 +406,7 @@ export function ensureListboxKeyboard(): void {
             const now = event.timeStamp;
             typed = now - lastAt > TYPEAHEAD_RESET_MS ? event.key : typed + event.key;
             lastAt = now;
-            const current = options.findIndex((option) => option.hasAttribute("data-combobox-selected"));
+            const current = options.findIndex((option) => option.dataset.comboboxSelected !== undefined);
             const repeated = typed.length > 1 && typed === typed[0].repeat(typed.length);
             const needle = (repeated ? typed[0] : typed).toLocaleLowerCase();
             // A new run starts after the highlight; a longer run may stay on it.

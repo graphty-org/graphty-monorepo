@@ -73,7 +73,7 @@ export const PAIR_COLUMN = "graphty.pair";
  */
 export const MUTUAL_COLUMN = "graphty.mutual";
 
-export { DIRECTION_FORCED_CODE, DIRECTION_REFUSED_CODE, MIXED_DIRECTION_CODE };
+export { DIRECTION_FORCED_CODE, DIRECTION_REFUSED_CODE, MIXED_DIRECTION_CODE } from "./codes.js";
 
 const DIRECTED_DECL: ColumnDecl = { name: DIRECTED_COLUMN, dtype: "bool", role: "directed" };
 const PAIR_DECL: ColumnDecl = { name: PAIR_COLUMN, dtype: "u32", role: "pair", refersTo: "edge" };
@@ -497,7 +497,7 @@ export function pairFolding(snapshot: GraphSnapshot, options: PairFoldingOptions
     const mutualColumn = roleColumn(snapshot.edges.byRole("mutual"), "bool");
     const { edgeCount } = snapshot;
     const mateOf = (e: number): number => {
-        if (pairColumn === null || !pairColumn.isSet(e)) {
+        if (!pairColumn?.isSet(e)) {
             return INVALID_INDEX;
         }
         const mate = pairColumn.value(e);

@@ -47,7 +47,7 @@ export function edgeSpaceOf(snapshot: GraphSnapshot): MaskIdSpace<EdgeId> {
             return counter === INVALID_INDEX ? INVALID_INDEX : snapshot.edgeIndexOf(counter);
         },
         idOf: (edge: number): EdgeId => {
-            const counter = column !== null && column.isSet(edge) ? column.value(edge) : undefined;
+            const counter = column?.isSet(edge) ? column.value(edge) : undefined;
             return edgeIdOf(typeof counter === "number" ? counter : INVALID_INDEX);
         },
     };

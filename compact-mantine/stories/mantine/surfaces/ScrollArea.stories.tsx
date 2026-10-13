@@ -1,25 +1,30 @@
-import { Box, ScrollArea, Stack, Text } from "@mantine/core";
+import { Box, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 import { expect, waitFor } from "@storybook/test";
 
+import { ScrollArea } from "../../../src";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
 
 /**
  * Mantine's `ScrollArea`, themed as Figma's overlay scrollbar: a thin pill over the edge that
  * shows only while the pointer is over the scroller and disappears at once when it leaves.
- * Every prop is Mantine's: see [ScrollArea on mantine.dev](https://mantine.dev/core/scroll-area/).
+ * Every prop is Mantine's, plus `focusableViewport` on this package's `ScrollArea`: see
+ * [ScrollArea on mantine.dev](https://mantine.dev/core/scroll-area/).
  *
  * ## Usage
  *
  * ```tsx
- * import { ScrollArea } from "@mantine/core";
+ * import { ScrollArea } from "@graphty/compact-mantine";
  *
- * <ScrollArea h={240}>{rows}</ScrollArea>
+ * <ScrollArea h={240} focusableViewport>{rows}</ScrollArea>
  * ```
  *
  * The theme defaults to `type="hover"` with no hide delay; `type="always"` keeps the thumb
- * visible. The viewport scrolls with the wheel and, once focused, with the arrow and page keys;
- * keyboard focus on it draws a 1px ring inside and shows the thumb.
+ * visible. The viewport scrolls with the wheel. Mantine's own ScrollArea (and this one by
+ * default) keeps the viewport out of the Tab order, so a scroller with nothing focusable inside
+ * cannot be scrolled from the keyboard. Import `ScrollArea` from this package and set
+ * `focusableViewport` for that case: the viewport becomes a Tab stop that scrolls with the arrow
+ * and page keys, and keyboard focus on it draws a 1px ring inside and shows the thumb.
  *
  * ## Measurements
  *
@@ -53,7 +58,7 @@ const Rows = (): React.JSX.Element => (
 
 /** Forty 32px rows in a 240 x 240 scroller; hover it to see the thumb, or set `type` in Controls. */
 export const Default: Story = {
-    args: { type: "hover", h: 240, w: 240 },
+    args: { type: "hover", h: 240, w: 240, focusableViewport: true },
     render: (args) => (
         <ScrollArea {...args} style={{ border: "1px solid var(--cm-border)" }}>
             <Rows />
@@ -67,7 +72,14 @@ export const States: Story = {
     render: () => (
         <Box style={{ display: "flex", gap: 24 }}>
             {(["always", "hover"] as const).map((type) => (
-                <ScrollArea key={type} h={240} w={240} type={type} style={{ border: "1px solid var(--cm-border)" }}>
+                <ScrollArea
+                    key={type}
+                    h={240}
+                    w={240}
+                    type={type}
+                    focusableViewport
+                    style={{ border: "1px solid var(--cm-border)" }}
+                >
                     <Rows />
                 </ScrollArea>
             ))}

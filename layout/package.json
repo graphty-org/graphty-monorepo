@@ -1,6 +1,6 @@
 {
     "name": "@graphty/layout",
-    "version": "2.3.0",
+    "version": "2.4.4",
     "description": "graph layout algorithms based on networkx",
     "author": "Adam Powers <apowers@ato.ms>",
     "main": "dist/layout.js",
@@ -81,7 +81,6 @@
         "@graphty/graph-format": "^1.0.0"
     },
     "devDependencies": {
-        "@chromatic-com/storybook": "^4.0.0",
         "@graphty/graph-samples": "workspace:^",
         "@semantic-release/changelog": "^6.0.3",
         "@semantic-release/git": "^10.0.1",
@@ -91,7 +90,6 @@
         "@types/three": "^0.182.0",
         "@vitest/coverage-v8": "catalog:",
         "@vitest/ui": "catalog:",
-        "chromatic": "^11.0.0",
         "eslint": "^9.29.0",
         "happy-dom": "^20.8.9",
         "semantic-release": "^24.2.7",

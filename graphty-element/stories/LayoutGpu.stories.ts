@@ -162,7 +162,7 @@ const fakes = new WeakMap<Graphty, FakeAccelerator>();
  * arrangement on screen is ForceAtlas2's and Spring's, deterministic under the seed each story
  * names, and the batches the accelerator counted are the ones that produced it.
  *
- * Under Chromatic the arrangement is spent as PRE-STEPS, off the frame clock; everywhere else it
+ * Under visual capture the arrangement is spent as PRE-STEPS, off the frame clock; everywhere else it
  * animates, a few iterations a frame: see the counts each story names.
  * @param element - The element to inject into.
  */
@@ -275,7 +275,7 @@ export const ForceAtlas2Fake: Story = {
     name: "ForceAtlas2 (fake accelerator)",
     /*
      * `preSteps` IS FORCEATLAS2'S OWN `maxIter`, which this story leaves at its default of 100, so
-     * under Chromatic the iterations run before the first frame. Everywhere else the layout
+     * under capture the iterations run before the first frame. Everywhere else the layout
      * animates at `stepMultiplier` iterations per RENDERED frame, and this scene renders slowly in
      * the Storybook test browser's software renderer, most of it the 250 edges intersecting
      * their rays with the node meshes while the layout moves. The CI runner is slower still: at four
@@ -314,7 +314,7 @@ export const ForceAtlas2Fake: Story = {
 export const SpringFake: Story = {
     name: "Spring (fake accelerator)",
     // `preSteps` is Spring's own `iterations`, which this story leaves at its default of 50, and
-    // `stepMultiplier` keeps the animation outside Chromatic to 5 frames. See ForceAtlas2Fake
+    // `stepMultiplier` keeps the animation outside a capture to 5 frames. See ForceAtlas2Fake
     // above.
     args: {
         layout: "spring",
@@ -351,7 +351,7 @@ export const SpringFake: Story = {
 export const ForceAtlas2WebGpu: Story = {
     name: "ForceAtlas2 (WebGPU)",
     // `preSteps` is ForceAtlas2's own `maxIter`, left at its default of 100, and `stepMultiplier`
-    // keeps the animation outside Chromatic to 5 frames. See ForceAtlas2Fake above.
+    // keeps the animation outside a capture to 5 frames. See ForceAtlas2Fake above.
     args: {
         layout: "forceatlas2",
         layoutConfig: { seed: 42 },

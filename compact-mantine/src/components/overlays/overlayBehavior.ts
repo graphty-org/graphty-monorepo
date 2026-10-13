@@ -78,10 +78,10 @@ function dismissTooltips(): void {
     if (anotherTooltipVisible()) {
         warmUntil = performance.now() + TOOLTIP_CLOSE_DELAY;
     }
-    for (const tooltip of document.querySelectorAll(".cm-tooltip")) {
+    for (const tooltip of document.querySelectorAll<HTMLElement>(".cm-tooltip")) {
         const trigger = triggerOf(tooltip);
         if (trigger && (trigger.matches(":hover") || trigger === document.activeElement)) {
-            tooltip.setAttribute("data-cm-dismissed", "");
+            tooltip.dataset.cmDismissed = "";
         }
     }
 }
@@ -121,7 +121,7 @@ function menuRows(menu: Element): HTMLElement[] {
     return Array.from(menu.querySelectorAll<HTMLElement>('[role^="menuitem"]')).filter(
         (row) =>
             row.closest(".cm-menu") === menu &&
-            !row.hasAttribute("data-disabled") &&
+            row.dataset.disabled === undefined &&
             row.getAttribute("aria-disabled") !== "true",
     );
 }
@@ -211,11 +211,11 @@ function trackChevronHover(event: PointerEvent): void {
     const menu = event.target instanceof Element ? event.target.closest<HTMLElement>(".cm-menu") : null;
     if (menu) {
         const rect = menu.getBoundingClientRect();
-        if (menu.hasAttribute("data-cm-scroll-up") && event.clientY < rect.top + CHEVRON_ROW) {
+        if (menu.dataset.cmScrollUp !== undefined && event.clientY < rect.top + CHEVRON_ROW) {
             startAutoScroll(menu, -1);
             return;
         }
-        if (menu.hasAttribute("data-cm-scroll-down") && event.clientY > rect.bottom - CHEVRON_ROW) {
+        if (menu.dataset.cmScrollDown !== undefined && event.clientY > rect.bottom - CHEVRON_ROW) {
             startAutoScroll(menu, 1);
             return;
         }

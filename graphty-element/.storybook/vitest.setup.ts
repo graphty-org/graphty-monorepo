@@ -33,7 +33,7 @@
  * WHAT IT DELIBERATELY DOES NOT ASSERT. Whether the physics layout has come to rest. An unsettled
  * layout is a real problem -- it is what makes a visual snapshot a different picture every run --
  * but it is the pre-step count's problem, and failing a paint assertion on it would report the
- * wrong fault. The per-story appearance baseline is Chromatic's job and this is not a substitute
+ * wrong fault. The per-story appearance baseline is visual review's job and this is not a substitute
  * for it: these assertions say the element did what the story asked, never that the picture is the
  * right picture.
  *

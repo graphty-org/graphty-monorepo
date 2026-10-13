@@ -459,7 +459,7 @@ async function execute(
             weight:
                 weight === undefined ? null : { attribute: weight, meaning: algorithm.weights?.meaning ?? "strength" },
             notes,
-            ...(convergence ?? {}),
+            ...convergence,
             // Stopping at a cap the caller set publishes what the run has, marked inexact
             // (algorithm.md section 2.2 item 9).
             ...(convergence?.converged === false

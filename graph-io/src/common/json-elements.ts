@@ -231,7 +231,7 @@ export function rewriteNumbers(
         } else if (ch === ":") {
             expectValue = true;
         } else if (ch === ",") {
-            expectValue = arrays.length > 0 && arrays[arrays.length - 1];
+            expectValue = arrays.at(-1) ?? false;
         } else if (expectValue && ch !== " " && ch !== "\t" && ch !== "\n" && ch !== "\r") {
             expectValue = false;
             const token = nonstandard ? NONSTANDARD_TOKENS.find(([word]) => text.startsWith(word, i)) : undefined;

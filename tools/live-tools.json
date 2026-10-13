@@ -1,0 +1,22 @@
+{
+    "githerd": {
+        "worktree": ".worktrees/githerd",
+        "servers": ["githerd-dev"],
+        "test": "cd githerd && npm run lint && npx vitest run"
+    },
+    "visual-review": {
+        "worktree": ".worktrees/visual-review-server-v3",
+        "servers": ["visual-review-v3", "visual-review-notify"],
+        "test": "cd visual-review && npm run lint && npx vitest run"
+    },
+    "gate": {
+        "worktree": ".worktrees/gate-live",
+        "servers": [],
+        "test": "pnpm run test:ci-workflows && pnpm run test:sonar-gate"
+    },
+    "sonar-baseline": {
+        "worktree": ".worktrees/sonar-baseline-runner",
+        "servers": ["sonar-baseline"],
+        "test": "node tools/sonar/sonar-baseline.test.mjs"
+    }
+}

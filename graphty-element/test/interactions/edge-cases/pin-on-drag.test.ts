@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, test, vi } from "vitest";
 
 import { Graph, operationQueueOf } from "../../../src/Graph";
 import { dispatcherOf } from "../../../src/session/GraphSession";
+import { assertPlaced } from "../../helpers/placed-position";
 import { nextFrame } from "../../helpers/real-input";
 import { configureGraph } from "../../helpers/testSetup";
 
@@ -70,7 +71,9 @@ describe("pinOnDrag Behavior", () => {
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
             await operationQueueOf(graph).waitForCompletion();
-            await graph.waitForSettled();
+            // A drawn frame, not just an empty queue: only a frame's update pass moves a new mesh
+            // from the template's position to the node's layout position.
+            await graph.waitForStableFrame();
         });
 
         afterEach(() => {
@@ -84,6 +87,7 @@ describe("pinOnDrag Behavior", () => {
             assert.isDefined(node1, "Node 1 should exist");
             assert.isNotNull(node1);
 
+            assertPlaced(node1.mesh.position, "node1");
             const newX = node1.mesh.position.x + 5;
             const newY = node1.mesh.position.y + 3;
             const newZ = node1.mesh.position.z + 1;
@@ -129,7 +133,9 @@ describe("pinOnDrag Behavior", () => {
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
             await operationQueueOf(graph).waitForCompletion();
-            await graph.waitForSettled();
+            // A drawn frame, not just an empty queue: only a frame's update pass moves a new mesh
+            // from the template's position to the node's layout position.
+            await graph.waitForStableFrame();
         });
 
         afterEach(() => {

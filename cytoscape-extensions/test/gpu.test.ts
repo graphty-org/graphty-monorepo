@@ -243,6 +243,10 @@ interface Fake {
     failNext: boolean;
     /** Called on every simulation step, before the step checks its snapshot is still uploaded. */
     onStep?: () => void;
+    /** Simulations disposed. */
+    simsDisposed: number;
+    /** Called on every pageRank call, as it starts on the device. */
+    onPageRank?: () => void;
 }
 
 /**
@@ -270,6 +274,7 @@ function fakeProvider(decline?: string): Fake {
         lastPageRank: Promise.resolve(),
         lose: () => undefined,
         failNext: false,
+        simsDisposed: 0,
     };
     registerGpuProvider({
         acquire: (): Promise<AcquiredGpu> => {
@@ -282,10 +287,12 @@ function fakeProvider(decline?: string): Fake {
                 lose = resolve;
             });
             fake.lose = lose;
+            let gone = false;
             const accelerator: GpuAccelerator = {
                 kind: "fake",
                 pageRank: async (s, o) => {
                     fake.pageRankCalls++;
+                    fake.onPageRank?.();
                     if (fake.failNext) {
                         fake.failNext = false;
                         throw new Error("E_DEVICE_LOST: the device was lost mid-run");
@@ -301,6 +308,9 @@ function fakeProvider(decline?: string): Fake {
                     try {
                         await before;
                         await new Promise((resolve) => setTimeout(resolve, 0));
+                        if (gone) {
+                            throw new Error('GpuContext "fake" is disposed');
+                        }
                         assertResident(fake, s);
                         return pageRank(s, o);
                     } finally {
@@ -319,6 +329,10 @@ function fakeProvider(decline?: string): Fake {
                         step: async (k) => {
                             await Promise.resolve();
                             fake.onStep?.();
+                            if (gone) {
+                                // as a real device's context does after dispose()
+                                throw new Error('GpuContext "fake" is disposed');
+                            }
                             if (loaded !== null) {
                                 assertResident(fake, loaded);
                             }
@@ -334,6 +348,7 @@ function fakeProvider(decline?: string): Fake {
                             sim.setPosition(i, x, y, z);
                         },
                         dispose: () => {
+                            fake.simsDisposed++;
                             sim.dispose();
                         },
                     };
@@ -343,6 +358,7 @@ function fakeProvider(decline?: string): Fake {
                 },
                 dispose: () => {
                     fake.disposed++;
+                    gone = true;
                     lose("destroyed");
                 },
             };
@@ -372,7 +388,8 @@ describe("the device lifecycle (a fake provider)", () => {
         const r = await mainGraph().graphtyPageRankAsync({ initialRanks: () => 1 });
         expect(r.backend.ran).toBe("cpu");
         expect(r.backend.device).toBe("fake device");
-        expect(r.backend.reason).toMatch(/options or the graph need the CPU/);
+        // the reason the guide's table lists, and nothing more: no remark about the dispatcher
+        expect(r.backend.reason).toBe("the options or the graph need the CPU implementation");
     });
 
     it("an algorithm the fake does not implement runs on the CPU and says so", async () => {
@@ -423,13 +440,23 @@ describe("the device lifecycle (a fake provider)", () => {
         await expect(cy.graphtyPageRankAsync()).rejects.toThrow(/destroyed/);
     });
 
-    it("disposes a device acquired after the core was destroyed", async () => {
+    it("disposes a device acquired after the core was destroyed, and rejects with E_CORE_DESTROYED", async () => {
         const fake = fakeProvider();
         const cy = mainGraph();
         const pending = cy.graphtyPageRankAsync();
         cy.destroy();
-        const r = await pending;
-        expect(r.backend.ran).toBe("cpu");
+        await expect(pending).rejects.toMatchObject({ code: "E_CORE_DESTROYED" });
+        expect(fake.disposed).toBe(1);
+    });
+
+    it("an Async run whose core is destroyed on the device rejects with E_CORE_DESTROYED, not the device's error", async () => {
+        const fake = fakeProvider();
+        const cy = mainGraph();
+        await cy.graphtyPageRankAsync();
+        // the run is on the device; the destroy disposes the device under it
+        fake.onPageRank = () => cy.destroy();
+        const pending = cy.graphtyPageRankAsync();
+        await expect(pending).rejects.toMatchObject({ code: "E_CORE_DESTROYED" });
         expect(fake.disposed).toBe(1);
     });
 
@@ -533,6 +560,50 @@ describe("the device lifecycle (a fake provider)", () => {
         expect((await layoutRun(cy, { name: "graphty-forceatlas2", accelerator: null })).backend?.ran).toBe("cpu");
         expect(fake.acquired).toBe(0);
     });
+
+    for (const animate of [false, true]) {
+        it(`destroying the core while the device is being acquired ends the run with layoutstop (animate ${animate})`, async () => {
+            const fake = fakeProvider();
+            const cy = mainGraph();
+            const layout = cy.layout({ name: "graphty-forceatlas2", boundingBox: BOX, animate } as LayoutOptions);
+            const errors: unknown[] = [];
+            layout.on("layouterror", (_e: EventObject, error: unknown) => errors.push(error));
+            const stop = layout.promiseOn("layoutstop");
+            layout.run();
+            cy.destroy();
+            await stop;
+            expect(errors).toEqual([]);
+            expect(fake.acquired).toBe(1);
+            expect(fake.disposed).toBe(1);
+        });
+
+        it(`destroying the core during GPU steps stops the run and releases the device (animate ${animate})`, async () => {
+            const fake = fakeProvider();
+            const cy = mainGraph();
+            let steps = 0;
+            fake.onStep = () => {
+                steps++;
+                if (steps === 3) {
+                    cy.destroy();
+                }
+            };
+            const layout = cy.layout({
+                name: "graphty-forceatlas2",
+                boundingBox: BOX,
+                animate,
+                maxIter: 1_000_000,
+                settleThreshold: 0,
+            } as unknown as LayoutOptions);
+            const errors: unknown[] = [];
+            layout.on("layouterror", (_e: EventObject, error: unknown) => errors.push(error));
+            const stop = layout.promiseOn("layoutstop");
+            layout.run();
+            await stop;
+            expect(errors).toEqual([]);
+            expect(fake.disposed).toBe(1);
+            expect(fake.simsDisposed).toBe(1);
+        });
+    }
 
     it("stop() while the device is being acquired ends the run with layoutstop", async () => {
         fakeProvider();

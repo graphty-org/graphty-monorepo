@@ -29,7 +29,7 @@ const CLUSTER_COLUMN = "graphty.cluster";
 export class DOTDataSource extends DataSource {
     static readonly type = "dot";
 
-    private config: DOTDataSourceConfig;
+    private readonly config: DOTDataSourceConfig;
 
     /**
      * Creates a new DOTDataSource instance.

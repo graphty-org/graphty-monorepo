@@ -8,6 +8,7 @@ import { CompactColorInput } from "../../src/components/CompactColorInput";
 import { InfoCircle } from "../../src/components/InfoCircle";
 import { Popout, PopoutManager } from "../../src/components/popout";
 import { compactTheme } from "../../src/theme";
+import { waitForSettledLayout } from "../../stories/helpers/settled";
 
 // A transformed ancestor becomes the containing block of every position: fixed descendant, so
 // a panel that writes viewport coordinates into left/top lands offset by the ancestor's own
@@ -58,8 +59,8 @@ async function measure(kind: Kind, transform: string): Promise<Offset> {
     await waitFor(() => {
         expect(getComputedStyle(panel).visibility).toBe("visible");
     });
-    // Let the per-frame follow-up measurement settle.
-    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    // Wait until no reposition is queued and the panel has stopped moving.
+    await waitForSettledLayout(document.body, "[role='dialog']");
     const p = panel.getBoundingClientRect();
     const t = trigger.getBoundingClientRect();
     cleanup();
@@ -122,7 +123,7 @@ const KINDS: Kind[] = [
     {
         name: "the color input's picker",
         ui: <CompactColorInput color="#336699" defaultColor="#336699" label="Fill" />,
-        open: () => clickTrigger(/swatch/i),
+        open: () => clickTrigger(/^Pick Fill color$/),
     },
     {
         name: "an info circle's bubble",

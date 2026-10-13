@@ -254,7 +254,7 @@ function segmentFullText(segment: CompoundSegment): string | undefined {
  * @param props.index - This segment's position in the row, counting from zero
  * @returns The segment
  */
-function CompoundSegmentBox({ segment, grow, index }: CompoundSegmentBoxProps): React.JSX.Element {
+function CompoundSegmentBox({ segment, grow, index }: Readonly<CompoundSegmentBoxProps>): React.JSX.Element {
     const { glyph, value, unit, mono = false } = segment;
 
     let slotContent: React.ReactNode = null;

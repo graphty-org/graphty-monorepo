@@ -112,8 +112,8 @@ export class OrbitInputController {
         });
 
         this.hammer.on("pinchmove rotatemove", (ev: HammerInput) => {
-            const scaleDelta = ev.scale - lastScale;
-            this.controller.zoom(-scaleDelta * this.config.pinchZoomSensitivity);
+            // The distance follows the finger gap: spreading the fingers to twice the gap halves it
+            this.controller.zoomBy(lastScale / ev.scale);
             lastScale = ev.scale;
 
             const rotationDelta = (ev.rotation - lastRotation) * (Math.PI / 180) * this.config.twistYawSensitivity;
@@ -204,12 +204,13 @@ export class OrbitInputController {
             this.rotationVelocityX -= this.config.keyboardRotationSpeed;
         }
 
+        // W and S are exact inverses, so a press of one undoes the same press of the other
         if (keys.w) {
-            cam.zoom(-this.config.keyboardZoomSpeed);
+            cam.zoomBy(1 - this.config.keyboardZoomSpeed);
         }
 
         if (keys.s) {
-            cam.zoom(this.config.keyboardZoomSpeed);
+            cam.zoomBy(1 / (1 - this.config.keyboardZoomSpeed));
         }
 
         if (keys.a) {

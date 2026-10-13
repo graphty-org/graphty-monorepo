@@ -333,6 +333,24 @@ graph.on("graph-settled", () => {
 });
 ```
 
+## When a layout refuses the graph
+
+Some layouts only arrange certain graphs: `planar` needs a graph that can be drawn without crossing
+edges, and `bfs` needs every node reachable from its start. Given another graph, the layout places
+nothing -- every node stays where it was -- and the element reports the refusal on its `error`
+event as a `GraphtyError` with a code to switch on: `E_NOT_PLANAR` or `E_NOT_CONNECTED`, with the
+graph's size in `details`. The layout stays the chosen one and runs again when the graph changes.
+What to do about it is the application's choice, such as picking another layout:
+
+```typescript
+element.addEventListener("error", (event) => {
+    const { error } = event.detail;
+    if (isGraphtyError(error) && error.code === "E_NOT_PLANAR") {
+        element.layout = "spring";
+    }
+});
+```
+
 ## 2D vs 3D
 
 Switching the view between 2D and 3D runs the layout again for that view. In the 2D view every

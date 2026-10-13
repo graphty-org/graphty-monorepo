@@ -978,9 +978,10 @@ export class RenderManager implements Manager {
         const orbitCamera = new OrbitCameraController(this.canvas, this.scene, {
             trackballRotationSpeed: 0.005,
             keyboardRotationSpeed: 0.03,
-            keyboardZoomSpeed: 0.2,
+            // A held W or S changes the distance tenfold in the 157 frames A or D take to spin
+            // half a turn (PI / keyboardYawSpeed): 0.985 ** 157 = 0.093
+            keyboardZoomSpeed: 0.015,
             keyboardYawSpeed: 0.02,
-            pinchZoomSensitivity: 10,
             twistYawSensitivity: 1.5,
             minZoomDistance: 2,
             maxZoomDistance: 2000, // The zoom-out ceiling for a small graph; a fit of a larger one raises it

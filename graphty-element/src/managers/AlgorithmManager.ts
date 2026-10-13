@@ -421,14 +421,11 @@ export class AlgorithmManager implements Manager {
     }
 
     /**
-     * Get list of available algorithms
-     * TODO: This depends on the Algorithm registry implementation
-     * @returns Array of available algorithm names
+     * Every registered algorithm: the built-ins and any `Algorithm.register` added.
+     * @returns The algorithm keys in `"namespace:type"` form (e.g. `"graphty:degree"`), sorted.
      */
     getAvailableAlgorithms(): string[] {
-        // This would need to be implemented in the Algorithm class
-        // For now, return empty array
-        return [];
+        return Algorithm.getRegisteredAlgorithms();
     }
 
     /**

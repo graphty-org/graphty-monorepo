@@ -4131,10 +4131,20 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Set render settings for advanced rendering control.
-     * @param settings - Render settings object
-     * @param options - Queue options
+     * Set render settings: the `layoutBehavior.rendering` group.
+     * @remarks
+     * `onDemand` is the one setting, the same switch as `renderOnDemand`: whether a frame is
+     * drawn only when the picture can have changed. A field left out keeps its value. A
+     * preference of this view: it records no undo step and is not saved in a project file.
+     * @example
+     * ```typescript
+     * await element.setRenderSettings({ onDemand: true });
+     * ```
+     * @param settings - The fields to change
+     * @param options - Queue options; with `skipQueue` the settings apply at once
      * @returns Promise that resolves when settings are applied
+     * @throws A `GraphtyError` with `E_UNKNOWN_OPTION` for a field that is not a render setting
+     * (`details.available` lists them), or `E_OPTION_RANGE` for a value the setting does not take
      * @since 1.5.0
      */
     async setRenderSettings(

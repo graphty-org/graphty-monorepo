@@ -7,9 +7,12 @@ import { PivotController } from "./PivotController";
 export interface OrbitConfig {
     trackballRotationSpeed: number;
     keyboardRotationSpeed: number;
+    /**
+     * The fraction of the camera's distance that W or S moves the camera each frame it is held,
+     * so a held key zooms by the same factor per frame however far out the camera is.
+     */
     keyboardZoomSpeed: number;
     keyboardYawSpeed: number;
-    pinchZoomSensitivity: number;
     twistYawSensitivity: number;
     minZoomDistance: number;
     maxZoomDistance: number;
@@ -117,6 +120,14 @@ export class OrbitCameraController {
         // beyond it, so the ceiling follows the graph and a reader can still pull back.
         const ceiling = Math.max(this.config.maxZoomDistance, this.cameraDistance + this.#sceneRadius * 2);
         this.cameraDistance = Scalar.Clamp(this.cameraDistance + delta, this.config.minZoomDistance, ceiling);
+    }
+
+    /**
+     * Zoom by a factor of the current distance, within the same limits as `zoom`.
+     * @param factor - The distance multiplier (< 1 zooms in, > 1 zooms out)
+     */
+    public zoomBy(factor: number): void {
+        this.zoom(this.cameraDistance * (factor - 1));
     }
 
     /**

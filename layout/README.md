@@ -4,7 +4,7 @@
 [![Coverage Status](https://coveralls.io/repos/github/graphty-org/graphty-monorepo/badge.svg?branch=master)](https://coveralls.io/github/graphty-org/graphty-monorepo?branch=master)
 [![npm version](https://img.shields.io/npm/v/@graphty/layout.svg)](https://www.npmjs.com/package/@graphty/layout)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Documentation](https://img.shields.io/badge/docs-vitepress-blue)](https://graphty.app/docs/layout/api/generated/)
+[![Documentation](https://img.shields.io/badge/docs-vitepress-blue)](https://graphty.app/docs/layout/)
 [![Storybook](https://img.shields.io/badge/storybook-interactive%20demos-ff4785)](https://graphty.app/storybook/layout/)
 
 **[View Interactive Storybook ->](https://graphty.app/storybook/layout/)**
@@ -403,7 +403,8 @@ console.log(result.n); // 10
 
 ### Planar
 
-`planar` throws `G is not planar.` when its check rejects the graph:
+`planar` throws `G is not planar.` when its check rejects the graph, an `Error` whose `code` is `E_NOT_PLANAR` and
+whose `params` are `{ nodeCount, edgeCount }`:
 
 <!-- doc-check -->
 
@@ -419,7 +420,7 @@ console.log(result.n); // 16
 try {
     planar(fromEdgeArrays(completeGraph({ n: 5 })));
 } catch (error) {
-    console.log((error as Error).message); // "G is not planar."
+    console.log((error as Error & { code?: string }).code); // "E_NOT_PLANAR"
 }
 ```
 

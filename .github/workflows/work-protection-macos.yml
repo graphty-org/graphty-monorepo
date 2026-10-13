@@ -19,6 +19,10 @@ on:
                 type: string
                 required: true
     workflow_dispatch:
+    # TEMPORARY, removed before this branch leaves draft: workflow_dispatch reaches only a workflow that is
+    # already on master, so until this file merges a push to its own branch is the only way to run it.
+    push:
+        branches: [feat/work-protection]
 permissions: { contents: read }
 concurrency:
     group: work-protection-macos-${{ inputs.ref && format('release-{0}', inputs.ref) || github.ref }}
@@ -106,7 +110,7 @@ jobs:
         name: Safari on iOS (Simulator)
         needs: bundle
         runs-on: macos-26
-        timeout-minutes: 30
+        timeout-minutes: 40
         env: { GRAPHTY_LIFECYCLE_MACOS: "1" }
         defaults: { run: { working-directory: graphty-element } }
         steps:
@@ -127,7 +131,7 @@ jobs:
               env: { HUSKY: "0" }
             - uses: actions/download-artifact@v4
               with: { name: work-protection-bundle, path: graphty-element/dist }
-            - name: App switch, then Safari terminated
-              timeout-minutes: 20
+            - name: App switch, memory warning, Safari or its web content process killed
+              timeout-minutes: 30
               # Booting a simulator and Safari's first launch take minutes: the step's limit bounds them, not vitest's.
               run: pnpm exec vitest run --project=lifecycle --hookTimeout=900000 --testTimeout=900000 test/lifecycle/ios-simulator.test.ts

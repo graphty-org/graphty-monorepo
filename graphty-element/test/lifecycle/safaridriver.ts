@@ -95,14 +95,21 @@ export async function startSafariDriver(): Promise<SafariDriver> {
                 navigate: async (url) => {
                     await call("POST", `${at}/url`, { url });
                 },
-                execute: (script, args = []) =>
-                    // The async form, so a returned promise is awaited the same way in every case.
-                    call("POST", `${at}/execute/async`, {
+                async execute<T>(script: string, args: unknown[] = []): Promise<T> {
+                    // The async form, so a returned promise is awaited the same way in every case; the body
+                    // is an async function, so a script may use await.
+                    const result = await call<T | { __error: string }>("POST", `${at}/execute/async`, {
                         script: `const done = arguments[arguments.length - 1];
-                            Promise.resolve((function () { ${script} }).apply(null, Array.from(arguments).slice(0, -1)))
+                            (async function () { ${script} }).apply(null, Array.from(arguments).slice(0, -1))
                                 .then(done, (error) => done({ __error: String(error) }));`,
                         args,
-                    }),
+                    });
+                    if (result !== null && typeof result === "object" && "__error" in result) {
+                        throw new Error(`script failed in Safari: ${result.__error}`);
+                    }
+
+                    return result;
+                },
                 async minimize() {
                     try {
                         await call("POST", `${at}/window/minimize`, {});

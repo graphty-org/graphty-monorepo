@@ -96,21 +96,22 @@ Several steps may follow one `--step`; they run in order, and one screenshot is 
 
 A file is a path, or a name from `files/`:
 
-| File                   | What kind of file it is                                                     |
-| ---------------------- | --------------------------------------------------------------------------- |
-| `friends.csv`          | A links spreadsheet                                                         |
-| `friends-v2.csv`       | A links spreadsheet, a later version of `friends.csv`                       |
-| `florentine.gml`       | A GML network                                                               |
-| `club-members.graphml` | A GraphML network                                                           |
-| `people.csv`           | A node spreadsheet                                                          |
-| `messages.csv`         | An edge spreadsheet that goes with `people.csv`                             |
-| `players.csv`          | A node spreadsheet                                                          |
-| `passes.csv`           | An edge spreadsheet that goes with `players.csv`                            |
-| `bus-stops.csv`        | A links spreadsheet                                                         |
-| `trails.csv`           | A links spreadsheet                                                         |
-| `team.csv`             | A links spreadsheet                                                         |
-| `team-v2.csv`          | A links spreadsheet, a later version of `team.csv`                          |
-| `long-names.csv`       | A links spreadsheet with long names, for the screenshot audit; never a task |
+| File                      | What kind of file it is                                                                                                                                                                                                       |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `friends.csv`             | A links spreadsheet                                                                                                                                                                                                           |
+| `friends-v2.csv`          | A links spreadsheet, a later version of `friends.csv`                                                                                                                                                                         |
+| `florentine.gml`          | A GML network                                                                                                                                                                                                                 |
+| `club-members.graphml`    | A GraphML network                                                                                                                                                                                                             |
+| `people.csv`              | A node spreadsheet                                                                                                                                                                                                            |
+| `messages.csv`            | An edge spreadsheet that goes with `people.csv`                                                                                                                                                                               |
+| `players.csv`             | A node spreadsheet                                                                                                                                                                                                            |
+| `passes.csv`              | An edge spreadsheet that goes with `players.csv`                                                                                                                                                                              |
+| `bus-stops.csv`           | A links spreadsheet                                                                                                                                                                                                           |
+| `trails.csv`              | A links spreadsheet                                                                                                                                                                                                           |
+| `team.csv`                | A links spreadsheet                                                                                                                                                                                                           |
+| `team-v2.csv`             | A links spreadsheet, a later version of `team.csv`                                                                                                                                                                            |
+| `long-names.csv`          | A links spreadsheet with long names, for the screenshot audit; never a task                                                                                                                                                   |
+| `yeast-galactose.graphml` | A GraphML network of 331 yeast genes and 361 interactions, with three expression columns; Cytoscape's galFiltered demo (Ideker et al. 2001, CC0), direction dropped, written from graph-samples' `yeast-perturbation` dataset |
 
 ## Names, dialogs and lists
 

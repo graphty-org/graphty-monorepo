@@ -5,9 +5,37 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-10-13 (tier 3 build paused for the owner's review after iteration 3).
+Last updated: 2026-10-13 (tier 3 build phase finished: draft study materials written, the branch
+pushed and a held draft pull request opened for the owner's review).
 
 ## Top of mind
+
+- 2026-10-13: BUILD PHASE FINISHED, WAITING ON THE OWNER. Draft (not frozen) study materials are in
+  `tier3/criteria.md`, `tasks.md`, `answers.md`, `roster.md`, each marked DRAFT at the top. Twelve
+  tasks, T25 to T36 (tier 1 used T1-T16, tier 2 T17-T24): group colors and one group red, a
+  gradient with a cap, a route, odd ids, letters in a name, a folder, a dark room (Everything and
+  Selected), names with the top five bold, shapes for black-and-white print, re-found groups that
+  keep their red, unsetting, and the genomics expression figure. Core five (6 sessions each): T25,
+  T26, T29, T31, T35 -- the owner's three questions sit in T25 (no split parent), T29 (generic
+  picking) and T35 (unset). Why T35 exists: "can a reader unset without being told" is the owner's
+  first question and no earlier task measured it.
+- 2026-10-13: Decided for the drafts. A tier 3 grade reads the style tree, not only the picture:
+  a group recolored by its entry and by "New layer for" draw the same canvas, and both are S
+  (both are ordinary layers; record which). Wording echoes are measured by giving the two halves
+  different words where a control word is the natural one (T31 "background" against "everything
+  behind"; T33 "shape" against "symbol"). Histories say what was done, never where (tier 2 round 5
+  lesson). T36 runs on one dataset because no other file has signed values; it is reported per
+  persona and judges no wording. Bar 4 makes the owner's "provenance never changes behavior" a
+  scripted bar. Bar 11 keeps the accordion item honest: 900 x 700 fit is measured every round.
+- 2026-10-13: New study file `tool/files/yeast-galactose.graphml` (331 genes, 361 interactions,
+  three expression columns), written from graph-samples' `yeast-perturbation` dataset (Cytoscape's
+  galFiltered demo, CC0) by `tmp/design-director-tier3/refs.mts`, which also printed every count in
+  `answers.md`'s reference table. Run-dependent values (Louvain sizes, re-run groups) are recorded
+  only on the frozen build.
+- 2026-10-13: Open before freezing: the fifteen setups in `rounds/tier-3/setups/` (written on the
+  approved build, through the panel the way a reader would); the detours; the bar scripts (style
+  tree dump, row-consistency walk, 900 x 700 fit, the bar 9 baseline = the approved build);
+  whether the owner wants a second signed-value file for T36.
 
 - 2026-10-13: BUILD PAUSED FOR THE OWNER'S REVIEW after iteration 3 (review in
   `tier3/iterations/3/review.md`, approval screenshots captured). Iteration 4 is planned (10

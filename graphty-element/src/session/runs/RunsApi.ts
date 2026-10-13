@@ -543,8 +543,8 @@ function randomHex(): string {
     if (typeof globalThis.crypto?.getRandomValues === "function") {
         globalThis.crypto.getRandomValues(words);
     } else {
-        words[0] = Math.floor(Math.random() * 0x1_0000_0000);
-        words[1] = Math.floor(Math.random() * 0x1_0000_0000);
+        words[0] = Math.floor(Math.random() * 0x1_00_00_00_00);
+        words[1] = Math.floor(Math.random() * 0x1_00_00_00_00);
     }
 
     return [...words].map((word) => word.toString(16).padStart(8, "0")).join("");

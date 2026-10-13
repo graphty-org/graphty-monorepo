@@ -50,13 +50,13 @@ function importsOf(source, values = false) {
  *          `const name =`; a call such as `name(x);` is not a definition
  */
 function defines(source, name) {
-    const mods = "(?:(?:private|public|protected|static|async|export|default|readonly|override|abstract|declare)\\s+)*";
+    const mods = String.raw`(?:(?:private|public|protected|static|async|export|default|readonly|override|abstract|declare)\s+)*`;
     return new RegExp(
         [
-            `\\bfunction\\s*\\*?\\s*${name}\\s*[(<]`,
-            `^\\s*${mods}\\*?${name}\\s*(?:<[^>]*>)?\\([^)]*\\)\\s*[:{]`,
-            `^\\s*${mods}${name}\\s*[?!]?\\s*(?::|=(?!=))`,
-            `\\b(?:const|let|var)\\s+${name}\\s*[:=]`,
+            String.raw`\bfunction\s*\*?\s*${name}\s*[(<]`,
+            String.raw`^\s*${mods}\*?${name}\s*(?:<[^>]*>)?\([^)]*\)\s*[:{]`,
+            String.raw`^\s*${mods}${name}\s*[?!]?\s*(?::|=(?!=))`,
+            String.raw`\b(?:const|let|var)\s+${name}\s*[:=]`,
         ].join("|"),
         "m",
     ).test(source);

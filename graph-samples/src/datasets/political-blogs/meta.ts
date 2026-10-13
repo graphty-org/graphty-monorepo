@@ -5,7 +5,7 @@ export const politicalBlogsMeta: DatasetMeta = {
     name: "political-blogs",
     title: "US political blogs, 2004",
     description:
-        "Hyperlinks between US political weblogs, crawled from their front pages in February 2005, with each blog labelled liberal or conservative from blog directories and by hand. Directed; 266 blogs have no links. The crawl recorded 65 links twice and 3 blogs linking to themselves: each link is kept once and the self-links are dropped.",
+        "Hyperlinks between US political weblogs, crawled from their front pages in February 2005, with each blog labeled liberal or conservative from blog directories and by hand. Directed; 266 blogs have no links. The crawl recorded 65 links twice and 3 blogs linking to themselves: each link is kept once and the self-links are dropped.",
     citation:
         "L. A. Adamic and N. Glance, The political blogosphere and the 2004 U.S. election: divided they blog, Proceedings of the 3rd International Workshop on Link Discovery (LinkKDD 2005), 36-43. doi:10.1145/1134271.1134277",
     source: "https://web.archive.org/web/20240730122800id_/https://public.websites.umich.edu/~mejn/netdata/polblogs.zip",
@@ -25,6 +25,6 @@ export const politicalBlogsMeta: DatasetMeta = {
         "two-way community detection against the political lean",
         "PageRank and HITS on a directed graph",
         "degree-corrected block models",
-        "force-directed layouts coloured by lean",
+        "force-directed layouts colored by lean",
     ],
 };

@@ -196,7 +196,7 @@ function isDotIdentifier(text: string): boolean {
  * @category Plugin helpers
  */
 export function isWritableDotText(text: string): boolean {
-    return !text.endsWith("\\") && !text.includes('\\"') && !/\\[\r\n]/.test(text);
+    return !text.endsWith("\\") && !text.includes(String.raw`\"`) && !/\\[\r\n]/.test(text);
 }
 
 /**

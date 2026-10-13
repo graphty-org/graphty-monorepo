@@ -61,10 +61,10 @@ function isMirror(source: NodeId, target: NodeId): boolean {
  * Uses adjacency lists for optimal performance with sparse graphs.
  */
 export class Graph {
-    private nodeMap: Map<NodeId, Node>;
-    private adjacencyList: Map<NodeId, Map<NodeId, Edge>>;
-    private incomingEdges: Map<NodeId, Map<NodeId, Edge>>; // For directed graphs
-    private config: GraphConfig;
+    private readonly nodeMap: Map<NodeId, Node>;
+    private readonly adjacencyList: Map<NodeId, Map<NodeId, Edge>>;
+    private readonly incomingEdges: Map<NodeId, Map<NodeId, Edge>>; // For directed graphs
+    private readonly config: GraphConfig;
     private edgeCount: number;
     private mutations: number;
 

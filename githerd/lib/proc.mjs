@@ -78,11 +78,17 @@ export function containerStart() {
 /**
  * How many pushes the push queue script runs at once: `PUSH_QUEUE_SLOTS` when githerd's environment
  * sets it, else the default the script itself declares (`SLOTS=${PUSH_QUEUE_SLOTS:-<n>}`), else 1.
+ * A wrapper that only `exec`s another script (the main checkout's `tmp/push-queue.sh`, which runs
+ * the live gate copy) is followed to that script.
  * @param {string} script the push queue script
+ * @param {number} [hops] wrappers still allowed, so a loop of wrappers ends
  * @returns {number} the gate slots
  */
-export function pushQueueSlots(script) {
-    const declared = /^SLOTS=\$\{PUSH_QUEUE_SLOTS:-(\d+)\}/m.exec(readFileSync(script, "utf8"))?.[1];
+export function pushQueueSlots(script, hops = 3) {
+    const text = readFileSync(script, "utf8");
+    const declared = /^SLOTS=\$\{PUSH_QUEUE_SLOTS:-(\d+)\}/m.exec(text)?.[1];
+    const target = /^exec\s+(?:bash\s+)?(\S+\.sh)\b/m.exec(text)?.[1];
+    if (!declared && target && hops > 0 && existsSync(target)) return pushQueueSlots(target, hops - 1);
     return Number(process.env.PUSH_QUEUE_SLOTS || declared) || 1;
 }
 

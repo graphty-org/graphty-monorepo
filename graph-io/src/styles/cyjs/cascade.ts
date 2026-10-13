@@ -1841,7 +1841,13 @@ function combineParts(
  */
 function openArrows(setting: Map<string, StyleValue>, parts: readonly EntryProperty[]): void {
     for (const end of ["target", "source"]) {
-        const fill = parts.filter((p) => p.spec.property === `_${end}ArrowFill`).at(-1)?.parsed;
+        // a later duplicate of a property replaces the earlier one
+        let fill: CyjsParsed | undefined;
+        for (const p of parts) {
+            if (p.spec.property === `_${end}ArrowFill`) {
+                fill = p.parsed;
+            }
+        }
         const shape = setting.get(`${end}Arrow`);
         const open = shape === undefined ? undefined : OPEN_ARROWS.get(shape);
         if (fill?.kind === "word" && fill.value === "hollow" && open !== undefined) {

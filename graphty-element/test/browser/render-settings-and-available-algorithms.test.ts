@@ -9,7 +9,7 @@ import "../../src/graphty-element";
 
 import { afterEach, assert, describe, it, vi } from "vitest";
 
-import { Algorithm, AlgorithmManager, type Graph, type Graphty, GraphtyError } from "../../index.js";
+import { Algorithm, AlgorithmManager, type Graph, type Graphty } from "../../index.js";
 
 /** A plugin algorithm, registered the way a third party registers one. */
 class DoNothing extends Algorithm {
@@ -53,20 +53,6 @@ async function mount(): Promise<Graphty> {
     return element;
 }
 
-/**
- * The `GraphtyError` code a promise rejects with.
- * @param promise - The call.
- * @returns The code.
- */
-async function codeOf(promise: Promise<unknown>): Promise<string> {
-    const error = await promise.then(
-        () => undefined,
-        (reason: unknown) => reason,
-    );
-    assert.instanceOf(error, GraphtyError, "the call rejected with a GraphtyError");
-    return error.code;
-}
-
 describe("setRenderSettings", () => {
     it("switches drawing on demand once the queue reaches it", async () => {
         const element = await mount();
@@ -97,21 +83,37 @@ describe("setRenderSettings", () => {
         assert.isTrue(element.renderOnDemand);
     });
 
-    it("refuses a field that is not a render setting, and changes nothing", async () => {
+    it("applies the valid fields and warns about an unknown one, still resolving", async () => {
         const element = await mount();
 
-        assert.equal(await codeOf(element.setRenderSettings({ onDemand: true, fps: 30 })), "E_UNKNOWN_OPTION");
-        assert.isFalse(element.renderOnDemand);
+        const warnings = await element.setRenderSettings({ onDemand: true, fps: 30 });
+        assert.isTrue(element.renderOnDemand, "the valid field is applied");
+        assert.deepEqual(element.layoutBehavior?.rendering, { onDemand: true }, "fps is not applied");
+        assert.deepEqual(warnings, [
+            {
+                code: "W_RENDER_SETTING_IGNORED",
+                params: { field: "fps", reason: "unknown-field", accepted: ["onDemand"] },
+            },
+        ]);
     });
 
-    it("refuses a value the setting does not take, and changes nothing", async () => {
+    it("ignores a value the setting does not take and warns, still resolving", async () => {
         const element = await mount();
 
-        assert.equal(
-            await codeOf(element.setRenderSettings({ onDemand: "yes" }, { skipQueue: true })),
-            "E_OPTION_RANGE",
-        );
-        assert.isFalse(element.renderOnDemand);
+        const warnings = await element.setRenderSettings({ onDemand: "yes" }, { skipQueue: true });
+        assert.isFalse(element.renderOnDemand, "the invalid value is not applied");
+        assert.deepEqual(warnings, [
+            {
+                code: "W_RENDER_SETTING_IGNORED",
+                params: { field: "onDemand", reason: "invalid-value", accepted: ["onDemand"] },
+            },
+        ]);
+    });
+
+    it("warns about nothing when every field is valid", async () => {
+        const element = await mount();
+
+        assert.deepEqual(await element.setRenderSettings({ onDemand: true }), []);
     });
 });
 

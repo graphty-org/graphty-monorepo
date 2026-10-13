@@ -1718,7 +1718,7 @@ export class Graph implements GraphContext {
     setLayoutScope(scope: ScopeInput | undefined): Promise<void>;
     setNodes(nodes: Record<string | number, unknown>[], idPath?: string, options?: QueueableOptions): Promise<void>;
     setRenderer(request: RendererRequest): void;
-    setRenderSettings(settings: Record<string, unknown>, options?: QueueableOptions): Promise<void>;
+    setRenderSettings(settings: Record<string, unknown>, options?: QueueableOptions): Promise<readonly CodedFact<GraphtyWarningCode>[]>;
     setRunning(running: boolean): void;
     setSelectionStyle(selection: GraphSelectionStyleInput): void;
     setStartingCameraDistance(distance: number | undefined): void;
@@ -2151,7 +2151,7 @@ export class Graphty extends LitElement {
     }): void;
     setInputEnabled(enabled: boolean): void;
     setLayout(type: string, opts?: object, options?: SetLayoutOptions): Promise<void>;
-    setRenderSettings(settings: Record<string, unknown>, options?: QueueableOptions): Promise<void>;
+    setRenderSettings(settings: Record<string, unknown>, options?: QueueableOptions): Promise<readonly CodedFact<GraphtyWarningCode>[]>;
     setRunning(running: boolean): void;
     setViewMode(mode: ViewMode): Promise<void>;
     setXRConfig(config: PartialXRConfig): void;
@@ -2667,7 +2667,14 @@ export type GraphtyWarningCode =
 * draw it translucent, so the color is drawn opaque. `params.channel` is the channel and
 * `params.path` where in the layer the color sits. Today only `node.outline` cannot.
 */
-| "W_ALPHA_IGNORED";
+| "W_ALPHA_IGNORED"
+/**
+* `setRenderSettings` was handed a field it did not apply; the valid fields were applied.
+* `params.field` names it, `params.reason` is `"unknown-field"` (no render setting has that
+* name) or `"invalid-value"` (the setting does not take that value), and `params.accepted`
+* lists the render settings.
+*/
+| "W_RENDER_SETTING_IGNORED";
 
 // @public
 export const GREEN_SUCCESS: {

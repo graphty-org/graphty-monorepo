@@ -81,6 +81,7 @@ import { type PartialXRConfig, xrConfigSchema } from "./config/xr-config-schema"
 import { type ExportGraphOptions, type ExportResult, exportSession } from "./data/export";
 import { sampleOf } from "./data/source-bytes";
 import { GraphtyError } from "./errors";
+import type { GraphtyWarningCode } from "./errors/codes";
 import {
     EventCallbackType,
     EventOfType,
@@ -158,6 +159,7 @@ import type { GraphSlice, LayoutChoice } from "./session/project/state";
 import { reportCaught, strictStateEnabled, strictViolation } from "./session/project/strict";
 import type { Run, StartOptions } from "./session/runs";
 import type { SelectionDelta, SelectionOp, SelectionTarget } from "./session/selection";
+import type { CodedFact } from "./session/shared";
 import type { StyleSuggestion } from "./session/styles";
 import { suggestionCommand } from "./session/styles/autoApply";
 import { toColorValue } from "./session/styles/channels";
@@ -203,40 +205,35 @@ function isAbort(error: unknown): boolean {
 const PROJECT_LAYOUT_KEYS: ReadonlySet<string> = new Set(["preSteps", "stepMultiplier", "minDelta"]);
 
 /**
- * Check what `setRenderSettings` was handed, before anything is queued or changed.
+ * Split what `setRenderSettings` was handed into the fields it applies and the ones it ignores.
  * @param settings - The caller's settings.
- * @returns The settings, checked.
- * @throws A `GraphtyError`: `E_UNKNOWN_OPTION` for a field that is no render setting,
- *     `E_OPTION_RANGE` for a value the setting does not take.
+ * @returns The valid fields as the caller gave them, and a `W_RENDER_SETTING_IGNORED` warning
+ *     for each field that is no render setting or holds a value the setting does not take.
  */
-function parseRenderSettings(settings: Record<string, unknown>): GraphBehaviorConfig["rendering"] {
-    const available = Object.keys(RenderSettingsOpts.shape);
-    const unknown = Object.keys(settings).filter((key) => !available.includes(key));
-    if (unknown.length > 0) {
-        throw new GraphtyError({
-            code: "E_UNKNOWN_OPTION",
-            message: `not a render setting: ${unknown.join(", ")}. The render settings are: ${available.join(", ")}`,
-            source: "view",
-            details: { unknown, available },
-        });
+function parseRenderSettings(settings: Record<string, unknown>): {
+    rendering: Record<string, unknown>;
+    warnings: readonly CodedFact<GraphtyWarningCode>[];
+} {
+    const fields: Readonly<Record<string, { safeParse: (value: unknown) => { success: boolean } }>> =
+        RenderSettingsOpts.shape;
+    const accepted = Object.keys(fields);
+    const rendering: Record<string, unknown> = {};
+    const warnings: CodedFact<GraphtyWarningCode>[] = [];
+    for (const [field, value] of Object.entries(settings)) {
+        const schema = fields[field];
+        if (schema?.safeParse(value).success) {
+            // The caller's own value, not the parse's: a default filled in for `undefined` would
+            // reset a setting the caller did not mean to set.
+            rendering[field] = value;
+        } else {
+            warnings.push({
+                code: "W_RENDER_SETTING_IGNORED",
+                params: { field, reason: schema ? "invalid-value" : "unknown-field", accepted },
+            });
+        }
     }
 
-    const parsed = RenderSettingsOpts.partial().safeParse(settings);
-    if (!parsed.success) {
-        const [issue] = parsed.error.issues;
-        const option = String(issue?.path[0]);
-        throw new GraphtyError({
-            code: "E_OPTION_RANGE",
-            message: `the render setting "${option}" was refused: ${issue?.message}`,
-            source: "view",
-            details: { option, value: settings[option] },
-            cause: parsed.error,
-        });
-    }
-
-    // The caller's own fields, not the parse's: a field left out is filled with its default there,
-    // which would reset a setting the caller did not name.
-    return settings;
+    return { rendering, warnings: Object.freeze(warnings) };
 }
 
 /**
@@ -3021,19 +3018,27 @@ export class Graph implements GraphContext {
      * @param settings - The fields to change, e.g. `{ onDemand: true }`.
      * @param options - Queue options for operation ordering. With `skipQueue` the settings apply
      *     before this returns; otherwise they apply when the queue reaches them.
-     * @throws A `GraphtyError` with `E_UNKNOWN_OPTION` for a field that is not a render setting
-     *     (`details.available` lists them), or `E_OPTION_RANGE` for a value the setting does not take.
-     *     Nothing is changed then.
+     * @returns A `W_RENDER_SETTING_IGNORED` warning for each field that was not applied: one that
+     *     is no render setting (`params.reason` `"unknown-field"`) or holds a value the setting does
+     *     not take (`"invalid-value"`). `params.field` names it and `params.accepted` lists the
+     *     render settings. The valid fields are applied either way.
      */
-    async setRenderSettings(settings: Record<string, unknown>, options?: QueueableOptions): Promise<void> {
-        const rendering = parseRenderSettings(settings);
+    async setRenderSettings(
+        settings: Record<string, unknown>,
+        options?: QueueableOptions,
+    ): Promise<readonly CodedFact<GraphtyWarningCode>[]> {
+        const { rendering, warnings } = parseRenderSettings(settings);
+        if (warnings.length > 0) {
+            console.warn("[graphty] setRenderSettings ignored some fields:", warnings);
+        }
+
         const apply = (): void => {
             this.setLayoutBehavior({ rendering });
         };
 
         if (options?.skipQueue) {
             apply();
-            return;
+            return warnings;
         }
 
         await this.operationQueue.queueOperationAsync(
@@ -3050,6 +3055,7 @@ export class Graph implements GraphContext {
                 ...options,
             },
         );
+        return warnings;
     }
 
     /**

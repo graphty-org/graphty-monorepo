@@ -402,7 +402,14 @@ export type GraphtyWarningCode =
      * draw it translucent, so the color is drawn opaque. `params.channel` is the channel and
      * `params.path` where in the layer the color sits. Today only `node.outline` cannot.
      */
-    | "W_ALPHA_IGNORED";
+    | "W_ALPHA_IGNORED"
+    /**
+     * `setRenderSettings` was handed a field it did not apply; the valid fields were applied.
+     * `params.field` names it, `params.reason` is `"unknown-field"` (no render setting has that
+     * name) or `"invalid-value"` (the setting does not take that value), and `params.accepted`
+     * lists the render settings.
+     */
+    | "W_RENDER_SETTING_IGNORED";
 
 /**
  * Every code, as a lookup table.

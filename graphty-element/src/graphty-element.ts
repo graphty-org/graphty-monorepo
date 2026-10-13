@@ -14,6 +14,7 @@ import type { GraphBackgroundConfig, GraphBehaviorConfig, GraphSelectionStyleInp
 import { type AlgorithmOnLoad, parseAlgorithmsOnLoad, REPEATED_EDGE_POLICIES } from "./config/DataConfig";
 import type { PartialXRConfig } from "./config/xr-config-schema";
 import type { ExportGraphOptions, ExportResult } from "./data/export";
+import type { GraphtyWarningCode } from "./errors/codes";
 import {
     type GraphtyForwardedEventMap,
     isDomForwardableEvent,
@@ -48,7 +49,7 @@ import {
 } from "./session/projectFile";
 import type { Run, RunChange, StartOptions } from "./session/runs";
 import type { SelectionDelta, SelectionOp, SelectionTarget } from "./session/selection";
-import type { ProgressChange } from "./session/shared";
+import type { CodedFact, ProgressChange } from "./session/shared";
 import type { DefaultPalettes } from "./session/styles";
 import type { ProjectConfigPatch, SessionEventMap, TransactionScope } from "./session/types";
 import type { VisibilityChange } from "./session/visibility";
@@ -3902,15 +3903,15 @@ export class Graphty extends LitElement {
      * ```
      * @param settings - The fields to change
      * @param options - Queue options; with `skipQueue` the settings apply at once
-     * @returns Promise that resolves when settings are applied
-     * @throws A `GraphtyError` with `E_UNKNOWN_OPTION` for a field that is not a render setting
-     * (`details.available` lists them), or `E_OPTION_RANGE` for a value the setting does not take
+     * @returns Once the settings are applied: a `W_RENDER_SETTING_IGNORED` warning for each field
+     * that was not, because no render setting has its name or the setting does not take its value
+     * (`params.field`, `params.reason`, `params.accepted`). The valid fields are applied either way
      * @since 1.5.0
      */
     async setRenderSettings(
         settings: Record<string, unknown>,
         options?: import("./utils/queue-migration").QueueableOptions,
-    ): Promise<void> {
+    ): Promise<readonly CodedFact<GraphtyWarningCode>[]> {
         return this.#graph.setRenderSettings(settings, options);
     }
 

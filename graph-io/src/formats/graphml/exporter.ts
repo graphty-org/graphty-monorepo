@@ -1348,7 +1348,7 @@ function* writeGraphml(snapshot: GraphSnapshot, plan: Plan): Generator<string, v
  * @returns the tag
  */
 function rootElement(plan: Plan): string {
-    const namespaces: Record<string, string> = { ...(plan.meta?.namespaces ?? {}) };
+    const namespaces: Record<string, string> = { ...plan.meta?.namespaces };
     const yfilesColumns =
         plan.nodeColumns.some((c) => c.yfiles) ||
         plan.edgeColumns.some((c) => c.yfiles) ||

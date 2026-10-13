@@ -11,6 +11,31 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-13) **Iteration 3's owner review: stories, guides, frozen build, pictures** (graphty
+  app stories, graphty-element guides). `StylePanel.stories.tsx` gains Key people at rest, Label
+  settings (Key people's name label, its settings open) and College football's Conference, made
+  entirely through the panel: Add layer, Nodes, the color's vary glyph, "value", a double-click
+  rename in the tree, then "One color per value" in the pill's popover. Guide pages, each with a
+  first example compiled against `dist/` and run headlessly in
+  `test/documentation/unified-styles-guides.test.ts`: `beneath-a-row.md` (agreement `over`,
+  `readOver`), `values-as-groups-and-colors.md` (number `valueCount`, `valuesAreColors`, edge
+  ends), `label-size-and-numbers.md` (`sizeUnit: "screen"`, binding `format`). The API report
+  needed no change. Fixed on the way: `readableValues()` listed edge-end entries on a graph with
+  no edges (the readable values guide test failed on it), the docs type-check failed on
+  `label-screen-size.test.ts` (`assert.isNumber` does not narrow under TypeDoc's config), and
+  lychee and VitePress slug "The element's own layers" differently, so the heading is now "Layers
+  the element owns". `capture-review-stories.mjs <sb> <out> i3` shoots the approval set at
+  1366 x 768 and 900 x 700, light and dark, into `tier3/build/i3-owner/`. The build is frozen in
+  `.study-builds/tier3-i3-<sha>` and served by servherd `design-studio-tier3` on 9373 (restart the
+  same name with the new `--outDir`). Traps: a guide variable named `graph` fails
+  `guide-calls-a-real-method` ("teaches graph.channels"); commitlint refuses a header over 100.
+  SEEN, not fixed (for the next unit): "One color per value" on a number column paints 12 shades
+  of one orange. The app clears `palette`, and graphty-element's ordinal binding with no palette
+  on a number column picks the sequential `ylorbr` and reports a `sequential` legend block, while
+  the popover's palette select says "Eight distinct colors". Either the element's default palette
+  for an ordinal scale should be categorical (changing a default: breaking, the owner's), or the
+  app passes a categorical palette as its own choice (allowed; a choice, not a workaround).
+
 - (2026-10-13) **Which elements in words, one name per value, a Values tab that agrees, a draft
   that counts** (graphty app; test `style/__tests__/NamesAndRules.real-element.test.tsx`, Les
   Miserables with Degree, Louvain, Edge betweenness and a route; all five fail without the change).

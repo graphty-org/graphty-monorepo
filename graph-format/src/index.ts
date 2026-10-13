@@ -3,9 +3,7 @@
  * typed arrays, with a mutable builder, columnar typed attributes and an id map kept outside the CSR.
  * This is the only public barrel; it exports exactly the surface of design section 12.2, as named
  * exports (no star re-exports, nothing from src/types/internal.ts, no helper that a sibling module
- * exports for the package's own use), plus the engine-independent math of src/util/det-math.ts, which
- * every graphty package that turns a seed into a result shares from here because graph-format is
- * the one dependency they all have.
+ * exports for the package's own use).
  */
 
 // ============================================================ constants and errors

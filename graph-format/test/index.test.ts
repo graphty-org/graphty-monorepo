@@ -2,10 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import * as graphFormat from "../src/index.js";
 
-/**
- * The value exports of design section 12.2 (classes, functions and constants), plus the engine-independent math of
- * src/util/det-math.ts; types are checked by test/types.
- */
+/** The value exports of design section 12.2 (classes, functions and constants); types are checked by test/types. */
 const VALUE_EXPORTS = [
     "AttributeTable",
     "FORMAT_VERSION",

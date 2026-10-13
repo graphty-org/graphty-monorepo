@@ -492,10 +492,49 @@ export function detHypot(...values: number[]): number {
 // ============================================================ pow
 
 /**
+ * x^n for an integer n by binary exponentiation: `x * x` for n = 2 and `1 / x` for n = -1, as fdlibm gives.
+ * @param x - the base
+ * @param n - the exponent, an integer
+ * @returns x^n
+ */
+function powByMultiplication(x: number, n: number): number {
+    let base = x;
+    let left = Math.abs(n);
+    let result = 1;
+    while (left > 0) {
+        if (left % 2 === 1) {
+            result *= base;
+        }
+        base *= base;
+        left = Math.floor(left / 2);
+    }
+    return n < 0 ? 1 / result : result;
+}
+
+/**
+ * |x|^y for a finite y that is not a small integer, x not NaN.
+ * @param ax - |x|
+ * @param y - the exponent
+ * @returns |x|^y
+ */
+function powOfMagnitude(ax: number, y: number): number {
+    if (ax === 0) {
+        return y > 0 ? 0 : Infinity;
+    }
+    if (ax === Infinity) {
+        return y > 0 ? Infinity : 0;
+    }
+    if (y === 0.5) {
+        return Math.sqrt(ax); // as fdlibm, which returns sqrt(x) here
+    }
+    return detExp(y * detLog(ax));
+}
+
+/**
  * x^y, bit-identical across engines. An integer exponent up to 1024 in magnitude is binary exponentiation, so
- * `detPow(x, 2)` is exactly `x * x` and `detPow(x, -1)` exactly `1 / x`, as fdlibm gives; otherwise it is
- * `Math.sqrt(x)` for y = 0.5 and `detExp(y * detLog(|x|))` for the rest, which is not correctly rounded: its relative error is about |y ln x| times 1.1e-16.
- * The special values follow `Math.pow`.
+ * `detPow(x, 2)` is exactly `x * x` and `detPow(x, -1)` exactly `1 / x`, as fdlibm gives. Otherwise it is
+ * `Math.sqrt(x)` for y = 0.5 and `detExp(y * detLog(|x|))` for the rest, which is not correctly rounded: its
+ * relative error is about |y ln x| times 1.1e-16. The special values follow `Math.pow`.
  * @param x - the base
  * @param y - the exponent
  * @returns x^y
@@ -509,20 +548,7 @@ export function detPow(x: number, y: number): number {
     }
     const integer = Number.isInteger(y);
     if (integer && Math.abs(y) <= 1024) {
-        let base = x;
-        let n = Math.abs(y);
-        let result = 1;
-        for (;;) {
-            if (n & 1) {
-                result *= base;
-            }
-            n >>>= 1;
-            if (n === 0) {
-                break;
-            }
-            base *= base;
-        }
-        return y < 0 ? 1 / result : result;
+        return powByMultiplication(x, y);
     }
     const ax = Math.abs(x);
     if (!Number.isFinite(y)) {
@@ -531,18 +557,10 @@ export function detPow(x: number, y: number): number {
         }
         return ax > 1 === y > 0 ? Infinity : 0;
     }
-    let result: number;
-    if (ax === 0) {
-        result = y > 0 ? 0 : Infinity;
-    } else if (ax === Infinity) {
-        result = y > 0 ? Infinity : 0;
-    } else if (x < 0 && !integer) {
+    if (x < 0 && !integer && ax !== Infinity) {
         return Number.NaN;
-    } else if (y === 0.5) {
-        result = Math.sqrt(ax); // as fdlibm, which returns sqrt(x) here
-    } else {
-        result = detExp(y * detLog(ax));
     }
-    const odd = integer && y % 2 !== 0;
-    return odd && (x < 0 || Object.is(x, -0)) ? -result : result;
+    const result = powOfMagnitude(ax, y);
+    const negative = x < 0 || Object.is(x, -0);
+    return negative && integer && y % 2 !== 0 ? -result : result;
 }

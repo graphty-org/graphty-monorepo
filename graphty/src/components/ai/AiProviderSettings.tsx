@@ -356,7 +356,7 @@ const TOOL_ABILITY: Readonly<Record<AiToolSwitch, { readonly can: string; readon
  * @returns The list.
  */
 function listed(names: readonly string[]): string {
-    return names.length < 2 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+    return names.length < 2 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names.at(-1) ?? ""}`;
 }
 
 /**
@@ -406,7 +406,8 @@ function unavailableReason(
         AI_HOSTED_TOOL_CAPABILITIES[known.id][tool] === "available" &&
         status === "unsupported"
     ) {
-        return `The model ${capabilities.model} cannot ${can}, so the assistant cannot ${lost}. Other ${provider} models can${others.length === 0 ? "" : `, and so can ${listed(others)}`}.`;
+        const also = others.length === 0 ? "" : `, and so can ${listed(others)}`;
+        return `The model ${capabilities.model} cannot ${can}, so the assistant cannot ${lost}. Other ${provider} models can${also}.`;
     }
 
     if (status === "unsupported") {

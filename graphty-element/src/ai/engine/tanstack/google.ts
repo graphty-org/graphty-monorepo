@@ -59,8 +59,23 @@ function httpOptions(
 
 /** An http or https URL in a text, up to the first character a URL in prose cannot hold. */
 const URL_IN_TEXT = /https?:\/\/[^\s"'<>()]+/gi;
-/** A word that looks like a host name (`example.com`, `www.example.org`), outside any URL. */
-const HOST_IN_TEXT = /(?:[\w-]+\.)+[a-z]{2,}/gi;
+/** What separates words, for finding host names outside URLs: anything a host name cannot hold. */
+const NOT_HOST = /[^\w.-]+/;
+/** One label of a host name. */
+const LABEL = /^[\w-]+$/;
+/** The last label of a host name: letters only, two or more. */
+const TOP_LABEL = /^[a-z]{2,}$/i;
+
+/**
+ * Whether a word looks like a host name (`example.com`, `www.example.org`): two or more labels,
+ * the last of them letters.
+ * @param word - The word, without the punctuation around it.
+ * @returns True when it does.
+ */
+function looksLikeHost(word: string): boolean {
+    const labels = word.split(".");
+    return labels.length > 1 && labels.every((label) => LABEL.test(label)) && TOP_LABEL.test(labels.at(-1) ?? "");
+}
 
 /**
  * Every host a text names: those of its http and https URLs, and every other word that looks
@@ -74,7 +89,8 @@ function hostsIn(text: string): string[] {
         hosts.push(URL.canParse(url) ? new URL(url).hostname : url);
         return " ";
     });
-    return [...hosts, ...(rest.match(HOST_IN_TEXT) ?? [])].map((host) => host.toLowerCase());
+    const words = rest.split(NOT_HOST).map((word) => word.replaceAll(/^\.+|\.+$/g, ""));
+    return [...hosts, ...words.filter(looksLikeHost)].map((host) => host.toLowerCase());
 }
 
 /**

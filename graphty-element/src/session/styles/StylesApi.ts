@@ -192,6 +192,7 @@ import { stackChange } from "./repaint";
 import {
     assertRouted,
     partPatch,
+    retargetSelector,
     rowOf,
     type RowParts,
     rowParts,
@@ -2828,9 +2829,10 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
 
     /**
      * The stack with a row painting other kinds: a part for each kind it lacks, added empty with the
-     * row's name, rule and eye, and its parts of kinds no longer wanted dropped. The parts stay
-     * together where the row was, the edge part under the node part, every one carrying the row's
-     * key once there are two.
+     * row's name, rule and eye, and its parts of kinds no longer wanted dropped. The row keeps its
+     * id, which stays a layer's id: the node part's when it paints nodes, else its one part's. Its
+     * rule is carried across kinds ({@link retargetSelector}). The parts stay together where the
+     * row was, the edge part under the node part, every one carrying the row's key.
      * @param key - The row's key.
      * @param target - What it paints from now on.
      * @param changed - Collects the layers added, dropped or rewritten.
@@ -2851,19 +2853,23 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         }
 
         const id = minter();
-        const shared = specOf(parts[0].layer);
+        const keyPart = parts.find((entry) => entry.layer.id === key) ?? parts[0];
+        const shared = specOf(keyPart.layer);
+        const selector = retargetSelector(shared.selector, keyPart.layer.target, wanted, sources.paths);
+        const keyKind: SelectorTarget = wanted.includes("node") ? "node" : wanted[0];
         const placed = wanted.map((kind): CompiledLayer => {
             const kept = parts.find((entry) => entry.layer.target === kind);
-            if (kept !== undefined && (wanted.length === 1 || kept.layer.row === key)) {
+            const own = kept !== undefined && kept.layer.id !== key ? kept.layer.id : undefined;
+            const layerId = kind === keyKind ? key : (own ?? id(shared.name));
+            if (kept?.layer.id === layerId && kept.layer.row === key && kept.layer.selector === selector) {
                 return kept;
             }
 
-            // Every new part carries the row's key, so the row keeps its id and its place.
+            // Values set for a kind the row no longer paints went with its part.
             const spec: LayerSpec =
                 kept === undefined
-                    ? { ...shared, target: kind, set: undefined, encode: undefined, row: key }
-                    : { ...specOf(kept.layer), row: key };
-            const layerId = kept?.layer.id ?? id(spec.name);
+                    ? { ...shared, target: kind, selector, set: undefined, encode: undefined, row: key }
+                    : { ...specOf(kept.layer), selector, row: key };
 
             const checked = check(spec, layerId);
             if (checked.layer === null) {

@@ -13,11 +13,21 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import type { Binding, ChannelValue, LayerId, LayerSpec, StaticStyle } from "../../catalog/types";
+import type {
+    Binding,
+    ChannelValue,
+    LayerId,
+    LayerSpec,
+    Path,
+    RuleTree,
+    Selector,
+    StaticStyle,
+} from "../../catalog/types";
 import { GraphtyError } from "../../errors";
 import { channelDescriptor } from "./channels";
-import type { CompiledLayer } from "./Layer";
+import type { CompiledLayer, PathDirectory } from "./Layer";
 import type { SelectorTarget } from "./predicate";
+import { selectorRule } from "./selector";
 
 /** What a row paints: nodes, edges, or both. */
 export type RowTarget = SelectorTarget | "both";
@@ -311,4 +321,90 @@ export function startingRowOf(entry: CompiledLayer): StartingRowId | undefined {
     return source.by === "template" && source.templateId.startsWith("graphty:starting-")
         ? (source.templateId as StartingRowId)
         : undefined;
+}
+
+/** Rule leaves that always read nodes: their degree, component, neighborhood or isolation. */
+const NODE_LEAVES: ReadonlySet<string> = new Set(["degree", "component", "neighborhood", "isolated"]);
+
+/**
+ * The value a leaf reads, when it reads one: the id is no kind's value.
+ * @param leaf - The leaf.
+ * @returns The path, or undefined.
+ */
+function leafPath(leaf: RuleTree): Path | undefined {
+    switch (leaf.kind) {
+        case "range":
+        case "categories":
+            return leaf.attribute;
+        case "text":
+            return leaf.reads === "id" ? undefined : leaf.reads;
+        case "threshold":
+            return leaf.path;
+        default:
+            return undefined;
+    }
+}
+
+/**
+ * A rule with every leaf passed through a change.
+ * @param rule - The rule.
+ * @param change - The change to one leaf.
+ * @returns The rule.
+ */
+function mapLeaves(rule: RuleTree, change: (leaf: RuleTree) => RuleTree): RuleTree {
+    switch (rule.kind) {
+        case "all":
+        case "any":
+            return { kind: rule.kind, of: rule.of.map((child) => mapLeaves(child, change)) };
+        case "not":
+            return { kind: "not", of: mapLeaves(rule.of, change) };
+        default:
+            return change(rule);
+    }
+}
+
+/**
+ * A row's rule, written for one kind, as it reads for the kinds the row paints from now on. A rule
+ * that reads node values reaches edges as the edges touching those nodes; a rule that reads edge
+ * values reaches nodes as the nodes at the ends of those edges. A rule that reads nothing
+ * kind-specific (everything, a state, the id), or that the session cannot place, is kept.
+ * @param selector - The rule as the row has it.
+ * @param from - The kind it was written for.
+ * @param wanted - The kinds the row paints from now on.
+ * @param paths - Which kinds carry a value; absent, nothing is changed.
+ * @returns The rule, the same object when it needs no change.
+ */
+export function retargetSelector(
+    selector: Selector,
+    from: SelectorTarget,
+    wanted: readonly SelectorTarget[],
+    paths: PathDirectory | undefined,
+): Selector {
+    const rule = selectorRule(selector);
+    const to = wanted.find((kind) => kind !== from);
+    if (rule === undefined || to === undefined || paths === undefined) {
+        return selector;
+    }
+
+    const onlyOn = (path: Path | undefined, kind: SelectorTarget): boolean =>
+        path !== undefined && paths.answers(path, kind) && !paths.answers(path, kind === "node" ? "edge" : "node");
+    let changed = false;
+
+    if (to === "edge") {
+        mapLeaves(rule.where, (leaf) => {
+            changed ||= NODE_LEAVES.has(leaf.kind) || onlyOn(leafPath(leaf), "node");
+            return leaf;
+        });
+        return changed ? { ...rule, edges: "incident" } : selector;
+    }
+
+    // ponytail: a threshold leaf on edge values has no "ends" reading and stays as it is.
+    const where = mapLeaves(rule.where, (leaf) => {
+        const ends =
+            (leaf.kind === "range" || leaf.kind === "categories" || leaf.kind === "text") &&
+            onlyOn(leafPath(leaf), "edge");
+        changed ||= ends;
+        return ends ? { ...leaf, nodes: "ends" } : leaf;
+    });
+    return changed ? { ...rule, where } : selector;
 }

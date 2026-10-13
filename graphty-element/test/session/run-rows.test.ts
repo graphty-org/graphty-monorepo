@@ -281,7 +281,8 @@ describe("a row's kind", () => {
         const dropped = await styles.writeRow(row.id, { target: "edge" });
         assert.strictEqual(dropped.id, row.id);
         assert.strictEqual(dropped.target, "edge");
-        assert.strictEqual(dropped.edge, edgesOnly.edge);
+        assert.strictEqual(dropped.edge, row.id, "the row id stays a layer id");
+        assert.isDefined(edgesOnly.edge);
         assert.deepStrictEqual(
             styles.tree().map((entry) => entry.id),
             [row.id],

@@ -4,6 +4,32 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-12 -- Decided by the team: select what a layer paints, and who paints over it
+
+**What.** graphty-element's session, additive.
+
+- A selection target `{ layer: LayerId }`: `selection.apply({ layer })` selects exactly the
+  elements the layer's rule matches, shown or not (the elements `styles.counts(id).matched`
+  counts). A layer paints one kind, so it names nodes or edges; a two-kind row is two applies.
+  An unknown id is refused with `E_UNKNOWN_LAYER`. This is the app's "Select what it paints"
+  (Figma's Select matching layers), in the row menu and the panel header.
+- `StyleCounts.paintedBy: readonly LayerId[]`: for the channels a layer writes, the other layers
+  the picture shows instead on its matched elements, the most elements first. The tree's
+  "Painted over" mark names them ("Painted over by Degree").
+
+**Not breaking.** A new member of an open union and a new field on a returned type.
+
+**Owed, not built.** `styles.duplicateRow(id)`: the app's Duplicate rebuilds a layer row from its
+parts' specs inside one transaction (`graphty/src/workspace/graph-place/actions.ts`, marked
+temporary). An element verb would also duplicate folders and keep the copy's place in one command;
+it was not built here because the style command definitions were being edited by another change
+at the same time.
+
+**App choice, not an element default.** The app turns on `startingRows` and `runPlacement: "top"`
+for every project it opens (`graphty/src/workspace/Workspace.tsx`); the element's defaults stay
+off and "beneath". The project file saves neither setting, so a reopened file gets the app's
+choice again.
+
 ## 2026-10-12 -- For the owner: the breaking pieces of unified styles in the real app
 
 **What.** Not built; questions. Building unified style layers into the graphty app (design:

@@ -1,7 +1,7 @@
 import type { StyleRow, StyleRowPin } from "@graphty/graphty-element/session";
 
 import { type Command, type CommandContext, defineRegistration } from "../commands/registry";
-import { deleteRow, orNotice, ungroup } from "./actions";
+import { deleteRow, duplicateRow, orNotice, selectWhatItPaints, ungroup } from "./actions";
 import { FIND_BOX_ID } from "./FindBox";
 import { findTreeRow } from "./rows";
 
@@ -68,9 +68,42 @@ export const ROW_COMMANDS: readonly RowCommand[] = [
             }, MENU_FOCUS_RETURN_MS);
         },
     },
+    {
+        id: "row.duplicate",
+        label: "Duplicate",
+        rowKeys: ["Mod+D"],
+        applies: (row) => row.kind === "layer",
+        disabled: () => null,
+        run: async ({ session, workspace }, row) => {
+            if (session === null) {
+                return;
+            }
+            try {
+                const id = await duplicateRow(session, row);
+                if (id !== undefined) {
+                    workspace.set({ inspected: { kind: "layer-row", id } });
+                }
+            } catch (error) {
+                const why = error instanceof Error ? ` ${error.message}` : "";
+                workspace.set({ notice: { message: `Could not duplicate ${row.name}.${why}`, error: true } });
+            }
+        },
+    },
     pinCommand("top", "Pin to top"),
     pinCommand("bottom", "Pin to bottom"),
     pinCommand("none", "Unpin"),
+    {
+        id: "row.select-paints",
+        label: "Select what it paints",
+        rowKeys: [],
+        applies: () => true,
+        disabled: () => null,
+        run: async ({ session, workspace }, row) => {
+            if (session !== null) {
+                await orNotice(workspace, `select what ${row.name} paints`, selectWhatItPaints(session, row));
+            }
+        },
+    },
     {
         id: "row.ungroup",
         label: "Ungroup",

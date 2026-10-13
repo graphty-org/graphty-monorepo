@@ -410,6 +410,8 @@ export interface SelectionSources {
     readonly pathsOf?: (where: Query) => readonly Path[];
     /** What a note's targets select. Absent refuses a `note` target. */
     readonly note?: TargetContext["note"];
+    /** What a style layer's rule matches. Absent refuses a `layer` target. */
+    readonly layer?: TargetContext["layer"];
     /** Where the attribute bags are read. Absent leaves the attribute statistics empty. */
     readonly records?: SessionRecordSource;
     /**
@@ -1012,7 +1014,7 @@ class Selection implements SelectionOwner {
      * @returns The context, built around the frame the selection is synchronised to.
      */
     #context(): TargetContext {
-        const { scope, results, match, find, note } = this.#sources;
+        const { scope, results, match, find, note, layer } = this.#sources;
 
         return {
             graph: this.#frame.graph,
@@ -1025,6 +1027,7 @@ class Selection implements SelectionOwner {
             ...(match === undefined ? {} : { match }),
             ...(find === undefined ? {} : { find }),
             ...(note === undefined ? {} : { note }),
+            ...(layer === undefined ? {} : { layer }),
         };
     }
 

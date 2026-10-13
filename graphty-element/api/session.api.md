@@ -3281,6 +3281,14 @@ export type SelectionTarget = ElementIdTarget | NeighborhoodTarget
 | {
     readonly note: NoteId;
     readonly target?: number;
+}
+/**
+* Every element a style layer's rule matches, whether or not the layer is shown: what
+* `styles.counts(layer).matched` counts. A layer paints one kind, so this names nodes or edges.
+* @since 3.26.0
+*/
+| {
+    readonly layer: LayerId;
 };
 
 // @public
@@ -3808,6 +3816,7 @@ export interface StyleCounts {
     readonly noValue: number;
     readonly outsideScale: number;
     readonly painted: Readonly<Partial<Record<Channel, number>>>;
+    readonly paintedBy: readonly LayerId[];
     readonly reads: readonly Path[];
     readonly revision: string;
 }

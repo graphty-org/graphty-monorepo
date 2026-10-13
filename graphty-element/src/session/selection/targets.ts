@@ -32,6 +32,7 @@ import { type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 
 import type {
     EdgeId,
+    LayerId,
     NodeId,
     Path,
     Query,
@@ -165,7 +166,13 @@ export type SelectionTarget =
      * A target not in the graph is skipped and counted in `SelectionDelta.skipped`; a `graph` or
      * `result` target names no elements.
      */
-    | { readonly note: NoteId; readonly target?: number };
+    | { readonly note: NoteId; readonly target?: number }
+    /**
+     * Every element a style layer's rule matches, whether or not the layer is shown: what
+     * `styles.counts(layer).matched` counts. A layer paints one kind, so this names nodes or edges.
+     * @since 3.26.0
+     */
+    | { readonly layer: LayerId };
 
 // ---------------------------------------------------------------------------------------------
 // What the resolver reads
@@ -243,6 +250,12 @@ export interface TargetContext {
      * @returns The rows, the scopes and the skipped count.
      */
     readonly note?: (id: NoteId, target: number | undefined) => NoteMembers;
+    /**
+     * What a style layer's rule matches. Absent refuses a `layer` target.
+     * @param id - The layer.
+     * @returns The elements it matches.
+     */
+    readonly layer?: (id: LayerId) => SelectionMatch;
 }
 
 /** The elements one target named. */
@@ -290,7 +303,7 @@ function notATarget(target: unknown): GraphtyError {
         code: "E_BAD_COMMAND",
         message:
             "A selection target is { nodes, edges }, { where }, { text }, { ids }, { scope }, " +
-            "{ neighborsOf }, { top }, { above }, { range }, { note }, { edgesBetween: true } or { invert: true }.",
+            "{ neighborsOf }, { top }, { above }, { range }, { note }, { layer }, { edgesBetween: true } or { invert: true }.",
         source: "run",
         details: { target },
     });
@@ -750,6 +763,19 @@ export function resolveTarget(target: SelectionTarget, context: TargetContext): 
 
     if ("note" in target) {
         return resolveNote(target.note, target.target, context);
+    }
+
+    if ("layer" in target) {
+        if (context.layer === undefined) {
+            throw unsupported("a style layer", "a style stack");
+        }
+
+        const { nodes, edges } = emptyMasks(context);
+        const matched = context.layer(target.layer);
+        addIds(nodes, matched.nodes ?? []);
+        addIds(edges, matched.edges ?? []);
+
+        return { nodes, edges, unmatched: EMPTY_STRINGS, unresolvedPaths: EMPTY_PATHS };
     }
 
     if ("text" in target) {

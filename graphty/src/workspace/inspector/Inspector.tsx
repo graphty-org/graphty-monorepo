@@ -171,6 +171,8 @@ export function Inspector(): React.JSX.Element {
     }
     // A neighborhood is headed by its center node, so it draws the node's glyph.
     const KindIcon = KIND_GLYPHS[kindId === "neighborhood" ? "node" : kindId];
+    // A style tree row's header carries Select what it paints (Figma's Select matching layers).
+    const selectsPaints = kindId === "layer-row" || kindId === "folder-row";
     // How many notes are about this, as a link to the Notes place; the text stays there.
     const notes = notesAbout(session, resolved);
 
@@ -217,7 +219,8 @@ export function Inspector(): React.JSX.Element {
                 <Stack gap={0} px="md" py={6}>
                     <Group gap={6} wrap="nowrap">
                         {header.source === undefined ? (
-                            <KindIcon size={14} aria-hidden />
+                            // A long name never squeezes the glyph.
+                            <KindIcon size={14} aria-hidden style={{ flexShrink: 0 }} />
                         ) : (
                             <SourceGlyph kind={header.source} />
                         )}
@@ -270,6 +273,21 @@ export function Inspector(): React.JSX.Element {
                                 {count(notes, "note")}
                             </Anchor>
                         )}
+                        {selectsPaints && (
+                            <Tooltip label="Select what it paints">
+                                <ActionIcon
+                                    variant="subtle"
+                                    size="sm"
+                                    ml="auto"
+                                    aria-label="Select what it paints"
+                                    onClick={() => {
+                                        runCommand("row.select-paints");
+                                    }}
+                                >
+                                    <GLYPHS.selection size={14} />
+                                </ActionIcon>
+                            </Tooltip>
+                        )}
                         {menu.length + attributeActions.length > 0 && (
                             <Menu position="bottom-end">
                                 <Menu.Target>
@@ -277,7 +295,7 @@ export function Inspector(): React.JSX.Element {
                                         <ActionIcon
                                             variant="subtle"
                                             size="sm"
-                                            ml="auto"
+                                            ml={selectsPaints ? undefined : "auto"}
                                             // Alone at the row's end, so a finger gets the full 44px.
                                             style={{ "--cm-ai-touch-target": "44px" }}
                                             aria-label={`${kindWord} actions`}

@@ -148,10 +148,18 @@
     background: var(--cm-bg-hover);
 }
 
-/* What a layer row paints: a dot for nodes, a line for edges. */
+/* A layer row's glyph is what it paints: a dot for nodes, a line for edges, both side by side. */
 .ws-row-marks {
     display: inline-flex;
-    gap: 2px;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+}
+
+/* A layer row painted over by the layers above: a whole glyph, explained by its tooltip. */
+.ws-row-over {
+    display: inline-flex;
+    align-items: center;
     color: var(--cm-text-secondary);
 }
 

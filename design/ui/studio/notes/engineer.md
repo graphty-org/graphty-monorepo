@@ -11,6 +11,24 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-12) **Starting rows on in the app; tree marks, row menu and the Graph settings door**
+  (test `graphty/src/workspace/graph-place/__tests__/StyleTreeRows.real-element.test.tsx`). The app
+  sets `startingRows: true, runPlacement: "top"` in `Workspace.tsx` for every project opened after
+  the workspace started, before its load runs; the workspace's starting project (a story's, a
+  test's) is left as its maker set it -- applying it there broke 18 tests that build their own
+  scene. Layer rows' glyph is now what they paint (node dot, edge line, both at 8 px), no
+  paintbrush, so folder and layer names align; "Painted over" is a `SendToBack` glyph in the count
+  slot with role img, named and tooltipped "Painted over by <layer>" from the element's new
+  `StyleCounts.paintedBy`. Space selects (the tree's own), the eye hides. Row menu: Duplicate
+  (Mod+D, layers only), Move to folder (a `Menu.Sub` over the tree's `actions.moveTo`), Select what
+  it paints (the element's new `{ layer }` selection target), also a header button. New folder:
+  focus the row before opening its name field, since InlineRename hands focus back to whatever
+  held it. Graph settings door: `tabs.graph = "style"`, an announcement, focus to the tab panel's
+  first control on the next frame. Duplicate is TEMPORARY app composition (owed:
+  `styles.duplicateRow`). Pre-existing failures seen, not from this: Replace (PageRank stale),
+  undoWords (Escape on Selection row), Workspace (Method padding 25 vs 16, shortcuts sheet), Notes
+  (empty-canvas click), StyleTab (Label entry timeout).
+
 - (2026-10-12) **Canvas key, Values tab and Graph settings** (tests `canvas/__tests__/LegendCard.real-element.test.tsx`,
   `inspector/__tests__/{LayerValues,GraphSettings}.real-element.test.tsx`, `toolbar/__tests__/ToolbarZoom.real-element.test.tsx`,
   compact-mantine `tests/components/shell/narrow.browser.test.tsx`; pictures in `tier3/build/key-values-settings/`).

@@ -203,6 +203,13 @@ export interface StyleCounts {
      */
     readonly reads: readonly Path[];
     /**
+     * For the channels the layer writes, the other layers the picture shows instead on its matched
+     * elements, the most elements first: who paints over it. Empty when it wins everywhere, and
+     * for a hidden layer.
+     * @since 3.26.0
+     */
+    readonly paintedBy: readonly LayerId[];
+    /**
      * Changes whenever these counts may have changed: on every `style:changed`, and on every change
      * to the data or the run results the layers read. Equal revisions mean equal counts.
      */
@@ -752,6 +759,7 @@ function readValues(
  * @param columns - What the session can read about elements of its kind.
  * @param layerId - The layer.
  * @param painted - The tally to add to.
+ * @param others - The tally of the other layers that won a channel it writes.
  */
 function countWins(
     stack: readonly StackEntry[],
@@ -759,6 +767,7 @@ function countWins(
     columns: ElementColumns,
     layerId: LayerId,
     painted: Partial<Record<Channel, number>>,
+    others: Map<LayerId, number>,
 ): void {
     const winners = new Map<Channel, LayerId>();
     paintOne(stack, at, columns, (winner, prepared) => {
@@ -767,6 +776,8 @@ function countWins(
     for (const [channel, winner] of winners) {
         if (winner === layerId) {
             painted[channel] = (painted[channel] ?? 0) + 1;
+        } else if (channel in painted) {
+            others.set(winner, (others.get(winner) ?? 0) + 1);
         }
     }
 }
@@ -798,6 +809,7 @@ export function styleCounts(
     let matched = 0;
     let noValue = 0;
     let outsideScale = 0;
+    const others = new Map<LayerId, number>();
 
     for (const index of layer.target === "node" ? elements.nodes : elements.edges) {
         if (selector.test !== null && !selector.test(index)) {
@@ -810,11 +822,13 @@ export function styleCounts(
         outsideScale += outside ? 1 : 0;
 
         if (layer.enabled) {
-            countWins(stack, { target: layer.target, index }, columns, layerId, painted);
+            countWins(stack, { target: layer.target, index }, columns, layerId, painted, others);
         }
     }
 
-    return { matched, painted: Object.freeze(painted), noValue, outsideScale, reads, revision };
+    const paintedBy = Object.freeze([...others].sort((a, b) => b[1] - a[1]).map(([id]) => id));
+
+    return { matched, painted: Object.freeze(painted), noValue, outsideScale, reads, paintedBy, revision };
 }
 
 /**

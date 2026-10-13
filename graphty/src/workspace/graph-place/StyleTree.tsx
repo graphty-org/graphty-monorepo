@@ -1,4 +1,4 @@
-import { ToggleIconButton, Tree, type TreeNodeData } from "@graphty/compact-mantine";
+import { ToggleIconButton, Tree, type TreeNodeData, type TreeRowActions } from "@graphty/compact-mantine";
 import type { GraphSession, StyleRow } from "@graphty/graphty-element/session";
 import { ActionIcon, Menu, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
 import React from "react";
@@ -25,6 +25,8 @@ interface Paints {
     readonly edges: number | undefined;
     /** Every property it writes is painted over by rows above (and it is shown). */
     readonly paintedOver: boolean;
+    /** The names of the layers the picture shows instead, the most elements first. */
+    readonly paintedBy: readonly string[];
 }
 
 /**
@@ -41,10 +43,12 @@ function paintsOf(session: GraphSession, row: StyleRow): Paints {
     const node = read(parts?.node);
     const edge = read(parts?.edge);
     const painted = [node, edge].flatMap((c) => (c === undefined ? [] : Object.values(c.painted)));
+    const by = [node, edge].flatMap((c) => c?.paintedBy ?? []).map((id) => session.styles.get(id)?.name ?? id);
     return {
         nodes: node?.matched,
         edges: edge?.matched,
         paintedOver: painted.length > 0 && painted.every((n) => n === 0),
+        paintedBy: [...new Set(by)],
     };
 }
 
@@ -59,6 +63,37 @@ function paintsWords(paints: Paints): string {
         ...(paints.edges === undefined ? [] : [count(paints.edges, "edge")]),
     ];
     return words.length === 0 ? "paints nothing" : words.join(", ");
+}
+
+/**
+ * The words for who paints over a layer: "Painted over by Degree".
+ * @param paints - the facts.
+ * @returns the words.
+ */
+function paintedOverWords(paints: Paints): string {
+    const names = paints.paintedBy;
+    if (names.length === 0) {
+        return "Painted over";
+    }
+    const list = names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+    return `Painted over by ${list}`;
+}
+
+/**
+ * The mark on a layer row every property of which is painted over: a glyph, never cut short,
+ * named and explained by its tooltip.
+ * @param props - Component props
+ * @param props.words - what paints over it, in words
+ * @returns The mark
+ */
+function PaintedOverMark({ words }: Readonly<{ words: string }>): React.JSX.Element {
+    return (
+        <Tooltip label={words}>
+            <span role="img" aria-label={words} className="ws-row-over">
+                <GLYPHS.paintedOver size={12} aria-hidden />
+            </span>
+        </Tooltip>
+    );
 }
 
 /**
@@ -187,21 +222,24 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
         }
         const paints = paintsOf(session, row);
         const over = paints.paintedOver && !hidden;
+        // What it paints is its glyph: a dot for nodes, a line for edges, both for both.
+        const both = paints.nodes !== undefined && paints.edges !== undefined;
+        const mark = both ? 8 : 14;
         const marks = (
-            <span className="ws-row-marks" aria-hidden>
-                {paints.nodes === undefined ? null : <GLYPHS.node size={10} />}
-                {paints.edges === undefined ? null : <GLYPHS.edge size={10} />}
+            <span className="ws-row-marks">
+                {paints.nodes === undefined ? null : <GLYPHS.node size={mark} />}
+                {paints.edges === undefined ? null : <GLYPHS.edge size={mark} />}
             </span>
         );
-        const description = [...states, ...(over ? ["painted over by the layers above"] : [])];
+        const overWords = paintedOverWords(paints);
+        const description = [...states, ...(over ? [overWords] : [])];
         return {
             id: row.id,
             name: row.name,
             label: `${row.name}, layer, ${paintsWords(paints)}`,
-            icon: <GLYPHS.layer size={14} />,
-            swatch: marks,
+            icon: marks,
             dimmed: hidden,
-            count: over ? "Painted over" : undefined,
+            count: over ? <PaintedOverMark words={overWords} /> : undefined,
             actions,
             description: description.length === 0 ? undefined : description.join(", "),
         };
@@ -215,7 +253,6 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
             id: DRAFT_ID,
             name: "New layer",
             label: "New layer, layer, not written yet",
-            icon: <GLYPHS.layer size={14} />,
             dimmed: true,
             movable: false,
         });
@@ -227,12 +264,13 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
         return placeOf(tree, { ...move, index });
     };
 
-    const rowMenu = (node: TreeNodeData): React.ReactNode => {
-        const row = findTreeRow(tree, node.id)?.row;
-        if (row === undefined) {
+    const rowMenu = (node: TreeNodeData, actions: TreeRowActions): React.ReactNode => {
+        const found = findTreeRow(tree, node.id);
+        if (found === undefined) {
             return null;
         }
-        return ROW_COMMANDS.filter((command) => command.applies(row)).map((command) => (
+        const { row } = found;
+        const items = ROW_COMMANDS.filter((command) => command.applies(row)).map((command) => (
             <CommandMenuItem
                 key={command.id}
                 label={command.label}
@@ -243,16 +281,19 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
                 }}
             />
         ));
+        // Move to folder sits after Duplicate, as in Figma's layer menu.
+        const at = items.findIndex((item) => item.key === "row.duplicate") + 1;
+        items.splice(
+            at,
+            0,
+            <MoveToFolder key="row.move" tree={tree} row={row} parent={found.folders.at(-1)} actions={actions} />,
+        );
+        return items;
     };
 
     const onRowKeyDown = (id: string, event: React.KeyboardEvent): void => {
         const row = findTreeRow(tree, id)?.row;
         if (row === undefined) {
-            return;
-        }
-        if (event.key === " ") {
-            event.preventDefault();
-            void orNotice(store, `hide ${row.name}`, session.styles.hideRow(row.id, !row.hidden));
             return;
         }
         const command = ROW_COMMANDS.find(
@@ -327,6 +368,7 @@ function AddMenu({ session, store }: Readonly<{ session: GraphSession; store: Wo
             </Menu.Target>
             <Menu.Dropdown>
                 <Menu.Item
+                    leftSection={<GLYPHS.layer size={14} aria-hidden />}
                     onClick={() => {
                         store.set({ inspected: { kind: "draft-row" } });
                     }}
@@ -334,12 +376,16 @@ function AddMenu({ session, store }: Readonly<{ session: GraphSession; store: Wo
                     Add layer
                 </Menu.Item>
                 <Menu.Item
+                    leftSection={<GLYPHS.folder size={14} aria-hidden />}
                     onClick={() => {
                         void (async () => {
                             try {
                                 const folder = await session.styles.addFolder("New folder");
                                 store.set({ inspected: { kind: "folder-row", id: folder.id } });
                                 setTimeout(() => {
+                                    // Focus the row first: the name field hands focus back to
+                                    // what held it when it opened, so naming ends on the folder.
+                                    focusRow(folder.id);
                                     store.set({ renamingRow: folder.id });
                                 }, MENU_FOCUS_RETURN_MS);
                             } catch (error) {
@@ -380,6 +426,101 @@ function lacksStartingRows(session: GraphSession): boolean {
 }
 
 /**
+ * Puts focus on a row of the style tree.
+ * @param id - the row's id.
+ */
+function focusRow(id: string): void {
+    document
+        .querySelector<HTMLElement>(
+            `[role="tree"][aria-label="Style layers"] .cm-tree-row[data-id="${CSS.escape(id)}"]`,
+        )
+        ?.focus();
+}
+
+/**
+ * Graph settings: the inspector shows the graph on its Style tab, says so, and focus moves to the
+ * tab's first section once it is drawn.
+ * @param store - the chrome store.
+ */
+function openGraphSettings(store: WorkspaceStore): void {
+    store.set((state) => ({
+        inspected: { kind: "graph" },
+        tabs: { ...state.tabs, graph: "style" },
+        announcement: "Graph settings, Style",
+    }));
+    requestAnimationFrame(() => {
+        document
+            .querySelector<HTMLElement>('[data-inspected="graph"] [role="tabpanel"] :is(button, input, [tabindex="0"])')
+            ?.focus();
+    });
+}
+
+/**
+ * Move to folder: a submenu of the folders the row can go into, and the top level when it is in
+ * one. The tree moves it (`actions.moveTo`), checking the move as it checks a drop.
+ * @param props - Component props
+ * @param props.tree - the element's tree.
+ * @param props.row - the row.
+ * @param props.parent - the folder holding it, if any.
+ * @param props.actions - the tree's moves for the row.
+ * @returns The submenu
+ */
+function MoveToFolder({
+    tree,
+    row,
+    parent,
+    actions,
+}: Readonly<{
+    tree: readonly StyleRow[];
+    row: StyleRow;
+    parent: StyleRow | undefined;
+    actions: TreeRowActions;
+}>): React.JSX.Element {
+    const folders: StyleRow[] = [];
+    const walk = (rows: readonly StyleRow[]): void => {
+        for (const each of [...rows].reverse()) {
+            // Never into itself or a folder inside it, nor where it already is.
+            if (each.kind === "folder" && each.id !== row.id) {
+                if (each.id !== parent?.id) {
+                    folders.push(each);
+                }
+                walk(each.children);
+            }
+        }
+    };
+    walk(tree);
+    return (
+        <Menu.Sub>
+            <Menu.Sub.Target>
+                <Menu.Sub.Item leftSection={<GLYPHS.folder size={14} aria-hidden />}>Move to folder</Menu.Sub.Item>
+            </Menu.Sub.Target>
+            <Menu.Sub.Dropdown>
+                {folders.length === 0 && parent === undefined ? <Menu.Item disabled>No folders yet</Menu.Item> : null}
+                {folders.map((folder) => (
+                    <Menu.Item
+                        key={folder.id}
+                        onClick={() => {
+                            actions.moveTo(folder.id);
+                        }}
+                    >
+                        {folder.name}
+                    </Menu.Item>
+                ))}
+                {parent === undefined ? null : (
+                    <Menu.Item
+                        onClick={() => {
+                            actions.moveTo(null);
+                        }}
+                    >
+                        Out of {parent.name}
+                    </Menu.Item>
+                )}
+            </Menu.Sub.Dropdown>
+        </Menu.Sub>
+    );
+}
+
+/**
  * The tree's footer: Graph settings, and Restore starting layers while a starting row is gone.
  * @param props - Component props
  * @param props.session - the element's session
@@ -392,7 +533,7 @@ function Footer({ session, store }: Readonly<{ session: GraphSession; store: Wor
             <UnstyledButton
                 className="ws-style-tree-foot-row cm-focus-inside"
                 onClick={() => {
-                    store.set({ inspected: { kind: "graph" } });
+                    openGraphSettings(store);
                 }}
             >
                 <GLYPHS.settings size={14} aria-hidden /> Graph settings

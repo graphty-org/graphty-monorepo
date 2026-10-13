@@ -29,6 +29,7 @@ import type {
     EdgeId,
     EdgeMember,
     EdgeReading,
+    LayerId,
     LayoutId,
     NodeId,
     Path,
@@ -2593,6 +2594,40 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         note: (id: NoteId, target: number | undefined) => {
             const status = notes.status(id);
             return noteMembers(notes.get(id)?.targets ?? [], status, snapshot(), target);
+        },
+        // Read through the compiled stack the counts read, so "select what it paints" picks
+        // exactly the elements `styles.counts(id).matched` counts.
+        layer: (id: LayerId) => {
+            const entry = styles.compiled().find((each) => each.layer.id === id);
+            if (entry === undefined) {
+                throw new GraphtyError({
+                    code: "E_UNKNOWN_LAYER",
+                    message: `There is no style layer with the id "${id}".`,
+                    source: "style",
+                    target: { kind: "layer", id },
+                    details: { id },
+                });
+            }
+            const graph = snapshot();
+            const { test } = entry.selector;
+            const passes = (at: number): boolean => test === null || test(at);
+            if (entry.layer.target === "edge") {
+                const space = edgeSpaceOf(graph);
+                const edges: EdgeId[] = [];
+                for (let at = 0; at < graph.edgeCount; at++) {
+                    if (passes(at)) {
+                        edges.push(space.idOf(at));
+                    }
+                }
+                return { edges };
+            }
+            const nodes: NodeId[] = [];
+            for (let at = 0; at < graph.nodeCount; at++) {
+                if (passes(at)) {
+                    nodes.push(graph.ids.idOf(at));
+                }
+            }
+            return { nodes };
         },
         records,
         onChange: (delta) => {

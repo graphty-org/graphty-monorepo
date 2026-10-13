@@ -56,6 +56,7 @@ import {
     Redo2,
     Route,
     Search,
+    SendToBack,
     Settings,
     Shapes,
     Share2,
@@ -94,6 +95,8 @@ export const GLYPHS = {
     folder: Folder,
     pin: Pin,
     lock: LockKeyhole,
+    // A layer row every property of which a layer above paints over.
+    paintedOver: SendToBack,
     unlock: LockKeyholeOpen,
     everything: Layers,
     // The effects a layer adds to nodes (outline, glow, halo) and to edges (band, motion).

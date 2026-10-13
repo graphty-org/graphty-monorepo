@@ -56,25 +56,41 @@ export function Workspace({
         [store, registry, element],
     );
     useCommandKeys(value);
+    // The project the workspace started with (a story's, a test's) is left as its maker set it.
+    const [startProjectId] = useState(() => store.get().project?.id);
     // A project opened from the start screen loads its sample or file once its element is up. If
     // the load fails, the project was never really opened: back to the start screen, with the
     // reason staying until it is dismissed.
     useEffect(() => {
         const { opening, project } = store.get();
         const { session } = element;
-        if (opening === null || session === null) {
+        if (session === null) {
+            return;
+        }
+        // The app's choice for every project it opens (graphty-element's defaults stay neutral):
+        // the style tree starts with Everything, Selected and Hovered, and a finished run's layer
+        // lands on top, where the reader sees it. Set before anything loads, so the rows are there
+        // from the first frame.
+        const defaults =
+            project?.id === startProjectId || (session.config.startingRows && session.config.runPlacement === "top")
+                ? Promise.resolve()
+                : session.config.set({ startingRows: true, runPlacement: "top" });
+        if (opening === null) {
+            void defaults.catch(() => undefined);
             return;
         }
         store.set({ opening: null });
-        opening.load(session).catch((error: unknown) => {
-            const notice = { message: notReadSentence(opening.name, error, "opened"), error: true };
-            store.set((state) =>
-                state.project?.id === project?.id
-                    ? { project: null, page: "panels", inspected: null, dialog: null, renaming: false, notice }
-                    : { notice },
-            );
-        });
-    }, [element, store]);
+        defaults
+            .then(() => opening.load(session))
+            .catch((error: unknown) => {
+                const notice = { message: notReadSentence(opening.name, error, "opened"), error: true };
+                store.set((state) =>
+                    state.project?.id === project?.id
+                        ? { project: null, page: "panels", inspected: null, dialog: null, renaming: false, notice }
+                        : { notice },
+                );
+            });
+    }, [element, store, startProjectId]);
     const projectOpen = useStoreValue(store, (state) => state.project !== null);
     // Focus after the control that held it goes away. The project the workspace started with (a
     // story's, a test's) is left alone; every project opened since (a sample, a file, a recent
@@ -82,7 +98,6 @@ export function Workspace({
     // comes up: one control, never the drawing's outline, and every single-key shortcut still
     // works. Its element is keyed by project, so this runs once per project. Closing a project
     // hands focus to the start screen's first way in.
-    const [startProjectId] = useState(() => store.get().project?.id);
     const startDoor = useRef<HTMLButtonElement>(null);
     const projectWasOpen = useRef(false);
     useEffect(() => {

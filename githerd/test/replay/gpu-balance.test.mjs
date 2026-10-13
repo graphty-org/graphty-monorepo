@@ -1,5 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -7,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import { startDaemon } from "../../lib/daemon.mjs";
 import { readLedger } from "../../lib/store.mjs";
 import { createFakeGh, httpOutput } from "../helpers/fake-gh.mjs";
+import { tempDir } from "../helpers/temp-dir.mjs";
 
 const DATA = new URL("data/", import.meta.url);
 const RENTED = "machine/gpu=t4/cpu=4/ram=16/tenancy=on_demand";
@@ -75,7 +75,7 @@ function answerRuns(t) {
 
 describe("replay: the 10-02 GPU balance stretches through the whole daemon", () => {
     it("park the lane: no re-run, no parent re-test, no incident and no merge hold, and the item ends itself", async () => {
-        const dir = mkdtempSync(join(tmpdir(), "githerd-gpu-"));
+        const dir = tempDir("githerd-gpu-");
         const config = join(dir, "githerd.config.json");
         writeFileSync(
             config,

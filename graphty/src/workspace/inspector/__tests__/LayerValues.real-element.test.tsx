@@ -164,6 +164,21 @@ describe("a layer row's Values tab on the real element", () => {
         });
     });
 
+    it("Louvain: a category list with one Summary, no histogram of community numbers", async () => {
+        const { session, store } = await open();
+        const { layer } = await runLayer(session, "louvain");
+        const inspector = await openValues(store, layer.row ?? layer.id);
+        await within(inspector).findByText("Groups, largest first");
+        assert.lengthOf(within(inspector).getAllByRole("group", { name: "Summary" }), 1);
+        assert.isEmpty(within(inspector).queryAllByTestId("histogram-bar"));
+        assert.isNull(within(inspector).queryByTestId("values-spread"));
+        // The values read are a section of their own, not a header row whose next row reads as its value.
+        assert.isNotNull(within(inspector).getByRole("group", { name: "Values read" }));
+        await page.screenshot({
+            path: "../../../../../design/ui/studio/tier3/build/key-values-settings/louvain-values.png",
+        });
+    });
+
     it("a route lists its steps in order", async () => {
         const { session, store } = await open();
         const ids = session.data.nodes().map((node) => node.id);
@@ -182,6 +197,7 @@ describe("a layer row's Values tab on the real element", () => {
             (name) => name.textContent,
         );
         assert.deepEqual(names, order);
+        assert.lengthOf(within(inspector).getAllByRole("group", { name: "Summary" }), 1);
     });
 
     it("Selected lists the node a real click on the canvas selected", async () => {

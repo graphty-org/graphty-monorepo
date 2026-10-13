@@ -1,6 +1,6 @@
-import { PANEL_GRID, PopoutManager } from "@graphty/compact-mantine";
+import { ControlSection, PopoutManager } from "@graphty/compact-mantine";
 import type { GraphSession, Run } from "@graphty/graphty-element/session";
-import { ActionIcon, Anchor, Box, ColorSwatch, Group, Menu, Stack, Tabs, Text, Tooltip } from "@mantine/core";
+import { ActionIcon, Anchor, ColorSwatch, Group, Menu, Stack, Tabs, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
 import { wordsFor } from "../analyze/words";
@@ -208,7 +208,12 @@ export function Inspector(): React.JSX.Element {
     return (
         // The Background color field opens its picker as a popout, which needs a manager above it.
         <PopoutManager>
-            <Stack gap={0} data-inspected={kindId} style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
+            <Stack
+                gap={0}
+                data-inspected={kindId}
+                // The scrollbar takes its own room, so the content never runs under it and scrolls sideways.
+                style={{ flex: 1, minHeight: 0, overflowY: "auto", scrollbarGutter: "stable" }}
+            >
                 <Stack gap={0} px="md" py={6}>
                     <Group gap={6} wrap="nowrap">
                         {header.source === undefined ? (
@@ -441,10 +446,10 @@ function bodyOf(
                 style: (
                     <>
                         <GraphSettings />
-                        {/* The panel's content band, where every section's rows begin. */}
-                        <Box pl={PANEL_GRID.PAD_LEFT} pr={PANEL_GRID.PAD_RIGHT}>
+                        {/* Titled, and on the panel grid's content band as the sections above it. */}
+                        <ControlSection label="Layout" defaultOpened>
                             <LayoutGroup />
-                        </Box>
+                        </ControlSection>
                     </>
                 ),
                 values: <Overview />,

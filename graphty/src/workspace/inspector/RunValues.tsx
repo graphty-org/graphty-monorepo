@@ -376,9 +376,15 @@ function GroupsValues({ run }: Readonly<{ run: Run }>): React.JSX.Element | null
  * @param props - Component props
  * @param props.session - The session
  * @param props.run - The run
+ * @param props.summaryLabel - The first section's heading: "Route" inside a layer's Values tab,
+ *   which has its own Summary
  * @returns The sections
  */
-export function PathValues({ session, run }: Readonly<{ session: GraphSession; run: Run }>): React.JSX.Element | null {
+export function PathValues({
+    session,
+    run,
+    summaryLabel = "Summary",
+}: Readonly<{ session: GraphSession; run: Run; summaryLabel?: string }>): React.JSX.Element | null {
     // After Find path, focus goes to the inspector's title once the route is drawn: the result the
     // reader asked for, not the canvas, the control that opened the form, or a node row whose
     // ring would read as picked.
@@ -401,7 +407,7 @@ export function PathValues({ session, run }: Readonly<{ session: GraphSession; r
     const total = weight?.meaning === "distance" && typeof cost === "number" ? cost : null;
     return (
         <>
-            <ControlSection label="Summary" defaultOpened>
+            <ControlSection label={summaryLabel} defaultOpened>
                 {typeof length === "number" && typeof hops === "number" && (
                     <DataRow stat name="Path" value={routeWords(length, hops)} />
                 )}

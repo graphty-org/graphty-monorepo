@@ -42,7 +42,7 @@ export function GraphSettings(): React.JSX.Element | null {
     return (
         <>
             <ControlSection label="Canvas" defaultOpened>
-                <Stack gap={6} px="md">
+                <Stack gap={6}>
                     <Stack gap={2}>
                         <Text size="xs" id="graph-settings-background">
                             Background
@@ -138,7 +138,7 @@ export function GraphSettings(): React.JSX.Element | null {
                 </Stack>
             </ControlSection>
             <ControlSection label="Labels" defaultOpened>
-                <Stack gap={6} px="md">
+                <Stack gap={6}>
                     <Switch
                         size="xs"
                         label="Hide overlapping labels"

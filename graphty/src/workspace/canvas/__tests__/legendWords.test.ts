@@ -142,6 +142,38 @@ describe("the legend card's words", () => {
         );
     });
 
+    it("keys no row that paints nothing now, and no ring, band or text size as a bare number", () => {
+        const halo = block({ layerId: "halo", channel: "node.haloColor", kind: "literal" });
+        const blocks = [
+            block({ layerId: "selected", kind: "literal", painted: 0 }),
+            block({ layerId: "label", channel: "node.labelSize", kind: "literal", swatches: [swatch({ value: 72 })] }),
+            block({ layerId: "halo", channel: "node.haloSize", kind: "literal" }),
+            block({ layerId: "halo", channel: "node.haloOpacity", kind: "literal" }),
+            block({ layerId: "band", channel: "edge.bandWidth", kind: "literal" }),
+            block({ layerId: "band", channel: "edge.bandOpacity", kind: "literal" }),
+            halo,
+        ];
+        assert.deepEqual(keyBlocks(blocks), [halo]);
+        assert.equal(sectionTitle(halo, "Key people"), "Halo: Key people");
+    });
+
+    it("lists a run's groups in rank order, a group with its own color included, Other last", () => {
+        const groups = block({
+            kind: "categorical",
+            swatches: [
+                swatch({ value: 5, rank: 3 }),
+                swatch({ value: 0, rank: 1 }),
+                swatch({ value: [7, 8], role: "other", count: 4 }),
+                swatch({ value: 2, rank: 2 }),
+            ],
+        });
+        const [ordered] = keyBlocks([groups]);
+        assert.deepEqual(
+            ordered.swatches.map((each) => swatchName(ordered, each)),
+            ["Group 1", "Group 2", "Group 3", "Other"],
+        );
+    });
+
     it("keys no block a layer above paints over on every element", () => {
         const covered = block({
             layerId: "degree",

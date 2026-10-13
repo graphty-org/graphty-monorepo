@@ -11,6 +11,34 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-12) **Canvas key, Values tab and Graph settings** (tests `canvas/__tests__/LegendCard.real-element.test.tsx`,
+  `inspector/__tests__/{LayerValues,GraphSettings}.real-element.test.tsx`, `toolbar/__tests__/ToolbarZoom.real-element.test.tsx`,
+  compact-mantine `tests/components/shell/narrow.browser.test.tsx`; pictures in `tier3/build/key-values-settings/`).
+  Key: `keyBlocks` drops a block whose `painted` is 0 (Selected with nothing selected) and the
+  ring, band and text-size channels (`NUMBER_CHANNELS`, they print as "72", "1.45"); a halo is
+  "Halo: <row>", a band "Edge band: <row>"; a run's groups sort by `rank` (a value entry no longer
+  jumps its group to the top), Other last; the card caps at 40% of the canvas's height and scrolls,
+  and the reserved margin already follows `offsetHeight`, so at 900 x 700 the card goes on top and
+  the drawing keeps the width; chits get a 1px `--cm-icon-secondary` outline (3:1 on the dark card).
+  Values tab: a run field with `measurement: "categorical"` gets no histogram; "Values read" is its
+  own section; a route inside a layer's tab heads its section "Route", not a second "Summary".
+  Graph settings: sections drop their extra `px="md"` (ControlSection already pads 16/8, so fields
+  sat 32 in); Layout is a ControlSection; the layout form's own Shape is off there (`shapeChoice`,
+  the popover keeps it), so View is the one 3D | 2D; the inspector scroller has
+  `scrollbar-gutter: stable`. Why the gutter alone did not fix sideways scrolling: the panel grid
+  assumes 240 px and a classic scrollbar leaves 225, so a 184 + 8 + 24 color row overflowed; the
+  shared fix is compact-mantine's `.cm-paint-field` shrinking (`flex: 0 1 auto; min-width: 0`).
+  Toolbar at 200% zoom: compact-mantine's `.cm-toolbar` wraps (`flex-wrap`, `width: fit-content`,
+  `max-width: 100%`, `min-height` 48), and the app's dock is centered by auto margins between 12 px
+  insets. Traps: `width: max-content` made the toolbar's min-content its whole row, so a
+  fit-content container never shrank it; a `left: 50%` absolute dock could only ever take half the
+  canvas. graphty tests read compact-mantine from `dist`: build it before a graphty test sees a CSS
+  change. A framing check must wait for the key's inset (`store.get().viewInsets`), two frames and
+  `waitForStableFrame()`; polling the span passed on a frame before the reframe. Not done here:
+  Louvain's groups are still "1".."6" (raw values) in Values while the key says "Group 1".
+  Seen failing, not from this change: Workspace "opens the shortcuts sheet with ?" (timeout) and
+  undoWords "says what Escape cleared when the Selection row has the focus".
+
 - (2026-10-12) **Tree rows move into and out of folders from the keyboard** (compact-mantine,
   tests `tests/components/tree/TreeFolderMove.browser.test.tsx` and `treeModel.test.ts`).
   Alt+ArrowDown/Up onto a folder goes in (first child going down, last going up), Alt+ArrowLeft

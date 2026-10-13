@@ -118,12 +118,15 @@
     pointer-events: auto;
 }
 
+/* Centered by its auto margins between 12px insets, so the toolbar may take the canvas's whole
+   width less the insets and wraps only past that (a left: 50% dock could only take half). */
 .ws-toolbar-dock {
     position: absolute;
+    right: 12px;
     bottom: 12px;
-    left: 50%;
-    transform: translateX(-50%);
-    max-width: calc(100% - 24px);
+    left: 12px;
+    width: fit-content;
+    margin-inline: auto;
 }
 
 /* 8 px above the toolbar (48 tall, 12 up). */

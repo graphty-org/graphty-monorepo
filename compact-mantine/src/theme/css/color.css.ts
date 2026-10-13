@@ -78,7 +78,10 @@ const css = `
 .cm-paint-field {
     position: relative;
     display: flex;
-    flex: none;
+    /* Its width until the row is narrower (a panel with a scrollbar), then it gives way, so the
+       reset button beside it stays inside the row instead of pushing the panel sideways. */
+    flex: 0 1 auto;
+    min-width: 0;
     align-items: center;
     box-sizing: border-box;
     height: 24px;

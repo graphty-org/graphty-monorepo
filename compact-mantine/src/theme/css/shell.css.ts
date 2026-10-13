@@ -139,9 +139,14 @@ const css = `
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    /* Content-sized, as Figma's floating bar is: a column flex parent would stretch it. */
-    width: max-content;
-    height: 48px;
+    /* Content-sized, as Figma's floating bar is: a column flex parent would stretch it. Narrower
+       than its tools (a zoomed page, a narrow canvas), it wraps onto more rows rather than cut
+       tools off (WCAG 1.4.10); fit-content, not max-content, so a container sized to its content
+       can still be narrower than one row of tools. */
+    flex-wrap: wrap;
+    width: fit-content;
+    max-width: 100%;
+    min-height: 48px;
     padding: 8px;
     background-color: var(--cm-bg);
     color: var(--cm-text);

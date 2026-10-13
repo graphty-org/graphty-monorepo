@@ -100,10 +100,32 @@ describe("Graph settings", () => {
 
     it("draws the view in 2D after a click on 2D", async () => {
         const element = await openGraphSettings();
-        // The layout form below draws its own 3D and 2D (the layout's shape); View is the camera.
         await userEvent.click(within(screen.getByRole("radiogroup", { name: "View" })).getByText("2D"));
         await waitFor(() => {
             assert.strictEqual(element.session.layout.dimension, "2d");
+        });
+    });
+
+    it("titles the layout, offers one 3D | 2D, and never scrolls sideways", async () => {
+        await openGraphSettings();
+        const inspector = screen.getByRole("complementary", { name: "Inspector" });
+        const layout = await within(inspector).findByRole("group", { name: "Layout" });
+        const lighting = within(inspector).getByRole("combobox", { name: "Lighting" });
+        const method = (await within(inspector).findAllByLabelText("Method")).find((e) => e.tagName === "INPUT");
+        assert.isDefined(method);
+        // The layout's fields begin at the same left edge as the sections above it.
+        assert.equal(method?.getBoundingClientRect().left, lighting.getBoundingClientRect().left);
+        assert.isAbove(method?.getBoundingClientRect().top ?? 0, layout.getBoundingClientRect().top);
+        const threeD = within(inspector)
+            .getAllByRole("radiogroup")
+            .filter((group) => within(group).queryByText("3D") !== null);
+        assert.lengthOf(threeD, 1, "View is the one 3D | 2D control");
+        const scroller = inspector.querySelector<HTMLElement>("[data-inspected]");
+        assert.isNotNull(scroller);
+        assert.isAbove(scroller?.scrollHeight ?? 0, scroller?.clientHeight ?? 0, "the settings scroll lengthwise");
+        assert.isAtMost(scroller?.scrollWidth ?? 0, scroller?.clientWidth ?? 0, "no sideways scrolling");
+        await page.screenshot({
+            path: "../../../../../design/ui/studio/tier3/build/key-values-settings/graph-settings-1366x768.png",
         });
     });
 });

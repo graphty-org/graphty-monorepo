@@ -199,8 +199,10 @@ function histogramOf(
     layer: Layer | undefined,
 ): ReturnType<NonNullable<Run["result"]>["histogram"]> | null {
     if (read.run !== undefined && read.field !== undefined) {
-        const type = read.run.fields.find((f) => f.name === read.field)?.type;
-        if ((type !== "number" && type !== "integer") || read.run.result === undefined) {
+        const field = read.run.fields.find((f) => f.name === read.field);
+        // A community's number names a group; its spread measures nothing.
+        const numeric = field?.type === "number" || field?.type === "integer";
+        if (!numeric || field?.measurement === "categorical" || read.run.result === undefined) {
             return null;
         }
         return read.run.result.histogram(read.field);
@@ -479,25 +481,29 @@ export function LayerValues({ id }: Readonly<{ id: string }>): React.JSX.Element
                         value={counts.matched}
                     />
                 ))}
-                {reads.length + states.length > 0 && <DataRowHeader label="Values read" />}
-                {reads.map((read) => (
-                    <DataRow key={read.path} stat name={read.name} value={stateWords(read.run)} />
-                ))}
-                {[...new Set(states)].map((state) => (
-                    <DataRow
-                        key={state}
-                        stat
-                        name={state === "selected" ? "Is selected" : "Is hovered"}
-                        value="This view only"
-                    />
-                ))}
             </ControlSection>
+            {/* Its own section: a header row with no value read as the label of the row below. */}
+            {reads.length + states.length > 0 && (
+                <ControlSection label="Values read" defaultOpened>
+                    {reads.map((read) => (
+                        <DataRow key={read.path} stat name={read.name} value={stateWords(read.run)} />
+                    ))}
+                    {[...new Set(states)].map((state) => (
+                        <DataRow
+                            key={state}
+                            stat
+                            name={state === "selected" ? "Is selected" : "Is hovered"}
+                            value="This view only"
+                        />
+                    ))}
+                </ControlSection>
+            )}
             {[...new Set(states)].map((state) => (
                 <StateValues key={state} session={session} state={state} />
             ))}
             {reads.map((read) =>
                 read.run?.shape === "path" ? (
-                    <PathValues key={read.path} session={session} run={read.run} />
+                    <PathValues key={read.path} session={session} run={read.run} summaryLabel="Route" />
                 ) : (
                     <React.Fragment key={read.path}>
                         <CategoryValues session={session} read={read} layers={readers(read.path)} />

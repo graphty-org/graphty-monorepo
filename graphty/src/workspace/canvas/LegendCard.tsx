@@ -58,7 +58,11 @@ function List({ block, entry }: Readonly<{ block: LegendBlock; entry: string }>)
                     key={`${String(index)}-${swatchText(block, swatch, entry)}`}
                     name={swatchName(block, swatch, entry)}
                     value={paintWords(swatch) ?? swatch.count}
-                    icon={swatch.color === undefined ? undefined : <ColorSwatch color={swatch.color} size={12} />}
+                    icon={
+                        swatch.color === undefined ? undefined : (
+                            <ColorSwatch className="ws-legend-chit" color={swatch.color} size={12} />
+                        )
+                    }
                 />
             ))}
             {block.overflow === undefined ? null : (

@@ -22,6 +22,11 @@ interface LayoutFormProps {
     onApplied?: () => void;
     /** Key handling of the host (the popover's Esc). */
     onKeyDown?: (event: React.KeyboardEvent) => void;
+    /**
+     * Whether the form offers its own 3D | 2D Shape (the popover). Graph settings leaves it out:
+     * its View is the one 3D | 2D control there.
+     */
+    shapeChoice?: boolean;
 }
 
 /**
@@ -61,6 +66,7 @@ function shapeOf(values: Readonly<Record<string, unknown>>, drawn: "2d" | "3d" |
  * @param props.focusButton - Whether focus starts on the button
  * @param props.onApplied - Called once a layout has been applied
  * @param props.onKeyDown - The host's key handling
+ * @param props.shapeChoice - Whether the form offers its own Shape
  * @returns The form
  */
 export function LayoutForm({
@@ -70,6 +76,7 @@ export function LayoutForm({
     focusButton = false,
     onApplied,
     onKeyDown,
+    shapeChoice = true,
 }: Readonly<LayoutFormProps>): React.JSX.Element {
     const current = session.layout;
     const isCurrent = descriptor.id === current.id;
@@ -95,7 +102,7 @@ export function LayoutForm({
     const ownEngine = isCurrent && engine === start.engine;
     const shape = shapeOf(values, ownEngine && values.dim === start.values.dim ? current.arrangedDimension : undefined);
     const startShape = shapeOf(start.values, isCurrent ? current.arrangedDimension : undefined);
-    const showShape = current.dimension === "3d" && descriptor.maxDimensions === 3;
+    const showShape = shapeChoice && current.dimension === "3d" && descriptor.maxDimensions === 3;
 
     const differs =
         !isCurrent || (engine ?? descriptor.engine) !== current.engine || !sameValues(values, current.options);
@@ -248,7 +255,7 @@ export function LayoutGroup(): React.JSX.Element | null {
     const id = picked ?? session.layout.id;
     const open = choices.find((choice) => choice.descriptor.id === id);
     return (
-        <Stack gap={8} aria-label="Layout" role="group">
+        <Stack gap={8}>
             <Select
                 label="Method"
                 value={id}
@@ -273,6 +280,7 @@ export function LayoutGroup(): React.JSX.Element | null {
                     key={`${id}|${session.layout.engine}|${JSON.stringify(session.layout.options)}`}
                     session={session}
                     descriptor={open.descriptor}
+                    shapeChoice={false}
                 />
             )}
         </Stack>

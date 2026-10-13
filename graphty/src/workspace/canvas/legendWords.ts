@@ -33,10 +33,12 @@ const PROPERTY_WORDS: Partial<Record<Channel, string>> = {
     "node.outline": "Outline",
     "node.glow": "Glow",
     "node.label": "Label",
+    "node.haloColor": "Halo",
     "edge.color": "Edge color",
     "edge.width": "Edge width",
     "edge.opacity": "Edge opacity",
     "edge.style": "Edge line",
+    "edge.bandColor": "Edge band",
 };
 
 /** The channels whose swatches carry a size. */
@@ -57,20 +59,57 @@ const TEXT_CHANNELS: ReadonlySet<Channel> = new Set<Channel>([
 ]);
 
 /**
+ * The channels whose key would be a bare number beside a name ("Key people 72", "Selected 0.4"):
+ * a ring's or a band's width and opacity, and a text's size. Their row is drawn, not read.
+ */
+const NUMBER_CHANNELS: ReadonlySet<Channel> = new Set<Channel>([
+    "node.haloSize",
+    "node.haloOpacity",
+    "edge.bandWidth",
+    "edge.bandOpacity",
+    "node.labelSize",
+    "edge.labelSize",
+    "node.tooltipSize",
+    "edge.arrowHeadTextSize",
+    "edge.arrowTailTextSize",
+]);
+
+/**
+ * The block with its rows in group order (Group 1, Group 2, ...) when they name a run's groups:
+ * a group given its own color would otherwise come first. The Other row stays last.
+ * @param block - the block.
+ * @returns the block, its rows in rank order.
+ */
+function byRank(block: LegendBlock): LegendBlock {
+    if (!block.swatches.some((swatch) => swatch.rank !== undefined)) {
+        return block;
+    }
+    const place = (swatch: LegendSwatch): number =>
+        swatch.role === "other" ? Infinity : (swatch.rank ?? Number.MAX_SAFE_INTEGER);
+    return { ...block, swatches: [...block.swatches].sort((a, b) => place(a) - place(b)) };
+}
+
+/**
  * The blocks the legend shows: not a label's (it would list every name beside the name already
  * drawn), not a size that does not vary (a key for one size reads as "sizes done" while every
- * dot is the same, and a highlight's one width, "24", reads as a count), and not one a layer above paints over on every element (a key for paint no
- * reader can see is a false claim).
+ * dot is the same, and a highlight's one width, "24", reads as a count), not a channel whose key
+ * is a bare number (`NUMBER_CHANNELS`), not one whose row paints nothing right now (a Selected
+ * row with nothing selected), and not one a layer above paints over on every element (a key for
+ * paint no reader can see is a false claim). A run's groups are listed in rank order.
  * @param blocks - the blocks `styles.legend()` returned.
  * @returns the blocks worth a key, in the same order.
  */
 export function keyBlocks(blocks: readonly LegendBlock[]): LegendBlock[] {
-    return blocks.filter(
-        (block) =>
-            !TEXT_CHANNELS.has(block.channel) &&
-            !(isSizeBlock(block) && (block.kind === "literal" || block.kind === "highlight")) &&
-            !block.facts.some((fact) => fact.code === "legend.painted-over"),
-    );
+    return blocks
+        .filter(
+            (block) =>
+                !TEXT_CHANNELS.has(block.channel) &&
+                !NUMBER_CHANNELS.has(block.channel) &&
+                block.painted !== 0 &&
+                !(isSizeBlock(block) && (block.kind === "literal" || block.kind === "highlight")) &&
+                !block.facts.some((fact) => fact.code === "legend.painted-over"),
+        )
+        .map(byRank);
 }
 
 /**

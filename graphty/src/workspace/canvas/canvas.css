@@ -1,11 +1,19 @@
-/* The legend card, top left of the canvas (tier1-design.md section 2.4). */
+/* The legend card, top left of the canvas (tier1-design.md section 2.4). At most 40% of the
+   canvas's height, scrolling beyond: a long key on a short canvas would otherwise reserve so much
+   room that the drawing is framed into what is left (the reserved margin follows this size). */
 .ws-legend-card {
     position: absolute;
     top: 12px;
     left: 12px;
     width: 240px;
-    max-height: calc(100% - 96px);
+    max-height: min(calc(100% - 96px), 40%);
     overflow: auto;
+}
+
+/* A key chit's ring, so a black chit on the dark card or a white one on the light card still
+   shows its edge (WCAG 1.4.11, 3:1 against the card). */
+.ws-legend-chit {
+    outline: 1px solid var(--cm-icon-secondary);
 }
 
 /* A legend section is a native group (fieldset) drawn as a plain block. */

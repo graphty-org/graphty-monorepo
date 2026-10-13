@@ -182,6 +182,7 @@ export class InputController {
 
             const rotRad = (-(ev.rotation - this.gestureSession.startRotDeg) * Math.PI) / 180;
             this.cam.parent.rotation.z = this.gestureSession.rotation + rotRad;
+            this.cam.onReaderMove?.();
         });
 
         this.hammer.on("panend pinchend rotateend", () => {
@@ -259,6 +260,7 @@ export class InputController {
 
         const v = this.cam.velocity;
         const c = this.config;
+        const before = v.x + v.y + v.zoom + v.rotate;
 
         if (this.keyState.w || this.keyState.ArrowUp) {
             v.y += c.panAcceleration;
@@ -290,6 +292,10 @@ export class InputController {
 
         if (this.keyState.e) {
             v.rotate -= c.rotateSpeedPerFrame;
+        }
+
+        if (v.x + v.y + v.zoom + v.rotate !== before) {
+            this.cam.onReaderMove?.();
         }
     }
 

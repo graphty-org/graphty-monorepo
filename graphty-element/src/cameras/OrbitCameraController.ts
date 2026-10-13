@@ -40,6 +40,8 @@ export class OrbitCameraController {
      * left -- a lens shift, so the graph still turns about its own center.
      */
     public viewInsets: ViewInsets = {};
+    /** Told each time {@link rotate}, {@link spin} or {@link zoom} moves the camera: the reader's input. */
+    public onReaderMove?: () => void;
 
     /** Half the diagonal of the last bounding box fitted by zoomToBoundingBox. */
     #sceneRadius = 0;
@@ -94,6 +96,7 @@ export class OrbitCameraController {
         // Pitch follows "drag up = graph moves up" convention (not inverted)
         this.pivotController.rotate(dx * this.config.trackballRotationSpeed, dy * this.config.trackballRotationSpeed);
         this.updateCameraPosition();
+        this.onReaderMove?.();
     }
 
     /**
@@ -104,6 +107,7 @@ export class OrbitCameraController {
     public spin(dz: number): void {
         this.pivotController.spin(dz);
         this.updateCameraPosition();
+        this.onReaderMove?.();
     }
 
     /**
@@ -117,6 +121,7 @@ export class OrbitCameraController {
         // beyond it, so the ceiling follows the graph and a reader can still pull back.
         const ceiling = Math.max(this.config.maxZoomDistance, this.cameraDistance + this.#sceneRadius * 2);
         this.cameraDistance = Scalar.Clamp(this.cameraDistance + delta, this.config.minZoomDistance, ceiling);
+        this.onReaderMove?.();
     }
 
     /**

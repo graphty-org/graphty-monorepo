@@ -36,6 +36,8 @@ export class TwoDCameraController {
     public velocity = { x: 0, y: 0, zoom: 0, rotate: 0 };
     /** Margins of the canvas something else covers, in CSS pixels; every fit keeps the graph out of them. */
     public viewInsets: ViewInsets = {};
+    /** Told each time the reader's input pans, zooms or turns the camera. */
+    public onReaderMove?: () => void;
 
     /**
      * Creates a new TwoDCameraController instance.
@@ -104,6 +106,7 @@ export class TwoDCameraController {
     public pan(dx: number, dy: number): void {
         this.camera.position.x += dx;
         this.camera.position.y += dy;
+        this.onReaderMove?.();
     }
 
     /**
@@ -115,6 +118,7 @@ export class TwoDCameraController {
         this.camera.orthoRight = factor * (this.camera.orthoRight ?? 1);
         this.camera.orthoTop = factor * (this.camera.orthoTop ?? 1);
         this.camera.orthoBottom = factor * (this.camera.orthoBottom ?? 1);
+        this.onReaderMove?.();
     }
 
     /**
@@ -123,6 +127,7 @@ export class TwoDCameraController {
      */
     public rotate(delta: number): void {
         this.parent.rotation.z += delta;
+        this.onReaderMove?.();
     }
 
     /**

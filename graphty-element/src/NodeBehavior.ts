@@ -752,6 +752,12 @@ export class NodeDragHandler {
             this.scene.onPrePointerObservable.remove(this.hoverObserver);
             this.hoverObserver = null;
         }
+
+        // A node removed under the pointer is no longer hovered.
+        if (this.isHovered) {
+            this.isHovered = false;
+            this.getContext().getSelectionManager?.()?.leave(this.node.id);
+        }
     }
 }
 
@@ -772,9 +778,11 @@ export class NodeBehavior {
         // Set pinOnDrag config
         node.pinOnDrag = options.pinOnDrag ?? true;
 
-        // Create unified drag handler (replaces SixDofDragBehavior)
-        const dragHandler = new NodeDragHandler(node);
-        node.dragHandler = dragHandler;
+        // ONE HANDLER FOR THE NODE'S LIFE, kept when a restyle rebuilds the mesh: it reads
+        // `node.mesh` whenever it acts, so it needs nothing from the new mesh, and it holds what the
+        // pointer is in the middle of. Rebuilding it on every restyle dropped a hover without
+        // telling the selection, so a Hovered layer kept painting a node the pointer had left.
+        node.dragHandler ??= new NodeDragHandler(node);
 
         this.addClickBehavior(node);
     }

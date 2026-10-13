@@ -394,11 +394,28 @@ export class Graph implements GraphContext {
     #initialCameraStateOwed = false;
 
     /**
-     * Whether the camera was placed explicitly (`setCameraState` and every route through it) since
-     * the element last asked to frame the graph for a load or a new layout. The first-settlement
-     * framing is skipped while it is set, so it never moves a camera somebody has just placed.
+     * Whether the camera was placed -- by the reader's own zoom, turn or pan, or explicitly
+     * (`setCameraState` and every route through it) -- since the element last asked to frame the
+     * graph for a load or a new layout. The element's own framing is skipped while it is set, so
+     * it never moves a camera somebody has just placed.
      */
     #cameraPlaced = false;
+
+    /**
+     * The reader moved the camera: the element's own framing stops until the next load or layout,
+     * as it does for `setCameraState`. Left running, a re-frame still owed -- a layout that had not
+     * settled, the first settlement -- snapped the camera back from where the reader had zoomed.
+     * A consumer's own `zoomToFit()` still lands.
+     */
+    readonly #readerMovedCamera = (): void => {
+        if (this.#cameraPlaced) {
+            return;
+        }
+
+        this.#cameraPlaced = true;
+        this.#initialCameraStateOwed = false;
+        this.updateManager.stopAutoZoomToFit();
+    };
     /** Whether the camera frames the graph on its own; see {@link setAutoFrame}. */
     #autoFrame = true;
     /** How the 3D nodes are lit; see {@link setLighting}. */
@@ -614,6 +631,7 @@ export class Graph implements GraphContext {
         this.engine = this.renderManager.engine;
         this.scene = this.renderManager.scene;
         this.camera = this.renderManager.camera;
+        this.camera.onReaderMove = this.#readerMovedCamera;
 
         // Initialize StatsManager
         this.statsManager = new StatsManager(this.eventManager);
@@ -1500,6 +1518,7 @@ export class Graph implements GraphContext {
         this.engine = this.renderManager.engine;
         this.scene = this.renderManager.scene;
         this.camera = this.renderManager.camera;
+        this.camera.onReaderMove = this.#readerMovedCamera;
         this.camera.setViewInsets(this.#viewInsets);
         this.renderManager.applyLighting(this.#lighting);
         this.scene.clearColor = background;
@@ -3772,6 +3791,15 @@ export class Graph implements GraphContext {
         }
 
         return false;
+    }
+
+    /**
+     * Whether the camera was placed since the element last framed the graph on its own; see
+     * `cameraPlaced` on the element.
+     * @returns True once the reader zoomed, turned or panned, or the camera state was set.
+     */
+    isCameraPlaced(): boolean {
+        return this.#cameraPlaced;
     }
 
     /**

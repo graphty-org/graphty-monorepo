@@ -2256,6 +2256,28 @@ export class Graphty extends LitElement {
     }
 
     /**
+     * Whether the camera was placed since the element last framed the graph on its own.
+     * @remarks
+     * True once the reader zooms, turns or pans the view with the mouse, a touch or a key, or the
+     * camera state is set, until the next data load or layout change asks for framing again.
+     * While it is true the element's own framing leaves the camera alone. A consumer that frames
+     * the graph on its own initiative -- when a key laid over the canvas grows over a node, say --
+     * checks it too, so it never takes the reader's zoom away. `zoomToFit()` frames the graph
+     * either way.
+     * @since 3.26.0
+     * @example
+     * ```typescript
+     * if (element.autoFrame && !element.cameraPlaced && element.nodesInRect(keyBox).length > 0) {
+     *     element.zoomToFit();
+     * }
+     * ```
+     * @returns True while the camera stands where somebody placed it
+     */
+    get cameraPlaced(): boolean {
+        return this.#graph.isCameraPlaced();
+    }
+
+    /**
      * How the 3D nodes are lit.
      * @remarks
      * - `"studio"` (the default): a key light from above the camera, a soft fill, and a rim that
@@ -2311,7 +2333,8 @@ export class Graphty extends LitElement {
      * `zoomToFit()`, and the `fitToGraph` camera view. In 3D the camera also centers what it looks
      * at on the part left free. Changing them moves nothing: what is drawn stays where it is, and
      * the next fit keeps clear of the new margins. To frame the graph at once only when the
-     * overlay now hides a node, ask {@link nodesInRect} for its rectangle and call `zoomToFit()`.
+     * overlay now hides a node, ask {@link nodesInRect} for its rectangle and call `zoomToFit()`,
+     * unless {@link cameraPlaced} says the reader has placed the camera since the last framing.
      * A preference of this view, not part of the project: not saved in a project file. A side
      * left out is 0.
      * @since 3.17.0
@@ -3908,9 +3931,11 @@ export class Graphty extends LitElement {
      * @since 3.17.0
      * @example
      * ```typescript
-     * // A key over the canvas grew: frame the graph again only when it now hides a node.
+     * // A key over the canvas grew: frame the graph again only when it now hides a node, and the
+     * // reader has not placed the camera since the last framing.
      * element.viewInsets = { top: key.offsetTop + key.offsetHeight };
-     * if (element.nodesInRect({ x: key.offsetLeft, y: key.offsetTop, width: key.offsetWidth, height: key.offsetHeight }).length > 0) {
+     * const box = { x: key.offsetLeft, y: key.offsetTop, width: key.offsetWidth, height: key.offsetHeight };
+     * if (!element.cameraPlaced && element.nodesInRect(box).length > 0) {
      *     element.zoomToFit();
      * }
      * ```

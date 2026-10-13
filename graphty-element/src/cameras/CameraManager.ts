@@ -15,6 +15,8 @@ export interface CameraController {
     onResize?(): void;
     /** Take new insets without moving what is drawn; absent, the insets are assigned. */
     setViewInsets?(insets: ViewInsets): void;
+    /** Told each time the reader's own input moves this camera; set by {@link CameraManager}. */
+    onReaderMove?: () => void;
 }
 
 interface InputHandler {
@@ -50,6 +52,9 @@ export class CameraManager {
     private controllers = new Map<CameraKey, CameraController>();
     private inputs = new Map<CameraKey, InputHandler>();
 
+    /** Told each time the reader's own input -- a wheel, a drag, a pinch, a key -- moves a camera. */
+    public onReaderMove: (() => void) | null = null;
+
     /**
      * Creates a new CameraManager instance.
      * @param scene - The Babylon.js scene to manage cameras for
@@ -67,6 +72,9 @@ export class CameraManager {
     public registerCamera(key: CameraKey, controller: CameraController, inputHandler: InputHandler): void {
         this.controllers.set(key, controller);
         this.inputs.set(key, inputHandler);
+        controller.onReaderMove = () => {
+            this.onReaderMove?.();
+        };
     }
 
     /**

@@ -1696,6 +1696,7 @@ export class Graph implements GraphContext {
     isAiEnabled(): boolean;
     isAnimationCapturing(): boolean;
     isARSupported(): Promise<boolean>;
+    isCameraPlaced(): boolean;
     get isFrameStable(): boolean;
     isNodeSelected(nodeId: string | number): boolean;
     isRunning(): boolean;
@@ -2034,6 +2035,7 @@ export class Graphty extends LitElement {
     get background(): GraphBackgroundConfig | undefined;
     set background(value: GraphBackgroundConfig | undefined);
     batchOperations(fn: (tx: TransactionScope_2) => Promise<void> | void, label?: string): Promise<void>;
+    get cameraPlaced(): boolean;
     canCaptureScreenshot(options?: ScreenshotOptions): Promise<CapabilityCheck>;
     cancelAiCommand(): void;
     cancelAnimationCapture(): boolean;

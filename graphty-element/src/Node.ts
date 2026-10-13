@@ -822,11 +822,8 @@ export class Node {
         this.syncLabel(o, true);
         this.syncTooltip(o);
 
-        // Dispose old drag handler before creating new one to prevent duplicate event listeners
-        if (this.dragHandler) {
-            this.dragHandler.dispose();
-        }
-
+        // The new mesh is made pickable and clickable; the drag handler carries over (see
+        // NodeBehavior.addDefaultBehaviors).
         NodeBehavior.addDefaultBehaviors(this, this.opts);
 
         // The mesh above is a NEW instance, so everything that lives ON an instance rather than

@@ -514,6 +514,7 @@ export const READ_ONLY: readonly string[] = [
     "Graph.isARSupported",
     "Graph.isAiEnabled",
     "Graph.isAnimationCapturing",
+    "Graph.isCameraPlaced",
     "Graph.isNodeSelected",
     "Graph.isRunning",
     "Graph.isVRSupported",

@@ -194,6 +194,17 @@ const STYLE: StylesheetJson = [
     },
     { selector: "edge.proposed[color]", style: { "line-color": "data(color)" } },
     { selector: "edge.proposed[label]", style: { label: "data(label)", "font-size": sized(9, 9), color: "#1f2937" } },
+    // a short label on an edge, such as its weight in a hand-built example ("tag", as for nodes)
+    {
+        selector: "edge[tag]",
+        style: {
+            label: "data(tag)",
+            "font-size": sized(9, 9),
+            color: "#1f2937",
+            "text-background-color": "#ffffff",
+            "text-background-opacity": 0.8,
+        },
+    },
 ];
 
 /**

@@ -129,14 +129,14 @@ export function RuleEditor(props: Readonly<RuleEditorProps>): React.JSX.Element 
         )?.focus();
     }, []);
 
-    const choices: ReadsGroup[] = (["node", "edge"] as const)
-        .filter((k) => kinds.has(k))
-        .map((k) => ({
-            group: k === "node" ? "Nodes" : "Edges",
-            items: attributes
-                .filter((a) => a.kind === k)
-                .map((a) => ({ value: `${a.kind}:${a.path}`, label: a.plainName })),
-        }));
+    // Grouped as the vary picker groups them ("Data", then each run); a Both layer says whose.
+    const grouped = new Map<string, { value: string; label: string }[]>();
+    for (const a of attributes.filter((each) => kinds.has(each.kind))) {
+        const heading = a.group ?? "Data";
+        const group = kinds.size > 1 ? `${heading}, ${a.kind === "node" ? "nodes" : "edges"}` : heading;
+        grouped.set(group, [...(grouped.get(group) ?? []), { value: `${a.kind}:${a.path}`, label: a.plainName }]);
+    }
+    const choices: ReadsGroup[] = [...grouped].map(([group, items]) => ({ group, items }));
     const numbers = attributes
         .filter((a) => kinds.has(a.kind) && isNumber(a))
         .map((a) => ({ value: `${a.kind}:${a.path}`, label: a.plainName }));

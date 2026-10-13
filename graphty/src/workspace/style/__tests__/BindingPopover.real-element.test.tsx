@@ -163,7 +163,8 @@ async function editValue(
     });
     const otherBefore = colorOfValue(session, layer.id, other);
 
-    const hex = within(row).getByRole("textbox");
+    await userEvent.click(within(row).getByTestId("compact-color-input-chip"));
+    const hex = await screen.findByTestId("color-picker-value");
     await userEvent.tripleClick(hex);
     await userEvent.keyboard("00AA00{Enter}");
     await waitFor(() => {
@@ -335,10 +336,11 @@ describe("the binding popover on the real element", () => {
         rows.forEach((row, at) => {
             const [chit, name, count] = [...row.children] as HTMLElement[];
             assert.equal(name.textContent, keyNames[at], "the row is named as the key names it");
-            assert.equal(count.textContent, String(categories[at].count));
+            const n = categories[at].count;
+            assert.equal(count.textContent, `${String(n)} ${n === 1 ? "node" : "nodes"}`, "the count says its unit");
             const box = (chit.firstElementChild as HTMLElement).getBoundingClientRect();
             const words = name.getBoundingClientRect();
-            assert.isAtMost(box.right, words.left, `the color field stops before ${keyNames[at]}'s name`);
+            assert.isAtMost(box.right, words.left, `the color chip stops before ${keyNames[at]}'s name`);
             assert.isAbove(words.width, 0);
             assert.isAtLeast(count.getBoundingClientRect().left, words.right, "the count follows the name");
         });

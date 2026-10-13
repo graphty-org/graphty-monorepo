@@ -175,7 +175,7 @@ describe("the value picker on the real element", () => {
 
         const inUse = within(picker).getByRole("group", { name: "In use" });
         const degree = within(inUse).getAllByRole("option")[0];
-        assert.match(degree.getAttribute("aria-label") ?? "", /^Degree/, "Degree's value is in use");
+        assert.equal(degree.getAttribute("aria-label"), "Connections", "Degree's value is in use, by its plain name");
         assert.match(
             document.getElementById(degree.getAttribute("aria-describedby") ?? "")?.textContent ?? "",
             /^\d+ to \d+$/,

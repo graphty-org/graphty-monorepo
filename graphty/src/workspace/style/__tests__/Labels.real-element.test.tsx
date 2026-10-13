@@ -288,7 +288,7 @@ describe("label entries on the real element", () => {
 
         await userEvent.click(within(textList()).getByRole("button", { name: "Node label size by attribute" }));
         const list = await findValuePicker();
-        await userEvent.click(within(list).getByRole("option", { name: "Degree" }));
+        await userEvent.click(within(list).getByRole("option", { name: "Connections" }));
         const path = session.results.path(runId);
         await waitFor(
             () => {

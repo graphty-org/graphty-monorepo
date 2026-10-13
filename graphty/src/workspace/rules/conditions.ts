@@ -16,6 +16,8 @@ export interface Field {
     /** Whether nodes or edges carry it. */
     readonly kind: "node" | "edge";
     readonly plainName: string;
+    /** The heading it is listed under ("Data", or the run's name); absent lists it under its kind. */
+    readonly group?: string;
     /** `number` or `integer` for numbers; anything else reads as text. */
     readonly type?: string;
     /** Values to offer while typing one. */
@@ -27,9 +29,14 @@ export interface Field {
  * column keeping its sample values.
  * @param readable - `session.data.readableValues()`.
  * @param attributes - `session.data.attributes()`, for the sample values.
+ * @param nameOf - each value's name and heading, when the caller names them; else its plainName.
  * @returns the fields, in the element's order.
  */
-export function readableFields(readable: readonly ReadableValue[], attributes: readonly Field[]): Field[] {
+export function readableFields(
+    readable: readonly ReadableValue[],
+    attributes: readonly Field[],
+    nameOf?: (value: ReadableValue) => { readonly name: string; readonly group: string },
+): Field[] {
     // ponytail: a node value read at an edge's end (`value.end`) is left out until the picker
     // words it ("the source's name"); listed bare it would read as the edge's own column.
     return readable
@@ -37,7 +44,8 @@ export function readableFields(readable: readonly ReadableValue[], attributes: r
         .map((value) => ({
             path: value.path,
             kind: value.on,
-            plainName: value.plainName,
+            plainName: nameOf?.(value).name ?? value.plainName,
+            group: nameOf?.(value).group,
             type: value.kind === "number" ? "number" : "string",
             sampleValues: attributes.find((a) => a.path === value.path && a.kind === value.on)?.sampleValues ?? [],
         }));

@@ -449,7 +449,7 @@ describe("the Style tab's rows on the real element", () => {
 
         await userEvent.click(await varyGlyph("Node size"));
         const list = await findValuePicker();
-        await userEvent.click(within(list).getByRole("option", { name: "PageRank" }));
+        await userEvent.click(within(list).getByRole("option", { name: "Influence" }));
         await waitFor(() => {
             const size = session.styles.get(measure.id)?.encode?.["node.size"];
             assert.equal(size !== undefined && "by" in size ? size.by : undefined, session.results.path(runId));
@@ -467,7 +467,7 @@ describe("the Style tab's rows on the real element", () => {
         await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
         await userEvent.click(await varyGlyph("Node size"));
         const list = await findValuePicker();
-        await userEvent.click(within(list).getByRole("option", { name: "Degree" }));
+        await userEvent.click(within(list).getByRole("option", { name: "Connections" }));
         const path = session.results.path(runId);
         await waitFor(
             () => {
@@ -487,7 +487,7 @@ describe("the Style tab's rows on the real element", () => {
         });
     });
 
-    it("Palette and Reverse write the binding; Fix at puts one value back", async () => {
+    it("Palette and Reverse write the binding; Use one color puts one value back", async () => {
         await page.viewport(1366, 768);
         const { session } = await openEverything();
         await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
@@ -504,7 +504,7 @@ describe("the Style tab's rows on the real element", () => {
         await waitFor(() => {
             assert.equal(binding().reverse, true);
         });
-        await userEvent.click(within(popover).getByRole("button", { name: /^Fix at / }));
+        await userEvent.click(within(popover).getByRole("button", { name: /^Use one color: / }));
         await waitFor(() => {
             assert.isUndefined(readerLayers(session)[0]?.encode?.["node.color"]);
             assert.isDefined(readerLayers(session)[0]?.set?.["node.color"], "a fixed value again");

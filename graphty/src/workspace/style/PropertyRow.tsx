@@ -55,8 +55,8 @@ import {
     valueWords,
 } from "./words";
 
-/** The width of a field's pop-outs (the vary list, a binding, a row's settings), as wide as the panel's rows. */
-const POPOUT_WIDTH = 248;
+/** The width of a field's pop-outs (the vary list, a binding, a row's settings): 240 px at every window size. */
+const POPOUT_WIDTH = 240;
 
 /** The first choice of a vary list that keeps the field's own value. */
 const FIXED_LABELS: Partial<Record<Channel, string>> = { "node.size": "Fixed size", "node.tooltip": "Fixed text" };

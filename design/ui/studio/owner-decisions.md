@@ -4,6 +4,26 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-13 -- Decided by the team: one Clear glyph, one-line value lists, and a ramp that fits 240 px (compact-mantine)
+
+Additive API in compact-mantine:
+
+- `QuickActions` `descriptions?: "below" | "end"` (default `"below"`, as before). `"end"` draws each
+  action's description dimmed at the end of the name's line, so every row stays one line tall
+  (the value picker's "1 to 36" beside "Connections"). The description stays the option's
+  accessible description.
+- `QuickActions` `emptyText?: string`: what an empty list says before any search, such as why it
+  is empty and where to go instead. A search with no match still says "No results".
+
+Changes, not API shape:
+
+- The reset button of `StyleSelect`, `StyleNumberInput` and `CompactColorInput` draws a minus
+  instead of an "x": Clear is one glyph on every control, as Figma's "-" on a set row. Its name
+  and behavior are unchanged.
+- `RampEditor`'s "Values from" and "Values to" fields no longer have a minimum width of their own
+  (a text input's is about 20 characters), so the editor fits a 240 px pop-out instead of widening
+  it to 376 px.
+
 ## 2026-10-13 -- Decided by the team: what a label draws when nothing sets a field, and a gradient with no colors
 
 Additive API in graphty-element (`@graphty/graphty-element/catalog`):

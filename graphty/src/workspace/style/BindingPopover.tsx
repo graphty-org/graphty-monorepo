@@ -10,8 +10,8 @@ import {
 } from "@graphty/compact-mantine";
 import { type ChannelDescriptor, toColorValue } from "@graphty/graphty-element/catalog";
 import type { ChannelValue, LayerId, RuleTree } from "@graphty/graphty-element/schema";
-import type { GraphSession } from "@graphty/graphty-element/session";
-import { ActionIcon, Button, Group, Menu, Stack, Text, TextInput, Tooltip } from "@mantine/core";
+import type { GraphSession, ReadableValue } from "@graphty/graphty-element/session";
+import { ActionIcon, Box, Button, Group, Menu, Stack, Text, TextInput, Tooltip } from "@mantine/core";
 import React, { useState } from "react";
 
 import { swatchText } from "../canvas/legendWords";
@@ -21,7 +21,7 @@ import { useWorkspace } from "../state/WorkspaceContext";
 import { type DataBinding, type DataChoice, startingValue } from "./row";
 import { focusLineNext } from "./useFocusLine";
 import { ValuePicker } from "./ValuePicker";
-import { channelWord, enumWords, paletteWord } from "./words";
+import { channelWord, colorName, enumWords, paletteWord } from "./words";
 
 /** What `toColorValue` reads. */
 type ColorInput = Parameters<typeof toColorValue>[0];
@@ -31,6 +31,9 @@ type Preview = ReturnType<GraphSession["styles"]["preview"]>;
 
 /** One value of a categorical binding, as `styles.categories` lists it. */
 type Category = ReturnType<GraphSession["styles"]["categories"]>[number];
+
+/** The most distinct values a number may hold to be offered one color each: past it, colors stop telling apart. */
+const PER_VALUE_MOST = 24;
 
 /** Past this many category rows, a search field filters them (tier3 design, section 4). */
 const SEARCH_PAST = 8;
@@ -96,6 +99,35 @@ function valueWords(value: unknown): string {
         return value.toLocaleString();
     }
     return typeof value === "string" ? value : (cssOf(value) ?? String(value));
+}
+
+/**
+ * The quiet last action that turns a varied field back into one value, naming the value it keeps:
+ * "Use one color: orange", "Use one value: 2".
+ * @param value - the value it keeps.
+ * @returns the words.
+ */
+function oneValueWords(value: ChannelValue): string {
+    const hex = cssOf(value);
+    return typeof value === "string" && hex !== undefined
+        ? `Use one color: ${colorName(hex.toUpperCase())}`
+        : `Use one value: ${valueWords(value)}`;
+}
+
+/**
+ * What the element knows about the value a binding reads: its kind, how many distinct values it
+ * holds, whether they are colors.
+ * @param session - the element's session.
+ * @param binding - the binding.
+ * @param target - nodes or edges.
+ * @returns the element's entry, or undefined.
+ */
+function readableOf(
+    session: GraphSession,
+    binding: DataBinding,
+    target: ChannelDescriptor["target"],
+): ReadableValue | undefined {
+    return session.data.readableValues().find((v) => v.path === binding.by && v.on === target && v.end === undefined);
 }
 
 /**
@@ -255,15 +287,13 @@ export function BindingPopover({
                 />
             ) : null}
             {fixed === undefined ? null : (
-                <Button
-                    size="compact-xs"
-                    variant="default"
+                <QuietButton
                     onClick={() => {
                         onFix(fixed);
                     }}
                 >
-                    {`Fix at ${valueWords(fixed)}`}
-                </Button>
+                    {oneValueWords(fixed)}
+                </QuietButton>
             )}
         </Stack>
     );
@@ -372,6 +402,15 @@ function Ramp({ session, descriptor, layerId, binding, source, preview, patch }:
         .find((block) => block.layerId === layerId && block.channel === descriptor.channel)?.palette?.name;
     const diverging = palettes.find((p) => p.id === (binding.palette ?? shownPalette))?.kind === "diverging";
     const stepped = preview.steps.length > 0;
+    // A number with few distinct values (College football's conference codes) can take one color
+    // each, through the ordinal scale and a categorical palette, extended past its colors.
+    const readable = readableOf(session, binding, descriptor.target);
+    const perValue =
+        isColor &&
+        readable?.kind === "number" &&
+        readable.valueCount !== undefined &&
+        readable.valueCount > 1 &&
+        readable.valueCount <= PER_VALUE_MOST;
     // Steps from the element's cut points: the first runs from below, the last to above.
     const steps = stepped
         ? preview.stepCounts.map((count, at) => ({
@@ -459,6 +498,24 @@ function Ramp({ session, descriptor, layerId, binding, source, preview, patch }:
                 </Button>
             ) : null}
             <Clamp binding={binding} patch={patch} />
+            {perValue ? (
+                <QuietButton
+                    onClick={() => {
+                        patch({
+                            scale: "ordinal",
+                            overflow: "extend",
+                            palette: undefined,
+                            reverse: undefined,
+                            domain: undefined,
+                            clamp: undefined,
+                            midpoint: undefined,
+                            bins: undefined,
+                        });
+                    }}
+                >
+                    One color per value
+                </QuietButton>
+            ) : null}
             {scale === "bins" || scale === "quantile" ? (
                 <StyleNumberInput
                     label="Steps"
@@ -608,6 +665,8 @@ function Categories({ session, descriptor, layerId, binding, source, preview, pa
             .map((swatch) => [String(swatch.value), block === undefined ? "" : swatchText(block, swatch)]),
     );
     const nameOf = (value: unknown): string => names.get(String(value)) ?? String(value);
+    const readable = readableOf(session, binding, descriptor.target);
+    const asWritten = binding.scale === "passthrough";
     const needle = search.trim().toLowerCase();
     const shown = categories.filter(
         (c) =>
@@ -626,7 +685,29 @@ function Categories({ session, descriptor, layerId, binding, source, preview, pa
 
     return (
         <Stack gap={8}>
-            {isColor ? (
+            {isColor && readable?.kind === "number" && binding.scale === "ordinal" ? (
+                <QuietButton
+                    onClick={() => {
+                        patch({ scale: undefined, palette: undefined, overflow: undefined });
+                    }}
+                >
+                    Use a ramp
+                </QuietButton>
+            ) : null}
+            {isColor && readable?.valuesAreColors === true ? (
+                <QuietButton
+                    onClick={() => {
+                        patch(
+                            asWritten
+                                ? { scale: undefined }
+                                : { scale: "passthrough", palette: undefined, overflow: undefined },
+                        );
+                    }}
+                >
+                    {asWritten ? "Use a palette" : "Use the values as colors"}
+                </QuietButton>
+            ) : null}
+            {isColor && !asWritten ? (
                 <StyleSelect
                     label="Palette"
                     value={binding.palette}
@@ -673,8 +754,8 @@ function Categories({ session, descriptor, layerId, binding, source, preview, pa
                     if (isColor) {
                         chit = (
                             <CompactColorInput
+                                variant="chip"
                                 aria-label={`${source} ${name} color`}
-                                width="100%"
                                 color={typeof category.entry === "string" ? category.entry : undefined}
                                 defaultColor={cssOf(painted) ?? "#999999"}
                                 showOpacity={false}
@@ -688,16 +769,18 @@ function Categories({ session, descriptor, layerId, binding, source, preview, pa
                         );
                     } else if (descriptor.accepts === "number") {
                         chit = (
-                            <StyleNumberInput
-                                label={`${source} ${name} ${channelWord(channel).toLowerCase()}`}
-                                value={typeof category.entry === "number" ? category.entry : undefined}
-                                defaultValue={typeof painted === "number" ? painted : 1}
-                                min={descriptor.min}
-                                max={descriptor.max}
-                                onChange={(next) => {
-                                    entry(category.value, next);
-                                }}
-                            />
+                            <Box w={64}>
+                                <StyleNumberInput
+                                    label={`${source} ${name} ${channelWord(channel).toLowerCase()}`}
+                                    value={typeof category.entry === "number" ? category.entry : undefined}
+                                    defaultValue={typeof painted === "number" ? painted : 1}
+                                    min={descriptor.min}
+                                    max={descriptor.max}
+                                    onChange={(next) => {
+                                        entry(category.value, next);
+                                    }}
+                                />
+                            </Box>
                         );
                     }
                     return (
@@ -735,7 +818,7 @@ function Categories({ session, descriptor, layerId, binding, source, preview, pa
                     );
                 })}
             </Stack>
-            {isColor ? (
+            {isColor && !asWritten ? (
                 <StyleSelect
                     label="More values than colors"
                     value={binding.overflow}
@@ -804,13 +887,15 @@ function ValueRow({
         void session.selection.apply({ scope: { define: { kind: "rule", where: rule, reading: "clipped" } } });
     };
     return (
+        // One line: the chip, the name, the count with its unit, then fixed 24 px columns (eye,
+        // Clear, actions), so the columns line up row to row whether or not a row has its Clear.
         <Group role="listitem" aria-label={`${name}, ${counted}`} gap={4} wrap="nowrap">
-            {chit === undefined || chit === null ? null : <div style={{ width: 96, flex: "none" }}>{chit}</div>}
+            {chit === undefined || chit === null ? null : <Box style={{ flex: "none", display: "flex" }}>{chit}</Box>}
             <Text size="xs" truncate style={{ flex: 1, minWidth: 0 }}>
                 {name}
             </Text>
-            <Text size="xs" c="dimmed" title={counted}>
-                {count.toLocaleString()}
+            <Text size="xs" c="dimmed" style={{ flex: "none" }}>
+                {counted}
             </Text>
             {onHide === undefined ? null : (
                 <ToggleIconButton
@@ -822,18 +907,20 @@ function ValueRow({
                     onChange={onHide}
                 />
             )}
-            {onClear === undefined ? null : (
-                <Tooltip label="Back to the palette">
-                    <ActionIcon
-                        variant="subtle"
-                        size="sm"
-                        aria-label={`Back to the palette: ${full}`}
-                        onClick={onClear}
-                    >
-                        <GLYPHS.remove size={14} aria-hidden />
-                    </ActionIcon>
-                </Tooltip>
-            )}
+            <Box w={24} style={{ flex: "none" }} data-clear-column>
+                {onClear === undefined ? null : (
+                    <Tooltip label="Clear: back to the palette">
+                        <ActionIcon
+                            variant="subtle"
+                            size="sm"
+                            aria-label={`Back to the palette: ${full}`}
+                            onClick={onClear}
+                        >
+                            <GLYPHS.remove size={14} aria-hidden />
+                        </ActionIcon>
+                    </Tooltip>
+                )}
+            </Box>
             <Menu withinPortal={false} position="bottom-end">
                 <Menu.Target>
                     <ActionIcon variant="subtle" size="sm" aria-label={`${full} actions`}>
@@ -850,6 +937,24 @@ function ValueRow({
                 </Menu.Dropdown>
             </Menu>
         </Group>
+    );
+}
+
+/**
+ * A quiet text action of the popover, at its start edge: a way to read the same value another way.
+ * @param props - Component props
+ * @param props.children - its words
+ * @param props.onClick - what it does
+ * @returns The button
+ */
+function QuietButton({
+    children,
+    onClick,
+}: Readonly<{ children: React.ReactNode; onClick: () => void }>): React.JSX.Element {
+    return (
+        <Button size="compact-xs" variant="subtle" style={{ alignSelf: "flex-start" }} onClick={onClick}>
+            {children}
+        </Button>
     );
 }
 

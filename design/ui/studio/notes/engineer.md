@@ -11,6 +11,39 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-13) **Category rows, the ramp popover, one Clear glyph, pickers that read one list**
+  (graphty app plus compact-mantine; test `style/__tests__/PopoversAndPickers.real-element.test.tsx`).
+  Value names: `readableName(session, value)` in `style/words.ts` is the one namer for the vary
+  picker and the rule editor (`fieldsOf` passes it to `readableFields`, which now carries `group`):
+  the catalog plainName under "Data" or the run's name; a run field that does not say whose it is
+  gets the main value after it ("Rank of Connections"; "Community size" keeps its own). So the
+  picker lists Degree's value as "Connections" and PageRank's as "Influence" (tests that clicked
+  "Degree" / "PageRank" were updated). `sourceName` (a bound line's words) still uses
+  `resultWord` and the run's name: changing it moves many tests and two runs of one algorithm would
+  read alike; left for a unit that owns the line's words. The rule editor groups by "Data" / run,
+  and a Both layer appends ", nodes" / ", edges". Picker rows are one line (`QuickActions`
+  `descriptions="end"`, additive), the glyph follows kind (number Hash, else category), a search
+  also matches the technicalName (`keywords`), and an empty list says why (`emptyText`, additive;
+  an edge layer points to Both). Ramp popover: MEASURED 376 px before -- the RampEditor's two
+  domain `<input>`s carry a ~20-character intrinsic minimum, and `Popout.Panel` is
+  `width: min-content`; `width: 100%` on them (a compressible element's percentage width has no
+  min-content contribution) gives 240 px at 900 x 700, top and bottom inside the window. How it was
+  found: hiding each descendant in turn and re-measuring the dialog; setting `width: min-content`
+  on each element lies, because percentage widths resolve against the parent. Field pop-outs are
+  240 (PropertyRow, Effects). "One color per value" (College football conference, valueCount 12)
+  writes `scale: "ordinal", overflow: "extend"`: no categorical palette has 12 colors, so without
+  extend the element folds into Other; offered while valueCount is 2 to 24; Categories offers "Use
+  a ramp" back. A column marked `valuesAreColors` offers "Use the values as colors"
+  (`passthrough`) and "Use a palette" back; under passthrough the palette and overflow selects
+  hide. The one-value action is a quiet subtle button "Use one color: orange" (`colorName`) or
+  "Use one value: 2". Category rows: chip (`variant="chip"`, edit through the picker's
+  `color-picker-value`), name, "20 nodes", eye, a 24 px Clear column always reserved
+  (`data-clear-column`), menu; MEASURED aligned to the half pixel with one row recolored. The shared
+  reset glyph (StyleSelect, StyleNumberInput, CompactColorInput) is now a minus, so Graph settings'
+  colors get it too. Seen, not mine (failed before this change): `row.test.ts`
+  (`node.labelBackground`), `StyleTab.real-element` "edge band beside the node halo",
+  `GraphSettings.real-element` colors.
+
 - (2026-10-13) **Effect rows as Figma draws them, labels that say what they are, a quieter Label
   settings** (graphty app, plus graphty-element `LABEL_STYLE_DEFAULTS`; tests in
   `style/__tests__/Effects.real-element.test.tsx`, `Labels.real-element.test.tsx`, `coverage.test.ts`,

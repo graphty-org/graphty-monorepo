@@ -6,11 +6,10 @@ import React, { useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import { formatNumber } from "../inspector/words";
-import { runName } from "../runWords";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { type DataChoice, propose, type Target } from "./row";
 import { useStyleVersion } from "./useStyleVersion";
-import { channelWord, matchesWordStart, refusalWords, resultWord } from "./words";
+import { channelWord, matchesWordStart, readableName, refusalWords } from "./words";
 
 /** Props for ValuePicker. */
 interface ValuePickerProps {
@@ -37,6 +36,18 @@ const FIXED = "fixed";
 /** The key of the closing row that folds what the property cannot take. */
 const FOLD = "fold";
 
+/**
+ * Why the list is empty, and where to go: edges that carry no values of their own can still be
+ * painted from the node values of a layer that paints both.
+ * @param target - nodes or edges.
+ * @returns the words.
+ */
+function emptyWords(target: Target): string {
+    return target === "edge"
+        ? "The edges carry no values. To paint by a node value, make this layer Both in Which elements."
+        : "The nodes carry no values yet. Load data or run an analysis.";
+}
+
 /** One value the picker offers, before it becomes a palette row. */
 interface Entry {
     readonly key: string;
@@ -46,6 +57,8 @@ interface Entry {
     readonly icon: React.ReactNode;
     /** One fact that tells this value from its neighbors ("1 to 36", "6 values"). */
     readonly fact?: string;
+    /** The name a technical reader knows it by; a search finds it too. */
+    readonly technicalName: string;
     readonly inUse: boolean;
 }
 
@@ -70,8 +83,8 @@ function factOf(value: ReadableValue): string | undefined {
 
 /**
  * Everything the picker offers, in the element's order (`data.readableValues`): the data's
- * columns, then each finished run's fields under the run's name. The node id is left out: it
- * drives no property.
+ * columns, then each finished run's fields under the run's name, named as the rule editor names
+ * them (`readableName`). The node id is left out: it drives no property.
  * @param session - the element's session.
  * @param target - nodes or edges.
  * @param inUse - paths the caller counts as in use.
@@ -84,33 +97,32 @@ function entriesOf(session: GraphSession, target: Target, inUse: readonly string
         if (value.on !== target || value.from === "element" || value.end !== undefined) {
             continue;
         }
-        let Glyph = GLYPHS.category;
-        if (value.from === "run") {
-            Glyph = GLYPHS.measure;
-        } else if (value.kind === "number") {
-            Glyph = GLYPHS.number;
-        }
-        const used = value.usedBy?.some((use) => use.kind === "layer") === true || inUse.includes(value.path);
-        const base = { key: value.path, icon: <Glyph size={14} aria-hidden />, fact: factOf(value), inUse: used };
         const run = value.runId === undefined ? undefined : session.runs.get(value.runId);
+        let choice: DataChoice | undefined;
         if (value.from === "data") {
-            const name = value.path.slice("data.".length);
-            entries.push({
-                ...base,
-                name,
-                section: "Data",
-                choice: { kind: "column", column: { kind: target, name } },
-            });
+            choice = { kind: "column", column: { kind: target, name: value.path.slice("data.".length) } };
         } else if (run !== undefined) {
-            const field = value.path.slice(session.results.path(run.id, "").length);
-            const runLabel = runName(session, run);
-            entries.push({
-                ...base,
-                name: resultWord(runLabel, field, value.path === session.results.path(run.id)),
-                section: runLabel,
-                choice: { kind: "result", runId: run.id, field },
-            });
+            choice = {
+                kind: "result",
+                runId: run.id,
+                field: value.path.slice(session.results.path(run.id, "").length),
+            };
         }
+        if (choice === undefined) {
+            continue;
+        }
+        const Glyph = value.kind === "number" ? GLYPHS.number : GLYPHS.category;
+        const { name, group } = readableName(session, value);
+        entries.push({
+            key: value.path,
+            name,
+            section: group,
+            choice,
+            icon: <Glyph size={14} aria-hidden />,
+            fact: factOf(value),
+            technicalName: value.technicalName,
+            inUse: value.usedBy?.some((use) => use.kind === "layer") === true || inUse.includes(value.path),
+        });
     }
     return entries;
 }
@@ -157,7 +169,13 @@ export function ValuePicker({
     const refused: QuickAction[] = [];
     for (const entry of entries) {
         const proposal = channel === undefined ? null : propose(session, entry.choice, channel);
-        const row = { value: entry.key, label: entry.name, icon: entry.icon, description: entry.fact };
+        const row = {
+            value: entry.key,
+            label: entry.name,
+            icon: entry.icon,
+            description: entry.fact,
+            keywords: [entry.technicalName],
+        };
         if (proposal !== null && !proposal.ok) {
             refused.push({
                 ...row,
@@ -188,6 +206,8 @@ export function ValuePicker({
             placeholder="Find a value"
             width={240}
             height={320}
+            descriptions="end"
+            emptyText={entries.length === 0 ? emptyWords(target) : undefined}
             actions={[
                 ...(fixedLabel === undefined ? [] : [{ value: FIXED, label: fixedLabel }]),
                 ...used,
@@ -204,7 +224,7 @@ export function ValuePicker({
                 if (action.disabled === true && !searching && !unfolded) {
                     return false;
                 }
-                return matchesWordStart(action.label, query);
+                return [action.label, ...(action.keywords ?? [])].some((words) => matchesWordStart(words, query));
             }}
             onRun={(key) => {
                 if (key === FIXED) {

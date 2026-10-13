@@ -12,7 +12,7 @@ import { lineIn, type lineOf, removeLine, sharesBeneath, type Target, writeIn } 
 import { channelWord, hexOf } from "./words";
 
 /** The width of an entry's settings pop-out, as the property rows'. */
-const POPOUT_WIDTH = 248;
+const POPOUT_WIDTH = 240;
 
 /** One kind of effect: the channel its entry's value writes, and the settings behind its button. */
 interface EffectKind {

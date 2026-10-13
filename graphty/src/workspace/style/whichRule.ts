@@ -17,6 +17,7 @@ import {
     isNumber,
     readableFields,
 } from "../rules/conditions";
+import { readableName } from "./words";
 
 /** What a layer's rule picks, as graphty-element's layer holds it. */
 export type Selector = Layer["selector"];
@@ -79,12 +80,14 @@ export function countWords(n: number, kind: "node" | "edge"): string {
 
 /**
  * Every value a rule can read: graphty-element's readable values (the node id, the data
- * columns, each finished run's fields).
+ * columns, each finished run's fields), named and grouped as the vary picker names them.
  * @param session - the element's session.
  * @returns the fields.
  */
 export function fieldsOf(session: GraphSession): Field[] {
-    return readableFields(session.data.readableValues(), session.data.attributes());
+    return readableFields(session.data.readableValues(), session.data.attributes(), (value) =>
+        readableName(session, value),
+    );
 }
 
 /**

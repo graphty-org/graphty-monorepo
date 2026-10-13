@@ -16,7 +16,9 @@ import {
     toColorValue,
 } from "@graphty/graphty-element/catalog";
 import type { Channel, LabelStyle } from "@graphty/graphty-element/schema";
-import type { CodedFact, GraphSession } from "@graphty/graphty-element/session";
+import type { CodedFact, GraphSession, ReadableValue } from "@graphty/graphty-element/session";
+
+import { runName } from "../runWords";
 
 /** Where a label sits, as the element names it. */
 type LabelLocation = NonNullable<LabelStyle["location"]>;
@@ -442,6 +444,26 @@ export function paletteWord(id: string): string {
  */
 export function resultWord(runLabel: string, field: string, primary: boolean): string {
     return primary ? runLabel : `${runLabel} ${enumWords(field).toLowerCase()}`;
+}
+
+/**
+ * A readable value's name and the heading it is listed under, the same in the vary picker and the
+ * rule editor: the catalog plainName, under "Data" for a column or under the run's name for a
+ * run's field. A run's field that does not say whose it is gets the run's main value after it
+ * ("Rank of Connections"); one that does ("Community size") keeps its own name.
+ * @param session - the element's session.
+ * @param value - the element's entry.
+ * @returns the name and its heading.
+ */
+export function readableName(session: GraphSession, value: ReadableValue): { name: string; group: string } {
+    const run = value.runId === undefined ? undefined : session.runs.get(value.runId);
+    if (run === undefined) {
+        return { name: value.plainName, group: "Data" };
+    }
+    const primary = session.results.path(run.id);
+    const main = run.fields.find((f) => session.results.path(run.id, f.name) === primary)?.plainName;
+    const own = value.path === primary || main === undefined || value.plainName.includes(main);
+    return { name: own ? value.plainName : `${value.plainName} of ${main}`, group: runName(session, run) };
 }
 
 /**

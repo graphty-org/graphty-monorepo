@@ -16,39 +16,60 @@ served at `/?next`.
 
 ## Top of mind
 
-0. (2026-10-12) Tier 3 unified styles: the risk is ~20 element additions under several names each.
+0. (2026-10-13) Tier 3 paused for the owner after iteration 3; iteration 4 is planned, not
+   built. Answers to the owner's three questions: (a) unset = the minus on a set field (tooltip
+   names what comes back), or empty + Enter; Undo names it; covering a lower layer is a separate
+   act ("Hide label from Key people" in the "+" menu adds this layer's entry set to nothing).
+   Watch: two acts must stay two controls and two words; if readers in the study reach for the
+   minus to hide something beneath, the model is wrong, not the reader. (b) No split parent: two
+   row kinds, layer and folder; Louvain is an ordinary layer whose color varies by Community, and
+   the same category rows serve a number column (conference). Watch that no group row grows its
+   own rules again (refused drops, follow parent) -- that is the third kind returning. (c) Figma:
+   one-line rows, effect rows, Selection colors, Mixed only for multi-select, popovers beside the
+   panel taken; iteration 4 adds one settings button per section (Type settings), inline opacity,
+   swatch borders, icon-grid shapes, never-cut names. Kept as ours: the vary glyph at rest and
+   the painted-over mark (Figma does not stack paints). Watch the dimmed painted-over value: a
+   dimmed field also reads "disabled" (locked layers dim too) -- two meanings, one look.
+   0a. (2026-10-13) Iteration 4 risks to attack at review: "a kind change keeps everything" makes
+   the element hold hidden node/edge parts and rewrite rules ("edges touching those nodes") --
+   hidden state a reader cannot see; demand the panel shows a waiting part or the feature is a
+   trap. Section settings buttons must not become a junk drawer (count rows; over ~10, cut).
+   A draggable color popover is a second fix for one problem (240 px popover at 900 x 700); pick
+   one. "Hide label from" entries per lower entry can multiply the "+" menu -- measure on a
+   5-layer stack. Owner-only: default label font fallback, plus the five breaking items.
+1. (2026-10-12) Tier 3 unified styles: the risk is ~20 element additions under several names each.
    Before any is built: one name per question, and reuse first (proposeEncoding already returns
    a coded refusal; layer.target already says the kind; find already matches substring/regex --
    one "find query" selector form beats JMESPath functions plus rule leaves). Hold "never
    accordions" (owner rule) until delete-titles + paired rows are measured at 900 x 700. A layer
    painting both kinds is breaking: owner list, no `targets` field, no linked pair; endpoint-
    reading edge rules are the additive piece. No disabled vary buttons (disabled promise).
-1. (2026-10-11) Round 5 gate: the refusal now lives in `real.mjs --start` (no "Gate evidence" in
+2. (2026-10-11) Round 5 gate: the refusal now lives in `real.mjs --start` (no "Gate evidence" in
    plan.md = exit 1) and the runner takes the machine-wide browser slot. Before round 5 I check
    the self-test refusal on a planted fault and the owed r4-s05b/s20b/s28b myself; never assume.
-2. (2026-10-11) Briefings: data files by name and kind only; leak check reads briefings too.
+3. (2026-10-11) Briefings: data files by name and kind only; leak check reads briefings too.
    --shift/--ctrl/--alt-click stay, listed neutrally (removing them would measure the tool).
-3. (2026-10-11) Bare number "10": suggestBackticks applies the selector's own acceptance test.
+4. (2026-10-11) Bare number "10": suggestBackticks applies the selector's own acceptance test.
    No app count guard. Pattern to hunt: one question answered by two different tests.
-4. (2026-10-11) In-range number: optional FindResult.atLeast rows from atLeastOf. Credit it by
+5. (2026-10-11) In-range number: optional FindResult.atLeast rows from atLeastOf. Credit it by
    "10" reaching the right stops without a refusal, not by the prompt's "or more" echo.
-5. (2026-10-11) rulePath export was added over my "no new export": right, it deletes the app's
+6. (2026-10-11) rulePath export was added over my "no new export": right, it deletes the app's
    copy of element logic. Watch that it is the only change to that row.
-6. (2026-10-11) Off filter step: leave handler returns early on an unchanged rule; nothing else.
-7. (2026-10-11) Table under a filter: scope "visible", tab "12 of 41 edges", re-render on
+7. (2026-10-11) Off filter step: leave handler returns early on an unchanged rule; nothing else.
+8. (2026-10-11) Table under a filter: scope "visible", tab "12 of 41 edges", re-render on
    visibility. Watch the export mismatch (#875/#820): export words must say "every record".
-8. (2026-10-11) Bar 9 (b): diff the word lists first; scope words stay and the bar fails
+9. (2026-10-11) Bar 9 (b): diff the word lists first; scope words stay and the bar fails
    honestly. Never re-set a limit from data; only a proven measurement fault re-measures.
-9. (2026-10-11) Single-source claims (unknown column, Escape on swatch, label taking a tie click,
-   New project Discard crash) are scripted before any fix; not shown = closed.
-10. Shift-click adds, toolbar Filters door, second path replaces silently: held 7 of 7. Do not
+10. (2026-10-11) Single-source claims (unknown column, Escape on swatch, label taking a tie click,
+    New project Discard crash) are scripted before any fix; not shown = closed.
+11. Shift-click adds, toolbar Filters door, second path replaces silently: held 7 of 7. Do not
     touch. Rejected stays rejected without new evidence (notices, second homes, Hops grouping).
-11. Drawn-name overlap is the element's label placement, owner list; bar 10 fails on it honestly.
+12. Drawn-name overlap is the element's label placement, owner list; bar 10 fails on it honestly.
     No app font, seed, offset or names-off setup.
-12. Bare numbers in rules, backticks, edge width units: breaking, owner list. No opt-in flag.
-13. Rounds are one model playing everyone: a failure is strong, a pass weak; briefings and
+13. Bare numbers in rules, backticks, edge width units: breaking, owner list. No opt-in flag.
+14. Rounds are one model playing everyone: a failure is strong, a pass weak; briefings and
     histories prime -- discount any "unprompted" count. Name the mechanism.
-14. Fix by removing, not adding. One change per problem; words at rest never rise.
+15. Fix by removing, not adding. One change per problem; words at rest never rise.
 
 ## Priorities and values
 
@@ -97,6 +118,12 @@ served at `/?next`.
   inspector about 30, 40 max. Reason: principle 5, measurable on the real app.
 
 ## Decisions and reasons
+
+- (2026-10-13) Agreed with iteration 3's review: no split parent (a third row kind costs every
+  reader a new rule set for one dataset shape); unset and cover stay separate controls; Figma
+  divergence only where Figma has no stacking (painted-over mark) or tier 1 evidence (vary glyph
+  at rest). Objected (on record): dimming for painted-over collides with dimming for locked; the
+  kind-change memory is hidden state.
 
 - 2026-09-26 to 2026-10-03 (summarized 2026-10-08) -- Owner: personas validate, never generate
   features; no wizards, suggestion cards or first-run UI; a run paints when it finishes; the app

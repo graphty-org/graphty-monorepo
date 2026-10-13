@@ -1,11 +1,10 @@
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { CONFIG_FILE, loadConfig, loadConfigAt, normalizeConfig } from "../trusted/lib/config.mjs";
-import { CONFIG, git, isolateGit } from "./helpers.mjs";
+import { CONFIG, git, isolateGit, tempDir } from "./helpers.mjs";
 
 beforeAll(isolateGit);
 
@@ -56,6 +55,7 @@ describe("normalizeConfig", () => {
             commitPrefix: "test",
             issueLabels: ["bug"],
             fontconfig: null,
+            updateCheck: null,
             projects: {
                 web: {
                     storybook: "storybook-static",
@@ -84,6 +84,7 @@ describe("normalizeConfig", () => {
         [[], /JSON object/],
         [{ fontconfig: "../fonts.conf", projects: { a: { storybook: "s" } } }, /fontconfig must be/],
         [{ fontconfig: 1, projects: { a: { storybook: "s" } } }, /fontconfig must be/],
+        [{ updateCheck: " ", projects: { a: { storybook: "s" } } }, /updateCheck must be/],
         [{}, /projects must name/],
         [{ projects: {} }, /projects must name/],
         [{ projects: { "a b": { storybook: "s" } } }, /project id/],
@@ -103,7 +104,7 @@ describe("normalizeConfig", () => {
 
 describe("loadConfig and loadConfigAt", () => {
     const repo = () => {
-        const dir = mkdtempSync(join(tmpdir(), "vr-config-"));
+        const dir = tempDir("vr-config-");
         git(dir, "init", "-q", "-b", "main");
         git(dir, "config", "user.name", "T");
         git(dir, "config", "user.email", "t@example.com");

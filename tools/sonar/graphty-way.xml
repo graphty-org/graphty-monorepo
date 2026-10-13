@@ -28,6 +28,10 @@
         <!-- for...of over an index loop (34). Decided in stage 3: most hits are index loops over typed
              arrays in the kernels, where the index loop is the deliberate hot-path form; the rest is taste. -->
         <deactivate rule="typescript:S4138" />
+        <!-- Catch parameter must be named error (6). Decided in stage 3: error is used where it reads best;
+             the others say what was caught (cause, passed on as { cause }; reason, state, thrown),
+             and where error is taken the rule asks for error_, which says less. -->
+        <deactivate rule="typescript:S7718" />
         <!-- Unnecessary spread (21). Decided in stage 3: every site is `for (const x of [...collection])`,
              a copy taken on purpose because the loop adds to or deletes from the collection it walks. -->
         <deactivate rule="typescript:S7747" />
@@ -42,6 +46,8 @@
     <language key="js">
         <!-- Negated condition with an else. Off, as for TypeScript above. -->
         <deactivate rule="javascript:S7735" />
+        <!-- Catch parameter must be named error. Off, as for TypeScript above. -->
+        <deactivate rule="javascript:S7718" />
         <!-- Unnecessary spread. Off, as for TypeScript above. -->
         <deactivate rule="javascript:S7747" />
         <!-- Test file with no test case. Off, as for TypeScript above. -->

@@ -4,6 +4,9 @@ import Hammer from "hammerjs";
 import { hasModifier } from "./InputUtils";
 import { OrbitCameraController, OrbitConfig } from "./OrbitCameraController";
 
+/** The fraction of the camera's distance one mouse wheel notch zooms by. */
+const WHEEL_NOTCH_ZOOM = 0.1;
+
 /**
  * Handles user input for the orbit camera controller.
  * Processes mouse, touch, and keyboard input for camera manipulation.
@@ -63,13 +66,13 @@ export class OrbitInputController {
         this.keysDown[evt.key.toLowerCase()] = false;
     };
 
-    // One mouse wheel notch (deltaY 100) moves the camera by keyboardZoomSpeed / 2 of its distance;
+    // One mouse wheel notch (deltaY 100) moves the camera by WHEEL_NOTCH_ZOOM of its distance;
     // a trackpad's many small deltas add up to the same. The clamp keeps a line- or page-mode
     // delta from jumping the camera.
     private readonly wheelHandler = (evt: WheelEvent): void => {
         evt.preventDefault();
         const notches = Math.max(-1, Math.min(1, evt.deltaY / 100));
-        this.controller.zoom((this.controller.cameraDistance * this.config.keyboardZoomSpeed * notches) / 2);
+        this.controller.zoomBy(1 + WHEEL_NOTCH_ZOOM * notches);
     };
 
     // The canvas never sees the keyup of a key released after it lost focus

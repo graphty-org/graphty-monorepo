@@ -239,8 +239,8 @@ describe("Log Server", () => {
 
         // Verify logs are cleared
         const logsResponse = await fetch(`http://127.0.0.1:${port}/logs`);
-        const data = await logsResponse.json();
-        expect(Object.keys(data)).toHaveLength(0);
+        const data: unknown = await logsResponse.json();
+        expect(data).toEqual({});
     });
 
     test("should handle GET /health", async () => {

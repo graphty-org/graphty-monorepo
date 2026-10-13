@@ -578,7 +578,7 @@ function dotCharset(head: string): string | null {
  * @param value - the caller's value
  * @returns the value or the default; E_UNSUPPORTED for anything else
  */
-function mismatchOption(value: unknown): "operator" | "header" | "error" {
+function mismatchOption(value: unknown): NonNullable<DotImportOptions["mismatchedEdgeOperator"]> {
     if (value === undefined) {
         return "operator";
     }

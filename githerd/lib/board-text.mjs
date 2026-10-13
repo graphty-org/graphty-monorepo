@@ -488,7 +488,13 @@ const WHY_LINES = 30;
 export function whyText(item, state, ledger, now) {
     const names = aliases(item);
     const jobs = Object.values(state.jobs ?? {}).filter((j) => names.has(j.id) || names.has(j.target));
-    const items = Object.values(state.ownerItems ?? {}).filter((i) => names.has(i.id) || names.has(String(i.target)));
+    // An ended item the daemon dropped from the state is read from its ledger record, the last one per id.
+    const dropped = ledger.filter((e) => e.kind === "owner-item" && e.event === "dropped" && e.record);
+    const byId = new Map([
+        ...dropped.map((e) => /** @type {[string, any]} */ ([e.record.id, e.record])),
+        ...Object.entries(state.ownerItems ?? {}),
+    ]);
+    const items = [...byId.values()].filter((i) => names.has(i.id) || names.has(String(i.target)));
     // The records' own ids name the item too: a job's record lines carry its id, not its target.
     for (const r of [...jobs, ...items]) names.add(r.id);
     const lines = ledger.filter((e) => concerns(e, names));

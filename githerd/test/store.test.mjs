@@ -2,11 +2,13 @@ import { spawn } from "node:child_process";
 import { once } from "node:events";
 import {
     existsSync,
+    linkSync,
     mkdirSync,
     mkdtempSync,
     readdirSync,
     readFileSync,
     rmSync,
+    statSync,
     utimesSync,
     writeFileSync,
 } from "node:fs";
@@ -74,6 +76,26 @@ describe("state", () => {
         await saveState(dir, { schema: STATE_SCHEMA, n: 1 });
         await saveState(dir, { schema: STATE_SCHEMA, n: 2 });
         expect(JSON.parse(read("state.json.bak")).n).toBe(1);
+        expect(readdirSync(dir).sort()).toEqual(["state.json", "state.json.bak"]);
+    });
+
+    it("writes compact JSON and makes the previous file the backup without copying it", async () => {
+        await saveState(dir, { schema: STATE_SCHEMA, n: 1, nested: { a: [1, 2] } });
+        expect(read("state.json")).toBe('{"schema":1,"n":1,"nested":{"a":[1,2]}}\n');
+        const previous = statSync(join(dir, "state.json")).ino;
+        await saveState(dir, { schema: STATE_SCHEMA, n: 2 });
+        expect(statSync(join(dir, "state.json.bak")).ino).toBe(previous);
+        expect(statSync(join(dir, "state.json")).ino).not.toBe(previous);
+    });
+
+    it("saves over a backup that is the same file as state.json, as a save killed between its renames leaves it", async () => {
+        await saveState(dir, { schema: STATE_SCHEMA, n: 0 });
+        await saveState(dir, { schema: STATE_SCHEMA, n: 1 });
+        rmSync(join(dir, "state.json.bak"));
+        linkSync(join(dir, "state.json"), join(dir, "state.json.bak"));
+        await saveState(dir, { schema: STATE_SCHEMA, n: 2 });
+        expect(JSON.parse(read("state.json.bak")).n).toBe(1);
+        expect(JSON.parse(read("state.json")).n).toBe(2);
         expect(readdirSync(dir).sort()).toEqual(["state.json", "state.json.bak"]);
     });
 
@@ -480,6 +502,10 @@ for (let n = 0; ; n++) {
         expect(r.source).toBe("state");
         expect(r.state.n).toBeGreaterThanOrEqual(20);
         expect(r.state.pad).toHaveLength(65536);
+        // The backup is a whole earlier state too, never a partial copy.
+        const bak = JSON.parse(read("state.json.bak"));
+        expect(bak.n).toBeGreaterThanOrEqual(r.state.n - 1);
+        expect(bak.pad).toHaveLength(65536);
         expect(readdirSync(dir).filter((f) => f.endsWith(".tmp"))).toEqual([]);
         const ns = (await readLedger(dir)).map((e) => e.n);
         expect(ns).toEqual(ns.map((_, i) => i));

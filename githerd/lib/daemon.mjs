@@ -137,7 +137,15 @@ import {
     queueChecks,
     readDependencies,
 } from "./merge-status.mjs";
-import { createNotifier, endItem, notePresence, ownerItemsPoll, presentDays, raiseItem } from "./notify.mjs";
+import {
+    createNotifier,
+    droppableItems,
+    endItem,
+    notePresence,
+    ownerItemsPoll,
+    presentDays,
+    raiseItem,
+} from "./notify.mjs";
 import {
     activePolicies,
     CONTROL_OPS,
@@ -858,6 +866,7 @@ export async function startDaemon({
      */
     async function save() {
         if (!mayWrite()) return;
+        await dropEndedItems();
         for (const line of recordLines(state, recorded)) void ledger(line);
         await saveState(stateDir, state, { durable });
         writeChangedNews();
@@ -865,6 +874,28 @@ export async function startDaemon({
             const file = join(stateDir, "etags.json");
             writeFileSync(`${file}.tmp`, JSON.stringify(client.etags));
             renameSync(`${file}.tmp`, file);
+        }
+    }
+
+    /**
+     * Drops the ended owner items nothing reads any more (`droppableItems`), each only once its
+     * whole record is in the ledger (an `owner-item` line with event `dropped`), so the state stays
+     * the size of what is open and the ledger keeps the history. An item whose line could not be
+     * written stays for the next save.
+     * @returns {Promise<void>}
+     */
+    async function dropEndedItems() {
+        for (const item of droppableItems(state)) {
+            try {
+                await appendLedger(
+                    stateDir,
+                    { kind: "owner-item", item: item.id, event: "dropped", record: item },
+                    { now },
+                );
+                delete state.ownerItems[item.id];
+            } catch (err) {
+                say("error", `ledger: ${err.message}; owner item ${item.id} kept`);
+            }
         }
     }
 

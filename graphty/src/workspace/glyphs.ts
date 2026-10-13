@@ -5,6 +5,8 @@
  */
 
 import {
+    ArrowLeftToLine,
+    ArrowRightToLine,
     Calendar,
     CaseSensitive,
     ChartColumn,
@@ -45,6 +47,7 @@ import {
     LockKeyholeOpen,
     type LucideIcon,
     Menu,
+    MessageSquare,
     Minus,
     MoreHorizontal,
     MousePointerClick,
@@ -66,6 +69,7 @@ import {
     StickyNote,
     Sun,
     Table,
+    Tag,
     Trash2,
     TriangleAlert,
     Undo2,
@@ -106,6 +110,11 @@ export const GLYPHS = {
     halo: Sun,
     band: Highlighter,
     motion: ChevronsRight,
+    // The kinds of text a layer adds: a label, a node's tooltip, and an edge's caption at each end.
+    label: Tag,
+    tooltip: MessageSquare,
+    captionAtTarget: ArrowRightToLine,
+    captionAtSource: ArrowLeftToLine,
     // Analyses and value types.
     paths: Route,
     number: Hash,

@@ -22,10 +22,10 @@ import { Workspace } from "../../Workspace";
 const TIMEOUT_MS = 60_000;
 
 const NODES = [
-    { id: "1", name: "Alpha" },
-    { id: "2", name: "Beta" },
-    { id: "3", name: "Gamma" },
-    { id: "4", name: "Delta" },
+    { id: "1", name: "Alpha", score: 1.234567 },
+    { id: "2", name: "Beta", score: 0.0123456 },
+    { id: "3", name: "Gamma", score: 98.7654 },
+    { id: "4", name: "Delta", score: 4 },
 ];
 const EDGES = [
     { source: "1", target: "2" },
@@ -141,6 +141,8 @@ describe("label entries on the real element", () => {
             ["Label", "Tooltip"],
             "the Text menu lists both kinds of node text",
         );
+        const glyphs = items.map((item) => item.querySelector("svg")?.getAttribute("class") ?? "");
+        assert.notEqual(glyphs[0], glyphs[1], "Label and Tooltip are drawn with different glyphs");
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Label/ }));
         // Nothing is written before a source is picked.
         assert.isUndefined(writer(session, "node.label"));
@@ -155,17 +157,22 @@ describe("label entries on the real element", () => {
             },
             { timeout: TIMEOUT_MS },
         );
-        // Only the source is written: the look and the size stay what lies beneath (no reset on
-        // either), and the canvas key gains no row.
-        assert.isUndefined(writer(session, "node.labelStyle"), "no look is written");
-        assert.isUndefined(writer(session, "node.labelSize"), "no size is written");
-        assert.isNull(within(textList()).queryByRole("button", { name: /^Reset Look/ }), "Look is not set");
-        assert.isNull(within(textList()).queryByRole("button", { name: /^Reset Size/ }), "Size is not set");
+        // A new label is sized on screen at 12 px; its look stays what lies beneath, and the canvas
+        // key gains no row.
+        assert.deepEqual(labelStyle(session), { sizeUnit: "screen" }, "only the size unit is written");
+        assert.equal(writer(session, "node.labelSize")?.set?.["node.labelSize"], 12, "a new label is 12 px");
+        assert.isNull(within(textList()).queryByRole("button", { name: "Clear Node label look" }), "Look is not set");
         assert.equal(document.querySelectorAll(".ws-legend-section").length, keyRows, "no key row is added");
         assert.isNotNull(
             within(textList()).getByRole("button", { name: "Label source: name" }),
             "the entry names its source",
         );
+        // The entry says what kind of text it is, and its controls carry the kind.
+        const entry = textList().querySelector<HTMLElement>('[data-line="node.label"]');
+        assert.include(entry?.querySelector(".ws-text-kind")?.textContent ?? "", "Label");
+        assert.isNotNull(within(textList()).getByRole("combobox", { name: /^Node label look/ }));
+        assert.isNotNull(within(textList()).getByRole("combobox", { name: /^Node label position/ }));
+        assert.isNotNull(within(textList()).getByRole("button", { name: "Node label size by attribute" }));
         // A second label cannot be added: with only Tooltip left, "+" is Tooltip's own button.
         const plus = within(textList()).getByRole("button", { name: "Add tooltip" });
         await userEvent.hover(plus);
@@ -180,28 +187,30 @@ describe("label entries on the real element", () => {
         await userEvent.unhover(plus);
 
         // Picking a look applies it.
-        await choose("Look", "Dark", textList());
+        await choose("Node label look", "Dark", textList());
         await waitFor(() => {
             assert.equal(labelStyle(session).look, "dark");
-            assert.equal(shown("Look"), "Dark");
+            assert.equal(shown("Node label look"), "Dark");
         });
-        await choose("Look", "Default", textList());
+        // Clear takes the look back off.
+        await userEvent.click(within(textList()).getByRole("button", { name: "Clear Node label look" }));
         await waitFor(() => {
-            assert.equal(shown("Look"), "Default");
+            assert.isUndefined(labelStyle(session).look);
+            assert.equal(shown("Node label look"), "Default");
         });
 
         // A font of the reader's own makes the look read edited; the font's reset clears it back.
-        await userEvent.click(within(textList()).getByRole("button", { name: "Label settings" }));
+        await userEvent.click(within(textList()).getByRole("button", { name: "Node label settings" }));
         const settings = await screen.findByRole("dialog", { name: "Label settings" });
         await choose("Font", "Serif", settings);
         await waitFor(() => {
             assert.equal(labelStyle(session).font, "serif");
-            assert.equal(shown("Look"), "Default, edited");
+            assert.equal(shown("Node label look"), "Default, edited");
         });
         await userEvent.click(within(settings).getByRole("button", { name: "Reset Font to default" }));
         await waitFor(() => {
             assert.isUndefined(labelStyle(session).font);
-            assert.equal(shown("Look"), "Default");
+            assert.equal(shown("Node label look"), "Default");
         });
     });
 
@@ -277,7 +286,7 @@ describe("label entries on the real element", () => {
             assert.isDefined(writer(session, "node.label"));
         });
 
-        await userEvent.click(within(textList()).getByRole("button", { name: "Label size by attribute" }));
+        await userEvent.click(within(textList()).getByRole("button", { name: "Node label size by attribute" }));
         const list = await findValuePicker();
         await userEvent.click(within(list).getByRole("option", { name: "Degree" }));
         const path = session.results.path(runId);
@@ -288,13 +297,13 @@ describe("label entries on the real element", () => {
             },
             { timeout: TIMEOUT_MS },
         );
-        assert.isNotNull(within(textList()).getByRole("button", { name: "Detach label size" }));
+        assert.isNotNull(within(textList()).getByRole("button", { name: "Detach node label size" }));
     });
 
-    it("Escape on a new tooltip's source list leaves the Text list unchanged", async () => {
+    it("Escape on a new tooltip's source list leaves the Text list unchanged and returns focus to '+'", async () => {
         const { session } = await openWithGraph();
         await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
-        const before = textList().innerHTML;
+        const before = textList().querySelectorAll("[data-line], [data-beneath]").length;
         await userEvent.click(within(textList()).getByRole("button", { name: "Add to node text" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Tooltip/ }));
         await findValuePicker();
@@ -303,7 +312,12 @@ describe("label entries on the real element", () => {
             assert.isNull(queryValuePicker());
         });
         await waitFor(() => {
-            assert.equal(textList().innerHTML, before, "the list is as it was");
+            assert.equal(
+                textList().querySelectorAll("[data-line], [data-beneath]").length,
+                before,
+                "the list is as it was",
+            );
+            assert.equal(document.activeElement?.getAttribute("aria-label"), "Add to node text", "focus is on '+'");
         });
         assert.isUndefined(
             session.styles
@@ -352,6 +366,71 @@ describe("label entries on the real element", () => {
             },
             { timeout: TIMEOUT_MS },
         );
-        assert.isUndefined(writer(session, "node.labelStyle"), "only the words are written");
+        assert.deepEqual(labelStyle(session), { sizeUnit: "screen" }, "the words, sized on screen");
+    });
+
+    it("a label bound to a number prints three significant digits", async () => {
+        const { session, element } = await openWithGraph();
+        await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+        await userEvent.click(within(textList()).getByRole("button", { name: "Add to node text" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: /^Label/ }));
+        await userEvent.click(within(await findValuePicker()).getByRole("option", { name: "score" }));
+        await waitFor(
+            () => {
+                const binding = writer(session, "node.label")?.encode?.["node.label"];
+                assert.deepEqual(binding !== undefined && "format" in binding ? binding.format : undefined, {
+                    maximumSignificantDigits: 3,
+                });
+                assert.equal(element.labelOf("1")?.text, "1.23");
+                assert.equal(element.labelOf("2")?.text, "0.0123");
+                assert.equal(element.labelOf("3")?.text, "98.8");
+            },
+            { timeout: TIMEOUT_MS },
+        );
+    });
+
+    it("Label settings starts below the header, shows no gradient editor until a gradient is on, reads what lies beneath, and Escape closes it", async () => {
+        await openWithGraph();
+        await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+        await userEvent.click(within(textList()).getByRole("button", { name: "Add to node text" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: /^Label/ }));
+        await userEvent.click(within(await findValuePicker()).getByRole("option", { name: "name" }));
+        const button = await within(textList()).findByRole(
+            "button",
+            { name: "Node label settings" },
+            { timeout: TIMEOUT_MS },
+        );
+        await userEvent.click(button);
+        const settings = await screen.findByRole("dialog", { name: "Label settings" });
+        const header = document.querySelector(".ws-header");
+        assert.isNotNull(header);
+        await waitFor(() => {
+            assert.isAtLeast(
+                Math.round(settings.getBoundingClientRect().top),
+                Math.round(header?.getBoundingClientRect().bottom ?? 0),
+                "the pop-out starts below the app header",
+            );
+        });
+        // Gradient is not set: no gradient colors, shape or direction.
+        assert.isNull(within(settings).queryByRole("group", { name: "Gradient colors" }));
+        assert.isNull(within(settings).queryByRole("combobox", { name: /^Gradient shape/ }));
+        // Unset fields read the value beneath, never "Default".
+        assert.notInclude(settings.textContent ?? "", "Default", "no field reads Default");
+        assert.equal(within(settings).getByRole<HTMLInputElement>("combobox", { name: /^Font(,|$)/ }).value, "Verdana");
+        // The groups are headings one level under the pop-out's title.
+        assert.deepEqual(
+            [...settings.querySelectorAll("h3")].map((h) => h.textContent),
+            ["Type", "Box", "Letters", "Placement", "Motion and distance", "Badge"],
+        );
+        await choose("Gradient", "On", settings);
+        await within(settings).findByRole("group", { name: "Gradient colors" }, { timeout: TIMEOUT_MS });
+
+        within(settings)
+            .getByRole("combobox", { name: /^Font(,|$)/ })
+            .focus();
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("dialog", { name: "Label settings" }), "Escape closes it");
+        });
     });
 });

@@ -360,27 +360,37 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.arrowHeadSize": "Head size",
     "edge.arrowHeadColor": "Head color",
     "edge.arrowHeadOpacity": "Head opacity",
-    "edge.arrowHeadText": "Head text",
-    "edge.arrowHeadTextStyle": "Head text style",
+    "edge.arrowHeadText": "Caption at the target end",
+    "edge.arrowHeadTextStyle": "Caption at the target end style",
     "edge.arrowTail": "Tail",
     "edge.arrowTailSize": "Tail size",
     "edge.arrowTailColor": "Tail color",
     "edge.arrowTailOpacity": "Tail opacity",
-    "edge.arrowTailText": "Tail text",
-    "edge.arrowTailTextStyle": "Tail text style",
+    "edge.arrowTailText": "Caption at the source end",
+    "edge.arrowTailTextStyle": "Caption at the source end style",
     "edge.animationSpeed": "Animation speed",
     "edge.label": "Label",
     "edge.labelStyle": "Label style",
     "edge.labelSize": "Label size",
     "edge.labelColor": "Label color",
     "edge.labelBackground": "Label background",
-    "edge.arrowHeadTextSize": "Head text size",
-    "edge.arrowHeadTextColor": "Head text color",
-    "edge.arrowHeadTextBackground": "Head text background",
-    "edge.arrowTailTextSize": "Tail text size",
-    "edge.arrowTailTextColor": "Tail text color",
-    "edge.arrowTailTextBackground": "Tail text background",
+    "edge.arrowHeadTextSize": "Caption at the target end size",
+    "edge.arrowHeadTextColor": "Caption at the target end color",
+    "edge.arrowHeadTextBackground": "Caption at the target end background",
+    "edge.arrowTailTextSize": "Caption at the source end size",
+    "edge.arrowTailTextColor": "Caption at the source end color",
+    "edge.arrowTailTextBackground": "Caption at the source end background",
 };
+
+/**
+ * Whether a number is an opacity, shown and typed as a percent (0 to 100) though the element takes
+ * 0 to 1, as every color field's opacity reads.
+ * @param descriptor - the channel.
+ * @returns true for an opacity.
+ */
+export function isPercent(descriptor: ChannelDescriptor): boolean {
+    return descriptor.accepts === "number" && descriptor.max === 1 && descriptor.channel.endsWith("pacity");
+}
 
 /**
  * A property's name on its line.
@@ -609,6 +619,9 @@ export function hexOf(value: unknown): string | null {
  * @returns the words.
  */
 export function valueWords(descriptor: ChannelDescriptor, value: unknown): string {
+    if (isPercent(descriptor) && typeof value === "number") {
+        return `${String(Math.round(value * 100))} %`;
+    }
     if (descriptor.accepts === "color") {
         const hex = hexOf(value);
         return hex === null ? String(value) : colorName(hex);

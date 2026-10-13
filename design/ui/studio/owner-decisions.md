@@ -4,6 +4,26 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-13 -- Decided by the team: what a label draws when nothing sets a field, and a gradient with no colors
+
+Additive API in graphty-element (`@graphty/graphty-element/catalog`):
+
+- `LABEL_STYLE_DEFAULTS: Readonly<LabelStyle>`: the value a label draws for each style field no
+  layer and no look sets (font Verdana, size 48, margins 5, line height 1.2, position top, size
+  measured in the scene, and so on), in the label vocabulary. An editor shows these where a field
+  is not set, so a reader sees the value that is drawn rather than the word "Default". The fields
+  whose absence draws nothing (background, outline, badge, icon, progress) and `enabled` are left
+  out.
+
+Fixes, not API shape:
+
+- A label whose gradient is switched on without naming colors threw in the render loop (the
+  painted style passed the colors key with no value, which replaced the renderer's default). It
+  now runs through the default dark gradient, which `LABEL_STYLE_DEFAULTS.gradientColors` names.
+- `labelLookChanges` no longer counts `sizeUnit` as a change from a look: what a label's size is
+  measured in sits beside the look, as its position does. `sizeUnit` has not been released yet,
+  so no published behavior changes.
+
 ## 2026-10-13 -- Decided by the team: a tree with one Tab stop, a right-click that selects, pop-outs that open upward, menu shortcuts kept out of names (compact-mantine)
 
 Additive API in compact-mantine:

@@ -11,6 +11,48 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-13) **Effect rows as Figma draws them, labels that say what they are, a quieter Label
+  settings** (graphty app, plus graphty-element `LABEL_STYLE_DEFAULTS`; tests in
+  `style/__tests__/Effects.real-element.test.tsx`, `Labels.real-element.test.tsx`, `coverage.test.ts`,
+  element `test/catalog/label-style-defaults.test.ts`, `test/browser/label-paint.test.ts` "gradient").
+  An effect entry is one 24 px line: a chip-only color (`CompactColorInput variant="chip"`; Motion
+  and a bound color show the effect's glyph), the name, settings, eye, minus, each a 24 x 24
+  target (MEASURED on Selected at 1366 x 768). Its color or speed (with vary) and the rest live in
+  the settings pop-out, named without the effect's name ("Width", not "Band width"). Picking from
+  "+" opens the settings with focus in the value: the pop-out focuses `[data-autofocus]` after a
+  0 ms timer, so the entry marks its input in a callback ref (a `useEffect` focus lost to the
+  pop-out's own). Closing the settings before a value is written drops the entry and focus goes to
+  "+" (`data-plus`, a `refocus` state); the Text list does the same for a dropped label or tooltip
+  (a `picked` ref tells a pick from an Escape). Opacity everywhere reads and types as a percent
+  (`isPercent` in words.ts, `Field` scales by 100 with a "%" suffix). `Field` takes `word` for the
+  label column. Text entries: glyph and short word in the label column (`.ws-text-kind`: Label,
+  Tooltip, At target, At source; glyphs `label` Tag, `tooltip` MessageSquare, `captionAtTarget`,
+  `captionAtSource`); Look, Size (a plain `Field` on the size channel, so vary, Detach, Clear and
+  "Node label size" come free) and Position on the field grid (`StyleLine`) with Clear. A new entry
+  writes `{ sizeUnit: "screen" }` and size 12 with its words in ONE step (`writeLine`/`writeIn`
+  take `also`, written only where the layer has none). Text bound to a number value gets
+  `format: { maximumSignificantDigits: 3 }` (`formatted`, by `readableValues().kind`). Label
+  settings: `boundaryTop` = `.ws-header` bottom (MEASURED top 40 = header 40), pairs on one line
+  (`SimpleGrid` 2), h3 group headings, gradient shape/direction/colors only once Gradient is on, and
+  every unset field shows look ?? layers beneath (`styleBeneath`, one agreeing share) ??
+  `LABEL_STYLE_DEFAULTS`; "None" where the label draws nothing. Caption channels are named "Caption
+  at the target end ..." (words.ts), so their vary reads "Edge caption at the target end color by
+  attribute". coverage.ts: `sizeUnit` has a home; `VARY_DECISIONS` / `NO_VARY` record that
+  yes-or-no properties and label looks have no vary by, and the test checks every opacity is in a
+  settings pop-out, varies, and reads as a percent. Element: `RICH_TEXT_KEYS` moved to
+  `catalog/label-style.ts` (StylePainter imports it); `RichTextLabel` keeps its default gradient
+  colors when the painter passes the key empty (it threw "reading 'length'" in the render loop);
+  `labelLookChanges` ignores `sizeUnit` (a new label read "Dark, edited" otherwise).
+  Defect seen, worked around with a commented `key`: compact-mantine `StyleSelect` goes
+  uncontrolled when `value` becomes undefined (`useUncontrolled`), so Clear or Undo leaves the old
+  choice showing; Field's own enum selects have the same exposure. Seen, not mine: graphty
+  `row.test.ts` (`node.labelBackground` start value) and `StyleTab.real-element` "edge band beside
+  the node halo", `GraphSettings.real-element` colors (hex box names) and `undoWords` (no Selection
+  row) still fail; element `optionsFromZod.test.ts` nested-objects case
+  and `tsc` on `test/browser/label-screen-size.test.ts:108` (`cameraDistance` possibly undefined)
+  fail on the branch. `StylePanel.real-element` "Size on Selected" failed once in a full-folder run
+  on its Clear tooltip text and passed alone; mechanism not found.
+
 - (2026-10-13) **One line per property, scoped beneath, Undo after Clear** (graphty app; tests in
   `style/__tests__/OneLineRows.real-element.test.tsx`, `keys/__tests__/keys.test.ts`,
   `style/__tests__/words.test.ts`). `Field` is one CSS grid line: a 56 px label column (name,

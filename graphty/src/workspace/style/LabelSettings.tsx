@@ -5,9 +5,9 @@ import {
     StyleNumberInput,
     StyleSelect,
 } from "@graphty/compact-mantine";
-import { channelsFor, labelLook } from "@graphty/graphty-element/catalog";
+import { channelsFor, LABEL_STYLE_DEFAULTS, labelLook } from "@graphty/graphty-element/catalog";
 import type { LabelStyle } from "@graphty/graphty-element/schema";
-import { Group, Stack, Text, TextInput } from "@mantine/core";
+import { Group, SimpleGrid, Stack, Text, TextInput } from "@mantine/core";
 import React, { useId } from "react";
 
 /** A field of the label style as the popover draws it. */
@@ -24,10 +24,13 @@ type Field =
     | { readonly key: keyof LabelStyle; readonly word: string; readonly kind: "text" }
     | { readonly key: keyof LabelStyle; readonly word: string; readonly kind: "colors" };
 
+/** One line of a group: a field, or a pair of related values side by side (margins, an offset). */
+type FieldLine = Field | readonly [Field, Field];
+
 /** A captioned group of fields; the first group has no caption. */
 interface FieldGroup {
     readonly caption?: string;
-    readonly fields: readonly Field[];
+    readonly fields: readonly FieldLine[];
 }
 
 const color = (key: keyof LabelStyle, word: string): Field => ({ key, word, kind: "color" });
@@ -80,64 +83,64 @@ const LABEL_SETTINGS: readonly FieldGroup[] = [
         caption: "Type",
         fields: [
             choice("font", "Font", FONTS),
-            choice("weight", "Weight", [
-                ["normal", "Regular"],
-                ["bold", "Bold"],
-            ]),
-            number("lineHeight", "Line height", 0.1),
-            choice("textAlign", "Alignment", [
-                ["left", "Left"],
-                ["center", "Center"],
-                ["right", "Right"],
-            ]),
+            [
+                choice("weight", "Weight", [
+                    ["normal", "Regular"],
+                    ["bold", "Bold"],
+                ]),
+                choice("textAlign", "Alignment", [
+                    ["left", "Left"],
+                    ["center", "Center"],
+                    ["right", "Right"],
+                ]),
+            ],
+            [
+                number("lineHeight", "Line height", 0.1),
+                choice("sizeUnit", "Size in", [
+                    ["screen", "Screen"],
+                    ["world", "Scene"],
+                ]),
+            ],
         ],
     },
     {
         caption: "Box",
         fields: [
-            number("padding", "Padding"),
-            number("cornerRadius", "Corners"),
-            number("borderWidth", "Border width"),
-            color("borderColor", "Border color"),
-            number("marginTop", "Margin above"),
-            number("marginBottom", "Margin below"),
-            number("marginLeft", "Margin left"),
-            number("marginRight", "Margin right"),
+            [number("padding", "Padding"), number("cornerRadius", "Corners")],
+            [number("borderWidth", "Border width"), color("borderColor", "Border color")],
+            [number("marginTop", "Margin above"), number("marginBottom", "Margin below")],
+            [number("marginLeft", "Margin left"), number("marginRight", "Margin right")],
             toggle("gradient", "Gradient"),
-            choice("gradientType", "Gradient shape", [
-                ["linear", "Linear"],
-                ["radial", "Radial"],
-            ]),
-            choice("gradientDirection", "Gradient direction", [
-                ["vertical", "Vertical"],
-                ["horizontal", "Horizontal"],
-                ["diagonal", "Diagonal"],
-            ]),
+            [
+                choice("gradientType", "Gradient shape", [
+                    ["linear", "Linear"],
+                    ["radial", "Radial"],
+                ]),
+                choice("gradientDirection", "Gradient direction", [
+                    ["vertical", "Vertical"],
+                    ["horizontal", "Horizontal"],
+                    ["diagonal", "Diagonal"],
+                ]),
+            ],
             colors("gradientColors", "Gradient colors"),
         ],
     },
     {
         caption: "Letters",
         fields: [
-            color("outline", "Outline"),
-            number("outlineWidth", "Outline width"),
-            toggle("shadow", "Shadow"),
-            color("shadowColor", "Shadow color"),
+            [color("outline", "Outline"), number("outlineWidth", "Outline width")],
+            [toggle("shadow", "Shadow"), color("shadowColor", "Shadow color")],
             number("shadowBlur", "Shadow blur"),
-            number("shadowOffsetX", "Shadow right"),
-            number("shadowOffsetY", "Shadow down"),
+            [number("shadowOffsetX", "Shadow right"), number("shadowOffsetY", "Shadow down")],
         ],
     },
     {
         caption: "Placement",
         fields: [
             number("attachOffset", "Offset", 0.1),
-            toggle("pointer", "Pointer"),
-            choice("pointerDirection", "Pointer side", SIDES),
-            number("pointerWidth", "Pointer width"),
-            number("pointerHeight", "Pointer length"),
-            number("pointerOffset", "Pointer offset"),
-            toggle("pointerCurve", "Curved pointer"),
+            [toggle("pointer", "Pointer"), choice("pointerDirection", "Pointer side", SIDES)],
+            [number("pointerWidth", "Pointer width"), number("pointerHeight", "Pointer length")],
+            [number("pointerOffset", "Pointer offset"), toggle("pointerCurve", "Curved pointer")],
             toggle("onTop", "Draw over the graph"),
             toggle("pickable", "Clicking picks the node"),
         ],
@@ -155,46 +158,53 @@ const LABEL_SETTINGS: readonly FieldGroup[] = [
             ]),
             number("animationSpeed", "Animation speed", 0.1),
             toggle("depthFade", "Fade with distance"),
-            number("depthFadeNear", "Full strength within"),
-            number("depthFadeFar", "Gone beyond"),
+            [number("depthFadeNear", "Full strength within"), number("depthFadeFar", "Gone beyond")],
         ],
     },
     {
         caption: "Badge",
         fields: [
             choice("badge", "Badge", BADGES),
-            words("icon", "Icon"),
-            choice("iconPosition", "Icon side", [
-                ["left", "Left"],
-                ["right", "Right"],
-            ]),
+            [
+                words("icon", "Icon"),
+                choice("iconPosition", "Icon side", [
+                    ["left", "Left"],
+                    ["right", "Right"],
+                ]),
+            ],
             number("progress", "Progress", 0.05),
             toggle("smartOverflow", "Shorten large numbers"),
-            number("maxNumber", "Largest number shown"),
-            words("overflowSuffix", "After a shortened number"),
+            [number("maxNumber", "Largest number shown"), words("overflowSuffix", "After a shortened number")],
         ],
     },
 ];
 
-/**
- * What a color field shows while neither the layer nor the look sets it: for the text, the
- * element's own label text color; for a background, border or shadow, white as a neutral swatch.
- */
-const UNSET_COLOR = "#FFFFFF";
+/** The text color nothing above sets: the element's own label text color, else the label default. */
 const labelColor = channelsFor("node").find((d) => d.channel === "node.labelColor")?.default;
-const TEXT_COLOR = typeof labelColor === "string" ? labelColor.toUpperCase() : UNSET_COLOR;
+const TEXT_COLOR = typeof labelColor === "string" ? labelColor.toUpperCase() : undefined;
+
+/** What a field with nothing beneath it reads: the label draws none of it. */
+const NONE = "None";
+
+/** The value a select stores for "not set, and nothing beneath sets it". */
+const DEFAULT = "";
 
 /**
- * A color field's placeholder while neither the layer nor its look sets it.
+ * What lies beneath a field: the layer's look, then what the layers beneath write, then the
+ * element's own default (`LABEL_STYLE_DEFAULTS`). Undefined where the label draws none.
  * @param key - the field.
- * @returns the color.
+ * @param look - the look's fields.
+ * @param beneath - what the layers beneath write.
+ * @returns the value.
  */
-function unsetColor(key: keyof LabelStyle): string {
-    return key === "color" ? TEXT_COLOR : UNSET_COLOR;
+function underneath(
+    key: keyof LabelStyle,
+    look: Readonly<Partial<Record<keyof LabelStyle, unknown>>>,
+    beneath: Readonly<Partial<Record<keyof LabelStyle, unknown>>>,
+): unknown {
+    const defaults: Readonly<Partial<Record<keyof LabelStyle, unknown>>> = LABEL_STYLE_DEFAULTS;
+    return look[key] ?? beneath[key] ?? (key === "color" ? TEXT_COLOR : undefined) ?? defaults[key];
 }
-
-/** The value a select stores for "not set and the look sets nothing": the field's own default. */
-const DEFAULT = "";
 
 /**
  * A field's value as a select stores it.
@@ -213,6 +223,8 @@ interface LabelSettingsProps {
     style: LabelStyle;
     /** Called with the fields to change; a field given as undefined is cleared back to the look. */
     onChange: (patch: Partial<LabelStyle>) => void;
+    /** What the layers beneath write for the label's style, shown where this layer sets nothing. */
+    beneath?: LabelStyle;
     /**
      * A field that can also vary by a value through a channel of its own (the text color, the
      * background): the channel's own field in its place while the channel is written, else the
@@ -237,37 +249,64 @@ export interface VaryField {
  * @param props.style - the label style the layer writes
  * @param props.onChange - called with the fields to change
  * @param props.vary - how the text color and background vary by a value
+ * @param props.beneath - what the layers beneath write for the label's style
  * @returns The groups
  */
-export function LabelSettings({ style, onChange, vary }: Readonly<LabelSettingsProps>): React.JSX.Element {
+export function LabelSettings({
+    style,
+    onChange,
+    vary,
+    beneath = {},
+}: Readonly<LabelSettingsProps>): React.JSX.Element {
     const look: Readonly<Partial<Record<keyof LabelStyle, unknown>>> = labelLook(style.look ?? "default")?.style ?? {};
+    // The gradient's shape and colors show once a gradient is on: an unset gradient draws none.
+    const gradientOn = (style.gradient ?? underneath("gradient", look, beneath)) === true;
+    const hidden = (field: Field): boolean =>
+        !gradientOn &&
+        (field.key === "gradientType" || field.key === "gradientDirection" || field.key === "gradientColors");
+    const draw = (field: Field): React.ReactNode => {
+        const varied = vary?.(field.key);
+        if (varied?.field !== undefined) {
+            return <React.Fragment key={field.key}>{varied.field}</React.Fragment>;
+        }
+        const control = (
+            <FieldControl
+                key={field.key}
+                field={field}
+                value={style[field.key]}
+                fallback={underneath(field.key, look, beneath)}
+                onChange={(value) => {
+                    onChange({ [field.key]: value });
+                }}
+            />
+        );
+        return varied?.slot === undefined ? (
+            control
+        ) : (
+            <Group key={field.key} gap={0} wrap="nowrap" align="flex-end">
+                <div style={{ flex: 1, minWidth: 0 }}>{control}</div>
+                {varied.slot}
+            </Group>
+        );
+    };
     return (
         <Stack gap={12} data-testid="label-settings">
             {LABEL_SETTINGS.map((group) => (
                 <FieldGroupView key={group.caption ?? "colors"} caption={group.caption}>
-                    {group.fields.map((field) => {
-                        const varied = vary?.(field.key);
-                        if (varied?.field !== undefined) {
-                            return <React.Fragment key={field.key}>{varied.field}</React.Fragment>;
+                    {group.fields.map((line) => {
+                        if (!Array.isArray(line)) {
+                            const field = line as Field;
+                            return hidden(field) ? null : draw(field);
                         }
-                        const control = (
-                            <FieldControl
-                                key={field.key}
-                                field={field}
-                                value={style[field.key]}
-                                look={look[field.key]}
-                                onChange={(value) => {
-                                    onChange({ [field.key]: value });
-                                }}
-                            />
-                        );
-                        return varied?.slot === undefined ? (
-                            control
-                        ) : (
-                            <Group key={field.key} gap={0} wrap="nowrap" align="flex-end">
-                                <div style={{ flex: 1, minWidth: 0 }}>{control}</div>
-                                {varied.slot}
-                            </Group>
+                        const [a, b] = line as readonly [Field, Field];
+                        if (hidden(a)) {
+                            return null;
+                        }
+                        return (
+                            <SimpleGrid key={`${a.key}-${b.key}`} cols={2} spacing={8}>
+                                {draw(a)}
+                                {draw(b)}
+                            </SimpleGrid>
                         );
                     })}
                 </FieldGroupView>
@@ -297,7 +336,7 @@ function FieldGroupView({
             aria-labelledby={caption === undefined ? undefined : id}
         >
             {caption === undefined ? null : (
-                <Text id={id} component="h4" size="xs" fw={600} m={0}>
+                <Text id={id} component="h3" size="xs" fw={600} m={0}>
                     {caption}
                 </Text>
             )}
@@ -307,20 +346,25 @@ function FieldGroupView({
 }
 
 /**
- * One field: written here, or showing the look's value.
+ * One field: written here, or showing what lies beneath.
  * @param props - Component props
  * @param props.field - the field
  * @param props.value - what the layer writes, if anything
- * @param props.look - the look's value, if it sets one
+ * @param props.fallback - what lies beneath, if anything draws it
  * @param props.onChange - called with the new value, or undefined to clear it
  * @returns The control
  */
 function FieldControl({
     field,
     value,
-    look,
+    fallback,
     onChange,
-}: Readonly<{ field: Field; value: unknown; look: unknown; onChange: (value: unknown) => void }>): React.JSX.Element {
+}: Readonly<{
+    field: Field;
+    value: unknown;
+    fallback: unknown;
+    onChange: (value: unknown) => void;
+}>): React.JSX.Element {
     switch (field.kind) {
         case "text":
             return (
@@ -330,7 +374,7 @@ function FieldControl({
                     size="xs"
                     variant="outlined"
                     label={field.word}
-                    placeholder={typeof look === "string" ? look : "Default"}
+                    placeholder={typeof fallback === "string" ? fallback : NONE}
                     defaultValue={typeof value === "string" ? value : ""}
                     // The not-set look every style field shares, while the box shows its placeholder.
                     data-is-default={typeof value === "string" && value !== "" ? "false" : "true"}
@@ -348,14 +392,15 @@ function FieldControl({
                 />
             );
         case "colors":
-            return <ColorsField word={field.word} value={value} look={look} onChange={onChange} />;
+            return <ColorsField word={field.word} value={value} look={fallback} onChange={onChange} />;
         case "color":
             return (
                 <CompactColorInput
                     label={field.word}
                     width="100%"
                     color={typeof value === "string" ? value.slice(0, 7).toUpperCase() : undefined}
-                    defaultColor={typeof look === "string" ? look.slice(0, 7).toUpperCase() : unsetColor(field.key)}
+                    defaultColor={typeof fallback === "string" ? fallback.slice(0, 7).toUpperCase() : "#FFFFFF"}
+                    emptyText={typeof fallback === "string" ? undefined : NONE}
                     showOpacity={false}
                     onChangeEnd={(next) => {
                         onChange(next);
@@ -367,8 +412,8 @@ function FieldControl({
                 <StyleNumberInput
                     label={field.word}
                     value={typeof value === "number" ? value : undefined}
-                    defaultValue={typeof look === "number" ? look : 0}
-                    emptyText={typeof look === "number" ? undefined : "Default"}
+                    defaultValue={typeof fallback === "number" ? fallback : 0}
+                    emptyText={typeof fallback === "number" ? undefined : NONE}
                     step={field.step}
                     onChange={(next) => {
                         onChange(next);
@@ -383,12 +428,14 @@ function FieldControl({
                           ["false", "Off"],
                       ]
                     : field.options;
-            // A field the look leaves alone reads "Default": the element's own value.
-            const all = look === undefined ? [[DEFAULT, "Default"] as const, ...options] : options;
+            // A field nothing beneath sets reads "None": the label draws none of it.
+            const all = fallback === undefined ? [[DEFAULT, NONE] as const, ...options] : options;
             // A value written some other way (a font family list, a weight of 600) is still shown.
             const shown = [
                 ...new Set(
-                    [value, look].flatMap((v) => (typeof v === "string" || typeof v === "number" ? [String(v)] : [])),
+                    [value, fallback].flatMap((v) =>
+                        typeof v === "string" || typeof v === "number" ? [String(v)] : [],
+                    ),
                 ),
             ]
                 .filter((v) => !all.some(([o]) => o === v))
@@ -397,7 +444,7 @@ function FieldControl({
                 <StyleSelect
                     label={field.word}
                     value={wordOf(value)}
-                    defaultValue={wordOf(look) ?? DEFAULT}
+                    defaultValue={wordOf(fallback) ?? DEFAULT}
                     options={[...all, ...shown].map(([v, label]) => ({ value: v, label }))}
                     onChange={(next) => {
                         if (next === undefined || next === DEFAULT) {

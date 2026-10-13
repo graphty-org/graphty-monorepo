@@ -74,6 +74,18 @@
     min-width: 0;
 }
 
+/* A text entry's kind (its glyph and word) in the label column, so its source starts on the field
+   column. */
+.ws-text-kind {
+    display: flex;
+    flex: 0 0 calc(var(--ws-label, 56px) - 4px);
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+    font-size: 11px;
+    color: var(--cm-text-secondary);
+}
+
 /* The vary and Clear columns: always 24px, empty or not, so a field never changes width. */
 .ws-slot {
     display: inline-flex;

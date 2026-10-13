@@ -146,19 +146,17 @@ describe("the Style tab's property rows", () => {
         let tab = await openStyle("Key people");
         await userEvent.click(within(tab).getByRole("button", { name: "Add to node effects" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Glow/ }));
-        await within(tab).findByRole("textbox", { name: /Glow/ });
+        // The glow's color, with its vary glyph, is in the glow's settings.
+        const glow = await screen.findByRole("dialog", { name: "Glow settings" });
+        await within(glow).findByRole("textbox", { name: /^Node glow/ });
         await userEvent.keyboard("FF00AA{Enter}");
-        await within(tab).findByRole("button", { name: "Node glow by attribute" });
         const atRest = (scope: HTMLElement, name: string): void => {
             const button = within(scope).getByRole("button", { name });
             assert.isTrue(button.checkVisibility({ visibilityProperty: true }), `${name} is drawn at rest`);
         };
-        for (const name of [
-            "Node shape by attribute",
-            "Node color by attribute",
-            "Node size by attribute",
-            "Node glow by attribute",
-        ]) {
+        atRest(glow, "Node glow by attribute");
+        await userEvent.keyboard("{Escape}");
+        for (const name of ["Node shape by attribute", "Node color by attribute", "Node size by attribute"]) {
             atRest(tab, name);
         }
 

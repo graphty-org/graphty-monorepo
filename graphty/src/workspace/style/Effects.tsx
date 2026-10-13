@@ -1,4 +1,4 @@
-import { ComboInput, CompactColorInput, Popout, PopoutButton, ToggleIconButton } from "@graphty/compact-mantine";
+import { CompactColorInput, Popout, PopoutButton, ToggleIconButton } from "@graphty/compact-mantine";
 import { type ChannelDescriptor, channelsFor } from "@graphty/graphty-element/catalog";
 import type { Channel, ChannelValue } from "@graphty/graphty-element/schema";
 import type { GraphSession, Layer } from "@graphty/graphty-element/session";
@@ -7,9 +7,9 @@ import React, { useEffect, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
-import { Field, type RowContext, VarySlot } from "./PropertyRow";
+import { Field, type RowContext } from "./PropertyRow";
 import { lineIn, type lineOf, removeLine, sharesBeneath, type Target, writeIn } from "./row";
-import { hexOf } from "./words";
+import { channelWord, hexOf } from "./words";
 
 /** The width of an entry's settings pop-out, as the property rows'. */
 const POPOUT_WIDTH = 248;
@@ -73,8 +73,8 @@ function isOff(value: unknown, off: string | number | undefined): boolean {
  * The Effects list of one kind (tier3 design, sections 1.2 and 2.2): Outline, Glow and Halo on
  * nodes, Band and Motion on edges, one of each. "+" (and the title, while the list is empty) opens
  * a menu with a glyph per effect; an effect already here is disabled with its reason. Picking one
- * opens its value field with focus in it and writes nothing until a value is chosen; Escape leaves
- * nothing behind. Each entry has an eye that writes the effect's off value (it covers what the
+ * opens its settings with focus in its value and writes nothing until a value is chosen; Escape
+ * leaves nothing behind and puts focus back on "+". Each entry has an eye that writes the effect's off value (it covers what the
  * layers beneath write) and a minus that takes the entry away. An effect a layer beneath writes,
  * while this row has none, is a gray line whose eye adds an off entry here.
  * The settings behind an entry's button are fields like every other, each with its own Clear.
@@ -86,6 +86,9 @@ export function Effects({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.Eleme
     const { store } = useWorkspace();
     const [menuOpen, setMenuOpen] = useState(false);
     const [adding, setAdding] = useState<Channel | null>(null);
+    // Focus goes back to "+" once a pending entry is dropped: its own controls go with it.
+    const [refocus, setRefocus] = useState(false);
+    const list = useRef<HTMLDivElement>(null);
     const { session, side: target, layers } = ctx;
     const descriptors = channelsFor(target);
     const descriptorOf = (channel: Channel): ChannelDescriptor | undefined =>
@@ -101,6 +104,19 @@ export function Effects({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.Eleme
         [kind.channel, ...kind.settings].some((c) => ownLine(c) !== undefined);
     const write = (channel: Channel, value: ChannelValue): Promise<unknown> => writeIn(ctx, channel, { value });
     const kinds = KINDS[target];
+    // A picked entry is the row's own once its value is written, wherever it was written from.
+    const written = adding !== null && kinds.some((kind) => kind.channel === adding && present(kind));
+    useEffect(() => {
+        if (written) {
+            setAdding(null);
+        }
+    }, [written]);
+    useEffect(() => {
+        if (refocus) {
+            setRefocus(false);
+            list.current?.querySelector<HTMLElement>("[data-plus]")?.focus();
+        }
+    }, [refocus]);
     const shown = kinds.filter((kind) => present(kind) || adding === kind.channel);
     const empty = shown.length === 0;
     const groupName = `${target === "node" ? "Node" : "Edge"} effects`;
@@ -128,6 +144,7 @@ export function Effects({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.Eleme
                 variant="subtle"
                 size="sm"
                 aria-label={plusName}
+                data-plus
                 aria-disabled={addable.length === 0 ? true : undefined}
                 data-disabled={addable.length === 0 ? true : undefined}
                 // Only the direct button handles its own click; in the menu's case the menu does.
@@ -144,7 +161,7 @@ export function Effects({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.Eleme
     );
 
     return (
-        <Stack gap={2} role="group" aria-label={groupName} data-section="effects">
+        <Stack ref={list} gap={2} role="group" aria-label={groupName} data-section="effects">
             <Group gap={4} h={24} wrap="nowrap" justify="space-between">
                 {empty ? (
                     // For a pointer, an empty list's title does what "+" does (Figma's empty Fill
@@ -209,13 +226,10 @@ export function Effects({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.Eleme
                         settings={kind.settings.flatMap((c) => descriptorOf(c) ?? [])}
                         onCancel={() => {
                             setAdding(null);
+                            setRefocus(true);
                         }}
                         onWrite={(value) => {
-                            write(kind.channel, value)
-                                .then(() => {
-                                    setAdding(null);
-                                })
-                                .catch(fail);
+                            write(kind.channel, value).catch(fail);
                         }}
                         onRemove={() => {
                             removeOwn(layers, [kind.channel, ...kind.settings], session).catch(fail);
@@ -241,7 +255,7 @@ export function Effects({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.Eleme
                     return (
                         <Group key={kind.channel} gap={4} pl={4} wrap="nowrap" data-beneath={kind.channel}>
                             <kind.glyph size={14} aria-hidden style={{ opacity: 0.5 }} />
-                            <Text size="xs" c="dimmed" truncate style={{ flex: 1 }}>
+                            <Text size="sm" c="var(--cm-text-secondary)" truncate style={{ flex: 1 }}>
                                 {`${kind.name}, from ${from}`}
                             </Text>
                             <ToggleIconButton
@@ -261,6 +275,17 @@ export function Effects({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.Eleme
                 })}
         </Stack>
     );
+}
+
+/**
+ * A setting's name inside its effect's pop-out: "Width" for "Band width".
+ * @param channel - the setting.
+ * @param kind - the effect.
+ * @returns the name.
+ */
+function shortWord(channel: Channel, kind: EffectKind): string {
+    const word = channelWord(channel).replace(new RegExp(`^${kind.name} `, "i"), "");
+    return word.charAt(0).toUpperCase() + word.slice(1);
 }
 
 /**
@@ -286,12 +311,13 @@ interface EffectEntryProps {
     descriptor: ChannelDescriptor;
     /** What this row writes for the entry's own channel, if anything. */
     value: ChannelValue | undefined;
-    /** Whether the entry's own channel varies by a value: its field is then the bound value. */
+    /** Whether the entry's own channel varies by a value: the chip then gives way to its glyph. */
     bound?: boolean;
-    /** Picked from the menu and not written yet: its field takes focus, Escape drops it. */
+    /** Picked from the menu and not written yet: its settings open with focus in its value. */
     pending: boolean;
     /** The element's descriptors of its settings. */
     settings: readonly ChannelDescriptor[];
+    /** Drops a pending entry; focus goes back to the list's "+". */
     onCancel: () => void;
     /** Writes the entry's own value. */
     onWrite: (value: ChannelValue) => void;
@@ -299,8 +325,12 @@ interface EffectEntryProps {
 }
 
 /**
- * One effect: the settings button (where the effect has settings), its value (a color, or Motion's
- * speed), the eye and the minus.
+ * One effect on one line, as Figma draws an effect row: a color chip (or the effect's glyph, for
+ * Motion and for a color that varies by a value), the effect's name, its settings button, the eye
+ * and the minus. Every value of the effect -- its color or speed, with its vary glyph, then its
+ * strength, size or opacity -- is a field in the settings pop-out, each with its own Clear. An
+ * entry just picked from the "+" menu opens its settings at once with focus in its value; closing
+ * them before a value is written drops it.
  * @param props - Component props
  * @param props.ctx - the row
  * @param props.kind - the effect
@@ -326,55 +356,40 @@ function EffectEntry({
     onWrite,
     onRemove,
 }: Readonly<EffectEntryProps>): React.JSX.Element {
-    const box = useRef<HTMLDivElement>(null);
-    const [settingsOpen, setSettingsOpen] = useState(false);
+    const [settingsOpen, setSettingsOpen] = useState(pending);
     const off = isOff(value, descriptor.off);
-    const color = descriptor.accepts === "color";
-    // The value the eye turns back on to, and the field's own default.
+    const noun = kind.name.toLowerCase();
+    // The value the eye turns back on to.
     // ponytail: the eye forgets the color it turned off; it comes back as the element's default.
     const onValue: ChannelValue = descriptor.default ?? descriptor.min ?? 1;
-    const literal = color ? (
-        <CompactColorInput
-            aria-label={kind.name}
-            width="100%"
-            color={off ? undefined : (hexOf(value) ?? undefined)}
-            defaultColor={hexOf(descriptor.default) ?? "#000000"}
-            showOpacity={false}
-            showReset={false}
-            swatches={ctx.documentColors}
-            onChangeEnd={(next) => {
-                if (next !== undefined) {
-                    onWrite(next);
-                }
-            }}
-        />
-    ) : (
-        <ComboInput
-            label={`${kind.name} speed`}
-            width="100%"
-            numeric
-            variant="outlined"
-            options={[]}
-            value={typeof value === "number" && !off ? value : ""}
-            placeholder={String(typeof onValue === "number" ? onValue : 1)}
-            min={descriptor.min}
-            step={0.1}
-            onChange={(next) => {
-                if (typeof next === "number") {
-                    onWrite(next);
-                }
-            }}
-        />
-    );
-    useEffect(() => {
-        if (pending) {
-            box.current?.querySelector<HTMLInputElement>("input[type=text], input:not([type])")?.focus();
-        }
-    }, [pending]);
+    const lead =
+        descriptor.accepts === "color" && !bound ? (
+            <CompactColorInput
+                variant="chip"
+                aria-label={kind.name}
+                color={off ? undefined : (hexOf(value) ?? undefined)}
+                defaultColor={hexOf(descriptor.default) ?? "#000000"}
+                showOpacity={false}
+                swatches={ctx.documentColors}
+                onChangeEnd={(next) => {
+                    if (next !== undefined) {
+                        onWrite(next.toUpperCase());
+                    }
+                }}
+            />
+        ) : (
+            <span className="ws-slot" aria-hidden>
+                <kind.glyph size={14} />
+            </span>
+        );
+    // A new entry: the pop-out starts in its value (the pop-out's data-autofocus), so typing a hex
+    // or a speed writes it.
+    const onPanel = (node: HTMLDivElement | null): void => {
+        node?.querySelector(`[data-line="${descriptor.channel}"] input`)?.toggleAttribute("data-autofocus", pending);
+    };
     return (
         <Group
-            ref={box}
-            className="ws-varies"
+            className="ws-effect"
             gap={4}
             pl={4}
             wrap="nowrap"
@@ -382,60 +397,58 @@ function EffectEntry({
             data-effect={kind.name}
             data-line={descriptor.channel}
             data-hidden={off ? true : undefined}
-            // Captured: the hex box handles its own Escape (a revert) and stops it there.
-            onKeyDownCapture={(event) => {
-                if (pending && event.key === "Escape") {
-                    onCancel();
-                }
-            }}
         >
-            {/* One line (Figma's effect row): the settings button, or the effect's glyph where it
-                has no settings, its name, its value, then vary, eye and minus. */}
-            {settings.length === 0 ? (
-                <span className="ws-slot" aria-hidden>
-                    <kind.glyph size={14} />
-                </span>
-            ) : (
-                <Popout opened={settingsOpen} onOpenChange={setSettingsOpen}>
-                    <Popout.Trigger>
-                        <Tooltip label={`${kind.name} settings`}>
-                            <PopoutButton
-                                icon={<GLYPHS.settings size={14} aria-hidden />}
-                                aria-label={`${kind.name} settings`}
-                                aria-haspopup="dialog"
-                                aria-expanded={settingsOpen}
-                            />
-                        </Tooltip>
-                    </Popout.Trigger>
-                    <Popout.Panel
-                        width={POPOUT_WIDTH}
-                        placement="left"
-                        alignment="start"
-                        header={{ variant: "title", title: `${kind.name} settings` }}
-                    >
-                        <Popout.Content>
-                            <Stack gap={6}>
-                                {settings.map((d) => (
-                                    <Field key={d.channel} ctx={ctx} descriptor={d} />
-                                ))}
-                            </Stack>
-                        </Popout.Content>
-                    </Popout.Panel>
-                </Popout>
-            )}
-            <Text size="xs" w={44} truncate aria-hidden>
+            {lead}
+            <Text size="sm" style={{ flex: 1, minWidth: 0 }} truncate aria-hidden>
                 {kind.name}
             </Text>
-            <div style={{ flex: 1, minWidth: 0 }}>
-                {/* A varied effect shows its bound value, as any varied field does. */}
-                {bound ? <Field ctx={ctx} descriptor={descriptor} named={false} /> : literal}
-            </div>
-            {pending || bound ? null : <VarySlot ctx={ctx} descriptor={descriptor} />}
+            <Popout
+                opened={settingsOpen}
+                onOpenChange={(open) => {
+                    setSettingsOpen(open);
+                    if (!open && pending) {
+                        onCancel();
+                    }
+                }}
+            >
+                <Popout.Trigger>
+                    <Tooltip label={`${kind.name} settings`}>
+                        <PopoutButton
+                            icon={<GLYPHS.settings size={14} aria-hidden />}
+                            aria-label={`${kind.name} settings`}
+                            aria-haspopup="dialog"
+                            aria-expanded={settingsOpen}
+                        />
+                    </Tooltip>
+                </Popout.Trigger>
+                <Popout.Panel
+                    width={POPOUT_WIDTH}
+                    placement="left"
+                    alignment="start"
+                    header={{ variant: "title", title: `${kind.name} settings` }}
+                >
+                    <Popout.Content>
+                        <div ref={onPanel}>
+                            <Stack gap={0}>
+                                {/* Named without the effect's name, which the pop-out's title gives. */}
+                                <Field
+                                    ctx={ctx}
+                                    descriptor={descriptor}
+                                    word={descriptor.accepts === "color" ? "Color" : "Speed"}
+                                />
+                                {settings.map((d) => (
+                                    <Field key={d.channel} ctx={ctx} descriptor={d} word={shortWord(d.channel, kind)} />
+                                ))}
+                            </Stack>
+                        </div>
+                    </Popout.Content>
+                </Popout.Panel>
+            </Popout>
             {pending ? null : (
                 <>
                     <ToggleIconButton
                         variant="swap"
-                        label={`Hide ${kind.name.toLowerCase()}`}
+                        label={`Hide ${noun}`}
                         checked={off}
                         icon={<GLYPHS.show size={14} />}
                         checkedIcon={<GLYPHS.hide size={14} />}
@@ -443,13 +456,8 @@ function EffectEntry({
                             onWrite(hide ? (descriptor.off ?? onValue) : onValue);
                         }}
                     />
-                    <Tooltip label={`Remove ${kind.name.toLowerCase()}`}>
-                        <ActionIcon
-                            variant="subtle"
-                            size="sm"
-                            aria-label={`Remove ${kind.name.toLowerCase()}`}
-                            onClick={onRemove}
-                        >
+                    <Tooltip label={`Remove ${noun}`}>
+                        <ActionIcon variant="subtle" size="sm" aria-label={`Remove ${noun}`} onClick={onRemove}>
                             <GLYPHS.remove size={14} aria-hidden />
                         </ActionIcon>
                     </Tooltip>

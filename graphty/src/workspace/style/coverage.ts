@@ -85,6 +85,7 @@ export const LABEL_FIELD_HOMES: Readonly<Record<keyof LabelStyle, Home>> = {
     look: at("Label entry, look"),
     enabled: at("Label entry, eye (off draws no label here)"),
     sizePx: at("Label entry, size (through the label size channel)"),
+    sizeUnit: at("Label settings, Type, Size in (a new label is sized in screen pixels)"),
     location: at("Label entry, position"),
     color: at("Label settings, Text color"),
     background: at("Label settings, Background"),
@@ -132,6 +133,34 @@ export const LABEL_FIELD_HOMES: Readonly<Record<keyof LabelStyle, Home>> = {
     maxNumber: BADGE,
     icon: BADGE,
     overflowSuffix: BADGE,
+};
+
+/**
+ * Why a property the Style tab draws has no vary glyph. These are decisions, not omissions: the
+ * coverage test fails when a drawn property has neither a vary glyph nor a reason here.
+ */
+export const VARY_DECISIONS = {
+    yesOrNo:
+        "A yes-or-no property (wireframe, show, curved) has no vary by: picking which elements are on is what Which elements does, so a layer for those elements sets it",
+    look: "A label's look is a set of fields, each set in its settings; its size, text color and background vary through their own properties",
+    opacity:
+        "Opacity varies by a value from its own field in the color's settings pop-out (Color, Line, Ends, Halo and Band settings), shown as a percent",
+} as const;
+
+/**
+ * The drawn properties with no vary glyph, each with its decision. Every other drawn property
+ * varies by a value; an opacity varies from its settings pop-out ({@link VARY_DECISIONS}.opacity).
+ */
+export const NO_VARY: Readonly<Partial<Record<Channel, string>>> = {
+    "node.wireframe": VARY_DECISIONS.yesOrNo,
+    "node.visible": VARY_DECISIONS.yesOrNo,
+    "edge.visible": VARY_DECISIONS.yesOrNo,
+    "edge.curvature": VARY_DECISIONS.yesOrNo,
+    "node.labelStyle": VARY_DECISIONS.look,
+    "node.tooltipStyle": VARY_DECISIONS.look,
+    "edge.labelStyle": VARY_DECISIONS.look,
+    "edge.arrowHeadTextStyle": VARY_DECISIONS.look,
+    "edge.arrowTailTextStyle": VARY_DECISIONS.look,
 };
 
 /**

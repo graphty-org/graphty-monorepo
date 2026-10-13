@@ -130,28 +130,41 @@ describe("effects and arrow ends on the real element", () => {
         await page.viewport(1024, 768);
     });
 
-    it("'+' then Glow focuses the hex box; Escape writes nothing; a typed hex writes the glow; the eye covers it", async () => {
+    it("'+' then Glow opens its settings with focus in its hex box; Escape writes nothing and returns to '+'; a typed hex writes the glow; the eye covers it", async () => {
         const { session, element } = await mountElement();
         const [nodeLayer] = await renderRow(session, element);
 
         await userEvent.click(within(nodeEffects()).getByRole("button", { name: "Add to node effects" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Glow/ }));
-        const hex = await within(nodeEffects()).findByRole("textbox", { name: /Glow/ });
+        const settings = await screen.findByRole("dialog", { name: "Glow settings" });
+        const hex = await within(settings).findByRole("textbox", { name: /^Node glow/ });
         await waitFor(() => {
             assert.equal(document.activeElement, hex, "focus lands in the glow's hex box");
         });
+        // A new entry can vary by a value at once.
+        assert.isNotNull(within(settings).getByRole("button", { name: "Node glow by attribute" }));
         assert.isUndefined(written(session, nodeLayer, "node.glow"), "picking writes nothing");
 
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
-            assert.isNull(within(nodeEffects()).queryByRole("textbox", { name: /Glow/ }), "Escape drops the entry");
+            assert.isNull(screen.queryByRole("dialog", { name: "Glow settings" }), "Escape closes the settings");
+            assert.isNull(nodeEffects().querySelector('[data-effect="Glow"]'), "Escape drops the entry");
+            assert.equal(
+                document.activeElement?.getAttribute("aria-label"),
+                "Add to node effects",
+                "focus goes back to '+'",
+            );
         });
         assert.isUndefined(written(session, nodeLayer, "node.glow"), "Escape writes nothing");
 
         // The empty list's title opens the same menu, for a pointer.
         await userEvent.click(within(nodeEffects()).getByText("Effects"));
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Glow/ }));
-        await within(nodeEffects()).findByRole("textbox", { name: /Glow/ });
+        const again = await screen.findByRole("dialog", { name: "Glow settings" });
+        const box = await within(again).findByRole("textbox", { name: /^Node glow/ });
+        await waitFor(() => {
+            assert.equal(document.activeElement, box);
+        });
         await userEvent.keyboard("FF00FF{Enter}");
         await waitFor(
             () => {
@@ -160,6 +173,11 @@ describe("effects and arrow ends on the real element", () => {
             },
             { timeout: TIMEOUT_MS },
         );
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("dialog", { name: "Glow settings" }));
+        });
+        assert.equal(written(session, nodeLayer, "node.glow"), "#FF00FF", "closing a written entry keeps it");
 
         // A second glow is refused, with its reason.
         await userEvent.click(within(nodeEffects()).getByRole("button", { name: "Add to node effects" }));
@@ -179,28 +197,50 @@ describe("effects and arrow ends on the real element", () => {
         );
     });
 
-    it("an effect entry is one line, as tall as a property row's field", async () => {
+    it("an effect entry is one line: a chip, its name, settings, eye and minus, each a 24 px target", async () => {
         const { session, element } = await mountElement();
         const [nodeLayer] = await renderRow(session, element);
-        await userEvent.click(within(nodeEffects()).getByRole("button", { name: "Add to node effects" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Glow/ }));
-        await within(nodeEffects()).findByRole("textbox", { name: /Glow/ });
-        await userEvent.keyboard("FF00FF{Enter}");
-        await waitFor(
+        await session.styles.update(nodeLayer, { set: { "node.opacity": 1, "node.haloColor": "#111111" } });
+        const entry = await waitFor(
             () => {
-                assert.equal(written(session, nodeLayer, "node.glow"), "#FF00FF");
-                assert.isNotNull(within(nodeEffects()).queryByRole("button", { name: "Remove glow" }));
+                const found = nodeEffects().querySelector<HTMLElement>('[data-effect="Halo"]');
+                assert.isNotNull(found);
+                return found;
             },
             { timeout: TIMEOUT_MS },
         );
-        const entry = document.querySelector<HTMLElement>('[data-effect="Glow"]');
-        const field = document.querySelector<HTMLElement>('.ws-field[data-line="node.color"] > .ws-field-control');
-        assert.isNotNull(entry);
-        assert.isNotNull(field);
-        assert.equal(
-            Math.round(entry?.getBoundingClientRect().height ?? 0),
-            Math.round(field?.getBoundingClientRect().height ?? -1),
-            "the glow entry is as tall as the color row's field",
+        const { height } = entry.getBoundingClientRect();
+        assert.isAtMost(height, 30, "one line");
+        // The color is a chip, named with its state and value; no hex box to cut.
+        const chip = within(entry).getByRole("button", { name: /^Halo color, set here, #111111$/i });
+        assert.isNull(within(entry).queryByRole("textbox"), "no hex box on the line");
+        const targets = [
+            chip,
+            within(entry).getByRole("button", { name: "Halo settings" }),
+            within(entry).getByRole("button", { name: "Hide halo" }),
+            within(entry).getByRole("button", { name: "Remove halo" }),
+        ];
+        for (const target of targets) {
+            const box = target.getBoundingClientRect();
+            assert.isAtLeast(Math.round(box.width), 24, `${target.getAttribute("aria-label") ?? ""} is 24 px wide`);
+            assert.isAtLeast(Math.round(box.height), 24, `${target.getAttribute("aria-label") ?? ""} is 24 px tall`);
+        }
+
+        // Its color, size and opacity are in its settings; the opacity reads as a percent.
+        await userEvent.click(within(entry).getByRole("button", { name: "Halo settings" }));
+        const settings = await screen.findByRole("dialog", { name: "Halo settings" });
+        assert.isNotNull(within(settings).getByRole("textbox", { name: /^Node halo/ }));
+        const opacity = settings.querySelector<HTMLInputElement>('[data-line="node.haloOpacity"] input');
+        assert.isNotNull(opacity);
+        assert.equal(opacity?.placeholder, "40", "the halo's opacity beneath reads 40, as a percent");
+        assert.include(settings.querySelector('[data-line="node.haloOpacity"]')?.textContent ?? "", "%");
+        opacity?.focus();
+        await userEvent.keyboard("75{Enter}");
+        await waitFor(
+            () => {
+                assert.equal(written(session, nodeLayer, "node.haloOpacity"), 0.75, "75 % writes 0.75");
+            },
+            { timeout: TIMEOUT_MS },
         );
     });
 

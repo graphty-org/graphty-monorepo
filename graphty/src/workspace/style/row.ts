@@ -328,6 +328,7 @@ function sameSelector(a: Layer["selector"], b: Layer["selector"]): boolean {
  * @param fresh - the layer the row's first edit adds when it has none the reader may edit, or
  *   undefined for a row that adds none (a run's row): the write then fails rather than land on a
  *   layer the row does not name.
+ * @param also - values for other channels written in the same step where the layer has none.
  * @returns the id of the layer written to.
  */
 export async function writeLine(
@@ -337,6 +338,7 @@ export async function writeLine(
     channel: Channel,
     write: LiteralWrite | { readonly binding: DataBinding },
     fresh: NewLayer | undefined,
+    also?: Readonly<Partial<Record<Channel, ChannelValue>>>,
 ): Promise<LayerId> {
     const layers = rowLayers(session, ids, target);
     const everything = fresh?.selector.match === "everything";
@@ -347,7 +349,12 @@ export async function writeLine(
         .find((layer) => !layer.locked && (!everything || home === undefined || sameSelector(layer.selector, home)));
     // A literal that combines with what lies beneath is an encoding of the value; a plain one is set.
     const combined = "value" in write && write.combine !== undefined && write.combine !== "replace";
-    const set = "value" in write && !combined ? { [channel]: write.value } : undefined;
+    const literal = "value" in write && !combined ? { [channel]: write.value } : undefined;
+    // Values written with it in the same step (a new label's size), where the layer has none.
+    const extra = Object.fromEntries(
+        Object.entries(also ?? {}).filter(([c]) => own?.set?.[c as Channel] === undefined),
+    );
+    const set = literal === undefined && Object.keys(extra).length === 0 ? undefined : { ...extra, ...literal };
     let encode: Partial<Record<Channel, Binding>> | undefined;
     if ("binding" in write) {
         encode = { [channel]: write.binding };
@@ -398,7 +405,7 @@ export async function writeLine(
             throw new Error(`The row has no ${target} layer to write ${channel} to`);
         }
         await styles.update(own.id, {
-            set: set === undefined ? without(own.set, channel) : { ...own.set, ...set },
+            set: set === undefined ? without(own.set, channel) : { ...without(own.set, channel), ...set },
             encode: encode === undefined ? without(own.encode, channel) : { ...own.encode, ...encode },
         });
         await strip(styles);
@@ -424,16 +431,27 @@ export function lineIn(ctx: Pick<RowContext, "many" | "layers">, channel: Channe
  * @param ctx - the row.
  * @param channel - the channel.
  * @param write - the value or the binding.
+ * @param also - values for other channels written with it where the row has none.
  * @returns when it is written.
  */
 export function writeIn(
     ctx: Pick<RowContext, "many" | "session" | "row" | "side" | "fresh">,
     channel: Channel,
     write: LiteralWrite | { readonly binding: DataBinding },
+    also?: Readonly<Partial<Record<Channel, ChannelValue>>>,
 ): Promise<unknown> {
-    return ctx.many === undefined
-        ? writeLine(ctx.session, ctx.row, ctx.side, channel, write, ctx.fresh)
-        : ctx.many.write(channel, write);
+    const { many } = ctx;
+    if (many === undefined) {
+        return writeLine(ctx.session, ctx.row, ctx.side, channel, write, ctx.fresh, also);
+    }
+    // ponytail: several rows take the extra values as separate writes, one undo step each.
+    return many.write(channel, write).then(() =>
+        Promise.all(
+            Object.entries(also ?? {})
+                .filter(([c, value]) => value !== undefined && many.line(c as Channel) === undefined)
+                .map(([c, value]) => many.write(c as Channel, { value })),
+        ),
+    );
 }
 
 /**

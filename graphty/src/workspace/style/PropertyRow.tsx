@@ -47,6 +47,7 @@ import {
     followsWords,
     GLYPH_TABLES,
     hexOf,
+    isPercent,
     paletteWord,
     type PropertyRowSpec,
     takesBinding,
@@ -155,6 +156,8 @@ interface FieldProps {
     readonly named?: boolean;
     /** What the label column holds after the name: the row's settings button on its first field. */
     readonly lead?: React.ReactNode;
+    /** The name drawn in the label column, where the line's list already says whose it is ("Size"). */
+    readonly word?: string;
 }
 
 /**
@@ -168,9 +171,10 @@ interface FieldProps {
  * @param props.descriptor - the property
  * @param props.named - whether to draw the field's name in the label column
  * @param props.lead - what the label column holds after the name
+ * @param props.word - the name drawn in the label column, when not the property's own
  * @returns The field
  */
-export function Field({ ctx, descriptor, named = true, lead }: Readonly<FieldProps>): React.JSX.Element {
+export function Field({ ctx, descriptor, named = true, lead, word }: Readonly<FieldProps>): React.JSX.Element {
     const { store } = useWorkspace();
     const box = useRef<HTMLDivElement>(null);
     const tipId = useId();
@@ -341,6 +345,9 @@ export function Field({ ctx, descriptor, named = true, lead }: Readonly<FieldPro
         );
     } else if (descriptor.accepts === "number") {
         const prefix = own?.combine === undefined ? undefined : COMBINE_WORDS[own.combine].prefix;
+        // An opacity reads and types as a percent, as a color field's opacity does.
+        const percent = isPercent(descriptor);
+        const scale = percent ? 100 : 1;
         control = (
             <ComboInput
                 label={stateName}
@@ -348,15 +355,16 @@ export function Field({ ctx, descriptor, named = true, lead }: Readonly<FieldPro
                 numeric
                 variant="outlined"
                 options={[]}
-                value={typeof own?.value === "number" ? own.value : ""}
-                placeholder={placeholder}
+                value={typeof own?.value === "number" ? Math.round(own.value * scale * 100) / 100 : ""}
+                placeholder={percent ? placeholder?.replace(" %", "") : placeholder}
+                suffix={percent ? "%" : undefined}
                 glyph={prefix === undefined ? undefined : <Text size="xs">{prefix}</Text>}
-                min={descriptor.min}
-                max={descriptor.max}
-                step={descriptor.max !== undefined && descriptor.max <= 1 ? 0.1 : 1}
+                min={descriptor.min === undefined ? undefined : descriptor.min * scale}
+                max={descriptor.max === undefined ? undefined : descriptor.max * scale}
+                step={!percent && descriptor.max !== undefined && descriptor.max <= 1 ? 0.1 : 1}
                 onChange={(next) => {
                     if (typeof next === "number") {
-                        writeValue(next);
+                        writeValue(next / scale);
                     }
                 }}
             />
@@ -437,8 +445,8 @@ export function Field({ ctx, descriptor, named = true, lead }: Readonly<FieldPro
                 set, cleared or focused (Figma's property row). */}
             {named && (
                 <span className="ws-field-label">
-                    <span className="ws-field-name" title={channelWord(channel)} aria-hidden>
-                        {channelWord(channel)}
+                    <span className="ws-field-name" title={word ?? channelWord(channel)} aria-hidden>
+                        {word ?? channelWord(channel)}
                     </span>
                     {overWords !== undefined && (
                         <Tooltip label={overWords}>

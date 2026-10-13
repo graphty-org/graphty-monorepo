@@ -547,3 +547,122 @@ each layer's own spec.
   with `session.styles.setHighlightColor`, and the element draws the selection highlight from a
   selection mask outside the layer stack; the yellow is not reaching the renderer. It needs its
   own fix in graphty-element, independent of this choice.
+
+---
+
+## Recommendation after the reviews (2026-10-13)
+
+Four reviewers drove the Storybook mocks of every option with real clicks and keys: a first-time
+reader, a returning analyst, a Figma and Photoshop user, and a keyboard and screen reader user.
+Each scored every option 1 to 5 on five criteria (understood at a glance, never misread as a
+value, speed of common edits, consistent with the eye on other rows, fits the layer model), so
+the best possible total is 25. The table gives the average of the four totals.
+
+| Rank | Option                          | Average of 25 | Verdict                                                                                               |
+| ---- | ------------------------------- | ------------- | ----------------------------------------------------------------------------------------------------- |
+| 1    | 1 Named add buttons             | 21.75         | Best of the base options for all four reviewers: nothing unset looks set, one click to add            |
+| 2    | 6 Full look, Why, Solo (add-on) | 21.0          | The clearest explanation of where a look comes from; costs extra tab stops and has focus bugs         |
+| 2    | 7 Sets N count (add-on)         | 21.0          | Shows what each layer does without opening it; the number needs a unit and an accessible name         |
+| 4    | 2 Add style menu                | 19.25         | Never misread, but every add takes two clicks and the property names are hidden at rest               |
+| 5    | 4 This layer and Result         | 16.5          | Answers "what will it look like" at rest, but its captions are cryptic and hidden from screen readers |
+| 6    | 3 Includes checkbox             | 15.75         | Brings back the "Not set" noise and a second on/off switch beside the eye                             |
+| 7    | 5 Stack strip                   | 14.0          | Its marks look like empty fields and fail target size; its "covered by" caption is worth keeping      |
+
+Stories: https://dev.ato.ms:9048/?path=/story/mocks-set-vs-inherited--option-1 (and `option-2`
+to `option-7`, and `overview`).
+
+### What to build
+
+**Option 1, with Option 7 and the inspector half of Option 6, Everything owning the base look,
+and five fixes the reviews found.**
+
+A layer shows a row only for what it writes, so the confusion the owner reported cannot happen:
+nothing on Selected looks like a node color, Hovered says "Sets nothing yet", and Everything
+visibly holds the base look. Every core property is still named on every layer and is one click
+away, which keeps the tier 1 finding that readers could not find Size behind a "+". All four
+reviewers ranked it first, and the two lowest-scoring parts of it (consistency, glance) are
+fixed by the add-ons and the fixes below rather than by a different layout.
+
+The fixes, each found by at least two reviewers:
+
+1. **"Covered by" caption (from Option 5).** Under any set row that a higher layer overrides on
+   some elements, a caption reads "Covered by Degree on 77 of 77". Without it, a reader edits
+   Everything's color, sees nothing change and decides the panel is broken. This was the single
+   most damaging observation in the reviews.
+2. **Adding a property over a data-bound value starts from one plain value.** Today adding Color
+   to Selected copies Degree's "by Degree" mapping, so a reader who wanted yellow must find the
+   unlink first. The add starts from one color (the most common value beneath), and the mapping
+   is offered as a choice, not the default.
+3. **Multi-edit never puts another layer's value in a field.** With Selected and Key people both
+   selected, Size showed Key people's "2" although Selected sets no size, and typing quietly
+   added a size to Selected. A row set on only some selected layers reads "Set on 1 of 2" with
+   an empty field.
+4. **The count in the tree has a unit and is in the row's name.** "2 styles", not "2" (which read
+   as "2 people"), and the row is announced "Selected, sets 2 styles: halo, glow".
+5. **Keyboard and focus.** The source text ("Now #3388FF, from Everything") shows on keyboard
+   focus as well as hover; focus never drops to the page after a clear or undo; Ctrl+Z works
+   anywhere outside a text field; the panel's layer name is a heading; adds and clears are
+   announced in a live region.
+
+Option 6: build "Why this look" (the per-node inspector) now; every reviewer called it the
+clearest explanation in the mocks. Defer Full look and the Solo button until the tree's tab
+stops are reduced, because Solo doubled them and Full look lost focus; Solo is the same
+mechanism as hiding every other layer, so it costs little to add later.
+
+### The eye on Everything under this recommendation
+
+Everything holds the seven base values, set, and nothing sits beneath it. Clicking its eye hides
+everything it paints, which with the default layers is the whole graph: the canvas goes empty,
+the same as the eye on any other layer removing that layer's look. If a higher layer is visible
+and writes some elements (Degree, say), those elements stay drawn with that layer's look over
+the renderer's neutral values, which shows plainly what that layer does on its own.
+
+Every eye in the tree is drawn at rest, not only on hover, so a reader looking for "hide
+Everything" finds it; a hidden layer's eye is named "Show <layer>".
+
+### What changes in graphty-element (all additive, no default changes)
+
+- `createSession({ styles: { base: "editable" } })`. The default `"locked"` keeps today's two
+  locked "Node defaults" and "Edge defaults" layers. `"editable"` seeds the same values into one
+  ordinary bottom layer that can be edited, hidden and cleared, but not deleted or moved
+  (`E_PROTECTED`); its default name is a catalog `plainName`.
+- Defined behavior when nothing visible writes an element: it is not drawn. A channel nothing
+  writes on a drawn element takes the renderer's documented neutral value, and `explain`,
+  `agreement` and `legendOf` report the fact `{ code: "unstyled", params: { channel } }`.
+- The "covered by" caption needs, for one layer and property, how many of the layer's elements a
+  higher layer overrides and which layer. If `counts(id)` and `agreement` cannot answer it in one
+  call, `counts` gains an optional `coveredBy` breakdown.
+- If `explain` does not already list the covered writers, it gains an optional `covered` field
+  (for "Why this look").
+- `npm run api:report`, with the report committed.
+- Separately, not caused by this choice: the selection highlight is gray because the color the
+  app sets with `session.styles.setHighlightColor` does not reach the renderer. That is an
+  element bug with its own fix.
+
+### What changes in the app
+
+- Passes `base: "editable"`, shows the element's bottom layer as the Everything row, and drops
+  its own nearly empty Everything layer.
+- The new layer panel: set rows with their minus, the "Not set here:" line of compact-mantine
+  Chip or subtle Button names, "More styles", "Sets nothing yet", the "Covered by" caption, and
+  "Set on 1 of 2" for multi-edit. The gray placeholders and italics are deleted.
+- The tree's "N styles" count, eyes visible at rest, and "Why this look" for a selected node.
+- The gradient popover loses "Use one color"; the unlink icon beside the value pill is the only
+  path, labeled "Use one color" on hover and focus.
+- The legend shows one block per layer ("Selected: halo and glow").
+- Tier 3 design.md section 1.1: the "always seven rows" rule and its "Rejected: a row must be
+  added before it can be set" note are reversed.
+- Shared component fix in compact-mantine: `CompactColorInput` names its swatch and hex field
+  after the property ("Halo color"), not "Color swatch".
+
+### Decisive evidence
+
+- Every reviewer confirmed Option 1 shows nothing as set that is not set: Selected shows only
+  Halo and Glow, and Hovered reads "Sets nothing yet".
+- Options 3, 4 and 5 were each misread or failed accessibility: Option 3's seven "Not set" rows
+  and 12 px checkboxes, Option 4's Result values skipped by a screen reader and 14 px links,
+  Option 5's white marks read as empty fields and clicked like them.
+- Option 2 never misled anyone, but hid the property names, which repeats the tier 1 discovery
+  failure, and Size was unreachable by Tab without opening the menu.
+- Three of four reviewers independently named the "covered by" caption as the fix Option 1
+  needs; without it, editing Everything's color changed nothing on screen and nothing said why.

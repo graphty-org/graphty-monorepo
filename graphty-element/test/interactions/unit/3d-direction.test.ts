@@ -100,7 +100,7 @@ describe("3D Input Direction Verification", () => {
         const finalRotation = getPivotRotation(cameraController);
 
         // Looking at OrbitInputController.ts lines 143-144:
-        // if (keys.arrowleft) { this.rotationVelocityY += this.config.keyboardRotationSpeed; }
+        // if (keys.arrowleft) { this.rotationVelocityY += push; }
         // Then at lines 180-182:
         // if (Math.abs(this.rotationVelocityY) > 0.00001) {
         //     cam.rotate(-this.rotationVelocityY / this.config.trackballRotationSpeed, 0);
@@ -125,7 +125,7 @@ describe("3D Input Direction Verification", () => {
         const finalRotation = getPivotRotation(cameraController);
 
         // Looking at OrbitInputController.ts lines 147-148:
-        // if (keys.arrowright) { this.rotationVelocityY -= this.config.keyboardRotationSpeed; }
+        // if (keys.arrowright) { this.rotationVelocityY -= push; }
         // Then rotate(-velocityY, 0) = rotate(positive, 0) = positive dx
         // After the XR convention fix, rotate() uses dx directly, so positive dx increases yaw
         assert.isAbove(finalRotation.yaw, initialRotation.yaw, "ArrowRight should rotate camera RIGHT (increase yaw)");
@@ -147,7 +147,7 @@ describe("3D Input Direction Verification", () => {
         const finalRotation = getPivotRotation(cameraController);
 
         // Looking at OrbitInputController.ts lines 151-152:
-        // if (keys.arrowup) { this.rotationVelocityX += this.config.keyboardRotationSpeed; }
+        // if (keys.arrowup) { this.rotationVelocityX += push; }
         // Then at lines 175-177:
         // cam.rotate(0, -this.rotationVelocityX / this.config.trackballRotationSpeed);
         // So ArrowUp adds positive velocityX, then rotate is called with -velocityX = negative dy
@@ -172,7 +172,7 @@ describe("3D Input Direction Verification", () => {
         const finalRotation = getPivotRotation(cameraController);
 
         // Looking at OrbitInputController.ts lines 155-156:
-        // if (keys.arrowdown) { this.rotationVelocityX -= this.config.keyboardRotationSpeed; }
+        // if (keys.arrowdown) { this.rotationVelocityX -= push; }
         // Then rotate(0, -velocityX) = rotate(0, positive) = positive dy = tilt down
         assert.notEqual(finalRotation.pitch, initialRotation.pitch, "ArrowDown should tilt camera DOWN (change pitch)");
     });

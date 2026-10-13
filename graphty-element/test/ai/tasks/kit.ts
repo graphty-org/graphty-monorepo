@@ -582,12 +582,29 @@ export function assertSameMembers(actual: Iterable<unknown>, expected: Iterable<
  * @returns The ids, the node included.
  */
 export function neighborhood(s: GraphSession, node: string, hops: number): Set<string> {
+    // One pass over the edges: scanning them again for every node of a frontier took seconds on
+    // a hub's two-hop neighborhood in a graph of thousands of edges.
+    const adjacent = new Map<string, string[]>();
+    const link = (from: string, to: string): void => {
+        const list = adjacent.get(from);
+        if (list === undefined) {
+            adjacent.set(from, [to]);
+        } else {
+            list.push(to);
+        }
+    };
+    for (const edge of s.data.edges()) {
+        const { source, target } = edge as unknown as { source: unknown; target: unknown };
+        link(String(source), String(target));
+        link(String(target), String(source));
+    }
+
     const seen = new Set([node]);
     let frontier = [node];
     for (let hop = 0; hop < hops; hop++) {
         const next: string[] = [];
         for (const id of frontier) {
-            for (const neighbor of neighborIds(s, id)) {
+            for (const neighbor of adjacent.get(id) ?? []) {
                 if (!seen.has(neighbor)) {
                     seen.add(neighbor);
                     next.push(neighbor);
@@ -599,26 +616,6 @@ export function neighborhood(s: GraphSession, node: string, hops: number): Set<s
     }
 
     return seen;
-}
-
-/**
- * A node's neighbors, either direction.
- * @param s - The session.
- * @param node - The node.
- * @returns Their ids.
- */
-export function neighborIds(s: GraphSession, node: string): string[] {
-    const out = new Set<string>();
-    for (const edge of s.data.edges()) {
-        const { source, target } = edge as unknown as { source: unknown; target: unknown };
-        if (String(source) === node) {
-            out.add(String(target));
-        } else if (String(target) === node) {
-            out.add(String(source));
-        }
-    }
-
-    return [...out];
 }
 
 /**

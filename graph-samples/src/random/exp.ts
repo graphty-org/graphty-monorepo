@@ -6,7 +6,7 @@
 
 import { detExp, detLog } from "@graphty/graph-format";
 
-export { detExp };
+export { detExp } from "@graphty/graph-format";
 
 /**
  * x^y as `detExp(y * detLog(x))` for x > 0: deterministic, not correctly rounded (the relative

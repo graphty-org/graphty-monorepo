@@ -314,7 +314,7 @@ export class MockDeviceInputSystem {
      */
     public isPointerDown(button?: MouseButton): boolean {
         if (button === undefined) {
-            return Array.from(this.pointerStates.values()).some((state) => state);
+            return Array.from(this.pointerStates.values()).some(Boolean);
         }
 
         return this.pointerStates.get(button) ?? false;

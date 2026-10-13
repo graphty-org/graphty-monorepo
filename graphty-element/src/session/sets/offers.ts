@@ -90,7 +90,7 @@ const OFFERED: Partial<Record<ResultShape, OfferedShape>> = {
         followable: true,
         path: false,
         partition: true,
-        name: (value) => String(value),
+        name: String,
     },
     "node-set": {
         field: "in",

@@ -190,15 +190,13 @@ export class Graph {
             if (targetIncoming) {
                 targetIncoming.set(source, edge);
             }
-        } else {
+        } else if (source !== target) {
             // For undirected graphs, add the reverse edge
-            if (source !== target) {
-                const reverseEdge: Edge = { source: target, target: source, weight, data };
-                const targetAdjacency = this.adjacencyList.get(target);
+            const reverseEdge: Edge = { source: target, target: source, weight, data };
+            const targetAdjacency = this.adjacencyList.get(target);
 
-                if (targetAdjacency) {
-                    targetAdjacency.set(source, reverseEdge);
-                }
+            if (targetAdjacency) {
+                targetAdjacency.set(source, reverseEdge);
             }
         }
 

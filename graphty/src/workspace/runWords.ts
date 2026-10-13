@@ -89,11 +89,9 @@ function scopeWords(spec: Scope, setName: (id: SetId) => string | undefined): st
  * that differ -- or the scope, when only the scope does. A batch goes by the label it was given.
  * @param session - the session, for the algorithm's catalog name and a kept set's name.
  * @param run - the run, or its record.
- * @param words - "plain" names the algorithm by its catalog `plainName` ("Shortest route"), as the
- *   style tree names its rows, rather than by the Analyze list's name ("Shortest path").
  * @returns such as "Communities (resolution 1.5)" or "Connections (largest component)".
  */
-export function runName(session: GraphSession, run: NamedRun, words?: "plain"): string {
+export function runName(session: GraphSession, run: NamedRun): string {
     if (run.algorithm === "batch") {
         return typeof run.params.label === "string" ? run.params.label : "Batch";
     }
@@ -102,7 +100,7 @@ export function runName(session: GraphSession, run: NamedRun, words?: "plain"): 
     const descriptor = session.catalog.algorithms().find((each) => each.key === run.algorithm);
     let { algorithm } = run;
     if (descriptor !== undefined) {
-        algorithm = words === "plain" ? descriptor.plainName : wordsFor(descriptor).name;
+        algorithm = wordsFor(descriptor).name;
     }
     const { distinguishedBy: by } = run;
     const base =

@@ -17,6 +17,7 @@ import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent as realInput } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { readableName } from "../../style/words";
 import { Workspace } from "../../Workspace";
 
 /** A hang guard for the element coming up and a run finishing, not a pass/fail timing. */
@@ -173,6 +174,30 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         await waitFor(() => {
             assert.isAbove(session.runs.bindings(louvain).length, 0);
         });
+    });
+
+    it("a run's layer, its key entry and its values go by the algorithm's name: Closeness, not Reach", async () => {
+        const session = await openKarate();
+        await analyze("Closeness", "Closeness");
+        const closeness = await finished(session, "closeness");
+        await waitFor(() => {
+            assert.isAbove(session.runs.bindings(closeness).length, 0);
+        });
+        if (screen.queryByRole("tree", { name: "Style layers" }) === null) {
+            await userEvent.click(screen.getByRole("button", { name: "Graph" }));
+        }
+        const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
+        await within(tree).findByRole("treeitem", { name: /^Closeness, layer/ }, { timeout: TIMEOUT_MS });
+        assert.notMatch(tree.textContent ?? "", /Reach/);
+        const legend = await screen.findByRole("region", { name: "Legend" }, { timeout: TIMEOUT_MS });
+        await within(legend).findByRole("group", { name: "Color: Closeness" });
+        const names = session.data
+            .readableValues()
+            .filter((value) => value.runId === closeness)
+            .map((value) => readableName(session, value).name);
+        assert.include(names, "Closeness");
+        assert.include(names, "Rank of Closeness");
+        assert.notInclude(names.join(), "Reach");
     });
 
     it("T11: the Layout popover shows the recommended layout and choosing another lays out again, one undo step", async () => {

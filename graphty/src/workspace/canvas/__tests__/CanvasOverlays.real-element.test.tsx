@@ -81,7 +81,7 @@ describe("the canvas on the real element", () => {
         assert.include(session.runs.bindings(run.id), session.styles.list().at(-1)?.id, "PageRank's row is on top");
 
         const legend = await screen.findByRole("region", { name: "Legend" });
-        await within(legend).findByRole("group", { name: "Color: Influence" });
+        await within(legend).findByRole("group", { name: "Color: PageRank" });
         assert.isNull(screen.queryByText(/^Hidden by your layer/), "a run that painted gives no notice");
     });
 
@@ -106,7 +106,7 @@ describe("the canvas on the real element", () => {
         assert.include(session.runs.bindings(run.id), winner, "Louvain wins color");
 
         const legend = await screen.findByRole("region", { name: "Legend" });
-        await within(legend).findByRole("group", { name: "Color: Communities" }, { timeout: TIMEOUT_MS });
+        await within(legend).findByRole("group", { name: "Color: Louvain" }, { timeout: TIMEOUT_MS });
         assert.isNull(screen.queryByText(/^Hidden by your layer/), "a run that painted gives no notice");
     });
 
@@ -124,7 +124,7 @@ describe("the canvas on the real element", () => {
         assert.equal(outcome.outcome === "suppressed" ? outcome.byLayerId : undefined, mine.id);
 
         await screen.findByText("Hidden by your layer My gray", {}, { timeout: TIMEOUT_MS });
-        assert.isNull(screen.queryByRole("group", { name: "Color: Communities" }));
+        assert.isNull(screen.queryByRole("group", { name: "Color: Louvain" }));
         await userEvent.click(screen.getByRole("button", { name: "Show anyway" }));
 
         await waitFor(
@@ -134,6 +134,6 @@ describe("the canvas on the real element", () => {
             { timeout: TIMEOUT_MS },
         );
         const legend = await screen.findByRole("region", { name: "Legend" });
-        await within(legend).findByRole("group", { name: "Color: Communities" }, { timeout: TIMEOUT_MS });
+        await within(legend).findByRole("group", { name: "Color: Louvain" }, { timeout: TIMEOUT_MS });
     });
 });

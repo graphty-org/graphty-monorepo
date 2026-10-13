@@ -125,9 +125,8 @@ describe("the binding popover's rows and readings", () => {
         assert.isAtMost(box?.bottom ?? Infinity, window.innerHeight, "its bottom is in the window");
         assert.isAtMost(box?.right ?? Infinity, window.innerWidth, "it fits across");
 
-        // Its last action is quiet and names the color it keeps.
-        const one = within(popover).getByRole("button", { name: /^Use one color: [a-z ]+$/ });
-        assert.notInclude(one.textContent ?? "", "#", "the color by name, not its hex");
+        // No way out of varying in here: that is the field's own Stop varying button.
+        assert.isNull(within(popover).queryByRole("button", { name: /^Use one (color|value)/ }));
 
         await userEvent.click(within(popover).getByRole("button", { name: "One color per value" }));
         await waitFor(
@@ -246,15 +245,15 @@ describe("the binding popover's rows and readings", () => {
             await userEvent.click(fold);
         }
         const picked = optionNames(picker);
-        for (const name of ["Connections", "Rank of Connections", "Community"]) {
+        for (const name of ["Degree", "Rank of Degree", "Community"]) {
             assert.include(picked, name, `the picker lists ${name}`);
         }
         const degree = within(picker).getByRole("group", { name: "Degree" });
-        assert.include(optionNames(degree), "Rank of Connections", "grouped under the run's name");
-        const numberGlyph = within(picker).getByRole("option", { name: "Connections" }).querySelector("svg")?.outerHTML;
+        assert.include(optionNames(degree), "Rank of Degree", "grouped under the run's name");
+        const numberGlyph = within(picker).getByRole("option", { name: "Degree" }).querySelector("svg")?.outerHTML;
         const categoryGlyph = within(picker).getByRole("option", { name: "Community" }).querySelector("svg")?.outerHTML;
         assert.notEqual(numberGlyph, categoryGlyph, "numbers and categories have different glyphs");
-        const row = within(picker).getByRole("option", { name: "Connections" }).getBoundingClientRect();
+        const row = within(picker).getByRole("option", { name: "Degree" }).getBoundingClientRect();
         assert.isAtMost(row.height, 32, "a picker row takes one line");
         await userEvent.click(within(picker).getByRole("combobox"));
         await userEvent.keyboard("Community");

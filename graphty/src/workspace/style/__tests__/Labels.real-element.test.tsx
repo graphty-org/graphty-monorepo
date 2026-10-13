@@ -288,7 +288,7 @@ describe("label entries on the real element", () => {
 
         await userEvent.click(within(textList()).getByRole("button", { name: "Node label size by attribute" }));
         const list = await findValuePicker();
-        await userEvent.click(within(list).getByRole("option", { name: "Connections" }));
+        await userEvent.click(within(list).getByRole("option", { name: "Degree" }));
         const path = session.results.path(runId);
         await waitFor(
             () => {
@@ -297,7 +297,7 @@ describe("label entries on the real element", () => {
             },
             { timeout: TIMEOUT_MS },
         );
-        assert.isNotNull(within(textList()).getByRole("button", { name: "Detach node label size" }));
+        assert.isNotNull(within(textList()).getByRole("button", { name: "Stop varying node label size by data" }));
     });
 
     it("Escape on a new tooltip's source list leaves the Text list unchanged and returns focus to '+'", async () => {

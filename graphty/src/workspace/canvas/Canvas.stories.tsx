@@ -51,7 +51,7 @@ async function loadKarate(canvasElement: HTMLElement): Promise<GraphtyElement> {
  */
 function nameOf(element: GraphtyElement, id: string): string {
     const listed = element.session.runs.list().find((each) => each.id === id);
-    return listed === undefined ? id : runName(element.session, listed, "plain");
+    return listed === undefined ? id : runName(element.session, listed);
 }
 
 /**

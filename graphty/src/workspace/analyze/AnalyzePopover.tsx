@@ -180,7 +180,7 @@ export function AnalyzePopover({
                 onClose={onClose}
                 onRun={(params) => {
                     // Each From and To is its own run, so its own row.
-                    const run = session.runs.start(picked.key, params);
+                    const run = session.runs.start(picked.key, params, { style: { name: wordsFor(picked).name } });
                     run.then(undefined, () => undefined);
                     onStarted(wordsFor(picked).name);
                     onPathStarted?.(run);
@@ -201,7 +201,10 @@ export function AnalyzePopover({
                     pick(undefined);
                 }}
                 onRun={() => {
-                    const run = session.runs.start(picked.key, paramsFor(session, picked, values));
+                    // The layers it adds go by the algorithm's name as the reader picked it ("Closeness").
+                    const run = session.runs.start(picked.key, paramsFor(session, picked, values), {
+                        style: { name: wordsFor(picked).name },
+                    });
                     // A failed run is reported on its row and in the inspector, from the run itself.
                     run.then(undefined, () => undefined);
                     onStarted(wordsFor(picked).name);

@@ -18,6 +18,7 @@ import {
 import type { Channel, LabelStyle } from "@graphty/graphty-element/schema";
 import type { CodedFact, GraphSession, ReadableValue } from "@graphty/graphty-element/session";
 
+import { wordsFor } from "../analyze/words";
 import { runName } from "../runWords";
 
 /** Where a label sits, as the element names it. */
@@ -437,8 +438,10 @@ export function paletteWord(id: string): string {
 /**
  * A readable value's name and the heading it is listed under, the same in the vary picker and the
  * rule editor: the catalog plainName, under "Data" for a column or under the run's name for a
- * run's field. A run's field that does not say whose it is gets the run's main value after it
- * ("Rank of Connections"); one that does ("Community size") keeps its own name.
+ * run's field. A measurement's main value goes by the algorithm's name, as the reader picked it
+ * ("Closeness", not the catalog's "Reach"). A run's field that does not say whose it is gets the
+ * run's main value after it ("Rank of Closeness"); one that does ("Community size", "Incoming
+ * connections") keeps its own name.
  * @param session - the element's session.
  * @param value - the element's entry.
  * @returns the name and its heading.
@@ -449,9 +452,17 @@ export function readableName(session: GraphSession, value: ReadableValue): { nam
         return { name: value.plainName, group: "Data" };
     }
     const primary = session.results.path(run.id);
-    const main = run.fields.find((f) => session.results.path(run.id, f.name) === primary)?.plainName;
-    const own = value.path === primary || main === undefined || value.plainName.includes(main);
-    return { name: own ? value.plainName : `${value.plainName} of ${main}`, group: runName(session, run) };
+    const field = run.fields.find((f) => session.results.path(run.id, f.name) === primary)?.plainName;
+    const descriptor = session.catalog.algorithms().find((each) => each.key === run.algorithm);
+    const measured = descriptor !== undefined && (run.shape === "node-metric" || run.shape === "edge-metric");
+    const main = measured ? wordsFor(descriptor).name : field;
+    const group = runName(session, run);
+    // The main value, or the main value read at an edge's end, which carries the same catalog name.
+    if (value.path === primary || value.plainName === field) {
+        return { name: main ?? value.plainName, group };
+    }
+    const own = main === undefined || field === undefined || value.plainName.includes(field);
+    return { name: own ? value.plainName : `${value.plainName} of ${main}`, group };
 }
 
 /**

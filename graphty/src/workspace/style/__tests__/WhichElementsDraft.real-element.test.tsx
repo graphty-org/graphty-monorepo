@@ -17,6 +17,7 @@ import { page, userEvent } from "vitest/browser";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
+import { readableName } from "../words";
 
 /** A hang guard for the element coming up and loading the sample, not a pass/fail timing. */
 const TIMEOUT_MS = 60_000;
@@ -164,7 +165,7 @@ describe("a new layer chooses its elements first", () => {
         // College football's degrees: 12 teams have 12 games, the most; a tie is taken whole and
         // only when it fits, so Top 12 is the smallest top that holds them.
         await userEvent.type(howMany, "12");
-        await choose(screen.getByRole("combobox", { name: "By" }), degree.plainName);
+        await choose(screen.getByRole("combobox", { name: "By" }), readableName(session, degree).name);
         await waitFor(() => {
             assert.equal(session.styles.counts(layer.id).matched, 12);
         });
@@ -232,7 +233,10 @@ describe("a new layer chooses its elements first", () => {
 
         await openEditor(layer.name);
         const row = within(screen.getByRole("group", { name: "Condition 1" }));
-        assert.equal(row.getByRole<HTMLInputElement>("combobox", { name: "Attribute" }).value, value.plainName);
+        assert.equal(
+            row.getByRole<HTMLInputElement>("combobox", { name: "Attribute" }).value,
+            readableName(session, value).name,
+        );
         assert.equal(row.getByRole<HTMLInputElement>("combobox", { name: "Is" }).value, "has a value");
     });
 });

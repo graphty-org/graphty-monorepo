@@ -23,9 +23,6 @@ import { Workspace } from "../../Workspace";
 /** A hang guard for the element coming up and the runs finishing, not a pass/fail timing. */
 const TIMEOUT_MS = 90_000;
 
-/** The method names the catalog's value names replace everywhere but the pickers' headings. */
-const METHOD_NAMES = /\b(Degree|Louvain|Edge betweenness)\b/;
-
 /** The scene: the session, the store, and each run's tree row name. */
 interface Scene {
     readonly session: GraphSession;
@@ -126,20 +123,19 @@ describe("one name per value, rules in words", () => {
 
     it("each value has one name in the Style tab, the Values tab and the key", async () => {
         const { rows } = await openScene();
-        const expected = { degree: "Connections", louvain: "Community", bridges: "Bridging" } as const;
+        // A measurement's value goes by its algorithm's name; a grouping's by what it holds.
+        const expected = { degree: "Degree", louvain: "Community", bridges: "Edge betweenness" } as const;
         for (const [run, name] of Object.entries(expected) as [keyof typeof expected, string][]) {
             const style = await openRow(rows[run], "Style");
             await waitFor(() => {
                 assert.include(style.textContent, name, `${run}'s Style tab names its value ${name}`);
             });
-            assert.notMatch(style.textContent ?? "", METHOD_NAMES, `${run}'s Style tab`);
             const values = await openRow(rows[run], "Values");
             await within(values).findByRole("heading", { name: "Painted" });
-            assert.notMatch(values.textContent ?? "", METHOD_NAMES, `${run}'s Values tab`);
             assert.include(values.textContent, name, `${run}'s Values tab names its value ${name}`);
         }
         const key = await screen.findByRole("region", { name: "Legend" });
-        assert.notMatch(key.textContent ?? "", METHOD_NAMES, "the key");
+        assert.notMatch(key.textContent ?? "", /\b(Connections|Bridge edges|Communities)\b/, "the key names the runs");
     });
 
     it("changing Connections from Nodes to Edges by ArrowRight keeps focus on the kind, says so, keeps the name", async () => {

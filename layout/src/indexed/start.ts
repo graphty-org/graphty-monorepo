@@ -1,6 +1,7 @@
 import type { F32, GraphSnapshot } from "@graphty/graph-format";
 
 import { toPositionColumn } from "../positions.js";
+import { refusal } from "./common.js";
 
 /**
  * The dimension of an index-based layout: 2 unless 3 is asked for.
@@ -10,7 +11,10 @@ import { toPositionColumn } from "../positions.js";
 export function layoutDim(dim: number | undefined): 2 | 3 {
     const value = dim ?? 2;
     if (value !== 2 && value !== 3) {
-        throw new RangeError(`dim must be 2 or 3, got ${String(value)}`);
+        throw refusal(new RangeError(`dim must be 2 or 3, got ${String(value)}`), "E_BAD_OPTION", {
+            option: "dim",
+            value,
+        });
     }
     return value;
 }
@@ -29,7 +33,11 @@ export function startColumn(s: GraphSnapshot, pos: F32 | null | undefined, dim: 
         return new Float32Array(3 * n).fill(Number.NaN);
     }
     if (pos.length !== dim * n) {
-        throw new RangeError(`pos has ${pos.length} values, expected ${dim * n} (dim * nodeCount)`);
+        throw refusal(
+            new RangeError(`pos has ${pos.length} values, expected ${dim * n} (dim * nodeCount)`),
+            "E_BAD_OPTION",
+            { option: "pos", length: pos.length, expected: dim * n },
+        );
     }
     return toPositionColumn({ positions: pos, dim, n }, 1, null);
 }

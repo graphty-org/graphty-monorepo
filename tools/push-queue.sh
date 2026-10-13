@@ -130,6 +130,24 @@ if [ -n "$fingerprint" ] && [ "${PUSH_QUEUE_RETRY:-}" != 1 ] && [ -f "$log" ]; t
     fi
 fi
 
+# Runs a command with its stdout and stderr each copied into the gate log on their way to where they
+# went before, and returns once both copies are written. The copies are opened here, in this shell:
+# written as `cmd > >(tee ...) 2> >(tee ...)`, bash makes them children of the forked command, so no
+# `wait` here waits for them, and the log could be read before the [FAIL] line reached it (#2357).
+# The command does not inherit the copies' descriptors beyond its stdout and stderr.
+logged() {
+    local out err out_pid err_pid rc
+    exec {out}> >(tee -a "$gate_log" 2>/dev/null)
+    out_pid=$!
+    exec {err}> >(tee -a "$gate_log" >&2 2>/dev/null)
+    err_pid=$!
+    "$@" >&"$out" 2>&"$err" {out}>&- {err}>&-
+    rc=$?
+    exec {out}>&- {err}>&-
+    wait "$out_pid" "$err_pid"
+    return $rc
+}
+
 # The gate's source-only checks (formatting, links, the CI workflow tests, the config and tool checks:
 # tools/prepush-source-checks.sh of the checkout being pushed), run while this push already holds its
 # place in the queue, so a slip fails in about a minute instead of after the wait for a slot. The
@@ -141,16 +159,17 @@ early="$top/tools/prepush-source-checks.sh"
 use_gate_root=
 [ "$use_gate" = 1 ] && early="$gate_dir/tools/prepush-source-checks.sh" && use_gate_root=1
 if [ "${1:-}" = git ] && [ -f "$early" ]; then
-    env ${use_gate_root:+PREPUSH_ROOT="$top"} bash "$early" > >(tee -a "$gate_log" 2>/dev/null) 2> >(tee -a "$gate_log" >&2 2>/dev/null)
+    logged env ${use_gate_root:+PREPUSH_ROOT="$top"} bash "$early"
     rc=$?
-    wait
 fi
 
 # Fast lane: a push that affects no package (documents, design files) runs only the gate's
 # whole-repository checks, a few minutes at most, so it does not wait behind full gates for a slot.
 # 2026-10-10: docs-only pushes sat 1-2 hours behind three 45-minute gates.
+# Only an nx workspace has packages to ask about: elsewhere (a test's throwaway repository) pnpm and
+# nx would only fail, after seconds of startup and a listing of every directory above the checkout.
 fast=0
-if [ "$rc" = 0 ] && [ "${1:-}" = git ] && base=$(git merge-base origin/master HEAD 2>/dev/null); then
+if [ "$rc" = 0 ] && [ "${1:-}" = git ] && [ -f "$top/nx.json" ] && base=$(git merge-base origin/master HEAD 2>/dev/null); then
     affected_json=$(NX_DAEMON=false pnpm exec nx show projects --affected --base="$base" --head=HEAD --json 2>/dev/null)
     [ "$affected_json" = "[]" ] && fast=1 && echo "push-queue: no package affected; skipping the queue"
 fi
@@ -184,8 +203,8 @@ started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 # it), or null. Append only; a missing jq skips the line, never the push.
 session=
 p=$$
-while [ "${p:-0}" -gt 1 ] && [ -r "/proc/$p/stat" ]; do
-    read -ra f <<<"$(sed 's/.*) //' "/proc/$p/stat")"
+while [ "${p:-0}" -gt 1 ] && read -r stat 2>/dev/null <"/proc/$p/stat"; do
+    read -ra f <<<"${stat##*) }"
     entry="${HOME:-}/.claude/sessions/$p.json"
     if [ -f "$entry" ]; then
         session=$(jq -c --arg s "${f[19]}" 'select((.procStart // $s | tostring) == $s and .sessionId != null)
@@ -196,7 +215,7 @@ while [ "${p:-0}" -gt 1 ] && [ -r "/proc/$p/stat" ]; do
 done
 # The gate's report, for githerd's pre-push statistics (githerd/lib/prepush.mjs): the command's
 # stdout and stderr (the gate prints on both) are each copied into tmp/push-gate-logs/<ticket>.log on
-# their way to where they went before; `wait` lets both copies finish before the log is read. The
+# their way to where they went before (logged, above), and both copies finish before the log is read. The
 # log line then carries the queue times, the gate's [FAIL] and FAIL lines -- with the FAIL lines of
 # each failed shard's own log (tmp/prepush-tests/<shard>.log), whose printed tail can miss them --
 # and the top-level directories the push changes against its merge base with origin/master
@@ -207,11 +226,10 @@ cmd=("$@")
 [ "$use_gate" = 1 ] && cmd=(git -c core.hooksPath="$gate_dir/.husky/_" "${@:2}") && echo "push-queue: gate from $gate_dir ($(git -C "$gate_dir" rev-parse --short HEAD))"
 if [ "$rc" = 0 ]; then
     gate_tree=$(gate_tree_of)
-    "${cmd[@]}" > >(tee -a "$gate_log" 2>/dev/null) 2> >(tee -a "$gate_log" >&2 2>/dev/null)
+    logged "${cmd[@]}"
     rc=$?
 fi
 finished_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-wait
 gate=$(sed 's/\x1b\[[0-9;]*m//g' "$gate_log" 2>/dev/null | grep -aE '\[FAIL\]|^ *FAIL |All pre-push checks passed|\[(remote )?rejected\]' \
     | awk '{ print } /\[FAIL\] [^ ]+ \(exit .*; the end of .*:$/ {
         f = $0; sub(/.*; the end of /, "", f); sub(/:$/, "", f)

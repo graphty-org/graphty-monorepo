@@ -43,14 +43,15 @@ async function loadKarate(canvasElement: HTMLElement): Promise<GraphtyElement> {
 }
 
 /**
- * A run's name as the key titles its section: the app's words for it.
+ * A run's name as the key titles its section: the catalog's plain name, as the style tree names
+ * the run's row ("Influence", "Shortest route").
  * @param element - the element.
  * @param id - the run's id.
  * @returns the name.
  */
 function nameOf(element: GraphtyElement, id: string): string {
     const listed = element.session.runs.list().find((each) => each.id === id);
-    return listed === undefined ? id : runName(element.session, listed);
+    return listed === undefined ? id : runName(element.session, listed, "plain");
 }
 
 /**
@@ -147,15 +148,16 @@ export const LouvainOpen: Story = {
 
 /**
  * A shortest path over PageRank: the path's node and edge highlight share one key section,
- * "Shortest path", with one entry, "On the path", above "Color: PageRank".
+ * "Shortest route", with one entry, "On the path", above "Color: Influence".
  */
 export const PathOverRanking: Story = {
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         const element = await loadKarate(canvasElement);
         await element.session.runs.start("pagerank");
-        await element.session.runs.start("shortest-path", { source: "17", target: "26" });
-        await settle(canvasElement, element, "Shortest path");
+        const route = element.session.runs.start("shortest-path", { source: "17", target: "26" });
+        await route;
+        await settle(canvasElement, element, nameOf(element, route.id));
     },
 };
 

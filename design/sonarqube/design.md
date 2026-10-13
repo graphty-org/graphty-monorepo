@@ -94,13 +94,28 @@ habit. So a finding on a changed line does not block when master already has it:
   the same rule and the same line `hash`. The issues API returns `hash` on every issue; it is the
   MD5 of the line with all whitespace removed, so reformatting a line keeps it. Such issues are
   listed under "existing issues on lines you touched (not blocking)".
-- **Issues reported on a function's signature, S3776 (cognitive complexity) and S107 (too many
-  parameters), and on a regex, S5843 (regex complexity):** the reported line usually changes with
-  the edit, so its hash cannot match.
-  Instead, match a master issue with the same rule in the same file whose line lies in the same
-  diff hunk (or maps to the same line outside one), and block only when the number in the
-  message went up ("from 17 to the 15 allowed" against master's 16, or 9 parameters against
-  master's 8). Unchanged or lower passes.
+- **Complexity and parameter counts, S3776 (cognitive complexity), S5843 (regex complexity) and
+  S107 (too many parameters):** these are reported on a function's name or on a regex, but what
+  raises them is usually an edit further down: a branch added deep inside a function leaves its
+  first line untouched. So the gate judges each one by the whole stretch of code it covers: from
+  the reported line to its last secondary location (SonarQube marks every complexity increment as
+  one), and for S107 through the end of the parameter list. When a hunk adds, changes or deletes a
+  line in that stretch, the push edits the function, and the gate compares it with the merge base
+  of the push -- not with master's analysis, which can be hours behind or ahead. It writes the
+  merge base's copies of those files to a scratch directory and scans them into the same scratch
+  project, right after the scan of HEAD and under the same lock (the second scan runs only when
+  such a finding exists, and adds about a minute). The finding blocks when:
+    - the merge base has no such finding there (the function or regex just crossed the limit), or
+    - its score rose (the number in the message: "from 17 to the 15 allowed", or "(9)" parameters),
+      or
+    - "touch it, fix it": it is S3776 and the function scores 16 to 20. A function that is only a
+      little over the limit and that the push edits anyway must come down to 15 or below in the
+      same push; the message says so. Above 20 the refactor is a job of its own, so there only a
+      rise blocks.
+      A finding whose stretch the push does not touch is judged like any other finding on an
+      unchanged line (the warning below). Lines of a function after its last increment are not in the
+      stretch, so an edit there does not count as touching it. `// NOSONAR(S3776): <reason>` on the
+      reported line still suppresses one finding, with the reason.
 - **Hotspots:** master has the hotspot in the same file, with the same rule and line hash, and it
   is either still to review (it is the backlog) or reviewed as SAFE. The hotspots API does not
   return a hash, so the gate computes it from the line at the revision master's analysis was made
@@ -136,13 +151,14 @@ new code" would.
 | An open issue (bug, vulnerability, code smell) of any severity on a changed line, not on master                          | Blocks                                      |
 | A security hotspot on a changed line, not on master                                                                      | Blocks                                      |
 | A finding on a changed line that master already has (section above)                                                      | Listed, does not block                      |
+| S3776, S5843 or S107 on a function or regex the push edits: new, risen, or S3776 at 16 to 20 (section above)             | Blocks                                      |
 | An issue on an unchanged line of a changed file whose rule and message do not appear for that file in `graphty-monorepo` | Warning, "possibly introduced by this push" |
 
-The last row covers what the line rule cannot see. The main case is cognitive complexity
-(S3776) when a branch is added deep inside an existing function: the score in the message goes
-up without the reported line being touched. It stays a warning permanently. The baseline runs
-30 minutes to 3 hours behind master (section 2), so a change that just landed on master would be
-blamed on this push; that error cannot be designed out, so it never blocks.
+The last row covers what the line rule cannot see. It stays a warning permanently: the baseline
+runs 30 minutes to 3 hours behind master (section 2), so a change that just landed on master would
+be blamed on this push; that error cannot be designed out, so it never blocks. Complexity and
+parameter counts are the exception: they are compared with a scan of the merge base itself, so a
+branch added deep inside a function blocks (section above).
 
 Hotspots block from the first day, because the gate looks only at changed lines: a new hotspot
 costs its author one review, not the backlog.
@@ -395,8 +411,12 @@ revision, from `api/project_analyses/search`), it:
 3. downloads that run's `coverage-*` artifacts (`gh run download <run id>`), lifts each shard
    group's members out of their `coverage-group-*` artifact as `coverage.yml` does, and merges them
    with `tools/merge-coverage.sh --ci --artifacts`, which writes the repository-relative
-   `coverage/lcov.info` the scanner imports. If the download or merge fails, it scans without
-   coverage and says so in the log;
+   `coverage/lcov.info` the scanner imports. Every package whose tests write coverage is in it,
+   githerd, compact-mantine, remote-logger and visual-review included, and a package tested in
+   several shards is counted from its merged line records. `sonar.coverage.exclusions` leaves out
+   code no test suite runs (scripts, benchmarks, the docs' example programs, Vite and Vitest
+   configuration files), so it does not read as 0%. If the download or merge fails, it scans
+   without coverage and says so in the log;
 4. restores `tools/sonar/graphty-way.xml` to the server if the file changed since the last run;
 5. takes `sonar-local.lock` with `flock -w 900`, waiting up to 15 minutes for the pre-push gates
    holding it (up to 3 at once) to finish; if it still cannot, it logs that and tries again at the
@@ -501,7 +521,7 @@ changes the profile.
 | typescript:S6661 (object spread over `Object.assign({}, x)`)         |                   5 | Fix                                             | `Object.assign({}, x)` and `{ ...x }` copy the same own enumerable properties into a new plain object; they differ only when `x` has an own `__proto__` key, which the setter on `{}` would apply. Cleared in stage 3 (all 5, graphty-element's rich text parser, whose styles are object literals with six fixed keys).                                                                                                                                                                                                           |
 | typescript:S4138 (`for...of` over an index loop)                     |                  34 | Deactivate                                      | Decided in stage 3. Most hits are index loops over typed arrays in the kernels of graph-format, algorithms and layout, where the index loop is the deliberate hot-path form; the few left in graph-io and graphty-element are taste. Path entries would cover most of the rule.                                                                                                                                                                                                                                                    |
 | typescript:S7755 (`.at(-1)` over `[x.length - 1]`)                   |                  76 | Fix where the type holds                        | `x.at(-1)` and `x[x.length - 1]` read the same element, but `.at()` is typed `T                                                                                                                                                                                                                                                                                                                                                                                                                                                    | undefined` and needs the ES2022 library. Fixed where the site already handles an empty array (`?? null`, `?.`, a check for `undefined`), so the type is unchanged without a `!`. Left alone: packages on the ES2020 library, and sites that use the element unchecked, store it as `T` or put it in a template string. 19 fixed in stage 3, 57 left. |
-| typescript:S3776 (cognitive complexity)                              |         411 + 47 js | Fix, threshold stays 15                         | No package-wide exemption. Complex kernels that cannot be split take a `NOSONAR(S3776)` with the reason. The gate blocks only a rising score (section 1).                                                                                                                                                                                                                                                                                                                                                                          |
+| typescript:S3776 (cognitive complexity)                              |         411 + 47 js | Fix, threshold stays 15                         | No package-wide exemption. Complex kernels that cannot be split take a `NOSONAR(S3776)` with the reason. The gate blocks a new or rising score anywhere in a function the push edits, and an edited function at 16 to 20 ("touch it, fix it", section 1).                                                                                                                                                                                                                                                                          |
 | typescript:S2933 (field could be `readonly`)                         |                 192 | Fix                                             | `readonly` is checked by TypeScript and erased from the emitted JavaScript, so adding it changes nothing at run time. Every reported field is `private` or a `#private` field, so no published type changes. Cleared in one pass in stage 3.                                                                                                                                                                                                                                                                                       |
 | javascript:S7718, typescript:S7718 (catch parameter named `error`)   |                   6 | Deactivate                                      | The code already names a caught value `error` where that reads best. The six flagged name what was caught: `cause` (three, passed on as `new Error(message, { cause })`), `reason` (a promise rejection), `state` (a readiness check) and `thrown` (anything a style layer throws). Where `error` is already taken the rule asks for `error_`, which says less than any of them. A naming convention the codebase does not follow by rule.                                                                                         |
 | typescript:S7765 (`includes` to test for a value)                    |                   4 | Fix                                             | `s.indexOf(x) >= 0` and `s.includes(x)` give the same answer for a string; `a.some((w) => w === 0)` and `a.includes(0)` give the same answer for a typed array (SameValueZero matches `-0` and never `NaN`, as `===` does). Cleared in stage 3 (graph-io 2, algorithms 1; graphty-element's benchmark asks its id map `has(id)`, which is its `indexOf(id) >= 0`).                                                                                                                                                                 |
@@ -554,7 +574,11 @@ PRs to one package at a time when they get large.
   the week's numbers: open issues by quality and severity, hotspots to review, ratings,
   duplication, coverage, and the gate's runs and skips from its run log. It also lists issues that
   are new on master this week (gate escapes from fail-open pushes or from `--no-verify`), new
-  `NOSONAR` comments, new multicriteria entries and `Sonar-Bypass` trailers. The comments and the
+  `NOSONAR` comments, new multicriteria entries and `Sonar-Bypass` trailers. It also states the
+  change in open issues since last week, in total and for each package (top-level directory),
+  from the counts it keeps in `<git common dir>/sonar/weekly-counts.json`. When the total rose, it
+  files a `priority:high` issue, "SonarQube: open issues rose in <week>", listing the packages,
+  so the backlog only moves one way. The comments and the
   issues say "the owner's local SonarQube server", never its host name or port, because the
   repository is public. The trend is the server's own project activity graph for
   `graphty-monorepo`, which records every baseline scan. No separate dashboard is built.
@@ -646,7 +670,9 @@ Labels: drop `needs-decision` and `blocked`; keep `infrastructure`, `priority:me
   error now block. `SONAR_REQUIRED` is gone. Every run is logged, and the weekly comment reports
   the skip rate.
 - A finding on a changed line that master already has (same rule and line hash, following
-  renames) no longer blocks. S3776, S107 and S5843 block only when the score rises. A missing baseline
+  renames) no longer blocks. S3776, S107 and S5843 are judged against a scan of the merge base:
+  they block when new or risen anywhere in an edited function or regex, and S3776 also at 16 to
+  20 in an edited function. A missing baseline
   falls back to blocking everything on changed lines.
 - Hotspots block from stage 0. A hotspot master has (to review or SAFE) or one on a line with a
   `NOSONAR` naming its rule is skipped.

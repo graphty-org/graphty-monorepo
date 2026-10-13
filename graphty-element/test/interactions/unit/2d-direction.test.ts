@@ -262,7 +262,7 @@ describe("2D Input Direction Verification", () => {
 
         // Q key should rotate counter-clockwise (positive Z rotation)
         // Looking at TwoDInputController.ts line 250:
-        // if (this.keyState.q) { v.rotate += c.rotateSpeedPerFrame; }
+        // if (this.keyState.q) { v.rotate += rotatePush; }
         // So Q adds positive rotation velocity, which means CCW rotation (positive Z)
         assert.isAbove(
             finalRotation.z,
@@ -288,7 +288,7 @@ describe("2D Input Direction Verification", () => {
 
         // E key should rotate clockwise (negative Z rotation)
         // Looking at TwoDInputController.ts line 254:
-        // if (this.keyState.e) { v.rotate -= c.rotateSpeedPerFrame; }
+        // if (this.keyState.e) { v.rotate -= rotatePush; }
         // So E subtracts rotation velocity, which means CW rotation (negative Z)
         assert.isBelow(finalRotation.z, initialRotation.z, "E key should rotate clockwise (negative Z rotation)");
     });
@@ -311,7 +311,7 @@ describe("2D Input Direction Verification", () => {
 
         // + key should zoom IN (scale increases)
         // Looking at TwoDInputController.ts line 241-242:
-        // if (this.keyState["+"] || this.keyState["="]) { v.zoom -= c.zoomFactorPerFrame; }
+        // if (this.keyState["+"] || this.keyState["="]) { v.zoom -= zoomPush; }
         // Negative zoom velocity in applyInertia means smaller ortho = zoom in
         assert.isAbove(finalScale, initialScale, "+ key should zoom IN (scale increases)");
     });
@@ -333,7 +333,7 @@ describe("2D Input Direction Verification", () => {
 
         // - key should zoom OUT (scale decreases)
         // Looking at TwoDInputController.ts line 245-246:
-        // if (this.keyState["-"] || this.keyState._) { v.zoom += c.zoomFactorPerFrame; }
+        // if (this.keyState["-"] || this.keyState._) { v.zoom += zoomPush; }
         // Positive zoom velocity in applyInertia means larger ortho = zoom out
         assert.isBelow(finalScale, initialScale, "- key should zoom OUT (scale decreases)");
     });

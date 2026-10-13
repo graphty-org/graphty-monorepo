@@ -1423,12 +1423,18 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
      * @param id - the node id
      * @param what - what the option names, for the message
      * @returns the row
-     * @throws when the graph has no such node
+     * @throws A `GraphtyError` with `E_UNKNOWN_ELEMENT` when the graph has no such node; `details`
+     * carry `kind: "node"`, the `id`, the `option` and the `layout`
      */
     protected requireRow(id: string | number, what: string): number {
         const row = this.rowOfId(id);
         if (row === INVALID_INDEX) {
-            throw new Error(`${what} node ${String(id)} is not in the graph`);
+            throw new GraphtyError({
+                code: "E_UNKNOWN_ELEMENT",
+                message: `${what} node ${String(id)} is not in the graph`,
+                source: "layout",
+                details: { kind: "node", id, option: what, layout: (this.constructor as typeof LayoutEngine).type },
+            });
         }
 
         return row;

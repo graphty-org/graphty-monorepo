@@ -337,6 +337,77 @@ describe("the 2D view", () => {
     });
 });
 
+/**
+ * Count the camera input's per-frame updates while a key is held, between the press and the
+ * release: the controller's own key listeners were added first, so these run after it saw each key.
+ * @param element - The element.
+ * @param name - The camera whose input to count: "orbit" (3D) or "2d".
+ * @returns How many frames a key has been held so far.
+ */
+function countHeldFrames(element: Graphty, name: "orbit" | "2d"): () => number {
+    const { canvas } = element.graph;
+    const input = (element.graph.camera as unknown as { inputs: Map<string, { update(): void }> }).inputs.get(name);
+    assert.isDefined(input);
+    const update = input.update.bind(input);
+    let held = false;
+    let heldFrames = 0;
+    input.update = (): void => {
+        if (held) {
+            heldFrames++;
+        }
+
+        update();
+    };
+    const press = (): void => {
+        held = true;
+    };
+    const release = (): void => {
+        held = false;
+    };
+    canvas.addEventListener("keydown", press);
+    canvas.addEventListener("keyup", release);
+    cleanups.push(() => {
+        input.update = update;
+        canvas.removeEventListener("keydown", press);
+        canvas.removeEventListener("keyup", release);
+    });
+    return () => heldFrames;
+}
+
+/**
+ * Wait until the camera has stopped moving: two frames in a row with the same camera state.
+ * @param element - The element.
+ */
+async function settled(element: Graphty): Promise<void> {
+    let last = camera(element);
+    for (;;) {
+        await nextFrame();
+        const now = camera(element);
+        if (now === last) {
+            return;
+        }
+
+        last = now;
+    }
+}
+
+/**
+ * Hold a key for a number of frames, then let the camera coast to a stop.
+ * @param element - The element.
+ * @param key - The key, as userEvent names it.
+ * @param name - The camera whose input reads the key.
+ * @returns How many frames the key was held.
+ */
+async function hold(element: Graphty, key: string, name: "orbit" | "2d"): Promise<number> {
+    const heldFrames = countHeldFrames(element, name);
+    await userEvent.keyboard(`{${key}>}`);
+    await frames(30);
+    await userEvent.keyboard(`{/${key}}`);
+    await settled(element);
+    assert.isAtLeast(heldFrames(), 30, "the key was held for the frames waited");
+    return heldFrames();
+}
+
 describe("the keyboard", () => {
     it("does not take focus from the page when it loads", async () => {
         const input = document.createElement("input");
@@ -381,6 +452,46 @@ describe("the keyboard", () => {
         assert.notStrictEqual(camera(element), before, "the camera turned");
     });
 
+    // A and D spin by a fixed angle every frame they are held. A held arrow must turn at the same
+    // angular speed and hold it, not keep speeding up (issue #2292): over the press and the coast
+    // after it, the angle turned is the A and D rate times the frames held.
+    it.each([
+        ["a", "z", 1],
+        ["d", "z", -1],
+        ["ArrowLeft", "y", -1],
+        ["ArrowRight", "y", 1],
+        ["ArrowUp", "x", -1],
+        ["ArrowDown", "x", 1],
+    ] as const)("holding %s turns the 3D camera at the A and D rate", async (key, axis, sign) => {
+        const element = await mounted("3d");
+        await element.setCameraState({ pivotRotation: { x: 0, y: 0, z: 0 } });
+        await click(element, EMPTY);
+        const before = element.getCameraState().pivotRotation?.[axis] ?? Number.NaN;
+
+        const heldFrames = await hold(element, key, "orbit");
+
+        const after = element.getCameraState().pivotRotation?.[axis] ?? Number.NaN;
+        const perFrame = (sign * (after - before)) / heldFrames;
+        // 0.02 radians a frame is keyboardYawSpeed, A and D's rate
+        assert.closeTo(perFrame, 0.02, 0.0004, `radians per frame held, about ${axis}`);
+    });
+
+    // The 2D view's + and - keys zoom by zoomFactorPerFrame (0.02 in log space) per frame held,
+    // not by the many times that a velocity accumulated every frame reaches.
+    it.each([
+        ["=", 1],
+        ["-", -1],
+    ] as const)("holding %s zooms the 2D view by 0.02 (log) per frame held", async (key, sign) => {
+        const element = await mounted("2d");
+        await click(element, EMPTY);
+        const before = element.getCameraState().zoom ?? Number.NaN;
+
+        const heldFrames = await hold(element, key, "2d");
+
+        const after = element.getCameraState().zoom ?? Number.NaN;
+        assert.closeTo((sign * Math.log(after / before)) / heldFrames, 0.02, 0.0004, "log zoom per frame held");
+    });
+
     // W and S move the camera by the same fraction of its distance every frame they are held, so
     // the zoom is as quick far out as close in: 0.985 per frame, tenfold over the 157 frames A or
     // D take to spin half a turn.
@@ -396,36 +507,7 @@ describe("the keyboard", () => {
             await element.setCameraState({ cameraDistance: start });
             await click(element, EMPTY);
 
-            // Count the camera input's per-frame updates between the press and the release: the
-            // controller's own key listeners were added first, so these run after it saw each key.
-            const { canvas } = element.graph;
-            const input = (element.graph.camera as unknown as { inputs: Map<string, { update(): void }> }).inputs.get(
-                "orbit",
-            );
-            assert.isDefined(input);
-            const update = input.update.bind(input);
-            let held = false;
-            let heldFrames = 0;
-            input.update = (): void => {
-                if (held) {
-                    heldFrames++;
-                }
-
-                update();
-            };
-            const press = (): void => {
-                held = true;
-            };
-            const release = (): void => {
-                held = false;
-            };
-            canvas.addEventListener("keydown", press);
-            canvas.addEventListener("keyup", release);
-            cleanups.push(() => {
-                input.update = update;
-                canvas.removeEventListener("keydown", press);
-                canvas.removeEventListener("keyup", release);
-            });
+            const heldFrames = countHeldFrames(element, "orbit");
             const before = element.getCameraState().cameraDistance ?? Number.NaN;
             assert.closeTo(before, start, 1e-6, "the camera starts at the distance set");
 
@@ -435,8 +517,8 @@ describe("the keyboard", () => {
             await frames();
 
             const after = element.getCameraState().cameraDistance ?? Number.NaN;
-            assert.isAtLeast(heldFrames, 10, "the key was held for the frames waited");
-            assert.closeTo(after / before, perFrame ** heldFrames, 1e-9, "one factor per frame held");
+            assert.isAtLeast(heldFrames(), 10, "the key was held for the frames waited");
+            assert.closeTo(after / before, perFrame ** heldFrames(), 1e-9, "one factor per frame held");
         });
     });
 });

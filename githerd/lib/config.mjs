@@ -67,6 +67,7 @@ export const DEFAULTS = Object.freeze({
         statusMinutes: 15,
         maxActive: 3,
         sessions: null,
+        exclude: [],
     },
     // The issue types githerd makes issue jobs for, in tier order (design 5.4, owner decision
     // 2026-10-06): bugs, then infrastructure. Add "enhancement" to offer enhancements again.
@@ -135,7 +136,8 @@ export const MODELS = ["claude-opus-5-5", "claude-fable-5"];
  *   labels: { types: string[], priorities: string[], efforts: string[] },
  *   protectedPaths: string[], actions: Record<string, boolean>,
  *   workers: { model: string, slots: number, urgent: number, waiting: number, hoursPerDay: number,
- *     askMinutes: number, statusMinutes: number, maxActive: number, sessions: string[] | null },
+ *     askMinutes: number, statusMinutes: number, maxActive: number, sessions: string[] | null,
+ *     exclude: string[] },
  *   backlog: { agingDays: number, issueTypes: string[], notWork: string[], bundle: boolean, bundleMax: number },
  *   notify: { command: string[] | null, maxPerHour: number },
  *   digest: { weekday: string, hourUtc: number, issue: number | null },
@@ -297,22 +299,28 @@ function ownerGate(raw) {
 
 /**
  * The `workers` section (design 8.1): the model, limited to `MODELS`, and the session limits.
- * `sessions` names the only Claude sessions githerd hands or manages work through (invitations,
- * status questions, cancellation notices); null means every session in the repository. The
- * question whose a pull request is goes to every live session in the repository regardless: it hands
- * no one work, only finds out who already has it.
+ * Every live Claude session in the repository is a worker githerd hands or manages work through
+ * (onboarding, invitations, status questions, cancellation notices), except those `exclude` names:
+ * each entry matches a session's name or its sessionId. A name is what the owner sees, but Claude
+ * Code gives every new client a random one; a sessionId never names another session. A session can
+ * also exclude itself (`githerd exclude-me`). `sessions`, deprecated, is the older allowlist: when
+ * set, only the sessions it names are workers, as before. The question whose a pull request is
+ * goes to every live session in the repository regardless: it hands no one work, only finds out
+ * who already has it.
  * @param {unknown} raw the section as written
  * @returns {Config["workers"]} the section
  */
 function workers(raw) {
     const d = DEFAULTS.workers;
     if (raw === undefined) return { ...d };
-    const { model, sessions, ...rest } = /** @type {any} */ (object(raw, "workers"));
+    const { model, sessions, exclude, ...rest } = /** @type {any} */ (object(raw, "workers"));
     onlyKeys(raw, Object.keys(d), "workers.");
-    if (sessions !== undefined && sessions !== null) {
-        if (!Array.isArray(sessions) || sessions.some((n) => typeof n !== "string" || !n)) {
-            fail("workers.sessions must be null or a list of session names");
-        }
+    const names = (/** @type {unknown} */ v) => Array.isArray(v) && v.every((n) => typeof n === "string" && n);
+    if (sessions !== undefined && sessions !== null && !names(sessions)) {
+        fail("workers.sessions must be null or a list of session names");
+    }
+    if (exclude !== undefined && !names(exclude)) {
+        fail("workers.exclude must be a list of session names or sessionIds");
     }
     if (model !== undefined && !MODELS.includes(string(model, "workers.model"))) {
         fail(`workers.model must be one of ${MODELS.join(", ")}, not "${model}"`);
@@ -329,6 +337,7 @@ function workers(raw) {
     return {
         model: model ?? d.model,
         sessions: sessions ?? null,
+        exclude: exclude ?? [],
         ...numbers(rest, limits, "workers", {
             slots: { min: 0, max: 8 },
             urgent: { min: 0, max: 2 },
@@ -339,6 +348,20 @@ function workers(raw) {
             maxActive: { min: 1, max: 20 },
         }),
     };
+}
+
+/**
+ * The deprecation note for a config that still sets the `workers.sessions` allowlist, or null.
+ * `githerd mode` and status print it.
+ * @param {Config["workers"] | undefined} w the config's `workers`
+ * @returns {string | null} the note
+ */
+export function legacySessionsNote(w) {
+    if (!w?.sessions) return null;
+    return (
+        "DEPRECATED workers.sessions: only the sessions it names are workers. Remove it to make every " +
+        "session in the repository a worker, and list the sessions that must not be in workers.exclude"
+    );
 }
 
 /**

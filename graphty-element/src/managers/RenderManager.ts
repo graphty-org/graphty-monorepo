@@ -881,7 +881,8 @@ export class RenderManager implements Manager {
     private setupCameras(): void {
         const orbitCamera = new OrbitCameraController(this.canvas, this.scene, {
             trackballRotationSpeed: 0.005,
-            keyboardRotationSpeed: 0.03,
+            // Radians a frame while an arrow is held: the same angular speed as A and D
+            keyboardRotationSpeed: 0.02,
             // A held W or S changes the distance tenfold in the 157 frames A or D take to spin
             // half a turn (PI / keyboardYawSpeed): 0.985 ** 157 = 0.093
             keyboardZoomSpeed: 0.015,

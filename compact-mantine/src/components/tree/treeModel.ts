@@ -36,7 +36,8 @@ export interface TreeNodeData {
      * The row's trailing toggles (lock, eye): the caller's own controls. They stay hidden until
      * the row is hovered or focused; a control with `aria-pressed="true"`, `aria-checked="true"`
      * or `data-pinned` stays visible. A click on passive text here (nothing focusable) counts as a
-     * click on the row.
+     * click on the row. Their focusable controls are out of the Tab order: the keyboard reaches
+     * them with ArrowRight on a row without children or Alt+ArrowRight on any row (see Tree).
      */
     actions?: React.ReactNode;
     /**

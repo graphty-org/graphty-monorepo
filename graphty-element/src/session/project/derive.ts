@@ -18,6 +18,7 @@
  */
 
 import type { NodeId } from "../../catalog/types";
+import type { HistoryCause } from "../types";
 import { nodeOfKey } from "./graphOps";
 import type { ProjectState } from "./state";
 import { reportCaught } from "./strict";
@@ -202,7 +203,7 @@ export class DerivationLane {
      */
     passEnded: (() => void) | null = null;
     /** What the running pass, or the last one, catches up with. */
-    private passCauseValue: "command" | "undo" | "redo" | "restore" | "rollback" = "command";
+    private passCauseValue: HistoryCause = "command";
 
     /**
      * Create a lane over live state. The picture is taken to show that state already.

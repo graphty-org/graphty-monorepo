@@ -1,3 +1,29 @@
+## 2.4.4 (2026-10-13)
+
+### 🩹 Fixes
+
+- **tools:** cap each test slot's Node workers at its share of the cores ([9daf98f16](https://github.com/graphty-org/graphty-monorepo/commit/9daf98f16))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.29
+- Updated graph-format to 1.3.14
+- Updated algorithms to 3.4.4
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 2.4.3 (2026-10-12)
+
+### 🩹 Fixes
+
+- **layout:** draw the 3D stories on demand instead of in an endless frame loop ([#2114](https://github.com/graphty-org/graphty-monorepo/issues/2114))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 2.4.2 (2026-10-12)
 
 ### 🩹 Fixes

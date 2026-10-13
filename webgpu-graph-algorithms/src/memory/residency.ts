@@ -36,8 +36,11 @@ const DEFAULT_NEED: readonly CoreArrayName[] = Object.freeze(["rowPtr", "colIdx"
 /** The five core arrays in arena (hot-to-cold) order. */
 const CORE_ORDER: readonly CoreArrayName[] = Object.freeze(["rowPtr", "colIdx", "weights", "arcToEdge", "edgeToArc"]);
 
+/** The name of one arc-indexed core array. */
+type ArcIndexedName = "colIdx" | "weights" | "arcToEdge";
+
 /** The arc-indexed core arrays: the ones a windowed plan splits into window buffers (upload-plan.ts ARC_INDEXED). */
-const ARC_INDEXED: readonly ("colIdx" | "weights" | "arcToEdge")[] = Object.freeze(["colIdx", "weights", "arcToEdge"]);
+const ARC_INDEXED: readonly ArcIndexedName[] = Object.freeze(["colIdx", "weights", "arcToEdge"]);
 
 /** Every resident buffer is bound by kernels, filled by writeBuffer and readable back (tests, readbacks of state). */
 const RESIDENT_USAGE = BufferUsage.STORAGE | BufferUsage.COPY_DST | BufferUsage.COPY_SRC;

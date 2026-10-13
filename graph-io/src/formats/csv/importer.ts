@@ -332,7 +332,7 @@ interface ResolvedCsvOptions {
     readonly delimiter: string | null;
     readonly decimalComma: boolean;
     readonly header: boolean | "auto";
-    readonly table: "edges" | "nodes" | "adjacency" | "auto";
+    readonly table: NonNullable<CsvImportOptions["table"]>;
     readonly sourceColumn: CsvColumnRef | null;
     readonly targetColumn: CsvColumnRef | null;
     /** The direction column reference; null for none; undefined for the Gephi rule. */

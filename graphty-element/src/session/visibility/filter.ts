@@ -1067,9 +1067,11 @@ function resultOf(context: CompileContext, kind: string, run: RunId): FilterRunR
  * @returns Whether nodes and edges carry it.
  */
 function fieldHalves(result: FilterRunResult, field: string): { node: boolean; edge: boolean } {
-    const kinds = result.fields.filter((descriptor) => descriptor.name === field).map((descriptor) => descriptor.kind);
+    const kinds = new Set(
+        result.fields.filter((descriptor) => descriptor.name === field).map((descriptor) => descriptor.kind),
+    );
 
-    return { node: kinds.includes("node"), edge: kinds.includes("edge") };
+    return { node: kinds.has("node"), edge: kinds.has("edge") };
 }
 
 /**

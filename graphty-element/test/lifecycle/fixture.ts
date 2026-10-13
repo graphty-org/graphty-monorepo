@@ -96,6 +96,35 @@ window.__unloadListeners = new Set();
 const nativeAdd = window.addEventListener.bind(window), nativeRemove = window.removeEventListener.bind(window);
 window.addEventListener = (type, fn, ...rest) => { if (type === "beforeunload") window.__unloadListeners.add(fn); return nativeAdd(type, fn, ...rest); };
 window.removeEventListener = (type, fn, ...rest) => { if (type === "beforeunload") window.__unloadListeners.delete(fn); return nativeRemove(type, fn, ...rest); };
+// The autosave database's read-write transactions. window.__nextTx arms the next one: "tear" aborts
+// it after its first write has been applied, as a crash between two writes of one transaction would
+// leave it; "hold" keeps it open after its first write (so it never commits) and reports "tx-held",
+// so a kill test lands while a write is in flight.
+window.__nextTx = null;
+window.__torn = 0;
+const nativeTransaction = IDBDatabase.prototype.transaction;
+IDBDatabase.prototype.transaction = function (stores, mode, ...rest) {
+    const tx = nativeTransaction.call(this, stores, mode, ...rest);
+    const how = window.__nextTx;
+    if (this.name !== "graphty-autosave" || mode !== "readwrite" || how === null) return tx;
+    window.__nextTx = null;
+    const nativePut = IDBObjectStore.prototype.put;
+    IDBObjectStore.prototype.put = function (...args) {
+        const req = nativePut.apply(this, args);
+        if (this.transaction !== tx) return req;
+        IDBObjectStore.prototype.put = nativePut;
+        req.addEventListener("success", () => {
+            if (how === "tear") { window.__torn++; tx.abort(); return; }
+            const store = tx.objectStore(tx.objectStoreNames[0]);
+            const spin = () => { store.count().onsuccess = spin; };
+            spin();
+            const tab = new URLSearchParams(location.search).get("tab") ?? "t";
+            try { fetch("/log", { method: "POST", body: JSON.stringify({ tab, type: "tx-held" }), keepalive: true }); } catch {}
+        });
+        return req;
+    };
+    return tx;
+};
 </script>
 <script type="module">
 import "/bundle.js";
@@ -221,6 +250,11 @@ window.fixture = {
         });
     },
     release() { if (window.__held) window.__held.on = false; return true; },
+    // Abort the element's next write after its first record is written, or hold it open there
+    // (see __nextTx above).
+    tear() { window.__nextTx = "tear"; return true; },
+    holdNextWrite() { window.__nextTx = "hold"; return true; },
+    torn: () => window.__torn,
     // For the benchmark: one change ("data", a probe edit, or "ordinary", a settings change), then
     // a forced write; the milliseconds from the change to the commit.
     async cost(kind) {

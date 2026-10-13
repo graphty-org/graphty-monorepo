@@ -282,6 +282,30 @@ describe("Chrome for Testing, without Playwright's lifecycle flags", () => {
         assertInvariant(await check(back), fx, [tab("a")], [entryA]);
     });
 
+    it("keeps writing a frozen tab's work after it resumes, to its own entry", async () => {
+        const key = "freeze-resume";
+        const tab = labels(key);
+        const chrome = await start();
+        const { a, entryA } = await editThenHide(chrome, key, tab);
+        const mark = fx.log.length;
+        await a.send("Page.setWebLifecycleState", { state: "frozen" });
+        await report(tab("a"), "freeze", mark);
+        await a.send("Page.setWebLifecycleState", { state: "active" });
+        await report(tab("a"), "resume", mark);
+
+        // Resumed and still hidden: an edit is written at once, through a connection the freeze closed.
+        const edited = await next(a);
+        const written = await saved(tab("a"), edited, mark);
+        assert.strictEqual(written.entry, entryA, "the resumed tab writes its own entry");
+        const before = (await check(a)).entries.map((entry) => entry.id);
+        assert.deepEqual(before, [entryA], "no other entry was made");
+
+        const reload = fx.log.length;
+        await a.send("Page.reload");
+        const back = await reattach(chrome, tab("a"), reload);
+        assertInvariant(await check(back), fx, [tab("a")], before);
+    });
+
     it.each([1000, ...(FULL ? [50_000, 100_000] : [])])(
         "keeps the work at %i nodes when the renderer is killed with SIGKILL",
         async (n) => {

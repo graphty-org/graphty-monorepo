@@ -4,14 +4,14 @@
  * found by its profile directory, so a kill never reaches another test's browser or the developer's.
  */
 
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { type BrowserContext, chromium, firefox, webkit } from "playwright";
 import { assert } from "vitest";
 
-import { type Proc, processes, processTree } from "./cdp-harness";
+import { chromeArgs, chromeEnv, type Proc, processes, processTree } from "./cdp-harness";
 import type { Fixture, PageCheck } from "./fixture";
 
 /** The three engines. */
@@ -61,7 +61,9 @@ export function launch(
         });
     }
 
-    return (engine === "chromium" ? chromium : webkit).launchPersistentContext(userDataDir, { headless: true });
+    return engine === "chromium"
+        ? chromium.launchPersistentContext(userDataDir, { headless: true, args: chromeArgs(), env: chromeEnv() })
+        : webkit.launchPersistentContext(userDataDir, { headless: true });
 }
 
 /**
@@ -92,11 +94,27 @@ export function pageProcesses(engine: Engine, userDataDir: string): Proc[] {
     }
 
     const isPage: Record<Engine, (cmdline: string) => boolean> = {
-        webkit: (cmdline) => cmdline.includes("WebKitWebProcess"),
+        // Headless WebKit on Linux is the WPE port, whose web process is WPEWebProcess.
+        webkit: (cmdline) => /WebKitWebProcess|WPEWebProcess/.test(cmdline),
         chromium: (cmdline) => cmdline.includes("--type=renderer") && !cmdline.includes("--extension-process"),
         firefox: (cmdline) => cmdline.includes("-isForBrowser"),
     };
-    return browserProcesses(userDataDir).filter((proc) => isPage[engine](proc.cmdline));
+    const pages = browserProcesses(userDataDir).filter((proc) => isPage[engine](proc.cmdline));
+    if (engine !== "firefox" || pages.length === 0) {
+        return pages;
+    }
+
+    // Firefox runs Playwright's own pages and a spare in content processes too, and killing those
+    // takes the browser down; nothing on their command lines says which site each one runs. The
+    // fixture's, holding the graph, is by far the largest.
+    const rss = (pid: number): number => {
+        try {
+            return Number(readFileSync(`/proc/${pid}/statm`, "utf8").split(" ")[1]);
+        } catch {
+            return 0;
+        }
+    };
+    return [pages.reduce((a, b) => (rss(b.pid) > rss(a.pid) ? b : a))];
 }
 
 /**

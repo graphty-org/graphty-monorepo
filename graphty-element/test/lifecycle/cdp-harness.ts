@@ -145,6 +145,29 @@ export interface Chrome {
 }
 
 /**
+ * More Chromium switches from `GRAPHTY_LIFECYCLE_CHROME_ARGS` (space-separated), for every Chromium
+ * these tests launch. SwiftShader draws a 5,000-node graph in about 27 s a frame, so the larger
+ * graphs need a real GPU: on an NVIDIA workstation, `--use-angle=gl-egl --ignore-gpu-blocklist`
+ * with `GRAPHTY_EGL_LIB_DIR` naming the driver's libEGL tree (see {@link chromeEnv}).
+ * @returns The switches.
+ */
+export function chromeArgs(): string[] {
+    return (process.env.GRAPHTY_LIFECYCLE_CHROME_ARGS ?? "").split(" ").filter((arg) => arg !== "");
+}
+
+/**
+ * Chromium's environment: `GRAPHTY_EGL_LIB_DIR`, when set, goes first on `LD_LIBRARY_PATH`, for
+ * Chromium only (the same variable the browser project reads); Firefox crashes with it.
+ * @returns The environment.
+ */
+export function chromeEnv(): NodeJS.ProcessEnv {
+    const egl = process.env.GRAPHTY_EGL_LIB_DIR ?? "";
+    return egl === ""
+        ? process.env
+        : { ...process.env, LD_LIBRARY_PATH: [egl, process.env.LD_LIBRARY_PATH].filter(Boolean).join(":") };
+}
+
+/**
  * Launch Chrome for Testing on a profile, with the discard extension and no Playwright flags.
  * @param userDataDir - The profile directory; a relaunch on the same one keeps its storage.
  * @param args - More command-line switches (`--restore-last-session`).
@@ -180,13 +203,14 @@ export async function launchChrome(userDataDir: string, args: readonly string[] 
             `--disable-extensions-except=${DISCARD_EXTENSION}`,
             `--load-extension=${DISCARD_EXTENSION}`,
             ...(screen === null ? ["--headless"] : []),
+            ...chromeArgs(),
             ...args,
             // A URL on the command line takes the place of the restored session.
             ...(args.includes("--restore-last-session") ? [] : ["about:blank"]),
         ],
         {
             stdio: ["ignore", "ignore", "pipe"],
-            env: screen === null ? process.env : { ...process.env, DISPLAY: screen },
+            env: screen === null ? chromeEnv() : { ...chromeEnv(), DISPLAY: screen },
         },
     );
     // A test run that ends, however it ends, takes its browser with it.

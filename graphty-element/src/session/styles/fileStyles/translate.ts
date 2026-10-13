@@ -501,6 +501,17 @@ const NOT_DRAWN: Readonly<Record<StyleTarget, ReadonlySet<string>>> = {
     edge: new Set(["tooltip"]),
 };
 
+/**
+ * The properties drawn only from a file graphty wrote, per kind. A node's `borderColor` is drawn
+ * on `node.outline`, a screen-space glow of one fixed pixel width: it is what graphty writes a
+ * consumer's outline as, but another program's border is a ring sized with the node, and drawn as
+ * the glow it covers the node's fill once the graph is framed to fit (issue #2252).
+ */
+const GRAPHTY_ONLY: Readonly<Record<StyleTarget, ReadonlySet<string>>> = {
+    node: new Set(["borderColor"]),
+    edge: new Set(),
+};
+
 /** The properties the translation draws in passes of their own, per kind. */
 const COMPOSITE: Readonly<Record<StyleTarget, ReadonlySet<string>>> = {
     node: new Set(["width", "height", "fillOpacity", "opacity", "labelPosition", "visible"]),
@@ -666,8 +677,6 @@ class KindTranslation {
     #heldPaths: ReadonlySet<string> | undefined = undefined;
     /** The `data.` paths whose column any rule of this kind reads from graph-io's copy; undefined until first asked. */
     #copiedPaths: ReadonlySet<string> | undefined = undefined;
-    /** Per node, whether its border is zero wide; undefined until first asked. */
-    #zeroBorders: readonly boolean[] | null | undefined = undefined;
     /** What the layers paint, once `run()` has run; null when a rebuilt layer's painting is unknown. */
     predicted: ReadonlyMap<Channel, readonly unknown[]> | null = null;
 
@@ -1433,7 +1442,10 @@ class KindTranslation {
                 continue;
             }
 
-            if (NOT_DRAWN[this.#kind].has(property)) {
+            if (
+                NOT_DRAWN[this.#kind].has(property) ||
+                (GRAPHTY_ONLY[this.#kind].has(property) && this.#input.extracted.styles.source.tool !== "graphty")
+            ) {
                 this.#noteNotDrawn(rule, property, source);
                 continue;
             }
@@ -1547,11 +1559,7 @@ class KindTranslation {
      * @param source - The styles the rule belongs to.
      */
     #emit(rule: StyleRule, bucket: number, property: string, plan: ChannelPlan, source: ExtractedStyles): void {
-        const evaluated = this.#evaluate(rule, property, source);
-        // A border the file draws zero wide is not drawn at all.
-        const unbordered = property === "borderColor" && this.#kind === "node" ? this.#zeroBorder() : null;
-        const truth = unbordered === null ? evaluated : evaluated.map((value, i) => (unbordered[i] ? null : value));
-        const masked = truth.some((value, i) => value === null && evaluated[i] !== null);
+        const truth = this.#evaluate(rule, property, source);
         const drawn = truth.map((value) => (value === null ? null : plan.convert(value)));
         this.#noteConversion(property, plan, truth, drawn);
         if (!drawn.some((value) => value !== null)) {
@@ -1569,7 +1577,7 @@ class KindTranslation {
         const layer = this.#layerFor(rule, bucket, selector);
         recordPaint(layer, plan.channel, drawn);
         const set = rule.set?.[property as StyleProperty];
-        if (set !== undefined && !masked) {
+        if (set !== undefined) {
             const value = plan.convert(set);
             if (value !== null) {
                 layer.spec.set[plan.channel] = value;
@@ -1578,8 +1586,7 @@ class KindTranslation {
         }
 
         const mapping = rule.map?.[property as StyleProperty];
-        const binding =
-            mapping === undefined || masked ? null : this.#binding(mapping, plan, truth, drawn, source, rule);
+        const binding = mapping === undefined ? null : this.#binding(mapping, plan, truth, drawn, source, rule);
         if (binding !== null) {
             layer.spec.encode[plan.channel] = binding.binding;
             layer.worth += binding.worth;
@@ -1596,20 +1603,6 @@ class KindTranslation {
             mapping: "passthrough",
             distinctValues: new Set(drawn.filter((value) => value !== null)).size,
         });
-    }
-
-    /**
-     * Per node, whether the file draws its border zero wide.
-     * @returns The marks, or null when no node's border is zero wide.
-     */
-    #zeroBorder(): readonly boolean[] | null {
-        if (this.#zeroBorders === undefined) {
-            const widths = resolveStyles(this.#input.extracted, "node", "borderWidth", this.#input.snapshot);
-            const marks = widths.map((width) => typeof width === "number" && width <= 0);
-            this.#zeroBorders = marks.some(Boolean) ? marks : null;
-        }
-
-        return this.#zeroBorders;
     }
 
     /**

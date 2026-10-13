@@ -160,7 +160,7 @@ describe("writing CX2 styles", () => {
         const { snapshot } = await registry.importGraph(new TextEncoder().encode(STYLED), { format: "cx2" });
         const text = await registry.exportGraphToString(snapshot, "cx2");
         const vp = (JSON.parse(text) as Record<string, unknown>[]).find((a) => "visualProperties" in a);
-        expect(vp).toEqual(JSON.parse(STYLED).find((a: Record<string, unknown>) => "visualProperties" in a));
+        expect(vp).toEqual((JSON.parse(STYLED) as Record<string, unknown>[]).find((a) => "visualProperties" in a));
     });
 });
 

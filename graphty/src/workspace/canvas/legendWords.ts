@@ -92,12 +92,37 @@ function byRank(block: LegendBlock): LegendBlock {
 }
 
 /**
+ * What the key is about: the blocks that encode the data. A layer that paints what the reader is
+ * pointing at -- the Selected and Hovered rows, or any layer whose rule is a state -- says nothing
+ * about the data, so its glow or halo is no entry of the key.
+ * @param session - the session.
+ * @returns the blocks `styles.legend()` returned, less those of a state layer.
+ */
+export function dataBlocks(session: GraphSession): LegendBlock[] {
+    // ponytail: only a top-level state selector counts; a rule tree that mixes a state in is still keyed.
+    return session.styles.legend().filter((block) => session.styles.get(block.layerId)?.selector.match !== "state");
+}
+
+/**
+ * The block without the rows of values it does not paint (`hidden`): elements carrying one are
+ * drawn as the layers beneath paint them, so a chip for it would be a false claim.
+ * @param block - the block.
+ * @returns the block, its painted rows only.
+ */
+function paintedRows(block: LegendBlock): LegendBlock {
+    return block.swatches.some((swatch) => swatch.hidden === true)
+        ? { ...block, swatches: block.swatches.filter((swatch) => swatch.hidden !== true) }
+        : block;
+}
+
+/**
  * The blocks the legend shows: not a label's (it would list every name beside the name already
  * drawn), not a size that does not vary (a key for one size reads as "sizes done" while every
  * dot is the same, and a highlight's one width, "24", reads as a count), not a channel whose key
  * is a bare number (`NUMBER_CHANNELS`), not one whose row paints nothing right now (a Selected
  * row with nothing selected), and not one a layer above paints over on every element (a key for
- * paint no reader can see is a false claim). A run's groups are listed in rank order.
+ * paint no reader can see is a false claim). A value the binding hides is no row, and a block left
+ * with no rows is no block. A run's groups are listed in rank order.
  * @param blocks - the blocks `styles.legend()` returned.
  * @returns the blocks worth a key, in the same order.
  */
@@ -111,7 +136,10 @@ export function keyBlocks(blocks: readonly LegendBlock[]): LegendBlock[] {
                 !(isSizeBlock(block) && (block.kind === "literal" || block.kind === "highlight")) &&
                 !block.facts.some((fact) => fact.code === "legend.painted-over"),
         )
-        .map(byRank);
+        .flatMap((block) => {
+            const painted = paintedRows(block);
+            return painted.swatches.length === 0 && block.swatches.length > 0 ? [] : [byRank(painted)];
+        });
 }
 
 /**
@@ -362,8 +390,8 @@ function rowName(session: GraphSession, block: LegendBlock): string {
     if (run === undefined) {
         return session.styles.get(block.layerId)?.name ?? block.layerId;
     }
-    // The catalog's plain name, as the style tree names the run's row ("Shortest route").
-    const name = runName(session, run, "plain");
+    // The algorithm's name as the reader picked it, as the style tree names the run's row.
+    const name = runName(session, run);
     if (run.status !== "succeeded" || run.stale === null) {
         return name;
     }

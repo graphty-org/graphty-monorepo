@@ -134,11 +134,7 @@ describe("the canvas key on the real element", () => {
     it("keys only what a reader can read, groups in rank order, with chits ringed on the dark card", async () => {
         await scene(1440, 900);
         const legend = await screen.findByRole("region", { name: "Legend" }, { timeout: TIMEOUT_MS });
-        const louvain = await within(legend).findByRole(
-            "group",
-            { name: "Color: Communities" },
-            { timeout: TIMEOUT_MS },
-        );
+        const louvain = await within(legend).findByRole("group", { name: "Color: Louvain" }, { timeout: TIMEOUT_MS });
 
         const titles = within(legend)
             .getAllByRole("group")
@@ -167,6 +163,26 @@ describe("the canvas key on the real element", () => {
         const [hi, lo] = [luminance(ring.outlineColor), luminance(backgroundBehind(chit))].sort((a, b) => b - a);
         assert.isAtLeast(((hi ?? 0) + 0.05) / ((lo ?? 0) + 0.05), 3, "the chit's ring against the dark card");
         await page.screenshot({ path: `${SHOTS}/key-1440x900-dark.png` });
+    });
+
+    it("keys what encodes the data, never the Selected row's glow or halo, with a node selected", async () => {
+        const { session } = await scene(1440, 900);
+        const legend = await screen.findByRole("region", { name: "Legend" }, { timeout: TIMEOUT_MS });
+        await within(legend).findByRole("group", { name: "Color: Louvain" }, { timeout: TIMEOUT_MS });
+        await session.selection.apply({ ids: [session.data.nodes()[0]?.id ?? ""] });
+        await session.styles.settled();
+        await waitFor(() => {
+            assert.isAbove(
+                session.styles.legend().filter((block) => session.styles.get(block.layerId)?.name === "Selected")
+                    .length,
+                0,
+            );
+        });
+        const titles = within(legend)
+            .getAllByRole("group")
+            .map((group) => group.getAttribute("aria-label") ?? "");
+        assert.include(titles, "Color: Louvain");
+        assert.notMatch(titles.join("|"), /Selected|Hovered/);
     });
 
     it("at 900 x 700 leaves the drawing at least half the canvas's width", async () => {
@@ -223,7 +239,7 @@ describe("the canvas key on the real element", () => {
         assert.isNull(legend.querySelector(".ws-legend-more"));
     });
 
-    it("with three runs on at 1366 x 768, never scrolls by a sliver, and names the route as the tree does", async () => {
+    it("with three runs on at 1366 x 768, never scrolls by a sliver, and names the route as the Analyze list does", async () => {
         const { session } = await scene(1366, 768);
         const ids = session.data.nodes().map((node) => node.id);
         await session.runs.start("degree");
@@ -231,8 +247,8 @@ describe("the canvas key on the real element", () => {
         await session.runs.start("shortest-path", { source: String(ids[0]), target: String(ids[11]) });
         await session.styles.settled();
         const legend = await screen.findByRole("region", { name: "Legend" }, { timeout: TIMEOUT_MS });
-        await within(legend).findByRole("group", { name: /Shortest route/ }, { timeout: TIMEOUT_MS });
-        assert.notInclude(legend.textContent, "Shortest path");
+        await within(legend).findByRole("group", { name: /Shortest path/ }, { timeout: TIMEOUT_MS });
+        assert.notInclude(legend.textContent, "Shortest route");
         await page.screenshot({ path: `${SHOTS}/key-1366x768-three-runs.png` });
         await waitFor(() => {
             const over = legend.scrollHeight - legend.clientHeight;
@@ -288,12 +304,15 @@ describe("the canvas key on the real element", () => {
                 return at === undefined ? [] : [at.x, at.y];
             });
         const zoomed = drawn();
-        // The owner's report: with a node selected, changing the Selected row's halo color brought
-        // the key up, and the key coming up reframed the graph.
-        await session.selection.apply({ ids: [session.data.nodes()[0]?.id ?? ""] });
-        const selected = session.styles.list().find((layer) => layer.name === "Selected" && layer.target === "node");
-        assert.isDefined(selected);
-        await session.styles.update(selected?.id ?? "", { set: { ...selected?.set, "node.haloColor": "#ff00ff" } });
+        // The owner's report: a restyle brought the key up, and the key coming up reframed the
+        // graph. (It was the Selected row's halo; Selected is no longer keyed, so a layer that
+        // marks a node is what brings the key up here.)
+        await session.styles.add({
+            name: "Key people",
+            target: "node",
+            selector: { match: "ids", nodes: [session.data.nodes()[0]?.id ?? ""] },
+            set: { "node.haloColor": "#ff00ff" },
+        });
         await waitFor(
             () => {
                 assert.isNotEmpty(Object.keys(store.get().viewInsets), "the key came up and reserved its room");

@@ -50,7 +50,10 @@ function standIn(facts: StandInFacts = {}): {
         },
         styles: {
             legend: () => facts.blocks ?? [],
-            get: (id: string) => (facts.layers?.[id] === undefined ? undefined : { id, name: facts.layers[id] }),
+            get: (id: string) =>
+                facts.layers?.[id] === undefined
+                    ? undefined
+                    : { id, name: facts.layers[id], selector: { match: "everything" } },
             encode,
             highlight,
             settled: () => Promise.resolve(),

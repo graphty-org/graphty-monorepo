@@ -142,6 +142,16 @@ describe("the legend card's words", () => {
         );
     });
 
+    it("keys no value the binding hides, and no block whose every value is hidden", () => {
+        const shown = swatch({ label: "Group 1", value: 1, color: "#0072b2" });
+        const groups = block({
+            kind: "categorical",
+            swatches: [shown, swatch({ label: "Group 2", value: 2, color: "#e69f00", hidden: true })],
+        });
+        const gone = block({ layerId: "gone", kind: "categorical", swatches: [swatch({ value: 3, hidden: true })] });
+        assert.deepEqual(keyBlocks([groups, gone]), [{ ...groups, swatches: [shown] }]);
+    });
+
     it("keys no row that paints nothing now, and no ring, band, text size or motion speed as a bare number", () => {
         const halo = block({ layerId: "halo", channel: "node.haloColor", kind: "literal" });
         const blocks = [
@@ -267,7 +277,7 @@ describe("the legend card's words", () => {
         assert.equal(title(), "Size: PageRank on 12 nodes");
     });
 
-    it("names a run by its catalog plain name, as the style tree names its row", () => {
+    it("names a run by its algorithm as the Analyze list names it, not the catalog's plain name", () => {
         const run = {
             id: "r1",
             algorithm: "shortest-path",
@@ -288,6 +298,6 @@ describe("the legend card's words", () => {
             },
         } as unknown as GraphSession;
         const color = block({ channel: "node.color", runId: "r1" });
-        assert.equal(keySections([color], keyNames(session))[0].title, "Color: Shortest route");
+        assert.equal(keySections([color], keyNames(session))[0].title, "Color: Shortest path");
     });
 });

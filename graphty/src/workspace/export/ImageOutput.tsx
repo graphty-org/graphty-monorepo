@@ -4,7 +4,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { Alert, Button, Input, Loader, Select, Text } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
-import { imageLegend, keyNames } from "../canvas/legendWords";
+import { dataBlocks, imageLegend, keyNames } from "../canvas/legendWords";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import {
     backgroundRefusal,
@@ -52,7 +52,7 @@ const SIZE_REFUSED = "this browser cannot make an image this size";
  * @returns the sections; none without a session.
  */
 function imageKey(session: GraphSession | null): ScreenshotLegendSection[] {
-    return session === null ? [] : imageLegend(session.styles.legend(), keyNames(session));
+    return session === null ? [] : imageLegend(dataBlocks(session), keyNames(session));
 }
 
 /** Props for ImageOutput. */

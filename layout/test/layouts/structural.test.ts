@@ -160,7 +160,7 @@ describe("multipartite", () => {
     });
 
     it("throws without subsets when the snapshot has no subset column", () => {
-        assert.throws(() => layout.multipartite(graph(3)), /no node column named "subset"/);
+        assert.throws(() => layout.multipartite(graph(3)), /node column "subset"/);
     });
 
     it("rejects a missing column and a column of another dtype", () => {

@@ -287,8 +287,8 @@ These remain after the release; the comparison gallery lists them per component.
   uses 500ms and its help button 0ms: Mantine cannot give one tooltip its own delay inside a
   shared group.
 - A hover tooltip still waiting out its delay is not canceled by a mouse-down, key or wheel.
-- A disabled `ToggleIconButton` looks like an enabled one, as the Figma capture shows; the spec
-  text asked for a dimmed glyph.
+- A disabled `ToggleIconButton` dims its glyph (`--cm-icon-disabled`) and an "on" one sits on
+  `--cm-bg-disabled`, as the spec text asks; the Figma capture draws it like an enabled one.
 - In dark, a disabled plain slider's thumb nearly disappears (Figma has no capture to settle it).
 - `RampRow`, the chart rows, `ProseBlock`, `RankChip`, `DataTable`, `InfoCircle` and the
   in-panel `ControlSubGroup` have no Figma counterpart and are restyled on the Figma tokens.

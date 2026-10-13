@@ -158,9 +158,8 @@ export function captureItem(
             }
         }
 
-        edges = compactEdgeMembers(
-            keyed.sort((a, b) => (a[0] < b[0] ? -1 : Number(a[0] > b[0]))).map(([, member]) => member),
-        );
+        keyed.sort((a, b) => (a[0] < b[0] ? -1 : Number(a[0] > b[0])));
+        edges = compactEdgeMembers(keyed.map(([, member]) => member));
     }
 
     return Object.freeze({

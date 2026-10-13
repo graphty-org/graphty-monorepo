@@ -192,9 +192,7 @@ describe("3D Input Direction Verification", () => {
         // Get final distance
         const finalDistance = cameraController.cameraDistance;
 
-        // Looking at OrbitInputController.ts lines 159-160:
-        // if (keys.w) { cam.zoom(-this.config.keyboardZoomSpeed); }
-        // zoom() with negative delta decreases cameraDistance = zoom in
+        // W multiplies the distance by (1 - keyboardZoomSpeed) each frame = zoom in
         assert.isBelow(finalDistance, initialDistance, "W key should zoom IN (decrease camera distance)");
     });
 
@@ -213,9 +211,7 @@ describe("3D Input Direction Verification", () => {
         // Get final distance
         const finalDistance = cameraController.cameraDistance;
 
-        // Looking at OrbitInputController.ts lines 163-164:
-        // if (keys.s) { cam.zoom(this.config.keyboardZoomSpeed); }
-        // zoom() with positive delta increases cameraDistance = zoom out
+        // S divides the distance by (1 - keyboardZoomSpeed) each frame = zoom out
         assert.isAbove(finalDistance, initialDistance, "S key should zoom OUT (increase camera distance)");
     });
 
@@ -314,12 +310,7 @@ describe("3D Input Direction Verification", () => {
         // Record initial camera distance
         const initialDistance = cameraController.cameraDistance;
 
-        // Simulate pinch spread (scale increases, which maps to negative zoom delta)
-        // Looking at OrbitInputController.ts lines 84-85:
-        // const scaleDelta = ev.scale - lastScale;
-        // this.controller.zoom(-scaleDelta * this.config.pinchZoomSensitivity);
-        // If scale increases by 0.5 (spread), scaleDelta = 0.5, zoom(-0.5 * sensitivity)
-        // zoom() with negative delta decreases distance = zoom in
+        // A pinch maps the change in finger gap onto a zoom; a spread is a negative delta = zoom in
         const scaleDelta = 0.5; // spread
         const pinchSensitivity = 10; // typical sensitivity
         cameraController.zoom(-scaleDelta * pinchSensitivity);

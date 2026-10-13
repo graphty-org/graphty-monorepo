@@ -36,12 +36,20 @@ export type Binding = {
     missing?: "skip" | {
         value: string | number;
     };
+    format?: BindingNumberFormat;
     hidden?: (string | number | boolean)[];
     reverse?: boolean;
     midpoint?: number;
     bins?: number;
     exponent?: number;
 };
+
+// @public
+export interface BindingNumberFormat {
+    locale?: string;
+    maximumFractionDigits?: number;
+    maximumSignificantDigits?: number;
+}
 
 // @public
 export type BindingOverflow = "other" | "shape" | "extend";
@@ -187,6 +195,10 @@ export const EdgeStyle: z.ZodObject<{
             text: z.ZodOptional<z.ZodString>;
             font: z.ZodOptional<z.ZodDefault<z.ZodString>>;
             fontSize: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+            fontSizeUnit: z.ZodOptional<z.ZodEnum<{
+                world: "world";
+                screen: "screen";
+            }>>;
             fontWeight: z.ZodOptional<z.ZodDefault<z.ZodString>>;
             lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             textColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
@@ -352,6 +364,10 @@ export const EdgeStyle: z.ZodObject<{
             text: z.ZodOptional<z.ZodString>;
             font: z.ZodOptional<z.ZodDefault<z.ZodString>>;
             fontSize: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+            fontSizeUnit: z.ZodOptional<z.ZodEnum<{
+                world: "world";
+                screen: "screen";
+            }>>;
             fontWeight: z.ZodOptional<z.ZodDefault<z.ZodString>>;
             lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             textColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
@@ -516,6 +532,10 @@ export const EdgeStyle: z.ZodObject<{
         text: z.ZodOptional<z.ZodString>;
         font: z.ZodOptional<z.ZodDefault<z.ZodString>>;
         fontSize: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        fontSizeUnit: z.ZodOptional<z.ZodEnum<{
+            world: "world";
+            screen: "screen";
+        }>>;
         fontWeight: z.ZodOptional<z.ZodDefault<z.ZodString>>;
         lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         textColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
@@ -787,6 +807,7 @@ export interface LabelStyle {
     shadowOffsetX?: number;
     shadowOffsetY?: number;
     sizePx?: number;
+    sizeUnit?: LabelSizeUnit;
     smartOverflow?: boolean;
     textAlign?: LabelTextAlign;
     weight?: number | "normal" | "bold";
@@ -975,6 +996,10 @@ export const NodeStyle: z.ZodObject<{
         text: z.ZodOptional<z.ZodString>;
         font: z.ZodOptional<z.ZodDefault<z.ZodString>>;
         fontSize: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        fontSizeUnit: z.ZodOptional<z.ZodEnum<{
+            world: "world";
+            screen: "screen";
+        }>>;
         fontWeight: z.ZodOptional<z.ZodDefault<z.ZodString>>;
         lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         textColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
@@ -1119,6 +1144,10 @@ export const NodeStyle: z.ZodObject<{
         text: z.ZodOptional<z.ZodString>;
         font: z.ZodOptional<z.ZodDefault<z.ZodString>>;
         fontSize: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        fontSizeUnit: z.ZodOptional<z.ZodEnum<{
+            world: "world";
+            screen: "screen";
+        }>>;
         fontWeight: z.ZodOptional<z.ZodDefault<z.ZodString>>;
         lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         textColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
@@ -1344,6 +1373,10 @@ export const RichTextStyle: z.ZodObject<{
     text: z.ZodOptional<z.ZodString>;
     font: z.ZodOptional<z.ZodDefault<z.ZodString>>;
     fontSize: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+    fontSizeUnit: z.ZodOptional<z.ZodEnum<{
+        world: "world";
+        screen: "screen";
+    }>>;
     fontWeight: z.ZodOptional<z.ZodDefault<z.ZodString>>;
     lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
     textColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;

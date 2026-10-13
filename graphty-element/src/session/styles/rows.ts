@@ -234,14 +234,19 @@ export interface StartingRow {
 }
 
 /**
- * The ring a Selected row starts with: a solid near-black halo, with a white glow between it and
- * the node. One color cannot stand 3:1 off both the light default background and every color
- * of the default categorical palette (it holds black and yellow), so the ring is two tones: the
- * dark halo carries it against the background and every light or mid color, the white glow
- * against the dark ones. The selection settings' own default look (a pale gold halo) is unchanged;
- * a Selected row takes only their sizes.
+ * The ring a Selected row starts with: a solid mid-gray halo, with a near-black glow between it
+ * and the node.
+ *
+ * The halo meets the background on its outside and, on a black node, the node on its inside, so
+ * it must stand 3:1 off both default backgrounds (whitesmoke and the dark #101010 and #202020)
+ * and off black. Only a mid gray does all three: #868686 is 3.3:1 or better against each. It is
+ * close to most palette colors, so the near-black glow carries the ring against those (4:1 or
+ * better against every color of the default categorical palette and the default node color).
+ * No single color can stand 3:1 off black and off every palette color, which is why there are
+ * two tones. `test/session/style-panel-facts.test.ts` measures both. The selection settings' own
+ * default look (a pale gold halo) is unchanged; a Selected row takes only their sizes.
  */
-export const STARTING_SELECTED_LOOK = { ring: "#111111", glow: "#FFFFFF" } as const;
+export const STARTING_SELECTED_LOOK = { ring: "#868686", glow: "#111111" } as const;
 
 /**
  * The starting rows, with the Selected row's sizes from the selection settings.

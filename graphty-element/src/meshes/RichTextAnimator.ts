@@ -20,6 +20,7 @@ export class RichTextAnimator {
     /** Ends this animation's claim on every frame of a graph drawn on demand. */
     private releaseFrames: (() => void) | null = null;
     private lastFillUpdate = 0;
+    private baseScale = 1;
 
     /**
      * Creates a new rich text animator
@@ -81,9 +82,18 @@ export class RichTextAnimator {
     }
 
     private animatePulse(mesh: Mesh): void {
-        const scale = 1 + Math.sin(this.animationTime * 3) * 0.1;
+        const scale = this.baseScale * (1 + Math.sin(this.animationTime * 3) * 0.1);
         mesh.scaling.x = scale;
         mesh.scaling.y = scale;
+    }
+
+    /**
+     * The scale a pulse swells and shrinks around: 1, or what a label sized on screen is scaled
+     * to this frame.
+     * @param scale - The plane's scale at rest.
+     */
+    setBaseScale(scale: number): void {
+        this.baseScale = scale;
     }
 
     private animateBounce(mesh: Mesh): void {

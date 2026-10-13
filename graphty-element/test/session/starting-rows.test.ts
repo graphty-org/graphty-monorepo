@@ -146,10 +146,10 @@ describe("the starting rows", () => {
         assert.strictEqual(session.styles.counts(node).matched, 1);
         assert.strictEqual(session.styles.counts(node).painted["node.haloColor"], 1);
         assert.deepStrictEqual(session.styles.get(node)?.set, {
-            "node.haloColor": "#111111",
+            "node.haloColor": "#868686",
             "node.haloSize": 1.45,
             "node.haloOpacity": 1,
-            "node.glow": "#FFFFFF",
+            "node.glow": "#111111",
         });
 
         await session.selection.apply({ scope: { define: { kind: "path", nodes: ["Valjean", "Javert"] } } });

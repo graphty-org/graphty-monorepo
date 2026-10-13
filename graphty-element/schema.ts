@@ -28,6 +28,7 @@ import type { RuleTree, SelectionDirection } from "./src/catalog/types";
 
 export type {
     Binding,
+    BindingNumberFormat,
     BindingOverflow,
     Channel,
     ChannelValue,

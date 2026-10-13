@@ -11,6 +11,54 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-12) **Labels sized on screen, number formats for label text, a Selected ring that
+  shows on black** (graphty-element; tests `test/browser/label-screen-size.test.ts`,
+  `test/session/styles/encoding.test.ts` "a number written as label text",
+  `test/session/style-panel-facts.test.ts`). `LabelStyle.sizeUnit: "screen"` makes a label's size
+  CSS pixels at every zoom: `RichTextLabel` draws its canvas at no less than a 48 px font and, from
+  an observer added FIRST in `onBeforeRenderObservable` (so before `LabelDeclutter`), scales the
+  plane from the projection's vertical scale over clip w at the node's depth, then re-places it
+  (`_placeAtTarget`, split out of `_attachToTarget` so a pointer label is not redrawn each frame);
+  the pulse multiplies a base scale (`RichTextAnimator.setBaseScale`). Measured: 14 px letters on
+  Les Miserables framed whole and 2x zoomed, 3D and 2D, within 20% of a 2D canvas's 14 px text.
+  `Binding.format` (`BindingNumberFormat`, the `Intl.NumberFormat` options) formats numbers on text
+  channels only, built once per layer compile; a refused format is `E_BAD_LAYER`. The Selected ring
+  is now `#868686` halo + `#111111` glow, chosen by a search over grays (script
+  `tmp/engineer-labels/ring.mjs`): the halo must hold 3:1 off whitesmoke, #101010, #202020 and black,
+  which only a mid gray can, and the dark glow covers the palette colors the gray is close to.
+  Reasons: the unit fix had to be additive (the owner holds the default), and the old white glow
+  was invisible on a route's black nodes in the iteration 2 audit. Not done: the app does not yet
+  set `sizeUnit: "screen"` or a format on the labels it adds -- that is the app's choice to make
+  next. Ceiling: every screen-sized label runs its own per-frame observer (a few multiplies each).
+
+- (2026-10-12) **Changing a row's kind keeps the row** (`styles.writeRow(id, { target })`,
+  `StylesApi.ts` `retargetRow`, `rows.ts` `retargetSelector`; tests "a row whose kind changes" in
+  `graphty-element/test/session/styles-both-kinds.test.ts`). The row's id now always stays a real
+  layer's id: the node part's when the row paints nodes, else its one part's. Before, Nodes to Edges
+  minted a new layer (`connections_2`) and left the row id pointing at no layer, so the tree named
+  the row by its id and the app lost it. The rule is carried across kinds: one reading node values
+  (a data or results path only nodes carry, or a degree, component, neighborhood or isolated leaf)
+  reaches edges as `edges: "incident"` (touching); one reading edge-only values reaches nodes as
+  `nodes: "ends"` on its range, categories and text leaves; everything, a state, the id, ids and
+  sets stay as they are. A Both row shares that one carried rule on both parts. Values for a
+  dropped kind go with its part. One step, labeled with the row's name; undo restores the stack
+  exactly. No public API change. Behavior change: Both to Edges now gives the edge part the row's
+  id (`run-rows.test.ts` updated) -- the old answer was the defect. Not done: a `threshold` (Top N)
+  leaf on edge values has no "ends" reading, so Edges to Nodes keeps it and it matches nothing.
+
+- (2026-10-12) **`styles.agreement` takes `over: rowId`** (graphty-element, test
+  `test/session/styles-agreement-over.test.ts`). With `{ below: row, over: row }` the layers beneath
+  a row are read over the row's own elements, so "New layer for Group 3" reads one green, not
+  Mixed. A row matching nothing (Selected with nothing selected, Hovered) is read over its kinds
+  through only the layers whose compiled `selector.test` is null (Everything and the element's own
+  base layers), and the answer carries `readOver: "everyElement"` (else `"row"`). A value from the
+  element's floor is told by `styles.get(layerId).source.by === "element"`; no field added.
+  `counts().paintedBy` already never lists an empty row (it only walks matched elements). NOT done
+  here, the app's to take up: `sharesBeneath` and `beneathOf` in `graphty/src/workspace/style/row.ts`
+  still read over the whole graph -- pass `over` and delete their ponytail notes. Lesson: another
+  agent's write reverted `StylesApi.ts` mid-task (my hunk and theirs vanished); keep the edit as a
+  script in scratch and re-check `git diff` right before committing.
+
 - (2026-10-12) **`styles.agreement` takes `over: rowId`** (graphty-element, test
   `test/session/styles-agreement-over.test.ts`). With `{ below: row, over: row }` the layers beneath
   a row are read over the row's own elements, so "New layer for Group 3" reads one green, not

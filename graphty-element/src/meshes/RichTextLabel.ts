@@ -5,6 +5,7 @@ import {
     Engine,
     Mesh,
     MeshBuilder,
+    type Observer,
     Scene,
     StandardMaterial,
     Texture,
@@ -23,6 +24,9 @@ const ON_TOP_RENDERING_GROUP = 1;
 
 /** The line height a label is drawn at when its style names none. */
 const DEFAULT_LINE_HEIGHT = 1.2;
+
+/** The font size, in canvas pixels, a label draws one world unit tall per line. */
+const DEFAULT_FONT_SIZE = 48;
 
 export type BadgeType =
     | "notification"
@@ -159,6 +163,8 @@ export class RichTextLabel {
     private _progressValue = 0;
     private id: string;
     private originalPosition: Vector3 | null = null;
+    /** What the label is attached to, as `_attachToTarget` last measured it. */
+    private anchor: { targetPos: Vector3; bounds: { min: Vector3; max: Vector3 } } | null = null;
 
     private parser: RichTextParser;
     private renderer: RichTextRenderer;
@@ -166,6 +172,11 @@ export class RichTextLabel {
     private pointerRenderer: PointerRenderer;
     private depthFadeCallback: (() => void) | null = null;
     private animationStarted = false;
+    /**
+     * A label sized in screen pixels (`fontSizeUnit: "screen"`): its size in CSS pixels, and the
+     * scale its plane is drawn at this frame to keep that size. Null for a label sized in the scene.
+     */
+    private screenSize: { px: number; scale: number; observer: Observer<Scene> } | null = null;
 
     /**
      * Factory method to create a rich text label
@@ -192,6 +203,7 @@ export class RichTextLabel {
             autoSize: true,
             font: "Verdana",
             fontSize: 48,
+            fontSizeUnit: "world",
             fontWeight: "normal",
             textColor: "black",
             textAlign: "center",
@@ -269,6 +281,13 @@ export class RichTextLabel {
             ];
         }
 
+        // A label sized on screen draws its canvas at no less than the default 48 px font, so a
+        // 14 px label stays crisp on a high-density screen; its plane is scaled to the size asked.
+        const screenPx = finalOptions.fontSizeUnit === "screen" ? finalOptions.fontSize : null;
+        if (screenPx !== null) {
+            finalOptions.fontSize = Math.max(DEFAULT_FONT_SIZE, screenPx);
+        }
+
         this.options = finalOptions;
         this.id = `richLabel_${Math.random().toString(36).substring(2, 11)}`;
 
@@ -314,6 +333,81 @@ export class RichTextLabel {
         }
 
         this._create();
+
+        if (screenPx !== null && screenPx > 0) {
+            // FIRST IN THE FRAME, before the label declutter pass, so the pass measures the plane at
+            // the size it is drawn at this frame rather than the last one.
+            // ponytail: one observer per screen-sized label, a few multiplies a frame each; batch
+            // them in one pass over the labels if thousands of them ever cost a frame.
+            const observer = this.scene.onBeforeRenderObservable.add(
+                () => {
+                    this._fitToScreen();
+                },
+                undefined,
+                true,
+            );
+            this.screenSize = { px: screenPx, scale: 1, observer };
+            this._fitToScreen();
+        }
+    }
+
+    /**
+     * The plane's height before any screen scaling: `fontSize / 48` world units per line.
+     * @returns The height in world units.
+     */
+    private get planeHeight(): number {
+        return (this.options.fontSize / DEFAULT_FONT_SIZE) * this.heightInLines;
+    }
+
+    /**
+     * Scale a screen-sized label's plane so its font is drawn `screenSize.px` CSS pixels tall at
+     * the label's depth, and place it again when the scale moved.
+     *
+     * Reads the active camera each frame (a 2D/3D switch swaps it): the projection's vertical scale
+     * over the clip w at the node's depth gives normalized units per world unit, for a perspective
+     * and an orthographic camera alike.
+     */
+    private _fitToScreen(): void {
+        const fit = this.screenSize;
+        const camera = this.scene.activeCamera;
+        const { mesh } = this;
+        if (!fit || !camera || !mesh || this.actualDimensions.height <= 0) {
+            return;
+        }
+
+        const anchor = mesh.parent instanceof AbstractMesh ? mesh.parent : null;
+        const at = anchor ? anchor.getAbsolutePosition() : mesh.position;
+        const view = camera.getViewMatrix().m;
+        const projection = camera.getProjectionMatrix().m;
+        const depth = at.x * view[2] + at.y * view[6] + at.z * view[10] + view[14];
+        const w = projection[11] * depth + projection[15];
+        if (w <= 0) {
+            return;
+        }
+
+        const engine = this.scene.getEngine();
+        // CSS pixels: the render height times the hardware scaling level (1 / devicePixelRatio
+        // on a canvas that adapts to the screen's density).
+        const cssHeight = camera.viewport.height * engine.getRenderHeight() * engine.getHardwareScalingLevel();
+        const cssPerWorld = (Math.abs(projection[5]) / w) * (cssHeight / 2);
+        if (!Number.isFinite(cssPerWorld) || cssPerWorld <= 0) {
+            return;
+        }
+
+        // The plane's canvas holds the font at `fontSize` canvas pixels; on screen it should be
+        // `px` CSS pixels, so the whole plane is `height * px / fontSize` CSS pixels tall.
+        const wantedCss = (this.actualDimensions.height * fit.px) / this.options.fontSize;
+        const parentScale = anchor ? Math.abs(anchor.absoluteScaling.y) || 1 : 1;
+        const scale = wantedCss / cssPerWorld / this.planeHeight / parentScale;
+        if (Math.abs(scale - fit.scale) <= fit.scale * 1e-4) {
+            return;
+        }
+
+        fit.scale = scale;
+        mesh.scaling.x = scale;
+        mesh.scaling.y = scale;
+        this.animator?.setBaseScale(scale);
+        this._placeAtTarget();
     }
 
     private _create(): void {
@@ -916,7 +1010,7 @@ export class RichTextLabel {
 
     private _createMesh(): void {
         const aspectRatio = this.actualDimensions.width / this.actualDimensions.height;
-        const planeHeight = (this.options.fontSize / 48) * this.heightInLines;
+        const { planeHeight } = this;
         const planeWidth = aspectRatio * planeHeight;
 
         this.mesh = MeshBuilder.CreatePlane(
@@ -942,7 +1036,6 @@ export class RichTextLabel {
     private _attachToTarget(): void {
         const target = this.options.attachTo;
         const position = this.options.attachPosition;
-        const offset = this.options.attachOffset;
 
         if (!this.mesh) {
             return;
@@ -971,11 +1064,6 @@ export class RichTextLabel {
             return;
         }
 
-        const labelHeight = (this.options.fontSize / 48) * this.heightInLines;
-        const labelWidth = (this.actualDimensions.width / this.actualDimensions.height) * labelHeight;
-
-        const newPos = targetPos.clone();
-
         if (this.options.pointer && this.options.pointerDirection === "auto" && this.pointerInfo) {
             switch (position) {
                 case "top":
@@ -1001,6 +1089,27 @@ export class RichTextLabel {
             this._calculateDimensions();
             this._drawContent();
         }
+
+        this.anchor = { targetPos, bounds };
+        this._placeAtTarget();
+    }
+
+    /**
+     * Put the plane beside what it is attached to, at the size it is drawn at now: the anchor's
+     * bounds, the attach position and offset, and the plane's height after any screen scaling.
+     */
+    private _placeAtTarget(): void {
+        const { mesh, anchor } = this;
+        if (!mesh || !anchor) {
+            return;
+        }
+
+        const { targetPos, bounds } = anchor;
+        const position = this.options.attachPosition;
+        const offset = this.options.attachOffset;
+        const labelHeight = this.planeHeight * (this.screenSize?.scale ?? 1);
+        const labelWidth = (this.actualDimensions.width / this.actualDimensions.height) * labelHeight;
+        const newPos = targetPos.clone();
 
         switch (position) {
             case "top-left":
@@ -1043,7 +1152,7 @@ export class RichTextLabel {
                 newPos.y = bounds.max.y + labelHeight / 2 + offset;
         }
 
-        this.mesh.position = newPos;
+        mesh.position = newPos;
         this.originalPosition ??= newPos.clone();
 
         if (this.animator) {
@@ -1186,6 +1295,11 @@ export class RichTextLabel {
         if (this.depthFadeCallback) {
             this.scene.unregisterBeforeRender(this.depthFadeCallback);
             this.depthFadeCallback = null;
+        }
+
+        if (this.screenSize) {
+            this.scene.onBeforeRenderObservable.remove(this.screenSize.observer);
+            this.screenSize = null;
         }
 
         if (this.animator) {

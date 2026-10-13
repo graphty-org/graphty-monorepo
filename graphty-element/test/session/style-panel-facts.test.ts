@@ -21,6 +21,12 @@ import { STARTING_SELECTED_LOOK } from "../../src/session/styles/rows";
 /** The element's default background, `whitesmoke`. */
 const DEFAULT_BACKGROUND = "#F5F5F5";
 
+/** The dark backgrounds the element's own settings offer (`session/commands/doors.ts`). */
+const DARK_BACKGROUNDS = ["#101010", "#202020"];
+
+/** The element's default node color (`config/NodeStyle.ts`). */
+const DEFAULT_NODE_COLOR = "#6366F1";
+
 /**
  * The WCAG contrast ratio of two colors.
  * @param a - One color.
@@ -97,7 +103,7 @@ function selectedPart(session: GraphSession, target: "node" | "edge"): ReturnTyp
 }
 
 describe("the Selected starting row's ring", () => {
-    it("stands 3:1 off the default background, and one of its two tones 3:1 off every default palette color", async () => {
+    it("stands 3:1 off the light and dark backgrounds and a black node, and one tone 3:1 off every default color", async () => {
         const session = await lesMis();
         await session.config.set({ startingRows: true });
         const set = selectedPart(session, "node")?.set ?? {};
@@ -107,12 +113,14 @@ describe("the Selected starting row's ring", () => {
         assert.strictEqual(ring, STARTING_SELECTED_LOOK.ring);
         assert.strictEqual(glow, STARTING_SELECTED_LOOK.glow);
         assert.strictEqual(set["node.haloOpacity"], 1, "solid, so the ring is the color measured");
-        assert.isAtLeast(contrast(ring, DEFAULT_BACKGROUND), 3);
-        assert.isAtLeast(
-            contrast(selectedPart(session, "edge")?.set?.["edge.bandColor"] as string, DEFAULT_BACKGROUND),
-            3,
-        );
-        for (const color of OKABE_ITO_COLORS) {
+        const band = selectedPart(session, "edge")?.set?.["edge.bandColor"] as string;
+        for (const background of [DEFAULT_BACKGROUND, ...DARK_BACKGROUNDS]) {
+            assert.isAtLeast(contrast(ring, background), 3, `ring on ${background}`);
+            assert.isAtLeast(contrast(band, background), 3, `band on ${background}`);
+        }
+        // The halo is what touches a black node (a route's): the glow is the same dark as the node.
+        assert.isAtLeast(contrast(ring, "#000000"), 3, "ring on a black node");
+        for (const color of [...OKABE_ITO_COLORS, DEFAULT_NODE_COLOR, "#000000"]) {
             assert.isAtLeast(Math.max(contrast(ring, color), contrast(glow, color)), 3, color);
         }
         session.dispose();

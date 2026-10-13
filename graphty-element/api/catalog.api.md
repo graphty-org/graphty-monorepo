@@ -200,6 +200,7 @@ export type Binding = {
     missing?: "skip" | {
         value: string | number;
     };
+    format?: BindingNumberFormat;
     hidden?: (string | number | boolean)[];
     reverse?: boolean;
     midpoint?: number;
@@ -988,6 +989,9 @@ export type LabelLookId = "default" | "card" | "dark" | "pill" | "callout";
 export type LabelPointerDirection = "top" | "bottom" | "left" | "right" | "auto";
 
 // @public
+export type LabelSizeUnit = "world" | "screen";
+
+// @public
 export interface LabelStyle {
     animation?: LabelAnimation;
     animationSpeed?: number;
@@ -1036,6 +1040,7 @@ export interface LabelStyle {
     shadowOffsetX?: number;
     shadowOffsetY?: number;
     sizePx?: number;
+    sizeUnit?: LabelSizeUnit;
     smartOverflow?: boolean;
     textAlign?: LabelTextAlign;
     weight?: number | "normal" | "bold";

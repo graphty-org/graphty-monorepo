@@ -651,6 +651,21 @@ export type StaticStyle = Partial<Record<Channel, ChannelValue>>;
 export type BindingOverflow = "other" | "shape" | "extend";
 
 /**
+ * How a binding writes a number as text: a label, a tooltip or a caption bound to a number value.
+ * Each field is the `Intl.NumberFormat` option of the same name; `locale` is its locale, the
+ * runtime's own when absent. Without a format a number is written in full, as `String` writes it.
+ * @since 3.26.0
+ */
+export interface BindingNumberFormat {
+    /** The most digits after the decimal point, 0 to 100: `2` writes 129.64334 as 129.64. */
+    maximumFractionDigits?: number;
+    /** The most significant digits, 1 to 21: `3` writes 129.64334 as 130 and 0.0123456 as 0.0123. */
+    maximumSignificantDigits?: number;
+    /** A BCP 47 locale such as `"en-US"`, which chooses the decimal and grouping marks. */
+    locale?: string;
+}
+
+/**
  * How a number a layer writes meets the number the layers beneath it painted. `"replace"` (the
  * default) writes over it; `"multiply"` and `"add"` scale or offset it, so a layer that asks for
  * twice the width doubles whatever width each element already had. Where nothing beneath painted
@@ -704,6 +719,12 @@ export type Binding =
            */
           overflow?: BindingOverflow;
           missing?: "skip" | { value: string | number };
+          /**
+           * How a number is written on a channel that carries text (a label, a tooltip, a
+           * caption). See {@link BindingNumberFormat}. Ignored on every other channel.
+           * @since 3.26.0
+           */
+          format?: BindingNumberFormat;
           /**
            * Values this binding does not paint: an element carrying one is left exactly as the
            * layers beneath paint it, as an unmeasured element is. Compared as the legend spells a

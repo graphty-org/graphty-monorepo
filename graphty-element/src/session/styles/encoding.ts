@@ -58,7 +58,15 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import type { Binding, Channel, ChannelValue, PaletteDescriptor, Path, Rgba } from "../../catalog/types";
+import type {
+    Binding,
+    BindingNumberFormat,
+    Channel,
+    ChannelValue,
+    PaletteDescriptor,
+    Path,
+    Rgba,
+} from "../../catalog/types";
 import { OTHER_GROUP_COLOR } from "../../config/palettes/categorical";
 import { GraphtyError } from "../../errors";
 import { clamp } from "../../utils/clamp";
@@ -765,6 +773,34 @@ function enumConverter(descriptor: ChannelDescriptor): ChannelConverter {
 }
 
 /**
+ * Build the writer a binding's number format names.
+ * @param descriptor - The channel, named in a refusal.
+ * @param format - The binding's format, if any.
+ * @returns A function writing a number as text, or null when the binding names no format.
+ * @throws A `GraphtyError` with code `E_BAD_LAYER` when `Intl.NumberFormat` refuses the format.
+ */
+function numberWriter(
+    descriptor: ChannelDescriptor,
+    format: BindingNumberFormat | undefined,
+): ((value: number) => string) | null {
+    if (format === undefined) {
+        return null;
+    }
+
+    const { locale, ...options } = format;
+    try {
+        const formatter = new Intl.NumberFormat(locale, options);
+
+        return (value) => formatter.format(value);
+    } catch (error) {
+        throw badBinding(
+            `The number format on ${descriptor.channel} is not one Intl.NumberFormat accepts: ${error instanceof Error ? error.message : String(error)}`,
+            { channel: descriptor.channel, format },
+        );
+    }
+}
+
+/**
  * Build the converter for one channel.
  *
  * The number a scale answers means different things on different channels, and each meaning is
@@ -773,9 +809,10 @@ function enumConverter(descriptor: ChannelDescriptor): ChannelConverter {
  * string is always a finished value and is checked against the channel, which is what keeps a
  * registered scale from writing a shape the element cannot build.
  * @param descriptor - The channel.
+ * @param format - The binding's number format, read by a channel that carries text.
  * @returns The converter.
  */
-function converterFor(descriptor: ChannelDescriptor): ChannelConverter {
+function converterFor(descriptor: ChannelDescriptor, format?: BindingNumberFormat): ChannelConverter {
     switch (descriptor.accepts) {
         case "number": {
             const low = descriptor.min ?? Number.NEGATIVE_INFINITY;
@@ -789,8 +826,17 @@ function converterFor(descriptor: ChannelDescriptor): ChannelConverter {
         }
         case "enum":
             return enumConverter(descriptor);
-        case "text":
-            return (scaled): EncodedValue => (typeof scaled === "string" ? scaled : String(scaled));
+        case "text": {
+            const writeNumber = numberWriter(descriptor, format);
+
+            return (scaled): EncodedValue => {
+                if (typeof scaled === "string") {
+                    return scaled;
+                }
+
+                return writeNumber === null ? String(scaled) : writeNumber(scaled);
+            };
+        }
         case "boolean":
             return (scaled): EncodedValue | undefined => {
                 if (scaled === "true" || scaled === 1) {
@@ -1331,7 +1377,7 @@ function valuePainter(descriptor: ChannelDescriptor, binding: RuleBinding, parts
         return shapeCyclePainter(binding, parts);
     }
 
-    const convert = converterFor(descriptor);
+    const convert = converterFor(descriptor, binding.format);
     const groups = groupCount(parts.scale, parts.context);
     const context = rangeFor(descriptor, binding, parts, groups);
     const absent = missingValue(descriptor, binding);

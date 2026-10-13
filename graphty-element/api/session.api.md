@@ -158,12 +158,20 @@ export type Binding = {
     missing?: "skip" | {
         value: string | number;
     };
+    format?: BindingNumberFormat;
     hidden?: (string | number | boolean)[];
     reverse?: boolean;
     midpoint?: number;
     bins?: number;
     exponent?: number;
 };
+
+// @public
+export interface BindingNumberFormat {
+    locale?: string;
+    maximumFractionDigits?: number;
+    maximumSignificantDigits?: number;
+}
 
 // @public
 export type BindingOverflow = "other" | "shape" | "extend";

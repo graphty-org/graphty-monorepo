@@ -16,6 +16,7 @@ export type {
     LabelIconPosition,
     LabelLocation,
     LabelPointerDirection,
+    LabelSizeUnit,
     LabelTextAlign,
 } from "./label-style";
 export { LABEL_STYLE_FIELDS } from "./label-style";

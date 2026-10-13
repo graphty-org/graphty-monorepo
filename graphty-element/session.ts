@@ -412,6 +412,7 @@ export type {
     AttributeRole,
     AttributeUse,
     Binding,
+    BindingNumberFormat,
     BindingOverflow,
     Channel,
     CombineMode,

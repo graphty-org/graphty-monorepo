@@ -34,6 +34,9 @@ export type LabelLocation =
     | "bottom-right"
     | "automatic";
 
+/** What a label's size is measured in: a length in the scene, or pixels on screen. */
+export type LabelSizeUnit = "world" | "screen";
+
 /** How the words inside a label are lined up. */
 export type LabelTextAlign = "left" | "center" | "right";
 
@@ -93,6 +96,19 @@ export interface LabelStyle {
     font?: string;
     /** How tall the letters are drawn on the label's own canvas. */
     sizePx?: number;
+    /**
+     * What a label's size (`sizePx`, and the bound size channels such as `node.labelSize`) is
+     * measured in.
+     *
+     * `"world"`, the default: a length in the scene. A size of 48 draws one line one world unit
+     * tall, so the label grows and shrinks with the zoom, as the node it labels does.
+     *
+     * `"screen"`: CSS pixels on screen, as a font size on a web page. A size of 14 draws letters
+     * at 14 px at every zoom; the label's place beside its node, the overlap pass and a pulse
+     * follow the size it is drawn at.
+     * @since 3.26.0
+     */
+    sizeUnit?: LabelSizeUnit;
     /** How heavy the letters are. */
     weight?: number | "normal" | "bold";
     /** The colour of the letters. */
@@ -226,6 +242,7 @@ export const LABEL_STYLE_FIELDS: readonly (keyof LabelStyle)[] = Object.keys({
     enabled: 0,
     font: 0,
     sizePx: 0,
+    sizeUnit: 0,
     weight: 0,
     color: 0,
     lineHeight: 0,

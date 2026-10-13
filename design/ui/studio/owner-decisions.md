@@ -106,7 +106,39 @@ uses an additive alternative for each, so nothing waits on the answers.
 
 **Why.** The owner settled the model; these are the release and default questions it leaves.
 
+## 2026-10-12 -- Decided by the team: labels sized in screen pixels, a number format for label text, and the Selected ring
+
+**What.** Two additive graphty-element changes and one change to unreleased starting rows.
+
+- `LabelStyle.sizeUnit?: "world" | "screen"` (type `LabelSizeUnit`; in the renderer's schema,
+  `RichTextStyle.fontSizeUnit`). `"world"`, the default, is today's size: a length in the scene
+  that follows the zoom. `"screen"` makes the size (`sizePx`, and the bound size channels such as
+  `node.labelSize`) CSS pixels: letters stay that tall at every zoom, in 3D and 2D. Each frame the
+  label's plane is scaled from the camera before the overlap pass runs, so the overlap pass, the
+  label's place beside its node or edge, and a pulse all follow the size drawn. It works on node
+  labels, tooltips, edge labels and arrow captions alike, since all four are the same label.
+- `format?: BindingNumberFormat` on a binding: the `Intl.NumberFormat` options
+  `maximumFractionDigits` and `maximumSignificantDigits`, and a `locale`. On a channel that
+  carries text, a number is written through it: `maximumSignificantDigits: 3` writes Bridging's
+  129.64334674418718 as "130". Without it the output is unchanged. A format `Intl.NumberFormat`
+  refuses is refused at the layer with `E_BAD_LAYER`.
+- The Selected starting row's ring is now a mid-gray halo (`#868686`) with a near-black glow
+  (`#111111`), was a near-black halo with a white glow. The halo stands 3.3:1 or better off
+  whitesmoke, the dark backgrounds #101010 and #202020, and a black node (a route's), where the
+  old ring was black on black; the glow stands 4:1 or better off every default palette color and
+  the default node color. The starting rows are unreleased.
+
+**Not breaking.** New optional fields whose absence keeps today's behavior; a new exported type.
+
+**For the app.** The app chooses a screen size for the labels it adds and a format for number
+labels; neither is an element default.
+
 ## 2026-10-12 -- For the owner: a new label is too small to read at the default framing
+
+**Update (same day).** The additive route below is now built: `LabelStyle.sizeUnit: "screen"`
+(see "labels sized in screen pixels" above). What stays the owner's is the breaking route: making
+screen pixels, or a larger number, the DEFAULT label size, which changes what every existing label
+draws.
 
 **What.** Not built; a question. A label's size is a length in the scene, not on screen: a label
 of size 48 (graphty-element's default) is one world unit tall per line, margins included, the
@@ -121,7 +153,7 @@ named `sizePx`, which reads as screen pixels and is not. Either fix changes exis
    makes "14" mean 14 px, but it changes what every existing label draws. As an additive option
    (a label style field such as "size on screen") it is new renderer work -- the plane is rescaled
    each frame from the camera, and its placement beside the node, the declutter pass and the
-   pulse animation follow -- so it is a feature to plan, not part of this fix.
+   pulse animation follow. Built since as `sizeUnit: "screen"`; the default is unchanged.
 
 **Built instead (additive).** `ChannelDescriptor.perWorldUnit` states the unit: 48 on every label,
 tooltip and arrow caption size channel. A consumer can show the size as what it draws (1.5 is a

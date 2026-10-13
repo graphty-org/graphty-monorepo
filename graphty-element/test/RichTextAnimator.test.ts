@@ -134,6 +134,18 @@ describe("RichTextAnimator", () => {
             assert.isTrue(scalingChanged, "Pulse animation should modify mesh scaling");
         });
 
+        test("pulse swells around the base scale of a label sized on screen", () => {
+            animator = new RichTextAnimator(scene, { animation: "pulse", animationSpeed: 1 });
+            animator.setupAnimation(mesh, material);
+            animator.setBaseScale(4);
+
+            scene.onBeforeRenderObservable.notifyObservers(scene);
+
+            // 4 times 1 +/- 0.1: never the bare 0.9 to 1.1 a pulse draws at base scale 1.
+            assert.approximately(mesh.scaling.x, 4, 0.4);
+            assert.strictEqual(mesh.scaling.y, mesh.scaling.x);
+        });
+
         test("pulse animation with different speeds", () => {
             const slowOptions: AnimationOptions = {
                 animation: "pulse",

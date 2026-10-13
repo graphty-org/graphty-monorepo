@@ -138,6 +138,7 @@ import {
     readDependencies,
 } from "./merge-status.mjs";
 import { createNotifier, endItem, notePresence, ownerItemsPoll, presentDays, raiseItem } from "./notify.mjs";
+import { stallStep, usageLimitStep } from "./stalls.mjs";
 import {
     activePolicies,
     CONTROL_OPS,
@@ -2157,7 +2158,8 @@ export async function startDaemon({
             sessionGone: ownerSessionGone,
             cli: cliCommand,
         });
-        for (const line of lines) void ledger(line);
+        // The transcripts were just read: a usage limit in one is told to the owner at once (stalls.mjs).
+        for (const line of [...lines, ...usageLimitStep(state, t)]) void ledger(line);
     }
 
     /**
@@ -2239,7 +2241,14 @@ export async function startDaemon({
             cli: cliCommand,
             config,
         });
-        for (const line of lines) void ledger(line);
+        // A session that stopped answering, or sits on a dialog, is told to the owner once (stalls.mjs).
+        const stalls = stallStep(state, {
+            now: t,
+            minutes: config.workers.statusMinutes,
+            sessions: messageable(),
+            lines,
+        });
+        for (const line of [...lines, ...stalls]) void ledger(line);
     }
 
     /**

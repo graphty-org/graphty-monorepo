@@ -5,9 +5,35 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-10-13 (tier 3 iteration 3 reviewed; iteration 4 units set).
+Last updated: 2026-10-13 (tier 3 build paused for the owner's review after iteration 3).
 
 ## Top of mind
+
+- 2026-10-13: BUILD PAUSED FOR THE OWNER'S REVIEW after iteration 3 (review in
+  `tier3/iterations/3/review.md`, approval screenshots captured). Iteration 4 is planned (10
+  units: 3 element, 2 compact-mantine, 5 app; stories last) and NOT built. Do not start it until
+  the owner answers; their answers may move units.
+- 2026-10-13: What stands, and why. Two row kinds only, layer and folder: no split parent, no
+  child rows; per-group colors are entries of an ordinary binding, "New layer for <value>" makes an
+  ordinary layer (one interaction model for every layer; the same rows already serve a second
+  case, a number column like College football's conference). Unset and cover are two acts: the
+  minus (or emptying a field) removes this layer's value so the layers beneath show through; an
+  entry set to nothing ("Hide label from Key people") covers what is beneath. Figma taken: one-line
+  rows, effect rows, Selection colors, "Mixed" only for multi-selection, right-click selects,
+  popovers beside the panel; next: one settings button per section (Type settings), 1 px swatch
+  border, opacity inline, icon-grid shapes, draggable color popover.
+- 2026-10-13: What to watch at the owner's review: (1) does the minus read as "unset", and does
+  its tooltip naming what comes back earn trust; (2) is "Hide label from Key people" in the "+"
+  menu where they look to cover something beneath; (3) does a dimmed painted-over value read as
+  "not what is drawn"; (4) the six sev 3s still in this build (names cut to two letters, kind
+  change discards settings, ramp handle locked, focus to page, oranges for categories, 0-to-0
+  histogram) -- the owner will meet them; say so up front, do not let them read as design.
+- 2026-10-13: What to watch in the study (after approval): whether readers find unset without
+  being told; whether lower layers' values ever get mistaken for this layer's once a layer lists
+  only its own entries; whether a kind change feels safe; keyboard paths through every NEW
+  capability, since each iteration's new capability has produced its worst finding.
+- 2026-10-13: Open for the owner: the default label font fallback (new), plus the five breaking
+  items; accordions are no longer needed (the panel fits 900 x 700).
 
 - 2026-10-13: ITERATION 3 REVIEWED (`tier3/iterations/3/review.md`): 107 findings (0 sev 4, 9 sev
   3, 45 sev 2), about 55 distinct. Not ready for approval: six distinct sev 3s (names cut to two

@@ -3,31 +3,40 @@
  */
 
 declare module "d3-force-3d" {
+    /** A node once the simulation has initialized it: every coordinate and velocity is set. */
     export interface Node {
-        x?: number;
-        y?: number;
-        z?: number;
-        vx?: number;
-        vy?: number;
-        vz?: number;
-        fx?: number | null;
-        fy?: number | null;
-        fz?: number | null;
-        index?: number;
+        index: number;
+        x: number;
+        y: number;
+        z: number;
+        vx: number;
+        vy: number;
+        vz: number;
+        fx?: number;
+        fy?: number;
+        fz?: number;
     }
 
-    export interface Edge<NodeType = Node> {
-        source: NodeType | string | number;
-        target: NodeType | string | number;
-        index?: number;
+    /** A link once the link force has resolved its endpoints to nodes. */
+    export interface Edge {
+        source: Node;
+        target: Node;
+        index: number;
     }
 
-    export type InputEdge = Edge;
+    /** A link as it is handed in: its endpoints are ids until the link force resolves them. */
+    export interface InputEdge {
+        source: unknown;
+        target: unknown;
+    }
 
-    export interface ForceSimulation<NodeType = Node> {
+    /** In d3 every force is a function the simulation calls with the current alpha on each tick. */
+    export type Force = (alpha: number) => void;
+
+    export interface ForceSimulation {
         tick(iterations?: number): this;
-        nodes(): NodeType[];
-        nodes(nodes: NodeType[]): this;
+        nodes(): Node[];
+        nodes(nodes: Partial<Node>[]): this;
         alpha(): number;
         alpha(alpha: number): this;
         alphaMin(): number;
@@ -38,8 +47,8 @@ declare module "d3-force-3d" {
         alphaTarget(target: number): this;
         velocityDecay(): number;
         velocityDecay(decay: number): this;
-        force(name: string): unknown;
-        force(name: string, force: null | ((alpha: number) => void)): this;
+        force(name: string): Force | undefined;
+        force(name: string, force: Force | null): this;
         numDimensions(): number;
         numDimensions(dims: number): this;
         on(typenames: string, listener: null | ((this: this) => void)): this;
@@ -47,26 +56,26 @@ declare module "d3-force-3d" {
         restart(): this;
     }
 
-    export function forceSimulation<NodeType extends Node = Node>(nodes?: NodeType[]): ForceSimulation<NodeType>;
+    export function forceSimulation(nodes?: Partial<Node>[], numDimensions?: number): ForceSimulation;
 
-    export interface ForceLink<NodeType = Node, EdgeType = Edge<NodeType>> {
-        links(): EdgeType[];
-        links(links: EdgeType[]): this;
-        id(): (node: NodeType, index: number, nodes: NodeType[]) => string | number;
-        id(id: (node: NodeType, index: number, nodes: NodeType[]) => string | number): this;
-        distance(): number | ((link: EdgeType, index: number, links: EdgeType[]) => number);
-        distance(distance: number | ((link: EdgeType, index: number, links: EdgeType[]) => number)): this;
-        strength(): number | ((link: EdgeType, index: number, links: EdgeType[]) => number);
-        strength(strength: number | ((link: EdgeType, index: number, links: EdgeType[]) => number)): this;
+    export interface ForceLink {
+        (alpha: number): void;
+        links(): Edge[];
+        links(links: InputEdge[]): this;
+        id(): (node: Node, index: number, nodes: Node[]) => string | number;
+        id(id: (node: Node, index: number, nodes: Node[]) => string | number): this;
+        distance(): number | ((link: Edge, index: number, links: Edge[]) => number);
+        distance(distance: number | ((link: Edge, index: number, links: Edge[]) => number)): this;
+        strength(): number | ((link: Edge, index: number, links: Edge[]) => number);
+        strength(strength: number | ((link: Edge, index: number, links: Edge[]) => number)): this;
     }
 
-    export function forceLink<NodeType extends Node = Node, EdgeType extends Edge<NodeType> = Edge<NodeType>>(
-        links?: EdgeType[],
-    ): ForceLink<NodeType, EdgeType>;
+    export function forceLink(links?: InputEdge[]): ForceLink;
 
-    export interface ForceManyBody<NodeType = Node> {
-        strength(): number | ((node: NodeType, index: number, nodes: NodeType[]) => number);
-        strength(strength: number | ((node: NodeType, index: number, nodes: NodeType[]) => number)): this;
+    export interface ForceManyBody {
+        (alpha: number): void;
+        strength(): number | ((node: Node, index: number, nodes: Node[]) => number);
+        strength(strength: number | ((node: Node, index: number, nodes: Node[]) => number)): this;
         theta(): number;
         theta(theta: number): this;
         distanceMin(): number;
@@ -75,9 +84,10 @@ declare module "d3-force-3d" {
         distanceMax(distance: number): this;
     }
 
-    export function forceManyBody<NodeType extends Node = Node>(): ForceManyBody<NodeType>;
+    export function forceManyBody(): ForceManyBody;
 
     export interface ForceCenter {
+        (alpha: number): void;
         x(): number;
         x(x: number): this;
         y(): number;
@@ -92,6 +102,7 @@ declare module "d3-force-3d" {
 }
 
 declare module "ngraph.random" {
+    /** A seeded generator; `nextDouble()` is uniform in [0, 1). */
     interface RandomGenerator {
         next(max: number): number;
         nextDouble(): number;

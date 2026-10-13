@@ -166,6 +166,15 @@ export interface StyleAgreement {
      * table lists them.
      */
     readonly channels: readonly ChannelAgreement[];
+    /**
+     * Which elements the answer was read over, present only when the call named a row with
+     * `over`: `"row"` when it was read over the elements that row matches; `"everyElement"` when
+     * the row matches none of them (Selected with nothing selected, Hovered), so the answer was
+     * read from the layers whose selector matches every element -- what an element would get on
+     * entering the row.
+     * @since 3.26.0
+     */
+    readonly readOver?: "row" | "everyElement";
 }
 
 /**

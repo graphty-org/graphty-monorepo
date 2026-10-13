@@ -256,6 +256,17 @@ export interface HighlightSpec {
     readonly set?: StaticStyle;
 }
 
+/**
+ * What {@link StylesApi.agreement} reads besides its scope and channel.
+ * @since 3.26.0
+ */
+export interface AgreementOptions {
+    /** Read only the layers beneath this row of the tree. */
+    readonly below?: StyleRowId;
+    /** Read only the elements this row matches; see {@link StylesApi.agreement}. */
+    readonly over?: StyleRowId;
+}
+
 /** What applying a style document did, per layer. */
 export interface TemplateReport {
     /** The layers that bound and now paint, bottom first. */
@@ -610,12 +621,18 @@ export interface StylesApi {
      *     those elements would look like without the row and everything above it: the value a
      *     panel shows as an empty field's placeholder. Beneath the bottom row it is the element's
      *     own floor. Since 3.26.0.
+     * @param options.over - A row of {@link StylesApi.tree}. Given, the answer reads only the
+     *     elements of `scope` that row matches, so `{ below: row, over: row }` is what lies beneath
+     *     the row on its own elements. When the row matches none of them (Selected with nothing
+     *     selected, Hovered), it reads the elements of the row's kinds through only the layers whose
+     *     selector matches every element -- what an element would get on entering the row -- and
+     *     says so in {@link StyleAgreement.readOver}. Since 3.26.0.
      * @returns Per channel, the value and deciding layer they all share or how they split, and how
      *     many elements nothing painted on it.
      * @throws A `GraphtyError` with code `E_UNKNOWN_CHANNEL` when `channel` names no channel, and
-     *     `E_UNKNOWN_LAYER` when `below` names no row.
+     *     `E_UNKNOWN_LAYER` when `below` or `over` names no row.
      */
-    agreement(scope: Scope, channel?: Channel, options?: { readonly below?: StyleRowId }): StyleAgreement;
+    agreement(scope: Scope, channel?: Channel, options?: AgreementOptions): StyleAgreement;
     /**
      * What a binding would paint, read before it is written: the bins of its scale over the
      * channel's kind of element, how many elements fall in each and what each paints, where a
@@ -3672,11 +3689,39 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             return explainStyle(target, explainSources);
         },
 
-        agreement(scope: Scope, channel?: Channel, options?: { readonly below?: StyleRowId }): StyleAgreement {
-            const below = options?.below;
+        agreement(scope: Scope, channel?: Channel, options: AgreementOptions = {}): StyleAgreement {
+            const { below, over } = options;
             const read = below === undefined ? explainSources : { ...explainSources, stack: () => stackBelow(below) };
+            if (over === undefined) {
+                return styleAgreement(elementsOf(scope), read, channel);
+            }
 
-            return styleAgreement(elementsOf(scope), read, channel);
+            // The row's elements: those of the scope some layer of the row matches, hidden or not.
+            const parts = layersUnder([over]).flatMap((layer) => byId().get(layer.id) ?? []);
+            const scoped = elementsOf(scope);
+            const nodes = [...scoped.nodes];
+            const edges = [...scoped.edges];
+            const within = (target: "node" | "edge", indices: readonly number[]): number[] =>
+                indices.filter((index) =>
+                    parts.some(
+                        ({ layer, selector }) =>
+                            layer.target === target && (selector.test === null || selector.test(index)),
+                    ),
+                );
+            const matched = { nodes: within("node", nodes), edges: within("edge", edges) };
+            if (matched.nodes.length + matched.edges.length > 0) {
+                return { ...styleAgreement(matched, read, channel), readOver: "row" };
+            }
+
+            // It matches nothing: read the row's kinds through the layers that match every element.
+            const kinds = new Set(parts.map(({ layer }) => layer.target));
+            const floor = { ...read, stack: () => read.stack().filter((entry) => entry.selector.test === null) };
+            const every = {
+                nodes: kinds.has("node") ? nodes : [],
+                edges: kinds.has("edge") ? edges : [],
+            };
+
+            return { ...styleAgreement(every, floor, channel), readOver: "everyElement" };
         },
 
         preview(binding: RuleBinding, options: { readonly channel: Channel; readonly bins?: number }): BindingPreview {

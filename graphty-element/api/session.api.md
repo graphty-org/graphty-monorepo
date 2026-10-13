@@ -54,6 +54,12 @@ export interface AcceleratorDeviceInfo {
 }
 
 // @public
+export interface AgreementOptions {
+    readonly below?: StyleRowId;
+    readonly over?: StyleRowId;
+}
+
+// @public
 export interface AlgorithmRunCommand {
     readonly algorithm: AlgorithmKey;
     readonly applySuggestedStyles?: boolean;
@@ -3785,6 +3791,7 @@ export interface StoredProject {
 // @public
 export interface StyleAgreement {
     readonly channels: readonly ChannelAgreement[];
+    readonly readOver?: "row" | "everyElement";
 }
 
 // @public
@@ -3886,9 +3893,7 @@ export interface StylesApi {
     add(spec: LayerSpec, at?: LayerPosition, options?: RunOptions): Run<Layer>;
     addFolder(name: string, at?: StyleRowPlace, options?: RunOptions): Run<StyleRow>;
     addRow(spec: RowSpec, at?: LayerPosition, options?: RunOptions): Run<RowParts>;
-    agreement(scope: Scope, channel?: Channel, options?: {
-        readonly below?: StyleRowId;
-    }): StyleAgreement;
+    agreement(scope: Scope, channel?: Channel, options?: AgreementOptions): StyleAgreement;
     applyTemplate(document: StyleDocument, options?: TemplateOptions): Run<TemplateReport>;
     categories(id: LayerId, channel: Channel): readonly ValueCategory[];
     colors(rowIds: readonly StyleRowId[]): readonly StyleColor[];

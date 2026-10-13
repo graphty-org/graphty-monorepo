@@ -11,6 +11,19 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-12) **`styles.agreement` takes `over: rowId`** (graphty-element, test
+  `test/session/styles-agreement-over.test.ts`). With `{ below: row, over: row }` the layers beneath
+  a row are read over the row's own elements, so "New layer for Group 3" reads one green, not
+  Mixed. A row matching nothing (Selected with nothing selected, Hovered) is read over its kinds
+  through only the layers whose compiled `selector.test` is null (Everything and the element's own
+  base layers), and the answer carries `readOver: "everyElement"` (else `"row"`). A value from the
+  element's floor is told by `styles.get(layerId).source.by === "element"`; no field added.
+  `counts().paintedBy` already never lists an empty row (it only walks matched elements). NOT done
+  here, the app's to take up: `sharesBeneath` and `beneathOf` in `graphty/src/workspace/style/row.ts`
+  still read over the whole graph -- pass `over` and delete their ponytail notes. Lesson: another
+  agent's write reverted `StylesApi.ts` mid-task (my hunk and theirs vanished); keep the edit as a
+  script in scratch and re-check `git diff` right before committing.
+
 - (2026-10-12) **A new layer chooses its elements first; Which elements reads every readable
   value** (test `style/__tests__/WhichElementsDraft.real-element.test.tsx`, College football). The
   draft (`DraftPanel`) shows the whole editor (kind, find, rule) before anything is written; the

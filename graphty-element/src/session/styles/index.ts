@@ -77,6 +77,7 @@ export type { RowEncoding, RowParts, RowSpec, RowStyle, RowTarget, RowWrite } fr
 export type { RuleSelector, Selector } from "./selector";
 export { selectorRule } from "./selector";
 export type {
+    AgreementOptions,
     DefaultPalettes,
     ElementLayerSpec,
     HighlightSpec,

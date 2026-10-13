@@ -4,6 +4,26 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-12 -- Decided by the team: what lies beneath a row, read over the row's own elements
+
+**What.** graphty-element, additive: `styles.agreement(scope, channel, { below, over })`. The new
+`over` names a row of the style tree; the answer is then read only over the elements of `scope`
+that row matches. `{ below: row, over: row }` is what lies beneath the row on its own elements.
+When the row matches no element (Selected with nothing selected, Hovered), the answer is read over
+the row's kinds through only the layers whose selector matches every element (Everything and the
+element's own base layers): what an element would get on entering the row. The answer says which
+reading it is in a new `StyleAgreement.readOver`: `"row"` or `"everyElement"` (absent when `over`
+was not given). The option bag is now the exported type `AgreementOptions`. `styles.counts` was
+already right: a row that matches nothing has an empty `paintedBy` and never appears in another's.
+A value that comes from the element's own base layer is told by `styles.get(layerId).source.by
+=== "element"`, so no field was added for it.
+
+**Why.** Read over the whole graph, the layers beneath "New layer for Group 3" (eleven nodes, all
+painted green by the community run) read as a mix of every community's color, so the empty field
+showed "Mixed" where the reader sees one green. Reading over the row's own elements gives the
+answer the canvas shows; the empty-row reading gives Selected and Hovered a placeholder instead of
+nothing.
+
 ## 2026-10-12 -- Decided by the team: what reads each value (`ReadableValue.usedBy`), and a value picker inside a pop-out
 
 **What.** Two additive changes.

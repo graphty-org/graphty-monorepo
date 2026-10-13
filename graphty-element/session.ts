@@ -466,6 +466,7 @@ export { isResultShape, RESULT_SHAPES } from "./src/catalog/types";
 // ---------------------------------------------------------------------------------------------
 
 export type {
+    AgreementOptions,
     BindingPreview,
     BindingPreviewBin,
     ChannelAgreement,

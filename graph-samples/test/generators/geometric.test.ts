@@ -46,7 +46,7 @@ function expectChunkInvariant(whole: SampleGraph, rows: (start: number, end: num
 function coords(g: SampleGraph): Float64Array[] {
     const cols = g.nodeColumns ?? {};
     const out = [cols.x, cols.y];
-    if (cols.z !== undefined) {
+    if ("z" in cols) {
         out.push(cols.z);
     }
     return out as Float64Array[];

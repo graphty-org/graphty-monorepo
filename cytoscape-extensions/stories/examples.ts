@@ -14,7 +14,7 @@ import cytoscape, {
 
 import { ASYNC_ALGORITHM_NAMES, type Backend, type SearchResult } from "../src/index.js";
 import { colorByValue, elementsOf, GENERATE, NO_GPU, type Outcome, PALETTE, SIZES } from "./demo.js";
-import { plainReason, runAlgorithm } from "./run.js";
+import { paintPaths, type Paths, plainReason, runAlgorithm } from "./run.js";
 
 const SEED = 42;
 
@@ -298,6 +298,116 @@ const WALKS: Record<string, string> = {
     depthFirstSearch: "depth-first",
 };
 
+/** A weighted arc: source, target, weight. */
+type Arc = [string, string, number];
+
+/**
+ * Left: a graph with a negative arc and no negative cycle. Dijkstra from s settles a at 2 before it reaches b, never
+ * looks at a again, and so gives t 5 (s -> a -> t); the shortest path is s -> b -> a -> t, of length 3.
+ */
+const NEGATIVE_ARC: Arc[] = [
+    ["s", "a", 2],
+    ["s", "b", 4],
+    ["b", "a", -4],
+    ["a", "t", 3],
+    ["b", "c", 2],
+    ["c", "t", 4],
+];
+/** Right: the cycle x -> y -> z -> x weighs 1 - 3 + 1 = -1. */
+const NEGATIVE_CYCLE: Arc[] = [
+    ["r", "x", 2],
+    ["x", "y", 1],
+    ["y", "z", -3],
+    ["z", "x", 1],
+    ["z", "w", 1],
+];
+const NEGATIVE_PLACES: Record<string, [number, number]> = {
+    Ls: [0, 1],
+    La: [1, 0],
+    Lb: [1, 2],
+    Lt: [3, 1],
+    Lc: [2, 2],
+    Rr: [0, 1],
+    Rx: [1, 1],
+    Ry: [2, 0],
+    Rz: [2, 2],
+    Rw: [3, 2],
+};
+
+/**
+ * One half of the Bellman-Ford example: each node and arc of `arcs` with `prefix` on its id and class, the node's
+ * name and the arc's weight as labels.
+ * @param prefix - "L" or "R"
+ * @param arcs - the arcs
+ * @returns the elements
+ */
+function weighted(prefix: string, arcs: Arc[]): ElementDefinition[] {
+    const names = [...new Set(arcs.flatMap(([s, t]) => [s, t]))];
+    const classes = `directed ${prefix}`;
+    return [
+        ...names.map((x): ElementDefinition => ({ group: "nodes", data: { id: prefix + x, tag: x }, classes })),
+        ...arcs.map(([s, t, w]): ElementDefinition => ({
+            group: "edges",
+            data: { id: `${prefix}${s}-${t}`, source: prefix + s, target: prefix + t, weight: w, tag: String(w) },
+            classes,
+        })),
+    ];
+}
+
+/**
+ * Bellman-Ford's reason to exist, negative weights, on two small directed graphs: one with a negative arc where
+ * Dijkstra goes wrong, and one with a negative cycle, which it detects.
+ * @returns the example
+ */
+function negativeWeights(): Example {
+    return {
+        graph: "two hand-built directed graphs, weights on the arcs: a negative arc (left) and a negative cycle (right)",
+        directed: true,
+        load: (cy) => {
+            cy.add([...weighted("L", NEGATIVE_ARC), ...weighted("R", NEGATIVE_CYCLE)]);
+        },
+        place: async (cy) => {
+            await Promise.resolve();
+            cy.nodes().positions((v) => {
+                const [col, row] = NEGATIVE_PLACES[v.id()];
+                return { x: col * 60 + (v.id().startsWith("R") ? 300 : 0), y: row * 60 };
+            });
+        },
+        run: async (cy, { gpuMode, extra }) => {
+            const run = (prefix: string, root: string): Promise<Paths & { backend: Backend }> =>
+                cy.$(`.${prefix}`).graphtyBellmanFordAsync({
+                    root: `#${prefix}${root}`,
+                    directed: true,
+                    weight: "weight",
+                    gpu: gpuMode,
+                    ...extra,
+                });
+            const left = await run("L", "s");
+            const right = await run("R", "r");
+            paintPaths(cy.$(".L"), left, cy.$("#Ls"), cy.$("#Lt"));
+            paintPaths(cy.$(".R"), right, cy.$("#Rr"));
+            // the cycle Bellman-Ford detected, in red (the result says only that there is one)
+            if (right.hasNegativeWeightCycle === true) {
+                cy.$("#Rx-y, #Ry-z, #Rz-x").data("color", "#e15759");
+            }
+            const path = left
+                .pathTo(cy.$("#Lt"))
+                .nodes()
+                .map((n) => n.data("tag") as string)
+                .join(" -> ");
+            const b = left.backend;
+            return {
+                ran: b.ran,
+                detail: b.ran === "gpu" ? b.device : plainReason(b.reason),
+                note: [
+                    `Left, from s: the shortest-path tree in blue, the path to t in red: ${path}, length ${left.distanceTo(cy.$("#Lt"))}, through the -4 arc. Dijkstra would settle a at 2 before reaching b, never revisit it, and give t 5 by s -> a -> t; graphtyDijkstra refuses negative weights for that reason.`,
+                    `Right, from r: the cycle x -> y -> z -> x (red) weighs 1 - 3 + 1 = -1, and Bellman-Ford reports hasNegativeWeightCycle: ${String(right.hasNegativeWeightCycle)}: each time round shortens a path again, so no shortest path through it exists.`,
+                ].join("\n"),
+            };
+        },
+    };
+}
+
 /** The examples, by algorithm name without "graphty". */
 export const EXAMPLES: Partial<Record<string, Example>> = {
     // Centrality
@@ -326,7 +436,7 @@ export const EXAMPLES: Partial<Record<string, Example>> = {
 
     // Paths and trees
     dijkstra: roads("dijkstra"),
-    bellmanFord: roads("bellmanFord"),
+    bellmanFord: negativeWeights(),
     bidirectionalDijkstra: roads("bidirectionalDijkstra"),
     aStar: roads("aStar"),
     allPairsShortestPath: roads("allPairsShortestPath"),

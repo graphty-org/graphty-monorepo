@@ -8,6 +8,7 @@
  */
 
 import * as board from "./board.mjs";
+import { legacySessionsNote } from "./config.mjs";
 import { flakeData, flakeLines } from "./flakes.mjs";
 import { sharedLines } from "./shared.mjs";
 import { newWorkLines } from "./pressure.mjs";
@@ -188,6 +189,7 @@ export function statusData(state, ctx, { section = "all", pr } = {}) {
             version: ctx.version,
             mode: ctx.mode,
             polledAt: ctx.polledAt ?? null,
+            note: legacySessionsNote(ctx.config?.workers),
             nextPollAt: ctx.nextPollAt ?? null,
             api: {
                 lastPoll: state.github?.lastPoll ?? null,
@@ -548,6 +550,7 @@ export function statusText(data, now) {
     const polled = g.polledAt ? `polled ${span(now.getTime() - Date.parse(g.polledAt))} ago` : "not polled yet";
     const next = g.nextPollAt ? `, next in ${span(Date.parse(g.nextPollAt) - now.getTime())}` : "";
     const lines = [`githerd ${g.version} (${g.mode}) -- ${polled}${next}`];
+    lines.push(...[g.note].filter(Boolean));
     const api = apiLine(g.api);
     if (api) lines.push(api);
     for (const f of data.faults ?? []) lines.push(`FAULT ${f.record}: ${f.problem}`);

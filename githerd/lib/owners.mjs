@@ -46,7 +46,8 @@ import { join, relative, sep } from "node:path";
  * each branch, the session's name, the issues it filed (`gh issue create`, by number, with the
  * time) and its `gh issue create` calls whose result was not read yet (by tool use id).
  * @typedef {{files: Record<string, number>, pushes: Record<string, string>, name?: string,
- *   filed?: Record<string, string>, creates?: Record<string, string>}} TranscriptScan
+ *   filed?: Record<string, string>, creates?: Record<string, string>,
+ *   limit?: {at: string, text: string, resets: string | null}}} TranscriptScan
  */
 
 /** Bytes of transcript read per poll, across every session. */
@@ -103,7 +104,29 @@ function pushesIn(buf, scan) {
     };
     each(["git push", "gh pr create"], (e) => recordPushes(e, scan.pushes));
     each(["gh issue create"], (e) => recordCreates(e, scan));
+    each(['"error":"rate_limit"'], (e) => recordLimit(e, scan));
     for (const id of Object.keys(scan.creates ?? {})) each([`"tool_use_id":"${id}"`], (e) => recordFiled(e, id, scan));
+}
+
+/** Claude Code's usage-limit message, as its transcript and its screen show it. */
+const LIMIT = /You've hit your [^\n]*limit/;
+
+/**
+ * Records the newest usage-limit message of one transcript entry (`scan.limit`): Claude Code's
+ * synthetic API-error reply, with the reset time the API gave (`quotaLimits.resetsAt`, seconds)
+ * when it gave one. stalls.mjs tells the owner.
+ * @param {any} e the transcript entry
+ * @param {TranscriptScan} scan the session's scan, updated
+ */
+function recordLimit(e, scan) {
+    if (e?.type !== "assistant" || !e.isApiErrorMessage || typeof e.timestamp !== "string") return;
+    const text = (Array.isArray(e.message?.content) ? e.message.content : []).find(
+        (/** @type {any} */ c) => c?.type === "text" && LIMIT.test(String(c.text)),
+    )?.text;
+    if (!text || (scan.limit && scan.limit.at >= e.timestamp)) return;
+    const secs = Number(e.quotaLimits?.resetsAt);
+    const resets = Number.isFinite(secs) && secs > 0 ? new Date(secs * 1000).toISOString() : null;
+    scan.limit = { at: e.timestamp, text: String(text), resets };
 }
 
 /** Unanswered `gh issue create` calls kept per session; an older one is dropped. */

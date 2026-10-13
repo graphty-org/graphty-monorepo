@@ -65,6 +65,8 @@ export default defineConfig({
                     include: ["test/ui/**/*.browser.test.ts"],
                     exclude: ["**/node_modules/**", "**/dist/**"],
                     fileParallelism: false,
+                    // Frees earlier files' pages, which v8 coverage keeps alive (issue #2247).
+                    setupFiles: ["../vitest.browser-coverage-setup.ts"],
                     browser: {
                         enabled: true,
                         headless: true,

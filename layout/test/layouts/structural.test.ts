@@ -160,7 +160,7 @@ describe("multipartite", () => {
     });
 
     it("throws without subsets when the snapshot has no subset column", () => {
-        assert.throws(() => layout.multipartite(graph(3)), /no node column named "subset"/);
+        assert.throws(() => layout.multipartite(graph(3)), /node column "subset"/);
     });
 
     it("rejects a missing column and a column of another dtype", () => {
@@ -282,6 +282,20 @@ describe("bfs", () => {
     it("throws for a disconnected graph and a start outside the graph", () => {
         assert.throws(() => layout.bfs(graph(4, [[0, 1]])), /disconnected/);
         assert.throws(() => layout.bfs(path(3), { start: 3 }), /not in the graph/);
+    });
+
+    it("refuses a disconnected graph with the code E_NOT_CONNECTED and how far it reached", () => {
+        const error = (() => {
+            try {
+                layout.bfs(graph(4, [[0, 1]]));
+            } catch (thrown) {
+                return thrown as Error & { code?: unknown; params?: unknown };
+            }
+            return null;
+        })();
+        assert.ok(error instanceof Error);
+        assert.equal(error.code, "E_NOT_CONNECTED");
+        assert.deepEqual(error.params, { nodeCount: 4, reached: 2 });
     });
 });
 
@@ -433,6 +447,20 @@ describe("planar", () => {
         for (const [name, s] of notPlanar) {
             assert.throws(() => layout.planar(s), /G is not planar/, name);
         }
+    });
+
+    it("refuses a non-planar graph with the code E_NOT_PLANAR and the size it tested", () => {
+        const error = (() => {
+            try {
+                layout.planar(graph(5, K5));
+            } catch (thrown) {
+                return thrown as Error & { code?: unknown; params?: unknown };
+            }
+            return null;
+        })();
+        assert.ok(error instanceof Error);
+        assert.equal(error.code, "E_NOT_PLANAR");
+        assert.deepEqual(error.params, { nodeCount: 5, edgeCount: 10 });
     });
 
     it("ignores self-loops, parallel edges and the seed", () => {

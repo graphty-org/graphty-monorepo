@@ -8,7 +8,6 @@ import {
     readdirSync,
     realpathSync,
     rmSync,
-    symlinkSync,
     writeFileSync,
 } from "node:fs";
 import { createServer } from "node:http";
@@ -25,9 +24,11 @@ import {
     answerHook,
     asksOwner,
     hookOutput,
+    hookPointer,
     jobRecordText,
     LAUNCH_PROMPT,
     newsOutput,
+    publishHook,
     restartIfDown,
     runHook,
     staleSpooled,
@@ -36,9 +37,9 @@ import {
     UNCHECKED_STOPS,
     writeNews,
 } from "../lib/hook.mjs";
+import { SESSION_WRITES } from "../lib/session-writes.mjs";
 import { repoIdentity } from "../lib/store.mjs";
 
-const PKG = fileURLToPath(new URL("..", import.meta.url));
 const REPO = fileURLToPath(new URL("../..", import.meta.url));
 const HOOK = fileURLToPath(new URL("../bin/githerd-hook.mjs", import.meta.url));
 
@@ -681,43 +682,78 @@ describe("the committed project settings", () => {
     const settings = JSON.parse(readFileSync(join(REPO, ".claude", "settings.json"), "utf8"));
     const [entry] = settings.hooks.SessionStart;
     const command = entry.hooks[0].command;
+    const preToolUse = settings.hooks.PreToolUse.find((/** @type {any} */ e) =>
+        e.hooks.some((/** @type {any} */ h) => h.command.includes("githerd")),
+    );
+    const writeCommand = preToolUse.hooks[0].command;
 
     /**
-     * Runs the registered SessionStart command as Claude Code does, with `home` as HOME. It runs
-     * asynchronously, so a fake daemon in this process can answer it.
+     * Runs a registered command as Claude Code does, with `home` as HOME. It runs asynchronously,
+     * so a fake daemon in this process can answer it.
      * @param {string} home the home directory
+     * @param {string} [cmd] the command; the SessionStart one by default
+     * @param {any} [input] the hook input
      * @returns {Promise<{status: number | null, stdout: string, stderr: string}>} the result
      */
-    async function runCommand(home) {
-        const child = spawn("sh", ["-c", command], { cwd: repo, env: { PATH: process.env.PATH, HOME: home } });
+    async function runCommand(home, cmd = command, input = { cwd: repo, session_id: "s", source: "startup" }) {
+        const child = spawn("sh", ["-c", cmd], { cwd: repo, env: { PATH: process.env.PATH, HOME: home } });
         let stdout = "";
         let stderr = "";
         child.stdout.on("data", (c) => (stdout += c));
         child.stderr.on("data", (c) => (stderr += c));
-        // Not installed, the command exits without reading its input: the write then fails with EPIPE.
+        // With no daemon published, the command exits without reading its input: the write then fails with EPIPE.
         child.stdin.on("error", () => {});
-        child.stdin.end(JSON.stringify({ cwd: repo, session_id: "s", source: "startup" }));
+        child.stdin.end(JSON.stringify(input));
         const [status] = await once(child, "exit");
         return { status, stdout, stderr };
     }
 
-    it("registers the SessionStart hook for new sessions only", () => {
+    /**
+     * A PreToolUse input for a Bash command.
+     * @param {string} cmd the command line
+     * @returns {any} the input
+     */
+    const bash = (cmd) => ({ cwd: repo, session_id: "s", tool_name: "Bash", tool_input: { command: cmd } });
+
+    it("registers the SessionStart hook for new sessions only, through the published daemon", () => {
         expect(entry.matcher).toBe("startup");
-        expect(command).toContain("$HOME/.githerd/graphty-org_graphty-monorepo/current/bin/githerd-hook.mjs");
+        expect(command).toContain("$HOME/.githerd/graphty-org_graphty-monorepo.hook.mjs");
+        expect(writeCommand).toContain("$HOME/.githerd/graphty-org_graphty-monorepo.hook.mjs");
     });
 
-    it("prints the status line when githerd is installed", async () => {
-        mkdirSync(join(dir, ".githerd", "graphty-org_graphty-monorepo"), { recursive: true });
-        symlinkSync(PKG, join(dir, ".githerd", "graphty-org_graphty-monorepo", "current"));
+    it("prints the status line of an installed daemon", async () => {
+        publishHook(hookPointer(dir, repo, "graphty-org/graphty-monorepo"), { dev: false, stateDir: null });
         await fakeDaemon(join(dir, ".githerd", repoIdentity(repo)), {});
         const r = await runCommand(dir);
         expect(r.status).toBe(0);
         expect(JSON.parse(r.stdout).systemMessage).toBe(statusLine(STATUS));
     });
 
-    it("does nothing, and exits 0, when githerd is not installed", async () => {
+    it("reaches a development daemon, with its state in its own directory", async () => {
+        const devState = join(dir, "worktree", ".githerd-dev");
+        publishHook(hookPointer(dir, repo, "graphty-org/graphty-monorepo"), { dev: true, stateDir: devState });
+        await fakeDaemon(devState, {});
         const r = await runCommand(dir);
-        expect(r).toMatchObject({ status: 0, stdout: "", stderr: "" });
+        expect(r.status).toBe(0);
+        expect(JSON.parse(r.stdout).systemMessage).toBe(statusLine(STATUS));
+
+        const read = await runCommand(dir, writeCommand, bash("gh issue view 12"));
+        expect(read).toMatchObject({ status: 0, stdout: "", stderr: "" });
+        expect(existsSync(join(devState, SESSION_WRITES))).toBe(false);
+
+        const write = await runCommand(dir, writeCommand, bash("gh issue comment 12 --body hi"));
+        expect(write).toMatchObject({ status: 0, stdout: "", stderr: "" });
+        const [line] = readFileSync(join(devState, SESSION_WRITES), "utf8").trim().split("\n");
+        expect(JSON.parse(line)).toMatchObject({ session: "s", job: null, numbers: [12] });
+    });
+
+    it("does nothing, and exits 0, when no daemon was ever published, or its code is gone", async () => {
+        expect(await runCommand(dir)).toMatchObject({ status: 0, stdout: "", stderr: "" });
+        expect(await runCommand(dir, writeCommand, bash("gh pr merge 3"))).toMatchObject({ status: 0, stdout: "" });
+        const pointer = hookPointer(dir, repo, "graphty-org/graphty-monorepo");
+        publishHook(pointer, { dev: true, stateDir: join(dir, "gone") }, join(dir, "gone", "githerd-hook.mjs"));
+        expect(await runCommand(dir)).toMatchObject({ status: 0, stdout: "", stderr: "" });
+        expect(await runCommand(dir, writeCommand, bash("gh pr merge 3"))).toMatchObject({ status: 0, stdout: "" });
     });
 
     it("starts the MCP server from the installed copy", () => {

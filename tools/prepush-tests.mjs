@@ -12,7 +12,7 @@
  *
  * Usage: node tools/prepush-tests.mjs <affected-projects-json> [<base>]
  *   the JSON array `nx show projects --affected --json` prints, and the commit the push is compared
- *   with. A shard whose "local" policy is "when-paths-change" (graphty-element's ten browser and
+ *   with. A shard whose "local" policy is "when-paths-change" (graphty-element's eleven browser and
  *   storybook shards) runs only when a file changed since <base> is one it tests, as vitest itself
  *   resolves its command (gateShards below); without <base> (PREPUSH_ALL=1) every shard runs. One
  *   whose policy is "never" never runs here. CI runs them all either way.

@@ -3,7 +3,9 @@
  * typed arrays, with a mutable builder, columnar typed attributes and an id map kept outside the CSR.
  * This is the only public barrel; it exports exactly the surface of design section 12.2, as named
  * exports (no star re-exports, nothing from src/types/internal.ts, no helper that a sibling module
- * exports for the package's own use).
+ * exports for the package's own use), plus the engine-independent math of src/util/det-math.ts, which
+ * every graphty package that turns a seed into a result shares from here because graph-format is
+ * the one dependency they all have.
  */
 
 // ============================================================ constants and errors
@@ -26,6 +28,7 @@ export { fromRecords } from "./populate/from-records.js";
 export { renumberPartition } from "./snapshot/derived.js";
 export { equalsTopology, isGraphSnapshot } from "./snapshot/graph-snapshot.js";
 export { expandEdges, foldArcs } from "./snapshot/views.js";
+export { detAcos, detCos, detExp, detHypot, detLog, detPow, detSin } from "./util/det-math.js";
 export {
     makeMask,
     maskAnd,

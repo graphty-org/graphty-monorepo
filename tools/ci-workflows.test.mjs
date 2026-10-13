@@ -3663,3 +3663,18 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
         }
     });
 });
+
+describe("pnpm-lock.yaml", () => {
+    it("holds one Playwright version, the one CI installs browsers for", () => {
+        // A second version lets a re-resolution move @vitest/browser-playwright's peer to it, and
+        // every browser shard then fails to find its browser. pnpm-workspace.yaml's overrides pin it.
+        const lock = readFileSync(new URL("../pnpm-lock.yaml", import.meta.url), "utf8");
+        for (const name of ["playwright", "playwright-core", "@playwright/test"]) {
+            const escaped = name.replace(/[/@]/g, "\\$&");
+            const versions = new Set(
+                [...lock.matchAll(new RegExp(`^  '?${escaped}@(\\d[^:'(]*)'?:`, "gm"))].map((m) => m[1]),
+            );
+            assert.deepEqual([...versions], ["1.57.0"], `${name} versions in pnpm-lock.yaml`);
+        }
+    });
+});

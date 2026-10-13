@@ -19,7 +19,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, it } from "node:test";
+import { after, describe, it } from "node:test";
 
 import { GROUPS, groupEntry, plan, SHARDS } from "./ci-test-matrix.mjs";
 import { isolateGit } from "./isolated-git-env.mjs";
@@ -48,6 +48,10 @@ import {
 import { gateShards, localShards, shardEnv, startRule } from "./prepush-tests.mjs";
 import { strayChanges } from "./release-diff.mjs";
 import { changedFiles, skippedProjects } from "./visual-capture-plan.mjs";
+
+// The temporary directories this file makes go inside this one, removed when the file finishes.
+const TMP = mkdtempSync(join(tmpdir(), "ci-workflows-"));
+after(() => rmSync(TMP, { recursive: true, force: true }));
 
 // Every git process below (and in the scripts the hook tests run) runs without the developer's own
 // config: a commit there must never reach their signing key.
@@ -1449,7 +1453,7 @@ describe("Playwright's system packages", () => {
     // the dry run with PKGS and the install by writing DOWNLOADS into the archive directory, and
     // dpkg-query reports the packages named in INSTALLED as installed.
     const run = ({ hit, cached = [], stale = [], downloads = [], aptSays = "", installed = "a b" }) => {
-        const home = mkdtempSync(join(tmpdir(), "pw-debs-"));
+        const home = mkdtempSync(join(TMP, "pw-debs-"));
         const bin = join(home, "bin");
         const debs = join(home, "debs");
         const archives = join(home, "archives");
@@ -1595,6 +1599,31 @@ describe("gpu.yml", () => {
             job(workflow("gpu-weekly-paired.yml"), "paired"),
             /runs-on: machine\/gpu=t4\/cpu=4\/ram=16\/tenancy=on_demand\n/,
         );
+    });
+
+    it("runs every T4 job in the ubuntu:24.04 container, since the 22.04 host cannot load Dawn", () => {
+        // The machine.dev host's libstdc++ lacks GLIBCXX_3.4.32, which webgpu 0.6.x's dawn.node needs: a T4 job on the
+        // bare host gets E_NO_WEBGPU at its adapter report (issue #2313: the weekly failed that way every week).
+        const dir = new URL("../.github/workflows/", import.meta.url);
+        let checked = 0;
+        for (const file of readdirSync(dir).filter((f) => f.endsWith(".yml"))) {
+            const code = readFileSync(new URL(file, dir), "utf8").replace(/^\s*#.*$/gm, "");
+            for (const body of code.split(/\n(?= {4}[a-z][\w-]*:\n)/)) {
+                if (!/\n {8}runs-on: .*gpu=t4/.test(body)) continue;
+                const where = `${file}: ${body.trim().split("\n")[0]}`;
+                assert.match(body, /\n {8}container:\n {12}image: ubuntu:24\.04\n {12}options: --gpus all\b/, where);
+                assert.match(body, /NVIDIA_DRIVER_CAPABILITIES: all\n/, where);
+                // the whole apt-get install command, with its backslash-continued lines
+                const install = body.match(/apt-get install(?:[^\n]*\\\n)*[^\n]*/)?.[0] ?? "";
+                assert.match(install, /\blibvulkan1 libegl1\b/, where);
+                assert.doesNotMatch(body, /modprobe/, `${where}: a container cannot load kernel modules`);
+                if (/\bgh (issue|api|pr|run) /.test(body)) {
+                    assert.match(install, /\sgh\s/, `${where}: calls gh, so installs it`);
+                }
+                checked++;
+            }
+        }
+        assert.ok(checked >= 2, `found the T4 jobs (${checked})`);
     });
 
     it("leaves no pull request or master push able to start a paid T4 anywhere", () => {

@@ -35,9 +35,8 @@ function getDefaultConfig(): OrbitConfig {
     return {
         trackballRotationSpeed: 0.01,
         keyboardRotationSpeed: 0.02,
-        keyboardZoomSpeed: 0.5,
+        keyboardZoomSpeed: 0.015,
         keyboardYawSpeed: 0.03,
-        pinchZoomSensitivity: 0.01,
         twistYawSensitivity: 1.0,
         minZoomDistance: 1,
         maxZoomDistance: 100,

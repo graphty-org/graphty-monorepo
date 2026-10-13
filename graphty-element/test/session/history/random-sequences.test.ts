@@ -17,7 +17,7 @@
  */
 
 import fc from "fast-check";
-import { afterEach, assert, describe, it, onTestFailed } from "vitest";
+import { afterEach, assert, describe, it, onTestFailed, vi } from "vitest";
 
 import type { LayerSpec } from "../../../src/catalog/types";
 import { dispatcherOf } from "../../../src/session/GraphSession";
@@ -45,7 +45,8 @@ const NUM_RUNS = Number(process.env.FC_NUM_RUNS ?? 60);
 const MAX_COMMANDS = 30;
 /*
  * No per-seed deadline: a seed takes about 2 s locally and well under 10 s in CI's coverage run,
- * inside the project's 30 s budget. Every clock, queue turn and run here is held by the model, so
+ * inside the project's 30 s budget. Every clock, queue turn and run here is held by the model --
+ * the repaint's slices too, so a busy machine adds no event-loop turns to a sequence -- so
  * a sequence that never settles is waiting on something that will never come, and the project's
  * budget fails it; the test then prints the sequence that was running (see `runSeed`).
  */
@@ -262,5 +263,25 @@ describe("eviction folds the arrangement of every evicted step into the baseline
         await session.history.restoreTo(null);
         assert.deepEqual(laneOf(real), expected, "the baseline, with every evicted placement applied");
         session.dispose();
+    });
+});
+
+describe("a sequence's work depends on its seed, not on the machine's clock", () => {
+    it("a session on the model's clock repaints without yielding, however long the real clock says a slice ran", async () => {
+        const clock = fakeClock();
+        const session = await fixtureSession({ now: clock.now });
+        // A machine so busy that every reading of the real clock is a slice later than the last:
+        // a repaint slicing on it would hand the event loop a turn at every check.
+        let real = 0;
+        vi.spyOn(performance, "now").mockImplementation(() => (real += 1000));
+        const yields = vi.spyOn(globalThis, "setTimeout");
+        try {
+            await session.styles.add(declared("#654321"));
+            await paintBaseline(session);
+            assert.lengthOf(yields.mock.calls, 0, "no event-loop turn was taken");
+        } finally {
+            vi.restoreAllMocks();
+            session.dispose();
+        }
     });
 });

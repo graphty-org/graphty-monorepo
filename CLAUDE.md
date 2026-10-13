@@ -599,9 +599,9 @@ reason); run by `tools/check-links.sh`:
   `{@link}`. The unified `npm run docs:build` in CI runs both.
 - **Weekly** (`links-weekly.yml`): every external link. A dead one goes into an issue, not a red build.
 
-A link to graphty.app must point at something `tools/assemble-pages-site.sh` publishes. The layout
-package has no guide pages, so its documentation link is the generated API reference,
-`https://graphty.app/docs/layout/api/generated/`. graphty-element's Storybook is at
+A link to graphty.app must point at something `tools/assemble-pages-site.sh` publishes. Every
+package's documentation link is its landing page, `https://graphty.app/docs/<package>/` (layout's
+guide is `layout/docs/`, copied there by `tools/copy-docs-content.js`). graphty-element's Storybook is at
 `/storybook/graphty-element/`; `/storybook/element/` only redirects there, for old links.
 
 ### Release versioning

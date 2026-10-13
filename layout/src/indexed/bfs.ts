@@ -19,7 +19,7 @@ export interface BfsLayoutOptions extends CommonLayoutOptions {
  * @param g - an undirected snapshot
  * @param start - the start index
  * @returns node indices per layer
- * @throws when a node is not reachable from `start`
+ * @throws when a node is not reachable from `start` (code `E_NOT_CONNECTED`)
  */
 function bfsLayers(g: GraphSnapshot, start: number): number[][] {
     const n = g.nodeCount;
@@ -49,7 +49,10 @@ function bfsLayers(g: GraphSnapshot, start: number): number[][] {
         layer = next;
     }
     if (reached < n) {
-        throw new Error("bfs_layout didn't include all nodes. Graph may be disconnected.");
+        throw Object.assign(new Error("bfs_layout didn't include all nodes. Graph may be disconnected."), {
+            code: "E_NOT_CONNECTED",
+            params: { nodeCount: n, reached },
+        });
     }
     return layers;
 }
@@ -61,7 +64,8 @@ function bfsLayers(g: GraphSnapshot, start: number): number[][] {
  * @param s - the snapshot; a directed one is read as its undirected derived graph
  * @param options - `scale` is the distance of the farthest node from the centre; `start` the first layer
  * @returns the layout
- * @throws when the graph is not connected
+ * @throws an Error when the graph is not connected, with `code` `E_NOT_CONNECTED` and `params`
+ * `{ nodeCount, reached }` (the nodes the search from `start` reached)
  */
 export function bfs(s: GraphSnapshot, options: BfsLayoutOptions = {}): LayoutResult {
     const { n, dim, scale, center } = resolve(s, options);

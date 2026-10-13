@@ -159,21 +159,25 @@ export class OrbitInputController {
 
         const keys = this.keysDown;
         const cam = this.controller;
+        // The velocity is damped every frame, so a held key settles where the push and the damping
+        // balance: push / (1 - damping). Pushing by speed * (1 - damping) settles a held arrow at
+        // exactly keyboardRotationSpeed radians a frame, as A and D turn by keyboardYawSpeed.
+        const push = this.config.keyboardRotationSpeed * (1 - this.config.inertiaDamping);
 
         if (keys.arrowleft) {
-            this.rotationVelocityY += this.config.keyboardRotationSpeed;
+            this.rotationVelocityY += push;
         }
 
         if (keys.arrowright) {
-            this.rotationVelocityY -= this.config.keyboardRotationSpeed;
+            this.rotationVelocityY -= push;
         }
 
         if (keys.arrowup) {
-            this.rotationVelocityX += this.config.keyboardRotationSpeed;
+            this.rotationVelocityX += push;
         }
 
         if (keys.arrowdown) {
-            this.rotationVelocityX -= this.config.keyboardRotationSpeed;
+            this.rotationVelocityX -= push;
         }
 
         // W and S are exact inverses, so a press of one undoes the same press of the other

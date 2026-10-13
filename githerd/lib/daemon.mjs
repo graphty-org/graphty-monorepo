@@ -94,7 +94,7 @@ import { effectiveMode, MODELS } from "./config.mjs";
 import { updateMainCheckout } from "./main-checkout.mjs";
 import { createGitHub, GitHubError, notSent } from "./github.mjs";
 import { answerHook, hookPointer, publishHook, staleSpooled, writeNews } from "./hook.mjs";
-import { pollIssues } from "./issues.mjs";
+import { pollIssues, pruneClosedIssues } from "./issues.mjs";
 import { backfillTriaged, syncJobs } from "./jobs.mjs";
 import { checkFaults, confirmClosedWaits, settleWaits, tickJobs, waitNews } from "./advance.mjs";
 import {
@@ -739,6 +739,7 @@ export async function startDaemon({
     state.master.lanes ??= {};
     state.incidents ??= {};
     state.issues ??= { since: null, byNumber: {} };
+    pruneClosedIssues(state);
     state.merged ??= { lastScanAt: null, pending: [], closed: [] };
     await backfillFromLedger(state, stateDir, say);
     // References kept under an earlier rule (a stacked merge, a bare `#n` in prose): read them again.
@@ -2878,6 +2879,7 @@ export async function startDaemon({
 
         const issues = await pollIssues(gh, config.repo, state.issues);
         state.issues = { since: issues.since, byNumber: issues.byNumber };
+        pruneClosedIssues(state);
         await checkOverrides();
     }
 

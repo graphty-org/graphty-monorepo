@@ -1718,7 +1718,7 @@ export class Graph implements GraphContext {
     setLayoutScope(scope: ScopeInput | undefined): Promise<void>;
     setNodes(nodes: Record<string | number, unknown>[], idPath?: string, options?: QueueableOptions): Promise<void>;
     setRenderer(request: RendererRequest): void;
-    setRenderSettings(_settings: Record<string, unknown>, options?: QueueableOptions): Promise<void>;
+    setRenderSettings(settings: Record<string, unknown>, options?: QueueableOptions): Promise<void>;
     setRunning(running: boolean): void;
     setSelectionStyle(selection: GraphSelectionStyleInput): void;
     setStartingCameraDistance(distance: number | undefined): void;
@@ -2477,6 +2477,24 @@ export type GraphtyErrorCode =
 * or loosens `tolerance`, and runs again; the same params always fail the same way.
 */
 | "E_NOT_CONVERGED"
+/**
+* A layout that only arranges planar graphs (`planar`) was given a graph that cannot be drawn
+* without crossing edges, such as K5 or the Petersen graph. `details` carry `nodeCount` and
+* `edgeCount` of the graph it tested, and `cause` the layout package's own error. The layout
+* places nothing: every node stays where it was before. It stays the chosen layout, and it
+* arranges the graph again when the graph changes. The caller picks another layout, or changes
+* the graph.
+*/
+| "E_NOT_PLANAR"
+/**
+* The graph is not connected, and the layout or algorithm only works on a connected one: the
+* `bfs` layout reaches every node from its start or places none. `details` carry `nodeCount`
+* and, from a layout, `reached`, the nodes it did reach; `cause` is the sibling package's own
+* error. A layout that refuses places nothing: every node stays where it was, and it arranges
+* the graph again when the graph changes. The caller picks another layout or start, or
+* connects the graph.
+*/
+| "E_NOT_CONNECTED"
 /**
 * Acceleration was required (the `acceleration` attribute set to `required`) and no
 * accelerator is available. `details` carry the reason acceleration is absent. The caller

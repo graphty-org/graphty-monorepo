@@ -42,8 +42,11 @@ function setup() {
     git("commit", "-q", "-m", "a");
     spawnSync("git", ["init", "-q", "--bare", join(root, "origin.git")]);
     git("remote", "add", "origin", join(root, "origin.git"));
+    // The queue's own settings come only from here, never from the caller: a push made with
+    // PUSH_QUEUE_RETRY=1 runs these tests in its gate with that variable still set (issue #2458).
+    const inherited = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("PUSH_QUEUE_")));
     const env = {
-        ...process.env,
+        ...inherited,
         PUSH_QUEUE_DIR: join(root, "q", "tickets"),
         PUSH_QUEUE_LOG: join(root, "q", "push-log.jsonl"),
         PUSH_QUEUE_GATE: join(root, "no-gate-live"),
@@ -248,6 +251,23 @@ describe("push-queue: a commit that already failed", () => {
         const r = push(ctx);
         assert.equal(r.status, 1);
         assert.match(r.stderr, /\[FAIL\] graphty \(exit 1/);
+    });
+
+    it("still refuses when the caller's environment has PUSH_QUEUE_RETRY=1", () => {
+        const saved = process.env.PUSH_QUEUE_RETRY;
+        process.env.PUSH_QUEUE_RETRY = "1";
+        let ctx;
+        try {
+            ctx = setupWithInputs();
+        } finally {
+            if (saved === undefined) delete process.env.PUSH_QUEUE_RETRY;
+            else process.env.PUSH_QUEUE_RETRY = saved;
+        }
+        failGate(ctx, "[FAIL] Lint failed");
+        const r = push(ctx);
+        assert.equal(r.status, 1, r.stdout + r.stderr);
+        assert.match(r.stderr, /refused/);
+        assert.equal(pushed(ctx), "", "nothing was pushed");
     });
 
     it("pushes again with PUSH_QUEUE_RETRY=1", () => {

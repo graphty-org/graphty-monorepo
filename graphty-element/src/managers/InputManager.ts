@@ -354,10 +354,7 @@ export class InputManager implements Manager {
         if (data && typeof data === "object") {
             const serialized: Record<string, unknown> = {};
             for (const key in data) {
-                if (
-                    Object.prototype.hasOwnProperty.call(data, key) &&
-                    typeof (data as Record<string, unknown>)[key] !== "function"
-                ) {
+                if (Object.hasOwn(data, key) && typeof (data as Record<string, unknown>)[key] !== "function") {
                     serialized[key] = this.serializeEventData((data as Record<string, unknown>)[key]);
                 }
             }

@@ -17,10 +17,10 @@ import type {
 } from "@graphty/graphty-element";
 
 /** How every one of the chip's labels begins. */
-export const AUTOSAVE_CHIP_PREFIX = "Autosave";
+const AUTOSAVE_CHIP_PREFIX = "Autosave";
 
 /** The chip's two strings and its ink. */
-export interface AutosaveChipText {
+interface AutosaveChipText {
     /** The chip's text, e.g. `Autosave: saved`. */
     readonly label: string;
     /** The chip's tooltip. */

@@ -465,7 +465,7 @@ export class Graphty extends LitElement {
         // Autosave reads its key and options in the task after connecting, so a script that sets
         // them right after appending the tag is in time; data inputs wait for its restore.
         if (this.#autosaveOn()) {
-            this.#autosave.connect();
+            this.#autosaveControl.connect();
         }
 
         if (this.#autosaveTimer === undefined) {
@@ -761,14 +761,14 @@ export class Graphty extends LitElement {
         // The final autosave write is built now, while the session is still alive; only its
         // commit finishes after the shutdown below.
         clearTimeout(this.#autosaveTimer);
-        this.#autosave.depart();
+        this.#autosaveControl.depart();
 
         this.#graph.shutdown();
         super.disconnectedCallback();
     }
 
     /** Autosave for this element: off until the `autosave` attribute or property turns it on. */
-    readonly #autosave = new ElementAutosave((type, detail) => {
+    readonly #autosaveControl = new ElementAutosave((type, detail) => {
         this.dispatchEvent(new CustomEvent(type, { detail, bubbles: true, composed: true }));
     });
     #autosaveTimer: ReturnType<typeof setTimeout> | undefined;
@@ -865,7 +865,7 @@ export class Graphty extends LitElement {
      * @since 3.26.0
      */
     get autosaver(): AutosaveApi {
-        return this.#autosave.api;
+        return this.#autosaveControl.api;
     }
 
     /**
@@ -908,8 +908,8 @@ export class Graphty extends LitElement {
         const load = (): Promise<void> => apply(setup);
         this.#pageLoads.set(sourceSlot(source), { source, load });
         this.#pageGate = this.#pageGate
-            .then(() => this.#autosave.ready)
-            .then(() => this.#autosave.admit(source, load))
+            .then(() => this.#autosaveControl.ready)
+            .then(() => this.#autosaveControl.admit(source, load))
             .catch(() => undefined);
     }
 
@@ -919,17 +919,17 @@ export class Graphty extends LitElement {
      * @returns Settles when the call may run, or undefined when it may run now.
      */
     #afterRestore(): Promise<void> | undefined {
-        if (!this.#autosaveOn() || !this.#autosave.holding) {
+        if (!this.#autosaveOn() || !this.#autosaveControl.holding) {
             return undefined;
         }
 
-        return this.#autosave.ready.then(() => this.#pageGate).then(() => undefined);
+        return this.#autosaveControl.ready.then(() => this.#pageGate).then(() => undefined);
     }
 
     /** Start autosave, in the task after connecting: resolve the key, then restore. */
     async #startAutosave(): Promise<void> {
         if (!this.isConnected || !this.#autosaveOn()) {
-            this.#autosave.off();
+            this.#autosaveControl.off();
             return;
         }
 
@@ -964,7 +964,7 @@ export class Graphty extends LitElement {
         const pageConfig = Object.fromEntries(
             [...this.attributes].filter((each) => !skip.has(each.name)).map((each) => [each.name, each.value]),
         );
-        await this.#autosave.start({
+        await this.#autosaveControl.start({
             session,
             key,
             options: this.#autosaveOptionsValue,
@@ -976,7 +976,7 @@ export class Graphty extends LitElement {
                 }
 
                 for (const { source, load } of this.#pageLoads.values()) {
-                    await this.#autosave.admit(source, load);
+                    await this.#autosaveControl.admit(source, load);
                 }
             },
         });
@@ -1354,7 +1354,7 @@ export class Graphty extends LitElement {
                 this.#pairQueued = true;
                 const setup = this.#settingUp;
                 this.#pageGate = this.#pageGate
-                    .then(() => this.#autosave.ready)
+                    .then(() => this.#autosaveControl.ready)
                     .then(() => {
                         this.#pairQueued = false;
                         const { type, config } = this.#assigned;
@@ -1371,7 +1371,7 @@ export class Graphty extends LitElement {
                         this.#pageLoads.set("whole", { source: page, load });
                         this.#pageLoads.delete("nodes");
                         this.#pageLoads.delete("edges");
-                        return this.#autosave.admit(page, load);
+                        return this.#autosaveControl.admit(page, load);
                     })
                     .catch(() => undefined);
             }

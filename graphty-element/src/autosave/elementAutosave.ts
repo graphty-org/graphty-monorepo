@@ -94,9 +94,7 @@ function webLocks(locks: LockManager): PageLocks {
 
                         // Held until released: the lock lives as long as this promise is pending.
                         return new Promise<void>((release) => {
-                            resolve(() => {
-                                release();
-                            });
+                            resolve(release);
                         });
                     })
                     .catch(reject);
@@ -252,7 +250,7 @@ export class ElementAutosave {
     #options: Partial<AutosaveOptions> = {};
     #status: AutosaveStatus = offStatus(null);
     #told = "";
-    #ready: Promise<AutosaveRestored | null>;
+    readonly #ready: Promise<AutosaveRestored | null>;
     #settle: (restored: AutosaveRestored | null) => void = () => undefined;
     #settled = false;
     readonly #stops: (() => void)[] = [];

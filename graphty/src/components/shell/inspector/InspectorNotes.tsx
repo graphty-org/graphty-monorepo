@@ -92,15 +92,15 @@ export function NoteRows(props: NoteRowsProps): React.JSX.Element {
     const { inputTestId, draftKey, notes, onAddNote, onDeleteNote, onSetNoteDone } = props;
     const keeper = useContext(NoteDraftContext);
     const restored = draftKey !== undefined && keeper?.restored?.where === draftKey ? keeper.restored.text : null;
-    const [draft, setDraftText] = useState(restored ?? "");
+    const [draft, setDraft] = useState(restored ?? "");
     // The draft comes back once the element has restored the work, which can be after mount.
     useEffect(() => {
         if (restored !== null) {
-            setDraftText((typed) => (typed === "" ? restored : typed));
+            setDraft((typed) => (typed === "" ? restored : typed));
         }
     }, [restored]);
-    const setDraft = (text: string): void => {
-        setDraftText(text);
+    const changeDraft = (text: string): void => {
+        setDraft(text);
         if (draftKey !== undefined) {
             keeper?.keep({ where: draftKey, text });
         }
@@ -162,7 +162,7 @@ export function NoteRows(props: NoteRowsProps): React.JSX.Element {
                     data-testid={inputTestId}
                     value={draft}
                     onChange={(event) => {
-                        setDraft(event.currentTarget.value);
+                        changeDraft(event.currentTarget.value);
                     }}
                     onKeyDown={(event) => {
                         if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
@@ -171,13 +171,13 @@ export function NoteRows(props: NoteRowsProps): React.JSX.Element {
 
                             if (text !== "") {
                                 onAddNote(text);
-                                setDraft("");
+                                changeDraft("");
                             }
                         }
 
                         if (event.key === "Escape") {
                             event.preventDefault();
-                            setDraft("");
+                            changeDraft("");
                         }
                     }}
                 />

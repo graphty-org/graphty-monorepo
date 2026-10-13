@@ -45,6 +45,7 @@ import {
     type AutosaveCode,
     type AutosaveEntry,
     type AutosaveEntryMeta,
+    type AutosaveParts,
     type AutosaveRestored,
     type AutosaveStatus,
     type AutosaveStore,
@@ -295,6 +296,66 @@ function tagsOf(slices: readonly ProjectSlice[]): PartTag[] {
     return tags;
 }
 
+/** The retries one write run has left, of each kind. */
+interface WriteRetries {
+    /** After the watchdog aborted a stuck write. */
+    stall: number;
+    /** After a full quota, once old clean entries are removed. */
+    quota: number;
+    /** After the connection to the database was lost. */
+    lost: number;
+}
+
+/**
+ * The name of a thrown value, for an error code's params.
+ * @param error - What was thrown.
+ * @returns Its name, or "Error".
+ */
+function errorName(error: unknown): string {
+    return error instanceof Error ? error.name : "Error";
+}
+
+/**
+ * The entries a load tries to restore, in order: this tab's own entry alone when it has one (none
+ * when it was replaced), else every open entry, newest first.
+ * @param open - The entries not replaced, oldest first.
+ * @param own - This tab's own entry, if it has one.
+ * @returns The candidates.
+ */
+function restoreCandidates(
+    open: readonly AutosaveEntryMeta[],
+    own: AutosaveEntryMeta | undefined,
+): AutosaveEntryMeta[] {
+    if (own === undefined) {
+        return [...open].reverse();
+    }
+
+    return own.ended === "replaced" ? [] : [own];
+}
+
+/**
+ * Why an entry is not restored automatically: its restores kept killing the page, or a newer
+ * deploy wrote it.
+ * @param meta - The entry.
+ * @returns The problem, or null when it can be restored.
+ */
+function unrestorable(meta: AutosaveEntryMeta): AutosaveAvailable["problem"] {
+    const attempts = Number(meta.restoreAttempts ?? 0);
+    if (attempts >= RESTORE_ATTEMPTS) {
+        return { code: "E_AUTOSAVE_RESTORE_CRASHED", params: { attempts } };
+    }
+
+    if (!canRead(meta.formatVersion, AUTOSAVE_FORMAT_VERSION)) {
+        const { formatVersion } = meta;
+        return {
+            code: "E_AUTOSAVE_FORMAT_NEWER",
+            params: { formatVersion: typeof formatVersion === "number" ? formatVersion : String(formatVersion) },
+        };
+    }
+
+    return null;
+}
+
 /** Writes one session's work to an autosave store as it changes. */
 export class Autosaver {
     readonly #session: GraphSession;
@@ -501,7 +562,8 @@ export class Autosaver {
         if (value === undefined) {
             this.#stash.delete(name);
         } else {
-            this.#stash.set(name, JSON.parse(JSON.stringify(value)) as unknown);
+            // A JSON round trip on purpose: the stash keeps exactly what the entry will hold.
+            this.#stash.set(name, JSON.parse(JSON.stringify(value)) as unknown); // NOSONAR(S7784): JSON semantics wanted, not a structured clone
         }
 
         this.#mark(["stash"], false, false);
@@ -609,33 +671,11 @@ export class Autosaver {
         }
 
         // This tab's own entry, and never an unrelated one when it has one; else the newest first.
-        const own =
-            options.own === null || options.own === undefined
-                ? undefined
-                : metas.find((meta) => meta.id === options.own);
-        let candidates = [...open].reverse();
-        if (own !== undefined) {
-            candidates = own.ended === "replaced" ? [] : [own];
-        }
-
-        for (const meta of candidates) {
-            const attempts = Number(meta.restoreAttempts ?? 0);
-            if (attempts >= RESTORE_ATTEMPTS) {
-                this.#available(meta, live(meta), "restore-failed", {
-                    code: "E_AUTOSAVE_RESTORE_CRASHED",
-                    params: { attempts },
-                });
-                continue;
-            }
-
-            if (!canRead(meta.formatVersion, AUTOSAVE_FORMAT_VERSION)) {
-                this.#available(meta, live(meta), "restore-failed", {
-                    code: "E_AUTOSAVE_FORMAT_NEWER",
-                    params: {
-                        formatVersion:
-                            typeof meta.formatVersion === "number" ? meta.formatVersion : String(meta.formatVersion),
-                    },
-                });
+        const own = metas.find((meta) => meta.id === options.own);
+        for (const meta of restoreCandidates(open, own)) {
+            const problem = unrestorable(meta);
+            if (problem !== null) {
+                this.#available(meta, live(meta), "restore-failed", problem);
                 continue;
             }
 
@@ -1016,7 +1056,7 @@ export class Autosaver {
         } catch (error) {
             this.#setProblem({
                 code: "E_AUTOSAVE_FAILED",
-                params: { name: error instanceof Error ? error.name : "Error" },
+                params: { name: errorName(error) },
             });
             return null;
         }
@@ -1053,6 +1093,46 @@ export class Autosaver {
         for (const listener of this.#availableListeners) {
             listener(available);
         }
+    }
+
+    /**
+     * Copy an entry another tab holds into a new entry of this tab's, claimed.
+     * @param meta - The entry.
+     * @param parts - Its parts.
+     * @returns The copy, as committed, and its lock's release.
+     */
+    async #copyEntry(
+        meta: AutosaveEntryMeta,
+        parts: AutosaveParts,
+    ): Promise<{ meta: AutosaveEntryMeta; release: (() => void) | null }> {
+        const id = newId();
+        const release = await this.#locks.claim(lockName(this.#key, id));
+        const copied: AutosaveEntryMeta = {
+            ...meta,
+            id,
+            gen: 0,
+            seq: 0,
+            restoreAttempts: 0,
+            copiedFrom: meta.id,
+            createdAt: new Date(this.#clock.now()).toISOString(),
+        };
+        await this.#store.commit([{ id, expectedGen: 0, meta: copied, parts }]);
+        return { meta: { ...copied, gen: 1 }, release };
+    }
+
+    /**
+     * Record a restore attempt before opening: a restore that kills the page leaves it raised. An
+     * ended entry restored by hand is current again.
+     * @param meta - The entry.
+     * @returns The entry, as committed.
+     */
+    async #recordAttempt(meta: AutosaveEntryMeta): Promise<AutosaveEntryMeta> {
+        const current: AutosaveEntryMeta = {
+            ...(Object.fromEntries(Object.entries(meta).filter(([field]) => field !== "ended")) as AutosaveEntryMeta),
+            restoreAttempts: Number(meta.restoreAttempts ?? 0) + 1,
+        };
+        await this.#store.commit([{ id: current.id, expectedGen: current.gen, meta: current, parts: {} }]);
+        return { ...current, gen: current.gen + 1 };
     }
 
     /**
@@ -1109,36 +1189,14 @@ export class Autosaver {
 
             current = entry.meta;
             if (copy) {
-                const id = newId();
-                release = await this.#locks.claim(lockName(this.#key, id));
-                const copied: AutosaveEntryMeta = {
-                    ...current,
-                    id,
-                    gen: 0,
-                    seq: 0,
-                    restoreAttempts: 0,
-                    copiedFrom: current.id,
-                    createdAt: new Date(this.#clock.now()).toISOString(),
-                };
-                await this.#store.commit([{ id, expectedGen: 0, meta: copied, parts: entry.parts }]);
-                current = { ...copied, gen: 1 };
+                ({ meta: current, release } = await this.#copyEntry(current, entry.parts));
             }
 
-            // Recorded before opening: a restore that kills the page leaves it raised. An ended
-            // entry restored by hand is current again.
-            const attempts = Number(current.restoreAttempts ?? 0) + 1;
-            current = {
-                ...(Object.fromEntries(
-                    Object.entries(current).filter(([field]) => field !== "ended"),
-                ) as AutosaveEntryMeta),
-                restoreAttempts: attempts,
-            };
-            await this.#store.commit([{ id: current.id, expectedGen: current.gen, meta: current, parts: {} }]);
-            current = { ...current, gen: current.gen + 1 };
+            current = await this.#recordAttempt(current);
         } catch (error) {
             return giveUp({
                 code: "E_AUTOSAVE_FAILED",
-                params: { name: error instanceof Error ? error.name : "Error" },
+                params: { name: errorName(error) },
             });
         }
 
@@ -1150,7 +1208,7 @@ export class Autosaver {
             release?.();
             this.#available(current, true, "restore-failed", {
                 code: isGraphtyError(error) ? error.code : "E_AUTOSAVE_FAILED",
-                params: { name: error instanceof Error ? error.name : "Error" },
+                params: { name: errorName(error) },
             });
             return null;
         } finally {
@@ -1486,17 +1544,10 @@ export class Autosaver {
      * @param retries.lost - After the connection to the database was lost.
      * @param first - A job already built, written before anything else.
      */
-    async #writeOnce(retries: { stall: number; quota: number; lost: number }, first?: Job | null): Promise<void> {
+    async #writeOnce(retries: WriteRetries, first?: Job | null): Promise<void> {
         let built = first;
         for (;;) {
-            let job: Job | null;
-            try {
-                job = built ?? this.#build();
-            } catch (error) {
-                this.#failed(error);
-                return;
-            }
-
+            const job = this.#takeJob(built);
             built = undefined;
             if (job === null) {
                 return;
@@ -1508,93 +1559,141 @@ export class Autosaver {
                 expectedGen: job.entries.get(write.id)?.gen ?? write.expectedGen,
             }));
 
-            const controller = new AbortController();
-            let stalled = false;
-            // A write is stalled after WATCHDOG_MS with no progress, not after WATCHDOG_MS in all: on
-            // a page whose main thread is busy (a large graph drawn in software), each step of a
-            // write waits behind a long frame, and a deadline on the whole write aborted every write
-            // there, for ever (found by the lifecycle tests at 1,000 nodes).
-            let cancelTimer = (): void => undefined;
-            const cancelWatchdog = (): void => {
-                cancelTimer();
-            };
-            const arm = (): void => {
-                cancelTimer();
-                cancelTimer = this.#clock.setTimer(() => {
-                    stalled = true;
-                    controller.abort();
-                }, WATCHDOG_MS);
-            };
-            arm();
-            try {
-                for (const entry of job.claim) {
-                    entry.release = await this.#locks.claim(lockName(this.#key, entry.id));
-                    // ponytail: a fresh random id is never held elsewhere; a refused claim is not retried.
-                }
-
-                await this.#store.commit(job.writes, {
-                    signal: controller.signal,
-                    onProgress: arm,
-                    ...(job.strict ? { durability: "strict" as const } : {}),
+            const failure = await this.#commitJob(job);
+            this.#carrying = null;
+            if (failure === null) {
+                job.done.forEach((done) => {
+                    done();
                 });
-            } catch (error) {
-                cancelWatchdog();
-                this.#carrying = null;
-                job.undo.forEach((undo) => {
-                    undo();
-                });
-                if (isAutosaveConflict(error)) {
-                    this.#conflict(error.id);
-                    continue;
+                this.#setProblem(null);
+                if (job.writes.some((write) => write.expectedGen === 0)) {
+                    await this.#retain(false);
                 }
 
-                if (stalled) {
-                    this.#setProblem({ code: "E_AUTOSAVE_STALLED", params: { afterMs: WATCHDOG_MS, step: "write" } });
-                    if (retries.stall-- > 0) {
-                        await this.#store.close?.();
-                        continue;
-                    }
-
-                    return;
-                }
-
-                const name = error instanceof Error || error instanceof DOMException ? error.name : "Error";
-                if (name === "QuotaExceededError") {
-                    if (retries.quota-- > 0) {
-                        await this.#retain(true);
-                        continue;
-                    }
-
-                    this.#setProblem({ code: "E_AUTOSAVE_QUOTA", params: await estimate() });
-                    return;
-                }
-
-                if (name === "UnknownError") {
-                    if (retries.lost-- > 0) {
-                        await this.#store.close?.();
-                        continue;
-                    }
-
-                    this.#setProblem({ code: "E_AUTOSAVE_CONNECTION_LOST", params: {} });
-                    return;
-                }
-
-                this.#setProblem({ code: "E_AUTOSAVE_FAILED", params: { name } });
                 return;
             }
 
-            cancelWatchdog();
-            this.#carrying = null;
-            job.done.forEach((done) => {
-                done();
+            job.undo.forEach((undo) => {
+                undo();
             });
-            this.#setProblem(null);
-            if (job.writes.some((write) => write.expectedGen === 0)) {
-                await this.#retain(false);
+            if (!(await this.#retryAfter(failure, retries))) {
+                return;
+            }
+        }
+    }
+
+    /**
+     * The job given, else a new one built from the changes.
+     * @param built - A job already built.
+     * @returns The job; null when there is nothing to write or building it failed (reported).
+     */
+    #takeJob(built: Job | null | undefined): Job | null {
+        try {
+            return built ?? this.#build();
+        } catch (error) {
+            this.#failed(error);
+            return null;
+        }
+    }
+
+    /**
+     * Claim a job's new entries and commit its writes under the watchdog.
+     * @param job - The job.
+     * @returns Null when it committed; else what was thrown, and whether the watchdog aborted it.
+     */
+    async #commitJob(job: Job): Promise<{ error: unknown; stalled: boolean } | null> {
+        const controller = new AbortController();
+        let stalled = false;
+        // A write is stalled after WATCHDOG_MS with no progress, not after WATCHDOG_MS in all: on
+        // a page whose main thread is busy (a large graph drawn in software), each step of a
+        // write waits behind a long frame, and a deadline on the whole write aborted every write
+        // there, for ever (found by the lifecycle tests at 1,000 nodes).
+        let cancelTimer = (): void => undefined;
+        const arm = (): void => {
+            cancelTimer();
+            cancelTimer = this.#clock.setTimer(() => {
+                stalled = true;
+                controller.abort();
+            }, WATCHDOG_MS);
+        };
+        arm();
+        try {
+            for (const entry of job.claim) {
+                entry.release = await this.#locks.claim(lockName(this.#key, entry.id));
+                // ponytail: a fresh random id is never held elsewhere; a refused claim is not retried.
             }
 
-            return;
+            await this.#store.commit(job.writes, {
+                signal: controller.signal,
+                onProgress: arm,
+                ...(job.strict ? { durability: "strict" as const } : {}),
+            });
+            return null;
+        } catch (error) {
+            return { error, stalled };
+        } finally {
+            cancelTimer();
         }
+    }
+
+    /**
+     * After a failed write: report it, and say whether to write again. A conflict always writes
+     * again; a stall, a full quota and a lost connection each once per run.
+     * @param failure - What the write threw, and whether the watchdog aborted it.
+     * @param failure.error - What was thrown.
+     * @param failure.stalled - The watchdog aborted it.
+     * @param retries - The retries left in this run.
+     * @returns Whether to write again.
+     */
+    async #retryAfter(failure: { error: unknown; stalled: boolean }, retries: WriteRetries): Promise<boolean> {
+        const { error, stalled } = failure;
+        if (isAutosaveConflict(error)) {
+            this.#conflict(error.id);
+            return true;
+        }
+
+        if (stalled) {
+            this.#setProblem({ code: "E_AUTOSAVE_STALLED", params: { afterMs: WATCHDOG_MS, step: "write" } });
+            return this.#reopenOnce(retries, "stall");
+        }
+
+        const name = error instanceof Error || error instanceof DOMException ? error.name : "Error";
+        if (name === "QuotaExceededError") {
+            if (retries.quota-- > 0) {
+                await this.#retain(true);
+                return true;
+            }
+
+            this.#setProblem({ code: "E_AUTOSAVE_QUOTA", params: await estimate() });
+            return false;
+        }
+
+        if (name === "UnknownError") {
+            if (await this.#reopenOnce(retries, "lost")) {
+                return true;
+            }
+
+            this.#setProblem({ code: "E_AUTOSAVE_CONNECTION_LOST", params: {} });
+            return false;
+        }
+
+        this.#setProblem({ code: "E_AUTOSAVE_FAILED", params: { name } });
+        return false;
+    }
+
+    /**
+     * Close the database, so the next write reopens it, while retries of this kind are left.
+     * @param retries - The retries left in this run.
+     * @param kind - Which retry.
+     * @returns Whether to write again.
+     */
+    async #reopenOnce(retries: WriteRetries, kind: "stall" | "lost"): Promise<boolean> {
+        if (retries[kind]-- <= 0) {
+            return false;
+        }
+
+        await this.#store.close?.();
+        return true;
     }
 
     /**
@@ -1676,7 +1775,7 @@ export class Autosaver {
 
         this.#setProblem({
             code: "E_AUTOSAVE_FAILED",
-            params: { name: error instanceof Error ? error.name : "Error" },
+            params: { name: errorName(error) },
         });
     }
 

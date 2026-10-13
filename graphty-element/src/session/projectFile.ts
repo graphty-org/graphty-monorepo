@@ -632,8 +632,10 @@ export function viewStateMember(session: GraphSession, ids: GraphIds | (() => Gr
     // The edge ids are read only when an edge is selected: building them costs a pass over every
     // edge, which an autosave of a settings change would otherwise pay on every write.
     let edgeAt: Map<EdgeId, number> | undefined;
-    const indexOf = (edge: EdgeId): number | undefined =>
-        (edgeAt ??= new Map((typeof ids === "function" ? ids() : ids).edges.map((id, at) => [id, at]))).get(edge);
+    const indexOf = (edge: EdgeId): number | undefined => {
+        edgeAt ??= new Map((typeof ids === "function" ? ids() : ids).edges.map((id, at) => [id, at]));
+        return edgeAt.get(edge);
+    };
     return {
         kind: "graphty-view-state",
         version: VERSION,

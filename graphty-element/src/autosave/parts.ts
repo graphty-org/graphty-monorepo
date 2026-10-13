@@ -171,12 +171,12 @@ export function buildParts(
  * @param parts - The entry's parts.
  * @param name - The part.
  * @returns Its text.
- * @throws {Error} when the part is missing or is not text.
+ * @throws {TypeError} when the part is missing or is not text.
  */
 function textOf(parts: AutosaveParts, name: string): string {
     const value = parts[name];
     if (typeof value !== "string") {
-        throw new Error(`the autosave entry has no ${name} part`);
+        throw new TypeError(`the autosave entry has no ${name} part`);
     }
 
     return value;

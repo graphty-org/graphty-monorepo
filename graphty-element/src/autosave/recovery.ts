@@ -93,7 +93,7 @@ export function changedSettings(now: Readonly<Record<string, string>>, then: unk
     const before = (typeof then === "object" && then !== null ? then : {}) as Record<string, unknown>;
     return Object.keys(now)
         .filter((name) => before[name] !== now[name])
-        .sort();
+        .sort((a, b) => a.localeCompare(b));
 }
 
 /**

@@ -93,6 +93,19 @@ export function formatKey(combo: string): string {
         .join("+");
 }
 
+/**
+ * The key string in ARIA's spelling, for `aria-keyshortcuts`: "Mod" becomes "Meta" or "Control".
+ * @param combo - the key string.
+ * @returns such as "Shift+Control+Z".
+ */
+export function ariaKey(combo: string): string {
+    const mod = isMac() ? "Meta" : "Control";
+    return combo
+        .split("+")
+        .map((part) => (part === "Mod" ? mod : part))
+        .join("+");
+}
+
 /** The parts of a key press `matchesKey` reads. */
 type KeyPress = Pick<KeyboardEvent, "key" | "ctrlKey" | "metaKey" | "shiftKey" | "altKey">;
 

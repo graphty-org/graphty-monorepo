@@ -83,7 +83,10 @@ export interface TreeItemProps extends Omit<React.HTMLAttributes<HTMLDivElement>
     dimmed?: boolean;
     /** Weight 600 and a primary glyph. Defaults to true for a top-level row with children. */
     strong?: boolean;
-    /** The trailing toggles, revealed on hover or focus. */
+    /**
+     * The trailing toggles, revealed on hover or focus. They are kept out of the Tab order (the
+     * row is the Tab stop); give each a row key and a row-menu item for the keyboard.
+     */
     actions?: React.ReactNode;
     /** 1-based position among its siblings, for assistive technology. */
     posInSet?: number;
@@ -159,6 +162,17 @@ export const TreeItem = forwardRef<HTMLDivElement, TreeItemProps>(function TreeI
         .filter((x) => x !== null)
         .join(" ");
     const fraction = typeof progress === "number" ? Math.min(1, Math.max(0, progress)) : undefined;
+    // The trailing toggles (eye, lock) leave the Tab order, so a tree stays one Tab stop however
+    // many rows it has. A pointer still reaches them; the caller gives each a row key
+    // (`onRowKeyDown`) and a row-menu item, as Figma does.
+    const actionsRef = useRef<HTMLSpanElement>(null);
+    useLayoutEffect(() => {
+        actionsRef.current
+            ?.querySelectorAll<HTMLElement>("button, a[href], input, select, textarea, [tabindex]")
+            .forEach((el) => {
+                el.tabIndex = -1;
+            });
+    });
     // The caret and the toggles are parts of the row, not rows of their own: a click on the caret
     // opens or closes the row, and nothing that lands on a toggle selects or renames it. Passive
     // text in the trailing slot (a count) is part of the row.
@@ -234,7 +248,11 @@ export const TreeItem = forwardRef<HTMLDivElement, TreeItemProps>(function TreeI
                     {count}
                 </span>
             )}
-            {hasActions && <span className="cm-tree-actions">{actions}</span>}
+            {hasActions && (
+                <span ref={actionsRef} className="cm-tree-actions">
+                    {actions}
+                </span>
+            )}
             {hasDescription && !descriptionVisible && (
                 <span id={descriptionId} hidden>
                     {description}
@@ -361,14 +379,15 @@ export interface TreeProps {
  * The tree renders; the caller owns the data. Selection and expansion are controlled or
  * uncontrolled; renaming and moving are reported through `onRename` and `onMove`.
  *
- * Keyboard (one Tab stop, roving focus): ArrowUp / ArrowDown move; ArrowRight opens a closed
+ * Keyboard (one Tab stop, roving focus; a row's own toggles are not Tab stops): ArrowUp / ArrowDown move; ArrowRight opens a closed
  * parent or moves to its first child; ArrowLeft closes an open parent or moves to the parent;
  * Home / End; type-ahead; Enter or Space selects (Shift extends, Control / Command toggles); `*`
  * opens every sibling; F2 renames; Alt+L closes everything; with `onMove`, Alt+ArrowUp /
  * Alt+ArrowDown move the focused item one place among its siblings or into the folder next to
  * it, and Alt+ArrowLeft moves it out of its folder. `onRowKeyDown` sees every key first and can
  * claim one with `preventDefault()`.
- * Pointer: click selects (Shift range, Control / Command toggle); the caret opens one row;
+ * Pointer: click selects (Shift range, Control / Command toggle); a right-click on a row that is
+ * not selected selects it alone before its menu opens; the caret opens one row;
  * double-click renames; drag a row to move it (a mouse or pen after 4px of movement, a finger
  * after holding the row half a second; a quicker swipe scrolls). Escape cancels a drag, and the
  * list scrolls when a drag nears its edge.
@@ -999,6 +1018,12 @@ export function Tree({
                 }
                 const node = menuFor(event.target);
                 if (hasMenu(node)) {
+                    // The menu acts on the row it opened on, so that row is the selection first
+                    // (Figma); a right-click inside the selection keeps it whole.
+                    if (!selectedSet.has(node.id)) {
+                        setFocusedId(node.id);
+                        select(node.id, "replace", event);
+                    }
                     setMenuNode(node);
                 } else {
                     event.preventDefault();

@@ -21,16 +21,19 @@ function renderPopout(ui: React.ReactElement): void {
  * @param props.rowTop - How far down the panel the row with the trigger sits
  * @param props.fields - How many text fields the pop-out holds
  * @param props.tooltip - Whether the trigger button is wrapped in a Tooltip
+ * @param props.boundaryTop - The header boundary the pop-out is given
  * @returns The panel with its row and pop-out
  */
 function RightPanel({
     rowTop,
     fields,
     tooltip = false,
+    boundaryTop,
 }: {
     rowTop: number;
     fields: number;
     tooltip?: boolean;
+    boundaryTop?: number;
 }): React.JSX.Element {
     const button = <button type="button">Open</button>;
     return (
@@ -41,7 +44,11 @@ function RightPanel({
                         <Popout.Trigger>
                             {tooltip ? <Tooltip label="Settings">{button}</Tooltip> : button}
                         </Popout.Trigger>
-                        <Popout.Panel width={240} header={{ variant: "title", title: "Settings" }}>
+                        <Popout.Panel
+                            width={240}
+                            header={{ variant: "title", title: "Settings" }}
+                            boundaryTop={boundaryTop}
+                        >
                             <Popout.Content>
                                 {Array.from({ length: fields }, (_, i) => (
                                     <input
@@ -108,15 +115,37 @@ describe("Popout fits the window, docks beside the panel, returns focus (browser
         expect(Math.round(rect.top)).toBe(Math.round(row.top));
     });
 
-    it("is shifted up to stay in the window when it would pass the bottom", async () => {
+    it("opens upward, its bottom on its trigger's bottom, when it would pass the window's bottom", async () => {
         await page.viewport(900, 700);
-        renderPopout(<RightPanel rowTop={640} fields={10} />);
+        renderPopout(<RightPanel rowTop={600} fields={10} />);
         const panel = await openPanel();
 
         const rect = panel.getBoundingClientRect();
-        const row = screen.getByTestId("row").getBoundingClientRect();
-        expect(rect.top).toBeLessThan(row.top);
-        expect(Math.round(rect.bottom)).toBe(window.innerHeight);
+        const trigger = screen.getByRole("button", { name: "Open" }).getBoundingClientRect();
+        expect(rect.top).toBeGreaterThanOrEqual(0);
+        expect(rect.bottom).toBeLessThanOrEqual(window.innerHeight + 0.5);
+        expect(rect.top).toBeLessThan(trigger.top);
+        expect(Math.round(rect.bottom)).toBe(Math.round(trigger.bottom));
+    });
+
+    it("never starts above the header boundary it is given, and fits whole below it", async () => {
+        await page.viewport(900, 700);
+        renderPopout(<RightPanel rowTop={300} fields={40} boundaryTop={48} />);
+        const panel = await openPanel();
+
+        const rect = panel.getBoundingClientRect();
+        expect(rect.top).toBeGreaterThanOrEqual(48 - 0.5);
+        expect(rect.bottom).toBeLessThanOrEqual(window.innerHeight + 0.5);
+    });
+
+    it("moves up only to the header boundary when the room above the row is too small", async () => {
+        await page.viewport(900, 700);
+        renderPopout(<RightPanel rowTop={120} fields={20} boundaryTop={100} />);
+        const panel = await openPanel();
+
+        const rect = panel.getBoundingClientRect();
+        expect(Math.round(rect.top)).toBeGreaterThanOrEqual(100);
+        expect(rect.bottom).toBeLessThanOrEqual(window.innerHeight + 0.5);
     });
 
     it("returns focus to the button on Escape when the trigger is wrapped in a Tooltip", async () => {

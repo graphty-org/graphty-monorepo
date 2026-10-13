@@ -104,6 +104,32 @@ export const ROW_COMMANDS: readonly RowCommand[] = [
             }
         },
     },
+    // Figma's Show/Hide and Lock/Unlock: the row's eye and lock are pointer-only (the tree is one
+    // Tab stop), so the keyboard reaches them here, by these keys and in the row menu.
+    {
+        id: "row.hide",
+        label: "Show/Hide",
+        rowKeys: ["Shift+Mod+H"],
+        applies: () => true,
+        disabled: () => null,
+        run: async ({ session, workspace }, row) => {
+            if (session !== null) {
+                await orNotice(workspace, `hide ${row.name}`, session.styles.hideRow(row.id, !row.hidden));
+            }
+        },
+    },
+    {
+        id: "row.lock",
+        label: "Lock/Unlock",
+        rowKeys: ["Shift+Mod+L"],
+        applies: () => true,
+        disabled: () => null,
+        run: async ({ session, workspace }, row) => {
+            if (session !== null) {
+                await orNotice(workspace, `lock ${row.name}`, session.styles.lockRow(row.id, !row.locked));
+            }
+        },
+    },
     {
         id: "row.ungroup",
         label: "Ungroup",

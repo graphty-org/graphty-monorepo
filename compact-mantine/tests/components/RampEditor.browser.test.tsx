@@ -94,6 +94,29 @@ describe("RampEditor", () => {
         expect(onDomainChange).toHaveBeenLastCalledWith([0, 100]);
     });
 
+    it("takes End on the start handle and Home on the end handle to the nearest end each can reach", async () => {
+        const onDomainChange = vi.fn();
+        render(<Harness onDomainChange={onDomainChange} />);
+        const start = screen.getByRole("slider", { name: "Ramp start" });
+        const end = screen.getByRole("slider", { name: "Ramp end" });
+        expect(start).toHaveAttribute("aria-valuemax", "70");
+        expect(end).toHaveAttribute("aria-valuemin", "30");
+
+        await userEvent.click(start);
+        await userEvent.keyboard("{End}");
+        expect(onDomainChange).toHaveBeenLastCalledWith([70, 80]);
+        expect(start).toHaveAttribute("aria-valuenow", "70");
+
+        await userEvent.click(end);
+        await userEvent.keyboard("{Home}");
+        expect(onDomainChange).toHaveBeenLastCalledWith([70, 80]);
+        await userEvent.keyboard("{End}");
+        expect(onDomainChange).toHaveBeenLastCalledWith([70, 100]);
+        await userEvent.keyboard("{Home}");
+        expect(onDomainChange).toHaveBeenLastCalledWith([70, 80]);
+        expect(end).toHaveAttribute("aria-valuenow", "80");
+    });
+
     it("speaks each handle's value in the caller's words", () => {
         render(<Harness onDomainChange={vi.fn()} />);
         expect(screen.getByRole("slider", { name: "Ramp start" }).getAttribute("aria-valuetext")).toBe(

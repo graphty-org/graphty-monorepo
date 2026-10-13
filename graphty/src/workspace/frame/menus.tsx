@@ -4,14 +4,14 @@
  * line.
  */
 
-import { MenuItemDescription } from "@graphty/compact-mantine";
+import { MenuItemDescription, MenuShortcut } from "@graphty/compact-mantine";
 import { Menu, Tooltip, UnstyledButton } from "@mantine/core";
 import React, { Fragment } from "react";
 
 import { START_SAMPLES } from "../../data/sampleManifest";
 import { FILE_LIST } from "../commands/registry";
 import { GLYPHS } from "../glyphs";
-import { formatKey } from "../keys/keys";
+import { ariaKey, formatKey } from "../keys/keys";
 import { RecentMenu } from "../project/RecentMenu";
 import { sampleCommandId } from "../start/commands";
 import { useCommand, useWorkspace } from "../state/WorkspaceContext";
@@ -43,7 +43,8 @@ export function CommandMenuItem({
             closeMenuOnClick={reason === null}
             aria-disabled={reason !== null}
             data-disabled={reason === null ? undefined : true}
-            rightSection={shortcut === undefined ? undefined : formatKey(shortcut)}
+            aria-keyshortcuts={shortcut === undefined ? undefined : ariaKey(shortcut)}
+            rightSection={shortcut === undefined ? undefined : <MenuShortcut>{formatKey(shortcut)}</MenuShortcut>}
         >
             {label}
             {reason === null ? null : <MenuItemDescription>{reason}</MenuItemDescription>}

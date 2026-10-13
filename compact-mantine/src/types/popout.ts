@@ -236,6 +236,12 @@ export interface PopoutPanelProps {
      * @default true
      */
     manageFocus?: boolean;
+    /**
+     * The highest the panel's top may sit, in viewport pixels: pass the bottom of an app header
+     * the panel must never cover. The panel is then never taller than the window below it.
+     * @default 0
+     */
+    boundaryTop?: number;
     /** Called when the person starts dragging the panel by its header. */
     onDragStart?: GestureStartHandler;
     /**

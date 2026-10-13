@@ -193,6 +193,28 @@ describe("the style tree on the real element", () => {
         });
     });
 
+    it("leaves the toggles out of Tab, and reaches Hide and Lock by row keys and the row menu", async () => {
+        const { session, key } = await openTree();
+        const keyRow = await row("Key people");
+        assert.equal(within(keyRow).getByRole("button", { name: "Hide Key people" }).tabIndex, -1);
+        assert.equal(within(keyRow).getByRole("button", { name: "Lock Key people" }).tabIndex, -1);
+
+        await userEvent.click(keyRow);
+        await userEvent.keyboard("{Shift>}{Control>}h{/Control}{/Shift}");
+        await waitFor(() => {
+            assert.isTrue(findTreeRow(session.styles.tree(), key)?.row.hidden);
+        });
+
+        await userEvent.click(await row("Key people"), { button: "right" });
+        const lock = await screen.findByRole("menuitem", { name: "Lock/Unlock" });
+        assert.equal(lock.getAttribute("aria-keyshortcuts"), "Shift+Control+L");
+        assert.equal((await screen.findByRole("menuitem", { name: "Rename" })).getAttribute("aria-keyshortcuts"), "F2");
+        await userEvent.click(lock);
+        await waitFor(() => {
+            assert.isTrue(findTreeRow(session.styles.tree(), key)?.row.locked);
+        });
+    });
+
     it("adds a draft from Add layer with focus on the kind choice, and abandoning it leaves nothing", async () => {
         const { session } = await openTree();
         const before = JSON.stringify(session.styles.tree());

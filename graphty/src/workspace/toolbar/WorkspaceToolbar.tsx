@@ -1,6 +1,6 @@
 import "./toolbar.css";
 
-import { MenuCheckItem, MenuItemDescription, Toolbar, ToolButton } from "@graphty/compact-mantine";
+import { MenuCheckItem, MenuItemDescription, MenuShortcut, Toolbar, ToolButton } from "@graphty/compact-mantine";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { Menu, Popover } from "@mantine/core";
 import React, { forwardRef, useRef } from "react";
@@ -10,7 +10,7 @@ import { CommandMenuItem, Sections } from "../frame/menus";
 import { GLYPHS } from "../glyphs";
 import { focusPathValuesNext } from "../inspector/reads";
 import { xrRows } from "../inspector/words";
-import { formatKey } from "../keys/keys";
+import { ariaKey, formatKey } from "../keys/keys";
 import { LayoutPopover } from "../layout/LayoutPopover";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { immersiveMode } from "./commands";
@@ -86,7 +86,8 @@ function ModeItem({
             closeMenuOnClick={reason === null}
             aria-disabled={reason !== null}
             data-disabled={reason === null ? undefined : true}
-            rightSection={shortcut === undefined ? undefined : formatKey(shortcut)}
+            aria-keyshortcuts={shortcut === undefined ? undefined : ariaKey(shortcut)}
+            rightSection={shortcut === undefined ? undefined : <MenuShortcut>{formatKey(shortcut)}</MenuShortcut>}
         >
             {label}
             {reason === null ? null : <MenuItemDescription>{reason}</MenuItemDescription>}

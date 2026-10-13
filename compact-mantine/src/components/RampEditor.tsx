@@ -285,9 +285,11 @@ function Handle({
             for (let i = 0; i < hops; i++) {
                 next = stepFrom(edges, next, up);
             }
-            return next;
+            return Math.min(max, Math.max(min, next));
         }
-        const by = page ? step * Math.max(2, Math.round((max - min) / step / 10)) : step;
+        // A page is a tenth of the data, not of this handle's range, so both handles page alike.
+        const span = (edges.at(-1) ?? max) - (edges[0] ?? min);
+        const by = page ? step * Math.max(2, Math.round(span / step / 10)) : step;
         return Math.min(max, Math.max(min, snap(value + (up ? by : -by), step)));
     };
 
@@ -488,11 +490,16 @@ export function RampEditor({
         return step === undefined ? edges[index] : snap(edges[index], step);
     };
 
+    // The nearest value a handle may take beside another's, one step or one bin edge away.
+    const beside = (value: number, up: boolean): number =>
+        step === undefined ? stepFrom(edges, value, up) : snap(value + (up ? step : -step), step);
+
     const handle = (
         which: RampEditorHandle,
         value: number,
         shape: HandleProps["shape"],
         onMove: (value: number) => void,
+        range: [number, number] = [min, max],
     ): React.JSX.Element => (
         <Handle
             which={which}
@@ -500,8 +507,8 @@ export function RampEditor({
             fraction={fractionOf(bins, value)}
             name={labels.handles[which]}
             valueText={describe(which, value)}
-            min={min}
-            max={max}
+            min={range[0]}
+            max={range[1]}
             shape={shape}
             onMove={onMove}
             edges={edges}
@@ -599,12 +606,24 @@ export function RampEditor({
                                 }}
                             />
                             <Box style={{ position: "absolute", inset: 0, pointerEvents: "auto" }}>
-                                {handle("clampLow", clamp.low, "bracketLow", (value) => {
-                                    onClampChange?.([Math.min(value, clamp.high), clamp.high]);
-                                })}
-                                {handle("clampHigh", clamp.high, "bracketHigh", (value) => {
-                                    onClampChange?.([clamp.low, Math.max(value, clamp.low)]);
-                                })}
+                                {handle(
+                                    "clampLow",
+                                    clamp.low,
+                                    "bracketLow",
+                                    (value) => {
+                                        onClampChange?.([Math.min(value, clamp.high), clamp.high]);
+                                    },
+                                    [min, clamp.high],
+                                )}
+                                {handle(
+                                    "clampHigh",
+                                    clamp.high,
+                                    "bracketHigh",
+                                    (value) => {
+                                        onClampChange?.([clamp.low, Math.max(value, clamp.low)]);
+                                    },
+                                    [clamp.low, max],
+                                )}
                             </Box>
                         </>
                     )}
@@ -612,16 +631,30 @@ export function RampEditor({
             </Box>
 
             <Box ref={trackRef} data-testid="ramp-editor-track" style={{ position: "relative", height: TRACK_HEIGHT }}>
-                {handle("domainLow", low, "caret", (value) => {
-                    if (value < high) {
-                        onDomainChange?.([value, high]);
-                    }
-                })}
-                {handle("domainHigh", high, "caret", (value) => {
-                    if (value > low) {
-                        onDomainChange?.([low, value]);
-                    }
-                })}
+                {/* Each domain handle's range stops beside the other, so Home and End reach the
+                    ends it can take (and aria-valuemin / max say so) instead of being refused. */}
+                {handle(
+                    "domainLow",
+                    low,
+                    "caret",
+                    (value) => {
+                        if (value < high) {
+                            onDomainChange?.([value, high]);
+                        }
+                    },
+                    [min, beside(high, false)],
+                )}
+                {handle(
+                    "domainHigh",
+                    high,
+                    "caret",
+                    (value) => {
+                        if (value > low) {
+                            onDomainChange?.([low, value]);
+                        }
+                    },
+                    [beside(low, true), max],
+                )}
                 {midpoint !== undefined &&
                     handle("midpoint", midpoint, "diamond", (value) => onMidpointChange?.(value))}
             </Box>

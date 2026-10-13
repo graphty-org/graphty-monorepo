@@ -1168,3 +1168,100 @@ describe("Tree: childBand={false}", () => {
         expect(getComputedStyle(row("Rect"), "::before").display).toBe("none");
     });
 });
+
+describe("Tree: one Tab stop with row toggles, and a right-click that selects", () => {
+    /**
+     * Rows that each carry an eye and a lock, as the app's style tree does.
+     * @param count - how many rows
+     * @returns the items
+     */
+    const withToggles = (count: number): TreeNodeData[] =>
+        Array.from({ length: count }, (_, i) => ({
+            id: `r${String(i)}`,
+            name: `Row ${String(i)}`,
+            actions: (
+                <>
+                    <button type="button" aria-label={`Lock Row ${String(i)}`}>
+                        L
+                    </button>
+                    <button type="button" aria-label={`Hide Row ${String(i)}`}>
+                        H
+                    </button>
+                </>
+            ),
+        }));
+
+    it.each([1, 8])("Tab enters the tree once and the next Tab leaves it, with %i rows of toggles", async (count) => {
+        await renderThemed(
+            <>
+                <button type="button">before</button>
+                <Tree items={withToggles(count)} />
+                <button type="button">after</button>
+            </>,
+        );
+        await userEvent.click(screen.getByRole("button", { name: "before" }));
+        await userEvent.tab();
+        expect(focused()).toBe("r0");
+        await userEvent.tab();
+        expect(document.activeElement).toBe(screen.getByRole("button", { name: "after" }));
+        await userEvent.tab({ shift: true });
+        expect(focused()).toBe("r0");
+    });
+
+    it("keeps a toggle working by pointer once it is out of the Tab order", async () => {
+        const onLock = vi.fn();
+        const items: TreeNodeData[] = [
+            {
+                id: "a",
+                name: "A",
+                actions: (
+                    <button type="button" aria-label="Lock A" onClick={onLock}>
+                        L
+                    </button>
+                ),
+            },
+        ];
+        await renderThemed(<Tree items={items} />);
+        await userEvent.hover(row("A"));
+        await userEvent.click(screen.getByRole("button", { name: "Lock A" }));
+        expect(onLock).toHaveBeenCalledTimes(1);
+    });
+
+    it("selects an unselected row on a right-click, then opens its menu", async () => {
+        const onSelect = vi.fn();
+        const menuFor: string[] = [];
+        await renderThemed(
+            <Tree
+                items={withToggles(3)}
+                defaultSelected={["r0"]}
+                onSelect={onSelect}
+                rowMenu={(node) => {
+                    menuFor.push(node.id);
+                    return <Menu.Item>Rename</Menu.Item>;
+                }}
+            />,
+        );
+        await userEvent.click(row("Row 2"), { button: "right" });
+        expect(onSelect).toHaveBeenLastCalledWith(["r2"], expect.anything());
+        expect(row("Row 2")).toHaveAttribute("aria-selected", "true");
+        expect(row("Row 0")).toHaveAttribute("aria-selected", "false");
+        expect(await screen.findByRole("menuitem", { name: "Rename" })).toBeVisible();
+        expect(menuFor.at(-1)).toBe("r2");
+    });
+
+    it("keeps a several-row selection whole on a right-click inside it", async () => {
+        const onSelect = vi.fn();
+        await renderThemed(
+            <Tree
+                items={withToggles(3)}
+                defaultSelected={["r0", "r1"]}
+                onSelect={onSelect}
+                rowMenu={() => <Menu.Item>Rename</Menu.Item>}
+            />,
+        );
+        await userEvent.click(row("Row 1"), { button: "right" });
+        await screen.findByRole("menuitem", { name: "Rename" });
+        expect(onSelect).not.toHaveBeenCalled();
+        expect(row("Row 0")).toHaveAttribute("aria-selected", "true");
+    });
+});

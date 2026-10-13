@@ -11,6 +11,27 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-13) **Tree one Tab stop, right-click selects, pop-outs open upward, menu shortcuts out
+  of names, ramp Home/End** (compact-mantine; tests in `tests/components/tree/Tree.browser.test.tsx`
+  "one Tab stop with row toggles", `tests/popout/PopoutFitAndFocus.browser.test.tsx`,
+  `tests/components/overlays/MenuShortcut.browser.test.tsx`, `tests/components/RampEditor.browser.test.tsx`;
+  app test `graph-place/__tests__/StyleTree.real-element.test.tsx` "leaves the toggles out of Tab").
+  `TreeItem` sets `tabIndex = -1` on every focusable inside `.cm-tree-actions` (a layout effect on
+  each render, so any caller's toggles leave Tab). The app got Figma's Show/Hide (Shift+Mod+H) and
+  Lock/Unlock (Shift+Mod+L) as row commands, so the keyboard keeps both. Right-click on an
+  unselected row selects it alone first; inside a selection it keeps it. `Popout.Panel` takes
+  `boundaryTop` (and caps its height below it); a side-placed panel that would pass the window's
+  bottom flips to end on its Y anchor's bottom -- the TRIGGER by default, not the row -- when that
+  fits under `boundaryTop`, else it is clamped. New `MenuShortcut` (aria-hidden right section) plus
+  `aria-keyshortcuts` on the item; the app's `ariaKey()` (keys.ts) spells Mod as Meta / Control.
+  MEASURED the ramp finding: Home/End were wired, but the start handle's End (data max) is past the
+  end handle and the `value < high` guard refused it silently; each domain handle's range now stops
+  one step / one bin beside the other, so the keys and `aria-valuemin/max` agree. Page size still
+  uses the data's span. Not done, the app's to take up: pass `boundaryTop` (the header's bottom) to
+  its pop-outs; the disabled reason in a menu row still joins its name ("Unpin Not pinned").
+  Unrelated failures seen: graphty `undoWords` (no "Selection" tree row) and `Workspace` "?" sheet
+  (no hidden listbox appears), plus the two pre-existing compact-mantine tree failures above.
+
 - (2026-10-13) **One look for every style field, a chip-only color, Escape in a pop-out**
   (compact-mantine; tests in `tests/components/FieldStates.browser.test.tsx`, story
   `stories/components/inputs/FieldStates.stories.tsx`). Number, combo, color and text fields all

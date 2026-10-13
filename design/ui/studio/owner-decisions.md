@@ -4,6 +4,31 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-13 -- Decided by the team: a tree with one Tab stop, a right-click that selects, pop-outs that open upward, menu shortcuts kept out of names (compact-mantine)
+
+Additive API in compact-mantine:
+
+- `Popout.Panel` `boundaryTop?: number` (default 0): the highest the panel's top may sit, in
+  viewport pixels. An app passes its header's bottom so no pop-out covers the header; the panel is
+  then never taller than the window below that line.
+- `MenuShortcut`: a menu row's shortcut text, drawn at the row's right and hidden from assistive
+  technology. The row carries `aria-keyshortcuts` with the same keys, so its name is its label
+  alone ("Rename", not "Rename F2").
+
+Changed behavior, asked for by the tier 3 review (not API shape):
+
+- A tree row's own toggles (eye, lock) are no longer Tab stops: the tree is one Tab stop however
+  many rows it holds. A pointer still reaches them. The graphty app adds Figma's row commands for
+  the keyboard: Show/Hide (Shift+Ctrl/Cmd+H) and Lock/Unlock (Shift+Ctrl/Cmd+L), on the row's keys
+  and in its menu.
+- A right-click on a tree row that is not selected selects it alone before its menu opens; one
+  inside a several-row selection keeps the selection.
+- A pop-out beside its trigger that would pass the window's bottom opens upward, its bottom on the
+  trigger's bottom, when the room above holds it; otherwise it moves up only as far as it must.
+- A ramp's start handle stops one step below the end handle and the end handle one step above the
+  start, and each says so (`aria-valuemin` / `aria-valuemax`): Home and End move a handle to the
+  furthest it can go instead of being refused when the data's end lies past the other handle.
+
 ## 2026-10-13 -- Decided by the team: one look for every style field, a chip-only color, and Escape in a pop-out (compact-mantine)
 
 Additive API in compact-mantine:

@@ -57,6 +57,7 @@ import { tabId, tabPanelId } from "./utils/tabs";
  * @param props.gap - Gap between the panel and the anchor in pixels; negative values overlap them
  * @param props.actions - Action buttons to display in the header
  * @param props.manageFocus - Whether opening the panel moves focus into it and closing returns it
+ * @param props.boundaryTop - The highest the panel's top may sit, in viewport pixels (below a header)
  * @param props.onDragStart - Called when the person starts dragging the panel
  * @param props.onDrag - Called on every movement of a drag, with the offset from where the panel opened
  * @param props.onDragEnd - Called when the drag finishes
@@ -76,6 +77,7 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
         gap,
         actions,
         manageFocus = true,
+        boundaryTop = 0,
         onDragStart,
         onDrag,
         onDragEnd,
@@ -249,12 +251,19 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
             direction,
         });
 
-        // Moved up (and in) to stay on screen, as Figma's popovers are: a tall
-        // picker opened from a low row opens higher rather than off the bottom.
+        // Kept whole on screen, as Figma's popovers are. A panel beside its row that would pass
+        // the window's bottom opens upward -- its bottom on the row's bottom -- when the room
+        // above holds it; otherwise it moves up as far as it must, never above `boundaryTop`.
         if (typeof window !== "undefined") {
             const maxTop = window.innerHeight - renderedHeight;
             const maxLeft = window.innerWidth - renderedWidth;
-            next.top = Math.max(0, Math.min(next.top, maxTop));
+            if (!isBlockPlacement && next.top > maxTop) {
+                const upward = crossAnchor.getBoundingClientRect().bottom - renderedHeight;
+                if (upward >= boundaryTop) {
+                    next.top = upward;
+                }
+            }
+            next.top = Math.max(boundaryTop, Math.min(next.top, maxTop));
             next.left = Math.max(0, Math.min(next.left, maxLeft));
         }
 
@@ -270,7 +279,7 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
             }
             return next;
         });
-    }, [resolveAnchors, width, height, placement, alignment, effectiveGap, direction]);
+    }, [resolveAnchors, width, height, placement, alignment, effectiveGap, direction, boundaryTop]);
 
     // Position the panel before the browser paints. useIsomorphicEffect is
     // useLayoutEffect in a browser and useEffect on a server, so the measure and
@@ -436,6 +445,7 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
                 minWidth: width,
                 width: "min-content",
                 ...(height !== undefined && { minHeight: height }),
+                ...(boundaryTop > 0 && { maxHeight: `calc(100vh - ${String(boundaryTop)}px)` }),
                 // Hidden for the one commit between mounting and being measured,
                 // so the panel is never seen at an unmeasured position.
                 ...(position === null && { visibility: "hidden" as const }),

@@ -81,8 +81,9 @@ export interface ContextMenuProps extends Omit<
  * @example
  * ```tsx
  * <ContextMenu target={<div className="canvas" tabIndex={0} />}>
- *     <Menu.Item rightSection="Ctrl+C">Copy</Menu.Item>
- *     <Menu.Item rightSection="Ctrl+V">Paste here</Menu.Item>
+ *     <Menu.Item aria-keyshortcuts="Control+C" rightSection={<MenuShortcut>Ctrl+C</MenuShortcut>}>
+ *         Copy
+ *     </Menu.Item>
  *     <Menu.Divider />
  *     <Menu.Item color="red">Delete</Menu.Item>
  * </ContextMenu>

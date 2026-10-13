@@ -52,6 +52,7 @@ export {
     ContextMenu,
     MenuCheckItem,
     MenuItemDescription,
+    MenuShortcut,
     ModalFooter,
     Toast,
     ToastProvider,

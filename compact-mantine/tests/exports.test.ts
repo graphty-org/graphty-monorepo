@@ -357,6 +357,7 @@ const PUBLIC_RUNTIME_EXPORTS = [
     "ContextMenu",
     "MenuCheckItem",
     "MenuItemDescription",
+    "MenuShortcut",
     "ModalFooter",
     "Toast",
     "ToastProvider",

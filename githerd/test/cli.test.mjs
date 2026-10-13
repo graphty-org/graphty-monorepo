@@ -3,7 +3,6 @@ import {
     cpSync,
     existsSync,
     mkdirSync,
-    mkdtempSync,
     readFileSync,
     readlinkSync,
     rmSync,
@@ -11,7 +10,6 @@ import {
     writeFileSync,
 } from "node:fs";
 import { execFileSync } from "node:child_process";
-import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -25,6 +23,7 @@ import { startDaemon } from "../lib/daemon.mjs";
 import { appendLedger, readLedger, repoIdentity } from "../lib/store.mjs";
 import { PACKAGE_DIR } from "../lib/version.mjs";
 import { createFakeGh } from "./helpers/fake-gh.mjs";
+import { tempDir } from "./helpers/temp-dir.mjs";
 
 const FAKE_SERVHERD = fileURLToPath(new URL("helpers/fake-servherd.mjs", import.meta.url));
 const FAKE_NOTIFY = fileURLToPath(new URL("helpers/fake-notify.mjs", import.meta.url));
@@ -180,7 +179,7 @@ function signer(behavior) {
 }
 
 beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "githerd-cli-"));
+    dir = tempDir("githerd-cli-");
     root = join(dir, "main");
     fake = join(dir, "servherd");
     notifyLog = join(dir, "notify.log");

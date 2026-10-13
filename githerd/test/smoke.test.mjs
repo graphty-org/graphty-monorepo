@@ -1,12 +1,12 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { PACKAGE_DIR, readVersion } from "../lib/version.mjs";
+import { tempDir } from "./helpers/temp-dir.mjs";
 
 const BIN = fileURLToPath(new URL("../bin/githerd.mjs", import.meta.url));
 const OWN_VERSION = JSON.parse(readFileSync(join(PACKAGE_DIR, "package.json"), "utf8")).version;
@@ -14,7 +14,7 @@ const OWN_VERSION = JSON.parse(readFileSync(join(PACKAGE_DIR, "package.json"), "
 describe("readVersion", () => {
     let dir;
     beforeEach(() => {
-        dir = mkdtempSync(join(tmpdir(), "githerd-version-"));
+        dir = tempDir("githerd-version-");
         writeFileSync(join(dir, "package.json"), JSON.stringify({ version: "1.2.3" }));
     });
     afterEach(() => rmSync(dir, { recursive: true, force: true }));

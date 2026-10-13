@@ -690,6 +690,19 @@ describe("HTTP endpoints", () => {
         expect(job).toMatchObject({ state: "queued", reason: "claim lapsed: session wt-1 ended" });
     });
 
+    it("drops a finished job nothing reads after a poll, its whole record first written to the ledger", async () => {
+        const daemon = await start();
+        const job = newJob({ kind: "triage", target: "20 issues", id: "triage-full-4" }, clock);
+        move(job, "cancelled", clock, { reason: "superseded" });
+        daemon.state.jobs = { "triage-full-4": job };
+        await poll(daemon);
+        expect(saved().jobs["triage-full-4"]).toBeUndefined();
+        const lines = (await readLedger(join(dir, ".githerd"))).filter((e) => e.kind === "job-dropped");
+        expect(lines).toEqual([
+            expect.objectContaining({ job: "triage-full-4", record: JSON.parse(JSON.stringify(job)) }),
+        ]);
+    });
+
     it("registers a heartbeat and refuses one without a session", async () => {
         const daemon = await start();
         const beat = (body) => fetch(`${daemon.url}/heartbeat`, { method: "POST", body: JSON.stringify(body) });

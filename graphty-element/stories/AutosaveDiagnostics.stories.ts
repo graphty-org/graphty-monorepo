@@ -3,6 +3,8 @@ import "../index.ts";
 
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
+import { holds, renderedElement } from "./assertions";
+
 /**
  * Autosave diagnostics: a page for checking, by hand on a real device, what happens to autosaved
  * work when the browser hides, freezes, discards or kills the page. The iPad checklist that uses it
@@ -240,4 +242,14 @@ function diagnostics(): HTMLElement {
     return root;
 }
 
-export const Diagnostics: Story = { render: diagnostics };
+export const Diagnostics: Story = {
+    render: diagnostics,
+    play: async ({ canvasElement }) => {
+        const graph = await renderedElement(canvasElement, "Autosave/Diagnostics rendered no <graphty-element>");
+        await graph.autosaver.ready;
+        const { state } = graph.autosaver.status;
+        await holds(state !== "off", `Autosave/Diagnostics: autosave is ${state}, not on`);
+        const nodes = graph.session.data.snapshot().nodeCount;
+        await holds(nodes === 30, `Autosave/Diagnostics: the ring has ${String(nodes)} nodes, not 30`);
+    },
+};

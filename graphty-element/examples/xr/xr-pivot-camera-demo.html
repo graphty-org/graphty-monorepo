@@ -155,7 +155,7 @@
         <!-- Remote Logging System -->
         <script>
             (function () {
-                const SERVER_URL = window.location.origin + "/log";
+                const SERVER_URL = globalThis.location.origin + "/log";
                 const LOG_BUFFER = [];
                 let FLUSH_TIMER = null;
                 const SESSION_ID = "pivot-" + Date.now().toString(36);
@@ -245,7 +245,7 @@
                     queueLog("INFO", args);
                 };
 
-                window.onerror = (message, source, lineno, colno, error) => {
+                globalThis.onerror = (message, source, lineno, colno, error) => {
                     // "Script error." with no details = cross-origin security restriction
                     // Log what we have and provide diagnostic info
                     const isScriptError = message === "Script error." || message === "Script error";
@@ -257,7 +257,7 @@
                             `Error object: ${error ? "present" : "null"}`,
                             error?.stack || "",
                             error?.message || "",
-                            `Last operation context: ${window.__lastXROperation || "unknown"}`,
+                            `Last operation context: ${globalThis.__lastXROperation || "unknown"}`,
                         ]);
                     } else {
                         queueLog("ERROR", [`Uncaught: ${message} at ${source}:${lineno}:${colno}`, error?.stack || ""]);
@@ -266,10 +266,10 @@
                 };
 
                 // Track last operation for debugging Script error
-                window.__lastXROperation = "initialization";
+                globalThis.__lastXROperation = "initialization";
 
                 // Use 'error' event type with capture for better stack traces
-                window.addEventListener(
+                globalThis.addEventListener(
                     "error",
                     (event) => {
                         if (event.error) {
@@ -287,17 +287,17 @@
                 ); // Capture phase
 
                 // Additional error handlers for better debugging
-                window.addEventListener("unhandledrejection", (event) => {
+                globalThis.addEventListener("unhandledrejection", (event) => {
                     queueLog("ERROR", [`Unhandled Promise rejection: ${event.reason}`, event.reason?.stack || ""]);
                     flushLogs();
                 });
 
                 // Catch errors in setTimeout/setInterval callbacks
-                const originalSetTimeout = window.setTimeout;
-                window.setTimeout = function (fn, delay, ...args) {
+                const originalSetTimeout = globalThis.setTimeout;
+                globalThis.setTimeout = function (fn, delay, ...args) {
                     if (typeof fn === "function") {
                         return originalSetTimeout.call(
-                            window,
+                            globalThis,
                             function () {
                                 try {
                                     fn.apply(this, args);
@@ -308,14 +308,14 @@
                             delay,
                         );
                     }
-                    return originalSetTimeout.call(window, fn, delay, ...args);
+                    return originalSetTimeout.call(globalThis, fn, delay, ...args);
                 };
 
-                const originalSetInterval = window.setInterval;
-                window.setInterval = function (fn, delay, ...args) {
+                const originalSetInterval = globalThis.setInterval;
+                globalThis.setInterval = function (fn, delay, ...args) {
                     if (typeof fn === "function") {
                         return originalSetInterval.call(
-                            window,
+                            globalThis,
                             function () {
                                 try {
                                     fn.apply(this, args);
@@ -326,10 +326,10 @@
                             delay,
                         );
                     }
-                    return originalSetInterval.call(window, fn, delay, ...args);
+                    return originalSetInterval.call(globalThis, fn, delay, ...args);
                 };
 
-                window.onunhandledrejection = (event) => {
+                globalThis.onunhandledrejection = (event) => {
                     queueLog("ERROR", ["Unhandled rejection:", event.reason]);
                     flushLogs();
                 };
@@ -693,7 +693,7 @@
                     // Setup controller observers with error boundaries and delay mechanism
                     this.xrHelper.input.onControllerAddedObservable.add((controller) => {
                         try {
-                            window.__lastXROperation = `thumbstick:controllerAdded:${controller.uniqueId}`;
+                            globalThis.__lastXROperation = `thumbstick:controllerAdded:${controller.uniqueId}`;
 
                             // Check if we need to delay setup due to recent controller removal
                             const now = performance.now();
@@ -734,13 +734,13 @@
                     this.xrHelper.input.onControllerRemovedObservable.add((controller) => {
                         // STEP-BY-STEP DEBUGGING
                         console.log("🔬 [THUMBSTICK] controllerRemoved callback START");
-                        window.__lastXROperation = "thumbstick:controllerRemoved:step0:entered";
+                        globalThis.__lastXROperation = "thumbstick:controllerRemoved:step0:entered";
 
                         try {
                             console.log("🔬 [THUMBSTICK] step1: accessing controller.uniqueId");
                             const uniqueId = controller.uniqueId;
                             console.log(`🔬 [THUMBSTICK] step2: got uniqueId = ${uniqueId}`);
-                            window.__lastXROperation = `thumbstick:controllerRemoved:${uniqueId}:step2`;
+                            globalThis.__lastXROperation = `thumbstick:controllerRemoved:${uniqueId}:step2`;
 
                             const hasSetup = this.setupControllers.has(uniqueId);
                             console.log(`🔬 [THUMBSTICK] step3: hasSetup = ${hasSetup}`);
@@ -753,13 +753,13 @@
                                 // Call cleanup function to remove observers
                                 const cleanup = this.controllerCleanup.get(uniqueId);
                                 console.log(`🔬 [THUMBSTICK] step4: has cleanup = ${!!cleanup}`);
-                                window.__lastXROperation = `thumbstick:controllerRemoved:${uniqueId}:step4:beforeCleanup`;
+                                globalThis.__lastXROperation = `thumbstick:controllerRemoved:${uniqueId}:step4:beforeCleanup`;
 
                                 if (cleanup) {
                                     console.log(`🎮 Cleaning up observers for ${uniqueId}`);
                                     cleanup();
                                     console.log(`🔬 [THUMBSTICK] step5: cleanup called`);
-                                    window.__lastXROperation = `thumbstick:controllerRemoved:${uniqueId}:step5:afterCleanup`;
+                                    globalThis.__lastXROperation = `thumbstick:controllerRemoved:${uniqueId}:step5:afterCleanup`;
                                     this.controllerCleanup.delete(uniqueId);
                                 }
 
@@ -778,7 +778,7 @@
                                 console.log(`🔬 [THUMBSTICK] step3b: controller not in setupControllers, skipping`);
                             }
 
-                            window.__lastXROperation = `thumbstick:controllerRemoved:${uniqueId}:step8:complete`;
+                            globalThis.__lastXROperation = `thumbstick:controllerRemoved:${uniqueId}:step8:complete`;
                             console.log(`🔬 [THUMBSTICK] controllerRemoved callback COMPLETE for ${uniqueId}`);
 
                             // Record the removal time for the delay mechanism
@@ -795,7 +795,7 @@
                             }, 0);
                         } catch (e) {
                             console.error("❌ Error in controller removed handler (thumbstick):", e.message, e.stack);
-                            window.__lastXROperation = `thumbstick:controllerRemoved:error:${e.message}`;
+                            globalThis.__lastXROperation = `thumbstick:controllerRemoved:error:${e.message}`;
                         }
                     });
 
@@ -1184,7 +1184,7 @@
                                 JSON.stringify(getSceneNodeCounts(this.scene)),
                             );
 
-                            window.__lastXROperation = `gesture:controllerAdded:${c.uniqueId}`;
+                            globalThis.__lastXROperation = `gesture:controllerAdded:${c.uniqueId}`;
 
                             // Check if we need to delay setup due to recent controller removal
                             const now = performance.now();
@@ -1244,16 +1244,16 @@
 
                         // STEP-BY-STEP DEBUGGING - log at every single line
                         console.log("🔬 [GESTURE] controllerRemoved callback START");
-                        window.__lastXROperation = "gesture:controllerRemoved:step0:entered";
+                        globalThis.__lastXROperation = "gesture:controllerRemoved:step0:entered";
 
                         try {
                             console.log("🔬 [GESTURE] step1: accessing controller.uniqueId");
-                            window.__lastXROperation = "gesture:controllerRemoved:step1:beforeUniqueId";
+                            globalThis.__lastXROperation = "gesture:controllerRemoved:step1:beforeUniqueId";
 
                             // Defensive: Check if controller exists and has uniqueId
                             if (!controller) {
                                 console.error("🔬 [GESTURE] ERROR: controller is null/undefined!");
-                                window.__lastXROperation = "gesture:controllerRemoved:error:nullController";
+                                globalThis.__lastXROperation = "gesture:controllerRemoved:error:nullController";
                                 return;
                             }
 
@@ -1263,23 +1263,23 @@
                                 console.log(`🔬 [GESTURE] step2: got uniqueId = ${uniqueId}`);
                             } catch (uidError) {
                                 console.error("🔬 [GESTURE] ERROR accessing uniqueId:", uidError.message);
-                                window.__lastXROperation = "gesture:controllerRemoved:error:uniqueIdAccess";
+                                globalThis.__lastXROperation = "gesture:controllerRemoved:error:uniqueIdAccess";
                                 return;
                             }
 
-                            window.__lastXROperation = `gesture:controllerRemoved:${uniqueId}:step3:gotUniqueId`;
+                            globalThis.__lastXROperation = `gesture:controllerRemoved:${uniqueId}:step3:gotUniqueId`;
                             console.log(`🔬 [GESTURE] step3: checking cleanup map for ${uniqueId}`);
 
                             // Call cleanup function to remove observers BEFORE deleting from map
                             const hasCleanup = this.controllerCleanup && this.controllerCleanup.has(uniqueId);
                             console.log(`🔬 [GESTURE] step4: hasCleanup = ${hasCleanup}`);
-                            window.__lastXROperation = `gesture:controllerRemoved:${uniqueId}:step4:checkedCleanup:${hasCleanup}`;
+                            globalThis.__lastXROperation = `gesture:controllerRemoved:${uniqueId}:step4:checkedCleanup:${hasCleanup}`;
 
                             if (hasCleanup) {
                                 console.log(`🤲 Cleaning up observers for ${uniqueId} (gesture handler)`);
-                                window.__lastXROperation = `gesture:controllerRemoved:${uniqueId}:step5:beforeCleanupCall`;
+                                globalThis.__lastXROperation = `gesture:controllerRemoved:${uniqueId}:step5:beforeCleanupCall`;
                                 this.controllerCleanup.get(uniqueId)();
-                                window.__lastXROperation = `gesture:controllerRemoved:${uniqueId}:step6:afterCleanupCall`;
+                                globalThis.__lastXROperation = `gesture:controllerRemoved:${uniqueId}:step6:afterCleanupCall`;
                                 console.log(`🔬 [GESTURE] step6: cleanup called for ${uniqueId}`);
                                 this.controllerCleanup.delete(uniqueId);
                                 console.log(`🔬 [GESTURE] step7: cleanup deleted from map`);
@@ -1287,7 +1287,7 @@
                                 console.log(`🔬 [GESTURE] step5b: no cleanup needed (already cleaned or hand)`);
                             }
 
-                            window.__lastXROperation = `gesture:controllerRemoved:${uniqueId}:step8:checkingControllers`;
+                            globalThis.__lastXROperation = `gesture:controllerRemoved:${uniqueId}:step8:checkingControllers`;
                             const hasController = this.controllers.has(uniqueId);
                             console.log(`🔬 [GESTURE] step8: hasController = ${hasController}`);
 
@@ -1301,7 +1301,7 @@
                                 console.log(`🔬 [GESTURE] step9b: controller not in map (already removed)`);
                             }
 
-                            window.__lastXROperation = `gesture:controllerRemoved:${uniqueId}:step10:complete`;
+                            globalThis.__lastXROperation = `gesture:controllerRemoved:${uniqueId}:step10:complete`;
                             console.log(`🔬 [GESTURE] controllerRemoved callback COMPLETE for ${uniqueId}`);
 
                             // Record the removal time for the delay mechanism
@@ -1327,7 +1327,7 @@
                             }, 0);
                         } catch (e) {
                             console.error("❌ Error in controller removed handler (gesture):", e.message, e.stack);
-                            window.__lastXROperation = `gesture:controllerRemoved:error:${e.message}`;
+                            globalThis.__lastXROperation = `gesture:controllerRemoved:error:${e.message}`;
                         }
                     });
 
@@ -1438,7 +1438,7 @@
                             return;
                         }
 
-                        window.__lastXROperation = `gesture:logCapabilities:${uniqueId}`;
+                        globalThis.__lastXROperation = `gesture:logCapabilities:${uniqueId}`;
                         try {
                             const hasGrip = !!controller.grip;
                             const hasMotionController = !!controller.motionController;
@@ -1464,7 +1464,7 @@
                         logCapabilities();
                     } else {
                         motionControllerObserver = controller.onMotionControllerInitObservable.add(() => {
-                            window.__lastXROperation = `gesture:motionControllerInit:${uniqueId}`;
+                            globalThis.__lastXROperation = `gesture:motionControllerInit:${uniqueId}`;
                             logCapabilities();
                         });
                     }
@@ -2374,8 +2374,6 @@
                         new BABYLON.Color3(1, 0.2, 0.2),
                         new BABYLON.Color3(0.3, 0, 0),
                     ),
-                );
-                draggableObjects.push(
                     createObject(
                         "blueSphere",
                         "sphere",
@@ -2383,8 +2381,6 @@
                         new BABYLON.Color3(0.2, 0.4, 1),
                         new BABYLON.Color3(0, 0, 0.3),
                     ),
-                );
-                draggableObjects.push(
                     createObject(
                         "greenCylinder",
                         "cylinder",
@@ -2392,8 +2388,6 @@
                         new BABYLON.Color3(0.2, 0.9, 0.3),
                         new BABYLON.Color3(0, 0.2, 0),
                     ),
-                );
-                draggableObjects.push(
                     createObject(
                         "yellowTorus",
                         "torus",
@@ -2401,8 +2395,6 @@
                         new BABYLON.Color3(1, 0.9, 0.2),
                         new BABYLON.Color3(0.3, 0.25, 0),
                     ),
-                );
-                draggableObjects.push(
                     createObject(
                         "purpleBox",
                         "box",
@@ -2410,8 +2402,6 @@
                         new BABYLON.Color3(0.7, 0.2, 0.9),
                         new BABYLON.Color3(0.2, 0, 0.3),
                     ),
-                );
-                draggableObjects.push(
                     createObject(
                         "orangeSphere",
                         "sphere",
@@ -2618,7 +2608,7 @@
                         console.error(
                             `🚨 WATCHDOG: Render loop FROZEN! Last frame: ${frameCount}, frozen for ${freezeDuration}ms`,
                         );
-                        console.error(`🚨 WATCHDOG: Last operation: ${window.__lastXROperation}`);
+                        console.error(`🚨 WATCHDOG: Last operation: ${globalThis.__lastXROperation}`);
                         console.error(`🚨 WATCHDOG: Frame started ${Date.now() - frameStartTime}ms ago`);
 
                         // Log current state
@@ -2694,32 +2684,32 @@
                         }
 
                         if (thumbstickHandler) {
-                            window.__lastXROperation = "renderLoop:thumbstickHandler.update:start";
+                            globalThis.__lastXROperation = "renderLoop:thumbstickHandler.update:start";
                             thumbstickHandler.update();
-                            window.__lastXROperation = "renderLoop:thumbstickHandler.update:done";
+                            globalThis.__lastXROperation = "renderLoop:thumbstickHandler.update:done";
                             if (frameCount % 10 === 0) {
-                                window.__lastXROperation = "renderLoop:thumbstickHandler.updateCameraDisplay";
+                                globalThis.__lastXROperation = "renderLoop:thumbstickHandler.updateCameraDisplay";
                                 thumbstickHandler.updateCameraDisplay(scene.activeCamera);
                             }
                         }
 
                         if (gestureHandler) {
-                            window.__lastXROperation = "renderLoop:gestureHandler.update:start";
+                            globalThis.__lastXROperation = "renderLoop:gestureHandler.update:start";
                             gestureHandler.update();
-                            window.__lastXROperation = "renderLoop:gestureHandler.update:done";
+                            globalThis.__lastXROperation = "renderLoop:gestureHandler.update:done";
                         }
 
                         if (dragDropHandler) {
-                            window.__lastXROperation = "renderLoop:dragDropHandler.update:start";
+                            globalThis.__lastXROperation = "renderLoop:dragDropHandler.update:start";
                             dragDropHandler.update();
-                            window.__lastXROperation = "renderLoop:dragDropHandler.update:done";
+                            globalThis.__lastXROperation = "renderLoop:dragDropHandler.update:done";
                         }
 
                         if (pivotController && frameCount % 5 === 0) {
-                            window.__lastXROperation = "renderLoop:pivotController.updateDisplay";
+                            globalThis.__lastXROperation = "renderLoop:pivotController.updateDisplay";
                             pivotController.updateDisplay();
                         }
-                        window.__lastXROperation = "renderLoop:complete";
+                        globalThis.__lastXROperation = "renderLoop:complete";
                     } catch (renderError) {
                         // Log render loop errors that might be causing the lockup
                         console.error("❌ Render loop error:", renderError.message, renderError.stack);

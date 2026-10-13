@@ -1,3 +1,57 @@
+## 0.0.14 (2026-10-13)
+
+### 🩹 Fixes
+
+- **tools:** cap each test slot's Node workers at its share of the cores ([9daf98f16](https://github.com/graphty-org/graphty-monorepo/commit/9daf98f16))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.49
+- Updated graph-samples to 0.1.29
+- Updated graph-format to 1.3.14
+- Updated algorithms to 3.4.4
+- Updated graph-io to 0.3.37
+- Updated layout to 2.4.4
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.0.13 (2026-10-12)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.48
+- Updated layout to 2.4.3
+
+## 0.0.12 (2026-10-12)
+
+### 🩹 Fixes
+
+- **cytoscape-extensions:** refuse async graph methods on a destroyed core ([#2085](https://github.com/graphty-org/graphty-monorepo/issues/2085))
+- **cytoscape-extensions:** show frozen story pictures in a canvas, not an img ([#2051](https://github.com/graphty-org/graphty-monorepo/issues/2051))
+- **cytoscape-extensions:** stop layouts cleanly on a destroyed Cytoscape core ([#2062](https://github.com/graphty-org/graphty-monorepo/issues/2062))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.47
+- Updated layout to 2.4.2
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.0.11 (2026-10-12)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.46
+- Updated graph-samples to 0.1.28
+- Updated graph-format to 1.3.13
+- Updated algorithms to 3.4.3
+- Updated graph-io to 0.3.36
+- Updated layout to 2.4.1
+
 ## 0.0.10 (2026-10-11)
 
 ### 🩹 Fixes

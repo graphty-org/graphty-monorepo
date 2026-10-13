@@ -163,4 +163,5 @@ export function initRemoteLogger(): RemoteLoggerGlobal | undefined {
 initRemoteLogger();
 
 // Re-export for manual use via the IIFE global
-export { ConsoleCaptureUI, RemoteLogClient };
+export { RemoteLogClient } from "../client/RemoteLogClient.js";
+export { ConsoleCaptureUI } from "../ui/ConsoleCaptureUI.js";

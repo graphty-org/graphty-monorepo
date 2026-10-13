@@ -427,7 +427,7 @@ const FLAG_TRUE = 2;
  * The generation counter is reset before it can overflow a signed 32-bit stamp, because a wrapped
  * generation would mark every element of the previous pass as already dirty in this one.
  */
-const MAX_GENERATION = 0x7fff_fffe;
+const MAX_GENERATION = 0x7f_ff_ff_fe;
 
 /** One channel's values, in the shape that channel's kind of value packs into. */
 type ChannelColumn =
@@ -1176,7 +1176,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
             // A channel of the wrong target, a channel the element cannot draw and a name that is
             // not a channel are all refused by the layer check before a layer is accepted. Here
             // they are simply not painted: a repaint is not the place to relitigate a spec.
-            if (descriptor === undefined || descriptor.target !== layer.target || !descriptor.renderable) {
+            if (descriptor?.target !== layer.target || !descriptor.renderable) {
                 return;
             }
 

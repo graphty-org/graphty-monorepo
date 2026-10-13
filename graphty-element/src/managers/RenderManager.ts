@@ -91,7 +91,9 @@ let shaderCompilers: Promise<ShaderCompilers> | null = null;
 async function loadCompiler(name: "glslang" | "twgsl"): Promise<unknown> {
     const base = `${Tools._DefaultCdnUrl}/${name}/${name}`;
     await Tools.LoadBabylonScriptAsync(`${base}.js`);
-    const factory = (self as unknown as Record<string, ((wasmPath: string) => Promise<unknown>) | undefined>)[name];
+    const factory = (globalThis as unknown as Record<string, ((wasmPath: string) => Promise<unknown>) | undefined>)[
+        name
+    ];
     if (factory === undefined) {
         throw new Error(`${name}.js loaded but defined no ${name}`);
     }
@@ -320,7 +322,7 @@ export class RenderManager implements Manager {
             this.drawOwed = true;
         }
     };
-    private resizeHandler: () => void;
+    private readonly resizeHandler: () => void;
     /** The one skybox dome, and the image it shows; null while the background is a colour. */
     private dome: { readonly url: string; readonly dome: PhotoDome } | null = null;
 
@@ -330,7 +332,7 @@ export class RenderManager implements Manager {
      * canvas. This one does the same thing without scrolling.
      * @param evt - The pointer down or up event on the canvas
      */
-    private focusOnPointer = (evt: PointerEvent): void => {
+    private readonly focusOnPointer = (evt: PointerEvent): void => {
         evt.preventDefault();
         this.canvas.focus({ preventScroll: true });
     };
@@ -342,9 +344,9 @@ export class RenderManager implements Manager {
      * @param config - Optional render configuration
      */
     constructor(
-        private canvas: HTMLCanvasElement,
-        private eventManager: EventManager,
-        private config: RenderManagerConfig = {},
+        private readonly canvas: HTMLCanvasElement,
+        private readonly eventManager: EventManager,
+        private readonly config: RenderManagerConfig = {},
     ) {
         // Set Babylon.js log level
         Logger.LogLevels = Logger.ErrorLogLevel;

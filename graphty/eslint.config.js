@@ -42,7 +42,7 @@ const RESTRICTED_IMPORT_PATTERNS = [
         message: `${RULE} Import a package's published entry points, never its source.`,
     },
     {
-        regex: "^\\.{1,2}/(.*/)?graphty-element(/|$)",
+        regex: String.raw`^\.{1,2}/(.*/)?graphty-element(/|$)`,
         message: `${RULE} Import @graphty/graphty-element by package name, never by a relative path.`,
     },
 ];

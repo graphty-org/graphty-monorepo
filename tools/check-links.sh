@@ -72,7 +72,9 @@ fi
 # CHANGELOGs are release history written by the release tooling (a commit message's "#505050"
 # became an issue link), and the gh-pages / Vite HTML templates only resolve once the build has
 # copied them into place (the --site pass checks the built copies).
-INPUTS="$(mktemp)"
+# In the checkout's own tmp/, not /tmp, which other processes on this machine clear.
+mkdir -p "$ROOT_DIR/tmp/check-links" || exit 2
+INPUTS="$(mktemp "$ROOT_DIR/tmp/check-links/inputs.XXXXXX")" || exit 2
 trap 'rm -f "$INPUTS"' EXIT
 git ls-files \
     | grep -E '\.(md|mdx|html)$|(^|/)package\.json$' \

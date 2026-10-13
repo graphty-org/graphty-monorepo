@@ -1229,7 +1229,7 @@ export class XgmmlEmitter {
             this.graphColumns.addAtt(0, att, where);
         }
         this.graphColumns.write(this.sink, () => 0);
-        const json: Record<string, unknown> = { ...(this.extras.graphJson ?? {}) };
+        const json: Record<string, unknown> = { ...this.extras.graphJson };
         if (g.graphics !== null && Object.keys(g.graphics).length > 0) {
             json[GRAPHICS_COLUMN] = g.graphics;
         }
@@ -1267,7 +1267,7 @@ export class XgmmlEmitter {
                     directed: this.doc.root.attrs.get("directed") ?? null,
                     rdf: Object.keys(rdf).length > 0 ? { ...rdf } : null,
                 },
-                ...(this.extras.metaExtra ?? {}),
+                ...this.extras.metaExtra,
             },
         });
     }

@@ -11,7 +11,7 @@ import { type LayoutArgs, renderLayout } from "./layout-story.js";
  * runs the layout on the CPU, which at these sizes takes minutes to hours.
  */
 const meta: Meta<LayoutArgs> = {
-    title: "Large graphs",
+    title: "Gallery/Large graphs",
     render: renderLayout,
     argTypes: {
         ...networkArgTypes,

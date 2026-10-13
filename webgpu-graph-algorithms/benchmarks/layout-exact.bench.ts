@@ -284,7 +284,7 @@ export async function warmClock(
  */
 export async function runLayoutExactBenchmarks(ctx: GpuContext): Promise<BenchResult[]> {
     const results: BenchResult[] = [];
-    const source = ctx.profiler !== null && ctx.profiler.enabled ? "profiler" : "wall";
+    const source = ctx.profiler?.enabled ? "profiler" : "wall";
     for (const rung of [...EXACT_LADDER, FRAME_RUNG]) {
         const m = rung.nodes * LADDER_EDGE_FACTOR;
         const snapshot = snapshotOf(randomEdges(rung.nodes, m, SEED), { label: `layout-exact/${rung.label}` });
@@ -311,8 +311,8 @@ export async function runLayoutExactBenchmarks(ctx: GpuContext): Promise<BenchRe
                 },
                 { device: ctx.device, items: pairs, unit: "pairs" },
             );
-            results.push(wall);
             results.push(
+                wall,
                 reportedRow(
                     LAYOUT_EXACT_GROUP,
                     `ms/iteration (${source}) n=${rung.nodes} [${rung.label}]`,

@@ -40,6 +40,12 @@ const NUM_RUNS = 200;
 const CASE_TIMEOUT = 300_000;
 /** Upper bound of the before / after step generators of the fixed-node property (gpuScale() sizing, file header). */
 const stepBound = (): number => (gpuScale() < 1 ? 2 : 4);
+/**
+ * Upper bound of maxIter in the run-to-maxIter property, one single-iteration batch (one submit and one readback) per
+ * iteration: on a software adapter 10, as fr-properties' runBound() (G5-F13). The 30-iteration bound cost about 3,100
+ * submits and readbacks per 200 runs on the Windows WARP host lane (issue #2160); 10 costs about 1,100.
+ */
+const runBound = (): number => (gpuScale() < 1 ? 10 : 30);
 /** Iterations on each side of the setPosition in the speed-continuity property (gpuScale() sizing, file header). */
 const halfSpan = (): number => (gpuScale() < 1 ? 3 : 5);
 
@@ -203,7 +209,7 @@ describe("FA2 properties (spec 11.3; fast-check numRuns 200)", () => {
         async (t) => {
             requireGpu(t);
             await fc.assert(
-                fc.asyncProperty(fc.integer({ min: 1, max: 30 }), async (maxIter) => {
+                fc.asyncProperty(fc.integer({ min: 1, max: runBound() }), async (maxIter) => {
                     const options: ForceAtlas2Options = { ...BASE_OPTIONS, maxIter };
                     await withSim(ctx, options, PAPER, async (sim) => {
                         const positions = Float32Array.from(start);

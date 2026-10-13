@@ -73,6 +73,7 @@ const WORDS: Readonly<Record<HistoryCode, (params: Params) => string>> = {
     },
     "data.expand": (p) => `Expanded ${text(p.node)}`,
     "data.declare": (p) => `Declared ${text(p.column)}`,
+    "data.set-file-styles": () => "Set the styles read from files",
     "data.set-source": (p) => (p.name === null ? "Named the source" : `Named the source ${text(p.name)}`),
     "style.add-layer": (p) => `Added layer "${text(p.layer)}"`,
     "style.update-layer": (p) => `Changed layer "${text(p.layer)}"`,

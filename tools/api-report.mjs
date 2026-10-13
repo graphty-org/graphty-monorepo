@@ -128,6 +128,8 @@ export const PLAIN_STRING_ALLOWLIST = new Set([
     "runId",
     "field",
     "column",
+    // a registered file format's id ("gexf", "graphml")
+    "format",
     // names the consumer or its data gave (an attribute, a set, a layer), and catalog names (#1332)
     "name",
     "technicalName",

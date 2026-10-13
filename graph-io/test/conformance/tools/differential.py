@@ -284,12 +284,6 @@ def v_cytoscape(g, path):
             "define, so direction is not asserted"
         )
     }
-    if h.number_of_edges() > 0 and not all(isinstance(n, str) for n in g.nodes):
-        extra["knownFailure"] = (
-            "json cytoscape: a numeric source / target is not read as the string id Cytoscape.js makes of it, so "
-            'the edge ends 0, 1 of a networkx cytoscape_data file become new nodes next to the declared "0", "1" '
-            "(every node doubled)"
-        )
     return exp, extra
 
 

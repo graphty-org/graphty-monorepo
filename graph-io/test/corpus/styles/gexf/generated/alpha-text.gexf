@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gexf xmlns="http://www.gexf.net/1.2draft" xmlns:viz="http://www.gexf.net/1.2draft/viz" version="1.2">
+<graph><nodes>
+<node id="a"><viz:color r="255" g="0" b="0" a="abc"/></node>
+<node id="b"><viz:color r="255" g="0" b="0" a=""/></node>
+<node id="c"><viz:color r="255" g="0" b="0" a="0.5"/></node>
+<node id="d"><viz:color r="255" g="x" b="0"/></node>
+</nodes><edges/></graph></gexf>

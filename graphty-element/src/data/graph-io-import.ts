@@ -111,6 +111,8 @@ class DeclaringBuilder extends GraphBuilder {
 
 /** What one import produced: the frozen scratch graph, the importer's report and the declared nodes. */
 export interface ImportedGraph {
+    /** The importer that read the file. */
+    readonly importer: GraphImporter;
     readonly snapshot: GraphSnapshot;
     readonly report: ImportReport;
     /** The ids of the nodes the file declared, as opposed to those an edge created. */
@@ -161,7 +163,7 @@ export async function importDocument<Opts>(
         ({ report } = error);
     }
 
-    return { snapshot: builder.freeze(), report, declared: builder.declared };
+    return { importer, snapshot: builder.freeze(), report, declared: builder.declared };
 }
 
 /**
@@ -516,10 +518,147 @@ export interface RecordMapping {
     node(row: number, record: Record<string, unknown>): void;
     /** Write an edge's keys onto its record, which already holds `source`, `target` and any `weight`. */
     edge(row: number, record: Record<string, unknown>): void;
+    /**
+     * The record path (a key, or dotted keys into a nested object) a column's value lands under
+     * unchanged, or null when the reader leaves the column out or changes its value on the way.
+     * Left out, every column lands under its own name, as {@link copyColumns} writes it.
+     */
+    readonly path?: (kind: "node" | "edge", column: Column) => string | null;
 }
 
 /** The prefix graph-format reserves for the columns that carry structure rather than data. */
 const RESERVED_PREFIX = "graphty.";
+
+/** The record keys that identify a node or an edge, which no attribute may take. */
+const IDENTITY_KEYS = { node: ["id"], edge: ["source", "target"] } as const;
+
+/**
+ * The record key an attribute goes under: its title, or `<title>#<id>` when the title is a key
+ * that identifies the record (a node's `id`, an edge's `source` or `target`), so an attribute the
+ * file titled `id` never takes the place of the node's id.
+ * @param kind - node or edge
+ * @param title - the attribute's title
+ * @param id - the attribute's id in the file
+ * @returns the key
+ */
+export function attributeKey(kind: "node" | "edge", title: string, id: string): string {
+    return (IDENTITY_KEYS[kind] as readonly string[]).includes(title) ? `${title}#${id}` : title;
+}
+
+/**
+ * Where {@link copyColumns} puts a column on a record: under its own name, except a reserved
+ * `graphty.*` column and one named like a key that identifies the record, which it leaves out.
+ * @param kind - node or edge
+ * @param column - the column
+ * @returns the key, or null
+ */
+export function copiedPath(kind: "node" | "edge", column: Column): string | null {
+    const { name } = column.meta;
+    return name.startsWith(RESERVED_PREFIX) ||
+        (IDENTITY_KEYS[kind] as readonly string[]).includes(name) ||
+        (kind === "edge" && name === EDGE_ID_KEY)
+        ? null
+        : name;
+}
+
+/** The record key the element writes its own edge id under, over any `id` the file gave. */
+const EDGE_ID_KEY = "id";
+
+/**
+ * Whether a column reads a default the file declared on rows that set no value (a CX2 attribute
+ * declaration's `v`, a GraphML key's `<default>`). The records leave those rows out, so a layer
+ * reading the record key would see nothing where the column holds the default.
+ * @param column - the column
+ * @param rows - how many rows the table has
+ * @returns true when some row reads the default without holding a value
+ */
+function readsUnsetDefault(column: Column, rows: number): boolean {
+    if (column.meta.default === null || column.meta.default === undefined) {
+        return false;
+    }
+
+    for (let row = 0; row < rows; row++) {
+        if (!column.isSet(row)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/** The graph-io import a reader built its records from, and where each column landed on them. */
+export interface ReaderImport {
+    /** The import: the importer, its snapshot and its report. */
+    readonly imported: ImportedGraph;
+    /**
+     * Where a column's value arrives on the records, unchanged: the record key, or the keys down
+     * into a nested object (a graphology attribute is `["attributes", name]`). Null when the reader
+     * leaves the column out or changes its value on the way (a yFiles shape the element renames, a
+     * GEXF date it writes as text), and for a column the snapshot does not hold.
+     * @param kind - node or edge
+     * @param column - the column's name in the snapshot
+     * @returns the keys, or null
+     */
+    path(kind: "node" | "edge", column: string): readonly string[] | null;
+}
+
+/** The import each reader's last load came from, read on demand. */
+const READER_IMPORTS = new WeakMap<object, () => Promise<ReaderImport>>();
+
+/**
+ * Remember the import a reader's records came from, so what the element builds on the records
+ * (the file's styles) can read the same snapshot and reach each column through the reader's own keys.
+ * @param reader - the data source
+ * @param read - gives the import; called at most once, when it is first asked for
+ */
+export function rememberImport(reader: object, read: () => Promise<ReaderImport> | ReaderImport): void {
+    let memo: Promise<ReaderImport> | null = null;
+    READER_IMPORTS.set(reader, () => (memo ??= Promise.resolve(read())));
+}
+
+/**
+ * The import a reader's last load came from, with its column paths.
+ * @param reader - the data source
+ * @returns the import, or null when the reader read no graph-io import
+ */
+export function readerImport(reader: object): Promise<ReaderImport> | null {
+    return READER_IMPORTS.get(reader)?.() ?? null;
+}
+
+/**
+ * Pair an import with a mapping's column paths.
+ * @param imported - the import
+ * @param path - where the reader put each column
+ * @returns the reader import
+ */
+function readerImportOf(
+    imported: ImportedGraph,
+    path: (kind: "node" | "edge", column: Column) => string | null,
+): ReaderImport {
+    const { snapshot } = imported;
+    const defaulted = new Map<Column, boolean>();
+    return {
+        imported,
+        path: (kind, name) => {
+            const table = kind === "node" ? snapshot.nodes : snapshot.edges;
+            const column = table.get(name);
+            if (column === null || column === undefined) {
+                return null;
+            }
+
+            const key = path(kind, column);
+            if (key === null || (kind === "edge" && key === EDGE_ID_KEY)) {
+                return null;
+            }
+
+            if (!defaulted.has(column)) {
+                defaulted.set(column, readsUnsetDefault(column, table.rowCount));
+            }
+
+            return defaulted.get(column) === true ? null : [key];
+        },
+    };
+}
 
 /**
  * Copy every set cell of one row onto a record: each attribute column under its own name, a
@@ -550,9 +689,18 @@ export function copyColumns(table: AttributeTable, row: number, record: Record<s
  * the importer read it with.
  * @param imported - the import
  * @param mapping - the format's mapping from rows to record keys
+ * @param reader - the data source the records are for, which remembers the import (see {@link readerImport})
  * @returns the records, in file order
  */
-export function toRecords(imported: ImportedGraph, mapping: RecordMapping): { nodes: AdHocData[]; edges: AdHocData[] } {
+export function toRecords(
+    imported: ImportedGraph,
+    mapping: RecordMapping,
+    reader?: object,
+): { nodes: AdHocData[]; edges: AdHocData[] } {
+    if (reader !== undefined) {
+        rememberImport(reader, () => readerImportOf(imported, mapping.path ?? copiedPath));
+    }
+
     const { snapshot, declared } = imported;
     const { ids } = snapshot;
 
@@ -593,6 +741,59 @@ export function toRecords(imported: ImportedGraph, mapping: RecordMapping): { no
     return { nodes: nodes as AdHocData[], edges: edges as AdHocData[] };
 }
 
+/** The origin namespaces of the columns the CX and CX2 importers read a file's bypasses into. */
+const BYPASS_NAMESPACES: ReadonlySet<string> = new Set(["cx.bypass", "cx2.bypass"]);
+
+/**
+ * Whether a column holds a format's own style slots rather than data: the bypasses of a CX or
+ * CX2 file, and an XGMML (or Cytoscape session) element's `<graphics>` block.
+ * @param column - the column
+ * @returns true for a style slot
+ */
+function isStyleSlot(column: Column): boolean {
+    const { origin } = column.meta;
+    return (
+        (typeof origin?.namespace === "string" && BYPASS_NAMESPACES.has(origin.namespace)) ||
+        (column.dtype === "json" && origin?.type === "graphics" && origin.namespace === "xgmml")
+    );
+}
+
+/**
+ * A mapping that leaves a format's own style slots off the records, for a load that draws the
+ * file's styles as layers: the layers carry them, and an export with styles writes them again
+ * from the layers, so a record copy would be written twice.
+ * @param snapshot - the imported graph
+ * @param mapping - the reader's mapping
+ * @returns the mapping without the style slots
+ */
+export function withoutStyleSlots(snapshot: GraphSnapshot, mapping: RecordMapping): RecordMapping {
+    const slots = {
+        node: [...snapshot.nodes].filter(isStyleSlot).map((column) => column.meta.name),
+        edge: [...snapshot.edges].filter(isStyleSlot).map((column) => column.meta.name),
+    };
+    if (slots.node.length === 0 && slots.edge.length === 0) {
+        return mapping;
+    }
+
+    const drop = (keys: readonly string[], record: Record<string, unknown>): void => {
+        for (const key of keys) {
+            Reflect.deleteProperty(record, key);
+        }
+    };
+    const path = mapping.path ?? copiedPath;
+    return {
+        node: (row, record) => {
+            mapping.node(row, record);
+            drop(slots.node, record);
+        },
+        edge: (row, record) => {
+            mapping.edge(row, record);
+            drop(slots.edge, record);
+        },
+        path: (kind, column) => (isStyleSlot(column) ? null : path(kind, column)),
+    };
+}
+
 /**
  * The mapping that keeps every attribute under its own name and adds nothing (see {@link copyColumns}).
  * @param snapshot - the imported graph
@@ -600,6 +801,7 @@ export function toRecords(imported: ImportedGraph, mapping: RecordMapping): { no
  */
 export function columnsMapping(snapshot: GraphSnapshot): RecordMapping {
     return {
+        path: copiedPath,
         node: (row, record) => {
             copyColumns(snapshot.nodes, row, record);
         },

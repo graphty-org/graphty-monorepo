@@ -100,6 +100,7 @@ import {
     SOURCE_PORT_COLUMN,
     TARGET_PORT_COLUMN,
 } from "./names.js";
+import { dotStyles } from "./styles.js";
 import { DotSyntaxError, type DotToken, DotTokenizer } from "./tokenizer.js";
 
 /**
@@ -326,6 +327,7 @@ export const dotImporter: GraphImporter<DotImportOptions> = Object.freeze({
     options: Object.freeze(["mismatchedEdgeOperator", "positions"]),
     extensions: EXTENSIONS,
     mimeTypes: MIME_TYPES,
+    styles: dotStyles,
 
     /**
      * Confidence that the head of an input is DOT: the `[strict] graph | digraph` header after
@@ -892,22 +894,43 @@ class DotParser {
             }
             throw new DotSyntaxError(`unexpected ${describeToken(token)} at the start of a statement`, token.line);
         }
-        if (!token.quoted && !token.html) {
-            const keyword = token.text.toLowerCase();
-            if (keyword === "node" || keyword === "edge" || keyword === "graph") {
-                lexer.next();
-                this.attributeStatement(scope, keyword, token.line);
-                return;
-            }
-            if (keyword === "subgraph") {
-                const group = this.subgraph(scope);
-                this.maybeEdgeStatement(scope, group, token.line);
-                return;
-            }
-            if (keyword === "digraph" || keyword === "strict") {
-                throw new DotSyntaxError(`unexpected keyword ${describeToken(token)} inside a graph`, token.line);
-            }
+        if (!token.quoted && !token.html && this.keywordStatement(scope, token)) {
+            return;
         }
+        this.idStatement(scope);
+    }
+
+    /**
+     * Parse a statement that starts with a keyword: an attribute statement or a subgraph.
+     * @param scope - the scope
+     * @param token - the statement's first token, not yet read
+     * @returns false when the token is no statement keyword (an ID)
+     */
+    private keywordStatement(scope: Scope, token: DotToken): boolean {
+        const keyword = token.text.toLowerCase();
+        if (keyword === "node" || keyword === "edge" || keyword === "graph") {
+            this.lexer.next();
+            this.attributeStatement(scope, keyword, token.line);
+            return true;
+        }
+        if (keyword === "subgraph") {
+            const group = this.subgraph(scope);
+            this.maybeEdgeStatement(scope, group, token.line);
+            return true;
+        }
+        if (keyword === "digraph" || keyword === "strict") {
+            throw new DotSyntaxError(`unexpected keyword ${describeToken(token)} inside a graph`, token.line);
+        }
+        return false;
+    }
+
+    /**
+     * Parse a statement that starts with an ID: `ID = ID`, a node statement, or an edge statement starting with a
+     * node.
+     * @param scope - the scope
+     */
+    private idStatement(scope: Scope): void {
+        const { lexer } = this;
         // ID '=' ID, a node statement, or an edge statement starting with a node
         const id = this.identifier();
         if (isPunct(lexer.peek(), "=")) {
@@ -917,12 +940,47 @@ class DotParser {
             return;
         }
         const port = this.port();
+        if (isPunct(lexer.peek(), ",")) {
+            this.nodeListStatement(scope, [{ id, port }, ...this.moreNodes()]);
+            return;
+        }
         if (isEdgeOp(lexer.peek())) {
             const endpoint = this.mentionEndpoint(scope, id, port);
             this.edgeStatement(scope, endpoint === null ? [] : [endpoint], id.line);
             return;
         }
         this.nodeStatement(scope, id, port);
+    }
+
+    /**
+     * Read the rest of a node list after its first node: `, ID [port]` repeated (`a, b, c`).
+     * @returns the further nodes, in order
+     */
+    private moreNodes(): { id: DotToken; port: string | null }[] {
+        const out: { id: DotToken; port: string | null }[] = [];
+        while (isPunct(this.lexer.peek(), ",")) {
+            this.lexer.next();
+            const id = this.identifier();
+            out.push({ id, port: this.port() });
+        }
+        return out;
+    }
+
+    /**
+     * A statement starting with a node list (`a, b [attrs]` or `a, b -> c`): an edge statement from every node of
+     * the list, or a node statement for each.
+     * @param scope - the scope
+     * @param nodes - the listed nodes with their ports
+     */
+    private nodeListStatement(scope: Scope, nodes: readonly { id: DotToken; port: string | null }[]): void {
+        if (isEdgeOp(this.lexer.peek())) {
+            this.edgeStatement(scope, this.mentionAll(scope, nodes), nodes[0].id.line);
+            return;
+        }
+        const attributes = this.attributeList();
+        for (const n of nodes) {
+            this.applyNodeStatement(scope, n.id, n.port, attributes);
+        }
     }
 
     /**
@@ -1268,7 +1326,22 @@ class DotParser {
      * @param port - the port, if any (dropped with a warning)
      */
     private nodeStatement(scope: Scope, id: DotToken, port: string | null): void {
-        const attributes = this.attributeList();
+        this.applyNodeStatement(scope, id, port, this.attributeList());
+    }
+
+    /**
+     * Mention a node of a node statement and apply the statement's attributes to it.
+     * @param scope - the scope
+     * @param id - the id token
+     * @param port - the port, if any (dropped with a warning)
+     * @param attributes - the statement's attributes
+     */
+    private applyNodeStatement(
+        scope: Scope,
+        id: DotToken,
+        port: string | null,
+        attributes: readonly DotAttribute[],
+    ): void {
         const endpoint = this.mentionEndpoint(scope, id, null);
         if (endpoint === null) {
             return;
@@ -1316,19 +1389,35 @@ class DotParser {
                 groups.push(this.subgraph(scope));
             } else {
                 const id = this.identifier();
-                const port = this.port();
-                const endpoint = this.mentionEndpoint(scope, id, port);
-                groups.push(endpoint === null ? [] : [endpoint]);
+                groups.push(this.mentionAll(scope, [{ id, port: this.port() }, ...this.moreNodes()]));
             }
         }
         const attributes = this.attributeList();
         for (let k = 0; k < kinds.length; k++) {
+            const targets = groups[k + 1];
             for (const source of groups[k]) {
-                for (const target of groups[k + 1]) {
+                for (const target of targets) {
                     this.pushEdge(scope, source, target, kinds[k], attributes, line);
                 }
             }
         }
+    }
+
+    /**
+     * Mention each listed node as an edge endpoint.
+     * @param scope - the scope
+     * @param nodes - the nodes with their ports
+     * @returns the endpoints of the nodes that could be created
+     */
+    private mentionAll(scope: Scope, nodes: readonly { id: DotToken; port: string | null }[]): Endpoint[] {
+        const group: Endpoint[] = [];
+        for (const n of nodes) {
+            const endpoint = this.mentionEndpoint(scope, n.id, n.port);
+            if (endpoint !== null) {
+                group.push(endpoint);
+            }
+        }
+        return group;
     }
 
     /**

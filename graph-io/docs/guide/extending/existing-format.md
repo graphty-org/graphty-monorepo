@@ -232,6 +232,13 @@ and `check()` (copied from the CSV exporter, and what `checkExport()` calls) is 
 your change means the file reads back differently, wrap `check()` too and add a note that says how,
 as [Writing a format plugin](./new-format.md#checking-what-a-save-loses) explains.
 
+## Adding styles to a format
+
+A wrapper can also read or write styles the wrapped format does not: give it a `styles` member. A
+wrapper of the CSV importer that names its `color` column as the node fill reads that column as a
+style, and a wrapper of an exporter that writes attributes keeps a graph's styles for graphty with
+one line. [Styles in a plugin](./new-format.md#styles) shows both.
+
 ## Reusing a format's codes and options
 
 Each format's entry point also exports:

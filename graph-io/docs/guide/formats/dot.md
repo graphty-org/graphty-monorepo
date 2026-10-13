@@ -105,24 +105,59 @@ does not survive:
 
 What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-mean) explain each row):
 
-| Capability                                      | Value                  |
-| ----------------------------------------------- | ---------------------- |
-| [`mixedDirection`](./index.md#mixeddirection)   | no                     |
-| [`multiEdges`](./index.md#multiedges)           | yes                    |
-| [`selfLoops`](./index.md#selfloops)             | yes                    |
-| [`edgeIds`](./index.md#edgeids)                 | optional               |
-| [`idCharset`](./index.md#idcharset)             | any                    |
-| [`dtypes`](./index.md#dtypes)                   | bool, i32, f64, string |
-| [`components`](./index.md#components)           | no                     |
-| [`lists`](./index.md#lists)                     | no                     |
-| [`json`](./index.md#json)                       | no                     |
-| [`defaults`](./index.md#defaults)               | no                     |
-| [`options`](./index.md#options)                 | no                     |
-| [`hierarchy`](./index.md#hierarchy)             | yes                    |
-| [`temporal`](./index.md#temporal)               | none                   |
-| [`graphAttributes`](./index.md#graphattributes) | yes                    |
-| [`positions`](./index.md#positions)             | yes                    |
-| [`viz`](./index.md#viz)                         | no                     |
+| Capability                                      | Value                     |
+| ----------------------------------------------- | ------------------------- |
+| [`mixedDirection`](./index.md#mixeddirection)   | no                        |
+| [`multiEdges`](./index.md#multiedges)           | yes                       |
+| [`selfLoops`](./index.md#selfloops)             | yes                       |
+| [`edgeIds`](./index.md#edgeids)                 | optional                  |
+| [`idCharset`](./index.md#idcharset)             | any                       |
+| [`dtypes`](./index.md#dtypes)                   | bool, i32, f64, string    |
+| [`components`](./index.md#components)           | no                        |
+| [`lists`](./index.md#lists)                     | no                        |
+| [`json`](./index.md#json)                       | no                        |
+| [`defaults`](./index.md#defaults)               | no                        |
+| [`options`](./index.md#options)                 | no                        |
+| [`hierarchy`](./index.md#hierarchy)             | yes                       |
+| [`temporal`](./index.md#temporal)               | none                      |
+| [`graphAttributes`](./index.md#graphattributes) | yes                       |
+| [`positions`](./index.md#positions)             | yes                       |
+| [`viz`](./index.md#viz)                         | no                        |
+| [`styles`](./index.md#styles)                   | 30 properties, rules kept |
+
+<!-- generated:end -->
+
+## Styles
+
+With `styles: true`, graph-io reads node and edge attributes the way Graphviz draws them:
+`color`, `fillcolor` and `style=filled` (colors by X11 and SVG name, color schemes, `#rrggbbaa`
+and HSV), `shape`, `width` and `height` (inches, in pixels at 72 per inch), `penwidth`, the
+`dashed`, `dotted`, `bold` and `invis` styles, `arrowhead`, `arrowtail` and `dir`, `fontcolor`,
+`fontsize`, `fontname`, `label` (with Graphviz's escapes such as `\N`), `tooltip` and the graph's
+`bgcolor`. Defaults set with `node [...]` and `edge [...]` apply as Graphviz applies them, and the
+members of a cluster are a group the rules can use.
+
+Graphviz's defaults are always added: an unfilled black ellipse 54 by 36 pixels labeled with the
+node's name, black edges with an arrow at the target of directed edges. Unless `fixedsize` is set,
+Graphviz grows a node to fit its label, so a stated width or height is a minimum
+(`W_STYLE_SIZE_MINIMUM`). An unknown color is drawn black, as Graphviz draws it, with a
+`W_STYLE_BAD_VALUE` note. An HTML-like label keeps its text and loses its markup
+(`W_STYLE_HTML_LABEL`).
+
+A save with styles writes the same attributes, with `fixedsize` so the sizes are exact, and keeps
+the rules for graphty as the quoted graph attribute `graphty.styles`, which Graphviz ignores. See
+[Styles](../styles.md).
+
+<!-- generated:begin styles:dot -->
+
+|                                     |                                                                                                                                                                                          |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Reads styles                        | yes, with `styles: true`                                                                                                                                                                 |
+| Node properties written             | `fill`, `fillOpacity`, `borderColor`, `borderWidth`, `borderStyle`, `shape`, `width`, `height`, `label`, `labelColor`, `labelSize`, `labelFont`, `tooltip`, `visible`                    |
+| Edge properties written             | `color`, `opacity`, `width`, `lineStyle`, `sourceArrow`, `targetArrow`, `arrowSize`, `label`, `sourceLabel`, `targetLabel`, `labelColor`, `labelSize`, `labelFont`, `tooltip`, `visible` |
+| Graph properties written            | `background`                                                                                                                                                                             |
+| Rules kept for graphty              | yes, in the file's own `graphty.styles` block                                                                                                                                            |
+| Not written (`W_STYLE_NOT_WRITTEN`) | node: `opacity`, `labelWeight`, `labelItalic`, `labelPosition`, `image`; edge: `sourceArrowColor`, `targetArrowColor`, `curved`, `labelWeight`, `labelItalic`                            |
 
 <!-- generated:end -->
 
@@ -211,6 +246,7 @@ The codes `checkExport(snapshot, "dot", options)` can return before a save, also
 - `W_EMPTY_COLUMN_DROPPED` (warning): A declared column whose every row is unset is not written (DOT writes cells, never declarations).
 - `W_ROLE_ASSUMED` (warning): An attribute without a role is written where the format keeps a role (for example, a `name` column as the label), and reads back with that role.
 - `W_DOT_CLUSTER_MARKED` (warning): A parent that is a plain node is written as a node and a cluster of one name; it reads back marked as a cluster.
+- `W_DOT_CHARSET_REWRITTEN` (warning): The file is written in UTF-8, so a graph `charset` naming another encoding is written as `UTF-8`.
 
 When the graph has something this format cannot hold, it can also return the [shared loss codes](../codes.md#shared-loss-codes): [`E_ID_CHARSET`](../codes.md#E_ID_CHARSET), [`E_ID_TEXT_COLLISION`](../codes.md#E_ID_TEXT_COLLISION), [`E_MIXED_DIRECTION`](../codes.md#E_MIXED_DIRECTION), [`E_XML_ILLEGAL_CHAR`](../codes.md#E_XML_ILLEGAL_CHAR), [`W_COLUMN_DROPPED`](../codes.md#W_COLUMN_DROPPED), [`W_COLUMN_NAME_CHANGED`](../codes.md#W_COLUMN_NAME_CHANGED), [`W_COMPONENTS_FLATTENED`](../codes.md#W_COMPONENTS_FLATTENED), [`W_DEFAULT_DROPPED`](../codes.md#W_DEFAULT_DROPPED), [`W_DTYPE_UNSUPPORTED`](../codes.md#W_DTYPE_UNSUPPORTED), [`W_DYNAMIC_VALUES_DROPPED`](../codes.md#W_DYNAMIC_VALUES_DROPPED), [`W_EDGE_IDS_DROPPED`](../codes.md#W_EDGE_IDS_DROPPED), [`W_EDGE_IDS_GENERATED`](../codes.md#W_EDGE_IDS_GENERATED), [`W_EXTENSION_TABLE_DROPPED`](../codes.md#W_EXTENSION_TABLE_DROPPED), [`W_GRAPH_ATTRIBUTES_DROPPED`](../codes.md#W_GRAPH_ATTRIBUTES_DROPPED), [`W_HIERARCHY_DROPPED`](../codes.md#W_HIERARCHY_DROPPED), [`W_ID_MANGLED`](../codes.md#W_ID_MANGLED), [`W_ID_RENUMBERED`](../codes.md#W_ID_RENUMBERED), [`W_INTEGRAL_F64_AS_I32`](../codes.md#W_INTEGRAL_F64_AS_I32), [`W_JSON_UNSUPPORTED`](../codes.md#W_JSON_UNSUPPORTED), [`W_LIST_UNSUPPORTED`](../codes.md#W_LIST_UNSUPPORTED), [`W_MIXED_DIRECTION`](../codes.md#W_MIXED_DIRECTION), [`W_MULTI_EDGES`](../codes.md#W_MULTI_EDGES), [`W_MUTUAL_AS_UNDIRECTED`](../codes.md#W_MUTUAL_AS_UNDIRECTED), [`W_NONFINITE_AS_NULL`](../codes.md#W_NONFINITE_AS_NULL), [`W_OPEN_INTERVAL`](../codes.md#W_OPEN_INTERVAL), [`W_OPTIONS_DROPPED`](../codes.md#W_OPTIONS_DROPPED), [`W_OPTIONS_GAINED`](../codes.md#W_OPTIONS_GAINED), [`W_POSITIONS_DROPPED`](../codes.md#W_POSITIONS_DROPPED), [`W_ROLE_DROPPED`](../codes.md#W_ROLE_DROPPED), [`W_SELF_LOOPS`](../codes.md#W_SELF_LOOPS), [`W_SPELLS_DROPPED`](../codes.md#W_SPELLS_DROPPED), [`W_STORAGE_CLASS_CHANGED`](../codes.md#W_STORAGE_CLASS_CHANGED), [`W_TEMPORAL_DROPPED`](../codes.md#W_TEMPORAL_DROPPED), [`W_TEMPORAL_TEXT_DROPPED`](../codes.md#W_TEMPORAL_TEXT_DROPPED), [`W_VIZ_DROPPED`](../codes.md#W_VIZ_DROPPED), [`W_WEIGHTS_DROPPED`](../codes.md#W_WEIGHTS_DROPPED), [`W_WEIGHT_KEY_CLASH`](../codes.md#W_WEIGHT_KEY_CLASH).
 

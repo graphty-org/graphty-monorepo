@@ -1,0 +1,1702 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gexf xmlns="http://gexf.net/1.3" xmlns:viz="http://gexf.net/1.3/viz" version="1.3">
+  <meta>
+    <graphty:styles xmlns:graphty="https://graphty.app/ns/gexf" name="graphty.styles">{&quot;version&quot;:1,&quot;source&quot;:{&quot;format&quot;:&quot;gexf&quot;,&quot;dialect&quot;:&quot;gexf&quot;,&quot;tool&quot;:&quot;gephi&quot;},&quot;units&quot;:{&quot;length&quot;:&quot;relative&quot;},&quot;graph&quot;:{&quot;background&quot;:&quot;#ffffff&quot;},&quot;rules&quot;:[{&quot;id&quot;:&quot;node.tool&quot;,&quot;target&quot;:&quot;node&quot;,&quot;role&quot;:&quot;defaults&quot;,&quot;origin&quot;:&quot;tool&quot;,&quot;where&quot;:{&quot;all&quot;:true},&quot;set&quot;:{&quot;fill&quot;:&quot;#000000&quot;,&quot;width&quot;:10,&quot;height&quot;:10,&quot;shape&quot;:&quot;ellipse&quot;}},{&quot;id&quot;:&quot;node.classes&quot;,&quot;target&quot;:&quot;node&quot;,&quot;role&quot;:&quot;mapping&quot;,&quot;origin&quot;:&quot;inferred&quot;,&quot;where&quot;:{&quot;all&quot;:true},&quot;map&quot;:{&quot;fill&quot;:{&quot;kind&quot;:&quot;discrete&quot;,&quot;by&quot;:{&quot;style&quot;:&quot;class&quot;},&quot;table&quot;:[[1,&quot;#14b7f5&quot;],[2,&quot;#7b4d63&quot;],[3,&quot;#fbb1fd&quot;],[4,&quot;#1307b0&quot;],[5,&quot;#6f41f1&quot;],[6,&quot;#6f41f1&quot;],[7,&quot;#ad8e1c&quot;],[8,&quot;#0d0175&quot;],[9,&quot;#0d0175&quot;],[10,&quot;#1307b0&quot;],[11,&quot;#7b4d63&quot;],[12,&quot;#6f41f1&quot;],[13,&quot;#14b7f5&quot;],[14,&quot;#6f41f1&quot;],[15,&quot;#7b4d63&quot;],[16,&quot;#1307b0&quot;],[17,&quot;#1307b0&quot;],[18,&quot;#0d0175&quot;],[19,&quot;#0d0175&quot;],[20,&quot;#14b7f5&quot;],[21,&quot;#7b4d63&quot;],[22,&quot;#fbb1fd&quot;],[23,&quot;#fbb1fd&quot;],[24,&quot;#ad8e1c&quot;]]},&quot;shape&quot;:{&quot;kind&quot;:&quot;discrete&quot;,&quot;by&quot;:{&quot;style&quot;:&quot;class&quot;},&quot;table&quot;:[[1,&quot;triangle&quot;],[2,&quot;triangle&quot;],[3,&quot;rectangle&quot;],[4,&quot;triangle&quot;],[5,&quot;triangle&quot;],[6,&quot;ellipse&quot;],[7,&quot;diamond&quot;],[8,&quot;ellipse&quot;],[9,&quot;diamond&quot;],[10,&quot;rectangle&quot;],[11,&quot;ellipse&quot;],[12,&quot;diamond&quot;],[13,&quot;diamond&quot;],[14,&quot;rectangle&quot;],[15,&quot;rectangle&quot;],[16,&quot;ellipse&quot;],[17,&quot;diamond&quot;],[18,&quot;triangle&quot;],[19,&quot;rectangle&quot;],[20,&quot;rectangle&quot;],[21,&quot;diamond&quot;</graphty:styles>
+  </meta>
+  <graph defaultedgetype="directed" mode="static" idtype="string">
+    <attributes class="node" mode="static">
+      <attribute id="graphty.style.node.class" title="graphty.style.node.class" type="double"/>
+      <attribute id="graphty.style.node.copy.width" title="graphty.style.node.copy.width" type="double"/>
+      <attribute id="graphty.style.node.copy.height" title="graphty.style.node.copy.height" type="double"/>
+    </attributes>
+    <attributes class="edge" mode="static">
+      <attribute id="graphty.style.edge.directed" title="graphty.style.edge.directed" type="boolean"/>
+      <attribute id="graphty.style.edge.copy.color" title="graphty.style.edge.copy.color" type="string"/>
+      <attribute id="graphty.style.edge.copy.width" title="graphty.style.edge.copy.width" type="double"/>
+    </attributes>
+    <nodes count="60">
+      <node id="n0" label="n0">
+        <attvalues>
+          <attvalue for="graphty.style.node.class" value="13"/>
+          <attvalue for="graphty.style.node.copy.width" value="46"/>
+          <attvalue for="graphty.style.node.copy.height" value="46"/>
+        </attvalues>
+        <viz:color r="20" g="183" b="245"/>
+        <viz:size value="46"/>
+        <viz:shape value="diamond"/>
+      </node>
+      <node id="n1" label="n1">
+        <attvalues>
+          <attvalue for="graphty.style.node.class" value="6"/>
+          <attvalue for="graphty.style.node.copy.width" value="19"/>
+          <attvalue for="graphty.style.node.copy.height" value="19"/>
+        </attvalues>
+        <viz:color r="111" g="65" b="241"/>
+        <viz:size value="19"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="n2" label="n2">
+        <attvalues>
+          <attvalue for="graphty.style.node.class" value="7"/>
+          <attvalue for="graphty.style.node.copy.width" value="17"/>
+          <attvalue for="graphty.style.node.copy.height" value="17"/>
+        </attvalues>
+        <viz:color r="173" g="142" b="28"/>
+        <viz:size value="17"/>
+        <viz:shape value="diamond"/>
+      </node>
+      <node id="n3" label="n3">
+        <attvalues>
+          <attvalue for="graphty.style.node.class" value="19"/>
+          <attvalue for="graphty.style.node.copy.width" value="23"/>
+          <attvalue for="graphty.style.node.copy.height" value="23"/>
+        </attvalues>
+        <viz:color r="13" g="1" b="117"/>
+        <viz:size value="23"/>
+        <viz:shape value="square"/>
+      </node>
+      <node id="n4" label="n4">
+        <attvalues>
+          <attvalue for="graphty.style.node.class" value="1"/>
+          <attvalue for="graphty.style.node.copy.width" value="15"/>
+          <attvalue for="graphty.style.node.copy.height" value="15"/>
+        </attvalues>
+        <viz:color r="20" g="183" b="245"/>
+        <viz:size value="15"/>
+        <viz:shape value="triangle"/>
+      </node>
+      <node id="n5" label="n5">
+        <attvalues>
+          <attvalue for="graphty.style.node.class" value="14"/>
+          <attvalue for="graphty.style.node.copy.width" value="7"/>
+          <attvalue for="graphty.style.node.copy.height" value="7"/>
+        </attvalues>
+        <viz:color r="111" g="65" b="241"/>
+        <viz:size value="7"/>
+        <viz:shape value="square"/>
+      </node>
+      <node id="n6" label="n6">
+        <attvalues>
+          <attvalue for="graphty.style.node.class" value="8"/>
+          <attvalue for="graphty.style.node.copy.width" value="29"/>
+          <attvalue for="graphty.style.node.copy.height" value="29"/>
+        </attvalues>
+        <viz:color r="13" g="1" b="117"/>
+        <viz:size value="29"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="n7" label="n7">
+        <attvalues>
+          <attvalue for="graphty.style.node.class" value="2"/>
+          <attvalue for="graphty.style.node.copy.width" value="31"/>
+          <attvalue for="graphty.style.node.copy.height" value="31"/>
+        </attvalues>
+        <viz:color r="123" g="77" b="99"/>
+        <viz:size value="31"/>
+        <viz:shape value="triangle"/>
+      </node>
+      <node id="n8" label="n8">
+        <attvalues>
+          <attvalue for="graphty.style.node.class" value="1"/>
+          <attvalue for="graphty.style.node.copy.width" value="24"/>
+          <attvalue for="graphty.style.node.copy.height" value="24"/>
+        </attvalues>
+        <viz:color r="20" g="183" b="245"/>
+        <viz:size value="24"/>
+        <viz:shape value="triangle"/>
+      </node>
+      <node id="n9" label="n9">
+        <attvalues>
+          <attvalue for="graphty.style.node.class" value="20"/>
+          <attvalue for="graphty.style.node.copy.width" value="30"/>
+          <attvalue for="graphty.style.node.copy.height" value="30"/>
+        </attvalues>
+        <viz:color r="20" g="183" b="245"/>
+        <viz:size value="30"/>
+        <viz:shape value="square"/>
+      </node>
+      <node id="n10" label="n10">
+        <attvalues>
+          <attvalue for="graphty.style.node.class" value="15"/>
+          <attvalue for="graphty.style.node.copy.width" value="47"/>
+          <attvalue for="graphty.style.node.copy.height" value="47"/>
+        </attvalues>
+        <viz:color r="123" g="77" b="99"/>
+        <viz:size value="47"/>
+        <viz:shape value="square"/>
+      </node>
+      <node id="n11" label="n11">
+        <attvalues>
+          <attvalue for="graphty.style.node.class" value="3"/>
+          <attvalue for="graphty.style.node.copy.width" value="8"/>
+          <attvalue for="graphty.style.node.copy.height" value="8"/>
+        </attvalues>
+        <viz:color r="251" g="177" b="253"/>
+        <viz:size value="8"/>
+        <viz:shape value="square"/>
+      </node>
+      <node id="n12" label="n12">
+        <attvalues>
+          <attvalue for="graphty.style.node.class" value="3"/>
+          <attvalue for="graphty.style.node.copy.width" value="40"/>
+          <attvalue for="graphty.style.node.copy.height" value="40"/>
+        </attvalues>
+        <viz:color r="251" g="177" b="253"/>
+        <viz:size value="40"/>
+        <viz:shape value="square"/>
+      </node>
+      <node id="n13" label="n13">
+        <attvalues>
+          <attvalue for="graphty.style.node.class" value="4"/>
+          <attvalue for="graphty.style.node.copy.width" value="12"/>
+          <attvalue for="graphty.style.node.copy.height" value="12"/>
+        </attvalues>
+        <viz:color r="19" g="7" b="176"/>
+        <viz:size value="12"/>
+        <viz:shape value="triangle"/>
+      </node>
+      <node id="n14" label="n14">
+        <attvalues>
+          <attvalue for="graphty.style.node.class" value="2"/>
+          <attvalue for="graphty.style.node.copy.width" value="20"/>
+          <attvalue for="graphty.style.node.copy.height" value="20"/>
+        </attvalues>
+        <viz:color r="123" g="77" b="99"/>
+        <viz:size value="20"/>
+        <viz:shape value="triangle"/>
+      </node>
+      <node id="n15" label="n15">
+        <attvalues>
+          <attvalue for="graphty.style.node.class" value="1"/>
+          <attvalue for="graphty.style.node.copy.width" value="36"/>
+          <attvalue for="graphty.style.node.copy.height" value="36"/>
+        </attvalues>
+        <viz:color r="20" g="183" b="245"/>
+        <viz:size value="36"/>
+        <viz:shape value="triangle"/>
+      </node>
+      <node id="n16" label="n16">
+        <attvalues>
+          <attvalue for="graphty.style.node.class" value="21"/>
+          <attvalue for="graphty.style.node.copy.width" value="14"/>
+          <attvalue for="graphty.style.node.copy.height" value="14"/>
+        </attvalues>
+        <viz:color r="123" g="77" b="99"/>
+        <viz:size value="14"/>
+        <viz:shape value="diamond"/>
+      </node>
+      <node id="n17" label="n17">
+        <attvalues>
+          <attvalue for="graphty.style.node.class" value="9"/>
+          <attvalue for="graphty.style.node.copy.width" value="24"/>
+          <attvalue for="graphty.style.node.copy.height" value="24"/>
+        </attvalues>
+        <viz:color r="13" g="1" b="117"/>
+        <viz:size value="24"/>
+        <viz:shape value="diamond"/>
+      </node>
+      <node id="n18" label="n18">
+        <attvalues>
+          <attvalue for="graphty.style.node.class" value="5"/>
+          <attvalue for="graphty.style.node.copy.width" value="47"/>
+          <attvalue for="graphty.style.node.copy.height" value="47"/>
+        </attvalues>
+        <viz:color r="111" g="65" b="241"/>
+        <viz:size value="47"/>
+        <viz:shape value="triangle"/>
+      </node>
+      <node id="n19" label="n19">
+        <attvalues>
+          <attvalue for="graphty.style.node.class" value="22"/>
+          <attvalue for="graphty.style.node.copy.width" value="5"/>
+          <attvalue for="graphty.style.node.copy.height" value="5"/>
+        </attvalues>
+        <viz:color r="251" g="177" b="253"/>
+        <viz:size value="5"/>
+        <viz:shape value="triangle"/>
+      </node>
+      <node id="n20" label="n20">
+        <attvalues>
+          <attvalue for="graphty.style.node.class" value="10"/>
+          <attvalue for="graphty.style.node.copy.width" value="5"/>
+          <attvalue for="graphty.style.node.copy.height" value="5"/>
+        </attvalues>
+        <viz:color r="19" g="7" b="176"/>
+        <viz:size value="5"/>
+        <viz:shape value="square"/>
+      </node>
+      <node id="n21" label="n21">
+        <attvalues>
+          <attvalue for="graphty.style.node.class" value="2"/>
+          <attvalue for="graphty.style.node.copy.width" value="40"/>
+          <attvalue for="graphty.style.node.copy.height" value="40"/>
+        </attvalues>
+        <viz:color r="123" g="77" b="99"/>
+        <viz:size value="40"/>
+        <viz:shape value="triangle"/>
+      </node>
+      <node id="n22" label="n22">
+        <attvalues>
+          <attvalue for="graphty.style.node.class" value="5"/>
+          <attvalue for="graphty.style.node.copy.width" value="33"/>
+          <attvalue for="graphty.style.node.copy.height" value="33"/>
+        </attvalues>
+        <viz:color r="111" g="65" b="241"/>
+        <viz:size value="33"/>
+        <viz:shape value="triangle"/>
+      </node>
+      <node id="n23" label="n23">
+        <attvalues>
+          <attvalue for="graphty.style.node.class" value="9"/>
+          <attvalue for="graphty.style.node.copy.width" value="12"/>
+          <attvalue for="graphty.style.node.copy.height" value="12"/>
+        </attvalues>
+        <viz:color r="13" g="1" b="117"/>
+        <viz:size value="12"/>
+        <viz:shape value="diamond"/>
+      </node>
+      <node id="n24" label="n24">
+        <attvalues>
+          <attvalue for="graphty.style.node.class" value="23"/>
+          <attvalue for="graphty.style.node.copy.width" value="48"/>
+          <attvalue for="graphty.style.node.copy.height" value="48"/>
+        </attvalues>
+        <viz:color r="251" g="177" b="253"/>
+        <viz:size value="48"/>
+        <viz:shape value="diamond"/>
+      </node>
+      <node id="n25" label="n25">
+        <attvalues>
+          <attvalue for="graphty.style.node.class" value="14"/>
+          <attvalue for="graphty.style.node.copy.width" value="22"/>
+          <attvalue for="graphty.style.node.copy.height" value="22"/>
+        </attvalues>
+        <viz:color r="111" g="65" b="241"/>
+        <viz:size value="22"/>
+        <viz:shape value="square"/>
+      </node>
+      <node id="n26" label="n26">
+        <attvalues>
+          <attvalue for="graphty.style.node.class" value="6"/>
+          <attvalue for="graphty.style.node.copy.width" value="42"/>
+          <attvalue for="graphty.style.node.copy.height" value="42"/>
+        </attvalues>
+        <viz:color r="111" g="65" b="241"/>
+        <viz:size value="42"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="n27" label="n27">
+        <attvalues>
+          <attvalue for="graphty.style.node.class" value="16"/>
+          <attvalue for="graphty.style.node.copy.width" value="32"/>
+          <attvalue for="graphty.style.node.copy.height" value="32"/>
+        </attvalues>
+        <viz:color r="19" g="7" b="176"/>
+        <viz:size value="32"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="n28" label="n28">
+        <attvalues>
+          <attvalue for="graphty.style.node.class" value="1"/>
+          <attvalue for="graphty.style.node.copy.width" value="10"/>
+          <attvalue for="graphty.style.node.copy.height" value="10"/>
+        </attvalues>
+        <viz:color r="20" g="183" b="245"/>
+        <viz:size value="10"/>
+        <viz:shape value="triangle"/>
+      </node>
+      <node id="n29" label="n29">
+        <attvalues>
+          <attvalue for="graphty.style.node.class" value="4"/>
+          <attvalue for="graphty.style.node.copy.width" value="49"/>
+          <attvalue for="graphty.style.node.copy.height" value="49"/>
+        </attvalues>
+        <viz:color r="19" g="7" b="176"/>
+        <viz:size value="49"/>
+        <viz:shape value="triangle"/>
+      </node>
+      <node id="n30" label="n30">
+        <attvalues>
+          <attvalue for="graphty.style.node.class" value="3"/>
+          <attvalue for="graphty.style.node.copy.width" value="26"/>
+          <attvalue for="graphty.style.node.copy.height" value="26"/>
+        </attvalues>
+        <viz:color r="251" g="177" b="253"/>
+        <viz:size value="26"/>
+        <viz:shape value="square"/>
+      </node>
+      <node id="n31" label="n31">
+        <attvalues>
+          <attvalue for="graphty.style.node.class" value="4"/>
+          <attvalue for="graphty.style.node.copy.width" value="20"/>
+          <attvalue for="graphty.style.node.copy.height" value="20"/>
+        </attvalues>
+        <viz:color r="19" g="7" b="176"/>
+        <viz:size value="20"/>
+        <viz:shape value="triangle"/>
+      </node>
+      <node id="n32" label="n32">
+        <attvalues>
+          <attvalue for="graphty.style.node.class" value="11"/>
+          <attvalue for="graphty.style.node.copy.width" value="33"/>
+          <attvalue for="graphty.style.node.copy.height" value="33"/>
+        </attvalues>
+        <viz:color r="123" g="77" b="99"/>
+        <viz:size value="33"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="n33" label="n33">
+        <attvalues>
+          <attvalue for="graphty.style.node.class" value="6"/>
+          <attvalue for="graphty.style.node.copy.width" value="39"/>
+          <attvalue for="graphty.style.node.copy.height" value="39"/>
+        </attvalues>
+        <viz:color r="111" g="65" b="241"/>
+        <viz:size value="39"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="n34" label="n34">
+        <attvalues>
+          <attvalue for="graphty.style.node.class" value="17"/>
+          <attvalue for="graphty.style.node.copy.width" value="31"/>
+          <attvalue for="graphty.style.node.copy.height" value="31"/>
+        </attvalues>
+        <viz:color r="19" g="7" b="176"/>
+        <viz:size value="31"/>
+        <viz:shape value="diamond"/>
+      </node>
+      <node id="n35" label="n35">
+        <attvalues>
+          <attvalue for="graphty.style.node.class" value="5"/>
+          <attvalue for="graphty.style.node.copy.width" value="32"/>
+          <attvalue for="graphty.style.node.copy.height" value="32"/>
+        </attvalues>
+        <viz:color r="111" g="65" b="241"/>
+        <viz:size value="32"/>
+        <viz:shape value="triangle"/>
+      </node>
+      <node id="n36" label="n36">
+        <attvalues>
+          <attvalue for="graphty.style.node.class" value="11"/>
+          <attvalue for="graphty.style.node.copy.width" value="14"/>
+          <attvalue for="graphty.style.node.copy.height" value="14"/>
+        </attvalues>
+        <viz:color r="123" g="77" b="99"/>
+        <viz:size value="14"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="n37" label="n37">
+        <attvalues>
+          <attvalue for="graphty.style.node.class" value="12"/>
+          <attvalue for="graphty.style.node.copy.width" value="33"/>
+          <attvalue for="graphty.style.node.copy.height" value="33"/>
+        </attvalues>
+        <viz:color r="111" g="65" b="241"/>
+        <viz:size value="33"/>
+        <viz:shape value="diamond"/>
+      </node>
+      <node id="n38" label="n38">
+        <attvalues>
+          <attvalue for="graphty.style.node.class" value="18"/>
+          <attvalue for="graphty.style.node.copy.width" value="21"/>
+          <attvalue for="graphty.style.node.copy.height" value="21"/>
+        </attvalues>
+        <viz:color r="13" g="1" b="117"/>
+        <viz:size value="21"/>
+        <viz:shape value="triangle"/>
+      </node>
+      <node id="n39" label="n39">
+        <attvalues>
+          <attvalue for="graphty.style.node.class" value="3"/>
+          <attvalue for="graphty.style.node.copy.width" value="43"/>
+          <attvalue for="graphty.style.node.copy.height" value="43"/>
+        </attvalues>
+        <viz:color r="251" g="177" b="253"/>
+        <viz:size value="43"/>
+        <viz:shape value="square"/>
+      </node>
+      <node id="n40" label="n40">
+        <attvalues>
+          <attvalue for="graphty.style.node.class" value="1"/>
+          <attvalue for="graphty.style.node.copy.width" value="47"/>
+          <attvalue for="graphty.style.node.copy.height" value="47"/>
+        </attvalues>
+        <viz:color r="20" g="183" b="245"/>
+        <viz:size value="47"/>
+        <viz:shape value="triangle"/>
+      </node>
+      <node id="n41" label="n41">
+        <attvalues>
+          <attvalue for="graphty.style.node.class" value="8"/>
+          <attvalue for="graphty.style.node.copy.width" value="17"/>
+          <attvalue for="graphty.style.node.copy.height" value="17"/>
+        </attvalues>
+        <viz:color r="13" g="1" b="117"/>
+        <viz:size value="17"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="n42" label="n42">
+        <attvalues>
+          <attvalue for="graphty.style.node.class" value="24"/>
+          <attvalue for="graphty.style.node.copy.width" value="43"/>
+          <attvalue for="graphty.style.node.copy.height" value="43"/>
+        </attvalues>
+        <viz:color r="173" g="142" b="28"/>
+        <viz:size value="43"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="n43" label="n43">
+        <attvalues>
+          <attvalue for="graphty.style.node.class" value="16"/>
+          <attvalue for="graphty.style.node.copy.width" value="24"/>
+          <attvalue for="graphty.style.node.copy.height" value="24"/>
+        </attvalues>
+        <viz:color r="19" g="7" b="176"/>
+        <viz:size value="24"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="n44" label="n44">
+        <attvalues>
+          <attvalue for="graphty.style.node.class" value="18"/>
+          <attvalue for="graphty.style.node.copy.width" value="20"/>
+          <attvalue for="graphty.style.node.copy.height" value="20"/>
+        </attvalues>
+        <viz:color r="13" g="1" b="117"/>
+        <viz:size value="20"/>
+        <viz:shape value="triangle"/>
+      </node>
+      <node id="n45" label="n45">
+        <attvalues>
+          <attvalue for="graphty.style.node.class" value="11"/>
+          <attvalue for="graphty.style.node.copy.width" value="22"/>
+          <attvalue for="graphty.style.node.copy.height" value="22"/>
+        </attvalues>
+        <viz:color r="123" g="77" b="99"/>
+        <viz:size value="22"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="n46" label="n46">
+        <attvalues>
+          <attvalue for="graphty.style.node.class" value="12"/>
+          <attvalue for="graphty.style.node.copy.width" value="23"/>
+          <attvalue for="graphty.style.node.copy.height" value="23"/>
+        </attvalues>
+        <viz:color r="111" g="65" b="241"/>
+        <viz:size value="23"/>
+        <viz:shape value="diamond"/>
+      </node>
+      <node id="n47" label="n47">
+        <attvalues>
+          <attvalue for="graphty.style.node.class" value="10"/>
+          <attvalue for="graphty.style.node.copy.width" value="46"/>
+          <attvalue for="graphty.style.node.copy.height" value="46"/>
+        </attvalues>
+        <viz:color r="19" g="7" b="176"/>
+        <viz:size value="46"/>
+        <viz:shape value="square"/>
+      </node>
+      <node id="n48" label="n48">
+        <attvalues>
+          <attvalue for="graphty.style.node.class" value="12"/>
+          <attvalue for="graphty.style.node.copy.width" value="50"/>
+          <attvalue for="graphty.style.node.copy.height" value="50"/>
+        </attvalues>
+        <viz:color r="111" g="65" b="241"/>
+        <viz:size value="50"/>
+        <viz:shape value="diamond"/>
+      </node>
+      <node id="n49" label="n49">
+        <attvalues>
+          <attvalue for="graphty.style.node.class" value="2"/>
+          <attvalue for="graphty.style.node.copy.width" value="49"/>
+          <attvalue for="graphty.style.node.copy.height" value="49"/>
+        </attvalues>
+        <viz:color r="123" g="77" b="99"/>
+        <viz:size value="49"/>
+        <viz:shape value="triangle"/>
+      </node>
+      <node id="n50" label="n50">
+        <attvalues>
+          <attvalue for="graphty.style.node.class" value="7"/>
+          <attvalue for="graphty.style.node.copy.width" value="43"/>
+          <attvalue for="graphty.style.node.copy.height" value="43"/>
+        </attvalues>
+        <viz:color r="173" g="142" b="28"/>
+        <viz:size value="43"/>
+        <viz:shape value="diamond"/>
+      </node>
+      <node id="n51" label="n51">
+        <attvalues>
+          <attvalue for="graphty.style.node.class" value="15"/>
+          <attvalue for="graphty.style.node.copy.width" value="36"/>
+          <attvalue for="graphty.style.node.copy.height" value="36"/>
+        </attvalues>
+        <viz:color r="123" g="77" b="99"/>
+        <viz:size value="36"/>
+        <viz:shape value="square"/>
+      </node>
+      <node id="n52" label="n52">
+        <attvalues>
+          <attvalue for="graphty.style.node.class" value="5"/>
+          <attvalue for="graphty.style.node.copy.width" value="46"/>
+          <attvalue for="graphty.style.node.copy.height" value="46"/>
+        </attvalues>
+        <viz:color r="111" g="65" b="241"/>
+        <viz:size value="46"/>
+        <viz:shape value="triangle"/>
+      </node>
+      <node id="n53" label="n53">
+        <attvalues>
+          <attvalue for="graphty.style.node.class" value="8"/>
+          <attvalue for="graphty.style.node.copy.width" value="50"/>
+          <attvalue for="graphty.style.node.copy.height" value="50"/>
+        </attvalues>
+        <viz:color r="13" g="1" b="117"/>
+        <viz:size value="50"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="n54" label="n54">
+        <attvalues>
+          <attvalue for="graphty.style.node.class" value="17"/>
+          <attvalue for="graphty.style.node.copy.width" value="33"/>
+          <attvalue for="graphty.style.node.copy.height" value="33"/>
+        </attvalues>
+        <viz:color r="19" g="7" b="176"/>
+        <viz:size value="33"/>
+        <viz:shape value="diamond"/>
+      </node>
+      <node id="n55" label="n55">
+        <attvalues>
+          <attvalue for="graphty.style.node.class" value="13"/>
+          <attvalue for="graphty.style.node.copy.width" value="33"/>
+          <attvalue for="graphty.style.node.copy.height" value="33"/>
+        </attvalues>
+        <viz:color r="20" g="183" b="245"/>
+        <viz:size value="33"/>
+        <viz:shape value="diamond"/>
+      </node>
+      <node id="n56" label="n56">
+        <attvalues>
+          <attvalue for="graphty.style.node.class" value="4"/>
+          <attvalue for="graphty.style.node.copy.width" value="22"/>
+          <attvalue for="graphty.style.node.copy.height" value="22"/>
+        </attvalues>
+        <viz:color r="19" g="7" b="176"/>
+        <viz:size value="22"/>
+        <viz:shape value="triangle"/>
+      </node>
+      <node id="n57" label="n57">
+        <attvalues>
+          <attvalue for="graphty.style.node.class" value="7"/>
+          <attvalue for="graphty.style.node.copy.width" value="6"/>
+          <attvalue for="graphty.style.node.copy.height" value="6"/>
+        </attvalues>
+        <viz:color r="173" g="142" b="28"/>
+        <viz:size value="6"/>
+        <viz:shape value="diamond"/>
+      </node>
+      <node id="n58" label="n58">
+        <attvalues>
+          <attvalue for="graphty.style.node.class" value="10"/>
+          <attvalue for="graphty.style.node.copy.width" value="9"/>
+          <attvalue for="graphty.style.node.copy.height" value="9"/>
+        </attvalues>
+        <viz:color r="19" g="7" b="176"/>
+        <viz:size value="9"/>
+        <viz:shape value="square"/>
+      </node>
+      <node id="n59" label="n59">
+        <attvalues>
+          <attvalue for="graphty.style.node.class" value="9"/>
+          <attvalue for="graphty.style.node.copy.width" value="34"/>
+          <attvalue for="graphty.style.node.copy.height" value="34"/>
+        </attvalues>
+        <viz:color r="13" g="1" b="117"/>
+        <viz:size value="34"/>
+        <viz:shape value="diamond"/>
+      </node>
+    </nodes>
+    <edges count="120">
+      <edge id="e0" source="n54" target="n0">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#b647cc"/>
+          <attvalue for="graphty.style.edge.copy.width" value="38"/>
+        </attvalues>
+        <viz:color r="182" g="71" b="204"/>
+        <viz:thickness value="38"/>
+      </edge>
+      <edge id="e1" source="n10" target="n5">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#cd4428"/>
+          <attvalue for="graphty.style.edge.copy.width" value="29"/>
+        </attvalues>
+        <viz:color r="205" g="68" b="40"/>
+        <viz:thickness value="29"/>
+      </edge>
+      <edge id="e2" source="n39" target="n38">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#30b711"/>
+          <attvalue for="graphty.style.edge.copy.width" value="6"/>
+        </attvalues>
+        <viz:color r="48" g="183" b="17"/>
+        <viz:thickness value="6"/>
+      </edge>
+      <edge id="e3" source="n11" target="n46">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#89a9b1"/>
+          <attvalue for="graphty.style.edge.copy.width" value="27"/>
+        </attvalues>
+        <viz:color r="137" g="169" b="177"/>
+        <viz:thickness value="27"/>
+      </edge>
+      <edge id="e4" source="n16" target="n52">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#e4a137"/>
+          <attvalue for="graphty.style.edge.copy.width" value="8"/>
+        </attvalues>
+        <viz:color r="228" g="161" b="55"/>
+        <viz:thickness value="8"/>
+      </edge>
+      <edge id="e5" source="n53" target="n35">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#25b85c"/>
+          <attvalue for="graphty.style.edge.copy.width" value="14"/>
+        </attvalues>
+        <viz:color r="37" g="184" b="92"/>
+        <viz:thickness value="14"/>
+      </edge>
+      <edge id="e6" source="n34" target="n5">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#8c91c7"/>
+          <attvalue for="graphty.style.edge.copy.width" value="2"/>
+        </attvalues>
+        <viz:color r="140" g="145" b="199"/>
+        <viz:thickness value="2"/>
+      </edge>
+      <edge id="e7" source="n19" target="n52">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#69316a"/>
+          <attvalue for="graphty.style.edge.copy.width" value="29"/>
+        </attvalues>
+        <viz:color r="105" g="49" b="106"/>
+        <viz:thickness value="29"/>
+      </edge>
+      <edge id="e8" source="n11" target="n17">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#4ac188"/>
+          <attvalue for="graphty.style.edge.copy.width" value="31"/>
+        </attvalues>
+        <viz:color r="74" g="193" b="136"/>
+        <viz:thickness value="31"/>
+      </edge>
+      <edge id="e9" source="n11" target="n36">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#c78374"/>
+          <attvalue for="graphty.style.edge.copy.width" value="27"/>
+        </attvalues>
+        <viz:color r="199" g="131" b="116"/>
+        <viz:thickness value="27"/>
+      </edge>
+      <edge id="e10" source="n36" target="n1">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#85ce3d"/>
+          <attvalue for="graphty.style.edge.copy.width" value="1"/>
+        </attvalues>
+        <viz:color r="133" g="206" b="61"/>
+        <viz:thickness value="1"/>
+      </edge>
+      <edge id="e11" source="n32" target="n38">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#ee48cc"/>
+          <attvalue for="graphty.style.edge.copy.width" value="35"/>
+        </attvalues>
+        <viz:color r="238" g="72" b="204"/>
+        <viz:thickness value="35"/>
+      </edge>
+      <edge id="e12" source="n38" target="n6">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#692471"/>
+          <attvalue for="graphty.style.edge.copy.width" value="34"/>
+        </attvalues>
+        <viz:color r="105" g="36" b="113"/>
+        <viz:thickness value="34"/>
+      </edge>
+      <edge id="e13" source="n54" target="n36">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#f4737c"/>
+          <attvalue for="graphty.style.edge.copy.width" value="23"/>
+        </attvalues>
+        <viz:color r="244" g="115" b="124"/>
+        <viz:thickness value="23"/>
+      </edge>
+      <edge id="e14" source="n34" target="n45">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#e5f3ff"/>
+          <attvalue for="graphty.style.edge.copy.width" value="17"/>
+        </attvalues>
+        <viz:color r="229" g="243" b="255"/>
+        <viz:thickness value="17"/>
+      </edge>
+      <edge id="e15" source="n21" target="n13">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#d96e14"/>
+          <attvalue for="graphty.style.edge.copy.width" value="6"/>
+        </attvalues>
+        <viz:color r="217" g="110" b="20"/>
+        <viz:thickness value="6"/>
+      </edge>
+      <edge id="e16" source="n5" target="n2">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#8ab4ac"/>
+          <attvalue for="graphty.style.edge.copy.width" value="10"/>
+        </attvalues>
+        <viz:color r="138" g="180" b="172"/>
+        <viz:thickness value="10"/>
+      </edge>
+      <edge id="e17" source="n17" target="n13">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#2ec5fa"/>
+          <attvalue for="graphty.style.edge.copy.width" value="2"/>
+        </attvalues>
+        <viz:color r="46" g="197" b="250"/>
+        <viz:thickness value="2"/>
+      </edge>
+      <edge id="e18" source="n12" target="n49">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#3cfc8f"/>
+          <attvalue for="graphty.style.edge.copy.width" value="33"/>
+        </attvalues>
+        <viz:color r="60" g="252" b="143"/>
+        <viz:thickness value="33"/>
+      </edge>
+      <edge id="e19" source="n21" target="n54">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#058d91"/>
+          <attvalue for="graphty.style.edge.copy.width" value="23"/>
+        </attvalues>
+        <viz:color r="5" g="141" b="145"/>
+        <viz:thickness value="23"/>
+      </edge>
+      <edge id="e20" source="n30" target="n49">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#b558fb"/>
+          <attvalue for="graphty.style.edge.copy.width" value="2"/>
+        </attvalues>
+        <viz:color r="181" g="88" b="251"/>
+        <viz:thickness value="2"/>
+      </edge>
+      <edge id="e21" source="n14" target="n1">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#36ab93"/>
+          <attvalue for="graphty.style.edge.copy.width" value="3"/>
+        </attvalues>
+        <viz:color r="54" g="171" b="147"/>
+        <viz:thickness value="3"/>
+      </edge>
+      <edge id="e22" source="n59" target="n54">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#741c92"/>
+          <attvalue for="graphty.style.edge.copy.width" value="5"/>
+        </attvalues>
+        <viz:color r="116" g="28" b="146"/>
+        <viz:thickness value="5"/>
+      </edge>
+      <edge id="e23" source="n44" target="n18">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#ec4e69"/>
+          <attvalue for="graphty.style.edge.copy.width" value="22"/>
+        </attvalues>
+        <viz:color r="236" g="78" b="105"/>
+        <viz:thickness value="22"/>
+      </edge>
+      <edge id="e24" source="n21" target="n28">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#9231e9"/>
+          <attvalue for="graphty.style.edge.copy.width" value="1"/>
+        </attvalues>
+        <viz:color r="146" g="49" b="233"/>
+        <viz:thickness value="1"/>
+      </edge>
+      <edge id="e25" source="n40" target="n44">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#52ad6e"/>
+          <attvalue for="graphty.style.edge.copy.width" value="20"/>
+        </attvalues>
+        <viz:color r="82" g="173" b="110"/>
+        <viz:thickness value="20"/>
+      </edge>
+      <edge id="e26" source="n29" target="n20">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#90b205"/>
+          <attvalue for="graphty.style.edge.copy.width" value="20"/>
+        </attvalues>
+        <viz:color r="144" g="178" b="5"/>
+        <viz:thickness value="20"/>
+      </edge>
+      <edge id="e27" source="n54" target="n38">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#c43f2e"/>
+          <attvalue for="graphty.style.edge.copy.width" value="6"/>
+        </attvalues>
+        <viz:color r="196" g="63" b="46"/>
+        <viz:thickness value="6"/>
+      </edge>
+      <edge id="e28" source="n34" target="n45">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#cd2727"/>
+          <attvalue for="graphty.style.edge.copy.width" value="21"/>
+        </attvalues>
+        <viz:color r="205" g="39" b="39"/>
+        <viz:thickness value="21"/>
+      </edge>
+      <edge id="e29" source="n42" target="n25">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#14d856"/>
+          <attvalue for="graphty.style.edge.copy.width" value="11"/>
+        </attvalues>
+        <viz:color r="20" g="216" b="86"/>
+        <viz:thickness value="11"/>
+      </edge>
+      <edge id="e30" source="n54" target="n5">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#aca597"/>
+          <attvalue for="graphty.style.edge.copy.width" value="1"/>
+        </attvalues>
+        <viz:color r="172" g="165" b="151"/>
+        <viz:thickness value="1"/>
+      </edge>
+      <edge id="e31" source="n33" target="n38">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#9bf013"/>
+          <attvalue for="graphty.style.edge.copy.width" value="38"/>
+        </attvalues>
+        <viz:color r="155" g="240" b="19"/>
+        <viz:thickness value="38"/>
+      </edge>
+      <edge id="e32" source="n38" target="n22">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#2d17b4"/>
+          <attvalue for="graphty.style.edge.copy.width" value="33"/>
+        </attvalues>
+        <viz:color r="45" g="23" b="180"/>
+        <viz:thickness value="33"/>
+      </edge>
+      <edge id="e33" source="n38" target="n15">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#500b71"/>
+          <attvalue for="graphty.style.edge.copy.width" value="40"/>
+        </attvalues>
+        <viz:color r="80" g="11" b="113"/>
+        <viz:thickness value="40"/>
+      </edge>
+      <edge id="e34" source="n26" target="n49">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#e46b4b"/>
+          <attvalue for="graphty.style.edge.copy.width" value="27"/>
+        </attvalues>
+        <viz:color r="228" g="107" b="75"/>
+        <viz:thickness value="27"/>
+      </edge>
+      <edge id="e35" source="n26" target="n42">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#20859f"/>
+          <attvalue for="graphty.style.edge.copy.width" value="27"/>
+        </attvalues>
+        <viz:color r="32" g="133" b="159"/>
+        <viz:thickness value="27"/>
+      </edge>
+      <edge id="e36" source="n40" target="n34">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#57d83d"/>
+          <attvalue for="graphty.style.edge.copy.width" value="35"/>
+        </attvalues>
+        <viz:color r="87" g="216" b="61"/>
+        <viz:thickness value="35"/>
+      </edge>
+      <edge id="e37" source="n17" target="n56">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#eb5e3d"/>
+          <attvalue for="graphty.style.edge.copy.width" value="12"/>
+        </attvalues>
+        <viz:color r="235" g="94" b="61"/>
+        <viz:thickness value="12"/>
+      </edge>
+      <edge id="e38" source="n55" target="n27">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#b8b526"/>
+          <attvalue for="graphty.style.edge.copy.width" value="7"/>
+        </attvalues>
+        <viz:color r="184" g="181" b="38"/>
+        <viz:thickness value="7"/>
+      </edge>
+      <edge id="e39" source="n44" target="n52">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#d3c24b"/>
+          <attvalue for="graphty.style.edge.copy.width" value="7"/>
+        </attvalues>
+        <viz:color r="211" g="194" b="75"/>
+        <viz:thickness value="7"/>
+      </edge>
+      <edge id="e40" source="n32" target="n20">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#6e1a14"/>
+          <attvalue for="graphty.style.edge.copy.width" value="7"/>
+        </attvalues>
+        <viz:color r="110" g="26" b="20"/>
+        <viz:thickness value="7"/>
+      </edge>
+      <edge id="e41" source="n41" target="n29">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#41a7a4"/>
+          <attvalue for="graphty.style.edge.copy.width" value="40"/>
+        </attvalues>
+        <viz:color r="65" g="167" b="164"/>
+        <viz:thickness value="40"/>
+      </edge>
+      <edge id="e42" source="n45" target="n13">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#b64c85"/>
+          <attvalue for="graphty.style.edge.copy.width" value="35"/>
+        </attvalues>
+        <viz:color r="182" g="76" b="133"/>
+        <viz:thickness value="35"/>
+      </edge>
+      <edge id="e43" source="n16" target="n41">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#00db1a"/>
+          <attvalue for="graphty.style.edge.copy.width" value="28"/>
+        </attvalues>
+        <viz:color r="0" g="219" b="26"/>
+        <viz:thickness value="28"/>
+      </edge>
+      <edge id="e44" source="n26" target="n2">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#39e347"/>
+          <attvalue for="graphty.style.edge.copy.width" value="15"/>
+        </attvalues>
+        <viz:color r="57" g="227" b="71"/>
+        <viz:thickness value="15"/>
+      </edge>
+      <edge id="e45" source="n12" target="n36">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#0b1f8b"/>
+          <attvalue for="graphty.style.edge.copy.width" value="1"/>
+        </attvalues>
+        <viz:color r="11" g="31" b="139"/>
+        <viz:thickness value="1"/>
+      </edge>
+      <edge id="e46" source="n51" target="n29">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#83c192"/>
+          <attvalue for="graphty.style.edge.copy.width" value="22"/>
+        </attvalues>
+        <viz:color r="131" g="193" b="146"/>
+        <viz:thickness value="22"/>
+      </edge>
+      <edge id="e47" source="n53" target="n25">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#f9e0d4"/>
+          <attvalue for="graphty.style.edge.copy.width" value="1"/>
+        </attvalues>
+        <viz:color r="249" g="224" b="212"/>
+        <viz:thickness value="1"/>
+      </edge>
+      <edge id="e48" source="n9" target="n11">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#d43bf4"/>
+          <attvalue for="graphty.style.edge.copy.width" value="29"/>
+        </attvalues>
+        <viz:color r="212" g="59" b="244"/>
+        <viz:thickness value="29"/>
+      </edge>
+      <edge id="e49" source="n38" target="n47">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#e02ed4"/>
+          <attvalue for="graphty.style.edge.copy.width" value="3"/>
+        </attvalues>
+        <viz:color r="224" g="46" b="212"/>
+        <viz:thickness value="3"/>
+      </edge>
+      <edge id="e50" source="n3" target="n59">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#af50d7"/>
+          <attvalue for="graphty.style.edge.copy.width" value="29"/>
+        </attvalues>
+        <viz:color r="175" g="80" b="215"/>
+        <viz:thickness value="29"/>
+      </edge>
+      <edge id="e51" source="n19" target="n34">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#eed984"/>
+          <attvalue for="graphty.style.edge.copy.width" value="15"/>
+        </attvalues>
+        <viz:color r="238" g="217" b="132"/>
+        <viz:thickness value="15"/>
+      </edge>
+      <edge id="e52" source="n16" target="n27">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#97ec47"/>
+          <attvalue for="graphty.style.edge.copy.width" value="19"/>
+        </attvalues>
+        <viz:color r="151" g="236" b="71"/>
+        <viz:thickness value="19"/>
+      </edge>
+      <edge id="e53" source="n24" target="n53">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#373745"/>
+          <attvalue for="graphty.style.edge.copy.width" value="38"/>
+        </attvalues>
+        <viz:color r="55" g="55" b="69"/>
+        <viz:thickness value="38"/>
+      </edge>
+      <edge id="e54" source="n49" target="n54">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#8d1e11"/>
+          <attvalue for="graphty.style.edge.copy.width" value="12"/>
+        </attvalues>
+        <viz:color r="141" g="30" b="17"/>
+        <viz:thickness value="12"/>
+      </edge>
+      <edge id="e55" source="n59" target="n39">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#7ba576"/>
+          <attvalue for="graphty.style.edge.copy.width" value="17"/>
+        </attvalues>
+        <viz:color r="123" g="165" b="118"/>
+        <viz:thickness value="17"/>
+      </edge>
+      <edge id="e56" source="n18" target="n18">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#741727"/>
+          <attvalue for="graphty.style.edge.copy.width" value="4"/>
+        </attvalues>
+        <viz:color r="116" g="23" b="39"/>
+        <viz:thickness value="4"/>
+      </edge>
+      <edge id="e57" source="n58" target="n49">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#9d3fd3"/>
+          <attvalue for="graphty.style.edge.copy.width" value="15"/>
+        </attvalues>
+        <viz:color r="157" g="63" b="211"/>
+        <viz:thickness value="15"/>
+      </edge>
+      <edge id="e58" source="n26" target="n48">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#fb1450"/>
+          <attvalue for="graphty.style.edge.copy.width" value="36"/>
+        </attvalues>
+        <viz:color r="251" g="20" b="80"/>
+        <viz:thickness value="36"/>
+      </edge>
+      <edge id="e59" source="n28" target="n2">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#33357e"/>
+          <attvalue for="graphty.style.edge.copy.width" value="11"/>
+        </attvalues>
+        <viz:color r="51" g="53" b="126"/>
+        <viz:thickness value="11"/>
+      </edge>
+      <edge id="e60" source="n27" target="n22">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#fff9da"/>
+          <attvalue for="graphty.style.edge.copy.width" value="8"/>
+        </attvalues>
+        <viz:color r="255" g="249" b="218"/>
+        <viz:thickness value="8"/>
+      </edge>
+      <edge id="e61" source="n52" target="n38">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#e14d4e"/>
+          <attvalue for="graphty.style.edge.copy.width" value="5"/>
+        </attvalues>
+        <viz:color r="225" g="77" b="78"/>
+        <viz:thickness value="5"/>
+      </edge>
+      <edge id="e62" source="n14" target="n1">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#ddeb5d"/>
+          <attvalue for="graphty.style.edge.copy.width" value="35"/>
+        </attvalues>
+        <viz:color r="221" g="235" b="93"/>
+        <viz:thickness value="35"/>
+      </edge>
+      <edge id="e63" source="n31" target="n37">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#7d385c"/>
+          <attvalue for="graphty.style.edge.copy.width" value="5"/>
+        </attvalues>
+        <viz:color r="125" g="56" b="92"/>
+        <viz:thickness value="5"/>
+      </edge>
+      <edge id="e64" source="n28" target="n41">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#b9da06"/>
+          <attvalue for="graphty.style.edge.copy.width" value="37"/>
+        </attvalues>
+        <viz:color r="185" g="218" b="6"/>
+        <viz:thickness value="37"/>
+      </edge>
+      <edge id="e65" source="n1" target="n55">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#296023"/>
+          <attvalue for="graphty.style.edge.copy.width" value="13"/>
+        </attvalues>
+        <viz:color r="41" g="96" b="35"/>
+        <viz:thickness value="13"/>
+      </edge>
+      <edge id="e66" source="n9" target="n20">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#98ab76"/>
+          <attvalue for="graphty.style.edge.copy.width" value="36"/>
+        </attvalues>
+        <viz:color r="152" g="171" b="118"/>
+        <viz:thickness value="36"/>
+      </edge>
+      <edge id="e67" source="n32" target="n38">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#012c4b"/>
+          <attvalue for="graphty.style.edge.copy.width" value="28"/>
+        </attvalues>
+        <viz:color r="1" g="44" b="75"/>
+        <viz:thickness value="28"/>
+      </edge>
+      <edge id="e68" source="n2" target="n51">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#37946b"/>
+          <attvalue for="graphty.style.edge.copy.width" value="9"/>
+        </attvalues>
+        <viz:color r="55" g="148" b="107"/>
+        <viz:thickness value="9"/>
+      </edge>
+      <edge id="e69" source="n11" target="n30">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#20968c"/>
+          <attvalue for="graphty.style.edge.copy.width" value="6"/>
+        </attvalues>
+        <viz:color r="32" g="150" b="140"/>
+        <viz:thickness value="6"/>
+      </edge>
+      <edge id="e70" source="n1" target="n40">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#d5e297"/>
+          <attvalue for="graphty.style.edge.copy.width" value="5"/>
+        </attvalues>
+        <viz:color r="213" g="226" b="151"/>
+        <viz:thickness value="5"/>
+      </edge>
+      <edge id="e71" source="n43" target="n54">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#5c86f2"/>
+          <attvalue for="graphty.style.edge.copy.width" value="39"/>
+        </attvalues>
+        <viz:color r="92" g="134" b="242"/>
+        <viz:thickness value="39"/>
+      </edge>
+      <edge id="e72" source="n15" target="n29">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#eec33c"/>
+          <attvalue for="graphty.style.edge.copy.width" value="38"/>
+        </attvalues>
+        <viz:color r="238" g="195" b="60"/>
+        <viz:thickness value="38"/>
+      </edge>
+      <edge id="e73" source="n31" target="n0">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#0ffdda"/>
+          <attvalue for="graphty.style.edge.copy.width" value="3"/>
+        </attvalues>
+        <viz:color r="15" g="253" b="218"/>
+        <viz:thickness value="3"/>
+      </edge>
+      <edge id="e74" source="n53" target="n54">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#804152"/>
+          <attvalue for="graphty.style.edge.copy.width" value="17"/>
+        </attvalues>
+        <viz:color r="128" g="65" b="82"/>
+        <viz:thickness value="17"/>
+      </edge>
+      <edge id="e75" source="n34" target="n36">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#c04c81"/>
+          <attvalue for="graphty.style.edge.copy.width" value="24"/>
+        </attvalues>
+        <viz:color r="192" g="76" b="129"/>
+        <viz:thickness value="24"/>
+      </edge>
+      <edge id="e76" source="n22" target="n5">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#ea71d8"/>
+          <attvalue for="graphty.style.edge.copy.width" value="26"/>
+        </attvalues>
+        <viz:color r="234" g="113" b="216"/>
+        <viz:thickness value="26"/>
+      </edge>
+      <edge id="e77" source="n13" target="n46">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#b46c82"/>
+          <attvalue for="graphty.style.edge.copy.width" value="26"/>
+        </attvalues>
+        <viz:color r="180" g="108" b="130"/>
+        <viz:thickness value="26"/>
+      </edge>
+      <edge id="e78" source="n3" target="n53">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#531085"/>
+          <attvalue for="graphty.style.edge.copy.width" value="37"/>
+        </attvalues>
+        <viz:color r="83" g="16" b="133"/>
+        <viz:thickness value="37"/>
+      </edge>
+      <edge id="e79" source="n35" target="n53">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#aca784"/>
+          <attvalue for="graphty.style.edge.copy.width" value="32"/>
+        </attvalues>
+        <viz:color r="172" g="167" b="132"/>
+        <viz:thickness value="32"/>
+      </edge>
+      <edge id="e80" source="n14" target="n48">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#2223b9"/>
+          <attvalue for="graphty.style.edge.copy.width" value="13"/>
+        </attvalues>
+        <viz:color r="34" g="35" b="185"/>
+        <viz:thickness value="13"/>
+      </edge>
+      <edge id="e81" source="n3" target="n16">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#81b7b4"/>
+          <attvalue for="graphty.style.edge.copy.width" value="25"/>
+        </attvalues>
+        <viz:color r="129" g="183" b="180"/>
+        <viz:thickness value="25"/>
+      </edge>
+      <edge id="e82" source="n24" target="n3">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#ea9c00"/>
+          <attvalue for="graphty.style.edge.copy.width" value="8"/>
+        </attvalues>
+        <viz:color r="234" g="156" b="0"/>
+        <viz:thickness value="8"/>
+      </edge>
+      <edge id="e83" source="n52" target="n52">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#b31ece"/>
+          <attvalue for="graphty.style.edge.copy.width" value="38"/>
+        </attvalues>
+        <viz:color r="179" g="30" b="206"/>
+        <viz:thickness value="38"/>
+      </edge>
+      <edge id="e84" source="n11" target="n23">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#e4cd7f"/>
+          <attvalue for="graphty.style.edge.copy.width" value="35"/>
+        </attvalues>
+        <viz:color r="228" g="205" b="127"/>
+        <viz:thickness value="35"/>
+      </edge>
+      <edge id="e85" source="n52" target="n1">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#91c960"/>
+          <attvalue for="graphty.style.edge.copy.width" value="27"/>
+        </attvalues>
+        <viz:color r="145" g="201" b="96"/>
+        <viz:thickness value="27"/>
+      </edge>
+      <edge id="e86" source="n9" target="n56">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#88fde4"/>
+          <attvalue for="graphty.style.edge.copy.width" value="34"/>
+        </attvalues>
+        <viz:color r="136" g="253" b="228"/>
+        <viz:thickness value="34"/>
+      </edge>
+      <edge id="e87" source="n44" target="n8">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#2a3ada"/>
+          <attvalue for="graphty.style.edge.copy.width" value="36"/>
+        </attvalues>
+        <viz:color r="42" g="58" b="218"/>
+        <viz:thickness value="36"/>
+      </edge>
+      <edge id="e88" source="n24" target="n38">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#342639"/>
+          <attvalue for="graphty.style.edge.copy.width" value="23"/>
+        </attvalues>
+        <viz:color r="52" g="38" b="57"/>
+        <viz:thickness value="23"/>
+      </edge>
+      <edge id="e89" source="n35" target="n18">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#e736cc"/>
+          <attvalue for="graphty.style.edge.copy.width" value="16"/>
+        </attvalues>
+        <viz:color r="231" g="54" b="204"/>
+        <viz:thickness value="16"/>
+      </edge>
+      <edge id="e90" source="n32" target="n19">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#946920"/>
+          <attvalue for="graphty.style.edge.copy.width" value="38"/>
+        </attvalues>
+        <viz:color r="148" g="105" b="32"/>
+        <viz:thickness value="38"/>
+      </edge>
+      <edge id="e91" source="n8" target="n31">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#026663"/>
+          <attvalue for="graphty.style.edge.copy.width" value="1"/>
+        </attvalues>
+        <viz:color r="2" g="102" b="99"/>
+        <viz:thickness value="1"/>
+      </edge>
+      <edge id="e92" source="n43" target="n36">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#595c60"/>
+          <attvalue for="graphty.style.edge.copy.width" value="3"/>
+        </attvalues>
+        <viz:color r="89" g="92" b="96"/>
+        <viz:thickness value="3"/>
+      </edge>
+      <edge id="e93" source="n44" target="n46">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#fc5c38"/>
+          <attvalue for="graphty.style.edge.copy.width" value="25"/>
+        </attvalues>
+        <viz:color r="252" g="92" b="56"/>
+        <viz:thickness value="25"/>
+      </edge>
+      <edge id="e94" source="n44" target="n27">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#71cffa"/>
+          <attvalue for="graphty.style.edge.copy.width" value="15"/>
+        </attvalues>
+        <viz:color r="113" g="207" b="250"/>
+        <viz:thickness value="15"/>
+      </edge>
+      <edge id="e95" source="n23" target="n31">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#ce9133"/>
+          <attvalue for="graphty.style.edge.copy.width" value="22"/>
+        </attvalues>
+        <viz:color r="206" g="145" b="51"/>
+        <viz:thickness value="22"/>
+      </edge>
+      <edge id="e96" source="n2" target="n36">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#3d7e7d"/>
+          <attvalue for="graphty.style.edge.copy.width" value="29"/>
+        </attvalues>
+        <viz:color r="61" g="126" b="125"/>
+        <viz:thickness value="29"/>
+      </edge>
+      <edge id="e97" source="n55" target="n16">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#0e9cee"/>
+          <attvalue for="graphty.style.edge.copy.width" value="8"/>
+        </attvalues>
+        <viz:color r="14" g="156" b="238"/>
+        <viz:thickness value="8"/>
+      </edge>
+      <edge id="e98" source="n36" target="n22">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#08af48"/>
+          <attvalue for="graphty.style.edge.copy.width" value="33"/>
+        </attvalues>
+        <viz:color r="8" g="175" b="72"/>
+        <viz:thickness value="33"/>
+      </edge>
+      <edge id="e99" source="n48" target="n56">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#178412"/>
+          <attvalue for="graphty.style.edge.copy.width" value="37"/>
+        </attvalues>
+        <viz:color r="23" g="132" b="18"/>
+        <viz:thickness value="37"/>
+      </edge>
+      <edge id="e100" source="n46" target="n34">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#3b7f3f"/>
+          <attvalue for="graphty.style.edge.copy.width" value="6"/>
+        </attvalues>
+        <viz:color r="59" g="127" b="63"/>
+        <viz:thickness value="6"/>
+      </edge>
+      <edge id="e101" source="n0" target="n4">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#766538"/>
+          <attvalue for="graphty.style.edge.copy.width" value="37"/>
+        </attvalues>
+        <viz:color r="118" g="101" b="56"/>
+        <viz:thickness value="37"/>
+      </edge>
+      <edge id="e102" source="n43" target="n20">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#b1c6ac"/>
+          <attvalue for="graphty.style.edge.copy.width" value="6"/>
+        </attvalues>
+        <viz:color r="177" g="198" b="172"/>
+        <viz:thickness value="6"/>
+      </edge>
+      <edge id="e103" source="n36" target="n26">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#adff38"/>
+          <attvalue for="graphty.style.edge.copy.width" value="17"/>
+        </attvalues>
+        <viz:color r="173" g="255" b="56"/>
+        <viz:thickness value="17"/>
+      </edge>
+      <edge id="e104" source="n56" target="n5">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#0714de"/>
+          <attvalue for="graphty.style.edge.copy.width" value="37"/>
+        </attvalues>
+        <viz:color r="7" g="20" b="222"/>
+        <viz:thickness value="37"/>
+      </edge>
+      <edge id="e105" source="n49" target="n8">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#2a5429"/>
+          <attvalue for="graphty.style.edge.copy.width" value="26"/>
+        </attvalues>
+        <viz:color r="42" g="84" b="41"/>
+        <viz:thickness value="26"/>
+      </edge>
+      <edge id="e106" source="n20" target="n11">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#360301"/>
+          <attvalue for="graphty.style.edge.copy.width" value="39"/>
+        </attvalues>
+        <viz:color r="54" g="3" b="1"/>
+        <viz:thickness value="39"/>
+      </edge>
+      <edge id="e107" source="n54" target="n10">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#9a1086"/>
+          <attvalue for="graphty.style.edge.copy.width" value="7"/>
+        </attvalues>
+        <viz:color r="154" g="16" b="134"/>
+        <viz:thickness value="7"/>
+      </edge>
+      <edge id="e108" source="n19" target="n48">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#bd4faa"/>
+          <attvalue for="graphty.style.edge.copy.width" value="6"/>
+        </attvalues>
+        <viz:color r="189" g="79" b="170"/>
+        <viz:thickness value="6"/>
+      </edge>
+      <edge id="e109" source="n14" target="n56">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#08c2d9"/>
+          <attvalue for="graphty.style.edge.copy.width" value="6"/>
+        </attvalues>
+        <viz:color r="8" g="194" b="217"/>
+        <viz:thickness value="6"/>
+      </edge>
+      <edge id="e110" source="n0" target="n41">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#5ff881"/>
+          <attvalue for="graphty.style.edge.copy.width" value="25"/>
+        </attvalues>
+        <viz:color r="95" g="248" b="129"/>
+        <viz:thickness value="25"/>
+      </edge>
+      <edge id="e111" source="n8" target="n54">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#e55eed"/>
+          <attvalue for="graphty.style.edge.copy.width" value="36"/>
+        </attvalues>
+        <viz:color r="229" g="94" b="237"/>
+        <viz:thickness value="36"/>
+      </edge>
+      <edge id="e112" source="n48" target="n33">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#724888"/>
+          <attvalue for="graphty.style.edge.copy.width" value="7"/>
+        </attvalues>
+        <viz:color r="114" g="72" b="136"/>
+        <viz:thickness value="7"/>
+      </edge>
+      <edge id="e113" source="n1" target="n6">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#d6f528"/>
+          <attvalue for="graphty.style.edge.copy.width" value="10"/>
+        </attvalues>
+        <viz:color r="214" g="245" b="40"/>
+        <viz:thickness value="10"/>
+      </edge>
+      <edge id="e114" source="n41" target="n59">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#674942"/>
+          <attvalue for="graphty.style.edge.copy.width" value="33"/>
+        </attvalues>
+        <viz:color r="103" g="73" b="66"/>
+        <viz:thickness value="33"/>
+      </edge>
+      <edge id="e115" source="n12" target="n4">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#4dc27a"/>
+          <attvalue for="graphty.style.edge.copy.width" value="30"/>
+        </attvalues>
+        <viz:color r="77" g="194" b="122"/>
+        <viz:thickness value="30"/>
+      </edge>
+      <edge id="e116" source="n34" target="n58">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#8a1913"/>
+          <attvalue for="graphty.style.edge.copy.width" value="39"/>
+        </attvalues>
+        <viz:color r="138" g="25" b="19"/>
+        <viz:thickness value="39"/>
+      </edge>
+      <edge id="e117" source="n34" target="n33">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#721e1f"/>
+          <attvalue for="graphty.style.edge.copy.width" value="24"/>
+        </attvalues>
+        <viz:color r="114" g="30" b="31"/>
+        <viz:thickness value="24"/>
+      </edge>
+      <edge id="e118" source="n24" target="n33">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#aa9285"/>
+          <attvalue for="graphty.style.edge.copy.width" value="38"/>
+        </attvalues>
+        <viz:color r="170" g="146" b="133"/>
+        <viz:thickness value="38"/>
+      </edge>
+      <edge id="e119" source="n25" target="n57">
+        <attvalues>
+          <attvalue for="graphty.style.edge.directed" value="true"/>
+          <attvalue for="graphty.style.edge.copy.color" value="#17facf"/>
+          <attvalue for="graphty.style.edge.copy.width" value="12"/>
+        </attvalues>
+        <viz:color r="23" g="250" b="207"/>
+        <viz:thickness value="12"/>
+      </edge>
+    </edges>
+  </graph>
+</gexf>

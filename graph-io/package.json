@@ -76,6 +76,11 @@
             "types": "./dist/cys.d.ts",
             "import": "./dist/cys.js",
             "default": "./dist/cys.js"
+        },
+        "./styles": {
+            "types": "./dist/styles.d.ts",
+            "import": "./dist/styles.js",
+            "default": "./dist/styles.js"
         }
     },
     "sideEffects": false,
@@ -147,6 +152,7 @@
     "devDependencies": {
         "@vitest/coverage-v8": "catalog:",
         "@vitest/ui": "catalog:",
+        "cytoscape": "^3.34.3",
         "eslint": "^9.29.0",
         "fast-check": "^4.2.0",
         "fast-xml-parser": "^5.11.1",

@@ -226,6 +226,9 @@ export type EdgeLineValue = EdgeLinePattern;
 /** An arrow the edge renderer can draw at either end. */
 export type ArrowValue = NonNullable<NonNullable<EdgeStyleConfig["arrowHead"]>["type"]>;
 
+/** How heavy a label's letters are, as the `labelWeight` channels take it. */
+export type LabelWeightValue = "normal" | "bold";
+
 /** Every node shape, in schema order. */
 const NODE_SHAPE_VALUES: readonly NodeShapeValue[] = NodeShapes.options;
 
@@ -252,6 +255,11 @@ export interface ChannelValues {
     "node.shape": NodeShapeValue;
     "node.label": string;
     "node.labelStyle": LabelStyle;
+    "node.labelColor": ColorValue;
+    "node.labelSize": number;
+    "node.labelFont": string;
+    "node.labelWeight": LabelWeightValue;
+    "node.labelItalic": boolean;
     "node.tooltip": string;
     "node.tooltipStyle": LabelStyle;
     "node.opacity": number;
@@ -282,6 +290,11 @@ export interface ChannelValues {
     "edge.animationSpeed": number;
     "edge.label": string;
     "edge.labelStyle": LabelStyle;
+    "edge.labelColor": ColorValue;
+    "edge.labelSize": number;
+    "edge.labelFont": string;
+    "edge.labelWeight": LabelWeightValue;
+    "edge.labelItalic": boolean;
 }
 
 /**
@@ -292,7 +305,14 @@ export interface ChannelValues {
  * to the table by {@link COLOR_CHANNELS} and asserted in the tests, so the two cannot drift.
  */
 export type ColorChannel =
-    "node.color" | "node.outline" | "node.glow" | "edge.color" | "edge.arrowHeadColor" | "edge.arrowTailColor";
+    | "node.color"
+    | "node.outline"
+    | "node.glow"
+    | "node.labelColor"
+    | "edge.color"
+    | "edge.arrowHeadColor"
+    | "edge.arrowTailColor"
+    | "edge.labelColor";
 
 /** What a repaint reads for one channel. */
 export type PaintedValue<C extends Channel> = ChannelValues[C];
@@ -538,6 +558,134 @@ function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEn
     return Object.fromEntries(rows.map((row) => [row.channel, row])) as Record<ArrowEndChannel<End>, ChannelDescriptor>;
 }
 
+/** The label channels that write one field of a label style. */
+type LabelFieldChannel<Target extends "node" | "edge"> =
+    `${Target}.label${"Color" | "Size" | "Font" | "Weight" | "Italic"}`;
+
+/** The field of a label style each label field channel writes, by the channel's suffix. */
+const LABEL_FIELD_OF_SUFFIX = {
+    Color: "color",
+    Size: "sizePx",
+    Font: "font",
+    Weight: "weight",
+    Italic: "italic",
+} as const satisfies Record<string, keyof LabelStyle>;
+
+/** A label style field one channel writes on its own. */
+export type LabelFieldName = (typeof LABEL_FIELD_OF_SUFFIX)[keyof typeof LABEL_FIELD_OF_SUFFIX];
+
+/**
+ * The five label field channels of one target: color, size, font, weight and italic.
+ *
+ * Each is ONE FIELD of the label style, which is what lets a rule drive it: a whole label style
+ * is a bag of fields no scale produces, while a size is a number a column can be read into. The
+ * value lands in the same label style `labelStyle` writes, field by field, so a layer that binds
+ * `node.labelSize` above a layer that sets `node.labelStyle` changes the size and nothing else.
+ * Like `labelStyle`, none carries a default: unset, a label is not drawn at all.
+ * @param target - Nodes or edges.
+ * @returns The channels.
+ */
+function labelFieldChannels<Target extends "node" | "edge">(
+    target: Target,
+): Record<LabelFieldChannel<Target>, ChannelDescriptor> {
+    const Target = target === "node" ? "Node" : "Edge";
+    const row = (
+        suffix: keyof typeof LABEL_FIELD_OF_SUFFIX,
+        words: string,
+        rest: Pick<ChannelDescriptor, "accepts"> & Partial<ChannelDescriptor>,
+    ): ChannelDescriptor => ({
+        channel: `${target}.label${suffix}` as Channel,
+        target,
+        plainName: `${Target} Label ${words}`,
+        shortName: `Label ${words.toLowerCase()}`,
+        group: "text",
+        stylePath: `label.${LABEL_STYLE_PATH_OF_SUFFIX[suffix]}`,
+        renderable: true,
+        ...rest,
+    });
+    const rows = [
+        row("Color", "Color", { accepts: "color" }),
+        // No minimum: a channel takes exactly the numbers its schema path (`label.fontSize`) takes.
+        row("Size", "Size", { accepts: "number" }),
+        row("Font", "Font", { accepts: "text" }),
+        row("Weight", "Weight", { accepts: "enum", values: LABEL_WEIGHT_VALUES }),
+        row("Italic", "Italic", { accepts: "boolean" }),
+    ];
+
+    return Object.fromEntries(rows.map((entry) => [entry.channel, entry])) as Record<
+        LabelFieldChannel<Target>,
+        ChannelDescriptor
+    >;
+}
+
+/** Where each label field lands in a parsed style's label block, in the renderer's spelling. */
+const LABEL_STYLE_PATH_OF_SUFFIX: Readonly<Record<keyof typeof LABEL_FIELD_OF_SUFFIX, string>> = {
+    Color: "textColor",
+    Size: "fontSize",
+    Font: "font",
+    Weight: "fontWeight",
+    Italic: "fontStyle",
+};
+
+/** Every weight the `labelWeight` channels take. */
+const LABEL_WEIGHT_VALUES: readonly LabelWeightValue[] = ["normal", "bold"];
+
+/**
+ * Where a label field channel writes: the label style channel it lands in and the field.
+ * @param channel - Any channel.
+ * @returns The style channel and the field, or undefined for a channel that is not a label field.
+ */
+export function labelFieldOf(channel: Channel): { readonly into: Channel; readonly field: LabelFieldName } | undefined {
+    const match = /^(node|edge)\.label(Color|Size|Font|Weight|Italic)$/.exec(channel);
+
+    if (match === null) {
+        return undefined;
+    }
+
+    const suffix = match[2] as keyof typeof LABEL_FIELD_OF_SUFFIX;
+
+    return { into: `${match[1]}.labelStyle` as Channel, field: LABEL_FIELD_OF_SUFFIX[suffix] };
+}
+
+/**
+ * The label style one painted label field stands for: `{ sizePx: 12 }` for a size of 12.
+ * @param field - The field.
+ * @param painted - What the field's channel painted; a color arrives resolved.
+ * @returns The one-field label style.
+ */
+export function labelPatchOf(field: LabelFieldName, painted: unknown): LabelStyle {
+    const color = field === "color" ? asColorValue(painted) : null;
+
+    return { [field]: color === null ? painted : color.hex };
+}
+
+/**
+ * Stack one label style over another, field by field, the way the repaint does.
+ *
+ * A layer that names one field has said nothing about the others: `{color}` stacked over
+ * `{sizePx: 24}` is a red label at 24 px, not a red label at the default size. A field set to
+ * undefined says nothing either. The result is a new object whenever there is something beneath,
+ * because a painted value is shared by every element its layer painted.
+ * @param held - What the layers beneath painted, or undefined.
+ * @param over - What this layer paints.
+ * @returns The merged label style.
+ */
+export function mergeLabelStyle(held: unknown, over: object): object {
+    if (typeof held !== "object" || held === null) {
+        return over;
+    }
+
+    const merged: Record<string, unknown> = { ...held };
+
+    for (const [field, value] of Object.entries(over)) {
+        if (value !== undefined) {
+            merged[field] = value;
+        }
+    }
+
+    return merged;
+}
+
 /**
  * Every channel as declared, before the defaults the element's default styles state are read in.
  *
@@ -597,6 +745,7 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         stylePath: "label",
         renderable: true,
     },
+    ...labelFieldChannels("node"),
     "node.tooltip": {
         channel: "node.tooltip",
         target: "node",
@@ -815,6 +964,7 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         stylePath: "label",
         renderable: true,
     },
+    ...labelFieldChannels("edge"),
 };
 
 /**

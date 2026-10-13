@@ -4,6 +4,7 @@ import { GEXF_ISSUE, gexfImporter } from "@graphty/graph-io/gexf";
 import { BaseDataSourceConfig, DataSource, DataSourceChunk } from "./DataSource.js";
 import {
     aggregateErrors,
+    attributeKey,
     attributeTitle,
     cell,
     components,
@@ -15,6 +16,12 @@ import {
 
 // GEXF has no additional config currently, so just use the base config
 type GEXFDataSourceConfig = BaseDataSourceConfig;
+
+/** The node record keys the viz values are written under, over an attribute titled like one. */
+const VIZ_KEYS: ReadonlySet<string> = new Set(["position", "color", "size"]);
+
+/** The viz record keys a load that draws the file's styles still writes. */
+const VIZ_POSITION: ReadonlySet<string> = new Set(["position"]);
 
 /** The bits of graph-io's `open` column: which bound of an interval is open. */
 const OPEN_START = 1;
@@ -110,7 +117,9 @@ function timeText(value: number, text: string | null, timeFormat: string | null)
  * The record mapping for GEXF: the keys the element has always given a GEXF node and edge.
  *
  * - `label`; `position` `{x, y, z}`, `color` `{r, g, b, a}` with 0-255 channels, and `size` from
- *   the viz namespace (nodes only);
+ *   the viz namespace (nodes only). `color` and `size` are deprecated and left out when the load
+ *   draws the file's styles, whose layers carry them; an attribute titled `color`
+ *   or `size` then keeps its own value;
  * - each declared attribute under its title, typed by its declared type;
  * - on an edge, its GEXF id under `gexfId` (never `id`, which on an edge record means the
  *   element's own identifier), and its own `type` when that differs from the graph's direction
@@ -120,9 +129,12 @@ function timeText(value: number, text: string | null, timeFormat: string | null)
  *   slices `{ value, start, end }`.
  * @param snapshot - the imported graph
  * @param graphDirected - the direction declared for the whole graph
+ * @param fileStyles - whether the load draws the file's styles, so no viz color or size is copied
  * @returns the mapping
  */
-function gexfMapping(snapshot: GraphSnapshot, graphDirected: boolean): RecordMapping {
+function gexfMapping(snapshot: GraphSnapshot, graphDirected: boolean, fileStyles: boolean): RecordMapping {
+    // Deprecated (removed in the next major): the viz color and size copied into the records.
+    const vizKeys = fileStyles ? VIZ_POSITION : VIZ_KEYS;
     const { timeFormat } = snapshot.meta;
 
     /**
@@ -153,8 +165,14 @@ function gexfMapping(snapshot: GraphSnapshot, graphDirected: boolean): RecordMap
 
         for (const column of bounds) {
             const text = texts.get(column.meta.name);
+            const value = column.value(row) as number;
+            // A slice with only one bound stores the other as an infinity: leave it out, as spells do.
+            if (text === undefined && !Number.isFinite(value)) {
+                continue;
+            }
+
             out[column.meta.role as string] = timeText(
-                column.value(row) as number,
+                value,
                 text === undefined ? null : (text.value(row) as string),
                 timeFormat,
             );
@@ -215,42 +233,30 @@ function gexfMapping(snapshot: GraphSnapshot, graphDirected: boolean): RecordMap
 
     /**
      * Copy the lifetime, spells and declared attributes shared by nodes and edges.
+     * @param kind - node or edge
      * @param table - the node or edge table
      * @param row - the row
      * @param record - the record being built
      */
-    const common = (table: Iterable<Column>, row: number, record: Record<string, unknown>): void => {
+    const common = (
+        kind: "node" | "edge",
+        table: Iterable<Column>,
+        row: number,
+        record: Record<string, unknown>,
+    ): void => {
         Object.assign(record, interval(table, row));
         for (const column of table) {
             const slices = dynamic.get(column)?.get(row);
             if (slices !== undefined) {
                 // A static value next to timed slices was an untimed attvalue; it leads the list.
-                const title = attributeTitle(column.meta.name, column.meta.origin?.id ?? "");
-                record[title] = column.isSet(row) ? [{ value: cell(column, row) }, ...slices] : slices;
-                continue;
-            }
-
-            if (!column.isSet(row)) {
-                continue;
-            }
-
-            if (column.meta.role === "spells") {
-                const openColumn = spellsOpen.get(table);
-                const open = openColumn?.isSet(row) ? (openColumn.value(row) as number[]) : [];
-                record.spells = (column.value(row) as ArrayLike<number>[]).map((pair, i) => ({
-                    ...(Number.isFinite(pair[0]) ? { start: timeText(pair[0], null, timeFormat) } : {}),
-                    ...(Number.isFinite(pair[1]) ? { end: timeText(pair[1], null, timeFormat) } : {}),
-                    ...((open[i] & OPEN_START) === 0 ? {} : { startOpen: true }),
-                    ...((open[i] & OPEN_END) === 0 ? {} : { endOpen: true }),
-                }));
-            } else if (typeof column.meta.origin?.id === "string") {
-                const { id, type } = column.meta.origin;
-                const value = cell(column, row);
-                // A date attribute is stored as epoch milliseconds; the record keeps it as text.
-                record[attributeTitle(column.meta.name, id)] =
-                    (type === "date" || type === "dateTime") && typeof value === "number"
-                        ? timeText(value, null, type)
-                        : value;
+                const id = column.meta.origin?.id ?? "";
+                record[attributeKey(kind, attributeTitle(column.meta.name, id), id)] = column.isSet(row)
+                    ? [{ value: cell(column, row) }, ...slices]
+                    : slices;
+            } else if (column.meta.role === "spells" && column.isSet(row)) {
+                record.spells = spellsOf(column, spellsOpen.get(table) ?? null, row, timeFormat);
+            } else if (column.isSet(row)) {
+                copyAttribute(kind, column, row, record);
             }
         }
     };
@@ -269,7 +275,7 @@ function gexfMapping(snapshot: GraphSnapshot, graphDirected: boolean): RecordMap
                 record.label = label.value(row);
             }
 
-            common(nodes, row, record);
+            common("node", nodes, row, record);
             for (const column of nodes) {
                 if (!column.isSet(row)) {
                     continue;
@@ -282,12 +288,19 @@ function gexfMapping(snapshot: GraphSnapshot, graphDirected: boolean): RecordMap
                         break;
                     }
                     case "color": {
+                        if (fileStyles) {
+                            break;
+                        }
+
                         const [r, g, b, a] = components(column, row);
                         record.color = { r: Math.round(r * 255), g: Math.round(g * 255), b: Math.round(b * 255), a };
                         break;
                     }
                     case "size":
-                        record.size = cell(column, row);
+                        if (!fileStyles) {
+                            record.size = cell(column, row);
+                        }
+
                         break;
                     default:
                         break;
@@ -312,15 +325,126 @@ function gexfMapping(snapshot: GraphSnapshot, graphDirected: boolean): RecordMap
             }
 
             // Last, so an attribute titled `label` or `type` overrides the edge's own.
-            common(edges, row, record);
+            common("edge", edges, row, record);
+        },
+        path(kind, column): string | null {
+            const table = kind === "node" ? nodes : edges;
+            const { name, role, origin } = column.meta;
+            if (column.meta.dynamic) {
+                return null;
+            }
+
+            if (typeof origin?.id === "string" && role === null) {
+                if (origin.type === "date" || origin.type === "dateTime") {
+                    return null;
+                }
+
+                const key = attributeKey(kind, attributeTitle(name, origin.id), origin.id);
+                // On a node, the viz values are written over an attribute titled like them.
+                const viz = kind === "node" && vizKeys.has(key);
+                return viz && table.byRole(key) !== null ? null : key;
+            }
+
+            return rolePath(kind, table, role, fileStyles);
         },
     };
+}
+
+/**
+ * The record key a column with a role is written under.
+ * @param kind - node or edge
+ * @param table - the node or edge table
+ * @param role - the column's role
+ * @param fileStyles - whether the file's styles are read as layers, so a node's size is not a record key
+ * @returns the key, or null when the column is not written
+ */
+function rolePath(
+    kind: "node" | "edge",
+    table: Iterable<Column>,
+    role: string | null,
+    fileStyles: boolean,
+): string | null {
+    switch (role) {
+        case "label":
+            // An attribute titled `label` is written over the file's label.
+            return hasAttributeTitled(kind, table, "label") ? null : "label";
+        case "size":
+            return kind === "node" && !fileStyles ? "size" : null;
+        case "id":
+            return kind === "edge" ? "gexfId" : null;
+        default:
+            return null;
+    }
+}
+
+/**
+ * Whether a declared attribute is written under a record key.
+ * @param kind - node or edge
+ * @param table - the node or edge table
+ * @param key - the record key
+ * @returns true when one is
+ */
+function hasAttributeTitled(kind: "node" | "edge", table: Iterable<Column>, key: string): boolean {
+    return [...table].some(
+        (each) =>
+            typeof each.meta.origin?.id === "string" &&
+            each.meta.role === null &&
+            attributeKey(kind, attributeTitle(each.meta.name, each.meta.origin.id), each.meta.origin.id) === key,
+    );
+}
+
+/**
+ * An element's spells as records: `{ start, end }` with `startOpen` / `endOpen` for an open bound; an infinite bound
+ * is left out.
+ * @param column - the spells column
+ * @param openColumn - the column of their open bounds, or null
+ * @param row - the element
+ * @param timeFormat - the graph's timeformat
+ * @returns the spells
+ */
+function spellsOf(
+    column: Column,
+    openColumn: Column | null,
+    row: number,
+    timeFormat: string | null,
+): Record<string, unknown>[] {
+    const open = openColumn?.isSet(row) ? (openColumn.value(row) as number[]) : [];
+    return (column.value(row) as ArrayLike<number>[]).map((pair, i) => ({
+        ...(Number.isFinite(pair[0]) ? { start: timeText(pair[0], null, timeFormat) } : {}),
+        ...(Number.isFinite(pair[1]) ? { end: timeText(pair[1], null, timeFormat) } : {}),
+        ...((open[i] & OPEN_START) === 0 ? {} : { startOpen: true }),
+        ...((open[i] & OPEN_END) === 0 ? {} : { endOpen: true }),
+    }));
+}
+
+/**
+ * Copies a declared attribute's value onto its record key; a date attribute is stored as epoch milliseconds and the
+ * record keeps it as text.
+ * @param kind - node or edge
+ * @param column - the attribute's column
+ * @param row - the element
+ * @param record - the record being built
+ */
+function copyAttribute(kind: "node" | "edge", column: Column, row: number, record: Record<string, unknown>): void {
+    const id = column.meta.origin?.id;
+    if (typeof id !== "string") {
+        return;
+    }
+    const { type } = column.meta.origin ?? {};
+    const value = cell(column, row);
+    record[attributeKey(kind, attributeTitle(column.meta.name, id), id)] =
+        (type === "date" || type === "dateTime") && typeof value === "number" ? timeText(value, null, type) : value;
 }
 
 /**
  * Data source for loading graph data from GEXF (Graph Exchange XML Format) files, read by
  * `@graphty/graph-io`'s GEXF importer. Supports node and edge attributes, attribute types, the viz
  * namespace and dynamic graphs.
+ *
+ * A node's viz color and size are copied onto its record as `color` `{r, g, b, a}` and `size`.
+ * Those two keys are deprecated and removed in the next major version: load with
+ * `styles: "file"` to draw the file's colors and sizes as style layers instead, and the records
+ * then carry neither key.
  *
  * Dynamic graphs keep their time data on each record rather than acting on it:
  * - a node's or edge's `start` / `end` / `timestamp` go onto its data under those names, with
@@ -400,7 +524,8 @@ export class GEXFDataSource extends DataSource {
         // the builder while it is still empty -- which is the only moment the builder accepts one.
         this.declareDirection(direction.directed, direction.statedBy, direction.conflicts);
 
-        const { nodes, edges } = toRecords(imported, gexfMapping(snapshot, direction.directed));
+        const fileStyles = this.config.styles === "file";
+        const { nodes, edges } = toRecords(imported, gexfMapping(snapshot, direction.directed, fileStyles), this);
         yield* this.chunkData(nodes, edges);
     }
 

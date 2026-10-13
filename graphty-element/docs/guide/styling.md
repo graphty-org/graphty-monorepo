@@ -148,17 +148,32 @@ await element.session.styles.add({
 ### Values the element provides
 
 A path that starts `graphty.` reads a value the element itself provides, not a column of your
-data. Today those are the three note values:
+data:
 
-| Path                       | Value on a node or an edge                    |
-| -------------------------- | --------------------------------------------- |
-| `graphty.notes.count`      | How many notes name it; no value when none do |
-| `graphty.notes.latest`     | The text of the newest of those notes         |
-| `graphty.notes.latestTime` | The `time` of the newest of those notes       |
+| Path                                        | Value                                                                                                                     |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `graphty.notes.count`                       | How many notes name a node or an edge; no value when none do                                                              |
+| `graphty.notes.latest`                      | The text of the newest of those notes                                                                                     |
+| `graphty.notes.latestTime`                  | The `time` of the newest of those notes                                                                                   |
+| `graphty.degree`                            | How many edges a node has, as the graph stands now; no value on an edge                                                   |
+| `graphty.indegree`, `graphty.outdegree`     | How many edges reach a node, and how many leave it                                                                        |
+| `graphty.style.<format>.<node\|edge>.<key>` | A value a load with `styles: "file"` wrote for the element; see [Styles from Files](./file-styles#values-the-load-writes) |
 
 They work in a layer's `selector` and in a binding's `by`. A label or tooltip bound to one is drawn
 as literal text: a note reading `<bold>x</bold>` shows the tags, never bold text. See
 [Notes](./notes#notes-in-styles).
+
+The degrees follow the graph: add an edge and a layer that selects
+`` graphty.degree > `2` `` repaints the nodes it now reaches, with nothing recomputed by hand.
+
+```typescript
+await element.session.styles.add({
+    name: "Hubs",
+    target: "node",
+    selector: { match: "expression", where: "graphty.degree > `10`" },
+    encode: { "node.size": { by: "graphty.degree", scale: "sqrt", range: [1, 4] } },
+});
+```
 
 The whole `graphty.` root is reserved for the element, now and in later releases. A data column
 whose name starts `graphty.` is still reachable, as `data.graphty.<name>`, and
@@ -177,6 +192,11 @@ A channel is one visual property with one name. These are all of them:
 | `node.shape`        | `sphere`, `box`, `cylinder`, `icosphere`, ...                      |
 | `node.label`        | the words to draw                                                  |
 | `node.labelStyle`   | `{font, sizePx, weight, color, background, outline, padding, ...}` |
+| `node.labelColor`   | any CSS colour: the label's colour                                 |
+| `node.labelSize`    | a number: the label's font size                                    |
+| `node.labelFont`    | a font family                                                      |
+| `node.labelWeight`  | `normal` or `bold`                                                 |
+| `node.labelItalic`  | true or false                                                      |
 | `node.tooltip`      | the words to show on hover                                         |
 | `node.tooltipStyle` | as `node.labelStyle`, for the tooltip                              |
 | `node.opacity`      | 0 to 1                                                             |
@@ -209,6 +229,11 @@ A channel is one visual property with one name. These are all of them:
 | `edge.animationSpeed`     | a number                                                                   |
 | `edge.label`              | the words to draw                                                          |
 | `edge.labelStyle`         | as `node.labelStyle`                                                       |
+| `edge.labelColor`         | as `node.labelColor`                                                       |
+| `edge.labelSize`          | as `node.labelSize`                                                        |
+| `edge.labelFont`          | as `node.labelFont`                                                        |
+| `edge.labelWeight`        | as `node.labelWeight`                                                      |
+| `edge.labelItalic`        | as `node.labelItalic`                                                      |
 
 A color may carry an alpha (`#ff000080`, `rgba(255, 0, 0, 0.5)`). On `node.color`,
 `edge.color` and the two arrow colors the alpha multiplies the matching opacity channel, so
@@ -234,6 +259,22 @@ await element.session.styles.add({
 The five `...Style` channels merge field by field across layers instead of replacing each other.
 A layer that writes `{ color: "#FF0000" }` over one that wrote `{ sizePx: 24 }` draws a red label
 at 24 px, and each field takes the value from the highest layer that set it.
+
+A whole label style can only be `set`. To draw each label from your data -- a size from a column,
+a color per group -- bind one of the label field channels (`node.labelColor`, `node.labelSize`,
+`node.labelFont`, `node.labelWeight`, `node.labelItalic`, and the same five on edges). Each lands
+in the same label style, field by field, in layer order, beside whatever `node.labelStyle` layers
+write. A binding on the whole `node.labelStyle` paints nothing, and `validate()` warns about it with
+the code `W_LABEL_STYLE_BOUND`, naming the field channels to bind instead.
+
+```typescript
+await element.session.styles.add({
+    name: "Label size by weight",
+    target: "node",
+    selector: { match: "has", path: "data.weight" },
+    encode: { "node.labelSize": { by: "data.weight", scale: "linear", range: [12, 32] } },
+});
+```
 
 Glowing nodes are drawn through one mesh per distinct `node.glow` and `node.glowStrength`
 pair. A handful of glow styles costs nothing; a strength encoded from data, with a different value
@@ -401,6 +442,65 @@ A binding takes `by` (the path), `scale` (`linear`, `log`, `sqrt`, `bins`, `quan
 no value exactly as the layers underneath painted it. `overflow` (`"other"`, `"shape"` or
 `"extend"`) says what a categorical colour does with more groups than its palette has colours;
 `encode()` writes `"other"` by default -- see [Algorithms](./algorithms#more-groups-than-colours).
+
+### A table of values, and what it leaves alone
+
+`map` gives a value per key. With `scale: "passthrough"`, a key the table does not hold goes on
+through the scale as before, so an unmapped `"green"` is painted green. Add `unmapped: "skip"` and
+an element whose key the table does not hold is left exactly as the layers beneath paint it:
+
+```typescript
+await element.session.styles.add({
+    name: "Known teams",
+    target: "node",
+    selector: { match: "has", path: "data.team" },
+    encode: {
+        "node.color": {
+            by: "data.team",
+            scale: "passthrough",
+            map: { red: "#EF4444", blue: "#3B82F6" },
+            unmapped: "skip",
+        },
+    },
+});
+```
+
+An element with no `data.team` at all still follows `missing`.
+
+### Stops
+
+A numeric or color channel can read a number against `stops` instead of a scale: points at
+uneven spacing, each with the value drawn exactly at it, and between two points the value moves
+from one to the next (numbers linearly, colors per red, green, blue and alpha). Below the first
+point every value paints the first point's `below`, and above the last point, the last point's
+`above`. Both default to the point's `value`; giving them separately draws a jump at the point:
+
+```typescript
+await element.session.styles.add({
+    name: "Expression",
+    target: "node",
+    selector: { match: "has", path: "data.expression" },
+    encode: {
+        "node.color": {
+            by: "data.expression",
+            stops: [
+                { at: -2, value: "#2166AC" },
+                { at: 0, value: "#F7F7F7", below: "#D1E5F0", above: "#FDDBC7" },
+                { at: 3, value: "#B2182B" },
+            ],
+        },
+    },
+});
+```
+
+`stops` takes the place of `scale`, `domain`, `range` and `palette` (leave `scale` out or set it to
+`"linear"`); the others are refused beside it, because the points already say what each would. It
+is how a Cytoscape continuous mapping is drawn when a file's styles are loaded (see
+[Styles from Files](./file-styles)).
+
+A number outside what a channel can draw (a negative size, an opacity above 1) is still clamped,
+and a node color with alpha is still drawn opaque; `styles.counts(id)` reports both per layer, as
+`style.out-of-range` and `style.alpha-not-drawn` with the channel and how many elements.
 
 ## Painting an algorithm's result
 

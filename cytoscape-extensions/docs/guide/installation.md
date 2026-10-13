@@ -2,8 +2,6 @@
 
 Load @graphty/cytoscape-extensions through npm and a bundler, from a CDN with no build step, with a classic script tag, or with `require()`. TypeScript typings come with the package.
 
-The package has not had its first release yet. Until it does, `npm install` fetches `0.0.0-placeholder.0`, which holds only a README, so the imports on this page fail to resolve and its jsDelivr URLs return 404.
-
 ## npm and a bundler
 
 Install Cytoscape.js, the extension and the three graphty packages it expects you to provide:

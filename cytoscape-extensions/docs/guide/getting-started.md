@@ -2,8 +2,6 @@
 
 graphty is a family of graph libraries, including @graphty/algorithms and @graphty/layout. @graphty/cytoscape-extensions adds their layouts and algorithms to Cytoscape.js with one `cytoscape.use()` call.
 
-`@graphty/cytoscape-extensions` has not had its first release yet. Until it does, `npm install` fetches `0.0.0-placeholder.0`, a package that holds only a README, so the imports below fail to resolve, and the jsDelivr URLs used on other pages return 404. Everything on this page describes the package as it will be released.
-
 ## Install
 
 ```sh

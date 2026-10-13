@@ -61,6 +61,7 @@ import {
     xmlDeclaredEncoding,
     XmlEmptyInputError,
     type XmlHandler,
+    XmlNestingError,
     XmlSyntaxError,
 } from "../../common/xml.js";
 import { type CommonImportOptions, type GraphImporter, type ImportInput, type ImportReport } from "../../types.js";
@@ -85,7 +86,8 @@ import {
     TARGET_PORT_COLUMN,
     XSI_NAMESPACE,
 } from "./constants.js";
-import { XmlTreeBuilder } from "./tree.js";
+import { graphmlStyles } from "./styles-plain.js";
+import { writeXmlTree, XmlTreeBuilder } from "./tree.js";
 import { graphicsDecl, graphicsValues } from "./yfiles.js";
 
 /** The XML attributes the importer reads on each element; any other is reported (once per element and name). */
@@ -105,6 +107,30 @@ const HYPEREDGE_ATTRIBUTES: ReadonlySet<string> = new Set(["id"]);
 const ENDPOINT_ATTRIBUTES: ReadonlySet<string> = new Set(["node", "type"]);
 const PORT_ATTRIBUTES: ReadonlySet<string> = new Set(["name"]);
 const NO_ATTRIBUTES: ReadonlySet<string> = new Set();
+
+/**
+ * Whether a `<key>` attribute is yFiles 3's `attr.uri` (in whatever prefix the file binds to yWorks' namespace).
+ * @param kind - the element name
+ * @param name - the attribute name as written
+ * @returns true for `<prefix>:attr.uri` on a key
+ */
+function isAttributeUri(kind: string, name: string): boolean {
+    return kind === "key" && name.endsWith(":attr.uri");
+}
+
+/**
+ * The `<prefix>:attr.uri` of a key, or null.
+ * @param attrs - the key's attributes
+ * @returns the URI
+ */
+function attributeUri(attrs: ReadonlyMap<string, string>): string | null {
+    for (const [name, value] of attrs) {
+        if (isAttributeUri("key", name) && value.length > 0) {
+            return value;
+        }
+    }
+    return null;
+}
 
 /** Attributes the GraphML schema defines that the importer does not keep: reported as not kept, not as foreign. */
 const SCHEMA_ATTRIBUTES: ReadonlySet<string> = new Set(["id", "port", "parse.order", "parse.nodeids", "parse.edgeids"]);
@@ -133,7 +159,10 @@ export interface GraphmlImportOptions extends CommonImportOptions {
      * `yfiles.borderWidth`, `yfiles.label` and `yfiles.shape` for nodes, and the line color, width
      * and arrows for edges. The report's `lossy` list then holds W_GRAPHML_YFILES_JSON, because the
      * XML comes back with the same structure but not byte for byte. "skip" leaves the graphics out,
-     * with a W_GRAPHML_YFILES_SKIPPED warning per key.
+     * with a W_GRAPHML_YFILES_SKIPPED warning per key. The `yfiles.*` columns are deprecated and
+     * kept as they are, not fixed: read a file's styles with `styles: true` instead. In the next
+     * major version they leave the import result, together with the rule that a target arrow makes
+     * an edge directed and the label role of `yfiles.label`.
      * @defaultValue "json"
      */
     yfiles?: "json" | "skip" | undefined;
@@ -512,15 +541,13 @@ class GraphmlReader implements XmlHandler {
         const parent = this.ctx.at(-1) ?? null;
         switch (parent) {
             case Ctx.Capture:
+            case Ctx.Data:
+            case Ctx.Default:
                 this.captureStart(name, attrs);
                 return;
             case Ctx.Skip:
             case Ctx.Desc:
                 this.ctx.push(Ctx.Skip);
-                return;
-            case Ctx.Data:
-            case Ctx.Default:
-                this.captureStart(name, attrs);
                 return;
             case Ctx.Dropped:
                 this.dropStart(localName(name));
@@ -1132,7 +1159,7 @@ class GraphmlReader implements XmlHandler {
             return;
         }
         for (const name of attrs.keys()) {
-            if (known.has(name) || name === "xmlns" || /^(xmlns|xml|xsi):/.test(name)) {
+            if (known.has(name) || name === "xmlns" || /^(xmlns|xml|xsi):/.test(name) || isAttributeUri(kind, name)) {
                 continue;
             }
             const hint = name.startsWith("parse.");
@@ -1326,6 +1353,10 @@ class GraphmlReader implements XmlHandler {
             case "all":
                 domains = ["graph", "node", "edge"];
                 break;
+            case "graphml":
+                // data on the <graphml> root (yEd's resources, yFiles 3's shared data) is read as graph data
+                domains = ["graph"];
+                break;
             case "graph":
             case "node":
             case "edge":
@@ -1351,12 +1382,14 @@ class GraphmlReader implements XmlHandler {
                 );
                 domains = [];
         }
+        // `name` / `type` without the `attr.` prefix are written by some tools; the spec's spelling wins
+        const attrType = attrs.get("attr.type") ?? attrs.get("type") ?? null;
         this.pendingKey = {
             id,
-            // `name` / `type` without the `attr.` prefix are written by some tools; the spec's spelling wins
             attrName: attrs.get("attr.name") ?? attrs.get("name") ?? null,
-            attrType: attrs.get("attr.type") ?? attrs.get("type") ?? null,
-            yfilesType: attrs.get("yfiles.type") ?? null,
+            attrType,
+            // yFiles 3 declares its untyped keys with `y:attr.uri` instead of `yfiles.type`: their data is nested XML
+            yfilesType: attrs.get("yfiles.type") ?? (attrType === null ? attributeUri(attrs) : null),
             domains,
             line,
             desc: "",
@@ -1889,6 +1922,19 @@ class GraphmlReader implements XmlHandler {
                 );
             }
             return value;
+        }
+        if (typeof value !== "string" && target.spec.declared === "") {
+            // an untyped key states no type the elements contradict: keep them as their XML text
+            this.report.warnOnce(
+                "validation-error",
+                GRAPHML_ISSUE.DATA_STRUCTURED,
+                `<data> of the untyped attribute "${target.name}" holds elements; they are kept as XML text`,
+                { line: where.line, element: target.name },
+                `${GRAPHML_ISSUE.DATA_STRUCTURED}:${target.name}`,
+            );
+            const parts: string[] = [];
+            writeXmlTree(value, "", parts);
+            return parts.join("").trim();
         }
         if (typeof value !== "string") {
             this.report.error(
@@ -2679,7 +2725,11 @@ async function importGraphml(
             report.fail(GRAPHML_ISSUE.EMPTY_INPUT, "the input is empty (no markup at all)", { line: err.line });
         }
         if (err instanceof XmlSyntaxError) {
-            report.fail(GRAPHML_ISSUE.XML_SYNTAX, err.message, { line: err.line });
+            report.fail(
+                err instanceof XmlNestingError ? GRAPHML_ISSUE.XML_NESTING : GRAPHML_ISSUE.XML_SYNTAX,
+                err.message,
+                { line: err.line },
+            );
         }
         throw err;
     }
@@ -2698,6 +2748,7 @@ export const graphmlImporter: GraphImporter<GraphmlImportOptions> = Object.freez
     extensions: EXTENSIONS,
     mimeTypes: MIME_TYPES,
     sniff: sniffGraphml,
+    styles: graphmlStyles,
     import: importGraphml,
 });
 

@@ -8,6 +8,11 @@ import type { DerivedGraph } from '@graphty/graph-format';
 import type { DuplicatePolicy } from '@graphty/graph-format';
 import type { GraphSnapshot } from '@graphty/graph-format';
 import type { NodeId as NodeId_2 } from '@graphty/graph-format';
+import { StyleNoteCode } from '@graphty/graph-io/styles';
+import type { StyleRuleOrigin } from '@graphty/graph-io/styles';
+import type { StyleRuleReason } from '@graphty/graph-io/styles';
+import type { StyleRuleRole } from '@graphty/graph-io/styles';
+import type { StyleTool } from '@graphty/graph-io/styles';
 import { z } from 'zod/v4';
 
 // @public
@@ -146,6 +151,8 @@ export type Binding = {
     missing?: "skip" | {
         value: string | number;
     };
+    unmapped?: "skip";
+    stops?: BindingStop[];
     hidden?: (string | number | boolean)[];
     reverse?: boolean;
     midpoint?: number;
@@ -155,6 +162,14 @@ export type Binding = {
 
 // @public
 export type BindingOverflow = "other" | "shape" | "extend";
+
+// @public
+export interface BindingStop {
+    above?: string | number;
+    at: number;
+    below?: string | number;
+    value: string | number;
+}
 
 // @public
 export interface Capabilities {
@@ -203,7 +218,7 @@ export interface Caveats {
 }
 
 // @public
-export type Channel = "node.color" | "node.size" | "node.shape" | "node.label" | "node.labelStyle" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.glow" | "node.glowStrength" | "node.wireframe" | "node.flat" | "node.marker" | "edge.color" | "edge.width" | "edge.opacity" | "edge.style" | "edge.patternCount" | "edge.curvature" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailColor" | "edge.arrowTailOpacity" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle";
+export type Channel = "node.color" | "node.size" | "node.shape" | "node.label" | "node.labelStyle" | "node.labelColor" | "node.labelSize" | "node.labelFont" | "node.labelWeight" | "node.labelItalic" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.glow" | "node.glowStrength" | "node.wireframe" | "node.flat" | "node.marker" | "edge.color" | "edge.width" | "edge.opacity" | "edge.style" | "edge.patternCount" | "edge.curvature" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailColor" | "edge.arrowTailOpacity" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle" | "edge.labelColor" | "edge.labelSize" | "edge.labelFont" | "edge.labelWeight" | "edge.labelItalic";
 
 // @public
 export type ChannelAgreement = {
@@ -288,6 +303,7 @@ export interface CommandOutcomeMap {
     "data.declare": Promise<void>;
     "data.expand": Promise<void>;
     "data.import": Promise<void>;
+    "data.setFileStyles": Promise<void>;
     "data.setSource": Promise<void>;
     "layout.scope": Promise<void>;
     "layout.set": Promise<void>;
@@ -597,6 +613,12 @@ export type ExplainTarget = {
 };
 
 // @public
+export const EXPORT_STYLE_LOSS_CODES: readonly ["W_STYLE_NOT_WRITTEN", "W_STYLE_APPROXIMATED", "W_STYLE_RULES_NOT_KEPT", "W_STYLE_LAYER_FLATTENED", "W_STYLES_NOT_EXPORTED", "E_STYLES_MISMATCH"];
+
+// @public
+export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
+
+// @public
 export interface FieldBand {
     above?: number;
     atLeast?: number;
@@ -649,6 +671,180 @@ export interface FieldWords {
     readonly result?: FieldResult;
     readonly technicalName: string;
 }
+
+// @public
+export const FILE_STYLE_CODES: readonly FileStyleCode[];
+
+// @public
+export const FILE_STYLE_ISSUE: Readonly<{
+    NOT_DRAWN: "W_STYLE_NOT_DRAWN";
+    NO_COUNTERPART: "W_STYLE_NO_COUNTERPART";
+    DRAWN_NEAREST: "W_STYLE_DRAWN_NEAREST";
+    COLUMN_ABSENT: "W_STYLE_COLUMN_ABSENT";
+    TABLE_AS_VALUES: "W_STYLE_TABLE_AS_VALUES";
+    LAYERS_FOLDED: "W_STYLE_LAYERS_FOLDED";
+    LABEL_CAPPED: "W_STYLE_LABEL_CAPPED";
+    LAYER_REFUSED: "W_STYLE_LAYER_REFUSED";
+    LAYER_SPEC_IGNORED: "W_STYLE_LAYER_SPEC_IGNORED";
+    NOT_UNDERSTOOD: "W_STYLE_NOT_UNDERSTOOD";
+    VALUE_TOO_LONG: "W_STYLE_VALUE_TOO_LONG";
+    BAD_VALUE: "W_STYLE_BAD_VALUE";
+    UNKNOWN_VALUE: "W_STYLE_UNKNOWN_VALUE";
+    ALPHA_DROPPED: "W_STYLE_ALPHA_DROPPED";
+    COLOR_LIST: "W_STYLE_COLOR_LIST";
+    GRADIENT: "W_STYLE_GRADIENT";
+    UNFILLED: "W_STYLE_UNFILLED";
+    NO_FILL: "W_STYLE_NO_FILL";
+    NO_STROKE: "W_STYLE_NO_STROKE";
+    SIZE_MINIMUM: "W_STYLE_SIZE_MINIMUM";
+    HTML_LABEL: "W_STYLE_HTML_LABEL";
+    RECORD_LABEL: "W_STYLE_RECORD_LABEL";
+    EXTRA_LABELS: "W_STYLE_EXTRA_LABELS";
+    INHERIT_COLOR: "W_STYLE_INHERIT_COLOR";
+    NOT_CARRIED: "W_STYLE_NOT_CARRIED";
+    BAD_MAPPING: "W_STYLE_BAD_MAPPING";
+    MAPPING_COLUMN_MISSING: "W_STYLE_MAPPING_COLUMN_MISSING";
+    REFERENCE_CYCLE: "W_STYLE_REFERENCE_CYCLE";
+    UNRESOLVED: "W_STYLE_UNRESOLVED";
+    NESTING: "W_STYLE_NESTING";
+    UNREADABLE: "W_STYLE_UNREADABLE";
+    NO_VIZMAP: "W_STYLE_NO_VIZMAP";
+    VIEW_STYLE_MISSING: "W_STYLE_VIEW_STYLE_MISSING";
+    OTHER_STYLES: "W_STYLE_OTHER_STYLES";
+    OTHER_VIEWS: "W_STYLE_OTHER_VIEWS";
+    SELECTOR: "W_STYLE_SELECTOR";
+    SELECTOR_AS_COLUMN: "W_STYLE_SELECTOR_AS_COLUMN";
+    STATE_ASSUMED: "W_STYLE_STATE_ASSUMED";
+    RAMP_ROUNDED: "W_STYLE_RAMP_ROUNDED";
+    LAYER_CAP: "W_STYLE_LAYER_CAP";
+    BUDGET: "W_STYLE_BUDGET";
+    BLOCK_IGNORED: "W_STYLE_BLOCK_IGNORED";
+    NOT_WRITTEN: "W_STYLE_NOT_WRITTEN";
+    APPROXIMATED: "W_STYLE_APPROXIMATED";
+    RULES_NOT_KEPT: "W_STYLE_RULES_NOT_KEPT";
+    LAYER_FLATTENED: "W_STYLE_LAYER_FLATTENED";
+    NOT_IMPORTED: "W_STYLES_NOT_IMPORTED";
+    NOT_EXPORTED: "W_STYLES_NOT_EXPORTED";
+    MISMATCH: "E_STYLES_MISMATCH";
+}>;
+
+// @public
+export const FILE_STYLE_REASONS: readonly FileStyleReason[];
+
+// @public
+export const FILE_STYLE_SHAPES: FileStyleShapeTable;
+
+// @public
+export const FILE_STYLE_TRANSLATION_ISSUE: Readonly<{
+    NOT_DRAWN: "W_STYLE_NOT_DRAWN";
+    NO_COUNTERPART: "W_STYLE_NO_COUNTERPART";
+    DRAWN_NEAREST: "W_STYLE_DRAWN_NEAREST";
+    COLUMN_ABSENT: "W_STYLE_COLUMN_ABSENT";
+    TABLE_AS_VALUES: "W_STYLE_TABLE_AS_VALUES";
+    LAYERS_FOLDED: "W_STYLE_LAYERS_FOLDED";
+    LABEL_CAPPED: "W_STYLE_LABEL_CAPPED";
+    LAYER_REFUSED: "W_STYLE_LAYER_REFUSED";
+    LAYER_SPEC_IGNORED: "W_STYLE_LAYER_SPEC_IGNORED";
+    NOT_UNDERSTOOD: "W_STYLE_NOT_UNDERSTOOD";
+}>;
+
+// @public
+export type FileStyleCode = (typeof FILE_STYLE_ISSUE)[keyof typeof FILE_STYLE_ISSUE];
+
+// @public
+export interface FileStyleColumnValues {
+    readonly ids: readonly (NodeId | EdgeId)[];
+    readonly key: string;
+    readonly kind: FileStyleKind;
+    readonly values: readonly (FileStyleScalar | null)[];
+}
+
+// @public
+export type FileStyleKind = "node" | "edge";
+
+// @public
+export interface FileStyleLoadValues {
+    readonly columns: readonly FileStyleColumnValues[];
+    readonly format: string;
+    readonly importId: string;
+    readonly namespace: string;
+}
+
+// @public
+export type FileStyleMappingKind = "passthrough" | "discrete" | "continuous";
+
+// @public
+export interface FileStyleMeaning {
+    readonly name: string;
+    readonly value: string | number | boolean;
+}
+
+// @public
+export interface FileStyleNote {
+    readonly code: FileStyleNoteCode;
+    readonly params: Readonly<Record<string, CodedFactParam>>;
+}
+
+// @public
+export type FileStyleNoteCode = StyleNoteCode | FileStyleTranslationCode;
+
+// @public
+export function fileStyleOf(layer: {
+    readonly fileStyle?: unknown;
+}): FileStyleOrigin | null;
+
+// @public
+export interface FileStyleOptions {
+    readonly labelLayers?: number;
+    readonly lengths?: "median" | "file";
+    readonly shapes?: FileStyleShapeTable;
+    readonly toolDefaults?: boolean;
+}
+
+// @public
+export interface FileStyleOrigin {
+    readonly classes?: number;
+    readonly column?: Path;
+    readonly distinctValues?: number;
+    readonly elements?: number;
+    readonly entries?: number;
+    readonly format: string;
+    readonly importId: string;
+    readonly mapping?: FileStyleMappingKind;
+    readonly meanings?: readonly FileStyleMeaning[];
+    readonly origin: FileStyleRuleOrigin;
+    readonly reason?: FileStyleReason;
+    readonly role: FileStyleRole;
+    readonly ruleId: string;
+}
+
+// @public
+export type FileStyleReason = StyleRuleReason;
+
+// @public
+export type FileStyleRole = StyleRuleRole;
+
+// @public
+export type FileStyleRuleOrigin = StyleRuleOrigin;
+
+// @public
+export type FileStyleScalar = string | number | boolean;
+
+// @public
+export type FileStyleShapeTable = Readonly<Record<string, string>>;
+
+// @public
+export interface FileStyleSummary {
+    readonly edgeRules: number;
+    readonly nodeRules: number;
+    readonly tool: FileStyleTool | null;
+}
+
+// @public
+export type FileStyleTool = StyleTool;
+
+// @public
+export type FileStyleTranslationCode = (typeof FILE_STYLE_TRANSLATION_ISSUE)[keyof typeof FILE_STYLE_TRANSLATION_ISSUE];
 
 // @public @deprecated
 export type Filter = RuleTree;
@@ -1241,7 +1437,14 @@ export type GraphtyWarningCode =
 * draw it translucent, so the color is drawn opaque. `params.channel` is the channel and
 * `params.path` where in the layer the color sits. Today only `node.outline` cannot.
 */
-| "W_ALPHA_IGNORED";
+| "W_ALPHA_IGNORED"
+/**
+* A style layer binds a whole label style channel (`node.labelStyle`) to a path. No scale
+* produces a whole label style, so the binding paints nothing. `params.channel` is the channel,
+* `params.path` where in the layer, and `params.fieldChannels` the label field channels that
+* can be bound instead.
+*/
+| "W_LABEL_STYLE_BOUND";
 
 // @public
 export interface HighlightSpec {
@@ -1286,7 +1489,7 @@ export interface HistogramOptions {
 export type HistoryCause = "command" | "undo" | "redo" | "restore" | "rollback";
 
 // @public
-export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.import" | "data.expand" | "data.declare" | "data.set-source" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
+export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.import" | "data.expand" | "data.declare" | "data.set-source" | "data.set-file-styles" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
 
 // @public
 export type HistoryOutcome = {
@@ -1409,6 +1612,7 @@ export type JournalId = string;
 export interface Layer {
     readonly enabled: boolean;
     readonly encode?: Encoding;
+    readonly fileStyle?: FileStyleOrigin;
     readonly id: LayerId;
     readonly kind: LayerKind;
     readonly locked: boolean;
@@ -1466,6 +1670,7 @@ export interface LayerSpec {
     enabled?: boolean;
     // (undocumented)
     encode?: Encoding;
+    fileStyle?: FileStyleOrigin;
     // (undocumented)
     kind?: LayerKind;
     // (undocumented)
@@ -1597,6 +1802,8 @@ export interface LoadChoices extends ImportOptions {
     readonly directed?: boolean | "auto";
     readonly duplicateIds?: "first" | "merge" | "refuse";
     readonly mapping?: LoadMapping;
+    readonly styleOptions?: FileStyleOptions;
+    readonly styles?: "file" | "none";
     readonly unmatched?: "add" | "leave-out";
 }
 
@@ -1609,6 +1816,10 @@ export interface LoadDraft {
     report(choices?: LoadChoices): Promise<LoadReport>;
     resolve(choices?: LoadChoices): LoadMappingRead;
     rows(table: string, options?: DraftRowOptions): Promise<RecordPage<DraftRow>>;
+    readonly styles: {
+        readonly declared: boolean;
+        readonly summary: FileStyleSummary;
+    } | null;
     readonly tables: readonly DraftTable[];
     readonly type: string;
 }
@@ -1639,11 +1850,18 @@ export interface LoadReport extends ImportReport {
         readonly ids: readonly (string | number)[];
     };
     readonly errors: readonly LoadError[];
+    readonly styles?: LoadStyleReport;
     readonly tooLarge: TooLargeDetails | null;
     readonly unmatched: {
         readonly rows: number;
         readonly values: number;
     };
+}
+
+// @public
+export interface LoadStyleReport {
+    readonly layers: readonly LayerId[];
+    readonly notes: readonly FileStyleNote[];
 }
 
 // @public
@@ -3436,6 +3654,9 @@ export interface StartOptions extends RunOptions {
 export type StaticStyle = Partial<Record<Channel, ChannelValue>>;
 
 // @public
+export type StyleAdjustmentCode = "style.out-of-range" | "style.alpha-not-drawn";
+
+// @public
 export interface StyleAgreement {
     readonly channels: readonly ChannelAgreement[];
 }
@@ -3460,6 +3681,7 @@ export interface StyleContribution {
 
 // @public
 export interface StyleCounts {
+    readonly adjusted?: readonly CodedFact<StyleAdjustmentCode>[];
     readonly matched: number;
     readonly noValue: number;
     readonly outsideScale: number;
@@ -3583,8 +3805,14 @@ export interface TableMappingRead extends TableMapping {
 
 // @public
 export interface TemplateOptions extends RunOptions {
+    readonly at?: TemplatePosition;
     readonly templateId?: string;
 }
+
+// @public
+export type TemplatePosition = "top" | "aboveBase" | {
+    readonly before: LayerId;
+};
 
 // @public
 export interface TemplateReport {

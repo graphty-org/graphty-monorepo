@@ -59,6 +59,7 @@ export const RichTextStyle = z.strictObject({
     font: z.string().default("Verdana").optional(),
     fontSize: z.number().default(48).optional(),
     fontWeight: z.string().default("normal").optional(),
+    fontStyle: z.enum(["normal", "italic"]).default("normal").optional(),
     lineHeight: z.number().default(1.2).optional(),
 
     // Colors

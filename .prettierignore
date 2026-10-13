@@ -57,6 +57,9 @@ githerd/test/worker-settings/
 # Generated benchmark reports
 algorithms/benchmark-results/
 
+# The style corpus: real files kept byte for byte, and RESULTS.md, which the style harness compares as written
+graph-io/test/corpus/styles/
+
 # Deliberately malformed input for the importer tests; formatting would repair or reject it
 **/corpus/malformed/
 

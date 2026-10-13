@@ -133,6 +133,17 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.marker": "content",
     "edge.label": "content",
     "edge.labelStyle": "content",
+    // A label field lands in its label style's column and is drawn with it.
+    "node.labelColor": "content",
+    "node.labelSize": "content",
+    "node.labelFont": "content",
+    "node.labelWeight": "content",
+    "node.labelItalic": "content",
+    "edge.labelColor": "content",
+    "edge.labelSize": "content",
+    "edge.labelFont": "content",
+    "edge.labelWeight": "content",
+    "edge.labelItalic": "content",
 
     // A caption at the end of an arrow is drawn beside the cap, not by it: it is a
     // `RichTextLabel` on its own plane, and `Edge.syncContent` compares and rebuilds it on every

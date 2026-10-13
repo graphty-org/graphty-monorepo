@@ -20,6 +20,12 @@ import type { Dispatcher, TransactionOptions } from "./project/Dispatcher";
 import { createRunResult, type ResultElementValues } from "./results/RunResult";
 import { type Caveats, ENGINE_VERSIONS, type RunExecutionContext, type RunExecutor, type RunOutcome } from "./runs";
 import type { CodedFact } from "./shared";
+import {
+    asFileStyleStore,
+    FILE_STYLES_VALUE,
+    type FileStyleLoadValues,
+    fileStyleValuesOf,
+} from "./styles/fileStyles/store";
 import type {
     DataSourceInput,
     GraphSession,
@@ -489,6 +495,21 @@ function write(
         };
     });
 
+    // The file-style values, an edge named by its position in the data as a run's edges are.
+    const fileStyles = fileStyleValuesOf(asFileStyleStore(dispatcher.state.graph.values.get(FILE_STYLES_VALUE))).map(
+        (load) => ({
+            ...load,
+            columns: load.columns.map((column) =>
+                column.kind === "node"
+                    ? column
+                    : {
+                          ...column,
+                          ids: column.ids.map((id) => edgeAt.get(id as EdgeId) ?? -1),
+                      },
+            ),
+        }),
+    );
+
     const { layout, visibility, selection } = session;
     // Where the graph was loaded from, and what the reader named it: not the rows, which are above.
     const source = session.data.source();
@@ -518,6 +539,8 @@ function write(
             visibility: { filter: visibility.filter, window: visibility.window, showContext: visibility.showContext },
             sets: session.sets.list().map((set) => ({ id: set.id, name: set.name, definition: set.definition })),
             views: [...session.views].map(([name, camera]) => ({ name, camera })),
+            // Additive: a file with no file styles writes nothing here, and an older file opens unchanged.
+            ...(fileStyles.length === 0 ? {} : { fileStyles }),
         },
         {
             kind: "graphty-arrangement",
@@ -989,6 +1012,14 @@ async function readProject(
     opening.restored.add("graph");
     const nodeIds = new Set(tx.data.nodes().map((node) => node.id));
 
+    // Before the styles, so a layer reading a `graphty.style.` path binds to what it reads.
+    if (Array.isArray(state.fileStyles)) {
+        const loads = state.fileStyles as unknown[];
+        await attempt(opening, "graph", () =>
+            tx.execute({ op: "data.setFileStyles", loads: fileStylesInto(loads, nodeIds, edgeIds) }),
+        );
+    }
+
     const layout = state.layout as
         { id: string; engine: string; options: Record<string, unknown>; dimension: "2d" | "3d" } | undefined;
     if (layout !== undefined) {
@@ -1143,6 +1174,66 @@ async function readProject(
     if (views.length > 0) {
         await attempt(opening, "views", () => tx.views.save(views));
     }
+}
+
+/**
+ * A project file's file-style values, rewritten onto this session's elements: a node by its id,
+ * kept when the data holds it; an edge by its position in the data, given the id this session
+ * gave it. Anything malformed is left for the command to refuse.
+ * @param loads - The saved loads.
+ * @param nodeIds - The nodes the session holds.
+ * @param edgeIds - The edge ids this session gave the file's edges, by position.
+ * @returns The loads, over this session's ids.
+ */
+function fileStylesInto(
+    loads: readonly unknown[],
+    nodeIds: ReadonlySet<NodeId>,
+    edgeIds: readonly (EdgeId | undefined)[],
+): FileStyleLoadValues[] {
+    return loads.map((load) => {
+        if (!isObject(load) || !Array.isArray(load.columns)) {
+            return load as FileStyleLoadValues;
+        }
+
+        const columns = (load.columns as unknown[]).map((column) => {
+            if (!isObject(column) || !Array.isArray(column.ids) || !Array.isArray(column.values)) {
+                return column;
+            }
+
+            const ids: (NodeId | EdgeId)[] = [];
+            const values: unknown[] = [];
+            const saved = column.values as unknown[];
+            (column.ids as unknown[]).forEach((id, at) => {
+                const mapped = column.kind === "edge" ? edgeOf(id, edgeIds) : nodeOf(id, nodeIds);
+                if (mapped !== undefined) {
+                    ids.push(mapped);
+                    values.push(saved[at]);
+                }
+            });
+            return { ...column, ids, values };
+        });
+        return { ...load, columns } as unknown as FileStyleLoadValues;
+    });
+}
+
+/**
+ * The node a saved file-style id names, when the session holds it.
+ * @param id - The saved id.
+ * @param nodeIds - The nodes the session holds.
+ * @returns The node id, or undefined.
+ */
+function nodeOf(id: unknown, nodeIds: ReadonlySet<NodeId>): NodeId | undefined {
+    return (typeof id === "string" || typeof id === "number") && nodeIds.has(id) ? id : undefined;
+}
+
+/**
+ * The edge a saved file-style position names.
+ * @param at - The saved position in the data.
+ * @param edgeIds - The edge ids this session gave the file's edges, by position.
+ * @returns The edge id, or undefined.
+ */
+function edgeOf(at: unknown, edgeIds: readonly (EdgeId | undefined)[]): EdgeId | undefined {
+    return typeof at === "number" ? edgeIds[at] : undefined;
 }
 
 /** One finished run as a results member keeps it. */

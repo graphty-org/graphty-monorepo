@@ -1,4 +1,5 @@
-import { jsonImporter } from "@graphty/graph-io";
+import type { Column, GraphSnapshot } from "@graphty/graph-format";
+import { jsonImporter, jsonShapeOf, sniffJsonDialectHead } from "@graphty/graph-io";
 import jmespath from "jmespath";
 import { z } from "zod/v4";
 import * as z4 from "zod/v4/core";
@@ -8,8 +9,21 @@ import type { AdHocData } from "../config/common";
 import { GraphtyError } from "../errors";
 import { BaseDataSourceConfig, DataSource, DataSourceChunk } from "./DataSource";
 import { resolveEndpoints } from "./endpoints";
-import type { DataLoadingError } from "./ErrorAggregator";
-import { aggregateErrors, columnsMapping, importRecords, importWhole, toRecords } from "./graph-io-import";
+import { type DataLoadingError, ErrorAggregator } from "./ErrorAggregator";
+import {
+    aggregateErrors,
+    columnsMapping,
+    components,
+    copiedPath,
+    copyColumns,
+    type ImportedGraph,
+    importRecords,
+    importWhole,
+    type ReaderImport,
+    type RecordMapping,
+    rememberImport,
+    toRecords,
+} from "./graph-io-import";
 import type { SourceInput } from "./source-bytes";
 
 const JsonNodeConfig = z
@@ -52,6 +66,29 @@ export const JsonDataSourceConfig = z.object({
 type JsonDataSourceConfigType = z.infer<typeof JsonDataSourceConfig>;
 
 /**
+ * The dialect of a document whose elements the default `nodes` and `edges` paths do not find: a
+ * JGF document of one `graph`, or a node-link document whose edges are `links` (NetworkX's
+ * `node_link_data`, which says `directed`, `multigraph` or `graph`, and d3, which says none).
+ * @param document - the parsed document
+ * @returns the dialect, or null for a document the default paths read
+ */
+function wholeDialectOf(document: unknown): "jgf" | "d3" | "node-link" | null {
+    if (!isObject(document)) {
+        return null;
+    }
+
+    if (isObject(document.graph) && ("nodes" in document.graph || "edges" in document.graph)) {
+        return "jgf";
+    }
+
+    if (!Array.isArray(document.links) || "edges" in document) {
+        return null;
+    }
+
+    return "directed" in document || "multigraph" in document || "graph" in document ? "node-link" : "d3";
+}
+
+/**
  * The direction a JSON document declares at its root, or null when it declares none.
  *
  * There is no JSON graph format, only conventions, and this reads the one that is nearly
@@ -84,6 +121,134 @@ function readDirectedKey(document: unknown): { directed: boolean; statedBy: stri
 
 /** The attribute a record's position in the file is carried to graph-io and back under. */
 const ROW_KEY = "graphty.row";
+
+/** How much of a document's head is enough to tell its JSON dialect. */
+const DIALECT_HEAD = 65536;
+
+/** The JSON dialects whose documents are read whole by graph-io rather than as plain node and edge arrays. */
+type ReadDialect = "cytoscape" | "graphology" | "vis";
+
+/** The suffix graph-io gives a Cytoscape `data` key or a graphology attribute named like one of its own columns. */
+const DATA_SUFFIX = "#data";
+
+/**
+ * The record mapping for a Cytoscape.js document: each `data` key under its own name, `position`
+ * as graph-io reads it (`{x, y}`, with y pointing up where Cytoscape.js's points down), and
+ * `parent` as the id of the parent node.
+ * @param snapshot - the imported graph
+ * @returns the mapping
+ */
+function cytoscapeMapping(snapshot: GraphSnapshot): RecordMapping {
+    const position = snapshot.nodes.byRole("position");
+    const parent = snapshot.nodes.byRole("parent");
+    return {
+        node(row, record): void {
+            copyColumns(snapshot.nodes, row, record);
+            if (position?.isSet(row)) {
+                const [x, y, z] = components(position, row);
+                record[position.meta.name] = position.meta.extra.sourceDims === 3 ? { x, y, z } : { x, y };
+            }
+
+            if (parent?.isSet(row)) {
+                record[parent.meta.name] = snapshot.ids.idOf(parent.value(row) as number);
+            }
+        },
+        edge(row, record): void {
+            copyColumns(snapshot.edges, row, record);
+        },
+        path: (kind, column) =>
+            kind === "node" && (column === position || column === parent) ? null : copiedPath(kind, column),
+    };
+}
+
+/** The suffix graph-io gives a key a dialect does not define, read from the element itself. */
+const ELEMENT_SUFFIX = "#element";
+
+/**
+ * Where a graphology or vis.js record holds the value graph-io read into a column: a graphology
+ * attribute under `attributes`, any other key at the top of the record. graph-io names a column
+ * after its key, with `#data` for an attribute and `#element` for a top-level key that took a name
+ * already used.
+ * @param record - one record that holds a value of the column
+ * @param name - the column's name
+ * @returns the keys down to the value, or null when the record holds it under neither
+ */
+function rawPath(record: Record<string, unknown>, name: string): string[] | null {
+    if (name.endsWith(ELEMENT_SUFFIX)) {
+        return [name.slice(0, -ELEMENT_SUFFIX.length)];
+    }
+
+    const attributes = isObject(record.attributes) ? record.attributes : null;
+    const key = name.endsWith(DATA_SUFFIX) ? name.slice(0, -DATA_SUFFIX.length) : name;
+    if (attributes !== null && Object.hasOwn(attributes, key)) {
+        return ["attributes", key];
+    }
+
+    return key === name && Object.hasOwn(record, name) ? [name] : null;
+}
+
+/**
+ * The import a graphology or vis.js document's records came from, with each column's place on
+ * the file's own records, found on the first record that holds a value of it.
+ * @param imported - graph-io's import of the document
+ * @param nodes - the node records handed to the element
+ * @param edges - the edge records handed to the element, one per edge graph-io kept, in order
+ * @returns the reader import
+ */
+function dialectImport(
+    imported: ImportedGraph,
+    nodes: readonly Record<string, unknown>[],
+    edges: readonly Record<string, unknown>[],
+): ReaderImport {
+    const { snapshot } = imported;
+    const byId = new Map<unknown, Record<string, unknown>>();
+    for (const node of nodes) {
+        if (!byId.has(node.id)) {
+            byId.set(node.id, node);
+        }
+    }
+
+    const pair = snapshot.edges.byRole("pair");
+    const edgeRecords = new Map<number, Record<string, unknown>>();
+    for (let row = 0, logical = 0; row < snapshot.edgeCount; row++) {
+        if (!(pair?.isSet(row) && (pair.value(row) as number) < row) && logical < edges.length) {
+            edgeRecords.set(row, edges[logical++]);
+        }
+    }
+
+    const paths = new Map<Column, string[] | null>();
+    const find = (kind: "node" | "edge", column: Column): string[] | null => {
+        if (column.meta.role !== null || copiedPath(kind, column) === null) {
+            return null;
+        }
+
+        const rows = kind === "node" ? snapshot.nodeCount : snapshot.edgeCount;
+        for (let row = 0; row < rows; row++) {
+            const record = kind === "node" ? byId.get(snapshot.ids.idOf(row)) : edgeRecords.get(row);
+            if (record !== undefined && column.isSet(row)) {
+                return rawPath(record, column.meta.name);
+            }
+        }
+
+        return null;
+    };
+
+    return {
+        imported,
+        path: (kind, name) => {
+            const column = (kind === "node" ? snapshot.nodes : snapshot.edges).get(name);
+            if (column === null || column === undefined) {
+                return null;
+            }
+
+            if (!paths.has(column)) {
+                paths.set(column, find(kind, column));
+            }
+
+            return paths.get(column) ?? null;
+        },
+    };
+}
 
 /** The keys a node record may carry its id under when no `nodeIdPath` is configured, in the order they are tried. */
 const ID_KEYS = ["id", "name", "key", "label"] as const;
@@ -178,35 +343,55 @@ export class JsonDataSource extends DataSource {
      * @yields DataSourceChunk objects containing parsed nodes and edges
      */
     async *sourceFetchData(): AsyncGenerator<DataSourceChunk, void, unknown> {
-        let data: unknown;
-
         // Get JSON content (could be from data, file, or url)
         const jsonString = await this.getContent();
 
-        // Handle empty content gracefully
-        if (jsonString.trim() === "") {
+        // Empty content reads as no elements; content that does not parse is reported first
+        const data = jsonString.trim() === "" ? undefined : this.parseJson(jsonString);
+        if (data === undefined) {
             yield* this.chunkData([], []);
             return;
         }
 
-        // Parse JSON
+        if (!(yield* this.readWholeDocument(jsonString, data))) {
+            yield* this.readByPaths(jsonString, data);
+        }
+    }
+
+    /**
+     * The parsed document.
+     * @param jsonString - the document's text
+     * @returns the value, or undefined when it does not parse (reported)
+     */
+    private parseJson(jsonString: string): unknown {
         try {
-            data = JSON.parse(jsonString);
+            return JSON.parse(jsonString) as unknown;
         } catch (error) {
             this.addError({
                 message: `Failed to parse JSON: ${error instanceof Error ? error.message : String(error)}`,
                 category: "parse-error",
             });
-
-            yield* this.chunkData([], []);
-            return;
+            return undefined;
         }
+    }
 
+    /**
+     * Reads a document graph-io reads whole: a `graphs` array, a dialect, a JGF document of one `graph`, or a
+     * node-link document whose edges are `links`. Declares the document's direction first.
+     * @param jsonString - the document's text
+     * @param data - the parsed document
+     * @yields DataSourceChunk objects containing the graph's nodes and edges
+     * @returns false when the document is read by its paths instead
+     */
+    private async *readWholeDocument(
+        jsonString: string,
+        data: unknown,
+    ): AsyncGenerator<DataSourceChunk, boolean, unknown> {
         // A `graphs` array (JGF, OBO Graphs) is read by graph-io, which picks the graph the caller
         // chose; the default paths find nothing at the root of such a document.
         if (isObject(data) && Array.isArray(data.graphs) && this.usesDefaultPaths()) {
             yield* this.readGraphsArray(jsonString, data.graphs);
-            return;
+            return true;
         }
 
         this.refuseOtherGraph();
@@ -218,6 +403,29 @@ export class JsonDataSource extends DataSource {
             this.declareDirection(declared.directed, declared.statedBy);
         }
 
+        const dialect = this.usesDefaultPaths() ? sniffJsonDialectHead(jsonString.slice(0, DIALECT_HEAD)) : null;
+        if (dialect === "cytoscape" || dialect === "graphology" || dialect === "vis") {
+            yield* this.readDialect(jsonString, data, dialect);
+            return true;
+        }
+
+        // A JGF document of one `graph`, and a node-link document whose edges are `links` (NetworkX,
+        // d3), keep their elements where the default paths do not look: graph-io reads them whole.
+        const whole = this.usesDefaultPaths() ? wholeDialectOf(data) : null;
+        if (whole !== null) {
+            yield* this.readWhole(jsonString, data, whole);
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Reads the node and edge arrays the configured paths find, through graph-io's node-link importer.
+     * @param jsonString - the document's text
+     * @param data - the parsed document
+     * @yields DataSourceChunk objects containing parsed nodes and edges
+     */
+    private async *readByPaths(jsonString: string, data: unknown): AsyncGenerator<DataSourceChunk, void, unknown> {
         const rawNodes = this.locate(data, this.opts.node.path, "nodes");
         const rawEdges = this.locate(data, this.opts.edge.path, "edges");
 
@@ -269,6 +477,29 @@ export class JsonDataSource extends DataSource {
             endpoints === null
                 ? rawEdges.filter((edge, index) => this.isValidEdge(edge, index))
                 : rowsOf(imported.edges).map((row) => rawEdges[row]);
+
+        if (idKey !== null && endpoints !== null && this.usesDefaultPaths()) {
+            // The file's styles, read on demand from the whole document: its graph attributes hold
+            // the block a graphty export writes, which the import above was not handed.
+            const options = {
+                dialect: "node-link" as const,
+                nodeIdKey: idKey,
+                sourceKey: endpoints.source,
+                targetKey: endpoints.target,
+                indexLinks: false,
+                weightFrom: null,
+                ids: "keep" as const,
+                defaultDirected: true,
+                errorLimit: Number.POSITIVE_INFINITY,
+            };
+            rememberImport(this, async () =>
+                dialectImport(
+                    await importWhole(jsonImporter, jsonString, options, new ErrorAggregator(Number.MAX_SAFE_INTEGER)),
+                    nodes as Record<string, unknown>[],
+                    edges as Record<string, unknown>[],
+                ),
+            );
+        }
 
         yield* this.chunkData(nodes as AdHocData[], edges as AdHocData[]);
     }
@@ -328,8 +559,129 @@ export class JsonDataSource extends DataSource {
             this.declareDirection(chosen.directed, `"directed": ${String(chosen.directed)}`);
         }
 
-        const { nodes, edges } = toRecords(imported, columnsMapping(snapshot));
+        const { nodes, edges } = toRecords(imported, columnsMapping(snapshot), this);
         yield* this.chunkData(nodes, edges);
+    }
+
+    /**
+     * Read a JGF document of one `graph`, or a node-link document with `links`, through graph-io's
+     * reader for its dialect; every column becomes a key of the record.
+     * @param text - the document
+     * @param data - the parsed document
+     * @param dialect - the dialect it was recognised as
+     * @yields DataSourceChunk objects containing the graph's nodes and edges
+     */
+    private async *readWhole(
+        text: string,
+        data: unknown,
+        dialect: "jgf" | "d3" | "node-link",
+    ): AsyncGenerator<DataSourceChunk, void, unknown> {
+        const graph = isObject(data) && isObject(data.graph) ? data.graph : null;
+        if (dialect === "jgf" && graph !== null && typeof graph.directed === "boolean") {
+            this.declareDirection(graph.directed, `"directed": ${String(graph.directed)}`);
+        }
+
+        const imported = await importWhole(
+            jsonImporter,
+            text,
+            {
+                dialect,
+                ids: "keep",
+                weightFrom: null,
+                ...(this.opts.errorLimit === undefined ? {} : { errorLimit: this.opts.errorLimit }),
+            },
+            this.errorAggregator,
+            { firstDeclarationWins: true },
+        );
+        const { nodes, edges } = toRecords(imported, columnsMapping(imported.snapshot), this);
+        yield* this.chunkData(nodes, edges);
+    }
+
+    /**
+     * Read a Cytoscape.js, graphology or vis.js document through graph-io's reader for its dialect,
+     * which knows where each one keeps its elements, ids and attributes.
+     *
+     * A Cytoscape.js element becomes a record of its `data` keys, its `position` and its `classes`.
+     * A graphology or vis.js record is handed over as the file wrote it, as every node-link record
+     * is: a graphology node gains `id`, its key, and keeps its attributes under `attributes`. Every
+     * node record is handed over, so the element counts a repeated id; an edge is handed over when
+     * graph-io kept it.
+     * @param text - the document
+     * @param data - the parsed document
+     * @param dialect - the dialect graph-io recognised
+     * @yields DataSourceChunk objects containing the graph's nodes and edges
+     */
+    private async *readDialect(
+        text: string,
+        data: unknown,
+        dialect: ReadDialect,
+    ): AsyncGenerator<DataSourceChunk, void, unknown> {
+        const imported = await importWhole(
+            jsonImporter,
+            text,
+            {
+                dialect,
+                ids: "keep",
+                weightFrom: null,
+                ...(this.opts.errorLimit === undefined ? {} : { errorLimit: this.opts.errorLimit }),
+            },
+            this.errorAggregator,
+            { firstDeclarationWins: true },
+        );
+        if (dialect === "cytoscape") {
+            const { nodes, edges } = toRecords(imported, cytoscapeMapping(imported.snapshot), this);
+            yield* this.chunkData(nodes, edges);
+            return;
+        }
+
+        const { snapshot } = imported;
+        const root = isObject(data) ? data : {};
+        const rawNodes = Array.isArray(root.nodes) ? root.nodes.filter(isObject) : [];
+        const nodes =
+            dialect === "graphology"
+                ? rawNodes.map((node) => ("id" in node || !("key" in node) ? node : { id: node.key, ...node }))
+                : rawNodes;
+        const edges = this.keptEdges(snapshot, Array.isArray(root.edges) ? root.edges : [], dialect);
+        rememberImport(this, () => dialectImport(imported, nodes, edges));
+        yield* this.chunkData(nodes as AdHocData[], edges as AdHocData[]);
+    }
+
+    /**
+     * The edge records graph-io kept, in file order: each of its edges is matched to the next
+     * record that names the same two endpoints, which skips the records it refused.
+     * @param snapshot - the imported graph
+     * @param rawEdges - the document's edge records
+     * @param dialect - graphology or vis
+     * @returns the kept records
+     */
+    private keptEdges(
+        snapshot: GraphSnapshot,
+        rawEdges: readonly unknown[],
+        dialect: "graphology" | "vis",
+    ): Record<string, unknown>[] {
+        const shape = jsonShapeOf(snapshot);
+        const sourceKey = shape?.sourceKey ?? (dialect === "vis" ? "from" : "source");
+        const targetKey = shape?.targetKey ?? (dialect === "vis" ? "to" : "target");
+        const pair = snapshot.edges.byRole("pair");
+        const kept: Record<string, unknown>[] = [];
+        let next = 0;
+        for (let row = 0; row < snapshot.edgeCount; row++) {
+            if (pair?.isSet(row) && (pair.value(row) as number) < row) {
+                continue;
+            }
+
+            const source = String(snapshot.ids.idOf(snapshot.edgeSource(row)));
+            const target = String(snapshot.ids.idOf(snapshot.edgeTarget(row)));
+            while (next < rawEdges.length) {
+                const edge = rawEdges[next++];
+                if (isObject(edge) && String(edge[sourceKey]) === source && String(edge[targetKey]) === target) {
+                    kept.push(edge);
+                    break;
+                }
+            }
+        }
+
+        return kept;
     }
 
     /**

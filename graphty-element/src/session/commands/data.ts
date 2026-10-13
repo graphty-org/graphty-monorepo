@@ -11,6 +11,8 @@
  *   `<kind>:<name>` so it is saved and undone like any other project change.
  * - `data.setSource`: the source the graph was loaded from, the `source` graph value
  *   `data.source()` reads: a new name for it, or the source a project file recorded.
+ * - `data.setFileStyles`: the per-element style values the layers made from files read at
+ *   `graphty.style.<namespace>.<kind>.<key>`, kept beside the data and never in its records.
  *
  * Each reads its records through ingest (id and endpoint extraction, the repeated-edge policy,
  * weights) and writes through the graph primitives in its draft, which record the resolved values,
@@ -36,6 +38,9 @@ import type { UndoableContext, UndoableDefinition } from "../project/Dispatcher"
 import type { Draft } from "../project/draft";
 import { edgeKey, nodeKey } from "../project/graphOps";
 import type { CodedFact } from "../shared";
+import { applyFileStyles, type ImportOutcome } from "../styles/fileStyles/apply";
+import { FILE_STYLES_VALUE, type FileStyleLoadValues, fileStyleStoreOf } from "../styles/fileStyles/store";
+import type { FileStyleOptions } from "../styles/fileStyles/translate";
 import { deepEquals } from "../styles/predicate";
 import type { HistoryCode, NodeRecordInput, RowUpdate } from "../types";
 import type { BatchCommand } from "./index";
@@ -146,6 +151,13 @@ export interface DataImportCommand {
      * properties assigned one after the other are one load.
      */
     readonly coalesce?: string;
+    /**
+     * `"file"` draws the file's own styles as layers, in the same step; `"none"` leaves them out.
+     * Absent, the source's `styles` option decides, and without one the file's styles are left out.
+     */
+    readonly styles?: "file" | "none";
+    /** How the file's styles are turned into layers; the source's `styleOptions` when absent. */
+    readonly styleOptions?: FileStyleOptions;
 }
 
 /** What `LoadDraft` holds and hands the ingest: the rows, and how to read them. */
@@ -198,9 +210,23 @@ interface DataSetSourceCommand {
     readonly source: ImportSource;
 }
 
+/**
+ * `data.setFileStyles`: replace the per-element style values the layers made from files read, one
+ * entry per load. An empty list removes them all.
+ */
+export interface DataSetFileStylesCommand {
+    readonly op: "data.setFileStyles";
+    readonly loads: readonly FileStyleLoadValues[];
+}
+
 /** Every data op. */
 export type DataCommand =
-    DataApplyCommand | DataImportCommand | DataExpandCommand | DataDeclareCommand | DataSetSourceCommand;
+    | DataApplyCommand
+    | DataImportCommand
+    | DataExpandCommand
+    | DataDeclareCommand
+    | DataSetSourceCommand
+    | DataSetFileStylesCommand;
 
 /** The measurements every declaration may name. */
 const DECLARABLE: ReadonlySet<string> = new Set(["categorical", "ordinal", "quantitative", "time"]);
@@ -239,7 +265,7 @@ export interface DataService {
         draft: Draft,
         signal: AbortSignal,
         after?: UndoableContext["after"],
-    ): Promise<void>;
+    ): Promise<ImportOutcome | null | undefined>;
     /**
      * Set graph-level values through `draft`: what a plugin algorithm wrote to `graphResults`, or
      * the data source's new name.
@@ -585,7 +611,9 @@ const dataImport: UndoableDefinition<DataImportCommand> = {
             });
         }
 
-        await serviceOf(ctx.services.data).import(command, ctx.draft, ctx.signal, ctx.after);
+        const outcome = await serviceOf(ctx.services.data).import(command, ctx.draft, ctx.signal, ctx.after);
+        // The file's styles, and the previous file's layers swept, in this same step.
+        await applyFileStyles(command, outcome ?? null, ctx);
     },
 };
 
@@ -696,5 +724,41 @@ const dataSetSource: UndoableDefinition<DataSetSourceCommand> = {
     },
 };
 
+const dataSetFileStyles: UndoableDefinition<DataSetFileStylesCommand> = {
+    op: "data.setFileStyles",
+    undo: {
+        kind: "undoable",
+        label: () => "Set the style values of loaded files",
+        fact: (command) => ({
+            code: "data.set-file-styles",
+            params: { loads: Array.isArray(command.loads) ? command.loads.length : 0 },
+        }),
+    },
+    moves: false,
+    keys: () => [`graph/v:${FILE_STYLES_VALUE}`],
+    lane: { kind: "immediate" },
+    execute: (command, ctx) => {
+        // Checked before anything is written: the values may come from a file anyone edited.
+        const store = fileStyleStoreOf(command.loads);
+        const service = serviceOf(ctx.services.data);
+        if (service.values === undefined) {
+            throw new GraphtyError({
+                code: "E_UNSUPPORTED",
+                message: "This session cannot write graph values, so it cannot keep style values.",
+                source: "data",
+            });
+        }
+
+        service.values({ [FILE_STYLES_VALUE]: store.loads.length === 0 ? undefined : store }, ctx.draft);
+    },
+};
+
 /** The data ops' definitions. */
-export const DATA_DEFINITIONS = [dataApply, dataImport, dataExpand, dataDeclare, dataSetSource] as const;
+export const DATA_DEFINITIONS = [
+    dataApply,
+    dataImport,
+    dataExpand,
+    dataDeclare,
+    dataSetSource,
+    dataSetFileStyles,
+] as const;

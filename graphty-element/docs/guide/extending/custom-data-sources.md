@@ -265,8 +265,42 @@ What the class does around your importer:
   value the host passes wins over it, and a declared option's default fills only what
   `importOptions` leaves open.
 
+- When your importer has a `styles` member -- graph-io's way for a format to say where its
+  colors, sizes and shapes are -- a load with `styles: "file"` draws them as style layers, exactly
+  as it draws a built-in format's, and the catalog entry says `styles: { read: true }` so an
+  application offers the choice for your format too. A descriptor that states `styles` itself wins.
+
 Remote and streaming loaders -- a service query, a paged API, a database -- will get a contract of
 their own, separate from file readers. It is not published yet.
+
+### A format with styles
+
+Say each trade-flows line may carry a fourth field, a CSS color, which the importer stores as the
+edge attribute `color` (`sink.addEdgeRecord(from, to, { weight: Number(value), color })`). One
+member tells graph-io where the colors are, and the element does the rest:
+
+```ts
+import { DataSource, type GraphImporter } from "@graphty/graphty-element/extend";
+
+const coloredTradeFlows: GraphImporter = {
+    ...tradeFlowsImporter,
+    // Which column holds which style, and how its values are spelled.
+    styles: () => ({ dialect: "css", edge: { color: { data: "color" } } }),
+};
+
+// Registered in place of the plain reader above.
+DataSource.register(DataSource.fromImporter(coloredTradeFlows, TRADE_FLOWS));
+await element.loadFromUrl("https://example.com/2026.trade", { styles: "file" });
+```
+
+The load finds the rules the colors follow ("fill by team") and draws each as a layer; see
+[Styles from Files](../file-styles). graph-io's guide to new formats describes the rest of the
+`styles` member: the spellings it reads, and style data kept outside the elements.
+
+A reader that is its own class (a `DataSource` subclass that parses the file itself) has no styles
+to draw: its catalog entry says `styles: { read: false, write: "none" }` unless its descriptor says
+otherwise, and a load with `styles: "file"` reads its data alone. To give such a format styles,
+read it with a graph-io importer instead.
 
 ## Using it
 
@@ -453,6 +487,9 @@ What the element does around it:
   `shape`, `thickness` role columns). Write what your format has a place for; report the rest from
   `check()` as loss notes, which `exportGraph` returns with the document. The element's own
   bookkeeping columns are never in it.
+- With `exportGraph(format, { styles: true })` your exporter is handed the graph's style layers
+  through graph-io's exporter style contract, and the `color`, `size`, `shape` and `thickness`
+  role columns are left out. What it keeps is your exporter's `styles` member (below).
 - `writerOptions` declares the options your writer takes, as `OptionDescriptor`s. An export that
   names any other option is refused with `E_UNKNOWN_OPTION`, exactly as for the built-in
   writers; graph-io's `sanitizeIds` and `onMixedDirection` are always accepted. The catalogue
@@ -463,6 +500,33 @@ What the element does around it:
 - Registration refuses a built-in id (`E_DUPLICATE_PLUGIN`), a descriptor without
   `canExport: true`, an exporter without the three methods, and an exporter whose `format` is not
   the descriptor's id (`E_BAD_COMMAND`, `details.field` naming it).
+
+### Styles in your format
+
+An exporter with no `styles` member keeps none of the graph's styles: an export with
+`styles: true` reports every property as `W_STYLE_NOT_WRITTEN` and the layers as
+`W_STYLE_RULES_NOT_KEPT`, so nothing is lost silently. One line keeps them for graphty in any format
+that writes graph, node and edge attributes:
+
+```ts
+const exporter: GraphExporter = {
+    // ...the members above, with graphAttributes: true in capabilities...
+    styles: { capabilities: { node: [], edge: [], block: "attributes" } },
+};
+```
+
+The layers then travel as a `graphty.styles` graph attribute and the values they read as
+`graphty.style.*` attributes, so loading the file back with `styles: "file"` (through a reader of
+the same format) rebuilds the same layers. Other programs see no styles in such a file, so each
+property is still a `W_STYLE_NOT_WRITTEN` loss for them. A format with style slots of its own lists
+the properties it writes in `capabilities.node` and `capabilities.edge` and writes each element's
+value from `options.styles.picture(target, property)`; a value written as the nearest one the
+format allows is reported from `check()` as `W_STYLE_APPROXIMATED`.
+
+The catalog entry's `styles.write` is derived from that member unless your descriptor states it:
+`"rules"` when the exporter keeps the layers (`block` is `"attributes"` or `"native"`), `"values"`
+when it writes only some properties into its own slots, and `"none"` with no `styles` member. An
+application reads it to warn a reader before a save loses their styles.
 
 ## Deliberate limits
 

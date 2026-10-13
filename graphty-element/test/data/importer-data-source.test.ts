@@ -194,7 +194,8 @@ async function load(type: string, data: string): Promise<unknown> {
 describe("DataSource.fromImporter", () => {
     it("files the wrapped importer under the descriptor's id", () => {
         assert.strictEqual(AcmeGml.type, "acme-gml");
-        assert.strictEqual(AcmeGml.descriptor, ACME_GML);
+        // The descriptor as given, with what the importer says about styles filled in.
+        assert.deepEqual(AcmeGml.descriptor, { ...ACME_GML, styles: { read: true, write: "none" } });
         assert.include(DataSource.getRegisteredTypes(), "acme-gml");
     });
 

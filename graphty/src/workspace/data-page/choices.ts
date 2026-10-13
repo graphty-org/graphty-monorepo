@@ -5,7 +5,10 @@
  * the draft.
  */
 
+import { formatDescriptor } from "@graphty/graphty-element/catalog";
 import type { ColumnRole, DraftTable, LoadChoices, LoadDraft, TableMapping } from "@graphty/graphty-element/session";
+
+import { fileStylesChoice } from "../settings/preferences";
 
 /** A column's role on the page: one of the element's roles, or "attribute" (no role). */
 export type PageRole = ColumnRole | "attribute";
@@ -25,9 +28,29 @@ export interface PageChoices {
     readonly unmatched: "add" | "leave-out";
     /** Direction: as the file says, or the reader's. */
     readonly directed: boolean | "auto";
+    /** Whether the load draws the file's own styles: the reader's import-styles preference. */
+    readonly styles: "file" | "none";
 }
 
-export const INITIAL_CHOICES: PageChoices = { tables: {}, unmatched: "leave-out", directed: "auto" };
+export const INITIAL_CHOICES: PageChoices = { tables: {}, unmatched: "leave-out", directed: "auto", styles: "file" };
+
+/**
+ * The choices a new draft starts with: the defaults, with the reader's import-styles preference.
+ * @returns the choices.
+ */
+export function initialChoices(): PageChoices {
+    return { ...INITIAL_CHOICES, styles: fileStylesChoice() };
+}
+
+/**
+ * Whether the draft's file can carry styles, so the page offers the import-styles choice: its
+ * format's catalog entry says so, or the element found styles in this file.
+ * @param draft - the draft.
+ * @returns true when the choice applies.
+ */
+export function offersStyles(draft: LoadDraft): boolean {
+    return draft.styles?.declared === true || formatDescriptor(draft.type)?.styles?.read === true;
+}
 
 /**
  * The roles a table of each kind takes, in menu order (the element's own role names).
@@ -200,6 +223,7 @@ export function loadChoices(draft: LoadDraft, choices: PageChoices, mode: "repla
         mode,
         unmatched: choices.unmatched,
         directed: choices.directed,
+        styles: choices.styles,
         ...(Object.keys(tables).length > 0 ? { mapping: { tables } } : {}),
     };
 }

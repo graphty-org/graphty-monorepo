@@ -21,8 +21,8 @@ import type { ProjectState } from "../project/state";
 import type { CodedFact } from "../shared";
 import type { EncodingSpec } from "../styles/EncodingSpec";
 import type { ExplainTarget } from "../styles/explain";
-import type { LayerPosition } from "../styles/Layer";
-import type { HighlightSpec } from "../styles/StylesApi";
+import type { LayerPosition, ValidationResult } from "../styles/Layer";
+import type { HighlightSpec, TemplatePosition } from "../styles/StylesApi";
 import type { HistoryCode } from "../types";
 
 /** The values of `style.patch`'s discriminant: one per styles verb that reaches it. */
@@ -95,6 +95,8 @@ interface StyleTemplateCommand {
     readonly document: StyleDocument;
     /** Recorded as the template on every layer that names no source of its own. */
     readonly templateId?: string;
+    /** Where the layers go; the top of the stack when absent. */
+    readonly at?: TemplatePosition;
 }
 
 /** Every style op. */
@@ -110,6 +112,12 @@ export interface StyleService {
      * @returns What the verb resolves with.
      */
     execute(command: StyleCommand, draft: Draft): unknown;
+    /**
+     * Check one layer specification against this session, writing nothing.
+     * @param spec - The specification.
+     * @returns The check's result.
+     */
+    validate?(spec: LayerSpec): ValidationResult;
 }
 
 /** What a style op's step is keyed on: the stack, one frozen value. */

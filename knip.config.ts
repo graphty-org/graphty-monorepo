@@ -59,15 +59,28 @@ const config: KnipConfig = {
                 "src/index.ts!",
                 "test/**/*.test.ts",
                 "test/types/**/*.test-d.ts",
-                "scripts/**/*.{ts,js}",
+                "scripts/**/*.{ts,js,mjs}",
             ],
-            project: ["src/**/*.ts!", "test/**/*.ts", "benchmarks/**/*.ts", "scripts/**/*.{ts,js}"],
+            project: ["src/**/*.ts!", "test/**/*.ts", "benchmarks/**/*.ts", "scripts/**/*.{ts,js,mjs}"],
         },
 
-        // graph-io package (src/index.ts re-exports every per-format subpath barrel)
+        // graph-io package (src/index.ts re-exports every per-format subpath barrel; src/styles/index.ts is
+        // the format-independent @graphty/graph-io/styles entry)
         "graph-io": {
-            entry: ["src/index.ts!", "test/**/*.test.ts", "test/types/**/*.test-d.ts", "scripts/**/*.{ts,js}"],
-            project: ["src/**/*.ts!", "test/**/*.ts", "benchmarks/**/*.ts", "scripts/**/*.{ts,js}"],
+            entry: [
+                "src/index.ts!",
+                "src/styles/index.ts!",
+                // the unpublished barrel of the whole style engine, for graph-io's own tests and scripts
+                "src/styles/internal.ts",
+                "test/**/*.test.ts",
+                "test/types/**/*.test-d.ts",
+                // the style harness loads every module in formats/ by directory listing; isolated.ts is the
+                // per-file runner scripts/styles-corpus.mjs spawns
+                "test/styles/formats/*.ts",
+                "test/styles/isolated.ts",
+                "scripts/**/*.{ts,js,mjs}",
+            ],
+            project: ["src/**/*.ts!", "test/**/*.ts", "benchmarks/**/*.ts", "scripts/**/*.{ts,js,mjs}"],
         },
 
         // cytoscape-extensions package (@graphty/cytoscape-extensions): Cytoscape.js extensions over the graphty packages

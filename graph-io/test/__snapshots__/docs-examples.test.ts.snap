@@ -242,3 +242,17 @@ exports[`documentation examples > saving/upload runs 1`] = `
   "[upload] https://example.com/api/graphs",
 ]
 `;
+
+exports[`documentation examples > styles/defaults runs 1`] = `[]`;
+
+exports[`documentation examples > styles/exporter runs 1`] = `[]`;
+
+exports[`documentation examples > styles/importer runs 1`] = `[]`;
+
+exports[`documentation examples > styles/kept runs 1`] = `[]`;
+
+exports[`documentation examples > styles/read runs 1`] = `[]`;
+
+exports[`documentation examples > styles/save runs 1`] = `[]`;
+
+exports[`documentation examples > styles/slots runs 1`] = `[]`;

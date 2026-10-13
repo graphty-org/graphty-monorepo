@@ -6,6 +6,7 @@ import { DirectionResolver } from "../src/common/direction.js";
 import { ImportReportBuilder } from "../src/common/report.js";
 import { decodeChunks } from "../src/common/writer.js";
 import { gexfExporter } from "../src/formats/gexf/exporter.js";
+import { GEXF_STYLE_CAPABILITIES } from "../src/formats/gexf/styles.js";
 import {
     checkExport,
     createRegistry,
@@ -311,7 +312,13 @@ describe("listFormats", () => {
             expect(info.extensions).toEqual(registry.importer(info.format).extensions);
             expect(info.mimeTypes).toEqual(registry.importer(info.format).mimeTypes);
             expect(info.extensions.length).toBeGreaterThan(0);
-            expect(info.capabilities).toBe(info.canExport ? registry.exporter(info.format).capabilities : null);
+            const exporter = info.canExport ? registry.exporter(info.format) : null;
+            if (exporter?.styles === undefined) {
+                expect(info.capabilities).toBe(exporter?.capabilities ?? null);
+            } else {
+                // a format that writes styles lists their capabilities beside its own
+                expect(info.capabilities).toEqual({ ...exporter.capabilities, styles: exporter.styles.capabilities });
+            }
         }
         expect(formats.find((f) => f.format === "pajek")?.extensions).toContain(".net");
         expect(formats.find((f) => f.format === "cys")?.canExport).toBe(true);
@@ -334,7 +341,7 @@ describe("listFormats", () => {
                 mimeTypes: ["application/x-mine"],
                 canImport: false,
                 canExport: true,
-                capabilities: gexfExporter.capabilities,
+                capabilities: { ...gexfExporter.capabilities, styles: GEXF_STYLE_CAPABILITIES },
             },
             {
                 format: "bare",
@@ -342,7 +349,7 @@ describe("listFormats", () => {
                 mimeTypes: [],
                 canImport: false,
                 canExport: true,
-                capabilities: gexfExporter.capabilities,
+                capabilities: { ...gexfExporter.capabilities, styles: GEXF_STYLE_CAPABILITIES },
             },
         ]);
     });

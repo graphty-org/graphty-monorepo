@@ -15,12 +15,15 @@ import { CommonImportOptions } from '@graphty/graph-io';
 import { CSSResult } from 'lit';
 import { CSV_LOSS } from '@graphty/graph-io';
 import { CX2_LOSS } from '@graphty/graph-io';
+import { CX_LOSS } from '@graphty/graph-io';
+import { CYS_LOSS } from '@graphty/graph-io';
 import { DerivedGraph } from '@graphty/graph-format';
 import { DOT_LOSS } from '@graphty/graph-io';
 import { DuplicatePolicy } from '@graphty/graph-format';
 import { EdgeMask } from '@graphty/graph-format';
 import { Engine } from '@babylonjs/core';
 import { EngineInstrumentation } from '@babylonjs/core';
+import type { ExtractedStyles } from '@graphty/graph-io/styles';
 import { F32 } from '@graphty/graph-format';
 import { FreezeReport } from '@graphty/graph-format';
 import { GEXF_LOSS } from '@graphty/graph-io';
@@ -54,6 +57,11 @@ import { Quaternion } from '@babylonjs/core';
 import { Ray } from '@babylonjs/core';
 import { Scene } from '@babylonjs/core';
 import { SceneInstrumentation } from '@babylonjs/core';
+import { StyleNoteCode } from '@graphty/graph-io/styles';
+import type { StyleRuleOrigin } from '@graphty/graph-io/styles';
+import type { StyleRuleReason } from '@graphty/graph-io/styles';
+import type { StyleRuleRole } from '@graphty/graph-io/styles';
+import type { StyleTool } from '@graphty/graph-io/styles';
 import { TransformNode } from '@babylonjs/core';
 import { U32 } from '@graphty/graph-format';
 import { U8 } from '@graphty/graph-format';
@@ -261,6 +269,7 @@ export interface BaseDataSourceConfig {
     file?: File;
     graphIndex?: number;
     graphName?: string;
+    styles?: "file" | "none";
     url?: string;
 }
 
@@ -651,6 +660,11 @@ export abstract class DataSource {
         extractionFailed: (path: string, error: string) => string;
     };
     protected fetchWithRetry(url: string, retries?: number, timeout?: number): Promise<Response>;
+    // @internal
+    fileStyles(options?: {
+        readonly toolDefaults?: boolean;
+        readonly signal?: AbortSignal;
+    }): Promise<FileStylesRead | null>;
     static fromImporter<Opts>(importer: GraphImporter<Opts>, descriptor: FormatDescriptor, options?: ImporterSourceOptions<Opts>): ImporterDataSourceClass;
     static get(type: string, opts?: object): DataSource | null;
     protected getBytes(): Promise<Uint8Array>;
@@ -886,6 +900,10 @@ export const EdgeStyle: z.ZodObject<{
             font: z.ZodOptional<z.ZodDefault<z.ZodString>>;
             fontSize: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             fontWeight: z.ZodOptional<z.ZodDefault<z.ZodString>>;
+            fontStyle: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
+                normal: "normal";
+                italic: "italic";
+            }>>>;
             lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             textColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
             backgroundColor: z.ZodOptional<z.ZodUnion<[z.ZodDiscriminatedUnion<[z.ZodObject<{
@@ -1049,6 +1067,10 @@ export const EdgeStyle: z.ZodObject<{
             font: z.ZodOptional<z.ZodDefault<z.ZodString>>;
             fontSize: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             fontWeight: z.ZodOptional<z.ZodDefault<z.ZodString>>;
+            fontStyle: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
+                normal: "normal";
+                italic: "italic";
+            }>>>;
             lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             textColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
             backgroundColor: z.ZodOptional<z.ZodUnion<[z.ZodDiscriminatedUnion<[z.ZodObject<{
@@ -1211,6 +1233,10 @@ export const EdgeStyle: z.ZodObject<{
         font: z.ZodOptional<z.ZodDefault<z.ZodString>>;
         fontSize: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         fontWeight: z.ZodOptional<z.ZodDefault<z.ZodString>>;
+        fontStyle: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
+            normal: "normal";
+            italic: "italic";
+        }>>>;
         lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         textColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
         backgroundColor: z.ZodOptional<z.ZodUnion<[z.ZodDiscriminatedUnion<[z.ZodObject<{
@@ -1431,7 +1457,7 @@ export type ExportGraphOptions = Readonly<Record<string, unknown>> & CommonExpor
 export type ExportLoss = CodedFact<ExportLossCode | (string & {})>;
 
 // @public
-export type ExportLossCode = CodesOf<typeof LOSS> | CodesOf<typeof CSV_LOSS> | CodesOf<typeof CX2_LOSS> | CodesOf<typeof DOT_LOSS> | CodesOf<typeof GEXF_LOSS> | CodesOf<typeof GML_LOSS> | CodesOf<typeof GRAPHML_LOSS> | CodesOf<typeof JSON_LOSS> | CodesOf<typeof NEO4J_LOSS> | CodesOf<typeof PAJEK_LOSS> | CodesOf<typeof XGMML_LOSS> | "W_GRAPHTY_COLUMN_DROPPED" | "W_GRAPHTY_NOTES" | "W_GRAPHTY_TRUNCATED" | "W_GRAPHTY_CSV_NEUTRALIZED" | "W_WEIGHT_NOT_NUMERIC" | "W_RESULT_FIELD_DROPPED";
+export type ExportLossCode = CodesOf<typeof LOSS> | CodesOf<typeof CSV_LOSS> | CodesOf<typeof CX_LOSS> | CodesOf<typeof CX2_LOSS> | CodesOf<typeof CYS_LOSS> | CodesOf<typeof DOT_LOSS> | CodesOf<typeof GEXF_LOSS> | CodesOf<typeof GML_LOSS> | CodesOf<typeof GRAPHML_LOSS> | CodesOf<typeof JSON_LOSS> | CodesOf<typeof NEO4J_LOSS> | CodesOf<typeof PAJEK_LOSS> | CodesOf<typeof XGMML_LOSS> | "W_GRAPHTY_COLUMN_DROPPED" | "W_GRAPHTY_NOTES" | "W_GRAPHTY_TRUNCATED" | "W_GRAPHTY_CSV_NEUTRALIZED" | "W_WEIGHT_NOT_NUMERIC" | "W_RESULT_FIELD_DROPPED" | ExportStyleLossCode;
 
 // @public
 export interface ExportResult {
@@ -1442,6 +1468,9 @@ export interface ExportResult {
     readonly lossNotes: readonly LossNote[];
     text(): Promise<string>;
 }
+
+// @public
+export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
 
 // @public
 export interface FindEnd {
@@ -1629,6 +1658,8 @@ export class Graph implements GraphContext {
         replace?: boolean;
         graphIndex?: number;
         graphName?: string;
+        styles?: "file" | "none";
+        styleOptions?: FileStyleOptions;
     }): Promise<{
         loadId: number;
     }>;
@@ -1640,6 +1671,8 @@ export class Graph implements GraphContext {
         replace?: boolean;
         graphIndex?: number;
         graphName?: string;
+        styles?: "file" | "none";
+        styleOptions?: FileStyleOptions;
     }): Promise<{
         loadId: number;
     }>;
@@ -2056,6 +2089,8 @@ export class Graphty extends LitElement {
         replace?: boolean;
         graphIndex?: number;
         graphName?: string;
+        styles?: "file" | "none";
+        styleOptions?: FileStyleOptions;
     }): Promise<{
         loadId: number;
     }>;
@@ -2067,6 +2102,8 @@ export class Graphty extends LitElement {
         replace?: boolean;
         graphIndex?: number;
         graphName?: string;
+        styles?: "file" | "none";
+        styleOptions?: FileStyleOptions;
     }): Promise<{
         loadId: number;
     }>;
@@ -2667,7 +2704,14 @@ export type GraphtyWarningCode =
 * draw it translucent, so the color is drawn opaque. `params.channel` is the channel and
 * `params.path` where in the layer the color sits. Today only `node.outline` cannot.
 */
-| "W_ALPHA_IGNORED";
+| "W_ALPHA_IGNORED"
+/**
+* A style layer binds a whole label style channel (`node.labelStyle`) to a path. No scale
+* produces a whole label style, so the binding paints nothing. `params.channel` is the channel,
+* `params.path` where in the layer, and `params.fieldChannels` the label field channels that
+* can be bound instead.
+*/
+| "W_LABEL_STYLE_BOUND";
 
 // @public
 export const GREEN_SUCCESS: {
@@ -3291,6 +3335,10 @@ export const NodeStyle: z.ZodObject<{
         font: z.ZodOptional<z.ZodDefault<z.ZodString>>;
         fontSize: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         fontWeight: z.ZodOptional<z.ZodDefault<z.ZodString>>;
+        fontStyle: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
+            normal: "normal";
+            italic: "italic";
+        }>>>;
         lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         textColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
         backgroundColor: z.ZodOptional<z.ZodUnion<[z.ZodDiscriminatedUnion<[z.ZodObject<{
@@ -3433,6 +3481,10 @@ export const NodeStyle: z.ZodObject<{
         font: z.ZodOptional<z.ZodDefault<z.ZodString>>;
         fontSize: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         fontWeight: z.ZodOptional<z.ZodDefault<z.ZodString>>;
+        fontStyle: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
+            normal: "normal";
+            italic: "italic";
+        }>>>;
         lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         textColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
         backgroundColor: z.ZodOptional<z.ZodUnion<[z.ZodDiscriminatedUnion<[z.ZodObject<{
@@ -4040,6 +4092,10 @@ export const RichTextStyle: z.ZodObject<{
     font: z.ZodOptional<z.ZodDefault<z.ZodString>>;
     fontSize: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
     fontWeight: z.ZodOptional<z.ZodDefault<z.ZodString>>;
+    fontStyle: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
+        normal: "normal";
+        italic: "italic";
+    }>>>;
     lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
     textColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
     backgroundColor: z.ZodOptional<z.ZodUnion<[z.ZodDiscriminatedUnion<[z.ZodObject<{

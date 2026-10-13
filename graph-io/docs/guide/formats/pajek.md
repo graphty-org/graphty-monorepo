@@ -111,24 +111,51 @@ read from CSV, gets a bare `*Network` line.
 
 What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-mean) explain each row):
 
-| Capability                                      | Value                  |
-| ----------------------------------------------- | ---------------------- |
-| [`mixedDirection`](./index.md#mixeddirection)   | yes                    |
-| [`multiEdges`](./index.md#multiedges)           | yes                    |
-| [`selfLoops`](./index.md#selfloops)             | yes                    |
-| [`edgeIds`](./index.md#edgeids)                 | none                   |
-| [`idCharset`](./index.md#idcharset)             | dense-1-based          |
-| [`dtypes`](./index.md#dtypes)                   | f64, i32, bool, string |
-| [`components`](./index.md#components)           | no                     |
-| [`lists`](./index.md#lists)                     | no                     |
-| [`json`](./index.md#json)                       | no                     |
-| [`defaults`](./index.md#defaults)               | no                     |
-| [`options`](./index.md#options)                 | no                     |
-| [`hierarchy`](./index.md#hierarchy)             | no                     |
-| [`temporal`](./index.md#temporal)               | spells                 |
-| [`graphAttributes`](./index.md#graphattributes) | no                     |
-| [`positions`](./index.md#positions)             | yes                    |
-| [`viz`](./index.md#viz)                         | no                     |
+| Capability                                      | Value                     |
+| ----------------------------------------------- | ------------------------- |
+| [`mixedDirection`](./index.md#mixeddirection)   | yes                       |
+| [`multiEdges`](./index.md#multiedges)           | yes                       |
+| [`selfLoops`](./index.md#selfloops)             | yes                       |
+| [`edgeIds`](./index.md#edgeids)                 | none                      |
+| [`idCharset`](./index.md#idcharset)             | dense-1-based             |
+| [`dtypes`](./index.md#dtypes)                   | f64, i32, bool, string    |
+| [`components`](./index.md#components)           | no                        |
+| [`lists`](./index.md#lists)                     | no                        |
+| [`json`](./index.md#json)                       | no                        |
+| [`defaults`](./index.md#defaults)               | no                        |
+| [`options`](./index.md#options)                 | no                        |
+| [`hierarchy`](./index.md#hierarchy)             | no                        |
+| [`temporal`](./index.md#temporal)               | spells                    |
+| [`graphAttributes`](./index.md#graphattributes) | no                        |
+| [`positions`](./index.md#positions)             | yes                       |
+| [`viz`](./index.md#viz)                         | no                        |
+| [`styles`](./index.md#styles)                   | 16 properties, rules kept |
+
+<!-- generated:end -->
+
+## Styles
+
+With `styles: true`, graph-io reads the vertex shape keyword and the `ic` (fill), `bc` (border
+color), `bw` (border width), `x_fact` and `y_fact` (size), `lc` (label color) and `fos` (label
+size) parameters, and on arcs and edges `c` (color), `w` (width) and `p` (`Solid`, `Dots`). Colors
+are Pajek's color names. Sizes are Pajek's relative factors, so `units.length` is `"relative"`.
+Pajek's defaults are added: ellipses, and black solid lines with an arrow on arcs.
+
+A save with styles writes the same parameters. A color is written as the nearest Pajek color name,
+and a line style other than solid or dotted as the nearer of the two (`W_STYLE_APPROXIMATED`). The
+rules for graphty, with their per-element values, go into a `% graphty.styles` comment line, which
+Pajek skips. See [Styles](../styles.md).
+
+<!-- generated:begin styles:pajek -->
+
+|                                     |                                                                                                                                                                                                                                                                                                                                                      |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Reads styles                        | yes, with `styles: true`                                                                                                                                                                                                                                                                                                                             |
+| Node properties written             | `fill`, `fillOpacity`, `opacity`, `borderColor`, `borderWidth`, `shape`, `width`, `height`, `labelColor`, `labelSize`                                                                                                                                                                                                                                |
+| Edge properties written             | `color`, `opacity`, `width`, `lineStyle`, `sourceArrow`, `targetArrow`                                                                                                                                                                                                                                                                               |
+| Graph properties written            | none                                                                                                                                                                                                                                                                                                                                                 |
+| Rules kept for graphty              | yes, in the file's own `graphty.styles` block                                                                                                                                                                                                                                                                                                        |
+| Not written (`W_STYLE_NOT_WRITTEN`) | node: `borderStyle`, `label`, `tooltip`, `labelFont`, `labelWeight`, `labelItalic`, `labelPosition`, `image`, `visible`; edge: `sourceArrowColor`, `targetArrowColor`, `labelColor`, `labelSize`, `arrowSize`, `curved`, `label`, `tooltip`, `labelFont`, `labelWeight`, `labelItalic`, `sourceLabel`, `targetLabel`, `visible`; graph: `background` |
 
 <!-- generated:end -->
 
@@ -205,6 +232,8 @@ The codes this format's import report can hold. They are also exported as `PAJEK
 - `W_PAJEK_RELATION_RENAMED` (warning): A relation number given a second name by a later `*Arcs :k "name"` header.
 - `W_PAJEK_NEGATIVE_LIST_ENTRY` (warning): A negative vertex number in an adjacency list, read as its absolute value.
 - `W_PRECISION` (warning): An integer beyond 2^53 was stored as the nearest 64-bit float; pass `long: "string"` to keep every digit.
+- `W_PAJEK_TRAILING_VALUE` (warning): A number alone at the end of a row, after its parameters (Pajek writes a trailing `0`); it is ignored.
+- `W_PAJEK_NAN_VALUE` (warning): A line whose value is `NaN`; the line is kept without a value.
 
 Like every format, it can also record the codes for unreadable input and for elements the graph refuses: [`E_EMPTY_INPUT`](../codes.md#E_EMPTY_INPUT), [`E_TOO_LARGE`](../codes.md#E_TOO_LARGE), [`W_ENCODING_CONFLICT`](../codes.md#W_ENCODING_CONFLICT), [`W_CONTROL_CHARACTER`](../codes.md#W_CONTROL_CHARACTER), [`E_FOREIGN_FORMAT`](../codes.md#E_FOREIGN_FORMAT), [`W_ISSUES_SUPPRESSED`](../codes.md#W_ISSUES_SUPPRESSED), [`E_INVALID_ID`](../codes.md#E_INVALID_ID), [`E_INVALID_WEIGHT`](../codes.md#E_INVALID_WEIGHT), [`E_DUPLICATE_EDGE`](../codes.md#E_DUPLICATE_EDGE), [`E_SELF_LOOP`](../codes.md#E_SELF_LOOP), [`E_DUPLICATE_EDGE_ID`](../codes.md#E_DUPLICATE_EDGE_ID).
 
@@ -224,9 +253,10 @@ The codes `checkExport(snapshot, "pajek", options)` can return before a save, al
 - `W_PAJEK_SHAPE_AS_PARAMETER` (warning): A `shape` attribute whose value is not one of Pajek's shape names is written as a parameter, and reads back as a plain text attribute.
 - `W_PAJEK_LABEL_GAINED` (warning): A vertex line with coordinates, a shape or parameters needs a label: the id text is written and reads back as a label.
 - `W_ROLE_ASSUMED` (warning): An attribute without a role is written where the format keeps a role (for example, a `name` column as the label), and reads back with that role.
+- `W_COLUMN_DROPPED` (warning): The label column, when a role-less column named `label` is read over it on import.
 - `W_ID_TEXT_TYPE` (warning): With `sanitizeIds: "mangle"`: an original id that reads back as a different type, such as the text "7" as the number 7.
 - `W_TEXT_INFERRED` (warning): A text value that reads back as a number or a boolean, because the format does not record that it was text (the text "42" reads back as the number 42).
 
-When the graph has something this format cannot hold, it can also return the [shared loss codes](../codes.md#shared-loss-codes): [`E_ID_CHARSET`](../codes.md#E_ID_CHARSET), [`E_ID_TEXT_COLLISION`](../codes.md#E_ID_TEXT_COLLISION), [`E_MIXED_DIRECTION`](../codes.md#E_MIXED_DIRECTION), [`E_XML_ILLEGAL_CHAR`](../codes.md#E_XML_ILLEGAL_CHAR), [`W_COLUMN_DROPPED`](../codes.md#W_COLUMN_DROPPED), [`W_COLUMN_NAME_CHANGED`](../codes.md#W_COLUMN_NAME_CHANGED), [`W_COMPONENTS_FLATTENED`](../codes.md#W_COMPONENTS_FLATTENED), [`W_DEFAULT_DROPPED`](../codes.md#W_DEFAULT_DROPPED), [`W_DTYPE_UNSUPPORTED`](../codes.md#W_DTYPE_UNSUPPORTED), [`W_DYNAMIC_VALUES_DROPPED`](../codes.md#W_DYNAMIC_VALUES_DROPPED), [`W_EDGE_IDS_DROPPED`](../codes.md#W_EDGE_IDS_DROPPED), [`W_EDGE_IDS_GENERATED`](../codes.md#W_EDGE_IDS_GENERATED), [`W_EMPTY_COLUMN_DROPPED`](../codes.md#W_EMPTY_COLUMN_DROPPED), [`W_EXTENSION_TABLE_DROPPED`](../codes.md#W_EXTENSION_TABLE_DROPPED), [`W_GRAPH_ATTRIBUTES_DROPPED`](../codes.md#W_GRAPH_ATTRIBUTES_DROPPED), [`W_HIERARCHY_DROPPED`](../codes.md#W_HIERARCHY_DROPPED), [`W_ID_MANGLED`](../codes.md#W_ID_MANGLED), [`W_ID_RENUMBERED`](../codes.md#W_ID_RENUMBERED), [`W_INTEGRAL_F64_AS_I32`](../codes.md#W_INTEGRAL_F64_AS_I32), [`W_JSON_UNSUPPORTED`](../codes.md#W_JSON_UNSUPPORTED), [`W_LIST_UNSUPPORTED`](../codes.md#W_LIST_UNSUPPORTED), [`W_MIXED_DIRECTION`](../codes.md#W_MIXED_DIRECTION), [`W_MULTI_EDGES`](../codes.md#W_MULTI_EDGES), [`W_MUTUAL_EXPANDED`](../codes.md#W_MUTUAL_EXPANDED), [`W_NONFINITE_AS_NULL`](../codes.md#W_NONFINITE_AS_NULL), [`W_OPEN_INTERVAL`](../codes.md#W_OPEN_INTERVAL), [`W_OPTIONS_DROPPED`](../codes.md#W_OPTIONS_DROPPED), [`W_OPTIONS_GAINED`](../codes.md#W_OPTIONS_GAINED), [`W_PARENTS_DROPPED`](../codes.md#W_PARENTS_DROPPED), [`W_POSITIONS_DROPPED`](../codes.md#W_POSITIONS_DROPPED), [`W_SELF_LOOPS`](../codes.md#W_SELF_LOOPS), [`W_SPELLS_DROPPED`](../codes.md#W_SPELLS_DROPPED), [`W_STORAGE_CLASS_CHANGED`](../codes.md#W_STORAGE_CLASS_CHANGED), [`W_TEMPORAL_TEXT_DROPPED`](../codes.md#W_TEMPORAL_TEXT_DROPPED), [`W_VIZ_DROPPED`](../codes.md#W_VIZ_DROPPED), [`W_WEIGHTS_DROPPED`](../codes.md#W_WEIGHTS_DROPPED), [`W_WEIGHT_KEY_CLASH`](../codes.md#W_WEIGHT_KEY_CLASH).
+When the graph has something this format cannot hold, it can also return the [shared loss codes](../codes.md#shared-loss-codes): [`E_ID_CHARSET`](../codes.md#E_ID_CHARSET), [`E_ID_TEXT_COLLISION`](../codes.md#E_ID_TEXT_COLLISION), [`E_MIXED_DIRECTION`](../codes.md#E_MIXED_DIRECTION), [`E_XML_ILLEGAL_CHAR`](../codes.md#E_XML_ILLEGAL_CHAR), [`W_COLUMN_NAME_CHANGED`](../codes.md#W_COLUMN_NAME_CHANGED), [`W_COMPONENTS_FLATTENED`](../codes.md#W_COMPONENTS_FLATTENED), [`W_DEFAULT_DROPPED`](../codes.md#W_DEFAULT_DROPPED), [`W_DTYPE_UNSUPPORTED`](../codes.md#W_DTYPE_UNSUPPORTED), [`W_DYNAMIC_VALUES_DROPPED`](../codes.md#W_DYNAMIC_VALUES_DROPPED), [`W_EDGE_IDS_DROPPED`](../codes.md#W_EDGE_IDS_DROPPED), [`W_EDGE_IDS_GENERATED`](../codes.md#W_EDGE_IDS_GENERATED), [`W_EMPTY_COLUMN_DROPPED`](../codes.md#W_EMPTY_COLUMN_DROPPED), [`W_EXTENSION_TABLE_DROPPED`](../codes.md#W_EXTENSION_TABLE_DROPPED), [`W_GRAPH_ATTRIBUTES_DROPPED`](../codes.md#W_GRAPH_ATTRIBUTES_DROPPED), [`W_HIERARCHY_DROPPED`](../codes.md#W_HIERARCHY_DROPPED), [`W_ID_MANGLED`](../codes.md#W_ID_MANGLED), [`W_ID_RENUMBERED`](../codes.md#W_ID_RENUMBERED), [`W_INTEGRAL_F64_AS_I32`](../codes.md#W_INTEGRAL_F64_AS_I32), [`W_JSON_UNSUPPORTED`](../codes.md#W_JSON_UNSUPPORTED), [`W_LIST_UNSUPPORTED`](../codes.md#W_LIST_UNSUPPORTED), [`W_MIXED_DIRECTION`](../codes.md#W_MIXED_DIRECTION), [`W_MULTI_EDGES`](../codes.md#W_MULTI_EDGES), [`W_MUTUAL_EXPANDED`](../codes.md#W_MUTUAL_EXPANDED), [`W_NONFINITE_AS_NULL`](../codes.md#W_NONFINITE_AS_NULL), [`W_OPEN_INTERVAL`](../codes.md#W_OPEN_INTERVAL), [`W_OPTIONS_DROPPED`](../codes.md#W_OPTIONS_DROPPED), [`W_OPTIONS_GAINED`](../codes.md#W_OPTIONS_GAINED), [`W_PARENTS_DROPPED`](../codes.md#W_PARENTS_DROPPED), [`W_POSITIONS_DROPPED`](../codes.md#W_POSITIONS_DROPPED), [`W_SELF_LOOPS`](../codes.md#W_SELF_LOOPS), [`W_SPELLS_DROPPED`](../codes.md#W_SPELLS_DROPPED), [`W_STORAGE_CLASS_CHANGED`](../codes.md#W_STORAGE_CLASS_CHANGED), [`W_TEMPORAL_TEXT_DROPPED`](../codes.md#W_TEMPORAL_TEXT_DROPPED), [`W_VIZ_DROPPED`](../codes.md#W_VIZ_DROPPED), [`W_WEIGHTS_DROPPED`](../codes.md#W_WEIGHTS_DROPPED), [`W_WEIGHT_KEY_CLASH`](../codes.md#W_WEIGHT_KEY_CLASH).
 
 <!-- generated:end -->

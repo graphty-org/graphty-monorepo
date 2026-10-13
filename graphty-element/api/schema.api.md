@@ -4,6 +4,9 @@
 
 ```ts
 
+import type { StyleRuleOrigin } from '@graphty/graph-io/styles';
+import type { StyleRuleReason } from '@graphty/graph-io/styles';
+import type { StyleRuleRole } from '@graphty/graph-io/styles';
 import { z } from 'zod/v4';
 
 // @public
@@ -33,6 +36,8 @@ export type Binding = {
     missing?: "skip" | {
         value: string | number;
     };
+    unmapped?: "skip";
+    stops?: BindingStop[];
     hidden?: (string | number | boolean)[];
     reverse?: boolean;
     midpoint?: number;
@@ -42,6 +47,14 @@ export type Binding = {
 
 // @public
 export type BindingOverflow = "other" | "shape" | "extend";
+
+// @public
+export interface BindingStop {
+    above?: string | number;
+    at: number;
+    below?: string | number;
+    value: string | number;
+}
 
 // @public
 export const BLUE_HIGHLIGHT: {
@@ -59,7 +72,7 @@ export const BLUES_COLORS: readonly ["#f7fbff", "#deebf7", "#c6dbef", "#9ecae1",
 export const CARBON_COLORS: readonly ["#6929C4", "#1192E8", "#005D5D", "#9F1853", "#FA4D56"];
 
 // @public
-export type Channel = "node.color" | "node.size" | "node.shape" | "node.label" | "node.labelStyle" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.glow" | "node.glowStrength" | "node.wireframe" | "node.flat" | "node.marker" | "edge.color" | "edge.width" | "edge.opacity" | "edge.style" | "edge.patternCount" | "edge.curvature" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailColor" | "edge.arrowTailOpacity" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle";
+export type Channel = "node.color" | "node.size" | "node.shape" | "node.label" | "node.labelStyle" | "node.labelColor" | "node.labelSize" | "node.labelFont" | "node.labelWeight" | "node.labelItalic" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.glow" | "node.glowStrength" | "node.wireframe" | "node.flat" | "node.marker" | "edge.color" | "edge.width" | "edge.opacity" | "edge.style" | "edge.patternCount" | "edge.curvature" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailColor" | "edge.arrowTailOpacity" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle" | "edge.labelColor" | "edge.labelSize" | "edge.labelFont" | "edge.labelWeight" | "edge.labelItalic";
 
 // @public
 export type ChannelValue = string | number | boolean | LabelStyle | Rgba;
@@ -179,6 +192,10 @@ export const EdgeStyle: z.ZodObject<{
             font: z.ZodOptional<z.ZodDefault<z.ZodString>>;
             fontSize: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             fontWeight: z.ZodOptional<z.ZodDefault<z.ZodString>>;
+            fontStyle: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
+                normal: "normal";
+                italic: "italic";
+            }>>>;
             lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             textColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
             backgroundColor: z.ZodOptional<z.ZodUnion<[z.ZodDiscriminatedUnion<[z.ZodObject<{
@@ -342,6 +359,10 @@ export const EdgeStyle: z.ZodObject<{
             font: z.ZodOptional<z.ZodDefault<z.ZodString>>;
             fontSize: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             fontWeight: z.ZodOptional<z.ZodDefault<z.ZodString>>;
+            fontStyle: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
+                normal: "normal";
+                italic: "italic";
+            }>>>;
             lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             textColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
             backgroundColor: z.ZodOptional<z.ZodUnion<[z.ZodDiscriminatedUnion<[z.ZodObject<{
@@ -504,6 +525,10 @@ export const EdgeStyle: z.ZodObject<{
         font: z.ZodOptional<z.ZodDefault<z.ZodString>>;
         fontSize: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         fontWeight: z.ZodOptional<z.ZodDefault<z.ZodString>>;
+        fontStyle: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
+            normal: "normal";
+            italic: "italic";
+        }>>>;
         lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         textColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
         backgroundColor: z.ZodOptional<z.ZodUnion<[z.ZodDiscriminatedUnion<[z.ZodObject<{
@@ -635,6 +660,41 @@ export type EdgeStyleConfig = z.infer<typeof EdgeStyle>;
 // @public
 export type Encoding = Partial<Record<Channel, Binding>>;
 
+// @public
+export type FileStyleMappingKind = "passthrough" | "discrete" | "continuous";
+
+// @public
+export interface FileStyleMeaning {
+    readonly name: string;
+    readonly value: string | number | boolean;
+}
+
+// @public
+export interface FileStyleOrigin {
+    readonly classes?: number;
+    readonly column?: Path;
+    readonly distinctValues?: number;
+    readonly elements?: number;
+    readonly entries?: number;
+    readonly format: string;
+    readonly importId: string;
+    readonly mapping?: FileStyleMappingKind;
+    readonly meanings?: readonly FileStyleMeaning[];
+    readonly origin: FileStyleRuleOrigin;
+    readonly reason?: FileStyleReason;
+    readonly role: FileStyleRole;
+    readonly ruleId: string;
+}
+
+// @public
+export type FileStyleReason = StyleRuleReason;
+
+// @public
+export type FileStyleRole = StyleRuleRole;
+
+// @public
+export type FileStyleRuleOrigin = StyleRuleOrigin;
+
 // @public @deprecated
 export type Filter = RuleTree;
 
@@ -730,6 +790,7 @@ export interface LabelStyle {
     gradientType?: LabelGradientType;
     icon?: string;
     iconPosition?: LabelIconPosition;
+    italic?: boolean;
     lineHeight?: number;
     location?: LabelLocation;
     marginBottom?: number;
@@ -790,6 +851,7 @@ export interface LayerSpec {
     enabled?: boolean;
     // (undocumented)
     encode?: Encoding;
+    fileStyle?: FileStyleOrigin;
     // (undocumented)
     kind?: LayerKind;
     // (undocumented)
@@ -920,6 +982,10 @@ export const NodeStyle: z.ZodObject<{
         font: z.ZodOptional<z.ZodDefault<z.ZodString>>;
         fontSize: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         fontWeight: z.ZodOptional<z.ZodDefault<z.ZodString>>;
+        fontStyle: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
+            normal: "normal";
+            italic: "italic";
+        }>>>;
         lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         textColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
         backgroundColor: z.ZodOptional<z.ZodUnion<[z.ZodDiscriminatedUnion<[z.ZodObject<{
@@ -1062,6 +1128,10 @@ export const NodeStyle: z.ZodObject<{
         font: z.ZodOptional<z.ZodDefault<z.ZodString>>;
         fontSize: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         fontWeight: z.ZodOptional<z.ZodDefault<z.ZodString>>;
+        fontStyle: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
+            normal: "normal";
+            italic: "italic";
+        }>>>;
         lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         textColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
         backgroundColor: z.ZodOptional<z.ZodUnion<[z.ZodDiscriminatedUnion<[z.ZodObject<{
@@ -1284,6 +1354,10 @@ export const RichTextStyle: z.ZodObject<{
     font: z.ZodOptional<z.ZodDefault<z.ZodString>>;
     fontSize: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
     fontWeight: z.ZodOptional<z.ZodDefault<z.ZodString>>;
+    fontStyle: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
+        normal: "normal";
+        italic: "italic";
+    }>>>;
     lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
     textColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
     backgroundColor: z.ZodOptional<z.ZodUnion<[z.ZodDiscriminatedUnion<[z.ZodObject<{

@@ -139,6 +139,11 @@ two.
   and the report has a `W_EDGE_ID_DROPPED` warning. An edge id that is also a node id gets the same
   warning and a new id in every format.
 - A compound parent (GraphML nested graph, DOT cluster) becomes `data.parent`.
+- Import with `styles: true` to draw a file's styles (see [Styles in and out](#styles-in-and-out)):
+  the stylesheet carries them, and a GEXF `viz:color`, `viz:size`, `viz:shape` and `viz:thickness`
+  are not data fields. Without `styles`, they are: `data.color` as four numbers from 0 to 1 (red,
+  green, blue, alpha), `data.size`, `data.shape` and `data.thickness`. These fields are deprecated
+  and are removed in the next major release; use `styles: true` instead.
 - Positions become node positions; nodes without one sit at the origin. CX, CX2 and XGMML put a
   z coordinate in `data.z`. CX, CX2, XGMML and Cytoscape JSON keep Cytoscape's own coordinates, so
   a node sits where Cytoscape drew it. GEXF, GML, DOT and Pajek are y-up, so y is negated on import
@@ -224,6 +229,130 @@ GML and CX2 take only integer node ids, and Pajek numbers its nodes 1 to N. The 
 with `restoreMangledIds: false` to keep the numbers and get the old id in
 `data.graphty_originalId`. With `"error"`, GML and CX2 reject, and Pajek ids read back as `"1"` to
 `"N"`.
+
+## Styles in and out
+
+Many files also say how the graph looks: Gephi's node colors and sizes in GEXF, yEd's shapes in
+GraphML, Graphviz attributes in DOT, Cytoscape desktop's visual style in XGMML, CX, CX2 and
+sessions, a Cytoscape.js stylesheet in JSON. `styles: true` reads that look into Cytoscape, and
+writes the core's look back out. This example draws a Gephi file in Gephi's colors, recolors one
+node, and saves the result as GraphML:
+
+<!-- example: styles-in-and-out (run by test/docs-styles-example.test.ts) -->
+
+```js
+import cytoscape from "cytoscape";
+import graphtyCytoscape from "@graphty/cytoscape-extensions";
+
+cytoscape.use(graphtyCytoscape);
+const cy = cytoscape({ headless: true, styleEnabled: true });
+
+const gexf = `<gexf xmlns="http://gexf.net/1.3" xmlns:viz="http://gexf.net/1.3/viz" version="1.3">
+  <meta><creator>Gephi 0.10.1</creator></meta>
+  <graph><nodes>
+    <node id="a"><viz:color r="228" g="26" b="28"/></node>
+    <node id="b"><viz:color r="55" g="126" b="184"/></node>
+  </nodes><edges><edge id="ab" source="a" target="b"/></edges></graph>
+</gexf>`;
+
+const { directed } = await cy.graphtyImport(gexf, "gexf", { styles: true, applyStyles: true });
+console.log(cy.$id("a").style("background-color")); // rgb(228,26,28)
+
+cy.style().selector("#b").style("background-color", "gold").update();
+const graphml = await cy.graphtyExport("graphml", {
+    directed,
+    styles: true,
+    onLoss: (notes) => notes.forEach((n) => console.warn(n.code, n.style ?? n.column, n.message)),
+});
+cy.destroy();
+```
+
+`graphml` holds both colors (`b` in gold) as yEd draws them, and importing it with
+`styles: true, applyStyles: true` draws the same. The example runs as a Node module; in a module a
+bundler builds, put it in an `async` function, as
+[Getting started](./getting-started#keep-await-out-of-the-top-level) explains. A headless core needs `styleEnabled: true` to
+draw styles, and keeps a timer running: call `cy.destroy()` when done.
+
+### Reading a file's styles
+
+With `styles: true`, `graphtyImport` also resolves to `stylesheet`: the file's colors, sizes,
+shapes, borders, labels, line styles and arrows as a Cytoscape.js stylesheet. `applyStyles: true`
+appends it to the core's stylesheet and gives each element the per-element overrides that make it
+draw exactly as the file says. Without `applyStyles` nothing is drawn, so you can look at the rules
+first, or append them yourself:
+
+```js
+const { stylesheet } = await cy.graphtyImport(text, "auto", { styles: true });
+cy.style()
+    .fromJson([...cy.style().json(), ...stylesheet])
+    .update();
+```
+
+The stylesheet alone draws what the file's rules say; an element the rules cannot describe exactly
+(a file that sets one node's color by hand, for example) looks right only with `applyStyles`.
+
+What the file leaves to the program that wrote it gets that program's default, so the graph looks
+as it does there (a Gephi node with no size is drawn 10 wide, and a Gephi edge with no color takes
+its source node's color; graph-io's
+[Styles guide](https://graphty.app/docs/graph-io/guide/styles.html) lists every program's defaults): Gephi's for GEXF, yEd's for yEd GraphML, Graphviz's for DOT, Cytoscape desktop's
+for XGMML, CX, CX2 and sessions, Cytoscape.js's for Cytoscape JSON. `styles: { toolDefaults: false }`
+leaves the defaults out. CSV, Neo4j, OBO and NetworkX or d3 JSON carry no styles, so
+`stylesheet` is absent. Anything the import could not read is a `W_STYLE_` warning in `report.issues`.
+
+Each rule applies only to the elements of its own import. Every element an import with `styles`
+adds gets an import id in `data.graphty_import` (`"1"`, `"2"`, ..., or the `importId` option), and
+every selector tests it (`node[graphty_import = "1"]`), so a second file loaded into the same core
+never recolors the first. The file's rules come after the rules the core already has; to override
+them, add your own rules after the import, as the example does.
+
+### Writing the core's styles
+
+With `styles: true`, `graphtyExport` writes the core's stylesheet (`cy.style()`), taking what the
+core draws for each element (`ele.style()`) as the truth. A selection writes the styles of its own
+elements. Each format gets the look in its own style slots, so the program the format belongs to
+draws it, plus the rules themselves in a `graphty.styles` block that other programs skip, so
+`graphtyImport` with `styles: true` rebuilds the same rules. The values those rules read are
+written beside it as `graphty_style_*` (or `graphty.style.*`) attributes on the elements, with
+`graphty_import`; yEd and Cytoscape desktop show them as ordinary attributes:
+
+| Format    | Other programs see                                     | Rules come back |
+| --------- | ------------------------------------------------------ | --------------- |
+| `gexf`    | Gephi's colors, sizes, shapes and edge thickness       | yes             |
+| `graphml` | yEd's graphics                                         | yes             |
+| `gml`     | yEd's `graphics` and `LabelGraphics`                   | yes             |
+| `dot`     | Graphviz attributes                                    | yes             |
+| `pajek`   | Pajek's vertex and edge parameters, colors by name     | yes             |
+| `json`    | a Cytoscape.js stylesheet (`style`)                    | yes             |
+| `xgmml`   | Cytoscape desktop's `graphics` for every element       | yes             |
+| `cx2`     | a Cytoscape visual style: defaults, mappings, bypasses | yes             |
+| `csv`     | nothing                                                | no              |
+| `neo4j`   | nothing                                                | no              |
+
+`onLoss` hears what the format cannot keep, one note per property, each with
+`style: { target, property }` (such as `{ target: "edge", property: "arrowSize" }`):
+
+| Code                      | What is lost                                                                                                              |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `W_STYLE_NOT_WRITTEN`     | The format has no slot for the property, so other programs do not see it; graphty reads it back where the rules come back |
+| `W_STYLE_APPROXIMATED`    | Written as the nearest value the format has (a shape GEXF lacks, a color as the nearest Pajek color name)                 |
+| `W_STYLE_RULES_NOT_KEPT`  | The format keeps no rules (CSV, Neo4j), so the look is lost                                                               |
+| `W_STYLE_LAYER_FLATTENED` | A rule the format's own style language cannot express, or a function-valued property, is written per element              |
+
+The core draws every property, its own defaults included, so a format with no slot for opacity,
+visibility or arrows reports them even when no rule of yours sets them. A note about a property
+you never styled says only that the format cannot hold Cytoscape.js's default; it is safe to ignore
+when that default is what you want.
+
+`onLoss` also hears what a format loses that is not a style: positions it has no place for
+(`W_POSITIONS_DROPPED`), a label column read back under its role (`W_ROLE_ASSUMED`), a list value
+written as JSON text (`W_JSON_UNSUPPORTED`, which a Gephi file's `data.color` array gets in GraphML;
+the colors themselves are in the style slots). Every code is listed on graph-io's
+[codes page](https://graphty.app/docs/graph-io/guide/codes.html).
+
+Without `styles`, `graphtyExport` writes exactly what it always did, and `onLoss` hears
+`W_STYLES_NOT_EXPORTED` when the core has a stylesheet of its own. A headless core created
+without `styleEnabled: true` has no styles to write: `styles: true` then writes the data alone,
+and `onLoss` hears `W_STYLES_NOT_EXPORTED` saying so.
 
 ## Without a core method
 

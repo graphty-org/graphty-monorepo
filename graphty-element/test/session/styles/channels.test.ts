@@ -30,6 +30,11 @@ const DECLARED = [
     "node.shape",
     "node.label",
     "node.labelStyle",
+    "node.labelColor",
+    "node.labelSize",
+    "node.labelFont",
+    "node.labelWeight",
+    "node.labelItalic",
     "node.tooltip",
     "node.tooltipStyle",
     "node.opacity",
@@ -60,6 +65,11 @@ const DECLARED = [
     "edge.animationSpeed",
     "edge.label",
     "edge.labelStyle",
+    "edge.labelColor",
+    "edge.labelSize",
+    "edge.labelFont",
+    "edge.labelWeight",
+    "edge.labelItalic",
 ];
 
 describe("the channel set", () => {
@@ -86,9 +96,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into fourteen node channels and twenty-one edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 14);
-        assert.strictEqual(channelsFor("edge").length, 21);
+    it("splits into nineteen node channels and twenty-six edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 19);
+        assert.strictEqual(channelsFor("edge").length, 26);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -286,6 +296,16 @@ describe("what a style editor needs to draw a row", () => {
         "edge.arrowTailTextStyle",
         "edge.label",
         "edge.labelStyle",
+        "node.labelColor",
+        "node.labelSize",
+        "node.labelFont",
+        "node.labelWeight",
+        "node.labelItalic",
+        "edge.labelColor",
+        "edge.labelSize",
+        "edge.labelFont",
+        "edge.labelWeight",
+        "edge.labelItalic",
     ]);
 
     /** The JavaScript type a default must have, per value kind. */
@@ -368,14 +388,16 @@ describe("what a style editor needs to draw a row", () => {
 });
 
 describe("colour channels", () => {
-    it("are the six that carry a colour, and the type says the same six", () => {
+    it("are the eight that carry a colour, and the type says the same eight", () => {
         const fromTheType: readonly ColorChannel[] = [
             "node.color",
+            "node.labelColor",
             "node.outline",
             "node.glow",
             "edge.color",
             "edge.arrowHeadColor",
             "edge.arrowTailColor",
+            "edge.labelColor",
         ];
 
         assert.deepEqual([...COLOR_CHANNELS], fromTheType);

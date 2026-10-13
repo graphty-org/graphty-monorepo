@@ -41,6 +41,7 @@ import {
 } from "../session/project/ingest";
 import type { GraphSlice } from "../session/project/state";
 import { readonlyMapView } from "../session/sealed";
+import type { ImportOutcome } from "../session/styles/fileStyles/apply";
 import type { DirectionProvenance, HistoryCause, ReadonlyElementPositions } from "../session/types";
 import type { Styles } from "../Styles";
 import type { EventManager } from "./EventManager";
@@ -634,8 +635,9 @@ export class DataManager implements Manager {
                 hooks.loading(true);
                 // Imports hold the whole graph, so one runs at a time and one field is enough.
                 this.loadId = command.source.config === undefined ? undefined : this.loadIds.get(command.source.config);
+                let outcome: ImportOutcome | null;
                 try {
-                    await this.ingest.importSource(command, writer, signal);
+                    outcome = await this.ingest.importSource(command, writer, signal);
                 } finally {
                     this.cause = cause;
                     this.loadId = undefined;
@@ -645,6 +647,8 @@ export class DataManager implements Manager {
                 if (command.source.type !== undefined && command.source.config !== undefined) {
                     hooks.rowsAdded(after);
                 }
+
+                return outcome;
             },
         };
     }

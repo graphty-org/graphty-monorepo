@@ -13,14 +13,15 @@
  * shows), in a label column named `name`, and ids an exporter mangled are restored from the node
  * table's `graphty:originalId` (restoreMangledIds). 2.x: one full XGMML file per network, with
  * selection and hidden state from `cysession.xml`. Everything is resolved by the XGMML emitter, so
- * both readers share every column rule. Styles are not read (issue #706): W_STYLES_NOT_IMPORTED.
+ * both readers share every column rule. Asked for styles, the importer reads the style the imported view names
+ * from `session_vizmap.xml` (styles.ts), kept for it through the report; otherwise W_STYLES_NOT_IMPORTED.
  */
 
 import { GraphFormatError, type GraphSink, INVALID_INDEX } from "@graphty/graph-format";
 
 import { declareResolved } from "../../common/attributes.js";
 import { IdCoercer } from "../../common/ids.js";
-import { decodeEntryName, throwIfAborted } from "../../common/input.js";
+import { decodeEntryName, readText, throwIfAborted } from "../../common/input.js";
 import {
     chooseGraph,
     graphChosen,
@@ -33,6 +34,7 @@ import {
 import { agree, elementCount, plural } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
 import { startsLikeZip } from "../../common/zip.js";
+import { STYLE_BLOCK_NAME } from "../../styles/io/block.js";
 import {
     type CommonImportOptions,
     type GraphChoiceOptions,
@@ -88,6 +90,7 @@ import {
     urlDecode,
     type XmlNode,
 } from "./session.js";
+import { readSessionStyles, type SessionStyleSource } from "./styles.js";
 import { cellAtt, type CyTable, readCyTable, type VirtualColumn, virtualColumnsOf } from "./tables.js";
 
 /**
@@ -469,8 +472,9 @@ function registeredGraphs(parsed: Parsed): GraphRec[] {
  * @param choice - the subnetwork
  * @param sink - the sink
  * @param parsed - its network file, parsed for this import (its records are filled in)
+ * @returns the style its view names, or null
  */
-async function import3(prepared: Prepared, choice: Choice3, sink: GraphSink, parsed: Parsed): Promise<void> {
+async function import3(prepared: Prepared, choice: Choice3, sink: GraphSink, parsed: Parsed): Promise<string | null> {
     const { graph } = choice;
     const members = membersOf(parsed.doc, graph);
     const nodes = byId(members.nodes);
@@ -478,7 +482,7 @@ async function import3(prepared: Prepared, choice: Choice3, sink: GraphSink, par
     // the records are shared by every network of the file: what this import adds is undone after
     const restore = saveRecords(graph, nodes, edges);
     try {
-        await fill3(prepared, choice, sink, parsed, nodes, edges);
+        return await fill3(prepared, choice, sink, parsed, nodes, edges);
     } finally {
         restore();
     }
@@ -530,6 +534,7 @@ function saveRecords(
  * @param parsed - its network file
  * @param nodes - its node records by id
  * @param edges - its edge records by id
+ * @returns the style its view names, or null
  */
 async function fill3(
     prepared: Prepared,
@@ -538,7 +543,7 @@ async function fill3(
     parsed: Parsed,
     nodes: ReadonlyMap<string, NodeRec>,
     edges: ReadonlyMap<string, EdgeRec>,
-): Promise<void> {
+): Promise<string | null> {
     const { report, inner } = prepared;
     const { doc, dialect } = parsed;
     const { graph } = choice;
@@ -553,6 +558,12 @@ async function fill3(
     }
     const restoredIds = inner.restoreMangledIds ? restoreIds(members.nodes) : new Map<string, string>();
     const { visualStyle, extraViews, extraIds } = await readViews(prepared, choice, nodes, edges);
+    const block =
+        prepared.session.layout.block === null ? null : await entryText(prepared, prepared.session.layout.block);
+    if (block !== null) {
+        // the graphty.styles block of a session graphty wrote: a graph attribute, as in every other format
+        graph.atts.push(textAtt(STYLE_BLOCK_NAME, block));
+    }
     const cyMeta = sessionMeta(prepared, {
         collection: doc.root.label ?? choice.network.title,
         network: choice.graphId,
@@ -586,6 +597,7 @@ async function fill3(
     }
     reportRootOnly(parsed, report, choice.network.name);
     writeViewPositions(sink, extraViews, extraIds, report, prepared.inner, restoredIds);
+    return visualStyle;
 }
 
 /**
@@ -749,7 +761,8 @@ function rowAtts(
     const line = table.lines.get(key) ?? 0;
     const out: AttRec[] = [];
     for (let i = 1; i < table.columns.length && i < cells.length; i++) {
-        pushAtt(out, cellAtt(table.columns[i], cells[i], line, namespace, hidden));
+        const quoted = table.quotedEmpty?.get(key)?.has(i) === true;
+        pushAtt(out, cellAtt(table.columns[i], cells[i], line, namespace, hidden, quoted));
     }
     return out;
 }
@@ -1305,8 +1318,9 @@ function sessionRecord(report: ImportReportBuilder, entry: string, message: stri
  * @param prepared - the prepared import
  * @param choice - the network
  * @param sink - the sink
+ * @returns the style the network uses, or null
  */
-async function import2(prepared: Prepared, choice: Choice2, sink: GraphSink): Promise<void> {
+async function import2(prepared: Prepared, choice: Choice2, sink: GraphSink): Promise<string | null> {
     const { report, inner, session } = prepared;
     const { doc, dialect } = await parseEntry(session, choice.file, report, inner);
     let unmatched = 0;
@@ -1343,6 +1357,7 @@ async function import2(prepared: Prepared, choice: Choice2, sink: GraphSink): Pr
     };
     const settings: XgmmlSettings = { labelAliases: true, cytoscapeEscapes: true, zAs: prepared.zAs };
     new XgmmlEmitter(doc, dialect, sink, report, inner, settings, extras).emit(null);
+    return cyMeta.visualStyle;
 }
 
 /**
@@ -1466,14 +1481,114 @@ function sessionMeta(
  */
 async function importChoice(prepared: Prepared, index: number, sink: GraphSink): Promise<ImportReport> {
     const choice = prepared.choices[index];
+    let visualStyle: string | null;
     if (choice.era === "3") {
         const parsed = prepared.docs.get(choice.network.name) as Parsed;
-        await import3(prepared, choice, sink, parsed);
+        visualStyle = await import3(prepared, choice, sink, parsed);
     } else {
-        await import2(prepared, choice, sink);
+        visualStyle = await import2(prepared, choice, sink);
     }
+    await keepStyleSource(prepared, index, visualStyle);
     throwIfAborted(prepared.common.signal);
     return prepared.report.finish();
+}
+
+/**
+ * Keep what the session's style reader needs (`styles()` gets it back as `context.kept`): the parsed
+ * `session_vizmap.xml` of a 3.x session, the style the imported view names, and which network was imported.
+ * Reading the styles never fails the import: a damaged entry is kept as the reason it cannot be read.
+ * @param prepared - the prepared import
+ * @param index - the network imported
+ * @param visualStyle - the style its view names, or null
+ */
+async function keepStyleSource(prepared: Prepared, index: number, visualStyle: string | null): Promise<void> {
+    const { layout } = prepared.session;
+    const entry = layout.styles.find((e) => e.path.endsWith("session_vizmap.xml"));
+    let vizmap: XmlNode | null = null;
+    let problem: string | null = null;
+    if (layout.era === "3" && entry !== undefined) {
+        const bytes = await entryBytes(prepared, entry);
+        const tree =
+            typeof bytes === "string"
+                ? bytes
+                : await parseXmlTree(bytes, entry.name, new ImportReportBuilder(FORMAT, 0), prepared.inner);
+        if (typeof tree === "string") {
+            problem = tree;
+        } else {
+            vizmap = tree;
+        }
+    }
+    const source: SessionStyleSource = {
+        era: layout.era,
+        vizmap,
+        problem,
+        visualStyle,
+        network: { index, name: prepared.choices[index].name },
+    };
+    prepared.report.keepForStyles(source);
+}
+
+/**
+ * An entry's bytes for the styles, read outside the import's report: a damaged entry is the reason, never a failure.
+ * @param prepared - the prepared import
+ * @param entry - the entry
+ * @returns the bytes, or why they cannot be read
+ */
+async function entryBytes(prepared: Prepared, entry: SessionEntry): Promise<Uint8Array | string> {
+    try {
+        return await prepared.session.read(entry, new ImportReportBuilder(FORMAT, 0));
+    } catch (err) {
+        if (err instanceof ImportError) {
+            return err.message;
+        }
+        throw err;
+    }
+}
+
+/**
+ * An entry's text for the styles, or null when it cannot be read.
+ * @param prepared - the prepared import
+ * @param entry - the entry
+ * @returns the text, or null
+ */
+async function entryText(prepared: Prepared, entry: SessionEntry): Promise<string | null> {
+    const bytes = await entryBytes(prepared, entry);
+    if (typeof bytes === "string") {
+        return null;
+    }
+    try {
+        return await readText(bytes, new ImportReportBuilder(FORMAT, 0), { signal: prepared.common.signal });
+    } catch (err) {
+        if (err instanceof ImportError) {
+            return null;
+        }
+        throw err;
+    }
+}
+
+/**
+ * A text att of the network.
+ * @param name - its name
+ * @param value - its text
+ * @returns the att
+ */
+function textAtt(name: string, value: string): AttRec {
+    return {
+        name,
+        type: "string",
+        cyType: "String",
+        elementType: null,
+        value,
+        hidden: false,
+        equation: false,
+        children: [],
+        extra: {},
+        xml: null,
+        hasGraph: false,
+        text: "",
+        line: 0,
+        namespace: null,
+    };
 }
 
 /**
@@ -1599,4 +1714,5 @@ export const cysImporter: GraphImporter<CysImportOptions> = Object.freeze({
     import: importCys,
     importAll: importAllCys,
     listGraphs: listCysGraphs,
+    styles: readSessionStyles,
 });

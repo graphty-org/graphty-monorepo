@@ -14,6 +14,10 @@
  * re-importing the tree gives them back. A value edited after import (a layout writing the
  * position) or a tree column removed is therefore not written, and the exporter reports it as a
  * loss (staleGraphicsRows()).
+ *
+ * Deprecated and frozen, not fixed: these columns, the rule that a target arrow makes an edge
+ * directed and the label role of `yfiles.label` stay exactly as they are until the next major
+ * version removes them. The yEd and yFiles 3 style readers read the kept graphics tree instead.
  */
 
 import { type Column, type ColumnDecl, type JsonColumn } from "@graphty/graph-format";

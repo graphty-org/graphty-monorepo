@@ -131,7 +131,13 @@ describe("Build Output Tests", () => {
             "xgmml",
         ]);
         const subpaths = Object.keys(packageJson.exports).filter((key) => key !== ".");
-        expect(subpaths.sort()).toEqual(FORMAT_DIRS.map((dir) => `./${dir}`));
+        // one per format, plus the format-independent styles module
+        expect(subpaths.sort()).toEqual([...FORMAT_DIRS.map((dir) => `./${dir}`), "./styles"].sort());
+        expect(packageJson.exports["./styles"]).toEqual({
+            types: "./dist/styles.d.ts",
+            import: "./dist/styles.js",
+            default: "./dist/styles.js",
+        });
         for (const dir of FORMAT_DIRS) {
             const entry = packageJson.exports[`./${dir}`];
             expect(Object.keys(entry), dir).toEqual(["types", "import", "default"]);
@@ -144,8 +150,10 @@ describe("Build Output Tests", () => {
         const entries = readFileSync(resolve("./scripts/entries.js"), "utf-8");
         const typedoc = readJson("./typedoc.json") as { entryPoints: string[] };
         expect(typedoc.entryPoints).toContain("./src/index.ts");
-        expect(typedoc.entryPoints).toHaveLength(FORMAT_DIRS.length + 1);
+        expect(typedoc.entryPoints).toHaveLength(FORMAT_DIRS.length + 2);
+        expect(typedoc.entryPoints).toContain("./src/styles/index.ts");
         expect(entries).toContain('"graph-io": "src/index.ts"');
+        expect(entries).toContain('styles: "src/styles/index.ts"');
         for (const dir of FORMAT_DIRS) {
             expect(entries, dir).toContain(`${dir}: "src/formats/${dir}/index.ts"`);
             // the API reference documents every subpath barrel

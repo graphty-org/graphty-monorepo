@@ -5,6 +5,9 @@
 ```ts
 
 import { GraphListing } from '@graphty/graph-io';
+import type { StyleRuleOrigin } from '@graphty/graph-io/styles';
+import type { StyleRuleReason } from '@graphty/graph-io/styles';
+import type { StyleRuleRole } from '@graphty/graph-io/styles';
 import { z } from 'zod/v4';
 
 // @public
@@ -193,12 +196,22 @@ export type Binding = {
     missing?: "skip" | {
         value: string | number;
     };
+    unmapped?: "skip";
+    stops?: BindingStop[];
     hidden?: (string | number | boolean)[];
     reverse?: boolean;
     midpoint?: number;
     bins?: number;
     exponent?: number;
 };
+
+// @public
+export interface BindingStop {
+    above?: string | number;
+    at: number;
+    below?: string | number;
+    value: string | number;
+}
 
 // @public
 export const BUILT_IN_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[];
@@ -275,7 +288,7 @@ export interface CatalogApi {
 }
 
 // @public
-export type Channel = "node.color" | "node.size" | "node.shape" | "node.label" | "node.labelStyle" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.glow" | "node.glowStrength" | "node.wireframe" | "node.flat" | "node.marker" | "edge.color" | "edge.width" | "edge.opacity" | "edge.style" | "edge.patternCount" | "edge.curvature" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailColor" | "edge.arrowTailOpacity" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle";
+export type Channel = "node.color" | "node.size" | "node.shape" | "node.label" | "node.labelStyle" | "node.labelColor" | "node.labelSize" | "node.labelFont" | "node.labelWeight" | "node.labelItalic" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.glow" | "node.glowStrength" | "node.wireframe" | "node.flat" | "node.marker" | "edge.color" | "edge.width" | "edge.opacity" | "edge.style" | "edge.patternCount" | "edge.curvature" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailColor" | "edge.arrowTailOpacity" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle" | "edge.labelColor" | "edge.labelSize" | "edge.labelFont" | "edge.labelWeight" | "edge.labelItalic";
 
 // @public
 export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>>;
@@ -448,6 +461,7 @@ export const FORMAT_DESCRIPTORS: readonly FormatDescriptor[];
 
 // @public
 export interface FormatDescriptor {
+    binary?: boolean;
     // (undocumented)
     canExport: boolean;
     // (undocumented)
@@ -461,6 +475,7 @@ export interface FormatDescriptor {
     options: readonly OptionDescriptor[];
     // (undocumented)
     plainName: string;
+    styles?: FormatStyles;
     writerOptions?: readonly OptionDescriptor[];
 }
 
@@ -472,6 +487,12 @@ export type FormatId = (typeof KNOWN_FORMAT_IDS)[number] | (string & {});
 
 // @public
 export function formatsForExtension(extension: string): readonly FormatDescriptor[];
+
+// @public
+export interface FormatStyles {
+    readonly read: boolean;
+    readonly write: "rules" | "values" | "none";
+}
 
 // @public
 export interface FunctionDescriptor {
@@ -931,6 +952,7 @@ export interface LabelStyle {
     gradientType?: LabelGradientType;
     icon?: string;
     iconPosition?: LabelIconPosition;
+    italic?: boolean;
     lineHeight?: number;
     location?: LabelLocation;
     marginBottom?: number;
@@ -994,6 +1016,7 @@ export interface LayerSpec {
     enabled?: boolean;
     // (undocumented)
     encode?: Encoding;
+    fileStyle?: FileStyleOrigin;
     // (undocumented)
     kind?: LayerKind;
     // (undocumented)

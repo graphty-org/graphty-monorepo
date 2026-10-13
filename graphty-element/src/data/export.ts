@@ -29,10 +29,15 @@ import {
     type CommonExportOptions,
     type CSV_LOSS,
     csvExporter,
+    type CX_LOSS,
     type CX2_LOSS,
     cx2Exporter,
+    cxExporter,
+    type CYS_LOSS,
+    cysExporter,
     type DOT_LOSS,
     dotExporter,
+    FormatRegistry,
     type GEXF_LOSS,
     gexfExporter,
     type GML_LOSS,
@@ -51,6 +56,7 @@ import {
     type XGMML_LOSS,
     xgmmlExporter,
 } from "@graphty/graph-io";
+import { type ExtractedStyles, STYLE_ISSUE, type StyleRule } from "@graphty/graph-io/styles";
 
 import { formatDescriptor, NEO4J_WRITER_OPTIONS } from "../catalog/formats";
 import { resolveOptionValues } from "../catalog/options";
@@ -62,10 +68,16 @@ import {
     registeredFormatWriter,
 } from "../catalog/writerRegistry";
 import { GraphtyError } from "../errors";
+import { dispatcherOf } from "../session/GraphSession";
 import { rowsOf } from "../session/notes/countIndex";
 import { resolveEdgeWeight } from "../session/project/ingest";
-import type { CodedFact } from "../session/shared";
+import type { CodedFact, CodedFactParam } from "../session/shared";
+import type { ExportStyleLossCode } from "../session/styles/fileStyles/codes";
+import { layersToStyles } from "../session/styles/fileStyles/fromLayers";
+import { asFileStyleStore, FILE_STYLES_VALUE } from "../session/styles/fileStyles/store";
 import type { GraphSession } from "../session/types";
+
+export type { ExportStyleLossCode } from "../session/styles/fileStyles/codes";
 
 /** Options of one export: the writer's own, and graph-io's common ones. */
 export type ExportGraphOptions = Readonly<Record<string, unknown>> & CommonExportOptions;
@@ -76,7 +88,7 @@ type CodesOf<Table> = Extract<Table[keyof Table], string>;
 /**
  * What a built-in writer could not carry, as the `code` of an {@link ExportLoss}: the codes of
  * graph-io's loss tables for the formats graphty-element writes (`LOSS`, shared by every format,
- * and `CSV_LOSS`, `CX2_LOSS`, `DOT_LOSS`, `GEXF_LOSS`, `GML_LOSS`, `GRAPHML_LOSS`, `JSON_LOSS`,
+ * and `CSV_LOSS`, `CX_LOSS`, `CX2_LOSS`, `CYS_LOSS`, `DOT_LOSS`, `GEXF_LOSS`, `GML_LOSS`, `GRAPHML_LOSS`, `JSON_LOSS`,
  * `NEO4J_LOSS`, `PAJEK_LOSS`, `XGMML_LOSS`, each documenting its codes), and graphty-element's
  * own:
  *
@@ -87,6 +99,14 @@ type CodesOf<Table> = Extract<Table[keyof Table], string>;
  *   apostrophe; `count` cells.
  * - `W_WEIGHT_NOT_NUMERIC`: edge weights that are not numbers, not written; `count` edges.
  * - `W_RESULT_FIELD_DROPPED`: an algorithm result field no column could hold.
+ * - The style codes of {@link ExportStyleLossCode}: each names its `target` (`node`, `edge` or
+ *   `graph`) and `property` (a neutral property such as `fill`, or `graphty:<channel>` for a
+ *   channel only graphty draws, which then also names that `channel`, such as `node.labelColor`)
+ *   where it is about one; `W_STYLE_NOT_WRITTEN` counts the elements
+ *   that carry a value, `W_STYLE_RULES_NOT_KEPT` the rules, `W_STYLES_NOT_EXPORTED` the layers an
+ *   export without `styles: true` left out, and `W_STYLE_LAYER_FLATTENED` adds `layer` (its name)
+ *   and `reason` (`SCALE`: a palette or a scale the format cannot express; `RESULT_PATH`: it reads
+ *   a value the file does not hold, such as an algorithm result).
  *
  * A code starting `E_` means the writer refuses this graph under these options: `text()` and
  * `bytes` reject. `W_` means the file is written but that part does not read back the same.
@@ -94,7 +114,9 @@ type CodesOf<Table> = Extract<Table[keyof Table], string>;
 export type ExportLossCode =
     | CodesOf<typeof LOSS>
     | CodesOf<typeof CSV_LOSS>
+    | CodesOf<typeof CX_LOSS>
     | CodesOf<typeof CX2_LOSS>
+    | CodesOf<typeof CYS_LOSS>
     | CodesOf<typeof DOT_LOSS>
     | CodesOf<typeof GEXF_LOSS>
     | CodesOf<typeof GML_LOSS>
@@ -108,7 +130,8 @@ export type ExportLossCode =
     | "W_GRAPHTY_TRUNCATED"
     | "W_GRAPHTY_CSV_NEUTRALIZED"
     | "W_WEIGHT_NOT_NUMERIC"
-    | "W_RESULT_FIELD_DROPPED";
+    | "W_RESULT_FIELD_DROPPED"
+    | ExportStyleLossCode;
 
 /**
  * One kind of thing an export could not carry, as a code and its values, for the application to
@@ -117,6 +140,10 @@ export type ExportLossCode =
  * - `columns`: the columns it is about, by name (empty when it is about none, such as the
  *   graph's self-loops); every graph attribute a format has no place for, for instance.
  * - `count`: how many nodes, edges, values or columns are affected, or null when not counted.
+ *
+ * A style code adds `target` and `property` where it is about one property (and `channel` where
+ * that property is a channel only graphty draws), and
+ * `W_STYLE_LAYER_FLATTENED` adds `layer` and `reason` (see {@link ExportStyleLossCode}).
  *
  * `code` is an {@link ExportLossCode} for a built-in writer; a writer registered with
  * `registerFormatWriter` reports its own codes.
@@ -182,6 +209,8 @@ const BUILT_IN_WRITERS: Readonly<Record<string, AnyExporter>> = {
     pajek: pajekExporter,
     xgmml: xgmmlExporter,
     cx2: cx2Exporter,
+    cx: cxExporter,
+    cys: cysExporter,
 };
 
 /**
@@ -279,7 +308,12 @@ interface ExportBuildOptions {
     readonly notes?: boolean;
     /** The writer writes the node table alone (a CSV node table): report no edge or graph loss. */
     readonly nodesOnly?: boolean;
+    /** Write the graph's styles through the format's style writer. The `styles` option every writer takes; off by default. */
+    readonly styles?: boolean;
 }
+
+/** A loss note the element raised, with the facts its coded form carries beyond graph-io's. */
+type ElementLossNote = LossNote & { readonly params?: Readonly<Record<string, CodedFactParam>> };
 
 /**
  * Cut a text to at most a number of UTF-8 bytes, never inside a code point.
@@ -631,13 +665,13 @@ function writerFor(format: FormatId, options: ExportGraphOptions): ChosenWriter 
     } else if (registered !== undefined) {
         declared = [...(registered.writerOptions ?? []), ...COMMON_WRITER_OPTIONS];
     }
-    // `notes` is the element's own option; no exporter reads it.
-    const { notes, ...resolved } = resolveOptionValues(declared, options, { kind: "format", id: format });
+    // `notes` and `styles` are the element's own options; no exporter reads them as they are.
+    const { notes, styles, ...resolved } = resolveOptionValues(declared, options, { kind: "format", id: format });
     if (format !== "csv") {
         return {
             exporter: builtIn ?? (registered as FormatWriterRegistration).exporter,
             options: resolved,
-            build: { notes: notes === true },
+            build: { notes: notes === true, styles: styles === true },
         };
     }
 
@@ -652,6 +686,7 @@ function writerFor(format: FormatId, options: ExportGraphOptions): ChosenWriter 
             neutraliseFormulas: neutraliseFormulas !== false,
             notes: notes === true,
             nodesOnly: !neo4j && rest.table === "nodes",
+            styles: styles === true,
         },
     };
 }
@@ -709,8 +744,13 @@ export function exportSession(
 ): ExportResult {
     const writer = writerFor(format, options);
     let built: { snapshot: GraphSnapshot; notes: LossNote[] };
+    let styles: StylesToWrite | null = null;
     try {
-        built = buildExportSnapshot(session, view, writer.build);
+        // With styles, the style writer is the only path: the drawn colour, size and width columns are left out.
+        built = buildExportSnapshot(session, writer.build.styles === true ? {} : view, writer.build);
+        if (writer.build.styles === true) {
+            styles = sessionStyles(session, built.snapshot, writer.exporter.format);
+        }
     } catch (error) {
         throw GraphtyError.wrap(error, {
             code: "E_INTERNAL",
@@ -719,7 +759,103 @@ export function exportSession(
         });
     }
 
-    return writeWith(writer, built.snapshot, format, built.notes);
+    if (styles !== null) {
+        return writeWith(writer, built.snapshot, format, [...built.notes, ...styles.notes], styles);
+    }
+
+    const layers = ownLayers(session);
+    const notExported: ElementLossNote[] =
+        layers === 0
+            ? []
+            : [
+                  {
+                      code: STYLE_ISSUE.NOT_EXPORTED,
+                      message: `${String(layers)} style layer(s) were not written. Export with { styles: true } to write them`,
+                      column: null,
+                      count: layers,
+                  },
+              ];
+    return writeWith(writer, built.snapshot, format, [...built.notes, ...notExported]);
+}
+
+/**
+ * How many layers of the session's own the stack holds: every layer but the element's.
+ * @param session - The session.
+ * @returns The count.
+ */
+function ownLayers(session: GraphSession): number {
+    return session.styles.list().filter((layer) => layer.source.by !== "element").length;
+}
+
+/** The session's styles as an export writes them. */
+interface StylesToWrite {
+    /** The styles. */
+    readonly extracted: ExtractedStyles;
+    /** The element's own notes about them. */
+    readonly notes: ElementLossNote[];
+    /** The rules the element's base layers became. */
+    readonly base: readonly { readonly target: string; readonly id: string }[];
+}
+
+/**
+ * The session's layers as the styles graph-io writes, and what they lose on the way.
+ * @param session - The session.
+ * @param snapshot - The snapshot being written, rows in the session's order.
+ * @param format - The format written.
+ * @returns The styles and the element's own notes about them.
+ */
+function sessionStyles(session: GraphSession, snapshot: GraphSnapshot, format: string): StylesToWrite {
+    const { state } = dispatcherOf(session);
+    const nodes = session.data.nodes();
+    const edges = session.data.edges();
+    const nodeMask = session.visibility.nodeMask();
+    const edgeMask = session.visibility.edgeMask();
+    const rowOf = new Map(nodes.map((record, row) => [record.id, row]));
+    const shown = (id: unknown): boolean => {
+        const row = rowOf.get(id as never);
+        return row === undefined || nodeMask[row] === 1;
+    };
+    const result = layersToStyles({
+        stack: state.styles,
+        snapshot,
+        ids: { node: nodes.map((record) => record.id), edge: edges.map((record) => record.id) },
+        explain: (target) => session.styles.explain(target),
+        hidden: {
+            node: nodes.map((_record, row) => nodeMask[row] !== 1),
+            // An edge hidden only because an end of it is hidden comes back with that end.
+            edge: edges.map((record, row) => edgeMask[row] !== 1 && shown(record.source) && shown(record.target)),
+        },
+        fileStyles: asFileStyleStore(state.graph.values.get(FILE_STYLES_VALUE)),
+        format,
+    });
+    const notes: ElementLossNote[] = [
+        ...result.flattened.map((flat) => ({
+            code: STYLE_ISSUE.LAYER_FLATTENED,
+            message: `the layer ${JSON.stringify(flat.layer)} is written as the ${flat.target} ${flat.property} values it paints, not as a rule (${flat.reason})`,
+            column: null,
+            count: flat.count,
+            style: { target: flat.target, property: flat.property as never },
+            params: { layer: flat.layer, reason: flat.reason },
+        })),
+        ...result.unwritten.map((lost) => ({
+            code: STYLE_ISSUE.NOT_WRITTEN,
+            message: `${lost.target} ${lost.property} is not written: no file value holds it`,
+            column: null,
+            count: lost.count,
+            style: { target: lost.target, property: lost.property as never },
+        })),
+    ];
+    return { extracted: result.extracted, notes, base: result.base };
+}
+
+/**
+ * `{ channel }` for a property only graphty draws (`graphty:node.labelColor`), so an application
+ * reads the channel without taking the property apart; nothing for any other.
+ * @param property - The loss's style property.
+ * @returns The param, or none.
+ */
+function channelOf(property: string | undefined): { channel?: string } {
+    return property?.startsWith("graphty:") === true ? { channel: property.slice("graphty:".length) } : {};
 }
 
 /**
@@ -727,12 +863,55 @@ export function exportSession(
  * @param note - The note.
  * @returns The fact, frozen.
  */
-function lossOf(note: LossNote): ExportLoss {
+function lossOf(note: ElementLossNote): ExportLoss {
     const columns = note.columns ?? (note.column === null ? [] : [note.column]);
     return Object.freeze({
         code: note.code,
-        params: Object.freeze({ columns: Object.freeze([...columns]), count: note.count }),
+        params: Object.freeze({
+            columns: Object.freeze([...columns]),
+            count: note.count,
+            ...(note.style === undefined ? {} : { target: note.style.target, property: note.style.property }),
+            ...channelOf(note.style?.property),
+            ...note.params,
+        }),
     });
+}
+
+/**
+ * The style losses of an export, less those about the element's own base layers: loading the file
+ * into graphty draws the same base again, so a property only they paint is not lost, and their
+ * rules are not rules a reader made.
+ * @param checked - The notes graph-io gave.
+ * @param styles - The styles written.
+ * @param base - The rules the element's base layers became.
+ * @returns The notes that name something lost.
+ */
+function withoutBaseLosses(
+    checked: readonly LossNote[],
+    styles: ExtractedStyles,
+    base: readonly { readonly target: string; readonly id: string }[],
+): LossNote[] {
+    const isBase = (rule: StyleRule): boolean => base.some((one) => one.target === rule.target && one.id === rule.id);
+    const writes = (rule: StyleRule, property: string): boolean =>
+        Object.hasOwn(rule.set ?? {}, property) || Object.hasOwn(rule.map ?? {}, property);
+    const baseOnly = (target: string, property: string): boolean => {
+        const writers = styles.styles.rules.filter((rule) => rule.target === target && writes(rule, property));
+        return writers.length > 0 && writers.every(isBase);
+    };
+    const baseRules = styles.styles.rules.filter(isBase).length;
+    const out: LossNote[] = [];
+    for (const note of checked) {
+        if (note.code === STYLE_ISSUE.RULES_NOT_KEPT && note.count !== null) {
+            const count = note.count - baseRules;
+            if (count > 0) {
+                out.push(Object.freeze({ ...note, count }));
+            }
+        } else if (note.style === undefined || !baseOnly(note.style.target, note.style.property)) {
+            out.push(note);
+        }
+    }
+
+    return out;
 }
 
 /**
@@ -741,6 +920,7 @@ function lossOf(note: LossNote): ExportLoss {
  * @param snapshot - What to write.
  * @param format - The format id.
  * @param notes - Notes the element raised while building the snapshot.
+ * @param written - The styles to write, when the export asked for them.
  * @returns The result.
  * @throws A `GraphtyError` with the writer's refusal from its `check()`.
  */
@@ -748,23 +928,37 @@ function writeWith(
     writer: ChosenWriter,
     snapshot: GraphSnapshot,
     format: FormatId,
-    notes: readonly LossNote[],
+    notes: readonly ElementLossNote[],
+    written?: StylesToWrite,
 ): ExportResult {
+    const { exporter } = writer;
+    const styles = written?.extracted;
+    // With styles, graph-io works out what the format's style writer receives and loses.
+    const registry = styles === undefined ? null : new FormatRegistry().registerExporter(exporter);
+    const options = styles === undefined ? writer.options : { ...writer.options, styles };
     let checked: readonly LossNote[];
     try {
-        checked = writer.exporter.check(snapshot, writer.options);
+        checked =
+            registry === null
+                ? exporter.check(snapshot, options)
+                : registry.checkExport(snapshot, exporter.format, options);
     } catch (error) {
         throw writerFailure(error, format);
     }
 
-    const lossNotes = Object.freeze([...notes, ...checked]);
+    const lossNotes = Object.freeze([
+        ...notes,
+        ...(written === undefined ? checked : withoutBaseLosses(checked, written.extracted, written.base)),
+    ]);
     return {
         format,
         losses: Object.freeze(lossNotes.map(lossOf)),
         lossNotes,
         async text(): Promise<string> {
             try {
-                return await writer.exporter.exportToString(snapshot, writer.options);
+                return registry === null
+                    ? await exporter.exportToString(snapshot, options)
+                    : await registry.exportGraphToString(snapshot, exporter.format, options);
             } catch (error) {
                 throw writerFailure(error, format);
             }
@@ -772,7 +966,9 @@ function writeWith(
         bytes: {
             async *[Symbol.asyncIterator](): AsyncGenerator<Uint8Array> {
                 try {
-                    yield* writer.exporter.export(snapshot, writer.options);
+                    yield* registry === null
+                        ? exporter.export(snapshot, options)
+                        : registry.exportGraph(snapshot, exporter.format, options);
                 } catch (error) {
                     throw writerFailure(error, format);
                 }

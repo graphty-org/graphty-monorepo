@@ -17,6 +17,15 @@ import {
     type IdCoercion,
 } from "@graphty/graph-format";
 
+import type {
+    EdgeStyleProperty,
+    GraphStyleProperty,
+    ImporterStyles,
+    NodeStyleProperty,
+    StyleReadContext,
+    StyleWriteCapabilities,
+} from "./styles/types.js";
+
 /**
  * What an importer reads: whole text, whole bytes, a byte stream (a browser
  * `File.stream()`, a fetch body) or an async iterable of text or byte chunks. Bytes are decoded
@@ -275,6 +284,19 @@ export interface GraphImporter<Opts = unknown> {
      * @returns one listing per graph, in document order
      */
     listGraphs?(input: ImportInput, options?: Opts & CommonImportOptions): Promise<readonly GraphListing[]>;
+    /**
+     * Optional: the file's styles, read after the import from the snapshot it built. Called only when a caller asks
+     * for styles (`importGraph(input, { styles: true })`). The simple path names the snapshot columns that hold
+     * each style and the dialect they are spelled in, and graph-io does the rest:
+     * `styles: () => ({ dialect: "css", node: { fill: { data: "color" } } })`. The advanced path returns canonical
+     * values and the rules the file declares (`{ canonical: true, ... }`). Style data that is not per element
+     * reaches it as `context.kept`: whatever this import's `import()` passed to `report.keepForStyles()`. Without
+     * this member, graph-io reads the columns whose role is `color`, `size`, `shape`, `thickness` or `hidden`.
+     * @param snapshot - the graph this import built
+     * @param context - the cancel signal, the work budget and what `import()` kept
+     * @returns the styles, or null when the file has none
+     */
+    styles?(snapshot: GraphSnapshot, context: StyleReadContext): ImporterStyles | null;
 }
 
 /**
@@ -347,8 +369,19 @@ export interface ExportCapabilities {
     readonly graphAttributes: boolean;
     /** Whether the file can hold node positions. When false, the layout is lost. */
     readonly positions: boolean;
-    /** Whether the file can hold node and edge color, size, shape and thickness. When false, they are lost. */
+    /**
+     * Whether the file can hold node and edge color, size, shape and thickness. When false, they are lost.
+     * @deprecated This describes the `color`, `size`, `shape` and `thickness` role columns, the old way styles
+     *     reached a file. Use {@link ExportCapabilities.styles}, what the format's style writer can hold. Removed in
+     *     the next major version.
+     */
     readonly viz: boolean;
+    /**
+     * What the format's writer can hold of a graph's styles (the exporter's `styles.capabilities`): per target the
+     * properties written natively, and where the `graphty.styles` block goes. Absent for a format that writes no
+     * styles: every style is then reported as W_STYLE_NOT_WRITTEN and W_STYLE_RULES_NOT_KEPT.
+     */
+    readonly styles?: StyleWriteCapabilities | undefined;
 }
 
 /**
@@ -374,6 +407,18 @@ export interface LossNote {
      * table. Absent on a note about one column or none.
      */
     readonly columns?: readonly string[];
+    /**
+     * The style a W_STYLE_ note is about: nodes, edges or the graph, and the neutral property (`fill`, `width`).
+     * Absent on every other note.
+     */
+    readonly style?:
+        | {
+              /** Nodes, edges or the graph. */
+              readonly target: "node" | "edge" | "graph";
+              /** The neutral property. */
+              readonly property: NodeStyleProperty | EdgeStyleProperty | GraphStyleProperty;
+          }
+        | undefined;
 }
 
 /**
@@ -451,6 +496,21 @@ export interface GraphExporter<Opts = unknown> {
      * @returns the whole file
      */
     exportToString(snapshot: GraphSnapshot, options?: Opts & CommonExportOptions): Promise<string>;
+    /**
+     * Optional: the styles this format can write. With it, `exportGraph(snapshot, format, { styles })` hands
+     * `export()`, `exportToString()` and `check()` an `options.styles` (`ExporterStyleInput`): each element's value
+     * per property (`picture()`), the `graphty.styles` block, the tagged per-element values and the rules. With
+     * `block: "attributes"` graph-io adds the block and the tagged values to the snapshot as a graph attribute and
+     * element attributes, so a format that writes attributes keeps every style for graphty with no code:
+     * `styles: { capabilities: { node: [], edge: [], block: "attributes" } }`. Every property not listed natively
+     * is reported as W_STYLE_NOT_WRITTEN, and a format without this member loses every style, reported the same way.
+     */
+    readonly styles?:
+        | {
+              /** What the writer holds natively, and where the block goes. */
+              readonly capabilities: StyleWriteCapabilities;
+          }
+        | undefined;
 }
 
 /**

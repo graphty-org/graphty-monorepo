@@ -8,6 +8,7 @@ import {
     ImportReportBuilder,
     readText,
 } from "@graphty/graph-io";
+import { extractStyles } from "@graphty/graph-io/styles";
 import { z } from "zod/v4";
 import * as z4 from "zod/v4/core";
 
@@ -20,8 +21,16 @@ import type { FormatDescriptor } from "../catalog/types";
 import { assertReaderAgreesWithWriter } from "../catalog/writerRegistry";
 import { AdHocData } from "../config";
 import { GraphtyError } from "../errors";
+import type { FileStylesRead } from "../session/styles/fileStyles/apply";
 import { ErrorAggregator } from "./ErrorAggregator.js";
-import { columnsMapping, emptyLoad, importWhole, toRecords } from "./graph-io-import.js";
+import {
+    columnsMapping,
+    emptyLoad,
+    importWhole,
+    readerImport,
+    toRecords,
+    withoutStyleSlots,
+} from "./graph-io-import.js";
 import { type SourceData, type SourceInput, toSourceInput } from "./source-bytes.js";
 
 /** What every reader is configured with, whatever its format. */
@@ -44,6 +53,13 @@ export interface BaseDataSourceConfig {
     graphIndex?: number;
     /** Which graph to read from a file that holds several, by its name. */
     graphName?: string;
+    /**
+     * Whether the load draws the file's own styles as layers (`"file"`) or leaves them out
+     * (`"none"`, the default). With `"file"`, a reader leaves style values out of the records,
+     * because the layers carry them: the GEXF reader writes no `color` or `size` keys and the
+     * GraphML reader no yEd style keys.
+     */
+    styles?: "file" | "none";
 }
 
 /**
@@ -67,6 +83,7 @@ interface FormatStatics {
 }
 
 type DataSourceClass = (new (opts: object) => DataSource) & FormatStatics;
+
 // Shared with every other copy of graphty-element on the page, so a plugin registered through one
 // reaches them all.
 const dataSourceRegistry = new SharedImplementationMap<DataSourceClass>("format");
@@ -96,6 +113,8 @@ const ELEMENT_OWNED_OPTIONS: ReadonlySet<string> = new Set([
     "edgeDstIdPath",
     "graphIndex",
     "graphName",
+    "styles",
+    "styleOptions",
 ]);
 
 /**
@@ -706,6 +725,51 @@ export abstract class DataSource {
     }
 
     /**
+     * The styles of the file this source last read: the rules and per-element values graph-io
+     * reads from it, and where each column of the file landed on the records. Read on demand,
+     * only when a load asks for the file's styles (`styles: "file"`), so a load that does not
+     * pays nothing.
+     *
+     * Every reader built on a graph-io importer answers it, the element's own and those made with
+     * {@link DataSource.fromImporter} alike, by calling the importer's `styles()`; a reader that
+     * parses a file itself answers null. Not an extension point: a format gets styles by being
+     * read with a graph-io importer.
+     * @internal
+     * @param options - Whether the defaults of the program that wrote the file are added (true
+     *     by default), and a cancel signal.
+     * @param options.toolDefaults - Whether the writing program's defaults are added.
+     * @param options.signal - Cancels the reading.
+     * @returns The styles, or null when the file carries none or nothing has been read yet.
+     */
+    async fileStyles(
+        options: { readonly toolDefaults?: boolean; readonly signal?: AbortSignal } = {},
+    ): Promise<FileStylesRead | null> {
+        const pending = readerImport(this);
+        if (pending === null) {
+            return null;
+        }
+
+        const held = await pending;
+        const { imported } = held;
+        const extracted = extractStyles(imported.importer, imported.snapshot, imported.report, {
+            ...(options.toolDefaults === undefined ? {} : { toolDefaults: options.toolDefaults }),
+            ...(options.signal === undefined ? {} : { signal: options.signal }),
+        });
+        if (extracted === null) {
+            return null;
+        }
+
+        const { format, dialect } = extracted.styles.source;
+        return {
+            extracted,
+            snapshot: imported.snapshot,
+            path: (kind, column) => held.path(kind, column),
+            // A JSON dialect graph-io names (it names none for plain JSON) keeps its styles under its own name.
+            format: format === "json" && dialect !== null ? dialect : format,
+        };
+    }
+
+    /**
      * Fetches, validates, and yields graph data in chunks.
      * Filters out invalid nodes and edges based on schema validation.
      * @yields DataSourceChunk objects containing validated nodes and edges
@@ -714,32 +778,9 @@ export abstract class DataSource {
         // Checked before anything is read, so a bad choice costs no download.
         this.graphChoice();
         for await (const chunk of this.sourceFetchData()) {
-            // Filter out invalid nodes
-            const validNodes: AdHocData[] = [];
-            if (this.nodeSchema) {
-                for (const n of chunk.nodes) {
-                    const isValid = await this.dataValidator(this.nodeSchema, n);
-                    if (isValid) {
-                        validNodes.push(n);
-                    }
-                    // Invalid nodes are logged to errorAggregator but skipped
-                }
-            } else {
-                validNodes.push(...chunk.nodes);
-            }
-
-            // Filter out invalid edges
-            const validEdges: AdHocData[] = [];
-            if (this.edgeSchema) {
-                for (const e of chunk.edges) {
-                    const isValid = await this.dataValidator(this.edgeSchema, e);
-                    if (isValid) {
-                        validEdges.push(e);
-                    }
-                }
-            } else {
-                validEdges.push(...chunk.edges);
-            }
+            // Invalid elements are logged to errorAggregator but skipped
+            const validNodes = await validOf(this, this.nodeSchema, chunk.nodes);
+            const validEdges = await validOf(this, this.edgeSchema, chunk.edges);
 
             // Only yield if we have data (or if we're not filtering)
             if (validNodes.length > 0 || validEdges.length > 0) {
@@ -897,10 +938,16 @@ export abstract class DataSource {
         const { importOptions = {}, statedBy } = options;
         const sniff = importer.sniff?.bind(importer);
         const list = importer.listGraphs?.bind(importer);
+        // Whether the format's files can carry styles, from the importer itself unless the
+        // descriptor says.
+        const described: FormatDescriptor =
+            descriptor.styles === undefined
+                ? { ...descriptor, styles: { read: typeof importer.styles === "function", write: "none" } }
+                : descriptor;
 
         return class ImporterDataSource extends DataSource {
             static override readonly type: string = descriptor.id;
-            static override readonly descriptor: FormatDescriptor = descriptor;
+            static override readonly descriptor: FormatDescriptor = described;
             // The importer's sniffer, held to the confidence the built-in sniffers are held to.
             static override readonly detect =
                 sniff === undefined
@@ -957,7 +1004,14 @@ export abstract class DataSource {
                     this.declareDirection(snapshot.directed, words, report.counts.expandedMixed);
                 }
 
-                const { nodes, edges } = toRecords(imported, columnsMapping(snapshot));
+                const { nodes, edges } = toRecords(
+                    imported,
+                    // A load drawing the file's styles leaves the file's own style slots to the layers.
+                    this.#config.styles === "file"
+                        ? withoutStyleSlots(snapshot, columnsMapping(snapshot))
+                        : columnsMapping(snapshot),
+                    this,
+                );
                 yield* this.chunkData(nodes, edges);
             }
         };
@@ -1021,4 +1075,28 @@ export abstract class DataSource {
     static getRegisteredTypes(): string[] {
         return Array.from(dataSourceRegistry.keys()).sort();
     }
+}
+
+/**
+ * The elements of a chunk that pass a schema, in order; every one when there is no schema.
+ * @param source - The data source, whose validator records each failure.
+ * @param schema - The schema, or none.
+ * @param items - The elements.
+ * @returns A copy, never the chunk's own array: a dialect read yields one chunk of every element.
+ */
+async function validOf(
+    source: DataSource,
+    schema: z4.$ZodObject | null | undefined,
+    items: AdHocData[],
+): Promise<AdHocData[]> {
+    if (!schema) {
+        return items.slice();
+    }
+    const valid: AdHocData[] = [];
+    for (const item of items) {
+        if (await source.dataValidator(schema, item)) {
+            valid.push(item);
+        }
+    }
+    return valid;
 }

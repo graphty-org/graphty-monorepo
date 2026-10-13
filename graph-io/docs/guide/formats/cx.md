@@ -86,7 +86,8 @@ both open: one network with at most one view.
 - `cyGroups` become a parent column. A group whose id is not a node gets a node
   (`W_CX_GROUP_NODE_ADDED`), which `snapshot.nodeCount` counts.
 - Per-element visual properties become one column per property. Style rules are kept in the
-  snapshot's metadata and written back, but not applied (`W_STYLES_NOT_IMPORTED`).
+  snapshot's metadata and written back. They are read as styles only with `styles: true` (see
+  [Styles](#styles)); without it the import notes `W_STYLES_NOT_IMPORTED`.
 - Citations and supports become the tables `cx:citations` and `cx:supports` in
   `snapshot.extensions`.
 - Older aspect names (`visualProperties`, `subNetworks`, ...) are read with a warning
@@ -114,24 +115,50 @@ A file read from CX gets its citations, supports, style rules and other aspects 
 
 What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-mean) explain each row):
 
-| Capability                                      | Value                  |
-| ----------------------------------------------- | ---------------------- |
-| [`mixedDirection`](./index.md#mixeddirection)   | no                     |
-| [`multiEdges`](./index.md#multiedges)           | yes                    |
-| [`selfLoops`](./index.md#selfloops)             | yes                    |
-| [`edgeIds`](./index.md#edgeids)                 | required               |
-| [`idCharset`](./index.md#idcharset)             | integer                |
-| [`dtypes`](./index.md#dtypes)                   | string, f64, i32, bool |
-| [`components`](./index.md#components)           | no                     |
-| [`lists`](./index.md#lists)                     | yes                    |
-| [`json`](./index.md#json)                       | no                     |
-| [`defaults`](./index.md#defaults)               | no                     |
-| [`options`](./index.md#options)                 | no                     |
-| [`hierarchy`](./index.md#hierarchy)             | yes                    |
-| [`temporal`](./index.md#temporal)               | none                   |
-| [`graphAttributes`](./index.md#graphattributes) | yes                    |
-| [`positions`](./index.md#positions)             | yes                    |
-| [`viz`](./index.md#viz)                         | no                     |
+| Capability                                      | Value                     |
+| ----------------------------------------------- | ------------------------- |
+| [`mixedDirection`](./index.md#mixeddirection)   | no                        |
+| [`multiEdges`](./index.md#multiedges)           | yes                       |
+| [`selfLoops`](./index.md#selfloops)             | yes                       |
+| [`edgeIds`](./index.md#edgeids)                 | required                  |
+| [`idCharset`](./index.md#idcharset)             | integer                   |
+| [`dtypes`](./index.md#dtypes)                   | string, f64, i32, bool    |
+| [`components`](./index.md#components)           | no                        |
+| [`lists`](./index.md#lists)                     | yes                       |
+| [`json`](./index.md#json)                       | no                        |
+| [`defaults`](./index.md#defaults)               | no                        |
+| [`options`](./index.md#options)                 | no                        |
+| [`hierarchy`](./index.md#hierarchy)             | yes                       |
+| [`temporal`](./index.md#temporal)               | none                      |
+| [`graphAttributes`](./index.md#graphattributes) | yes                       |
+| [`positions`](./index.md#positions)             | yes                       |
+| [`viz`](./index.md#viz)                         | no                        |
+| [`styles`](./index.md#styles)                   | 35 properties, rules kept |
+
+<!-- generated:end -->
+
+## Styles
+
+A CX file holds Cytoscape visual styles in its `cyVisualProperties` aspect: defaults, mappings
+and per-element bypasses, one set per view. With `styles: true`, graph-io reads the style of the
+first view as Cytoscape applies it, with Cytoscape's default style beneath what the file leaves
+unset, and notes the other views (`W_STYLE_OTHER_VIEWS`). Without the option, the style is kept in
+the snapshot's metadata and written back on a CX save, but not read (`W_STYLES_NOT_IMPORTED`).
+
+A save with styles writes the rules as Cytoscape defaults, mappings and bypasses, and keeps the
+rules for graphty as the network attribute `graphty.styles`. A rule a Cytoscape mapping cannot
+express is written as bypasses (`W_STYLE_LAYER_FLATTENED`). See [Styles](../styles.md).
+
+<!-- generated:begin styles:cx -->
+
+|                                     |                                                                                                                                                                                                                               |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Reads styles                        | yes, with `styles: true`                                                                                                                                                                                                      |
+| Node properties written             | `fill`, `fillOpacity`, `borderColor`, `borderWidth`, `borderStyle`, `shape`, `width`, `height`, `label`, `labelColor`, `labelSize`, `labelPosition`, `tooltip`, `visible`, `labelFont`, `labelWeight`, `labelItalic`          |
+| Edge properties written             | `color`, `opacity`, `width`, `lineStyle`, `sourceArrow`, `targetArrow`, `sourceArrowColor`, `targetArrowColor`, `curved`, `label`, `labelColor`, `labelSize`, `tooltip`, `visible`, `labelFont`, `labelWeight`, `labelItalic` |
+| Graph properties written            | `background`                                                                                                                                                                                                                  |
+| Rules kept for graphty              | yes, as the `graphty.styles` graph attribute                                                                                                                                                                                  |
+| Not written (`W_STYLE_NOT_WRITTEN`) | node: `opacity`, `image`; edge: `arrowSize`, `sourceLabel`, `targetLabel`                                                                                                                                                     |
 
 <!-- generated:end -->
 

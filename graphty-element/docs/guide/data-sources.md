@@ -58,6 +58,22 @@ fileInput.addEventListener("change", async (e) => {
 });
 ```
 
+## A File's Own Styles
+
+Many formats carry what the graph looks like as well as what it holds: Gephi's colors and sizes
+in GEXF, yEd's shapes in GraphML, a Cytoscape visual style, a Cytoscape.js stylesheet, Graphviz
+attributes in DOT. Load with `styles: "file"` to draw them as style layers, so the graph looks as
+it does in the program that wrote the file:
+
+```typescript
+await graph.loadFromUrl("https://example.com/proteins.cx2", { styles: "file" });
+```
+
+`loadFromFile`, the element's `dataSourceConfig` (`{ url, styles: "file" }`) and
+`session.data.import(source, { styles: "file" })` take the same choice. Without it, the default
+`"none"`, a load reads the data alone. See [Styles from Files](./file-styles) for what the layers
+look like, the choices that shape them and how to save them back into a file.
+
 ## Text or Bytes
 
 A file is read as bytes, and the format's reader decodes them: a byte-order mark names the
@@ -408,8 +424,22 @@ declared type:
   holding XML elements rather than text -- is left off the record and reported as a loading error;
 - a node id declared twice is one node, with the later declaration's values winning.
 
+A declared attribute titled `id` never replaces a node's id (nor one titled `source` or `target`
+an edge's endpoints): it goes on the record as `id#<attribute id>`, such as `id#att1` for a GEXF
+attribute declared `id="att1"` or `id#d1` for a GraphML key declared `id="d1"`.
+
 The GEXF `label=` attribute is overridden by a declared attribute titled `label`, and the
 `viz:` position, colour and size override attributes titled `position`, `color` or `size`.
+
+A GEXF node's `viz:` color and size arrive on its record as `color` (`{ r, g, b, a }`) and `size`,
+and a yEd GraphML file's graphics as `width`, `height`, `color`, `borderColor`, `borderWidth` and
+`shape` on nodes and `color`, `width`, `targetArrow` and `sourceArrow` on edges. These record keys
+are deprecated and go in the next major version: a load without `styles: "file"` still writes
+them, unchanged. Load with `styles: "file"` to draw the file's colors, sizes and shapes as style
+layers instead (see [Styles from Files](./file-styles)): the records then leave those keys out, and
+an attribute the file declared under one of those names keeps its own value. The position, the
+label and an edge's direction stay on the records either way.
+
 Nodes arrive in the order the file declares them. A GraphML document with no `<graph>` element
 loads nothing and reports a loading error.
 
@@ -428,8 +458,19 @@ These are read by `@graphty/graph-io` too, and each record keeps the keys the fi
   and the later line fills in only what the first left out (`1 0.1 0.2` then `1 "z"` is a node at
   0.1, 0.2 labelled `z`). A DOT node written in several statements has the attributes of all of
   them, the later ones winning, as Graphviz draws it;
-- a DOT cluster subgraph is a node only when an edge names it, and `pos` stays the text the file
-  wrote.
+- a DOT cluster subgraph is a node of its own, carrying the cluster's attributes (its `label`,
+  `fillcolor` and so on), and `pos` stays the text the file wrote.
+
+A Cytoscape.js document (an `elements` object or array, as Cytoscape.js and Cytoscape desktop's
+`.cyjs` export write it), a graphology document and a vis.js document are read in their own shape:
+
+- a Cytoscape.js element's record holds its `data` keys under their own names, its `classes`, its
+  `position` (with y pointing up, as the element draws it) and its `parent` as the parent node's
+  id. A document that also carries a `style` stylesheet loads the same way;
+- a graphology node's record is the record the file wrote, plus `id` (its `key`), so its
+  attributes stay under `attributes`; an edge's record is the record the file wrote. A node no
+  edge names is loaded too;
+- a vis.js record is the record the file wrote.
 
 ### Changes in graphty-element 3.1
 
@@ -761,9 +802,10 @@ edge width and node shape each element is drawn with. Edge weights are the weigh
 runs on -- read through `edgeWeightPath` or the legacy `value` key, and folded under
 `repeatedEdges` -- and positions are written in file units (divided by `positionScale`), so a
 reload puts every node back where it was. Whatever the format has no place for -- positions in CSV,
-colours in GraphML, node attributes in an edge-list CSV -- is listed in `losses`, one per kind of
-omission, about the table or file actually written: exporting the CSV node table lists no edge or
-graph loss. A value an algorithm did not measure is left absent, never written as zero. The
+colours in GraphML (unless the export asks for `styles: true`, see
+[Styles from Files](./file-styles#exporting-with-styles)), node attributes in an edge-list CSV --
+is listed in `losses`, one per kind of omission, about the table or file actually written:
+exporting the CSV node table lists no edge or graph loss. A value an algorithm did not measure is left absent, never written as zero. The
 element's own edge ids and internal columns are not written.
 
 Each loss is a coded fact, `{ code, params: { columns, count } }`, and graphty-element writes no
@@ -771,12 +813,13 @@ words for it:
 
 - `code` is an `ExportLossCode`: one of the codes in graph-io's loss tables for the format written
   (`LOSS`, which every format shares, and `CSV_LOSS`, `GRAPHML_LOSS`, `GEXF_LOSS` and the rest,
-  each code documented there), or one of graphty-element's own: `W_GRAPHTY_COLUMN_DROPPED` (a
+  each code listed on graph-io's [codes page](https://graphty.app/docs/graph-io/guide/codes.html)), or one of graphty-element's own: `W_GRAPHTY_COLUMN_DROPPED` (a
   loaded column under the reserved `graphty.` root), `W_GRAPHTY_NOTES` (notes, which no format
   holds as notes), `W_GRAPHTY_TRUNCATED` (note text cut to 64 KB), `W_GRAPHTY_CSV_NEUTRALIZED`
   (cells a spreadsheet would run as a formula, prefixed with an apostrophe),
   `W_WEIGHT_NOT_NUMERIC` (edge weights that are not numbers) and `W_RESULT_FIELD_DROPPED` (an
-  algorithm result no column could hold). A code starting `E_` means the writer refuses the graph
+  algorithm result no column could hold), plus the style codes listed under
+  [Exporting styles](#exporting-styles). A code starting `E_` means the writer refuses the graph
   under these options, and `text()` rejects. A writer registered with `registerFormatWriter`
   reports its own codes.
 - `columns` names every column the loss is about: one, several (every graph attribute a format has
@@ -786,6 +829,28 @@ words for it:
 `lossNotes`, the same losses with an English `message`, is deprecated and goes in the next major
 release.
 
+### Exporting styles
+
+Pass `styles: true` to write the graph's style layers into the file as well:
+
+```typescript
+const result = await element.exportGraph("cx2", { styles: true });
+```
+
+Each element's look goes into the format's own style slots, the layers become rules in the
+format's own style language where it has one (Cytoscape's defaults and mappings in CX2), and
+wherever the format can keep extra data the layers themselves are written too, so loading the file
+back with `styles: "file"` rebuilds them. `session.catalog.formats()` says what each writer keeps
+(`styles.write`: `"rules"`, `"values"` or `"none"`). Anything the format cannot hold is a loss with
+a `W_STYLE_` code (`W_STYLE_NOT_WRITTEN`, `W_STYLE_APPROXIMATED`, `W_STYLE_RULES_NOT_KEPT`,
+`W_STYLE_LAYER_FLATTENED`), naming the `target` and `property` it is about. With `styles: true` the
+drawn colour, size, shape and width columns are left out, because the style slots carry them.
+
+Without `styles: true` the export is the file it always was, and a graph with layers of its own
+above the element's base layers reports one more loss, `W_STYLES_NOT_EXPORTED`, whose `count` is
+how many layers were left out. Use it to warn a reader before their styles are lost. See
+[Styles from Files](./file-styles#exporting-with-styles).
+
 | Format     | Positions     | Colour and size | Node attributes | Notes                                                                                                                                                                                |
 | ---------- | ------------- | --------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | GEXF       | yes           | yes             | yes             |                                                                                                                                                                                      |
@@ -794,6 +859,14 @@ release.
 | GraphML    | no            | no              | yes             | node ids must be XML name tokens; pass `{ sanitizeIds: "mangle" }` to rewrite the others                                                                                             |
 | JSON       | as attributes | as attributes   | yes             |                                                                                                                                                                                      |
 | CSV        | no            | no              | no (edge table) | `{ table: "nodes" }` writes the node table instead; `{ variant: "neo4j" }` writes a Neo4j admin-import file; a number id and the same text id (`1` and `"1"`) cannot both be written |
+
+CX, CX2 and Cytoscape session (`.cys`) node ids are integers: other ids are renumbered by default,
+each original kept in the file so reading it back restores it (`{ sanitizeIds: "error" }` refuses
+instead). A Cytoscape session is a zip file, so its catalogue entry says `binary: true`: its
+`text()` rejects with `E_UNSUPPORTED`, and the file is `bytes`.
+
+The "Colour and size" column describes an export without `styles: true`. With it, each format
+writes as much of the look as its own style slots hold; see [Exporting styles](#exporting-styles).
 
 A CSV export puts an apostrophe before every text cell, id and header that starts with `=`, `+`,
 `-`, `@`, a tab or a carriage return, so a spreadsheet does not run an imported value as a

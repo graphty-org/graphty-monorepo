@@ -704,6 +704,14 @@ options follow the table. `graphtyExport` also takes `directed`, `onLoss` and `s
 and `graphtyImport` takes `weightFrom`, `signal` and `onProgress`; [Graphs in and out](../guide/graphs-in-and-out)
 explains them.
 
+Every format also takes `styles`. On `graphtyImport`, `styles: true` reads the file's look into the returned
+`stylesheet`, with the defaults of the program that wrote the file (`styles: { toolDefaults: false }` leaves those
+out); `applyStyles: true` draws it on the core, and `importId` sets the `data.graphty_import` value its selectors
+test. CSV, Neo4j, OBO and NetworkX or d3 JSON carry no styles. On `graphtyExport`, `styles: true` writes the
+core's stylesheet and what each element draws; every format but CSV and Neo4j keeps it, and `onLoss` hears each
+property the format cannot hold (`W_STYLE_` codes). See
+[Styles in and out](../guide/graphs-in-and-out#styles-in-and-out).
+
 <!-- generated:formats:begin (by scripts/reference.ts; run npm run docs:reference) -->
 
 | Format    | Import | Export | What it is                                                                                                                                                                                                                                                                                             |

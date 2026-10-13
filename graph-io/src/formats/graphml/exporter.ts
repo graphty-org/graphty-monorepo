@@ -37,6 +37,7 @@ import { agree, plural } from "../../common/plural.js";
 import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
 import { xmlIllegalTextNotes } from "../../common/xml.js";
+import type { ExporterStyleOptions } from "../../styles/io/writer.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
 import {
     EDGE_ID_COLUMN,
@@ -56,8 +57,12 @@ import {
     XSI_NAMESPACE,
     YFILES_NAMESPACE,
 } from "./constants.js";
+import { GRAPHML_STYLE_CAPABILITIES, graphmlStyledExport } from "./styles-yed.js";
 import { treeProblem, writeXmlTree } from "./tree.js";
 import { isGraphicsColumn, staleGraphicsRows } from "./yfiles.js";
+
+/** What the writer takes: the format's options, the common ones and the styles. */
+type GraphmlWriteOptions = GraphmlExportOptions & CommonExportOptions & ExporterStyleOptions;
 
 /**
  * The format-specific options of the GraphML exporter.
@@ -236,6 +241,8 @@ interface Plan {
     readonly hierarchy: Hierarchy;
     readonly meta: GraphmlMeta | null;
     readonly needsOriginalIdKey: boolean;
+    /** Styles are written: the `y` prefix is yEd's namespace, whatever the file the graph came from bound it to. */
+    readonly yedGraphics?: boolean;
 }
 
 /** The resolved format-specific options. */
@@ -301,9 +308,15 @@ function graphmlMetaOf(snapshot: GraphSnapshot): GraphmlMeta | null {
  * @param snapshot - the snapshot
  * @param options - the resolved common options
  * @param format - the resolved format options
+ * @param keyOrdered - write each element's data in the order of the keys (styled exports)
  * @returns the plan
  */
-function planExport(snapshot: GraphSnapshot, options: ResolvedExportOptions, format: FormatOptions): Plan {
+function planExport(
+    snapshot: GraphSnapshot,
+    options: ResolvedExportOptions,
+    format: FormatOptions,
+    keyOrdered = false,
+): Plan {
     // the generic json note is replaced by planTable()'s (yfiles trees are kept, other json is
     // text); columns mapped from a yfiles tree are never written: planTable() notes the ones
     // that no longer match their tree, the rest lose nothing
@@ -325,6 +338,16 @@ function planExport(snapshot: GraphSnapshot, options: ResolvedExportOptions, for
     const nodeColumns = planTable(snapshot.nodes, "node", notes, note);
     const edgeColumns = planTable(snapshot.edges, "edge", notes, note);
     const keys = planKeys([...graphColumns, ...nodeColumns, ...edgeColumns], keyIds);
+    if (keyOrdered) {
+        // an element's data in the order of its keys, as a re-import orders its columns, so that exporting what a
+        // styled export reads back gives the same bytes. ponytail: styled exports only, so an export without
+        // styles keeps its bytes; extend it to every export when that change is wanted on its own.
+        const keyOrder = new Map(keys.map((k, i) => [k.id, i]));
+        const byKey = (a: ColumnPlan, b: ColumnPlan): number =>
+            (keyOrder.get(a.keyId) ?? 0) - (keyOrder.get(b.keyId) ?? 0);
+        nodeColumns.sort(byKey);
+        edgeColumns.sort(byKey);
+    }
     reservedNameNotes(nodeColumns, RESERVED_NODE_NAMES, note);
     reservedNameNotes(edgeColumns, RESERVED_EDGE_NAMES, note);
     const weight = planWeight(snapshot, edgeColumns, keyIds, keys, note);
@@ -1169,7 +1192,9 @@ function keyElement(key: KeyPlan, indent: string): string {
         text += ` attr.type="${escapeXmlAttribute(key.attrType)}"`;
     }
     if (key.yfilesType !== null) {
-        text += ` yfiles.type="${escapeXmlAttribute(key.yfilesType)}"`;
+        // a yFiles 3 key is identified by its attr.uri, which the importer keeps as the column's type
+        const uri = key.yfilesType.includes("://");
+        text += ` ${uri ? "y:attr.uri" : "yfiles.type"}="${escapeXmlAttribute(key.yfilesType)}"`;
     }
     const { column } = key;
     const desc = column?.meta.extra.desc;
@@ -1183,23 +1208,31 @@ function keyElement(key: KeyPlan, indent: string): string {
         parts.push(`\n${inner}<desc>${escapeXmlText(desc)}</desc>`);
     }
     if (hasDefault) {
-        if (key.yfilesType !== null) {
-            const value = column.meta.default;
-            if (value !== null && typeof value === "object" && !Array.isArray(value)) {
-                parts.push(`\n${inner}<default>`);
-                writeXmlTree(value, `${inner}  `, parts);
-                parts.push(`\n${inner}</default>`);
-            } else {
-                const tree: string[] = [];
-                writeXmlTree(value, inner, tree);
-                parts.push(`\n${inner}<default>${tree.join("")}</default>`);
-            }
-        } else {
-            parts.push(`\n${inner}<default>${escapeXmlText(defaultText(column, key.attrType) ?? "")}</default>`);
-        }
+        parts.push(defaultElement(key, column, inner));
     }
     parts.push(`\n${indent}</key>\n`);
     return parts.join("");
+}
+
+/**
+ * The `<default>` element of a key: a yFiles key's default is an XML tree.
+ * @param key - the key plan
+ * @param column - its column
+ * @param inner - the indentation
+ * @returns the element text
+ */
+function defaultElement(key: KeyPlan, column: Column, inner: string): string {
+    if (key.yfilesType === null) {
+        return `\n${inner}<default>${escapeXmlText(defaultText(column, key.attrType) ?? "")}</default>`;
+    }
+    const value = column.meta.default;
+    const tree: string[] = [];
+    if (value !== null && typeof value === "object" && !Array.isArray(value)) {
+        writeXmlTree(value, `${inner}  `, tree);
+        return `\n${inner}<default>${tree.join("")}\n${inner}</default>`;
+    }
+    writeXmlTree(value, inner, tree);
+    return `\n${inner}<default>${tree.join("")}</default>`;
 }
 
 /**
@@ -1263,25 +1296,7 @@ function* writeGraphml(snapshot: GraphSnapshot, plan: Plan): Generator<string, v
     const step = plan.pretty ? "  " : "";
 
     yield '<?xml version="1.0" encoding="UTF-8"?>\n';
-    let root = `<graphml xmlns="${GRAPHML_NAMESPACE}"`;
-    const namespaces: Record<string, string> = { ...plan.meta?.namespaces };
-    if (
-        (plan.nodeColumns.some((c) => c.yfiles) ||
-            plan.edgeColumns.some((c) => c.yfiles) ||
-            plan.graphColumns.some((c) => c.yfiles)) &&
-        !Object.values(namespaces).includes(YFILES_NAMESPACE)
-    ) {
-        namespaces.y = YFILES_NAMESPACE;
-    }
-    if (!Object.values(namespaces).includes(XSI_NAMESPACE)) {
-        namespaces.xsi = XSI_NAMESPACE;
-    }
-    for (const [prefix, uri] of Object.entries(namespaces)) {
-        root += ` xmlns:${prefix}="${escapeXmlAttribute(uri)}"`;
-    }
-    const xsiPrefix = Object.entries(namespaces).find(([, uri]) => uri === XSI_NAMESPACE)?.[0] ?? "xsi";
-    root += ` ${xsiPrefix}:schemaLocation="${SCHEMA_LOCATION}">\n`;
-    yield root;
+    yield rootElement(plan);
 
     for (const key of plan.keys) {
         yield keyElement(key, i1);
@@ -1316,52 +1331,114 @@ function* writeGraphml(snapshot: GraphSnapshot, plan: Plan): Generator<string, v
 
     // edges: primaries only, in index order
     const list = snapshot.edgeList();
-    const { folding } = plan;
     for (let e = 0; e < snapshot.edgeCount; e++) {
-        if (folding.folded(e)) {
-            continue;
+        if (!plan.folding.folded(e)) {
+            const start = edgeStartTag(snapshot, plan, e, String(ids.idAt(list.src[e])), String(ids.idAt(list.dst[e])));
+            yield edgeElement(plan, e, edgeIds[e], start, [i2, i3]);
         }
-        const parts: string[] = [`\n${i2}<edge`];
-        const id = edgeIds[e];
-        if (id !== null) {
-            parts.push(` id="${escapeXmlAttribute(id)}"`);
-        }
-        parts.push(
-            ` source="${escapeXmlAttribute(String(ids.idAt(list.src[e])))}" target="${escapeXmlAttribute(String(ids.idAt(list.dst[e])))}"`,
-        );
-        const directed = snapshot.directed && isDirectedEdge(folding, e);
-        if (directed !== (plan.edgedefault === "directed")) {
-            parts.push(` directed="${directed ? "true" : "false"}"`);
-        }
-        const sourcePort = portText(plan.sourcePortColumn, e);
-        if (sourcePort !== null) {
-            parts.push(` sourceport="${escapeXmlAttribute(sourcePort)}"`);
-        }
-        const targetPort = portText(plan.targetPortColumn, e);
-        if (targetPort !== null) {
-            parts.push(` targetport="${escapeXmlAttribute(targetPort)}"`);
-        }
-        const open = parts.length;
-        if (plan.weight !== null) {
-            const { keyId, attrType } = plan.weight;
-            const weight = plan.weight.weights.text(e, attrType === "int" || attrType === "long");
-            if (weight !== null) {
-                parts.push(`\n${i3}<data key="${keyId}">${escapeXmlText(weight)}</data>`);
-            }
-        }
-        for (const column of plan.edgeColumns) {
-            writeData(column, e, i3, parts);
-        }
-        if (parts.length === open) {
-            parts.push("/>");
-        } else {
-            parts.splice(open, 0, ">");
-            parts.push(`\n${i2}</edge>`);
-        }
-        yield parts.join("");
     }
 
     yield `\n${i1}</graph>\n</graphml>\n`;
+}
+
+/**
+ * The opening `<graphml>` tag with its namespaces: the kept ones, yFiles' where graphics or yFiles columns are written,
+ * and XML Schema's for the schema location.
+ * @param plan - the plan
+ * @returns the tag
+ */
+function rootElement(plan: Plan): string {
+    const namespaces: Record<string, string> = { ...plan.meta?.namespaces };
+    const yfilesColumns =
+        plan.nodeColumns.some((c) => c.yfiles) ||
+        plan.edgeColumns.some((c) => c.yfiles) ||
+        plan.graphColumns.some((c) => c.yfiles);
+    if (
+        plan.yedGraphics === true ||
+        (yfilesColumns &&
+            !Object.values(namespaces).includes(YFILES_NAMESPACE) &&
+            // a yFiles 3 file binds `y` to its own namespace, which its kept trees are written in
+            namespaces.y === undefined)
+    ) {
+        namespaces.y = YFILES_NAMESPACE;
+    }
+    if (!Object.values(namespaces).includes(XSI_NAMESPACE)) {
+        namespaces.xsi = XSI_NAMESPACE;
+    }
+    let root = `<graphml xmlns="${GRAPHML_NAMESPACE}"`;
+    for (const [prefix, uri] of Object.entries(namespaces)) {
+        root += ` xmlns:${prefix}="${escapeXmlAttribute(uri)}"`;
+    }
+    const xsiPrefix = Object.entries(namespaces).find(([, uri]) => uri === XSI_NAMESPACE)?.[0] ?? "xsi";
+    return `${root} ${xsiPrefix}:schemaLocation="${SCHEMA_LOCATION}">\n`;
+}
+
+/**
+ * An edge's attributes after `<edge`: its source and target, a `directed` that differs from the default, its ports.
+ * @param snapshot - the snapshot
+ * @param plan - the plan
+ * @param e - the edge
+ * @param source - the source's written id
+ * @param target - the target's written id
+ * @returns the attribute text
+ */
+function edgeStartTag(snapshot: GraphSnapshot, plan: Plan, e: number, source: string, target: string): string {
+    let text = ` source="${escapeXmlAttribute(source)}" target="${escapeXmlAttribute(target)}"`;
+    const directed = snapshot.directed && isDirectedEdge(plan.folding, e);
+    if (directed !== (plan.edgedefault === "directed")) {
+        text += ` directed="${directed ? "true" : "false"}"`;
+    }
+    const sourcePort = portText(plan.sourcePortColumn, e);
+    if (sourcePort !== null) {
+        text += ` sourceport="${escapeXmlAttribute(sourcePort)}"`;
+    }
+    const targetPort = portText(plan.targetPortColumn, e);
+    if (targetPort !== null) {
+        text += ` targetport="${escapeXmlAttribute(targetPort)}"`;
+    }
+    return text;
+}
+
+/**
+ * One `<edge>` element with its weight and data.
+ * @param plan - the plan
+ * @param e - the edge
+ * @param id - its written id, or null
+ * @param start - its attributes after the id
+ * @param indents - the edge's indentation and its data's
+ * @returns the element text
+ */
+function edgeElement(
+    plan: Plan,
+    e: number,
+    id: string | null,
+    start: string,
+    indents: readonly [string, string],
+): string {
+    const [i2, i3] = indents;
+    const parts: string[] = [`\n${i2}<edge`];
+    if (id !== null) {
+        parts.push(` id="${escapeXmlAttribute(id)}"`);
+    }
+    parts.push(start);
+    const open = parts.length;
+    if (plan.weight !== null) {
+        const { keyId, attrType } = plan.weight;
+        const weight = plan.weight.weights.text(e, attrType === "int" || attrType === "long");
+        if (weight !== null) {
+            parts.push(`\n${i3}<data key="${keyId}">${escapeXmlText(weight)}</data>`);
+        }
+    }
+    for (const column of plan.edgeColumns) {
+        writeData(column, e, i3, parts);
+    }
+    if (parts.length === open) {
+        parts.push("/>");
+    } else {
+        parts.splice(open, 0, ">");
+        parts.push(`\n${i2}</edge>`);
+    }
+    return parts.join("");
 }
 
 /**
@@ -1478,15 +1555,16 @@ export const graphmlExporter: GraphExporter<GraphmlExportOptions> = Object.freez
     format: FORMAT,
     options: Object.freeze(["edgedefault", "pretty"]),
     capabilities: CAPABILITIES,
+    styles: Object.freeze({ capabilities: GRAPHML_STYLE_CAPABILITIES }),
     /**
      * Pre-flight: every loss the export would incur.
      * @param snapshot - the snapshot
      * @param options - format-specific and common options
      * @returns the notes
      */
-    check(snapshot: GraphSnapshot, options?: GraphmlExportOptions & CommonExportOptions): readonly LossNote[] {
-        const plan = planExport(snapshot, resolveExportOptions(options), resolveFormatOptions(options));
-        return Object.freeze(plan.notes);
+    check(snapshot: GraphSnapshot, options?: GraphmlWriteOptions): readonly LossNote[] {
+        const { plan, styled } = prepare(snapshot, options);
+        return Object.freeze([...plan.notes, ...(styled?.notes ?? [])]);
     },
     /**
      * Write the document as UTF-8 chunks.
@@ -1494,9 +1572,9 @@ export const graphmlExporter: GraphExporter<GraphmlExportOptions> = Object.freez
      * @param options - format-specific and common options
      * @returns the chunks
      */
-    export(snapshot: GraphSnapshot, options?: GraphmlExportOptions & CommonExportOptions): AsyncIterable<Uint8Array> {
-        const plan = planExport(snapshot, resolveExportOptions(options), resolveFormatOptions(options));
-        return encodeChunks(writeGraphml(snapshot, plan));
+    export(snapshot: GraphSnapshot, options?: GraphmlWriteOptions): AsyncIterable<Uint8Array> {
+        const { plan, written } = prepare(snapshot, options);
+        return encodeChunks(writeGraphml(written, plan));
     },
     /**
      * Write the document as one string.
@@ -1504,8 +1582,24 @@ export const graphmlExporter: GraphExporter<GraphmlExportOptions> = Object.freez
      * @param options - format-specific and common options
      * @returns the document
      */
-    exportToString(snapshot: GraphSnapshot, options?: GraphmlExportOptions & CommonExportOptions): Promise<string> {
-        const plan = planExport(snapshot, resolveExportOptions(options), resolveFormatOptions(options));
-        return joinText(writeGraphml(snapshot, plan));
+    exportToString(snapshot: GraphSnapshot, options?: GraphmlWriteOptions): Promise<string> {
+        const { plan, written } = prepare(snapshot, options);
+        return joinText(writeGraphml(written, plan));
     },
 });
+
+/**
+ * The plan of an export, with styles: the graph to write with yEd graphics in place of its yFiles columns.
+ * @param snapshot - the snapshot
+ * @param options - format-specific and common options
+ * @returns the plan, the graph to write and the styled export (null without styles)
+ */
+function prepare(
+    snapshot: GraphSnapshot,
+    options: GraphmlWriteOptions | undefined,
+): { plan: Plan; written: GraphSnapshot; styled: ReturnType<typeof graphmlStyledExport> } {
+    const styled = graphmlStyledExport(snapshot, options?.styles);
+    const written = styled?.snapshot ?? snapshot;
+    const plan = planExport(written, resolveExportOptions(options), resolveFormatOptions(options), styled !== null);
+    return { plan: styled === null ? plan : { ...plan, yedGraphics: true }, written, styled };
+}

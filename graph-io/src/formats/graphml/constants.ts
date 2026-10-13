@@ -45,6 +45,7 @@ import {
     UNKNOWN_ENCODING_CODE,
     UNKNOWN_PARENT_CODE,
     UNKNOWN_XML_ATTRIBUTE_CODE,
+    XML_NESTING_CODE,
     XML_SYNTAX_CODE,
 } from "../../common/codes.js";
 
@@ -190,6 +191,8 @@ export const GRAPHML_ISSUE = Object.freeze({
     COLUMN_TYPE: COLUMN_TYPE_CODE,
     /** The input is not well-formed XML. The import stops. */
     XML_SYNTAX: XML_SYNTAX_CODE,
+    /** Elements are nested more than 100,000 deep. The import stops. */
+    XML_NESTING: XML_NESTING_CODE,
     /** The input is not valid UTF-8. The import stops. */
     INVALID_UTF8: INVALID_UTF8_CODE,
     /**
@@ -245,6 +248,8 @@ export const GRAPHML_ISSUE = Object.freeze({
     HYPEREDGE_DATA_DROPPED: "W_GRAPHML_HYPEREDGE_DATA_DROPPED",
     /** Nested elements in the `<data>` of a typed (non-yfiles) key. */
     DATA_NESTED: "E_GRAPHML_DATA_NESTED",
+    /** Nested elements in the `<data>` of an untyped key; they are kept as their XML text. */
+    DATA_STRUCTURED: "W_GRAPHML_DATA_STRUCTURED",
     /** A `<node>` declared twice. */
     DUPLICATE_NODE: DUPLICATE_NODE_CODE,
     /** An edge id already used by another edge. */

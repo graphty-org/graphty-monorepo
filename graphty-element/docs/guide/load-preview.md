@@ -52,6 +52,7 @@ await element.session.data.import({ config: { file } }, { mapping: { source: "fr
 | `type`             | The format that read the file (`"csv"`, `"graphml"`, ...)                      |
 | `tables`           | The file's tables: an `id`, the file `name`, `rowCount`, `fixed` and `columns` |
 | `mapping`          | The element's own reading of every table's roles                               |
+| `styles`           | Whether the file carries styles, and how many rules; null when it holds none   |
 | `resolve(choices)` | Every table's roles as a load with those choices reads them                    |
 | `missing(choices)` | The roles each table still needs under those choices                           |
 | `report(choices)`  | What `load(choices)` would do to the graph as it is now                        |
@@ -194,7 +195,34 @@ Other choices `report`, `load` and `import` take:
   keeps the first row's node; `"merge"` also writes the later row's values onto it, later rows
   winning; `"refuse"` refuses the load with `E_DUPLICATE_ID`, whose `details.id` names the id.
 - `directed`: writes `data.directed` in the same undoable step as the load.
+- `styles`: `"file"` also draws the file's own styles as style layers, in the same step; `"none"`
+  (the default) loads the data alone. `styleOptions` shapes how. See
+  [Styles in the file](#styles-in-the-file).
 - `layout`: `"recommended"` also picks a layout for what was loaded.
+
+## Styles in the file
+
+`draft.styles` says, before anything loads, whether the file carries styles a load with
+`styles: "file"` would draw. It is null when the format cannot carry styles or the file holds none,
+and otherwise `{ declared, summary }`:
+
+- `declared`: true when reading the file's styles found rules to draw;
+- `summary.nodeRules` and `summary.edgeRules`: how many rules there are for nodes and for edges;
+- `summary.tool`: the program that wrote the file, whose defaults fill in what the file leaves
+  unset (`"cytoscape"`, `"gephi"`, `"graphviz"`, `"yed"`, ...), or null when it is not known.
+
+So a reader can be asked before the load:
+
+```ts
+const draft = await element.session.data.prepare({ config: { file } });
+const useStyles = draft.styles !== null && confirm("Use the colors and shapes saved in this file?");
+await draft.load({ styles: useStyles ? "file" : "none" });
+console.log(element.session.data.lastImport()?.styles?.notes);
+```
+
+After such a load, `lastImport().styles` lists the layers the file made and the notes, as
+`{ code, params }`, about what could not be drawn as the file draws it. See
+[Styles from Files](./file-styles).
 
 ## The report
 

@@ -23,6 +23,23 @@ import { agree, plural } from "./plural.js";
  */
 export const MAX_WARNINGS_PER_CODE = 1000;
 
+/** What each finished report's import kept for its styles: per report object, so imports running at once never mix. */
+const KEPT_FOR_STYLES = new WeakMap<ImportReport, unknown>();
+
+/** The value of a builder that kept nothing. */
+const NOTHING_KEPT: unique symbol = Symbol("nothing kept");
+
+/**
+ * What the import that produced a report passed to `ImportReportBuilder.keepForStyles()`, or undefined when it kept
+ * nothing. graph-io passes it to the same importer's `styles()` as `context.kept`.
+ * @param report - a report an importer's `import()` returned
+ * @returns the kept value
+ * @category Writing a format
+ */
+export function keptForStyles(report: ImportReport): unknown {
+    return KEPT_FOR_STYLES.get(report);
+}
+
 /**
  * Where an issue was found: the 1-based line and the element (id or attribute name) when known.
  * @public
@@ -118,6 +135,8 @@ export class ImportReportBuilder {
     private warnings = 0;
 
     private truncatedFlag = false;
+
+    private kept: unknown = NOTHING_KEPT;
 
     private readonly startedAt: number;
 
@@ -278,6 +297,19 @@ export class ImportReportBuilder {
     }
 
     /**
+     * Keep style data that is not per element (a stylesheet, a groups object, a legend, the file's default styles)
+     * for this import's `styles()`: graph-io passes it back as `context.kept` when styles are requested. Kept per
+     * report, never on the importer object, so imports running at once each get their own. A later call replaces
+     * the value.
+     * @param value - anything the importer's `styles()` needs
+     * @returns this builder
+     */
+    keepForStyles(value: unknown): this {
+        this.kept = value;
+        return this;
+    }
+
+    /**
      * A builder that starts from everything this one recorded so far: issues, counts, loss notes,
      * the warnOnce keys, the error and warning counts and the truncation flag. For an importer that
      * reads its input once and emits several graphs, each with its own report.
@@ -297,6 +329,7 @@ export class ImportReportBuilder {
         copy.errors = this.errors;
         copy.warnings = this.warnings;
         copy.truncatedFlag = this.truncatedFlag;
+        copy.kept = this.kept;
         return copy;
     }
 
@@ -378,6 +411,9 @@ export class ImportReportBuilder {
         this.counts.expandedMixed += counts.expandedMixed;
         this.lossList.push(...report.lossy);
         this.truncatedFlag ||= report.truncated;
+        if (this.kept === NOTHING_KEPT && KEPT_FOR_STYLES.has(report)) {
+            this.kept = KEPT_FOR_STYLES.get(report);
+        }
         return this;
     }
 
@@ -403,7 +439,7 @@ export class ImportReportBuilder {
                 );
             }
         }
-        return Object.freeze({
+        const report: ImportReport = Object.freeze({
             format: this.format,
             counts: Object.freeze({ nodes, edges, skippedNodes, skippedEdges, expandedMixed }),
             issues: Object.freeze([...this.issueList, ...suppressed]),
@@ -413,6 +449,10 @@ export class ImportReportBuilder {
             lossy: Object.freeze([...this.lossList]),
             durationMs: now() - this.startedAt,
         });
+        if (this.kept !== NOTHING_KEPT) {
+            KEPT_FOR_STYLES.set(report, this.kept);
+        }
+        return report;
     }
 }
 

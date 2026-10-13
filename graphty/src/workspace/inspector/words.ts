@@ -40,6 +40,11 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.shape": "Shape",
     "node.label": "Label",
     "node.labelStyle": "Label",
+    "node.labelColor": "Label",
+    "node.labelSize": "Label",
+    "node.labelFont": "Label",
+    "node.labelWeight": "Label",
+    "node.labelItalic": "Label",
     "node.tooltip": "Tooltip",
     "node.tooltipStyle": "Tooltip",
     "node.opacity": "Opacity",
@@ -70,6 +75,11 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.animationSpeed": "Motion",
     "edge.label": "Label",
     "edge.labelStyle": "Label",
+    "edge.labelColor": "Label",
+    "edge.labelSize": "Label",
+    "edge.labelFont": "Label",
+    "edge.labelWeight": "Label",
+    "edge.labelItalic": "Label",
 };
 
 /**

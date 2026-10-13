@@ -199,10 +199,71 @@ afterEach(() => {
     vi.unstubAllGlobals();
 });
 
+/** The package's published entry points by the name a reader imports them with (package.json's exports). */
+const PUBLISHED: ReadonlySet<string> = new Set(
+    Object.keys(
+        (JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as { exports: object }).exports,
+    ).map((k) => (k === "." ? "@graphty/graph-io" : `@graphty/graph-io/${k.slice(2)}`)),
+);
+
+/** The examples that show a format plugin's simple path: they import nothing a reader would not have. */
+const SIMPLE_PATHS = ["styles/importer.ts", "styles/exporter.ts", "styles/slots.ts"];
+
+/**
+ * The module specifiers an example imports.
+ * @param text - the example's source
+ * @returns the specifiers, static and dynamic
+ */
+function specifiers(text: string): string[] {
+    return [...text.matchAll(/(?:\bfrom\s+|\bimport\s*\(\s*|^import\s+)"([^"]+)"/gm)].map((m) => m[1]);
+}
+
+/**
+ * Whether a reader who installed the package can import a specifier: a published entry point, graph-format, a
+ * Node module, the CDN copy, React, or (for an example that builds on another the same page shows) a sibling example.
+ * @param spec - the specifier
+ * @param file - the example importing it
+ * @param siblings - whether a sibling example counts
+ * @returns true when it can
+ */
+function readerCanImport(spec: string, file: string, siblings: boolean): boolean {
+    if (PUBLISHED.has(spec) || spec === "@graphty/graph-format" || spec.startsWith("node:") || spec === "react") {
+        return true;
+    }
+    if (spec === "https://esm.sh/@graphty/graph-io") {
+        return true;
+    }
+    const sibling = /^\.\/([\w-]+)\.js$/.exec(spec);
+    return siblings && sibling !== null && existsSync(join(file, "..", `${sibling[1]}.ts`));
+}
+
 describe("documentation examples", () => {
     const files = walk(EXAMPLES)
         .filter((f) => f.endsWith(".ts") || f.endsWith(".js"))
         .sort();
+
+    it("import only what a reader can import", () => {
+        // a relative path into the package or a src/ import would run here and fail for every reader
+        const wrong = files.flatMap((file) => {
+            const name = relative(EXAMPLES, file);
+            const siblings = !SIMPLE_PATHS.includes(name);
+            return specifiers(readFileSync(file, "utf8"))
+                .filter((spec) => !readerCanImport(spec, file, siblings))
+                .map((spec) => `${name}: ${spec}`);
+        });
+        expect(wrong).toEqual([]);
+        for (const name of SIMPLE_PATHS) {
+            expect(existsSync(join(EXAMPLES, name)), name).toBe(true);
+        }
+    });
+
+    it("rejects a relative or src/ import", () => {
+        const file = join(EXAMPLES, "styles", "importer.ts");
+        expect(readerCanImport("../../src/index.js", file, true)).toBe(false);
+        expect(readerCanImport("@graphty/graph-io/src/styles/index.js", file, true)).toBe(false);
+        expect(readerCanImport("./exporter.js", file, false)).toBe(false);
+        expect(specifiers('import { a } from "../x.js";\nawait import("./y.js");')).toEqual(["../x.js", "./y.js"]);
+    });
 
     it("exist", () => {
         expect(files.length).toBeGreaterThan(0);

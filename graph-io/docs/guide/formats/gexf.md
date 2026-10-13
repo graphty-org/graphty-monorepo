@@ -85,6 +85,12 @@ and alpha, each from 0 to 1), `position` (x, y and z), `size` and `shape` on nod
 `thickness` and `shape` on edges. Each has the role of the same name, so other formats that hold
 colors or positions find it. A save writes these columns back as `viz` elements.
 
+The `color`, `size`, `shape` and `thickness` columns, and the renaming of an attribute titled like
+one of them, are deprecated and leave the import result in the next major version. To read how a
+file looks, import with `styles: true`: the result's `styles` holds the file's colors, sizes,
+shapes and widths, with Gephi's defaults for what the file leaves out, and a save with `styles`
+writes them back as `viz` elements. The `position` column stays.
+
 <!-- generated:begin example:formats/gexf-viz -->
 
 ```ts
@@ -217,6 +223,33 @@ What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-
 | [`graphAttributes`](./index.md#graphattributes) | no                                |
 | [`positions`](./index.md#positions)             | yes                               |
 | [`viz`](./index.md#viz)                         | yes                               |
+| [`styles`](./index.md#styles)                   | 10 properties, rules kept         |
+
+<!-- generated:end -->
+
+## Styles
+
+With `styles: true`, graph-io reads Gephi's `viz` elements as styles: `viz:color` (its alpha
+becomes the fill's opacity), `viz:size`, `viz:shape` and an image shape's URI on nodes, and
+`viz:color`, `viz:thickness` and `viz:shape` on edges. Sizes are Gephi's relative factors, so
+`units.length` is `"relative"`. Gephi's defaults are always added: black discs of size 10 for what
+the file leaves out, no labels, an arrow at the target of directed edges, and an edge with no color
+of its own takes its source node's color.
+
+A save with styles writes the `viz` elements, and the rules for graphty as an element of graphty's
+own XML namespace inside `<meta>`, which Gephi skips. A shape GEXF does not have is written as the
+nearest one it has (`W_STYLE_APPROXIMATED`). See [Styles](../styles.md).
+
+<!-- generated:begin styles:gexf -->
+
+|                                     |                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Reads styles                        | yes, with `styles: true`                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Node properties written             | `fill`, `fillOpacity`, `width`, `height`, `shape`, `image`                                                                                                                                                                                                                                                                                                                                                                                    |
+| Edge properties written             | `color`, `opacity`, `width`, `lineStyle`                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Graph properties written            | none                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Rules kept for graphty              | yes, in the file's own `graphty.styles` block                                                                                                                                                                                                                                                                                                                                                                                                 |
+| Not written (`W_STYLE_NOT_WRITTEN`) | node: `borderColor`, `labelColor`, `opacity`, `borderWidth`, `labelSize`, `borderStyle`, `label`, `tooltip`, `labelFont`, `labelWeight`, `labelItalic`, `labelPosition`, `visible`; edge: `sourceArrowColor`, `targetArrowColor`, `labelColor`, `labelSize`, `arrowSize`, `sourceArrow`, `targetArrow`, `curved`, `label`, `tooltip`, `labelFont`, `labelWeight`, `labelItalic`, `sourceLabel`, `targetLabel`, `visible`; graph: `background` |
 
 <!-- generated:end -->
 
@@ -230,7 +263,7 @@ These come on top of the [options every importer takes](../options.md#every-impo
 | -------------------- | --------- | ------- |
 | [`viz`](#import-viz) | `boolean` | `true`  |
 
-- <a id="import-viz"></a>`viz`: Whether to read the visual attributes of Gephi's viz namespace (color, position, size, shape, thickness) into node and edge attributes; false skips them, with one `W_GEXF_VIZ_SKIPPED` warning.
+- <a id="import-viz"></a>`viz`: Whether to read the visual attributes of Gephi's viz namespace (color, position, size, shape, thickness) into node and edge attributes; false skips them, with one `W_GEXF_VIZ_SKIPPED` warning. The color, size, shape and thickness columns are deprecated and leave the import result in the next major version: read a file's styles with `styles: true` instead. The position column stays.
 
 ## Export options
 
@@ -252,6 +285,7 @@ The codes this format's import report can hold. They are also exported as `GEXF_
 - `E_DUPLICATE_EDGE_ID` (error): An edge id declared twice (the second edge is skipped).
 - `E_COLUMN_TYPE` (error): A value that does not parse as the type its attribute declares ("x" in an integer attribute). The value is left unset; the node or edge is kept.
 - `E_XML_SYNTAX` (error): The XML is not well-formed. The import stops.
+- `E_XML_NESTING` (error): Elements are nested more than 100,000 deep. The import stops.
 - `E_INVALID_UTF8` (error): The input is not valid UTF-8. The import stops.
 - `E_INVALID_ENCODING` (error): Some bytes are not valid in the encoding that was chosen (by a byte order mark, the file's declaration or the `encoding` option). The import stops.
 - `W_ENCODING_FALLBACK` (warning): Bytes that are not UTF-8 and declare no encoding were read as windows-1252.
@@ -264,6 +298,7 @@ The codes this format's import report can hold. They are also exported as `GEXF_
 - `E_MISSING_ENDPOINT` (error): An edge without a source or target.
 - `E_GEXF_EDGE_TYPE` (error): An edge `type` outside directed / undirected / mutual.
 - `E_UNKNOWN_PARENT` (error): A `pid` / `<parent for>` naming an unknown node, a `<parent>` without for, or the children of a skipped node.
+- `W_GEXF_UNKNOWN_PID` (warning): GEXF 1.0 only: a `pid` naming no node. Gephi 0.6 wrote `pid="0"` on its top-level nodes; the node stays top-level.
 - `E_PARENT_CYCLE` (error): A `pid` / nested containment that would close a parent cycle; that link is dropped.
 - `E_BAD_VALUE` (error): An inverted interval (start after end) of an element, a spell or a value; it is not kept.
 - `E_GEXF_ATTRIBUTES_CLASS` (error): An `<attributes class>` outside node / edge.

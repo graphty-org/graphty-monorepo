@@ -21,6 +21,7 @@
 import type { DrawingMode } from "../camera/types";
 import type { EdgeStyleConfig } from "../config/EdgeStyle";
 import type { GraphtyErrorCode } from "../errors/codes";
+import type { FileStyleOrigin } from "../session/styles/fileStyles/origin";
 import type { LabelStyle } from "./label-style";
 
 /**
@@ -488,13 +489,29 @@ export interface OptionDescriptor extends OptionDescriptorDomain {
 // Style documents, which a theme is made of
 // ---------------------------------------------------------------------------------------------
 
-/** Every property a layer can paint. */
+/**
+ * Every property a layer can paint.
+ *
+ * The label channels `labelColor`, `labelSize`, `labelFont`, `labelWeight` and `labelItalic` are
+ * single fields of the label style, so they can be bound to a column (`encode`) where the whole
+ * `labelStyle` can only be set. They land in the same label style the `labelStyle` channel
+ * writes, field by field, the higher layer winning each field.
+ *
+ * OPEN UNION: later releases add channels as the element learns to paint more. A consumer that
+ * keeps a table over every channel (`Record<Channel, ...>`) adds an entry for each new one, or
+ * types the table `Partial<Record<Channel, ...>>` and words an unknown channel generically.
+ */
 export type Channel =
     | "node.color"
     | "node.size"
     | "node.shape"
     | "node.label"
     | "node.labelStyle"
+    | "node.labelColor"
+    | "node.labelSize"
+    | "node.labelFont"
+    | "node.labelWeight"
+    | "node.labelItalic"
     | "node.tooltip"
     | "node.tooltipStyle"
     | "node.opacity"
@@ -524,7 +541,12 @@ export type Channel =
     | "edge.arrowTailTextStyle"
     | "edge.animationSpeed"
     | "edge.label"
-    | "edge.labelStyle";
+    | "edge.labelStyle"
+    | "edge.labelColor"
+    | "edge.labelSize"
+    | "edge.labelFont"
+    | "edge.labelWeight"
+    | "edge.labelItalic";
 
 /**
  * The values the "edge.style" channel accepts.
@@ -590,6 +612,30 @@ export type StaticStyle = Partial<Record<Channel, ChannelValue>>;
  */
 export type BindingOverflow = "other" | "shape" | "extend";
 
+/**
+ * One point of a `stops` binding: what a number exactly at `at` paints, and what the stretches on
+ * either side of it start or end with.
+ *
+ * Between two points the value moves from the left point's `above` to the right point's `below`
+ * (numbers linearly, colors per red, green, blue and alpha component). Below the first point every
+ * value paints the first point's `below`; above the last, the last point's `above`; exactly at a
+ * point, its `value`. `below` and `above` default to `value`, so a plain ramp names only `at` and
+ * `value`; giving them separately draws a jump at the point. Points need not be evenly spaced.
+ *
+ * This is the model Cytoscape's continuous mappings use, so a mapping read from a Cytoscape file
+ * keeps its exact meaning.
+ */
+export interface BindingStop {
+    /** Where the point sits, in the bound value's own units. */
+    at: number;
+    /** What a value exactly at `at` paints: a number for a numeric channel, a color for a color channel. */
+    value: string | number;
+    /** What the stretch just below `at` ends with. Defaults to `value`. */
+    below?: string | number;
+    /** What the stretch just above `at` starts with. Defaults to `value`. */
+    above?: string | number;
+}
+
 /** One channel's binding: a literal, or a declarative mapping from a value in the data. */
 export type Binding =
     | { value: ChannelValue }
@@ -619,6 +665,21 @@ export type Binding =
            */
           overflow?: BindingOverflow;
           missing?: "skip" | { value: string | number };
+          /**
+           * What a value `map` has no entry for paints. Absent, it goes on through the scale as
+           * before, so with `scale: "passthrough"` an unmapped "green" is painted green. `"skip"`
+           * leaves an element whose value the map does not hold exactly as the layers beneath
+           * paint it. An element with no value at all still follows `missing`.
+           */
+          unmapped?: "skip";
+          /**
+           * Points a number is read against instead of a scale, domain, range and palette: uneven
+           * spacing and jumps allowed. See {@link BindingStop}. Works on channels that carry a
+           * number or a color, with `scale` absent or `"linear"`; `palette`, `domain`, `clamp`,
+           * `range`, `reverse`, `midpoint`, `bins`, `exponent`, `map`, `other` and `overflow` are
+           * refused beside it, because the points already say what each of them would.
+           */
+          stops?: BindingStop[];
           /**
            * Values this binding does not paint: an element carrying one is left exactly as the
            * layers beneath paint it, as an unmeasured element is. Compared as the legend spells a
@@ -682,6 +743,12 @@ export interface LayerSpec {
     source?: LayerSource;
     enabled?: boolean;
     userData?: Record<string, unknown>;
+    /**
+     * Where a layer made from a file's styles came from: the element's facts about it, set when
+     * a load makes the layer, saved and restored with it, and read with `fileStyleOf(layer)`.
+     * Absent on every other layer. An update that does not name it keeps it.
+     */
+    fileStyle?: FileStyleOrigin;
 }
 
 /** A portable stack of layers, with any palettes it depends on travelling beside it. */
@@ -795,6 +862,11 @@ export interface FormatDescriptor {
     mimeTypes: readonly string[];
     canImport: boolean;
     canExport: boolean;
+    /**
+     * True when the format's files are not text (a Cytoscape session is a zip archive): an
+     * export's `text()` rejects with `E_UNSUPPORTED`, so read its `bytes`. Absent means text.
+     */
+    binary?: boolean;
     /** The options its reader accepts. */
     options: readonly OptionDescriptor[];
     /**
@@ -803,6 +875,21 @@ export interface FormatDescriptor {
      * here is refused with `E_UNKNOWN_OPTION`.
      */
     writerOptions?: readonly OptionDescriptor[];
+    /**
+     * Whether the format's files carry styles: `read` when its reader can draw a file's own
+     * styles (`styles: "file"` on a load), and what its writer keeps of a graph's styles --
+     * `"rules"` (the layers come back as layers when the file is read again), `"values"` (only
+     * each element's values) or `"none"`. Absent means `{ read: false, write: "none" }`.
+     */
+    styles?: FormatStyles;
+}
+
+/** What a format's files keep of a graph's styles. See {@link FormatDescriptor.styles}. */
+export interface FormatStyles {
+    /** Whether the reader can draw a file's own styles. */
+    readonly read: boolean;
+    /** What the writer keeps: the rules, only the values, or nothing. Open union. */
+    readonly write: "rules" | "values" | "none";
 }
 
 /** One colour palette. */

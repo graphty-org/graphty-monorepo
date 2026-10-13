@@ -197,6 +197,7 @@ export class RichTextLabel {
             font: "Verdana",
             fontSize: 48,
             fontWeight: "normal",
+            fontStyle: "normal",
             textColor: "black",
             textAlign: "center",
             lineHeight: DEFAULT_LINE_HEIGHT,
@@ -284,7 +285,7 @@ export class RichTextLabel {
             font: this.options.font,
             size: this.options.fontSize,
             weight: this.options.fontWeight,
-            style: "normal",
+            style: this.options.fontStyle,
             color: this.options.textColor,
             background: null,
         });

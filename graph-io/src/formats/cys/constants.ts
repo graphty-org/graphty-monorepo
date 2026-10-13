@@ -142,3 +142,6 @@ export const CYS_ISSUE = Object.freeze({
     /** `graphName` matches several networks in the session. The import stops. */
     AMBIGUOUS_GRAPH_NAME: AMBIGUOUS_GRAPH_NAME_CODE,
 });
+
+/** The name prefix of the per-element style value columns graphty writes into a session's tables. */
+export const STYLE_COLUMN_PREFIX = "graphty.style.";

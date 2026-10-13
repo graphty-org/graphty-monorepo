@@ -4,9 +4,10 @@
  * exports a file never downloads the parsers.
  */
 
+import type { GraphSnapshot } from "@graphty/graph-format";
 import {
     checkExport,
-    type ExportGraphOptions,
+    type CommonExportOptions,
     exportGraphToString,
     ImportError,
     importGraph,
@@ -16,9 +17,17 @@ import {
     type ImportReport,
     type LossNote,
 } from "@graphty/graph-io";
-import type { Collection, ElementDefinition } from "cytoscape";
+import {
+    type CytoscapeStylesheetRule,
+    type ExtractedStyles,
+    readCytoscapeStyles,
+    STYLE_ISSUE,
+    type StyleNote,
+    toCytoscapeStylesheet,
+} from "@graphty/graph-io/styles";
+import type { Collection, Core, ElementDefinition } from "cytoscape";
 
-import { elementsToSnapshot, flipY, snapshotToElements } from "./elements.js";
+import { elementsToSnapshot, exportedEdges, flipY, snapshotToElements } from "./elements.js";
 
 /** One thing graphtyExport's format cannot hold: `code`, `message`, the data field (`column`) and how many values. */
 export type { LossNote } from "@graphty/graph-io";
@@ -46,8 +55,28 @@ export type ImportFormat =
 /** The formats graphtyExport writes. XGMML is the one Cytoscape desktop opens as a network file. */
 export type ExportFormat = "gexf" | "graphml" | "gml" | "dot" | "pajek" | "csv" | "json" | "neo4j" | "xgmml" | "cx2";
 
-/** Options of graphtyImport: graph-io's import options (`filename`, `graphIndex`, format-specific ones, ...). */
-export type ImportOptions = Omit<ImportGraphOptions, "format">;
+/** One rule of a Cytoscape.js stylesheet: a selector and its properties. */
+export type { CytoscapeStylesheetRule } from "@graphty/graph-io/styles";
+
+/**
+ * Options of graphtyImport: graph-io's import options (`filename`, `graphIndex`, format-specific ones, ...).
+ * `styles: true` also reads the file's styles (its colors, sizes, shapes, ...) as a Cytoscape.js stylesheet,
+ * returned as `stylesheet`; a property the file leaves to the program that wrote it gets that program's default
+ * (`styles: { toolDefaults: false }` leaves them out).
+ */
+export type ImportOptions = Omit<ImportGraphOptions, "format"> & {
+    /**
+     * With `styles`, graphtyImport also appends the file's stylesheet to the core's own and gives each element the
+     * per-element overrides that make it exact. Default false: the stylesheet is only returned.
+     */
+    readonly applyStyles?: boolean | undefined;
+    /**
+     * With `styles`, the value of the `graphty_import` data field every imported element gets and every rule of the
+     * stylesheet tests, so a second import into the same core never restyles the first one's elements. Default: a
+     * new one for each import.
+     */
+    readonly importId?: string | undefined;
+};
 
 /**
  * Options of graphtyExport: graph-io's export options for the format, plus whether to write a directed graph.
@@ -58,7 +87,17 @@ export type ImportOptions = Omit<ImportGraphOptions, "format">;
  * JSON is written as Cytoscape JSON (`dialect: "cytoscape"`, the shape `cy.json()` and `cy.add()` use), which keeps
  * edge ids, compound parents and positions; pass `dialect: "node-link"` for the NetworkX shape.
  */
-export interface ExportOptions extends ExportGraphOptions {
+export interface ExportOptions extends CommonExportOptions {
+    /**
+     * Write the core's styles too: its stylesheet's rules, with what the core draws for each element as the truth
+     * (a function-valued property is written per element and reported as W_STYLE_LAYER_FLATTENED). Each format
+     * keeps as much of them as it can, so importing the file with `styles: true` draws the same; `onLoss` hears
+     * about the rest (W_STYLE_ codes). Default false: without it `onLoss` hears W_STYLES_NOT_EXPORTED when the core
+     * has a stylesheet of its own.
+     */
+    readonly styles?: boolean | undefined;
+    /** Format-specific options, passed to graph-io as they are. */
+    readonly [formatOption: string]: unknown;
     /** Write the graph as directed. Default false. */
     readonly directed?: boolean | undefined;
     /**
@@ -78,10 +117,43 @@ export interface ImportedElements {
     readonly format: string;
     /** graph-io's report: counts, warnings, and what could not be represented. */
     readonly report: ImportReport;
+    /**
+     * With `styles`, the file's styles as a Cytoscape.js stylesheet scoped to this import; append it to the core's
+     * (`cy.style().fromJson([...cy.style().json(), ...stylesheet]).update()`). Absent without `styles`.
+     */
+    readonly stylesheet?: CytoscapeStylesheetRule[];
+    /**
+     * With `styles`, per element (in the order of `elements`) the style overrides that make it draw exactly as the
+     * file says where the stylesheet alone does not, or null; give them as each definition's `style`.
+     */
+    readonly bypass?: (Readonly<Record<string, string | number>> | null)[];
+}
+
+/** How many imports have read styles: the default import ids. */
+let imports = 0;
+
+/**
+ * A style note as a report warning.
+ * @param n - the note
+ * @returns the issue
+ */
+function styleIssue(n: StyleNote): ImportIssue {
+    return {
+        category: "unsupported",
+        severity: "warning",
+        code: n.code,
+        message: n.message,
+        line: null,
+        element: n.params.property,
+    };
 }
 
 /**
  * Reads a graph file into Cytoscape element definitions.
+ * Without `styles`, a GEXF `viz:color`, `viz:size`, `viz:shape` and `viz:thickness` also become data fields
+ * (`data.color` as four numbers from 0 to 1, `data.size`, `data.shape`, `data.thickness`); these fields are
+ * deprecated and are removed in the next major release: import with `styles: true`, whose stylesheet draws them.
+ * With `styles: true` they are left out of data.
  * @param input - the file as text, bytes, a stream or chunks
  * @param format - the format, or "auto" to sniff it
  * @param options - graph-io's import options
@@ -94,7 +166,11 @@ export async function importElements(
     options: ImportOptions = {},
 ): Promise<ImportedElements> {
     // fetch().arrayBuffer() and File.arrayBuffer() give an ArrayBuffer, which graph-io does not take
-    const r = await importGraph(input instanceof ArrayBuffer ? new Uint8Array(input) : input, { ...options, format });
+    const { applyStyles: _apply, importId, ...graphOptions } = options;
+    const r = await importGraph(input instanceof ArrayBuffer ? new Uint8Array(input) : input, {
+        ...graphOptions,
+        format,
+    });
     // most text sniffs as CSV, so a file that is not a graph at all reads as an empty one with errors
     if (r.snapshot.nodeCount === 0 && r.report.errorCount > 0) {
         const first = r.report.issues.find((i) => i.severity === "error");
@@ -125,12 +201,24 @@ export async function importElements(
                 line: null,
                 element: id,
             }),
+        r.styles !== undefined && r.styles !== null,
     );
     // graph-io stores positions with y growing upward; Cytoscape's y grows downward
     for (const el of elements) {
         if (el.position !== undefined) {
             el.position.y = flipY(el.position.y);
         }
+    }
+    let styled: Pick<ImportedElements, "stylesheet" | "bypass"> = {};
+    if (r.styles !== undefined && r.styles !== null) {
+        imports++;
+        const em = toCytoscapeStylesheet(r.styles, { importId: importId ?? String(imports) });
+        const n = r.snapshot.nodeCount;
+        const at = <T>(per: { node: readonly T[]; edge: readonly T[] }, i: number): T =>
+            i < n ? per.node[i] : per.edge[i - n];
+        elements.forEach((el, i) => Object.assign(el.data, at(em.elementData, i)));
+        styled = { stylesheet: em.stylesheet, bypass: elements.map((_el, i) => at(em.bypass, i)) };
+        warnings.push(...em.notes.map(styleIssue));
     }
     const report =
         warnings.length === 0
@@ -140,7 +228,7 @@ export async function importElements(
                   issues: [...r.report.issues, ...warnings],
                   warningCount: r.report.warningCount + warnings.length,
               };
-    return { elements, directed: r.snapshot.directed, format: r.format, report };
+    return { elements, directed: r.snapshot.directed, format: r.format, report, ...styled };
 }
 
 /** The loss notes about something graphtyImport always gives back (see lostForCytoscape). */
@@ -174,6 +262,107 @@ function lostForCytoscape(n: LossNote): boolean {
     return !(n.code === "W_ROLE_DROPPED" && n.column === "label");
 }
 
+/** What this module reads of a core's style, which Cytoscape's typings leave out. */
+interface LiveStyle {
+    json(): unknown[];
+}
+
+/**
+ * The core a collection belongs to (`eles.cy()`, which Cytoscape's typings leave out).
+ * @param eles - the collection
+ * @returns the core
+ */
+function coreOf(eles: Collection): Core {
+    return (eles as unknown as { cy(): Core }).cy();
+}
+
+/**
+ * A core's style.
+ * @param cy - the core
+ * @returns the style, or undefined when the core has styles disabled (headless without `styleEnabled`)
+ */
+function styleOf(cy: Core): LiveStyle | undefined {
+    return cy.style() as unknown as LiveStyle | undefined;
+}
+
+/**
+ * The styles of a collection as its core draws them: the core's stylesheet, with each element's `ele.style()` as
+ * the truth.
+ * @param eles - the collection
+ * @param snapshot - the collection as elementsToSnapshot() wrote it
+ * @returns the styles, or null when the core has styles disabled (a headless core without `styleEnabled`)
+ */
+function coreStyles(eles: Collection, snapshot: GraphSnapshot): ExtractedStyles | null {
+    const style = styleOf(coreOf(eles));
+    if (style === undefined) {
+        return null;
+    }
+    const nodes = eles.nodes();
+    const edges = exportedEdges(eles);
+    return readCytoscapeStyles({
+        elements: { nodes: nodes.jsons(), edges: edges.jsons() },
+        style: style.json(),
+        rendered: [...nodes.map((n) => n.style()), ...edges.map((e) => e.style())],
+        snapshot,
+    });
+}
+
+/**
+ * W_STYLE_LAYER_FLATTENED for each property written per element instead of as a rule (a function-valued one).
+ * @param extracted - the core's styles
+ * @returns the notes
+ */
+function flattened(extracted: ExtractedStyles): LossNote[] {
+    return extracted.styles.notes
+        .filter((n) => n.code === STYLE_ISSUE.LAYER_FLATTENED)
+        .map((n) => ({
+            code: n.code,
+            message: n.message,
+            column: null,
+            count: n.params.count,
+            ...(n.params.target === "node" || n.params.target === "edge"
+                ? { style: { target: n.params.target, property: n.params.property as never } }
+                : {}),
+        }));
+}
+
+/**
+ * W_STYLES_NOT_EXPORTED when the core has a stylesheet of its own (one a new core does not have), or when styles were
+ * asked for and the core has none to give (a headless core without `styleEnabled`).
+ * @param cy - the core
+ * @param asked - whether the export asked for the styles
+ * @returns the note, or none
+ */
+function notExported(cy: Core, asked: boolean): LossNote[] {
+    const style = styleOf(cy);
+    if (style === undefined) {
+        return asked
+            ? [
+                  {
+                      code: STYLE_ISSUE.NOT_EXPORTED,
+                      message:
+                          "no styles are written: the core has styles disabled; create it with { styleEnabled: true }",
+                      column: null,
+                      count: null,
+                  },
+              ]
+            : [];
+    }
+    const fresh = new (cy.constructor as new (options: object) => Core)({ headless: true, styleEnabled: true });
+    const own = JSON.stringify(style.json()) !== JSON.stringify(styleOf(fresh)?.json());
+    fresh.destroy();
+    return own
+        ? [
+              {
+                  code: STYLE_ISSUE.NOT_EXPORTED,
+                  message: "the core's stylesheet is not written; export with { styles: true } to write it",
+                  column: null,
+                  count: null,
+              },
+          ]
+        : [];
+}
+
 /** The formats that hold only integer node ids: a graph whose ids are all integers is written with them as they are. */
 const INTEGER_ID_FORMATS: ReadonlySet<ExportFormat> = new Set(["gml", "cx2"]);
 
@@ -196,18 +385,23 @@ export async function exportElements(
             "exportElements needs a Cytoscape collection; wrap element definitions with cytoscape({ headless: true, elements }).elements()",
         );
     }
-    const { directed, onLoss, ...rest } = options;
+    const { directed, onLoss, styles, ...rest } = options;
     const snapshot = elementsToSnapshot(eles, {
         directed,
         integerIds: INTEGER_ID_FORMATS.has(format),
     });
+    const extracted = styles === true ? coreStyles(eles, snapshot) : null;
     const graphOptions = {
         sanitizeIds: "mangle" as const,
         ...(format === "json" ? { dialect: "cytoscape" } : {}),
         ...rest,
+        ...(extracted === null ? {} : { styles: extracted }),
     };
     if (onLoss !== undefined) {
-        const notes = checkExport(snapshot, format, graphOptions).filter(lostForCytoscape);
+        const notes = [
+            ...(extracted === null ? notExported(coreOf(eles), styles === true) : flattened(extracted)),
+            ...checkExport(snapshot, format, graphOptions).filter(lostForCytoscape),
+        ];
         if (notes.length > 0) {
             onLoss(notes);
         }

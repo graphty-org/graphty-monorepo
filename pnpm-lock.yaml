@@ -526,6 +526,9 @@ importers:
       '@vitest/ui':
         specifier: 'catalog:'
         version: 4.1.11(vitest@4.1.11)
+      cytoscape:
+        specifier: ^3.34.3
+        version: 3.34.3
       eslint:
         specifier: ^9.29.0
         version: 9.39.5(jiti@2.7.0)

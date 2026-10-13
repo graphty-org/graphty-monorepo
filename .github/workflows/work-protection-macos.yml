@@ -133,5 +133,6 @@ jobs:
               with: { name: work-protection-bundle, path: graphty-element/dist }
             - name: App switch, memory warning, Safari or its web content process killed
               timeout-minutes: 30
-              # Booting a simulator and Safari's first launch take minutes: the step's limit bounds them, not vitest's.
-              run: pnpm exec vitest run --project=lifecycle --hookTimeout=900000 --testTimeout=900000 test/lifecycle/ios-simulator.test.ts
+              # Booting a simulator and Safari's first launch take minutes: the step's limit bounds them (vitest's
+              # lifecycle project allows them with GRAPHTY_LIFECYCLE_MACOS set).
+              run: pnpm exec vitest run --project=lifecycle test/lifecycle/ios-simulator.test.ts

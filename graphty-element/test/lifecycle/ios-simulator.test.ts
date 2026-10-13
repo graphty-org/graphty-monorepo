@@ -20,7 +20,7 @@
 import { execFileSync } from "node:child_process";
 import { appendFileSync } from "node:fs";
 
-import { afterAll, assert, beforeAll, describe, it } from "vitest";
+import { afterAll, assert, beforeAll, describe, it, onTestFailed } from "vitest";
 
 import { processes } from "./cdp-harness";
 import { kill } from "./engines";
@@ -94,6 +94,9 @@ describe.skipIf(!MACOS)("Safari in the iOS Simulator", () => {
      */
     async function scenario(key: string, between: () => string | Promise<string>): Promise<string> {
         const tab = key;
+        onTestFailed(() => {
+            console.log(`[ios] reports: ${JSON.stringify(fx.log.filter((e) => e.tab.startsWith(tab)))}`);
+        });
         simctl("openurl", udid, fx.url({ key, tab, auto: 3, tail: 1, delay: 600_000 }));
         const saved = await fx.waitFor((e) => e.tab === tab && e.type === "auto-saved");
         assert.strictEqual(saved.state, "saved", "the page saved its edits");

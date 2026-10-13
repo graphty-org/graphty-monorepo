@@ -127,15 +127,16 @@ async function editAndLeaveOnePending(page: Page, tab: string): Promise<string[]
 }
 
 /**
- * Close a page the way a reader does, running its `beforeunload` and `pagehide`. Headless WebKit on
- * Linux (the WPE port) never finishes `page.close({ runBeforeUnload: true })`, not even for
- * about:blank, so there the page is first navigated away, which runs both, then closed.
+ * Close a page the way a reader does, running its `beforeunload` and `pagehide`. Playwright's WebKit
+ * never finishes `page.close({ runBeforeUnload: true })`, on Linux (the WPE port, not even for
+ * about:blank) or on macOS (a page with no `beforeunload` listener, on the macOS runner), so there
+ * the page is first navigated away, which runs both, then closed.
  * @param page - The page.
  * @param engine - Its engine.
  */
 async function closeAsReader(page: Page, engine: Engine): Promise<void> {
     const closed = page.waitForEvent("close");
-    if (engine === "webkit" && process.platform === "linux") {
+    if (engine === "webkit") {
         await page.goto(`${fx.origin}/away.html`);
         await page.close();
     } else {

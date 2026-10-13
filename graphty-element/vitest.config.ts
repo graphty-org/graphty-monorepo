@@ -810,8 +810,11 @@ export default defineConfig({
                     // The benchmark beside these tests runs in "bench".
                     exclude: ["**/*.bench.test.ts", "**/node_modules/**"],
                     fileParallelism: false,
-                    testTimeout: 120_000,
-                    hookTimeout: 60_000,
+                    // On the macOS runners (work-protection-macos.yml) booting the iOS Simulator and
+                    // Safari's first launch take minutes; the workflow's step limits bound them there.
+                    // The project's limits win over the command line's, so they are set here.
+                    testTimeout: process.env.GRAPHTY_LIFECYCLE_MACOS === "1" ? 900_000 : 120_000,
+                    hookTimeout: process.env.GRAPHTY_LIFECYCLE_MACOS === "1" ? 900_000 : 60_000,
                 },
             },
             // LLM Regression Tests - Tests real LLM API calls for tool calling verification.

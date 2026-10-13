@@ -16,7 +16,7 @@
 
 import { appendFileSync } from "node:fs";
 
-import { afterAll, assert, beforeAll, describe, it } from "vitest";
+import { afterAll, assert, beforeAll, describe, it, onTestFailed } from "vitest";
 
 import { type Fixture, startFixture } from "./fixture";
 import { type Safari, type SafariDriver, startSafariDriver } from "./safaridriver";
@@ -53,6 +53,9 @@ describe.skipIf(!MACOS)("real Safari", () => {
      * @param body - The body.
      */
     async function inSession(body: (safari: Safari) => Promise<void>): Promise<void> {
+        onTestFailed(() => {
+            console.log(`[safari] reports: ${JSON.stringify(fx.log.slice(-40))}`);
+        });
         const safari = await driver.session();
         try {
             await body(safari);

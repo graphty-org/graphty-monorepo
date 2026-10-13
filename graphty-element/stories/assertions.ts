@@ -61,9 +61,6 @@ const CURVE_MIN_SAGITTA = 0.05;
 /** How far apart two colour channels may be and still count as the same colour. */
 const COLOUR_TOLERANCE = 24;
 
-/** How many frames to draw before reading the frame buffer, so the shaders have compiled. */
-const WARMUP_FRAMES = 40;
-
 /** What one node is actually drawn as. */
 interface DrawnNode {
     /** The node's id, as a string. */
@@ -1575,12 +1572,12 @@ export async function assertArrowVariety(scene: Drawn, atLeast: number): Promise
 export async function pixelsOfColour(scene: Drawn, hex: string, tolerance: number = COLOUR_TOLERANCE): Promise<number> {
     const { engine } = scene.graph;
 
-    for (let frame = 0; frame < WARMUP_FRAMES; frame++) {
-        scene.graph.scene.render();
-        await new Promise<void>((done) => {
-            setTimeout(done, 10);
-        });
-    }
+    // Wait for every shader to have compiled, then draw ONE frame and read it in the same task, so
+    // the buffer read is the frame just drawn. A fixed warm-up of frames stood here before: forty
+    // full-canvas renders per call, which a play function reading four colours paid 160 times over,
+    // about 19 s on an idle machine and past the 30 s limit on a loaded one (#2413).
+    await scene.graph.scene.whenReadyAsync();
+    scene.graph.scene.render();
 
     const width = engine.getRenderWidth();
     const height = engine.getRenderHeight();

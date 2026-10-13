@@ -274,13 +274,12 @@ function reachesIndexed(symbol) {
             const decl = resolved?.declarations?.[0];
             if (decl !== undefined) {
                 const path = algPath(decl.getSourceFile());
-                if (path.startsWith("indexed/")) {
-                    reaches = true;
-                } else if (
-                    resolved !== symbol &&
-                    legacyFile(path) &&
-                    (resolved.flags & ts.SymbolFlags.Function) !== 0 &&
-                    reachesIndexed(resolved)
+                if (
+                    path.startsWith("indexed/") ||
+                    (resolved !== symbol &&
+                        legacyFile(path) &&
+                        (resolved.flags & ts.SymbolFlags.Function) !== 0 &&
+                        reachesIndexed(resolved))
                 ) {
                     reaches = true;
                 }

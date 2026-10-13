@@ -15,8 +15,10 @@ import { groupsUsing, reapGroupsUsing } from "./helpers/leftovers.mjs";
 
 /**
  * The fake pre-push gate, installed as the repository's pre-push hook. It reads what to do from
- * `<tmp>/gate-mode`: pass, fail (the real gate's failure lines), wait (until `<tmp>/go` exists) or
- * hang. It writes its pid to `<tmp>/gate-pid` and the pushed branch to `<tmp>/gate-log`.
+ * `<tmp>/gate-mode`: pass, fail (the real gate's failure lines), wait (until `<tmp>/go` exists),
+ * hang, cleanup (hang, and on SIGTERM write `<tmp>/gate-cleanup` and exit) or stubborn (hang,
+ * ignoring SIGTERM); the last two touch `<tmp>/gate-ready` once their trap is set. It writes its
+ * pid to `<tmp>/gate-pid` and the pushed branch to `<tmp>/gate-log`.
  * @param {string} tmp the test's directory
  * @returns {string} the script
  */
@@ -28,6 +30,8 @@ case "$(cat "${tmp}/gate-mode")" in
   fail) printf '\\033[0;31m[FAIL] Lint failed\\033[0m\\n'; echo "Pre-push validation failed"; exit 1;;
   wait) while [ ! -f "${tmp}/go" ]; do sleep 0.05; done;;
   hang) sleep 1000;;
+  cleanup) trap 'echo done > "${tmp}/gate-cleanup"; exit 1' TERM; touch "${tmp}/gate-ready"; while :; do sleep 0.05; done;;
+  stubborn) trap '' TERM; touch "${tmp}/gate-ready"; sleep 1000;;
 esac
 exit 0
 `;
@@ -834,5 +838,28 @@ describe("stop", () => {
         await queue.drain();
         expect(remoteHead("githerd/a")).toBeNull();
         expect(a.job.news.at(-1).text).toMatch(/^push failed/);
+    });
+
+    it("lets a killed gate's exit trap finish before the push is reported", async () => {
+        gate("cleanup");
+        const a = workingJob("a");
+        await queue.request({ job: "a", branch: "githerd/a", expectHead: a.head }, "s-a");
+        await until(() => existsSync(join(repo.tmp, "gate-ready")));
+        queue.stop();
+        await queue.drain();
+        expect(a.job.news.at(-1).text).toMatch(/^push failed/);
+        expect(readFileSync(join(repo.tmp, "gate-cleanup"), "utf8")).toBe("done\n");
+    });
+
+    it("kills a gate that ignores SIGTERM once the grace runs out", async () => {
+        gate("stubborn");
+        queue = makeQueue({ killGraceMs: 50 });
+        const a = workingJob("a");
+        await queue.request({ job: "a", branch: "githerd/a", expectHead: a.head }, "s-a");
+        await until(() => existsSync(join(repo.tmp, "gate-ready")));
+        queue.stop();
+        await queue.drain();
+        expect(a.job.news.at(-1).text).toMatch(/^push failed/);
+        expect(groupsUsing(repo.tmp)).toEqual([]);
     });
 });

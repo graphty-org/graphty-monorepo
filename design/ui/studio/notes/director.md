@@ -5,10 +5,21 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-10-13 (tier 3 build phase finished: draft study materials written, the branch
-pushed and a held draft pull request opened for the owner's review).
+Last updated: 2026-10-13 (tier 3 build phase: draft study materials committed; the push is blocked
+by the SonarQube gate, so no pull request yet).
 
 ## Top of mind
+
+- 2026-10-13: PUSH BLOCKED. The pre-push SonarQube step reports 213 findings on lines this branch
+  changes against master. About 45 are on tier 1 lines, and most of the rest (readonly members,
+  Sets, `.dataset`) are cases master's burn-down already fixed after this branch left master. So
+  merging `design/studio-tier1` (760 commits ahead, master merged in at 02:38 today) is the cheap
+  fix. It conflicts in five files: GradientEditor, Tree, compact-mantine's measure harness and
+  vitest config, and the element's `catalog/sets/parse.ts`. The rest are real findings in the new
+  style code (cognitive complexity in PropertyRow, LabelSettings, encoding; nested ternaries). An
+  agent tried the merge and the permission layer refused it as a shared-resource change. The merge
+  was aborted with the worktree unchanged. The fix needs an engineer unit with the owner's leave
+  to merge the base: merge, then fix what remains. No bypass trailer: that is for emergencies only.
 
 - 2026-10-13: BUILD PHASE FINISHED, WAITING ON THE OWNER. Draft (not frozen) study materials are in
   `tier3/criteria.md`, `tasks.md`, `answers.md`, `roster.md`, each marked DRAFT at the top. Twelve

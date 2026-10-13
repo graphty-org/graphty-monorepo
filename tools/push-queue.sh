@@ -166,8 +166,10 @@ fi
 # Fast lane: a push that affects no package (documents, design files) runs only the gate's
 # whole-repository checks, a few minutes at most, so it does not wait behind full gates for a slot.
 # 2026-10-10: docs-only pushes sat 1-2 hours behind three 45-minute gates.
+# Only an nx workspace has packages to ask about: elsewhere (a test's throwaway repository) pnpm and
+# nx would only fail, after seconds of startup and a listing of every directory above the checkout.
 fast=0
-if [ "$rc" = 0 ] && [ "${1:-}" = git ] && base=$(git merge-base origin/master HEAD 2>/dev/null); then
+if [ "$rc" = 0 ] && [ "${1:-}" = git ] && [ -f "$top/nx.json" ] && base=$(git merge-base origin/master HEAD 2>/dev/null); then
     affected_json=$(NX_DAEMON=false pnpm exec nx show projects --affected --base="$base" --head=HEAD --json 2>/dev/null)
     [ "$affected_json" = "[]" ] && fast=1 && echo "push-queue: no package affected; skipping the queue"
 fi
@@ -201,8 +203,8 @@ started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 # it), or null. Append only; a missing jq skips the line, never the push.
 session=
 p=$$
-while [ "${p:-0}" -gt 1 ] && [ -r "/proc/$p/stat" ]; do
-    read -ra f <<<"$(sed 's/.*) //' "/proc/$p/stat")"
+while [ "${p:-0}" -gt 1 ] && read -r stat 2>/dev/null <"/proc/$p/stat"; do
+    read -ra f <<<"${stat##*) }"
     entry="${HOME:-}/.claude/sessions/$p.json"
     if [ -f "$entry" ]; then
         session=$(jq -c --arg s "${f[19]}" 'select((.procStart // $s | tostring) == $s and .sessionId != null)

@@ -350,6 +350,18 @@ describe("upkeepStacks", () => {
         };
     }
 
+    /**
+     * The same stack as pull request records only, for steps that never touch git (a retarget, or
+     * nothing to do): no branch is made, so the test spawns no git.
+     * @returns {{prs: any[]}} the open pull requests
+     */
+    const records = () => ({
+        prs: [
+            { number: 1, base: "master", headRef: "a", head: "a".repeat(40) },
+            { number: 2, base: "a", headRef: "b", head: "b".repeat(40) },
+        ],
+    });
+
     it("updates a child from its base's moved head with GitHub's update, parents first", async () => {
         const { prs, before } = stack();
         const fake = fakeGitHub();
@@ -368,7 +380,7 @@ describe("upkeepStacks", () => {
     });
 
     it("retargets a child whose base merged, and writes nothing in dry-run", async () => {
-        const { prs } = stack();
+        const { prs } = records();
         const open = [prs[1]];
 
         const dry = fakeGitHub();
@@ -410,7 +422,7 @@ describe("upkeepStacks", () => {
     });
 
     it("keeps going after a step that throws, and keeps the merged branch of a retarget that threw", async () => {
-        const { prs } = stack();
+        const { prs } = records();
         const fake = createFakeGh(() => httpOutput({ status: 500, body: "boom" }));
         const poll = { prs: [prs[1]], lastHeads: {}, mergedHeads: ["a"] };
         const out = await upkeepStacks(context(fake, "acting"), poll);
@@ -421,7 +433,7 @@ describe("upkeepStacks", () => {
     });
 
     it("does nothing when no base moved or merged", async () => {
-        const { prs } = stack();
+        const { prs } = records();
         const fake = fakeGitHub();
         expect(
             await upkeepStacks(context(fake, "acting"), {

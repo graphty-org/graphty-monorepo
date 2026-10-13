@@ -1,6 +1,7 @@
 import type { F64, GraphSnapshot } from "@graphty/graph-format";
 
 import type { LayoutResult } from "../positions.js";
+import { detAcos, detCos, detSin } from "../utils/det-math.js";
 import { np } from "../utils/numpy.js";
 import { type CommonLayoutOptions, resolve, result } from "./common.js";
 
@@ -19,17 +20,17 @@ function circularRows(n: number, dim: 2 | 3, scale: number, center: readonly num
     } else if (dim === 2) {
         const theta = np.linspace(0, 2 * Math.PI, n + 1);
         for (let i = 0; i < n; i++) {
-            rows[2 * i] = Math.cos(theta[i]) * scale + center[0];
-            rows[2 * i + 1] = Math.sin(theta[i]) * scale + center[1];
+            rows[2 * i] = detCos(theta[i]) * scale + center[0];
+            rows[2 * i + 1] = detSin(theta[i]) * scale + center[1];
         }
     } else {
         const goldenRatio = (1 + Math.sqrt(5)) / 2;
         for (let i = 0; i < n; i++) {
             const theta = (2 * Math.PI * i) / goldenRatio;
-            const phi = Math.acos(1 - (2 * (i + 0.5)) / n);
-            rows[3 * i] = Math.sin(phi) * Math.cos(theta) * scale + center[0];
-            rows[3 * i + 1] = Math.sin(phi) * Math.sin(theta) * scale + center[1];
-            rows[3 * i + 2] = Math.cos(phi) * scale + center[2];
+            const phi = detAcos(1 - (2 * (i + 0.5)) / n);
+            rows[3 * i] = detSin(phi) * detCos(theta) * scale + center[0];
+            rows[3 * i + 1] = detSin(phi) * detSin(theta) * scale + center[1];
+            rows[3 * i + 2] = detCos(phi) * scale + center[2];
         }
     }
     return rows;

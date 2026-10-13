@@ -1,8 +1,13 @@
 /**
  * Back-pressure on new work (the owner's rule of 2026-10-08): no fixed per-session allowance
  * limits how many jobs a session takes; the machine's shared resources do. While any of them is
- * saturated, githerd invites no session to a new job and its status question says to take none;
- * once all have room, both resume on the next poll. Each is a state check, never a timer.
+ * saturated, a session already actively working a job (asks.mjs `heldBack`) is invited to no new
+ * job and its status question says to take none. A session actively working no job (nothing it
+ * holds is working, starting or waiting on its own task, or all of that is only waiting to push,
+ * for CI, for the owner's review or to merge) is idle, waiting for work, and is invited and asked
+ * its capacity as if nothing were saturated, told it may take one job (the owner's rule of
+ * 2026-10-13: idle sessions get work even when shared resources are busy). Once all have room,
+ * every session may take more again on the next poll. Each is a state check, never a timer.
  *
  * - The push queue (`tmp/push-queue/` of the main checkout): more pushes waiting than it has gate slots.
  * - GitHub Actions: the repository's runs queued for a runner, one cheap call per poll.

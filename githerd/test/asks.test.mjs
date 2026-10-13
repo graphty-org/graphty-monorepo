@@ -873,7 +873,7 @@ describe("asking an owner session for the status of the job it holds", () => {
         const reason = "no answer to the status question of 2026-10-05T12:15:00.000Z";
         // The released job is queued, so the sessions holding no job are asked their capacity.
         expect(lines).toEqual([
-            { kind: "claim-released", job: "issue-186", session: "s1", reason },
+            { kind: "claim-released", job: "issue-186", session: "s1", reason, asked: "2026-10-05T12:15:00.000Z" },
             expect.objectContaining({ kind: "capacity-asked", session: "graphty-13" }),
             expect.objectContaining({ kind: "capacity-asked", session: "graphty-14" }),
         ]);
@@ -1247,6 +1247,7 @@ describe("asking the owner of a broken pull request whether it is fixing it", ()
                 head: HEAD,
                 session: "s2",
                 reason: "no claim in answer to the question of 2026-10-05T12:00:00.000Z",
+                asked: "2026-10-05T12:00:00.000Z",
             },
         ]);
         expect(f.sent).toHaveLength(1);
@@ -1293,6 +1294,7 @@ describe("asking the owner of a broken pull request whether it is fixing it", ()
                 head: HEAD,
                 session: "s2",
                 reason: "no claim in answer to the question of 2026-10-05T12:00:00.000Z",
+                asked: "2026-10-05T12:00:00.000Z",
             },
         ]);
         expect(state.prOwners).toEqual({});

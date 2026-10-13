@@ -197,6 +197,59 @@ export const Wireframe: Story = {
 };
 
 /**
+ * A flat-shaded sphere beside a smooth one. Two large spheres, so the facets are big enough to
+ * see: the left one has `node.flat` on and is lit one triangle at a time, the right one is the
+ * same sphere with its normals smoothed across the surface. At the size of a node in a busy graph
+ * the facets of a sphere are only a few pixels across, so this story draws two nodes, not the cat
+ * network the rest of this file uses.
+ */
+export const Flat: Story = {
+    play: async ({ canvasElement }) => {
+        await waitForGraphSettled(canvasElement);
+
+        const scene = await drawn(canvasElement, "Styles/Node Flat");
+
+        await assertGraphLoaded(scene, { nodes: 2, edges: 0 });
+
+        const flat = scene.nodes.find((node) => node.id === "flat");
+        const smooth = scene.nodes.find((node) => node.id === "smooth");
+
+        await holds(
+            flat !== undefined && smooth !== undefined && flat.geometryDigest !== smooth.geometryDigest,
+            "Styles/Node Flat: the flat sphere and the smooth sphere are drawn from two different geometries",
+        );
+        await assertDistinctPicture(scene, "Styles/Node");
+    },
+    args: {
+        dataSource: undefined,
+        dataSourceConfig: undefined,
+        nodeData: [
+            { id: "flat", position: { x: -2, y: 0, z: 0 } },
+            { id: "smooth", position: { x: 2, y: 0, z: 0 } },
+        ],
+        edgeData: [],
+        layout: "fixed",
+        layoutConfig: {},
+        setup: storySetup({
+            node: { "node.shape": "sphere", "node.size": 3, "node.color": "#f59e0b" },
+            layers: [
+                {
+                    name: "flat sphere",
+                    target: "node",
+                    selector: { match: "ids", nodes: ["flat"] },
+                    set: { "node.flat": true },
+                },
+            ],
+        }),
+    },
+    parameters: {
+        controls: {
+            include: [],
+        },
+    },
+};
+
+/**
  * A label on every node, reading each node's own id.
  *
  * `label: {enabled: true}` used to switch labels on and leave the words to the renderer's

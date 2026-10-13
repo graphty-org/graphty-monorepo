@@ -11,18 +11,31 @@
 # push log and the gate logs live in the main checkout's tmp/, which every worktree of the
 # repository shares, whichever worktree this runs from; githerd's board reads the tickets
 # (githerd/lib/proc.mjs pushQueueTickets).
-# Settings, for tests: PUSH_QUEUE_SLOTS (3), PUSH_QUEUE_DIR (the tickets), PUSH_QUEUE_LOG (the push
+# A commit whose gate already failed a check of its own (build, lint, tests, SonarQube ...) is not
+# queued again while nothing it depends on changed: same commit, same checkout fingerprint, same gate.
+# PUSH_QUEUE_RETRY=1 pushes it anyway, for a failure you believe was the machine's, not the commit's.
+# Settings, for tests: PUSH_QUEUE_SLOTS (4), PUSH_QUEUE_DIR (the tickets), PUSH_QUEUE_LOG (the push
 # log), PUSH_QUEUE_GATE (the gate's live worktree), PUSH_QUEUE_POLL (seconds between looks, 10).
 # Run from a private copy: bash reads a script from disk as it runs, so editing this file would
 # otherwise change the code of every push already waiting.
 # The copy goes in the main checkout's tmp/, not /tmp, which other processes on this machine clear.
 main=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")
+# The queue itself runs from the gate's live copy, like the gate, whichever copy of this file was
+# called (a branch's tools/push-queue.sh, or tmp/push-queue.sh), so a queue fix made live with
+# `tools/live.sh gate <branch>` reaches every push at once.
+live_queue=${PUSH_QUEUE_GATE:-$main/.worktrees/gate-live}/tools/push-queue.sh
+if [ -z "${PUSH_QUEUE_COPY:-}" ] && [ -f "$live_queue" ] && ! [ "$0" -ef "$live_queue" ]; then
+    exec bash "$live_queue" "$@"
+fi
 if [ -z "${PUSH_QUEUE_COPY:-}" ]; then
     mkdir -p "$main/tmp/push-queue-copies" &&
         copy=$(mktemp "$main/tmp/push-queue-copies/push-queue.XXXXXX.sh") && cp "$0" "$copy" &&
         PUSH_QUEUE_COPY=$copy exec bash "$copy" "$@"
 fi
-SLOTS=${PUSH_QUEUE_SLOTS:-3}
+# 4 gates at once: since each Node test run is capped at its share of the cores (#2184) and the GPU
+# step has its own slot (#2267), 3 gates left the machine at load ~29 of 32 with 20 pushes waiting;
+# the 4 machine-wide test slots still keep the test stages from oversubscribing it.
+SLOTS=${PUSH_QUEUE_SLOTS:-4}
 dir=${PUSH_QUEUE_DIR:-$main/tmp/push-queue}
 mkdir -p "$dir"
 rank=1; [ "${PUSH_QUEUE_PRIORITY:-}" = critical ] && rank=0
@@ -63,6 +76,60 @@ if [ "${1:-}" = git ] && [ -d "$gate_dir" ]; then
     grep -q PREPUSH_ROOT "$gate_dir/.husky/pre-push" 2>/dev/null && use_gate=1
 fi
 
+# What is pushed (only the last refspec of a push; one branch per push is the norm here), for the
+# push log below and the refusal of a commit that already failed.
+log=${PUSH_QUEUE_LOG:-$(dirname "$dir")/push-log.jsonl}
+branch=; sha=
+args=("$@"); i=1
+if [ "${args[0]:-}" = git ]; then
+    while [ $i -lt ${#args[@]} ] && [ "${args[$i]}" != push ]; do i=$((i + 1)); done
+    pos=()
+    for a in "${args[@]:$((i + 1))}"; do case $a in -*) ;; *) pos+=("$a") ;; esac; done
+    if [ ${#pos[@]} -ge 2 ]; then
+        ref=${pos[${#pos[@]} - 1]}; src=${ref%%:*}; src=${src#+}; dst=${ref#*:}
+    else
+        src=HEAD; dst=$(git symbolic-ref --short -q HEAD)
+    fi
+    branch=${dst#refs/heads/}
+    sha=$(git rev-parse --verify -q "${src:-HEAD}^{commit}" 2>/dev/null)
+fi
+
+# Refuse a commit the gate already failed, when nothing it depends on changed: the push log's latest
+# line for this commit failed, with the same checkout fingerprint (HEAD and every file git does not
+# ignore, tools/prepush-inputs.mjs) and the same gate scripts (the live copy's tools/ and .husky/
+# trees, which a master merge that touches neither leaves alone), on a check whose result is the
+# commit's own -- a [FAIL] of the build, lint, Knip, formatting, the API report, a bundle size, the CI
+# workflow tests, SonarQube's changed lines, or the tests with a shard that exited 1 (a shard killed
+# or timed out, exit 124 or 137, is the machine's). Never after a failure outside the commit's
+# control: a rejected or failed git push, a screenshot capture, the local GPU lane, a SonarQube step
+# that could not run, a gate that crashed with no [FAIL] line. 2026-10-12: one branch failed the
+# gate 20 times on an unchanged commit, each time on the same test.
+top="$(git rev-parse --show-toplevel 2>/dev/null)"
+inputs="$top/tools/prepush-inputs.mjs"
+[ "$use_gate" = 1 ] && inputs="$gate_dir/tools/prepush-inputs.mjs"
+fingerprint=; gate_tree=
+[ -n "$sha" ] && [ -f "$inputs" ] && fingerprint=$(cd "$top" && node "$inputs" fingerprint 2>/dev/null)
+gate_tree_of() { [ "$use_gate" = 1 ] && git -C "$gate_dir" rev-parse HEAD:tools HEAD:.husky 2>/dev/null | paste -sd: -; }
+gate_tree=$(gate_tree_of)
+if [ -n "$fingerprint" ] && [ "${PUSH_QUEUE_RETRY:-}" != 1 ] && [ -f "$log" ]; then
+    prev=$(jq -c --arg sha "$sha" 'select(.sha == $sha)' "$log" 2>/dev/null | tail -1 |
+        jq -c --arg fp "$fingerprint" --arg gt "$gate_tree" '
+            select(.exit != 0 and .fingerprint == $fp and (.gateTree // "") == $gt)
+            | (.gate // []) as $g
+            | ($g | map(select(test("^\\[FAIL\\] (Build|Lint|Knip |Formatting|Public API report|Bundle size|CI workflow tests|SonarQube \\(changed lines\\))")))
+                + (if any($g[]; test("^ *\\[FAIL\\] [^ ]+ \\(exit 1,")) then $g | map(select(test("^ *\\[FAIL\\] (Tests |[^ ]+ \\(exit 1,)"))) else [] end)) as $why
+            | select($why | length > 0) | {why: $why, gateLog, at}' 2>/dev/null)
+    if [ -n "$prev" ] && ! grep -q "SonarQube step cannot run" "$(jq -r .gateLog <<<"$prev")" 2>/dev/null; then
+        {
+            echo "push-queue: refused -- commit ${sha:0:12} already failed the gate at $(jq -r .at <<<"$prev"), and nothing it depends on has changed since (same commit, same files, same gate scripts):"
+            jq -r '.why[] | "  " + .' <<<"$prev"
+            echo "  the gate's log of that push: $(jq -r .gateLog <<<"$prev")"
+            echo "Fix the failure and commit, or, if it was the machine's and not the commit's, push again with PUSH_QUEUE_RETRY=1."
+        } >&2
+        exit 1
+    fi
+fi
+
 # The gate's source-only checks (formatting, links, the CI workflow tests, the config and tool checks:
 # tools/prepush-source-checks.sh of the checkout being pushed), run while this push already holds its
 # place in the queue, so a slip fails in about a minute instead of after the wait for a slot. The
@@ -70,7 +137,6 @@ fi
 # script (a branch from before it existed) goes straight to the queue. Their output goes to the gate
 # log too, so a failure here is logged like a gate failure, and the push itself never runs.
 rc=0
-top="$(git rev-parse --show-toplevel 2>/dev/null)"
 early="$top/tools/prepush-source-checks.sh"
 use_gate_root=
 [ "$use_gate" = 1 ] && early="$gate_dir/tools/prepush-source-checks.sh" && use_gate_root=1
@@ -116,22 +182,7 @@ started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 # and commit and the Claude Code session that launched it -- the first ancestor process with a
 # registry entry in ~/.claude/sessions (its procStart matching, so a reused pid is not mistaken for
 # it), or null. Append only; a missing jq skips the line, never the push.
-# ponytail: only the last refspec of a push is logged; one branch per push is the norm here.
-log=${PUSH_QUEUE_LOG:-$(dirname "$dir")/push-log.jsonl}
-branch=; sha=; session=
-args=("$@"); i=1
-if [ "${args[0]:-}" = git ]; then
-    while [ $i -lt ${#args[@]} ] && [ "${args[$i]}" != push ]; do i=$((i + 1)); done
-    pos=()
-    for a in "${args[@]:$((i + 1))}"; do case $a in -*) ;; *) pos+=("$a") ;; esac; done
-    if [ ${#pos[@]} -ge 2 ]; then
-        ref=${pos[${#pos[@]} - 1]}; src=${ref%%:*}; src=${src#+}; dst=${ref#*:}
-    else
-        src=HEAD; dst=$(git symbolic-ref --short -q HEAD)
-    fi
-    branch=${dst#refs/heads/}
-    sha=$(git rev-parse --verify -q "${src:-HEAD}^{commit}" 2>/dev/null)
-fi
+session=
 p=$$
 while [ "${p:-0}" -gt 1 ] && [ -r "/proc/$p/stat" ]; do
     read -ra f <<<"$(sed 's/.*) //' "/proc/$p/stat")"
@@ -155,6 +206,7 @@ done
 cmd=("$@")
 [ "$use_gate" = 1 ] && cmd=(git -c core.hooksPath="$gate_dir/.husky/_" "${@:2}") && echo "push-queue: gate from $gate_dir ($(git -C "$gate_dir" rev-parse --short HEAD))"
 if [ "$rc" = 0 ]; then
+    gate_tree=$(gate_tree_of)
     "${cmd[@]}" > >(tee -a "$gate_log" 2>/dev/null) 2> >(tee -a "$gate_log" >&2 2>/dev/null)
     rc=$?
 fi
@@ -173,8 +225,11 @@ fi
 jq -nc --arg at "$finished_at" --arg branch "$branch" --arg sha "$sha" --arg cwd "$PWD" \
     --argjson exit "$rc" --argjson session "${session:-null}" --arg queuedAt "$queued_at" --arg startedAt "$started_at" \
     --arg gateLog "$gate_log" --argjson gate "${gate:-null}" --argjson changed "${changed:-null}" \
+    --arg fingerprint "$fingerprint" --arg gateTree "$gate_tree" \
     '{at: $at, branch: (if $branch == "" then null else $branch end),
       sha: (if $sha == "" then null else $sha end), exit: $exit, cwd: $cwd,
       sessionId: $session.sessionId, name: $session.name,
-      queuedAt: $queuedAt, startedAt: $startedAt, gateLog: $gateLog, gate: $gate, changed: $changed}' >>"$log" 2>/dev/null
+      queuedAt: $queuedAt, startedAt: $startedAt, gateLog: $gateLog, gate: $gate, changed: $changed,
+      fingerprint: (if $fingerprint == "" then null else $fingerprint end),
+      gateTree: (if $gateTree == "" then null else $gateTree end)}' >>"$log" 2>/dev/null
 exit $rc

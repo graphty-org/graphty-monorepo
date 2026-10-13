@@ -7,14 +7,18 @@
 //   node --test tools/vitest-time-budget.test.mjs
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { describe, it } from "node:test";
+import { after, describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { isolatedGitEnv } from "./isolated-git-env.mjs";
 import { annotations, changedFiles, enabled, FAIL_RATIO, format, judge, WARN_RATIO } from "./vitest-time-budget.mjs";
+
+// The temporary directories this file makes go inside this one, removed when the file finishes.
+const TMP = mkdtempSync(join(tmpdir(), "time-budget-"));
+after(() => rmSync(TMP, { recursive: true, force: true }));
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const REPORTER = join(ROOT, "tools/vitest-time-budget.mjs");
@@ -161,7 +165,7 @@ function git(dir, ...args) {
 
 describe("changedFiles", () => {
     it("names the files changed since the base, and is null with no base or a base git cannot resolve", () => {
-        const dir = mkdtempSync(join(tmpdir(), "time-budget-"));
+        const dir = mkdtempSync(join(TMP, "time-budget-"));
         git(dir, "init", "-q");
         writeFileSync(join(dir, "old.test.js"), "");
         git(dir, "add", ".");
@@ -183,7 +187,7 @@ describe("in a vitest run", () => {
     // project's 60 s testTimeout (under 1%), so the reporter must read the per-test limit over the
     // project's. With changed false the test file is already in base, so the pull request did not change it.
     function run(allowlist, env, { slower = true, changed = true } = {}) {
-        const dir = mkdtempSync(join(tmpdir(), "time-budget-"));
+        const dir = mkdtempSync(join(TMP, "time-budget-"));
         const sleep400 = "await new Promise((r) => setTimeout(r, 400));";
         const sleep800 = "await new Promise((r) => setTimeout(r, 800));";
         const writeTest = () =>

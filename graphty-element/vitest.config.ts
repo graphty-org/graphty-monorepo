@@ -611,6 +611,28 @@ export default defineConfig({
                 },
             },
             {
+                // Autosave storage in the engines the "browser" project does not run: the IndexedDB
+                // store's contract, aborts and connection closing in Firefox and WebKit, whose
+                // IndexedDB differs from Chromium's in exactly the places autosave depends on (where
+                // a quota error is reported, how a close treats a running transaction). Chromium
+                // runs the same files through "browser", with coverage; v8 coverage cannot
+                // instrument these two engines, so this project runs without it.
+                define: { ...define },
+                resolve: { alias: OWN_ENTRY_POINTS },
+                test: {
+                    name: "autosave-engines",
+                    include: ["test/browser/autosave/**/*.test.ts"],
+                    fileParallelism: false,
+                    browser: {
+                        enabled: true,
+                        headless: true,
+                        screenshotDirectory: FAILURE_SCREENSHOT_DIR,
+                        provider: playwright(),
+                        instances: [{ browser: "firefox" }, { browser: "webkit" }],
+                    },
+                },
+            },
+            {
                 define: { ...define },
                 // Browser timing rows for the sets work (design/sets/sets-plan.md 1.4): rows that need
                 // the element's store, a DataManager or a run, which the Node runner in benchmarks/

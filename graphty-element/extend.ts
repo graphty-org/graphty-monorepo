@@ -438,3 +438,17 @@ export {
     DEFAULT_ACCELERATOR_PRECISION,
     registerAccelerator,
 } from "./src/acceleration";
+
+// ---------------------------------------------------------------------------------------------
+// Autosave storage: the contract a custom autosave backend implements, and an in-memory one.
+// ---------------------------------------------------------------------------------------------
+
+export { memoryAutosaveStore } from "./src/autosave/memoryStore";
+export type {
+    AutosaveCommitOptions,
+    AutosaveEntryMeta,
+    AutosaveParts,
+    AutosaveStore,
+    AutosaveWrite,
+} from "./src/autosave/types";
+export { AutosaveConflict, isAutosaveConflict } from "./src/autosave/types";

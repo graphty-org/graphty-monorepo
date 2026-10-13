@@ -320,6 +320,12 @@ export const READ_ONLY: readonly string[] = [
     "AlgorithmStatics.getZodOptionsSchema",
     "AlgorithmStatics.hasOptions",
     "AlgorithmStatics.hasZodOptions",
+    // An autosave backend stores copies of the project; it changes nothing a project saves or draws.
+    "AutosaveStore.close",
+    "AutosaveStore.commit",
+    "AutosaveStore.list",
+    "AutosaveStore.read",
+    "AutosaveStore.remove",
     "ApiKeyManager.clear",
     "ApiKeyManager.disablePersistence",
     "ApiKeyManager.enablePersistence",

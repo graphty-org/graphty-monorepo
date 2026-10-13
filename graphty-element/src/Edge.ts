@@ -320,7 +320,7 @@ export class Edge {
     /** The arrow-tail text block the glyph on screen was built from. See {@link syncContent}. */
     private drawnArrowTailText?: NonNullable<EdgeStyleConfig["arrowTail"]>["text"];
     // Debug flag for logging lineDirection (reserved for future use)
-    private _loggedLineDirection: boolean = false;
+    private readonly _loggedLineDirection: boolean = false;
 
     // Dirty tracking: Cache last node positions to skip unnecessary updates
     private _lastSrcPos: Vector3 | null = null;

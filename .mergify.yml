@@ -28,19 +28,16 @@ merge_queue:
     # queue_controls_comment: false the "Queue / Requeue this pull request" checkbox comments.
     status_comments: none
     queue_controls_comment: false
+    # The release train (release.yml) pushes its version merge straight to master with the release deploy key; it
+    # changes only version fields and changelogs, which no pull request touches. Resetting the queue on it would
+    # throw away every batch being checked, four times a day, for nothing.
+    reset_on_external_merge: never
 
-# Two kinds of pull request go to the front of the queue: the daily release train (its branch and author,
-# not a label) and a fix for a red master (label it "priority:critical"). Neither interrupts the batches
-# already being checked: it takes the next free slot instead, so a running batch is never thrown away and
-# re-run. A fix for a red master therefore waits for at most one in-flight batch (about 40 minutes).
+# A fix for a red master (label it "priority:critical") goes to the front of the queue. It does not interrupt
+# the batches already being checked: it takes the next free slot instead, so a running batch is never thrown
+# away and re-run. It therefore waits for at most one in-flight batch (about 40 minutes). Releases do not go
+# through the queue: release.yml tests and publishes them itself (owner decision, 2026-10-11).
 priority_rules:
-    - name: release train
-      conditions:
-          - head~=^release/train-
-          - author=github-actions[bot]
-      priority: high
-      allow_checks_interruption: false
-
     - name: fix for a red master
       conditions:
           - label=priority:critical
@@ -48,7 +45,7 @@ priority_rules:
       allow_checks_interruption: false
 
     # A pull request labeled "queue:next" goes ahead of ordinary ones (priority low by default) but behind
-    # the release train and red-master fixes, and never interrupts a batch being checked.
+    # red-master fixes, and never interrupts a batch being checked.
     - name: next in line
       conditions:
           - label=queue:next
@@ -56,23 +53,6 @@ priority_rules:
       allow_checks_interruption: false
 
 queue_rules:
-    # The release pull request that release.yml opens (the "release train" priority rule puts it first).
-    # Listed before "default", so it takes this rule: checked alone, never batched with other pull
-    # requests, and merged with a merge commit, whose message names the release branch and so
-    # starts release.yml's publish job. Like a batch, it merges only after the full suite passed
-    # on top of master.
-    - name: release
-      batch_size: 1
-      max_checks_retries: 0
-      update_method: merge
-      merge_method: merge # never merge-batch: a batch commit's message names only pull request numbers
-      queue_conditions:
-          - head~=^release/train-
-          - author=github-actions[bot]
-          - label!=hold
-      merge_conditions:
-          - check-success=Queue Checks Pass
-
     - name: default
       batch_size:
           min: 1

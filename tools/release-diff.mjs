@@ -2,8 +2,8 @@
 /**
  * Proves a release commit changes nothing but versions. Every file it touches must be a
  * CHANGELOG.md, a package.json whose only change is its "version" field, or a version plan nx
- * consumed (deleted from .nx/version-plans/). release.yml runs it on the version commit before it
- * opens the release pull request, and again before it publishes one: the packages ship the build
+ * consumed (deleted from .nx/version-plans/). release.yml runs it on the version commit when it
+ * makes it, and again before it pushes it to master: the packages ship the build
  * of the commit below it, which every lane tested, so anything else in the commit would never have
  * been tested.
  *

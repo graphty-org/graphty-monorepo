@@ -12,7 +12,7 @@ import * as https from "node:https";
 import httpProxy from "http-proxy";
 import { defaultTreeAdapter, type DefaultTreeAdapterMap, html as parse5Html, parse, serialize } from "parse5";
 
-const HEADERS_TO_REMOVE = [
+const HEADERS_TO_REMOVE = new Set([
     "content-security-policy",
     "content-security-policy-report-only",
     "x-frame-options",
@@ -30,7 +30,7 @@ const HEADERS_TO_REMOVE = [
     "x-vercel-id",
     "x-powered-by",
     "via",
-];
+]);
 
 /**
  * Extract the origin (protocol + host) from a full URL.
@@ -238,7 +238,7 @@ export function createProxy(proxyBasePath: string, quiet: boolean): ProxyInstanc
                 if (value === undefined) {
                     continue;
                 }
-                if (HEADERS_TO_REMOVE.includes(key.toLowerCase())) {
+                if (HEADERS_TO_REMOVE.has(key.toLowerCase())) {
                     continue;
                 }
 

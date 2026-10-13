@@ -1,3 +1,20 @@
+## 0.6.49 (2026-10-13)
+
+### 🩹 Fixes
+
+- **webgpu-graph-algorithms:** pass a node shard that finishes after a hang snapshot ([#2181](https://github.com/graphty-org/graphty-monorepo/issues/2181))
+- **tools:** cap each test slot's Node workers at its share of the cores ([9daf98f16](https://github.com/graphty-org/graphty-monorepo/commit/9daf98f16))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.3.14
+- Updated algorithms to 3.4.4
+- Updated layout to 2.4.4
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.6.48 (2026-10-12)
 
 ### 🩹 Fixes

@@ -47,6 +47,13 @@ describe("back-pressure on new work", () => {
         expect(existsSync(dead)).toBe(false);
     });
 
+    it("follows a wrapper that execs the real queue script to its gate slots", () => {
+        const real = join(root, "tools", "push-queue.sh");
+        const wrapper = join(root, "wrapper.sh");
+        writeFileSync(wrapper, `#!/bin/bash\n# runs the live copy\nexec bash ${real} "$@"\n`);
+        expect(pushQueueSlots(wrapper)).toBe(2);
+    });
+
     it("reads the gate slots from the queue script, overridden by PUSH_QUEUE_SLOTS", () => {
         const script = join(root, "tools", "push-queue.sh");
         expect(pushQueueSlots(script)).toBe(2);

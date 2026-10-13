@@ -503,7 +503,7 @@ function plan(snapshot: GraphSnapshot, common: ResolvedExportOptions): Plan {
     if (planned instanceof GraphFormatError) {
         fatal ??= planned;
     }
-    const edgeIds = planEdgeIds(snapshot, note);
+    const edgeIds = planEdgeIds(snapshot, note, ids);
     if (snapshot.nodes.has(ORIGINAL_ID_ATTRIBUTE)) {
         note(
             LOSS.ROLE_ASSUMED,

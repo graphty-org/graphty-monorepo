@@ -7,6 +7,44 @@ I read this file at the start of every session and update it as I decide and lea
 
 ## Top of mind
 
+- 2026-10-13 Tier 3 build paused for the owner's review after iteration 3 (`tier3/iterations/3/review.md`,
+  plan for iteration 4 there). Words decided, with reasons:
+  - Unsetting vs covering are two acts with two controls and two wordings. Unset: the minus on a
+    set field, tooltip names what comes back over this layer's own elements ("back to 1, the
+    default"); emptying + Enter does the same; Undo names the restored value. Cover: "Hide label
+    from Key people" in the Text/Effects "+" menu adds an ordinary entry set to nothing. Reason:
+    the owner asked how to stop a field overriding; "empty means not set here" alone does not
+    answer it, a named result does.
+  - No "split parent" word or layer kind. Louvain's groups are entries of an ordinary color
+    binding; "New layer for Group 3" makes an ordinary layer. Two row nouns only: layer, folder.
+    Reason: owner asked that layer kinds be reusable; one noun per concept.
+  - Figma's words where Figma has the concept: "Node settings"/"Edge settings" (as "Type
+    settings"), "Mixed" only for a multi-selection, "Varies" for a binding, "None" for nothing.
+    Kept graphty's own: the painted-over value (dimmed, tooltip names the layer above and count).
+  - A property's name is never cut; the vary picker gives each name its own line, groups headed by
+    the run row's name; edge ends worded "the source's Connections".
+- 2026-10-13 Watch at the owner's review and in the study: whether "Hide label from Key people" is
+  where a reader looks to cover something beneath (if not, the cover verb needs a better home, not
+  more words); whether a dimmed painted-over value reads as "not what is drawn" without its
+  tooltip; whether readers confuse the minus (unset) with Hide (cover); whether "Mixed" and
+  "Varies" stay distinct; the Clear tooltip's default value in the right unit (screen pixels vs
+  world). Credit by what the reader did, never by matching my words.
+- 2026-10-13 Open for the owner, not mine to change: element default label font "Verdana" with no
+  generic fallback (editors say Verdana, a serif draws); screen pixels as default label size.
+- 2026-10-12 Tier 3 (unified styles) answers to the owner's 12 questions: `tier3/decide/content.md`.
+  My positions (proposals, untested): one-value settings are always-shown empty rows with the
+  fallback as placeholder, "+" only for lists; type menus with glyph + noun, "+" tooltip names the
+  command; Nodes/Edges groups collapse with a "what it sets" summary (ControlSection already has
+  `summary`); hide a kind the rule can never match, show "Edges, 0" when it just matches none;
+  vary picker says "attribute" (glossary), never "field"; "label style" as the noun for named label
+  looks ("preset" is a rejected word); one rule editor shared with Filters and Find. Reason: "+"
+  must mean "another one", glossary terms only, words at rest must not rise.
+- 2026-10-12 Element gaps found for words: the selector subset refuses functions, so "name contains
+  Bob" is unwritable (`predicate.ts:400-437`) -> propose a `text` RuleTree leaf; no `canBind`
+  reason code for disabled vary rows; label look fields cannot bind (`E_BAD_LAYER`).
+- 2026-10-12 Term clash to settle before building: the mock calls a data column a "Value" and the
+  style settings "properties"; the glossary rejects "property"/"field" for attribute
+  (`glossary.md:107`). Settings need no noun on screen (Color, Size); the picker says attribute.
 - 2026-10-11 Round 4 decided (round-4/decisions.md): no word change on any screen bar 9 measures.
   Words at rest do not rise; one change per problem; every fix in its owning package.
 - 2026-10-11 Bare "10" on bus stops: element stops suggesting a rule it then refuses
@@ -267,6 +305,13 @@ I read this file at the start of every session and update it as I decide and lea
   1000 ms is compact-mantine's.
 
 ## Sources
+
+- Tier 3 (2026-10-12): `.worktrees/mock-style-panel/design/ui/style-panel-organization.md`,
+  `StylePanelMock.stories.tsx` (RampSettings 2270-2520), `tier3/style-catalog.md` and
+  `tmp/style-catalog/catalog.md` sections 1, 2.1, 5, 6, 7, 9, 12; graphty-element
+  `catalog/types.ts` (Selector 670-691, AttributeDescriptor 985-1030, RuleTree 1110-1186),
+  `session/styles/predicate.ts` refusal reasons; compact-mantine `ControlSection.tsx` (summary,
+  collapsible), `GradientEditor.tsx`; glossary lines 79, 107, 187, 209.
 
 - `design/ui/studio/tier2/rounds/round-4/decisions.md` changes 3, 4, 8, 9, 12, held list (2026-10-11)
 - `design/ui/studio/tier2/rounds/round-4/insights.md`, `scores.md` (bar 9 b, bar 10), `expert/`

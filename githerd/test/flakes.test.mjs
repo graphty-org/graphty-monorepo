@@ -19,10 +19,12 @@ import {
     MARKER,
     masterFlakeStep,
     noteMasterLog,
+    pruneSettledFlakes,
     readWorkspace,
     touchesPackage,
 } from "../lib/flakes.mjs";
 import { createGitHub } from "../lib/github.mjs";
+import { pruneClosedIssues } from "../lib/issues.mjs";
 import { createIncidentActions } from "../lib/incident-actions.mjs";
 import { prWork, readyIssues } from "../lib/queue.mjs";
 import { git } from "../../visual-review/test/helpers.mjs";
@@ -904,5 +906,139 @@ describe("only failures on the default branch's copy of the test count", () => {
         } finally {
             rmSync(tmp, { recursive: true, force: true });
         }
+    });
+});
+
+describe("a settled test leaves the record", () => {
+    /**
+     * A tracked test with one failure.
+     * @param {string} id the test
+     * @param {{issue?: number | null, current?: boolean, at?: string}} [opts] its issue, whether its
+     *   failure is on the default branch's copy, and when it failed
+     * @returns {import("../lib/flakes.mjs").Test} the record
+     */
+    const tracked = (id, { issue = null, current = false, at = AT } = {}) => ({
+        id,
+        package: "graphty-element",
+        file: "graphty-element/test/a.test.ts",
+        name: id,
+        occurrences: [
+            {
+                runId: 50,
+                attempt: 1,
+                job: JOB,
+                jobId: 501,
+                sha: sha("a"),
+                where: "pr",
+                pr: 12,
+                touched: false,
+                at,
+                current,
+            },
+        ],
+        proofs: [],
+        issue,
+        reported: 1,
+        proofsReported: 0,
+    });
+    /**
+     * A daemon state holding tests and issues.
+     * @param {import("../lib/flakes.mjs").Test[]} tests the tests
+     * @param {Record<string, string>} [issues] each issue's state
+     * @returns the state
+     */
+    const holding = (tests, issues = {}) => {
+        const state = daemonState([12]);
+        state.issues.byNumber = Object.fromEntries(Object.entries(issues).map(([n, st]) => [n, { state: st }]));
+        flakeStore(state).tests = Object.fromEntries(tests.map((t) => [t.id, t]));
+        return state;
+    };
+    const ids = (/** @type {any} */ state) => Object.keys(flakeStore(state).tests).sort((a, b) => a.localeCompare(b));
+
+    it("drops a test whose issue is closed, and one with no issue and no failure on the current test, with a ledger line each", () => {
+        const state = holding([tracked("closed", { issue: 5 }), tracked("none")], { 5: "closed" });
+        const lines = pruneSettledFlakes(state);
+        expect(ids(state)).toEqual([]);
+        expect(lines).toEqual([
+            expect.objectContaining({ kind: "flake-dropped", target: "closed", issue: 5, runs: 1, lastAt: AT }),
+            expect.objectContaining({ kind: "flake-dropped", target: "none", issue: null }),
+        ]);
+        expect(lines[0].reason).toMatch(/^issue #5 closed; no failure/);
+    });
+
+    it("drops a test with no issue whose failures are all older than the last JOBS_KEPT failed jobs", () => {
+        const state = holding([
+            tracked("old", { current: true, at: "2026-10-01T00:00:00.000Z" }),
+            tracked("new", { current: true }),
+        ]);
+        const store = flakeStore(state);
+        for (let i = 0; i < 1999; i++) store.jobs[`j${i}`] = AT;
+        expect(pruneSettledFlakes(state)).toEqual([]);
+        store.jobs.last = AT;
+        expect(pruneSettledFlakes(state).map((l) => l.target)).toEqual(["old"]);
+        expect(ids(state)).toEqual(["new"]);
+    });
+
+    it("keeps a test whose issue is open or not read yet, however old its failures", () => {
+        const state = holding([tracked("open", { issue: 5 }), tracked("unread", { issue: 6 })], { 5: "open" });
+        expect(pruneSettledFlakes(state)).toEqual([]);
+        expect(ids(state)).toEqual(["open", "unread"]);
+    });
+
+    it("keeps a test with a recent failure, with no issue or a closed one", () => {
+        const state = holding([tracked("none", { current: true }), tracked("closed", { issue: 5, current: true })], {
+            5: "closed",
+        });
+        expect(pruneSettledFlakes(state)).toEqual([]);
+        expect(ids(state)).toEqual(["closed", "none"]);
+    });
+
+    it("together with the closed-issue prune leaves no flaky test naming an issue the state lost", () => {
+        const state = holding(
+            [
+                tracked("dropped", { issue: 5 }),
+                tracked("kept", { issue: 6, current: true }),
+                tracked("open", { issue: 7 }),
+            ],
+            { 5: "closed", 6: "closed", 7: "open", 8: "closed" },
+        );
+        pruneSettledFlakes(state);
+        pruneClosedIssues(state);
+        expect(ids(state)).toEqual(["kept", "open"]);
+        expect(Object.keys(state.issues.byNumber)).toEqual(["6", "7"]);
+        for (const t of Object.values(flakeStore(state).tests)) expect(state.issues.byNumber[t.issue]).toBeDefined();
+        expect(pruneSettledFlakes(state)).toEqual([]);
+        expect(pruneClosedIssues(state)).toBe(0);
+    });
+
+    it("tracks a dropped test afresh when it fails again, and reopens its closed issue once it is proven", async () => {
+        const repo = fakeRepo({
+            jobs: { 50: [{ id: 501, run_attempt: 1 }] },
+            issues: [
+                {
+                    number: 5,
+                    state: "closed",
+                    body: `x\n${MARKER}${TEST}`,
+                    labels: ["bug", "intermittent", "priority:medium"],
+                    comments: [],
+                },
+            ],
+        });
+        const { github } = client(repo);
+        const state = holding([tracked(TEST, { issue: 5 })], { 5: "closed" });
+        pruneSettledFlakes(state);
+        pruneClosedIssues(state);
+        expect(ids(state)).toEqual([]);
+        await poll(state, [node(12, sha("a"), [check(JOB, "FAILURE", 501, 50)])], github, { 501: vitestLog() });
+        const t = flakeStore(state).tests[TEST];
+        expect(t).toMatchObject({ issue: null, proofs: [], reported: 0 });
+        expect(t.occurrences.map((o) => o.jobId)).toEqual([501]);
+        // The same commit passes: proven, and the issue is found again by its marker, not filed anew.
+        await poll(state, [node(12, sha("a"), [check(JOB, "SUCCESS", 502, 50)])], github, {});
+        expect(t.issue).toBe(5);
+        await poll(state, [node(12, sha("a"), [check(JOB, "SUCCESS", 502, 50)])], github, {});
+        expect(repo.s.issues).toHaveLength(1);
+        expect(repo.s.issues[0].state).toBe("open");
+        expect(writes(repo)).toEqual(["PATCH issues/5", "POST issues/5/comments"]);
     });
 });

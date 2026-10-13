@@ -167,6 +167,21 @@ describe.each(ENGINES)("%s", (engine) => {
         assertInvariant(after, fx, [tab], before);
     });
 
+    it(`writes the first edit made as soon as ${FULL ? 50_000 : 5_000} nodes appear, while the load settles`, async () => {
+        const n = FULL ? 50_000 : 5_000;
+        const key = `first-edit-${engine}`;
+        const tab = `${key}.a`;
+        const { context } = await start(engine);
+        // ready() returns once the rows are in, before the page's load has settled.
+        const page = await openFixture(context, { key, tab, n });
+        const edited = await next(page);
+        await saved(tab, edited);
+        await reload(page, tab);
+        const after = await check(page);
+        assert.strictEqual(after.nodes, n);
+        assertInvariant(after, fx, [tab], []);
+    });
+
     it("writes a torn write again by itself, and restores it whole", async () => {
         const key = `torn-${engine}`;
         const tab = `${key}.a`;

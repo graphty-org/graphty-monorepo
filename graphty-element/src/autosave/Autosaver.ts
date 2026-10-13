@@ -59,6 +59,14 @@ export const AUTOSAVE_FORMAT_VERSION = 1;
 /** How long a write may go without completing or failing before it is aborted. */
 export const WATCHDOG_MS = 10_000;
 
+/** The history steps a page-supplied load makes; any other step made during one is the reader's. */
+const PAGE_LOAD_CODES: ReadonlySet<string> = new Set([
+    "data.replace-nodes",
+    "data.replace-edges",
+    "data.import",
+    "data.set",
+]);
+
 /** A deadline timer that fires this much past its time ran behind a blocked main thread. */
 const DEADLINE_LATE_MS = 1_000;
 
@@ -398,6 +406,8 @@ export class Autosaver {
     #restoring = false;
     /** A page-supplied load is running: its changes do not start an entry. */
     #quiet = 0;
+    /** Changes made during a page load, and the parts they touched, until the load says whose they were. */
+    #heldDuringLoad = { count: 0, tags: new Set<PartTag>() };
     /** The listing has not succeeded yet: nothing is written, so no entry can shadow the real one. */
     #blocked = false;
     /** The next write rewrites an older-format entry, flushed to disk. */
@@ -724,11 +734,29 @@ export class Autosaver {
         // Ended here, before the load runs, whatever the load does to the graph.
         this.#boundary();
         this.#source = slot === "whole" ? { whole: digest } : { ...this.#source, [slot]: digest };
+        // The load's own changes are not the reader's work. A change the reader makes while the
+        // load runs is held instead of dropped: a large graph's load settles long after its rows
+        // are in, and an edit queued behind it ran inside the window and was never written (the
+        // lifecycle tests, at 50,000 nodes). Once the load settles, a history step it did not make
+        // says the reader worked meanwhile.
+        const steps = new Set(this.#session.history.steps.map((step) => step.id));
         this.#quiet += 1;
         try {
             await load();
         } finally {
             this.#quiet -= 1;
+        }
+
+        const held = this.#heldDuringLoad;
+        this.#heldDuringLoad = { count: 0, tags: new Set() };
+        const readerSteps = this.#session.history.steps.filter(
+            (step) => !steps.has(step.id) && !PAGE_LOAD_CODES.has(step.fact.code),
+        ).length;
+        if (held.count > 0 && readerSteps > 0) {
+            // The reader's steps count, as their changes would have outside the load; the mark
+            // counts one of them.
+            this.#changes += readerSteps - 1;
+            this.#mark([...held.tags], false, true);
         }
 
         if (restored !== null) {
@@ -1341,6 +1369,12 @@ export class Autosaver {
      * @param counted - A committed project change, which the revision counts.
      */
     #mark(tags: readonly PartTag[], now: boolean, counted: boolean): void {
+        if (this.#quiet > 0 && counted && !this.#stopped && !this.#restoring) {
+            this.#heldDuringLoad.count += 1;
+            tags.forEach((tag) => this.#heldDuringLoad.tags.add(tag));
+            return;
+        }
+
         if (this.#stopped || this.#restoring || this.#quiet > 0) {
             return;
         }

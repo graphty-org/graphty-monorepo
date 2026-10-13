@@ -430,6 +430,40 @@ describe("the page's own data and settings", () => {
         assert.strictEqual((await store.list(KEY)).length, 2, "reloads pile up no entries");
     });
 
+    it("keeps a change the reader makes while a page load is still finishing", async () => {
+        const store = memoryAutosaveStore();
+        const page = load(store);
+        await page.saver.recover();
+        const first = rows(["a", "b"]);
+        // The load's rows are in, but its promise has not settled (a large graph still being drawn)
+        // when the reader's change runs: it must not be taken for part of the load.
+        await page.saver.admit(first.source, async () => {
+            await first.apply(page.session)();
+            await page.session.config.set({ name: "Edited while loading" });
+            await page.session.styles.add(STYLE);
+        });
+        await page.saver.flush();
+        assert.strictEqual(page.saver.status.state, "saved");
+        assert.isNotNull(page.saver.status.entry, "the reader's change started an entry");
+        assert.strictEqual(page.saver.status.revision, 2, "each of the reader's changes counted once");
+        page.saver.stop();
+
+        const reload = load(store);
+        await reload.saver.recover();
+        assert.strictEqual(reload.session.config.name, "Edited while loading");
+    });
+
+    it("a page load alone, however long it takes to finish, starts no entry", async () => {
+        const store = memoryAutosaveStore();
+        const page = load(store);
+        await page.saver.recover();
+        const first = rows(["a", "b"]);
+        await page.saver.admit(first.source, first.apply(page.session));
+        await page.saver.flush();
+        assert.isNull(page.saver.status.entry);
+        assert.deepStrictEqual(await store.list(KEY), []);
+    });
+
     it("a load after the reader's first change is not absorbed", async () => {
         const store = memoryAutosaveStore();
         const first = rows(["a", "b"]);

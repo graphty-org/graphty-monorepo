@@ -520,6 +520,11 @@ example, keeps note text that is still being typed in React state.
 - **Aborted transaction.** A transaction the browser aborts with no error of its own
   (`AbortError`), or whose connection closes under it (`InvalidStateError`), is retried once on a
   reopened connection; only a second failure becomes `failing` with `E_AUTOSAVE_FAILED`.
+- **Edits during a page load.** A page-supplied load's own changes start no entry, but its promise
+  settles long after its rows are in on a large graph, and an edit the reader makes meanwhile runs
+  inside that window. Such changes are held, not dropped: once the load settles, any history step
+  it did not make itself (anything but replacing the nodes or edges, an import or a set) is the
+  reader's, and the held changes are written as the reader's work.
 - **Lost connection.** After WebKit's storage process dies, every request fails with
   `UnknownError: Connection to Indexed Database server lost` until a reload. The element reopens
   once; if that fails, the state is `failing` with `E_AUTOSAVE_CONNECTION_LOST`, so the consumer can

@@ -113,7 +113,7 @@ function triggerDownload(dataUrl: string, filename: string): void {
     link.download = filename;
     document.body.appendChild(link);
     link.click();
-    document.body.removeChild(link);
+    link.remove();
 }
 
 /**

@@ -14,9 +14,8 @@ import type { Binding, Channel, ChannelValue, CombineMode, LabelStyle, LayerId }
 import type { ColumnRef, GraphSession, Layer } from "@graphty/graphty-element/session";
 
 import { findTreeRow } from "../graph-place/rows";
-import { runName } from "../runWords";
 import type { BeneathValue, RowContext } from "./PropertyRow";
-import { type Beneath, channelWord, resultWord, valueWords } from "./words";
+import { type Beneath, channelWord, readableName, valueWords } from "./words";
 
 /** Which side of the Style tab: nodes or edges. */
 export type Target = "node" | "edge";
@@ -571,8 +570,8 @@ export function readsNothing(session: GraphSession, target: Target, channel: Cha
 }
 
 /**
- * The name of what a binding reads, for its line: the column's name, or the run's result in the
- * app's words.
+ * The name of what a binding reads, for its line: the column's name, or the run's value by the
+ * name every other surface gives it ("Connections", not the method's "Degree").
  * @param session - the element's session.
  * @param binding - the binding.
  * @returns the name, or null when no column or run result of this session has the binding's path.
@@ -582,14 +581,8 @@ export function sourceName(session: GraphSession, binding: DataBinding): string 
     if (column !== undefined) {
         return column.name;
     }
-    for (const run of session.runs.list()) {
-        const primary = session.results.path(run.id);
-        const field = run.fields.find((f) => session.results.path(run.id, f.name) === binding.by);
-        if (field !== undefined || primary === binding.by) {
-            return resultWord(runName(session, run), field?.name ?? "", primary === binding.by);
-        }
-    }
-    return null;
+    const value = session.data.readableValues().find((each) => each.runId !== undefined && each.path === binding.by);
+    return value === undefined ? null : readableName(session, value).name;
 }
 
 /** The legend block of a run that paints a color. */

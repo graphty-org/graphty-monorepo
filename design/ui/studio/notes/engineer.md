@@ -11,6 +11,39 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-13) **Which elements in words, one name per value, a Values tab that agrees, a draft
+  that counts** (graphty app; test `style/__tests__/NamesAndRules.real-element.test.tsx`, Les
+  Miserables with Degree, Louvain, Edge betweenness and a route; all five fail without the change).
+  `formOf` sends every selector but everything/state/ids/member through the element's
+  `selectorRule`, so the route opens on conditions; a condition on a yes-or-no value
+  (`Field.type` now carries `"yes-no"` from `ReadableValue.kind`) "is true" reads as the value's own
+  name, so the route reads "Nodes and edges on the route"; `readsNodes(form, attributes)` treats a
+  path edges carry too as read by each kind (no "and the edges between them"). One name per
+  value: `sourceName` (pills, bound lines, Values) now returns `readableName` for a run's value,
+  so "Connections", "Community", "Bridging" everywhere; `resultWord` is gone. A run's group is
+  "Group N" by `groupRank`/`valueName` in `style/words.ts` (the run summary's rank, which the key
+  uses too) in rule sentences and the Values tab, ordered by rank. Undo names a layer by its tree
+  row (`historyWords.layerWords`). Kind change: `RuleEditor` refocuses
+  `[data-which-kind] input:checked` after `onKind` settles and the panel announces "<row> now
+  paints edges". The draft: count from `selection.count({ scope })` (`draftCount` in
+  `whichRule.ts`; rule, member, ids, everything; null for Selected or an expression), its sentence
+  above the status, and the first write hands focus to the line just set (`focusLineNext` of the
+  active `[data-line]`) and announces "Layer <name> added". "Add condition" is a "+" on the
+  editor's title row (`RuleEditor` draws the title now). Condition rows are a grid
+  (`.ws-condition-row`): attribute beside the minus, test and value under it. Find offers and a
+  rule-named layer lead with what differs ("name contains Mme"; `ruleName`), since the kind glyph
+  says what it paints; a layer named by the old full sentence still renames. The rule line at
+  rest has a pencil and a hover fill. Values: a value with a histogram never also lists
+  categories (a label reading a measure); its bars take the color binding's preview colors
+  (`HistogramRow` `paint`). NOT done: a canvas mark for the draft -- the element has no way to
+  mark elements without a layer or the selection; that needs an additive element call (a
+  transient preview mark), not an app workaround. Trap: this notes file had another agent's
+  uncommitted hunks; I staged only my entry by writing HEAD plus my lines to the index
+  (`git hash-object -w` + `git update-index --cacheinfo`). Trap 2: `useFocusLine`'s re-ask (a tab
+  unmounting with focus in its handed line) is module state; after an Undo of a layer's first
+  line nothing takes it, and it stole focus from the next test's tree (and would from the reader
+  later). A re-ask now expires after two frames if no tab takes it.
+
 - (2026-10-13) **Tree glyphs and menus, the key card, Graph settings and folders** (graphty app;
   tests `graph-place/__tests__/StyleTreeRows.real-element.test.tsx`, `canvas/__tests__/
   LegendCard.real-element.test.tsx`, `legendWords.test.ts`; pictures `tier3/build/tree-key-settings/`).

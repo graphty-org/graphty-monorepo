@@ -18,7 +18,7 @@ export interface Field {
     readonly plainName: string;
     /** The heading it is listed under ("Data", or the run's name); absent lists it under its kind. */
     readonly group?: string;
-    /** `number` or `integer` for numbers; anything else reads as text. */
+    /** `number` or `integer` for numbers, `yes-no` for a yes-or-no value; anything else reads as text. */
     readonly type?: string;
     /** Values to offer while typing one. */
     readonly sampleValues?: readonly unknown[];
@@ -46,7 +46,7 @@ export function readableFields(
             kind: value.on,
             plainName: nameOf?.(value).name ?? value.plainName,
             group: nameOf?.(value).group,
-            type: value.kind === "number" ? "number" : "string",
+            type: value.kind === "number" || value.kind === "yes-no" ? value.kind : "string",
             sampleValues: attributes.find((a) => a.path === value.path && a.kind === value.on)?.sampleValues ?? [],
         }));
 }

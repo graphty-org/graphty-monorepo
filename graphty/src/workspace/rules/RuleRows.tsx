@@ -4,7 +4,7 @@
  * rule it makes is a graphty-element `RuleTree` leaf, and every count is the element's.
  */
 
-import { ActionIcon, Autocomplete, Button, Group, NumberInput, Select, Stack, TextInput, Tooltip } from "@mantine/core";
+import { ActionIcon, Autocomplete, NumberInput, Select, Stack, TextInput, Tooltip } from "@mantine/core";
 import React from "react";
 
 import { GLYPHS } from "../glyphs";
@@ -140,16 +140,23 @@ export function ConditionRow(props: ConditionRowProps): React.JSX.Element {
         return fields;
     }
     return (
-        <Group gap={4} wrap="nowrap" align="flex-end" className="ws-condition-row">
+        // The attribute on its own line beside the minus, the test and its value under it, so
+        // nothing is cut at the inspector's 240 px (style.css).
+        <div className="ws-condition-row">
             {fields}
             {onRemove !== undefined && (
                 <Tooltip label="Remove condition">
-                    <ActionIcon variant="subtle" aria-label="Remove condition" onClick={onRemove}>
+                    <ActionIcon
+                        variant="subtle"
+                        aria-label="Remove condition"
+                        onClick={onRemove}
+                        className="ws-condition-remove"
+                    >
                         <GLYPHS.remove size={14} aria-hidden />
                     </ActionIcon>
                 </Tooltip>
             )}
-        </Group>
+        </div>
     );
 }
 
@@ -160,7 +167,7 @@ interface RuleRowsProps extends Omit<ConditionRowProps, "condition" | "onChange"
 }
 
 /**
- * Conditions joined by "and", each with its minus, and "Add condition" below them.
+ * Conditions joined by "and", each with its minus; the section title's "+" adds one.
  * @param props - Component props
  * @returns the rows.
  */
@@ -183,16 +190,6 @@ export function RuleRows(props: RuleRowsProps): React.JSX.Element {
                     />
                 </div>
             ))}
-            <Button
-                size="compact-xs"
-                variant="subtle"
-                leftSection={<GLYPHS.add size={12} aria-hidden />}
-                onClick={() => {
-                    onChange([...conditions, BLANK_CONDITION]);
-                }}
-            >
-                Add condition
-            </Button>
         </Stack>
     );
 }

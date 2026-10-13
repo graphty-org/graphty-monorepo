@@ -435,18 +435,6 @@ export function paletteWord(id: string): string {
 }
 
 /**
- * A run result's name in the From data list and on a bound line: the run's own name for the field
- * the run is read by, else the field in words after it.
- * @param runLabel - the run's name, as its row is called.
- * @param field - the field's id.
- * @param primary - whether it is the field the run is read by.
- * @returns "PageRank", "Degree in degree", ...
- */
-export function resultWord(runLabel: string, field: string, primary: boolean): string {
-    return primary ? runLabel : `${runLabel} ${enumWords(field).toLowerCase()}`;
-}
-
-/**
  * A readable value's name and the heading it is listed under, the same in the vary picker and the
  * rule editor: the catalog plainName, under "Data" for a column or under the run's name for a
  * run's field. A run's field that does not say whose it is gets the run's main value after it
@@ -464,6 +452,31 @@ export function readableName(session: GraphSession, value: ReadableValue): { nam
     const main = run.fields.find((f) => session.results.path(run.id, f.name) === primary)?.plainName;
     const own = value.path === primary || main === undefined || value.plainName.includes(main);
     return { name: own ? value.plainName : `${value.plainName} of ${main}`, group: runName(session, run) };
+}
+
+/**
+ * A run's group's rank, the number the key names it by: 1 for the largest.
+ * @param session - the element's session.
+ * @param path - the value's path, such as `results.louvain.community`.
+ * @param value - one of its values.
+ * @returns the rank, or undefined for a value that is not a run's ranked group.
+ */
+export function groupRank(session: GraphSession, path: string, value: unknown): number | undefined {
+    const run = session.runs.list().find((each) => session.results.path(each.id) === path);
+    return run?.result?.summary().groups?.find((g) => String(g.group) === String(value))?.rank;
+}
+
+/**
+ * What one value of a value is called, as the key calls it: a run's group by its rank ("Group 3"),
+ * anything else as it is.
+ * @param session - the element's session.
+ * @param path - the value's path.
+ * @param value - one of its values.
+ * @returns "Group 3", or the value in words.
+ */
+export function valueName(session: GraphSession, path: string, value: unknown): string {
+    const rank = groupRank(session, path, value);
+    return rank === undefined ? String(value) : `Group ${String(rank)}`;
 }
 
 /**

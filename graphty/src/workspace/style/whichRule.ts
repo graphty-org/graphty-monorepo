@@ -4,7 +4,7 @@
  * Every value a rule reads comes from the element's `session.data.readableValues()`.
  */
 
-import type { GraphSession, Layer, RuleTree } from "@graphty/graphty-element/session";
+import { type GraphSession, type Layer, type RuleTree, selectorRule } from "@graphty/graphty-element/session";
 
 import {
     attributeOf,
@@ -17,7 +17,7 @@ import {
     isNumber,
     readableFields,
 } from "../rules/conditions";
-import { readableName } from "./words";
+import { readableName, valueName } from "./words";
 
 /** What a layer's rule picks, as graphty-element's layer holds it. */
 export type Selector = Layer["selector"];
@@ -123,17 +123,17 @@ export function formOf(selector: Selector, attributes: readonly Field[], prefer:
             return typeof selector.of === "object" && "set" in selector.of
                 ? { ...BLANK_FORM, mode: "set", set: selector.of.set }
                 : { ...BLANK_FORM, mode: "other" };
-        case "expression":
-            return { ...BLANK_FORM, mode: "expression", expression: selector.where };
-        case "rule":
-            return { ...ruleForm(selector.where, attributes, prefer), touching: selector.edges === "incident" };
-        // A run's layer paints what carries its value: the condition "<value> has a value".
-        case "has":
-            return ruleForm({ kind: "text", reads: selector.path, mode: "regex", text: "" }, attributes, prefer);
-        case "top":
-            return ruleForm({ kind: "threshold", path: selector.path, top: selector.n }, attributes, prefer);
-        default:
-            return { ...BLANK_FORM, mode: "other" };
+        default: {
+            // Every other selector through the element's rule reader, so a run's layer (a route's
+            // "onPath == true" expression included) opens on conditions, as a reader's does.
+            const rule = selectorRule(selector);
+            if (rule !== undefined) {
+                return { ...ruleForm(rule.where, attributes, prefer), touching: rule.edges === "incident" };
+            }
+            return selector.match === "expression"
+                ? { ...BLANK_FORM, mode: "expression", expression: selector.where }
+                : { ...BLANK_FORM, mode: "other" };
+        }
     }
 }
 
@@ -204,17 +204,19 @@ export function selectorOf(form: Form, attributes: readonly Field[], nodes: bool
 }
 
 /**
- * Whether a form's rule reads only node values, so a Both layer chooses which edges go with it.
+ * Whether a form's rule reads only node values, so a Both layer chooses which edges go with it. A
+ * value edges carry too (a route's "On the route") is read by each kind itself.
  * @param form - the form.
+ * @param attributes - what a rule can read; without them every `node:` value counts as nodes only.
  * @returns true for a node rule.
  */
-export function readsNodes(form: Form): boolean {
+export function readsNodes(form: Form, attributes: readonly Field[] = []): boolean {
+    const nodesOnly = (reads: string): boolean =>
+        reads.startsWith("node:") && !attributes.some((a) => a.kind === "edge" && `node:${a.path}` === reads);
     if (form.mode === "top") {
-        return form.topReads.startsWith("node:");
+        return nodesOnly(form.topReads);
     }
-    return (
-        form.mode === "where" && form.conditions.length > 0 && form.conditions.every((c) => c.reads.startsWith("node:"))
-    );
+    return form.mode === "where" && form.conditions.length > 0 && form.conditions.every((c) => nodesOnly(c.reads));
 }
 
 /**
@@ -228,14 +230,35 @@ function readsWords(reads: string, attributes: readonly Field[]): string {
 }
 
 /**
- * One condition in words: "node id matches pattern [13579]$".
+ * Whether a condition is "<a yes-or-no value> is true", which reads as the value's own name.
+ * @param condition - the condition.
+ * @param attributes - what a rule can read.
+ * @returns true for one.
+ */
+function isYes(condition: Condition, attributes: readonly Field[]): boolean {
+    return (
+        condition.compare === "is" &&
+        condition.text === "true" &&
+        attributeOf(condition.reads, attributes)?.type === "yes-no"
+    );
+}
+
+/**
+ * One condition in words: "node id matches pattern [13579]$", "Community is Group 3", "on the
+ * route". A value that names a run's group is said by the group's name, as the key says it.
+ * @param session - the element's session.
  * @param condition - the condition.
  * @param attributes - what a rule can read.
  * @returns the words.
  */
-function conditionWords(condition: Condition, attributes: readonly Field[]): string {
+function conditionWords(session: GraphSession, condition: Condition, attributes: readonly Field[]): string {
     const name = readsWords(condition.reads, attributes);
+    if (isYes(condition, attributes)) {
+        return name.charAt(0).toLowerCase() + name.slice(1);
+    }
     const compare = compareWords(condition.compare);
+    const path = attributeOf(condition.reads, attributes)?.path ?? "id";
+    const named = (text: string): string => valueName(session, path, text);
     switch (condition.compare) {
         case "has-value":
             return `${name} ${compare}`;
@@ -244,9 +267,14 @@ function conditionWords(condition: Condition, attributes: readonly Field[]): str
         case "at-least":
         case "at-most":
             return `${name} is ${compare} ${String(condition.low)}`;
+        case "one-of":
+            return `${name} ${compare} ${condition.text
+                .split(",")
+                .map((v) => named(v.trim()))
+                .join(", ")}`;
         default: {
             const numeric = isNumber(attributeOf(condition.reads, attributes));
-            return `${name} ${compare} ${numeric ? String(condition.low) : condition.text}`;
+            return `${name} ${compare} ${named(numeric ? String(condition.low) : condition.text)}`;
         }
     }
 }
@@ -262,9 +290,9 @@ function conditionWords(condition: Condition, attributes: readonly Field[]): str
  */
 export function sentenceOf(session: GraphSession, attributes: readonly Field[], form: Form, kind: Kind): string {
     const who = { node: "Nodes", edge: "Edges", both: "Nodes and edges" }[kind];
-    const edgeTail =
-        kind === "both" && readsNodes(form) ? `, and the edges ${form.touching ? "touching" : "between"} them` : "";
-    const lead = kind === "both" && readsNodes(form) ? "Nodes" : who;
+    const nodeRule = kind === "both" && readsNodes(form, attributes);
+    const edgeTail = nodeRule ? `, and the edges ${form.touching ? "touching" : "between"} them` : "";
+    const lead = nodeRule ? "Nodes" : who;
     switch (form.mode) {
         case "every":
             return `Every ${kind === "both" ? "node and edge" : kind}`;
@@ -280,13 +308,73 @@ export function sentenceOf(session: GraphSession, attributes: readonly Field[], 
             return `${who} where ${form.expression}`;
         case "top":
             return `Top ${String(form.topN)} ${lead.toLowerCase()} by ${readsWords(form.topReads, attributes)}${edgeTail}`;
-        case "where":
-            return form.conditions.length === 0
-                ? `${who}: no rule yet`
-                : `${lead} where ${form.conditions.map((c) => conditionWords(c, attributes)).join(" and ")}${edgeTail}`;
+        case "where": {
+            if (form.conditions.length === 0) {
+                return `${who}: no rule yet`;
+            }
+            // "Nodes and edges on the route": a yes-or-no value needs no "where".
+            const where = form.conditions.every((c) => isYes(c, attributes)) ? "" : " where";
+            const words = form.conditions.map((c) => conditionWords(session, c, attributes)).join(" and ");
+            return `${lead}${where} ${words}${edgeTail}`;
+        }
         default:
             return `${who} chosen by a rule`;
     }
+}
+
+/**
+ * The name a hand-made layer is given by its rule: a condition rule by its conditions alone ("Name
+ * contains Mme"), since the tree's glyph already says what it paints and the tree's width would
+ * cut "Nodes where" off the part that tells two layers apart; any other rule by its sentence.
+ * @param session - the element's session.
+ * @param attributes - what a rule can read.
+ * @param form - the rule's form.
+ * @param kind - what the layer paints.
+ * @returns the name.
+ */
+export function ruleName(session: GraphSession, attributes: readonly Field[], form: Form, kind: Kind): string {
+    if (form.mode !== "where" || form.conditions.length === 0) {
+        return sentenceOf(session, attributes, form, kind);
+    }
+    const words = form.conditions.map((c) => conditionWords(session, c, attributes)).join(" and ");
+    return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+/**
+ * How many elements a rule matches, before any layer holds it: "6 nodes", "3 nodes, 2 edges".
+ * Asked of the element (`selection.count` over the rule's scope), never counted here.
+ * @param session - the element's session.
+ * @param selector - the rule.
+ * @param kind - what the layer will paint.
+ * @returns the words, or null for a rule only a layer can count (Selected, an expression).
+ */
+export async function draftCount(session: GraphSession, selector: Selector, kind: Kind): Promise<string | null> {
+    let counted: { readonly nodes: number; readonly edges: number };
+    switch (selector.match) {
+        case "everything": {
+            const { nodeCount, edgeCount } = session.data.statistics();
+            counted = { nodes: nodeCount, edges: edgeCount };
+            break;
+        }
+        case "ids":
+            counted = { nodes: selector.nodes?.length ?? 0, edges: selector.edges?.length ?? 0 };
+            break;
+        case "member":
+            counted = await session.selection.count({ scope: selector.of });
+            break;
+        case "rule":
+            counted = await session.selection.count({
+                scope: { define: { kind: "rule", where: selector.where, reading: selector.edges ?? "clipped" } },
+            });
+            break;
+        default:
+            return null;
+    }
+    const words = [
+        kind === "edge" ? null : countWords(counted.nodes, "node"),
+        kind === "node" ? null : countWords(counted.edges, "edge"),
+    ];
+    return words.filter((w) => w !== null).join(", ");
 }
 
 /** The name a hand-made layer is written with before it has a rule. */

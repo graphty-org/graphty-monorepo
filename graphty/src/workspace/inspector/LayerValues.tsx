@@ -7,7 +7,7 @@ import { findTreeRow } from "../graph-place/rows";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { sourceName } from "../style/row";
 import { useStyleVersion } from "../style/useStyleVersion";
-import { channelWord } from "../style/words";
+import { channelWord, groupRank, hexOf, valueName } from "../style/words";
 import { useAsyncValue, useSessionVersion } from "./hooks";
 import { nodeKey } from "./inspected";
 import { selectNode } from "./reads";
@@ -134,21 +134,37 @@ function NumberValues({
     if (histogram === null || histogram.bins.length === 0) {
         return null;
     }
-    const { bins, min, median, max } = histogram;
-    const measured = bins.reduce((sum, bin) => sum + bin.count, 0);
-    const stepped = layers.flatMap((layer) =>
+    const { min, median, max } = histogram;
+    const previews = layers.flatMap((layer) =>
         Object.entries(layer.encode ?? {}).flatMap(([channel, binding]) => {
             if (binding === undefined || !("by" in binding) || binding.by !== read.path) {
                 return [];
             }
             try {
-                const preview = session.styles.preview(binding, { channel: channel as Channel });
-                return preview.stepCounts.length > 0 ? [{ channel: channel as Channel, preview }] : [];
+                return [
+                    {
+                        channel: channel as Channel,
+                        preview: session.styles.preview(binding, { channel: channel as Channel }),
+                    },
+                ];
             } catch {
                 return [];
             }
         }),
     );
+    const stepped = previews.filter(({ preview }) => preview.stepCounts.length > 0);
+    // Drawn in the colors a color binding paints, bar for bar, as the ramp popover draws it.
+    const ramp = previews.find(({ preview }) => preview.bins.some((bin) => hexOf(bin.paints) !== null))?.preview;
+    const bins: readonly { from: number; to: number; count: number; paint?: string }[] =
+        ramp === undefined
+            ? histogram.bins
+            : ramp.bins.map((bin) => ({
+                  from: bin.from ?? 0,
+                  to: bin.to ?? 0,
+                  count: bin.count,
+                  paint: hexOf(bin.paints) ?? undefined,
+              }));
+    const measured = histogram.bins.reduce((sum, bin) => sum + bin.count, 0);
     return (
         <ControlSection label={read.name} collapsible={false} headingLevel={3}>
             <HistogramRow
@@ -156,6 +172,7 @@ function NumberValues({
                 bins={bins.map((bin) => ({
                     label: `${formatNumber(bin.from)} to ${formatNumber(bin.to)}: ${String(bin.count)}`,
                     count: bin.count,
+                    paint: bin.paint,
                 }))}
                 minLabel={formatNumber(bins[0].from)}
                 maxLabel={formatNumber(bins[bins.length - 1].to)}
@@ -245,17 +262,20 @@ function CategoryValues({
     const { layer, channel } = first;
     const swatches = session.styles.legendOf(layer.id).find((block) => block.channel === channel)?.swatches ?? [];
     const unmatched = layers.flatMap((l) => l.unmatched ?? []).filter((u) => u.params.path === read.path);
+    // Ordered and named as the key lists them: a run's groups by rank ("Group 1" first).
+    const rankOf = (value: unknown): number => groupRank(session, read.path, value) ?? Number.POSITIVE_INFINITY;
+    const ordered = [...session.styles.categories(layer.id, channel)].sort((a, b) => rankOf(a.value) - rankOf(b.value));
     return (
         <ControlSection label={read.name} collapsible={false} headingLevel={3}>
             <DataRowHeader label="Groups, largest first" />
             <FirstRows
-                rows={session.styles.categories(layer.id, channel).map((category) => {
+                rows={ordered.map((category) => {
                     const word = String(category.value);
                     const color = swatches.find((s) => String(s.value) === word)?.color;
                     return (
                         <DataRow
                             key={word}
-                            name={word}
+                            name={valueName(session, read.path, category.value)}
                             value={category.count}
                             icon={
                                 typeof color === "string" ? (
@@ -272,8 +292,8 @@ function CategoryValues({
             {unmatched.map((u) => (
                 <Text key={`${u.code}:${String(u.params.value)}`} size="sm" c="dimmed">
                     {u.code === "group.new"
-                        ? `${String(u.params.value)} is new since the last run`
-                        : `${String(u.params.value)} is gone since the last run${u.params.dropped === true ? ": what this layer set for it was dropped" : ""}`}
+                        ? `${valueName(session, read.path, u.params.value)} is new since the last run`
+                        : `${valueName(session, read.path, u.params.value)} is gone since the last run${u.params.dropped === true ? ": what this layer set for it was dropped" : ""}`}
                 </Text>
             ))}
         </ControlSection>
@@ -506,8 +526,12 @@ export function LayerValues({ id }: Readonly<{ id: string }>): React.JSX.Element
                     <PathValues key={read.path} session={session} run={read.run} summaryLabel="Route" />
                 ) : (
                     <React.Fragment key={read.path}>
-                        <CategoryValues session={session} read={read} layers={readers(read.path)} />
-                        <NumberValues session={session} read={read} layers={readers(read.path)} />
+                        {/* A measure is a histogram, whatever reads it (a label too); categories only otherwise. */}
+                        {histogramOf(session, read, readers(read.path)[0]) === null ? (
+                            <CategoryValues session={session} read={read} layers={readers(read.path)} />
+                        ) : (
+                            <NumberValues session={session} read={read} layers={readers(read.path)} />
+                        )}
                     </React.Fragment>
                 ),
             )}

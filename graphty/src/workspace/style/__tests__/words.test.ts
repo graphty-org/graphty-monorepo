@@ -17,7 +17,6 @@ import {
     paletteWord,
     positionWord,
     refusalWords,
-    resultWord,
     takesBinding,
 } from "../words";
 
@@ -157,7 +156,5 @@ describe("the Style tab's words and arrangement", () => {
         }
         assert.equal(paletteWord("okabe-ito"), "Eight distinct colors");
         assert.equal(paletteWord("someone-elses"), "Someone elses");
-        assert.equal(resultWord("PageRank", "value", true), "PageRank");
-        assert.equal(resultWord("Degree", "inDegree", false), "Degree in degree");
     });
 });

@@ -75,7 +75,17 @@ export function useFocusLine<T extends HTMLElement>(): RefObject<T | null> {
         return () => {
             const line = handed.current === null ? null : node?.querySelector(handed.current);
             if (pending === null && line?.contains(document.activeElement) === true) {
-                pending = handed.current;
+                const asked = handed.current;
+                pending = asked;
+                // The ask is for the tab that replaces this one now; one nothing takes (the row
+                // itself went, as an Undo of its first line does) must not steal focus later.
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                        if (pending === asked) {
+                            pending = null;
+                        }
+                    });
+                });
             }
         };
     }, []);

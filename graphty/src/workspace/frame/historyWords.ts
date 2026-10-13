@@ -13,6 +13,7 @@ import {
 
 import { wordsFor } from "../analyze/words";
 import { stepChange } from "../data-place/filterSteps";
+import { findTreeRow } from "../graph-place/rows";
 import { count } from "../inspector/words";
 import { runName } from "../runWords";
 import { channelWord } from "../style/words";
@@ -67,8 +68,8 @@ function runWords(session: GraphSession, id: Params[string]): string {
 }
 
 /**
- * A layer as its paint-tree row names it: a run's layer by the run's name ("PageRank", not the
- * element's "Influence"), any other layer by its own.
+ * A layer as its style tree row names it: a run's layer by its row ("Connections"), a part of a
+ * row on both kinds by the row, any other layer by its own name.
  * @param session - the session.
  * @param params - the params, whose `layer` is the layer's name (or its id).
  * @returns its name.
@@ -77,11 +78,7 @@ function layerWords(session: GraphSession, params: Params): string {
     const name = text(params, "layer", "a layer");
     // ponytail: the fact names a layer, not its id, so two layers of one name read as the first.
     const layer = session.styles.list().find((each) => each.name === name || each.id === name);
-    const run =
-        layer === undefined
-            ? undefined
-            : session.runs.list().find((each) => session.runs.bindings(each.id).includes(layer.id));
-    return run === undefined ? name : runName(session, run);
+    return layer === undefined ? name : (findTreeRow(session.styles.tree(), layer.row ?? layer.id)?.row.name ?? name);
 }
 
 /**

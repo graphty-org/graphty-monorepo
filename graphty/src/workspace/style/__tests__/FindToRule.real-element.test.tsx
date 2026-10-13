@@ -118,7 +118,7 @@ describe("search and selection as ways into a rule", () => {
         const field = await screen.findByRole("combobox", { name: "Find elements" }, { timeout: TIMEOUT_MS });
         await userEvent.click(field);
         await userEvent.keyboard("bob");
-        const live = await screen.findByRole("option", { name: "Nodes where name contains bob, 3 nodes" });
+        const live = await screen.findByRole("option", { name: "name contains bob, 3 nodes" });
         assert.isNotNull(
             screen.queryByRole("option", { name: "These 3 nodes, name contains bob" }),
             "the fixed list is offered too",

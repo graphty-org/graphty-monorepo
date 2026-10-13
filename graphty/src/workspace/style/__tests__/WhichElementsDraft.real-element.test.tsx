@@ -109,7 +109,7 @@ describe("a new layer chooses its elements first", () => {
         const find = await screen.findByRole("combobox", { name: "Find elements" });
         await userEvent.click(find);
         await userEvent.keyboard("State");
-        const live = await screen.findByRole("option", { name: /^Nodes where .+ contains State, 24 nodes$/ });
+        const live = await screen.findByRole("option", { name: /^.+ contains State, 24 nodes$/ });
         await userEvent.click(live);
         assert.equal(readerLayers(session).length, before, "picking the rule writes nothing yet");
 

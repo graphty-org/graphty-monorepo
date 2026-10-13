@@ -2,6 +2,7 @@ import { ResultRow, SearchInput } from "@graphty/compact-mantine";
 import type { FindContainsRow, FindValueRow } from "@graphty/graphty-element";
 import type { GraphSession, Layer, LayerId } from "@graphty/graphty-element/session";
 import {
+    ActionIcon,
     Button,
     Group,
     NumberInput,
@@ -11,14 +12,15 @@ import {
     TagsInput,
     Text,
     TextInput,
+    Tooltip,
     UnstyledButton,
 } from "@mantine/core";
 import React, { useEffect, useId, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
-import { orNotice } from "../graph-place/actions";
+import { findTreeRow } from "../graph-place/rows";
 import { isPanelEscape } from "../keys/keys";
-import { allCompares, type Field, isNumber, type ReadsGroup } from "../rules/conditions";
+import { allCompares, BLANK_CONDITION, type Field, isNumber, type ReadsGroup } from "../rules/conditions";
 import { RuleRows } from "../rules/RuleRows";
 import { useWorkspace } from "../state/WorkspaceContext";
 import {
@@ -30,6 +32,7 @@ import {
     type Kind,
     MODES,
     readsNodes,
+    ruleName,
     type Selector,
     selectorOf,
     type SelectorTarget,
@@ -47,6 +50,9 @@ interface Offer {
     /** Whether the offer is of nodes or of edges. */
     readonly kind: "node" | "edge";
 }
+
+/** What a kind paints, in an announcement: "Connections now paints edges". */
+const PAINTS_WORDS: Readonly<Record<Kind, string>> = { node: "nodes", edge: "edges", both: "nodes and edges" };
 
 const KINDS: readonly { readonly value: Kind; readonly label: string }[] = [
     { value: "node", label: "Nodes" },
@@ -70,7 +76,6 @@ function offersOf(
     test: string,
     nameOf: (id: unknown) => string | undefined,
 ): Offer[] {
-    const kinds = row.kind === "node" ? "Nodes" : "Edges";
     const ids = "nodes" in row.target ? row.target.nodes : undefined;
     const edges = "edges" in row.target ? row.target.edges : undefined;
     const only = row.count === 1 && row.kind === "node" ? nameOf(ids?.[0]) : undefined;
@@ -80,7 +85,8 @@ function offersOf(
     }
     return [
         {
-            name: `${kinds} where ${column} ${test}`,
+            // What tells two offers apart comes first; the count line says nodes or edges.
+            name: `${column} ${test}`,
             detail: countWords(row.count, row.kind),
             selector: { match: "rule", where: row.rule },
             kind: row.kind,
@@ -100,11 +106,14 @@ interface RuleEditorProps {
     readonly attributes: readonly Field[];
     /** What the layer paints; undefined for a draft whose kind is not chosen yet. */
     readonly kind: Kind | undefined;
-    readonly onKind: (kind: Kind) => void;
+    /** Changes the kind; focus is put back on the kind control once what it returns settles. */
+    readonly onKind: (kind: Kind) => unknown;
     readonly form: Form;
     readonly onForm: (form: Form) => void;
     /** Takes a find offer's selector and what it is of. */
     readonly onPick: (selector: Selector, kind: "node" | "edge") => void;
+    /** The rule in words, above the status line; the draft's, before it is a layer. */
+    readonly sentence?: string;
     /** The line under the editor: what it matches now. */
     readonly status: React.ReactNode;
     /** Done, for a layer's editor; a draft has none. */
@@ -119,7 +128,7 @@ interface RuleEditorProps {
  * @returns The editor
  */
 export function RuleEditor(props: Readonly<RuleEditorProps>): React.JSX.Element {
-    const { session, attributes, kind, onKind, form, onForm, onPick, status, onDone } = props;
+    const { session, attributes, kind, onKind, form, onForm, onPick, sentence, status, onDone } = props;
     const kinds = new Set<SelectorTarget>(kind === undefined || kind === "both" ? ["node", "edge"] : [kind]);
     const kindRef = useRef<HTMLDivElement>(null);
     useEffect(() => {
@@ -143,7 +152,26 @@ export function RuleEditor(props: Readonly<RuleEditorProps>): React.JSX.Element 
 
     return (
         <>
-            <div ref={kindRef}>
+            <Group justify="space-between" wrap="nowrap" gap={4}>
+                <Text size="xs" fw={600}>
+                    Which elements
+                </Text>
+                {form.mode === "where" && (
+                    <Tooltip label="Add condition">
+                        <ActionIcon
+                            variant="subtle"
+                            size="sm"
+                            aria-label="Add condition"
+                            onClick={() => {
+                                onForm({ ...form, conditions: [...form.conditions, BLANK_CONDITION] });
+                            }}
+                        >
+                            <GLYPHS.add size={14} aria-hidden />
+                        </ActionIcon>
+                    </Tooltip>
+                )}
+            </Group>
+            <div ref={kindRef} data-which-kind>
                 <SegmentedControl
                     size="xs"
                     fullWidth
@@ -152,9 +180,15 @@ export function RuleEditor(props: Readonly<RuleEditorProps>): React.JSX.Element 
                     data={[...KINDS]}
                     onChange={(value) => {
                         const next = KINDS.find((k) => k.value === value)?.value;
-                        if (next !== undefined) {
-                            onKind(next);
+                        if (next === undefined) {
+                            return;
                         }
+                        // The panel redraws for the new kind; focus stays on the kind control.
+                        void Promise.resolve(onKind(next)).finally(() => {
+                            requestAnimationFrame(() => {
+                                document.querySelector<HTMLInputElement>("[data-which-kind] input:checked")?.focus();
+                            });
+                        });
                     }}
                 />
             </div>
@@ -238,7 +272,7 @@ export function RuleEditor(props: Readonly<RuleEditorProps>): React.JSX.Element 
                     }}
                 />
             )}
-            {kind === "both" && readsNodes(form) && (
+            {kind === "both" && readsNodes(form, attributes) && (
                 <Group gap={4} wrap="nowrap">
                     <Text size="xs">Edges</Text>
                     <SegmentedControl
@@ -254,6 +288,11 @@ export function RuleEditor(props: Readonly<RuleEditorProps>): React.JSX.Element 
                         }}
                     />
                 </Group>
+            )}
+            {sentence !== undefined && (
+                <Text size="xs" data-testid="which-sentence">
+                    {sentence}
+                </Text>
             )}
             <Group justify="space-between" wrap="nowrap">
                 <Text size="xs" c="dimmed" role="status">
@@ -313,8 +352,11 @@ export function WhichElements({
 
     const write = async (next: Selector): Promise<boolean> => {
         const name = layers[0]?.name;
-        const named = name === DRAFT_NAME || name === sentenceOf(session, attributes, resting, kind);
-        const renamed = sentenceOf(session, attributes, formOf(next, attributes, prefer), kind);
+        const named =
+            name === DRAFT_NAME ||
+            name === ruleName(session, attributes, resting, kind) ||
+            name === sentenceOf(session, attributes, resting, kind);
+        const renamed = ruleName(session, attributes, formOf(next, attributes, prefer), kind);
         try {
             await session.transaction("Which elements", async (tx) => {
                 for (const l of layers) {
@@ -348,6 +390,7 @@ export function WhichElements({
                 </Text>
                 <UnstyledButton
                     ref={sentence}
+                    className="ws-which-sentence"
                     aria-label={`Which elements: ${words}. Edit`}
                     onClick={() => {
                         opened.current = new Map(layers.map((l) => [l.id, { selector: l.selector, name: l.name }]));
@@ -355,7 +398,10 @@ export function WhichElements({
                         setOpen(true);
                     }}
                 >
-                    <Text size="xs">{words}</Text>
+                    <Text size="xs" style={{ flex: 1, minWidth: 0 }}>
+                        {words}
+                    </Text>
+                    <GLYPHS.rename size={12} aria-hidden />
                 </UnstyledButton>
                 <Text size="xs" c="dimmed" role="status">
                     {painted}
@@ -395,21 +441,26 @@ export function WhichElements({
                 }
             }}
         >
-            <Text size="xs" fw={600}>
-                Which elements
-            </Text>
             <RuleEditor
                 session={session}
                 attributes={attributes}
                 kind={kind}
-                onKind={(next) => {
-                    if (next !== kind) {
-                        void orNotice(
-                            store,
-                            "change what the layer paints",
-                            session.styles.writeRow(parts?.id ?? layer, { target: next }),
-                        );
+                onKind={async (next) => {
+                    if (next === kind) {
+                        return;
                     }
+                    const rowId = parts?.id ?? layer;
+                    try {
+                        await session.styles.writeRow(rowId, { target: next });
+                    } catch (error) {
+                        const why = error instanceof Error ? ` ${error.message}` : "";
+                        store.set({
+                            notice: { message: `Could not change what the layer paints.${why}`, error: true },
+                        });
+                        return;
+                    }
+                    const name = findTreeRow(session.styles.tree(), rowId)?.row.name ?? "The layer";
+                    store.set({ announcement: `${name} now paints ${PAINTS_WORDS[next]}` });
                 }}
                 form={form}
                 onForm={edit}
@@ -429,8 +480,8 @@ export function WhichElements({
 }
 
 /**
- * The editor's find field: each thing find matches, offered as a live rule ("Nodes where name
- * contains bob, 3 nodes") or as the fixed list it holds now ("These 3 nodes"). Every rule is the
+ * The editor's find field: each thing find matches, offered as a live rule ("name contains bob,
+ * 3 nodes") or as the fixed list it holds now ("These 3 nodes"). Every rule is the
  * one graphty-element built for that find row; the field only words and arranges them.
  * @param props - Component props
  * @param props.session - the element's session

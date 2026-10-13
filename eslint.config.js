@@ -241,7 +241,9 @@ export default tseslint.config(
             "@typescript-eslint/no-unsafe-call": "error",
         },
         "remote-logger": {
+            "@typescript-eslint/no-unsafe-argument": "error",
             "@typescript-eslint/no-unsafe-call": "error",
+            "@typescript-eslint/no-unsafe-return": "error",
         },
         "compact-mantine": {
             "@typescript-eslint/no-unsafe-argument": "error",

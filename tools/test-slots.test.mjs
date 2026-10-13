@@ -129,7 +129,16 @@ describe("test-slots", () => {
         const r = spawnSync(
             process.execPath,
             [SCRIPT, process.execPath, "-e", `console.log(process.env.${HELD}); process.exit(3)`],
-            { encoding: "utf8", env: { ...process.env, GRAPHTY_TEST_SLOTS_DIR: dir, GITHUB_ACTIONS: "" } },
+            {
+                encoding: "utf8",
+                env: {
+                    ...process.env,
+                    GRAPHTY_TEST_SLOTS_DIR: dir,
+                    GRAPHTY_TEST_SLOTS: "1",
+                    GITHUB_ACTIONS: "",
+                    [HELD]: "",
+                },
+            },
         );
         assert.equal(r.status, 3);
         assert.match(r.stdout, /^\d+\n$/);

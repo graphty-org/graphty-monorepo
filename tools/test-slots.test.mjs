@@ -6,13 +6,17 @@
 //   node --test tools/test-slots.test.mjs
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
-import { mkdtempSync, readdirSync, readFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, describe, it } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { acquire, HELD, liveTickets, slotCount, workerShare } from "./test-slots.mjs";
+
+// The temporary directories this file makes go inside this one, removed when the file finishes.
+const TMP = mkdtempSync(join(tmpdir(), "test-slots-"));
+after(() => rmSync(TMP, { recursive: true, force: true }));
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SCRIPT = join(ROOT, "tools/test-slots.mjs");
@@ -27,7 +31,7 @@ function sleeper() {
 }
 after(() => children.forEach((c) => c.kill("SIGKILL")));
 
-const fresh = () => mkdtempSync(join(tmpdir(), "test-slots-"));
+const fresh = () => mkdtempSync(join(TMP, "test-slots-"));
 const quiet = { env: {}, poll: 10, log: () => {} };
 const tick = (ms = 5) => new Promise((r) => setTimeout(r, ms));
 // Whether a promise has settled within a few polls.
@@ -125,7 +129,16 @@ describe("test-slots", () => {
         const r = spawnSync(
             process.execPath,
             [SCRIPT, process.execPath, "-e", `console.log(process.env.${HELD}); process.exit(3)`],
-            { encoding: "utf8", env: { ...process.env, GRAPHTY_TEST_SLOTS_DIR: dir, GITHUB_ACTIONS: "" } },
+            {
+                encoding: "utf8",
+                env: {
+                    ...process.env,
+                    GRAPHTY_TEST_SLOTS_DIR: dir,
+                    GRAPHTY_TEST_SLOTS: "1",
+                    GITHUB_ACTIONS: "",
+                    [HELD]: "",
+                },
+            },
         );
         assert.equal(r.status, 3);
         assert.match(r.stdout, /^\d+\n$/);

@@ -1,3 +1,21 @@
+## 3.25.6 (2026-10-13)
+
+### 🩹 Fixes
+
+- **graphty-element:** read data.-prefixed fields in describeProperty and sampleData ([#2384](https://github.com/graphty-org/graphty-monorepo/issues/2384))
+- **graphty-element:** zoom and turn the 2D view by the per-frame amount while a key is held ([#2292](https://github.com/graphty-org/graphty-monorepo/issues/2292))
+- **graphty-element:** turn the 3D camera at the A and D rate while an arrow key is held ([#2292](https://github.com/graphty-org/graphty-monorepo/issues/2292))
+- **graphty-element:** report layout and algorithm refusals by their own codes ([#2335](https://github.com/graphty-org/graphty-monorepo/issues/2335))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.52
+- Updated layout to 2.5.1
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.25.5 (2026-10-13)
 
 ### 🩹 Fixes

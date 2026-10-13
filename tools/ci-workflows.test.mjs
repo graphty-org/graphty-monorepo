@@ -19,7 +19,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, it } from "node:test";
+import { after, describe, it } from "node:test";
 
 import { GROUPS, groupEntry, plan, SHARDS } from "./ci-test-matrix.mjs";
 import { isolateGit } from "./isolated-git-env.mjs";
@@ -49,11 +49,19 @@ import { gateShards, localShards, shardEnv, startRule } from "./prepush-tests.mj
 import { strayChanges } from "./release-diff.mjs";
 import { changedFiles, skippedProjects } from "./visual-capture-plan.mjs";
 
+// The temporary directories this file makes go inside this one, removed when the file finishes.
+const TMP = mkdtempSync(join(tmpdir(), "ci-workflows-"));
+after(() => rmSync(TMP, { recursive: true, force: true }));
+
 // Every git process below (and in the scripts the hook tests run) runs without the developer's own
 // config: a commit there must never reach their signing key.
 isolateGit();
 
 const PUSHOVER_SECRETS = ["secrets.PUSHOVER_APP_TOKEN", "secrets.PUSHOVER_USER_KEY"];
+// The caller's environment without the gate's own settings (PREPUSH_RERUN_ALL, PREPUSH_SHARD_TIMEOUT,
+// PREPUSH_ROOT): a push made with one of them runs these tests in its gate with it still set.
+const withoutPrepushSettings = () =>
+    Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("PREPUSH_")));
 const workflow = (name) => readFileSync(new URL(`../.github/workflows/${name}`, import.meta.url), "utf8");
 const job = (text, name) => {
     const start = text.indexOf(`\n    ${name}:\n`);
@@ -278,7 +286,7 @@ describe("the pre-push gate matches CI", () => {
                 timeout: 60_000,
                 // Its own slot directory, with a slot per shard: never waits on, or holds up, the real slots.
                 env: {
-                    ...process.env,
+                    ...withoutPrepushSettings(),
                     GRAPHTY_TEST_SLOTS_DIR: join(dir, "tmp/test-slots"),
                     GRAPHTY_TEST_SLOTS: "2",
                     GRAPHTY_TEST_SLOT_HELD: "",
@@ -312,7 +320,7 @@ describe("the pre-push gate matches CI", () => {
                 encoding: "utf8",
                 timeout: 60_000,
                 env: {
-                    ...process.env,
+                    ...withoutPrepushSettings(),
                     GRAPHTY_TEST_SLOTS_DIR: join(dir, "tmp/test-slots"),
                     GRAPHTY_TEST_SLOTS: "1",
                     GRAPHTY_TEST_SLOT_HELD: "",
@@ -1445,7 +1453,7 @@ describe("Playwright's system packages", () => {
     // the dry run with PKGS and the install by writing DOWNLOADS into the archive directory, and
     // dpkg-query reports the packages named in INSTALLED as installed.
     const run = ({ hit, cached = [], stale = [], downloads = [], aptSays = "", installed = "a b" }) => {
-        const home = mkdtempSync(join(tmpdir(), "pw-debs-"));
+        const home = mkdtempSync(join(TMP, "pw-debs-"));
         const bin = join(home, "bin");
         const debs = join(home, "debs");
         const archives = join(home, "archives");

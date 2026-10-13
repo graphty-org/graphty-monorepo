@@ -1,0 +1,317 @@
+{
+ "provenance": {
+  "side": "reference",
+  "route": "cyjs-computed",
+  "tool": "Cytoscape.js in Playwright Chromium",
+  "version": "3.34.3",
+  "command": "cytoscape({ elements, style, layout: { name: \"grid\" } }); style(), position(), width(), endpoints",
+  "sourceSha256": "32ec4af2069a6e323ae8d66221381b057e9ae184dad6e0f010959a8b76c1ae1d",
+  "generatedAt": "2026-10-13T21:18:24.770Z"
+ },
+ "canCarry": {
+  "position": "yes",
+  "size": "yes",
+  "shape": "yes",
+  "fill": "yes",
+  "fillOpacity": "yes",
+  "borderColor": "yes",
+  "borderWidth": "yes",
+  "borderStyle": "yes",
+  "labelText": "yes",
+  "labelColor": "yes",
+  "fontSize": "yes",
+  "labelPosition": "yes",
+  "visible": "yes",
+  "zOrder": "yes",
+  "edgeColor": "yes",
+  "edgeOpacity": "yes",
+  "edgeWidth": "yes",
+  "lineStyle": "yes",
+  "arrows": "yes",
+  "edgePath": "yes",
+  "edgeLabel": "yes",
+  "groups": "yes",
+  "annotations": "yes",
+  "background": "yes"
+ },
+ "nodes": [
+  {
+   "id": "hub",
+   "x": 200,
+   "y": 225,
+   "w": 60,
+   "h": 60,
+   "shape": "diamond",
+   "fill": "#e53935",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "hub",
+    "fontSize": 16,
+    "color": "#000000",
+    "position": "above",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "a",
+   "x": 600,
+   "y": 225,
+   "w": 28,
+   "h": 28,
+   "shape": "ellipse",
+   "fill": "#9e9e9e",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "a",
+    "fontSize": 16,
+    "color": "#000000",
+    "position": "above",
+    "visible": true
+   },
+   "visible": true,
+   "z": 1
+  },
+  {
+   "id": "b",
+   "x": 1000,
+   "y": 225,
+   "w": 36,
+   "h": 36,
+   "shape": "ellipse",
+   "fill": "#9e9e9e",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "b",
+    "fontSize": 16,
+    "color": "#000000",
+    "position": "above",
+    "visible": true
+   },
+   "visible": true,
+   "z": 2
+  },
+  {
+   "id": "c",
+   "x": 200,
+   "y": 675,
+   "w": 44,
+   "h": 44,
+   "shape": "ellipse",
+   "fill": "#9e9e9e",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "c",
+    "fontSize": 16,
+    "color": "#000000",
+    "position": "above",
+    "visible": true
+   },
+   "visible": true,
+   "z": 3
+  },
+  {
+   "id": "d",
+   "x": 600,
+   "y": 675,
+   "w": 52,
+   "h": 52,
+   "shape": "ellipse",
+   "fill": "#9e9e9e",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "d",
+    "fontSize": 16,
+    "color": "#000000",
+    "position": "above",
+    "visible": true
+   },
+   "visible": true,
+   "z": 4
+  },
+  {
+   "id": "e",
+   "x": 1000,
+   "y": 675,
+   "w": 20,
+   "h": 20,
+   "shape": "ellipse",
+   "fill": "#9e9e9e",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "e",
+    "fontSize": 16,
+    "color": "#000000",
+    "position": "above",
+    "visible": true
+   },
+   "visible": true,
+   "z": 5
+  }
+ ],
+ "edges": [
+  {
+   "id": "hub-a",
+   "source": "hub",
+   "target": "a",
+   "points": [
+    [
+     200,
+     225
+    ],
+    [
+     600,
+     225
+    ]
+   ],
+   "curved": false,
+   "color": "#1e88e5",
+   "opacity": 1,
+   "width": 3,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "hub-b",
+   "source": "hub",
+   "target": "b",
+   "points": [
+    [
+     200,
+     225
+    ],
+    [
+     1000,
+     225
+    ]
+   ],
+   "curved": false,
+   "color": "#1e88e5",
+   "opacity": 1,
+   "width": 3,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "hub-c",
+   "source": "hub",
+   "target": "c",
+   "points": [
+    [
+     200,
+     225
+    ],
+    [
+     200,
+     675
+    ]
+   ],
+   "curved": false,
+   "color": "#43a047",
+   "opacity": 1,
+   "width": 3,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "hub-d",
+   "source": "hub",
+   "target": "d",
+   "points": [
+    [
+     200,
+     225
+    ],
+    [
+     600,
+     675
+    ]
+   ],
+   "curved": false,
+   "color": "#43a047",
+   "opacity": 1,
+   "width": 3,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "d-e",
+   "source": "d",
+   "target": "e",
+   "points": [
+    [
+     600,
+     675
+    ],
+    [
+     1000,
+     675
+    ]
+   ],
+   "curved": false,
+   "color": "#8e24aa",
+   "opacity": 1,
+   "width": 3,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  }
+ ],
+ "groups": [],
+ "gaps": [
+  {
+   "property": "position",
+   "reason": "the document stores no positions; Cytoscape.js laid it out on a grid"
+  }
+ ]
+}

@@ -1,0 +1,111 @@
+{
+    "elements": [
+        {
+            "data": {
+                "id": "hub",
+                "weight": 10
+            },
+            "classes": "core"
+        },
+        {
+            "data": {
+                "id": "a",
+                "weight": 2
+            }
+        },
+        {
+            "data": {
+                "id": "b",
+                "weight": 4
+            }
+        },
+        {
+            "data": {
+                "id": "c",
+                "weight": 6
+            }
+        },
+        {
+            "data": {
+                "id": "d",
+                "weight": 8
+            }
+        },
+        {
+            "data": {
+                "id": "e",
+                "weight": 0
+            }
+        },
+        {
+            "data": {
+                "id": "hub-a",
+                "source": "hub",
+                "target": "a",
+                "color": "#1e88e5"
+            }
+        },
+        {
+            "data": {
+                "id": "hub-b",
+                "source": "hub",
+                "target": "b",
+                "color": "#1e88e5"
+            }
+        },
+        {
+            "data": {
+                "id": "hub-c",
+                "source": "hub",
+                "target": "c",
+                "color": "#43a047"
+            }
+        },
+        {
+            "data": {
+                "id": "hub-d",
+                "source": "hub",
+                "target": "d",
+                "color": "#43a047"
+            }
+        },
+        {
+            "data": {
+                "id": "d-e",
+                "source": "d",
+                "target": "e",
+                "color": "#8e24aa"
+            }
+        }
+    ],
+    "style": [
+        {
+            "selector": "node",
+            "style": {
+                "background-color": "#9e9e9e",
+                "label": "data(id)"
+            }
+        },
+        {
+            "selector": ".core",
+            "style": {
+                "background-color": "#e53935",
+                "shape": "diamond"
+            }
+        },
+        {
+            "selector": "node[weight]",
+            "style": {
+                "width": "mapData(weight, 0, 10, 20, 60)",
+                "height": "mapData(weight, 0, 10, 20, 60)"
+            }
+        },
+        {
+            "selector": "edge",
+            "style": {
+                "line-color": "data(color)",
+                "width": 3
+            }
+        }
+    ]
+}

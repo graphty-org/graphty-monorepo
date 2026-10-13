@@ -1,0 +1,4544 @@
+{
+ "provenance": {
+  "side": "reference",
+  "route": "cytoscape-desktop",
+  "tool": "Cytoscape desktop over CyREST, Temurin JDK 17",
+  "version": "3.10.5",
+  "command": "network load file <file>; GET /v1/networks/{n}/views/{v}/nodes|edges|network; annotation list",
+  "sourceSha256": "30d2badb29939b45e229c8910a9d19271811052cd9c812ea047b4c736619e8b0",
+  "generatedAt": "2026-10-13T21:13:54.908Z"
+ },
+ "canCarry": {
+  "position": "yes",
+  "size": "yes",
+  "shape": "yes",
+  "fill": "yes",
+  "fillOpacity": "yes",
+  "borderColor": "yes",
+  "borderWidth": "yes",
+  "borderStyle": "yes",
+  "labelText": "yes",
+  "labelColor": "yes",
+  "fontSize": "yes",
+  "labelPosition": "yes",
+  "visible": "yes",
+  "zOrder": "yes",
+  "edgeColor": "yes",
+  "edgeOpacity": "yes",
+  "edgeWidth": "yes",
+  "lineStyle": "yes",
+  "arrows": "yes",
+  "edgePath": "yes",
+  "edgeLabel": "yes",
+  "groups": "yes",
+  "annotations": "yes",
+  "background": "yes"
+ },
+ "nodes": [
+  {
+   "id": "195",
+   "x": -11216.631,
+   "y": 1463.4,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "195",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "WP4942",
+   "x": -9859.934,
+   "y": 1463.4,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "WP4942",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "https://identifiers.org/aop.events/888",
+   "x": -11042.881,
+   "y": 723.4,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#3030f0",
+    "width": 20,
+    "style": "solid"
+   },
+   "label": {
+    "text": "https://identifiers.org/aop.events/888",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "https://identifiers.org/aop.events/1363",
+   "x": -9152.881,
+   "y": -56.6,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "https://identifiers.org/aop.events/1363",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "https://identifiers.org/aop.events/1583",
+   "x": -8922.881,
+   "y": -56.6,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "https://identifiers.org/aop.events/1583",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "https://identifiers.org/aop/13",
+   "x": -8012.881,
+   "y": 313.4,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "https://identifiers.org/aop/13",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "https://identifiers.org/aop/398",
+   "x": -7152.881,
+   "y": 313.4,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "https://identifiers.org/aop/398",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "ENSG00000198900",
+   "x": -6412.881,
+   "y": 1008.4,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "ENSG00000198900",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "ENSG00000273079",
+   "x": -8751.631,
+   "y": 1008.4,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "ENSG00000273079",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "CHEMBL3",
+   "x": -10004.934,
+   "y": 723.4,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "CHEMBL3",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "186",
+   "x": -10089.934,
+   "y": 1463.4,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "186",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "WP4906",
+   "x": -6829.131,
+   "y": 1463.4,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "WP4906",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "https://identifiers.org/aop.events/1881",
+   "x": -6922.881,
+   "y": 723.4,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "https://identifiers.org/aop.events/1881",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "https://identifiers.org/aop.events/1395",
+   "x": -6692.881,
+   "y": -56.6,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "https://identifiers.org/aop.events/1395",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "https://identifiers.org/aop/450",
+   "x": -8872.881,
+   "y": 313.4,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "https://identifiers.org/aop/450",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "https://identifiers.org/aop/12",
+   "x": -7782.881,
+   "y": 313.4,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "https://identifiers.org/aop/12",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "https://identifiers.org/aop.events/637",
+   "x": -10302.881,
+   "y": -56.6,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "https://identifiers.org/aop.events/637",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "ENSG00000198785",
+   "x": -8346.631,
+   "y": 1008.4,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "ENSG00000198785",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "ENSG00000105464",
+   "x": -8211.631,
+   "y": 1008.4,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "ENSG00000105464",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "CHEMBL429023",
+   "x": -11242.881,
+   "y": 723.4,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "CHEMBL429023",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "170",
+   "x": -7152.881,
+   "y": 1463.4,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "170",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "WP4875",
+   "x": -8939.934,
+   "y": 1463.4,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "WP4875",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "https://identifiers.org/aop.events/1880",
+   "x": -7152.881,
+   "y": 723.4,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#3030f0",
+    "width": 20,
+    "style": "solid"
+   },
+   "label": {
+    "text": "https://identifiers.org/aop.events/1880",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "https://identifiers.org/aop/220",
+   "x": -6692.881,
+   "y": 313.4,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "https://identifiers.org/aop/220",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "https://identifiers.org/aop.events/1841",
+   "x": -9842.881,
+   "y": -56.6,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "https://identifiers.org/aop.events/1841",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "https://identifiers.org/aop/48",
+   "x": -8472.881,
+   "y": 313.4,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "https://identifiers.org/aop/48",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "https://identifiers.org/aop.events/896",
+   "x": -10992.881,
+   "y": -56.6,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "https://identifiers.org/aop.events/896",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "ENSG00000116032",
+   "x": -8481.631,
+   "y": 1008.4,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "ENSG00000116032",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "ENSG00000165092",
+   "x": -7152.881,
+   "y": 1008.4,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "ENSG00000165092",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "CHEMBL1651027",
+   "x": -7552.881,
+   "y": 723.4,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "CHEMBL1651027",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "166",
+   "x": -6599.131,
+   "y": 1463.4,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "166",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "WP4222",
+   "x": -9169.934,
+   "y": 1463.4,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "WP4222",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "https://identifiers.org/aop.events/618",
+   "x": -8872.881,
+   "y": 723.4,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "https://identifiers.org/aop.events/618",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "https://identifiers.org/aop.events/1548",
+   "x": -10762.881,
+   "y": -56.6,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "https://identifiers.org/aop.events/1548",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "https://identifiers.org/aop.events/1970",
+   "x": -6922.881,
+   "y": -56.6,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "https://identifiers.org/aop.events/1970",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "https://identifiers.org/aop/475",
+   "x": -8242.881,
+   "y": 313.4,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "https://identifiers.org/aop/475",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "https://identifiers.org/aop/3",
+   "x": -11042.881,
+   "y": 313.4,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "https://identifiers.org/aop/3",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "ENSG00000148408",
+   "x": -7552.881,
+   "y": 1008.4,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "ENSG00000148408",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "ENSG00000100644",
+   "x": -6671.006,
+   "y": 1008.4,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "ENSG00000100644",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "164",
+   "x": -8357.881,
+   "y": 1463.4,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "164",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "WP3584",
+   "x": -9399.934,
+   "y": 1463.4,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "WP3584",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "https://identifiers.org/aop.events/875",
+   "x": -8242.881,
+   "y": 723.4,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#3030f0",
+    "width": 20,
+    "style": "solid"
+   },
+   "label": {
+    "text": "https://identifiers.org/aop.events/875",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "https://identifiers.org/aop/273",
+   "x": -10712.881,
+   "y": 313.4,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "https://identifiers.org/aop/273",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "https://identifiers.org/aop/436",
+   "x": -6922.881,
+   "y": 313.4,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "https://identifiers.org/aop/436",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "https://identifiers.org/aop.events/350",
+   "x": -10072.881,
+   "y": -56.6,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "https://identifiers.org/aop.events/350",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "ENSG00000160716",
+   "x": -10249.934,
+   "y": 1008.4,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "ENSG00000160716",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "ENSG00000161509",
+   "x": -8616.631,
+   "y": 1008.4,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "ENSG00000161509",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "CHEMBL65",
+   "x": -6462.881,
+   "y": 723.4,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "CHEMBL65",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "WP5408",
+   "x": -6369.131,
+   "y": 1463.4,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "WP5408",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "https://identifiers.org/aop.events/201",
+   "x": -8012.881,
+   "y": 723.4,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#3030f0",
+    "width": 20,
+    "style": "solid"
+   },
+   "label": {
+    "text": "https://identifiers.org/aop.events/201",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "https://identifiers.org/aop.events/1016",
+   "x": -9382.881,
+   "y": -56.6,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "https://identifiers.org/aop.events/1016",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "https://identifiers.org/aop.events/1549",
+   "x": -10532.881,
+   "y": -56.6,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "https://identifiers.org/aop.events/1549",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "https://identifiers.org/aop.events/2209",
+   "x": -7502.881,
+   "y": -56.6,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "https://identifiers.org/aop.events/2209",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "https://identifiers.org/aop.events/351",
+   "x": -8692.881,
+   "y": -56.6,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "https://identifiers.org/aop.events/351",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "ENSG00000175344",
+   "x": -9844.934,
+   "y": 1008.4,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "ENSG00000175344",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "ENSG00000176884",
+   "x": -9198.568,
+   "y": 1008.4,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "ENSG00000176884",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "CHEMBL275528",
+   "x": -8642.881,
+   "y": 723.4,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "CHEMBL275528",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "WP5407",
+   "x": -9629.934,
+   "y": 1463.4,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "WP5407",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "https://identifiers.org/aop.events/195",
+   "x": -7782.881,
+   "y": 723.4,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "https://identifiers.org/aop.events/195",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "https://identifiers.org/aop/471",
+   "x": -9641.452,
+   "y": 313.4,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "https://identifiers.org/aop/471",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "https://identifiers.org/aop.events/1564",
+   "x": -11272.881,
+   "y": -56.6,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "https://identifiers.org/aop.events/1564",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "https://identifiers.org/aop/522",
+   "x": -7502.881,
+   "y": 313.4,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "https://identifiers.org/aop/522",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "https://identifiers.org/aop.events/352",
+   "x": -7732.881,
+   "y": -56.6,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "https://identifiers.org/aop.events/352",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "ENSG00000101204",
+   "x": -9979.934,
+   "y": 1008.4,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "ENSG00000101204",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "ENSG00000198886",
+   "x": -11216.631,
+   "y": 1008.4,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "ENSG00000198886",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "CHEMBL742",
+   "x": -8442.881,
+   "y": 723.4,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "CHEMBL742",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "WP5398",
+   "x": -8709.934,
+   "y": 1463.4,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "WP5398",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "https://identifiers.org/aop.events/1394",
+   "x": -6692.881,
+   "y": 723.4,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "https://identifiers.org/aop.events/1394",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "https://identifiers.org/aop.events/1348",
+   "x": -9612.881,
+   "y": -56.6,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "https://identifiers.org/aop.events/1348",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "https://identifiers.org/aop/276",
+   "x": -11272.881,
+   "y": 313.4,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "https://identifiers.org/aop/276",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "https://identifiers.org/aop.events/341",
+   "x": -8217.881,
+   "y": -56.6,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "https://identifiers.org/aop.events/341",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "https://identifiers.org/aop.events/406",
+   "x": -7152.881,
+   "y": -56.6,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "https://identifiers.org/aop.events/406",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "ENSG00000080644",
+   "x": -10114.934,
+   "y": 1008.4,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "ENSG00000080644",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "ENSG00000183454",
+   "x": -8896.631,
+   "y": 1008.4,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "ENSG00000183454",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "CHEMBL721",
+   "x": -7352.881,
+   "y": 723.4,
+   "w": 75,
+   "h": 35,
+   "shape": "roundrect",
+   "fill": "#89d0f5",
+   "fillOpacity": 1,
+   "border": {
+    "color": null,
+    "width": 0,
+    "style": "solid"
+   },
+   "label": {
+    "text": "CHEMBL721",
+    "fontSize": 12,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  }
+ ],
+ "edges": [
+  {
+   "id": "CHEMBL65->ENSG00000100644",
+   "source": "CHEMBL65",
+   "target": "ENSG00000100644",
+   "points": [
+    [
+     -6475.66,
+     740.9
+    ],
+    [
+     -6658.226,
+     990.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000176884->164",
+   "source": "ENSG00000176884",
+   "target": "164",
+   "points": [
+    [
+     -9166.234,
+     1025.9
+    ],
+    [
+     -8390.215,
+     1445.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/341->https://identifiers.org/aop/48",
+   "source": "https://identifiers.org/aop.events/341",
+   "target": "https://identifiers.org/aop/48",
+   "points": [
+    [
+     -8229.941,
+     -39.1
+    ],
+    [
+     -8460.82,
+     295.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000160716->186",
+   "source": "ENSG00000160716",
+   "target": "186",
+   "points": [
+    [
+     -10243.78,
+     1025.9
+    ],
+    [
+     -10096.088,
+     1445.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "CHEMBL1651027->ENSG00000148408",
+   "source": "CHEMBL1651027",
+   "target": "ENSG00000148408",
+   "points": [
+    [
+     -7552.881,
+     740.9
+    ],
+    [
+     -7552.881,
+     990.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/637->https://identifiers.org/aop/471",
+   "source": "https://identifiers.org/aop.events/637",
+   "target": "https://identifiers.org/aop/471",
+   "points": [
+    [
+     -10271.597,
+     -39.1
+    ],
+    [
+     -9672.736,
+     295.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop/436->https://identifiers.org/aop.events/1880",
+   "source": "https://identifiers.org/aop/436",
+   "target": "https://identifiers.org/aop.events/1880",
+   "points": [
+    [
+     -6932.698,
+     330.9
+    ],
+    [
+     -7143.063,
+     705.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "CHEMBL742->ENSG00000105464",
+   "source": "CHEMBL742",
+   "target": "ENSG00000105464",
+   "points": [
+    [
+     -8428.681,
+     740.9
+    ],
+    [
+     -8225.83,
+     990.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "CHEMBL275528->ENSG00000183454",
+   "source": "CHEMBL275528",
+   "target": "ENSG00000183454",
+   "points": [
+    [
+     -8658.462,
+     740.9
+    ],
+    [
+     -8881.049,
+     990.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop/48->https://identifiers.org/aop.events/618",
+   "source": "https://identifiers.org/aop/48",
+   "target": "https://identifiers.org/aop.events/618",
+   "points": [
+    [
+     -8489.954,
+     330.9
+    ],
+    [
+     -8855.807,
+     705.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/2209->https://identifiers.org/aop/522",
+   "source": "https://identifiers.org/aop.events/2209",
+   "target": "https://identifiers.org/aop/522",
+   "points": [
+    [
+     -7502.881,
+     -39.1
+    ],
+    [
+     -7502.881,
+     295.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/1548->https://identifiers.org/aop/273",
+   "source": "https://identifiers.org/aop.events/1548",
+   "target": "https://identifiers.org/aop/273",
+   "points": [
+    [
+     -10760.516,
+     -39.1
+    ],
+    [
+     -10715.245,
+     295.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000101204->186",
+   "source": "ENSG00000101204",
+   "target": "186",
+   "points": [
+    [
+     -9984.165,
+     1025.9
+    ],
+    [
+     -10085.703,
+     1445.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop/13->https://identifiers.org/aop.events/201",
+   "source": "https://identifiers.org/aop/13",
+   "target": "https://identifiers.org/aop.events/201",
+   "points": [
+    [
+     -8012.881,
+     330.9
+    ],
+    [
+     -8012.881,
+     705.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000176884->WP5398",
+   "source": "ENSG00000176884",
+   "target": "WP5398",
+   "points": [
+    [
+     -9179.774,
+     1025.9
+    ],
+    [
+     -8728.728,
+     1445.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/341->https://identifiers.org/aop/475",
+   "source": "https://identifiers.org/aop.events/341",
+   "target": "https://identifiers.org/aop/475",
+   "points": [
+    [
+     -8219.063,
+     -39.1
+    ],
+    [
+     -8241.698,
+     295.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/1880->ENSG00000165092",
+   "source": "https://identifiers.org/aop.events/1880",
+   "target": "ENSG00000165092",
+   "points": [
+    [
+     -7152.881,
+     740.9
+    ],
+    [
+     -7152.881,
+     990.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/351->https://identifiers.org/aop/450",
+   "source": "https://identifiers.org/aop.events/351",
+   "target": "https://identifiers.org/aop/450",
+   "points": [
+    [
+     -8701.394,
+     -39.1
+    ],
+    [
+     -8864.367,
+     295.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000198900->166",
+   "source": "ENSG00000198900",
+   "target": "166",
+   "points": [
+    [
+     -6420.044,
+     1025.9
+    ],
+    [
+     -6591.967,
+     1445.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop/436->https://identifiers.org/aop.events/1881",
+   "source": "https://identifiers.org/aop/436",
+   "target": "https://identifiers.org/aop.events/1881",
+   "points": [
+    [
+     -6922.881,
+     330.9
+    ],
+    [
+     -6922.881,
+     705.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "CHEMBL742->ENSG00000198785",
+   "source": "CHEMBL742",
+   "target": "ENSG00000198785",
+   "points": [
+    [
+     -8436.97,
+     740.9
+    ],
+    [
+     -8352.541,
+     990.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "CHEMBL275528->ENSG00000161509",
+   "source": "CHEMBL275528",
+   "target": "ENSG00000161509",
+   "points": [
+    [
+     -8641.269,
+     740.9
+    ],
+    [
+     -8618.242,
+     990.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop/398->https://identifiers.org/aop.events/1881",
+   "source": "https://identifiers.org/aop/398",
+   "target": "https://identifiers.org/aop.events/1881",
+   "points": [
+    [
+     -7143.063,
+     330.9
+    ],
+    [
+     -6932.698,
+     705.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop/3->https://identifiers.org/aop.events/888",
+   "source": "https://identifiers.org/aop/3",
+   "target": "https://identifiers.org/aop.events/888",
+   "points": [
+    [
+     -11042.881,
+     330.9
+    ],
+    [
+     -11042.881,
+     705.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop/273->https://identifiers.org/aop.events/888",
+   "source": "https://identifiers.org/aop/273",
+   "target": "https://identifiers.org/aop.events/888",
+   "points": [
+    [
+     -10726.966,
+     330.9
+    ],
+    [
+     -11028.795,
+     705.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "CHEMBL721->ENSG00000165092",
+   "source": "CHEMBL721",
+   "target": "ENSG00000165092",
+   "points": [
+    [
+     -7340.6,
+     740.9
+    ],
+    [
+     -7165.161,
+     990.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop/13->https://identifiers.org/aop.events/195",
+   "source": "https://identifiers.org/aop/13",
+   "target": "https://identifiers.org/aop.events/195",
+   "points": [
+    [
+     -8003.063,
+     330.9
+    ],
+    [
+     -7792.698,
+     705.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000175344->WP4222",
+   "source": "ENSG00000175344",
+   "target": "WP4222",
+   "points": [
+    [
+     -9818.973,
+     1025.9
+    ],
+    [
+     -9195.896,
+     1445.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/341->https://identifiers.org/aop/13",
+   "source": "https://identifiers.org/aop.events/341",
+   "target": "https://identifiers.org/aop/13",
+   "points": [
+    [
+     -8208.185,
+     -39.1
+    ],
+    [
+     -8022.577,
+     295.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop/450->https://identifiers.org/aop.events/618",
+   "source": "https://identifiers.org/aop/450",
+   "target": "https://identifiers.org/aop.events/618",
+   "points": [
+    [
+     -8872.881,
+     330.9
+    ],
+    [
+     -8872.881,
+     705.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/888->ENSG00000198886",
+   "source": "https://identifiers.org/aop.events/888",
+   "target": "ENSG00000198886",
+   "points": [
+    [
+     -11053.549,
+     740.9
+    ],
+    [
+     -11205.962,
+     990.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000198900->WP5408",
+   "source": "ENSG00000198900",
+   "target": "WP5408",
+   "points": [
+    [
+     -6411.198,
+     1025.9
+    ],
+    [
+     -6370.813,
+     1445.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000100644->WP4906",
+   "source": "ENSG00000100644",
+   "target": "WP4906",
+   "points": [
+    [
+     -6677.087,
+     1025.9
+    ],
+    [
+     -6823.049,
+     1445.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop/220->https://identifiers.org/aop.events/1394",
+   "source": "https://identifiers.org/aop/220",
+   "target": "https://identifiers.org/aop.events/1394",
+   "points": [
+    [
+     -6692.881,
+     330.9
+    ],
+    [
+     -6692.881,
+     705.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "CHEMBL275528->ENSG00000105464",
+   "source": "CHEMBL275528",
+   "target": "ENSG00000105464",
+   "points": [
+    [
+     -8616.4,
+     740.9
+    ],
+    [
+     -8238.111,
+     990.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop/398->https://identifiers.org/aop.events/1880",
+   "source": "https://identifiers.org/aop/398",
+   "target": "https://identifiers.org/aop.events/1880",
+   "points": [
+    [
+     -7152.881,
+     330.9
+    ],
+    [
+     -7152.881,
+     705.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000161509->WP4875",
+   "source": "ENSG00000161509",
+   "target": "WP4875",
+   "points": [
+    [
+     -8629.065,
+     1025.9
+    ],
+    [
+     -8927.499,
+     1445.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000080644->186",
+   "source": "ENSG00000080644",
+   "target": "186",
+   "points": [
+    [
+     -10113.973,
+     1025.9
+    ],
+    [
+     -10090.896,
+     1445.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/1016->https://identifiers.org/aop/471",
+   "source": "https://identifiers.org/aop.events/1016",
+   "target": "https://identifiers.org/aop/471",
+   "points": [
+    [
+     -9395.11,
+     -39.1
+    ],
+    [
+     -9629.222,
+     295.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/1583->https://identifiers.org/aop/450",
+   "source": "https://identifiers.org/aop.events/1583",
+   "target": "https://identifiers.org/aop/450",
+   "points": [
+    [
+     -8920.516,
+     -39.1
+    ],
+    [
+     -8875.245,
+     295.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000116032->WP5398",
+   "source": "ENSG00000116032",
+   "target": "WP5398",
+   "points": [
+    [
+     -8490.411,
+     1025.9
+    ],
+    [
+     -8701.153,
+     1445.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000175344->WP5407",
+   "source": "ENSG00000175344",
+   "target": "WP5407",
+   "points": [
+    [
+     -9836.665,
+     1025.9
+    ],
+    [
+     -9638.203,
+     1445.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/341->https://identifiers.org/aop/12",
+   "source": "https://identifiers.org/aop.events/341",
+   "target": "https://identifiers.org/aop/12",
+   "points": [
+    [
+     -8197.306,
+     -39.1
+    ],
+    [
+     -7803.455,
+     295.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000183454->WP4875",
+   "source": "ENSG00000183454",
+   "target": "WP4875",
+   "points": [
+    [
+     -8898.296,
+     1025.9
+    ],
+    [
+     -8938.269,
+     1445.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/1881->ENSG00000165092",
+   "source": "https://identifiers.org/aop.events/1881",
+   "target": "ENSG00000165092",
+   "points": [
+    [
+     -6937.003,
+     740.9
+    ],
+    [
+     -7138.758,
+     990.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/618->ENSG00000183454",
+   "source": "https://identifiers.org/aop.events/618",
+   "target": "ENSG00000183454",
+   "points": [
+    [
+     -8874.339,
+     740.9
+    ],
+    [
+     -8895.172,
+     990.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000100644->166",
+   "source": "ENSG00000100644",
+   "target": "166",
+   "points": [
+    [
+     -6668.241,
+     1025.9
+    ],
+    [
+     -6601.895,
+     1445.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop/475->https://identifiers.org/aop.events/875",
+   "source": "https://identifiers.org/aop/475",
+   "target": "https://identifiers.org/aop.events/875",
+   "points": [
+    [
+     -8242.881,
+     330.9
+    ],
+    [
+     -8242.881,
+     705.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "CHEMBL275528->ENSG00000198785",
+   "source": "CHEMBL275528",
+   "target": "ENSG00000198785",
+   "points": [
+    [
+     -8624.69,
+     740.9
+    ],
+    [
+     -8364.821,
+     990.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop/522->https://identifiers.org/aop.events/195",
+   "source": "https://identifiers.org/aop/522",
+   "target": "https://identifiers.org/aop.events/195",
+   "points": [
+    [
+     -7514.832,
+     330.9
+    ],
+    [
+     -7770.929,
+     705.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000161509->WP4222",
+   "source": "ENSG00000161509",
+   "target": "WP4222",
+   "points": [
+    [
+     -8637.911,
+     1025.9
+    ],
+    [
+     -9148.653,
+     1445.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000105464->WP4875",
+   "source": "ENSG00000105464",
+   "target": "WP4875",
+   "points": [
+    [
+     -8239.642,
+     1025.9
+    ],
+    [
+     -8911.922,
+     1445.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop/12->https://identifiers.org/aop.events/195",
+   "source": "https://identifiers.org/aop/12",
+   "target": "https://identifiers.org/aop.events/195",
+   "points": [
+    [
+     -7782.881,
+     330.9
+    ],
+    [
+     -7782.881,
+     705.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000116032->164",
+   "source": "ENSG00000116032",
+   "target": "164",
+   "points": [
+    [
+     -8476.871,
+     1025.9
+    ],
+    [
+     -8362.64,
+     1445.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000175344->WP4942",
+   "source": "ENSG00000175344",
+   "target": "WP4942",
+   "points": [
+    [
+     -9845.511,
+     1025.9
+    ],
+    [
+     -9859.357,
+     1445.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000273079->164",
+   "source": "ENSG00000273079",
+   "target": "164",
+   "points": [
+    [
+     -8736.486,
+     1025.9
+    ],
+    [
+     -8373.025,
+     1445.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000183454->WP4222",
+   "source": "ENSG00000183454",
+   "target": "WP4222",
+   "points": [
+    [
+     -8907.142,
+     1025.9
+    ],
+    [
+     -9159.422,
+     1445.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "CHEMBL3->ENSG00000080644",
+   "source": "CHEMBL3",
+   "target": "ENSG00000080644",
+   "points": [
+    [
+     -10011.689,
+     740.9
+    ],
+    [
+     -10108.18,
+     990.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/350->https://identifiers.org/aop/471",
+   "source": "https://identifiers.org/aop.events/350",
+   "target": "https://identifiers.org/aop/471",
+   "points": [
+    [
+     -10052.475,
+     -39.1
+    ],
+    [
+     -9661.857,
+     295.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/618->ENSG00000273079",
+   "source": "https://identifiers.org/aop.events/618",
+   "target": "ENSG00000273079",
+   "points": [
+    [
+     -8865.435,
+     740.9
+    ],
+    [
+     -8759.076,
+     990.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/1394->ENSG00000100644",
+   "source": "https://identifiers.org/aop.events/1394",
+   "target": "ENSG00000100644",
+   "points": [
+    [
+     -6691.537,
+     740.9
+    ],
+    [
+     -6672.349,
+     990.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "CHEMBL429023->ENSG00000198886",
+   "source": "CHEMBL429023",
+   "target": "ENSG00000198886",
+   "points": [
+    [
+     -11241.269,
+     740.9
+    ],
+    [
+     -11218.242,
+     990.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/1363->https://identifiers.org/aop/471",
+   "source": "https://identifiers.org/aop.events/1363",
+   "target": "https://identifiers.org/aop/471",
+   "points": [
+    [
+     -9175.989,
+     -39.1
+    ],
+    [
+     -9618.344,
+     295.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/201->ENSG00000105464",
+   "source": "https://identifiers.org/aop.events/201",
+   "target": "ENSG00000105464",
+   "points": [
+    [
+     -8025.085,
+     740.9
+    ],
+    [
+     -8199.427,
+     990.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000161509->WP5398",
+   "source": "ENSG00000161509",
+   "target": "WP5398",
+   "points": [
+    [
+     -8620.219,
+     1025.9
+    ],
+    [
+     -8706.346,
+     1445.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000105464->WP4222",
+   "source": "ENSG00000105464",
+   "target": "WP4222",
+   "points": [
+    [
+     -8248.488,
+     1025.9
+    ],
+    [
+     -9133.076,
+     1445.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop/12->https://identifiers.org/aop.events/201",
+   "source": "https://identifiers.org/aop/12",
+   "target": "https://identifiers.org/aop.events/201",
+   "points": [
+    [
+     -7792.698,
+     330.9
+    ],
+    [
+     -8003.063,
+     705.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000176884->WP4222",
+   "source": "ENSG00000176884",
+   "target": "WP4222",
+   "points": [
+    [
+     -9197.467,
+     1025.9
+    ],
+    [
+     -9171.035,
+     1445.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000175344->186",
+   "source": "ENSG00000175344",
+   "target": "186",
+   "points": [
+    [
+     -9854.357,
+     1025.9
+    ],
+    [
+     -10080.511,
+     1445.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000273079->WP4222",
+   "source": "ENSG00000273079",
+   "target": "WP4222",
+   "points": [
+    [
+     -8767.719,
+     1025.9
+    ],
+    [
+     -9153.846,
+     1445.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000183454->WP5398",
+   "source": "ENSG00000183454",
+   "target": "WP5398",
+   "points": [
+    [
+     -8889.45,
+     1025.9
+    ],
+    [
+     -8717.115,
+     1445.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "CHEMBL3->ENSG00000160716",
+   "source": "CHEMBL3",
+   "target": "ENSG00000160716",
+   "points": [
+    [
+     -10019.978,
+     740.9
+    ],
+    [
+     -10234.89,
+     990.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/1564->https://identifiers.org/aop/276",
+   "source": "https://identifiers.org/aop.events/1564",
+   "target": "https://identifiers.org/aop/276",
+   "points": [
+    [
+     -11272.881,
+     -39.1
+    ],
+    [
+     -11272.881,
+     295.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/1970->https://identifiers.org/aop/436",
+   "source": "https://identifiers.org/aop.events/1970",
+   "target": "https://identifiers.org/aop/436",
+   "points": [
+    [
+     -6922.881,
+     -39.1
+    ],
+    [
+     -6922.881,
+     295.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/1395->https://identifiers.org/aop/220",
+   "source": "https://identifiers.org/aop.events/1395",
+   "target": "https://identifiers.org/aop/220",
+   "points": [
+    [
+     -6692.881,
+     -39.1
+    ],
+    [
+     -6692.881,
+     295.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "CHEMBL275528->ENSG00000116032",
+   "source": "CHEMBL275528",
+   "target": "ENSG00000116032",
+   "points": [
+    [
+     -8632.979,
+     740.9
+    ],
+    [
+     -8491.532,
+     990.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/1348->https://identifiers.org/aop/471",
+   "source": "https://identifiers.org/aop.events/1348",
+   "target": "https://identifiers.org/aop/471",
+   "points": [
+    [
+     -9614.232,
+     -39.1
+    ],
+    [
+     -9640.101,
+     295.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000148408->164",
+   "source": "ENSG00000148408",
+   "target": "164",
+   "points": [
+    [
+     -7583.842,
+     1025.9
+    ],
+    [
+     -8326.919,
+     1445.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000161509->164",
+   "source": "ENSG00000161509",
+   "target": "164",
+   "points": [
+    [
+     -8606.679,
+     1025.9
+    ],
+    [
+     -8367.832,
+     1445.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000105464->WP5398",
+   "source": "ENSG00000105464",
+   "target": "WP5398",
+   "points": [
+    [
+     -8230.796,
+     1025.9
+    ],
+    [
+     -8690.769,
+     1445.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop/471->https://identifiers.org/aop.events/618",
+   "source": "https://identifiers.org/aop/471",
+   "target": "https://identifiers.org/aop.events/618",
+   "points": [
+    [
+     -9608.647,
+     330.9
+    ],
+    [
+     -8905.685,
+     705.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000176884->WP3584",
+   "source": "ENSG00000176884",
+   "target": "WP3584",
+   "points": [
+    [
+     -9206.313,
+     1025.9
+    ],
+    [
+     -9392.189,
+     1445.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000198785->WP5398",
+   "source": "ENSG00000198785",
+   "target": "WP5398",
+   "points": [
+    [
+     -8360.604,
+     1025.9
+    ],
+    [
+     -8695.961,
+     1445.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000273079->WP5398",
+   "source": "ENSG00000273079",
+   "target": "WP5398",
+   "points": [
+    [
+     -8750.027,
+     1025.9
+    ],
+    [
+     -8711.538,
+     1445.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000183454->164",
+   "source": "ENSG00000183454",
+   "target": "164",
+   "points": [
+    [
+     -8875.909,
+     1025.9
+    ],
+    [
+     -8378.602,
+     1445.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "CHEMBL3->ENSG00000175344",
+   "source": "CHEMBL3",
+   "target": "ENSG00000175344",
+   "points": [
+    [
+     -9995.11,
+     740.9
+    ],
+    [
+     -9854.759,
+     990.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000165092->170",
+   "source": "ENSG00000165092",
+   "target": "170",
+   "points": [
+    [
+     -7152.881,
+     1025.9
+    ],
+    [
+     -7152.881,
+     1445.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/195->ENSG00000105464",
+   "source": "https://identifiers.org/aop.events/195",
+   "target": "ENSG00000105464",
+   "points": [
+    [
+     -7809.207,
+     740.9
+    ],
+    [
+     -8185.304,
+     990.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "CHEMBL742->ENSG00000161509",
+   "source": "CHEMBL742",
+   "target": "ENSG00000161509",
+   "points": [
+    [
+     -8453.549,
+     740.9
+    ],
+    [
+     -8605.962,
+     990.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "CHEMBL275528->ENSG00000273079",
+   "source": "CHEMBL275528",
+   "target": "ENSG00000273079",
+   "points": [
+    [
+     -8649.558,
+     740.9
+    ],
+    [
+     -8744.953,
+     990.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/406->https://identifiers.org/aop/398",
+   "source": "https://identifiers.org/aop.events/406",
+   "target": "https://identifiers.org/aop/398",
+   "points": [
+    [
+     -7152.881,
+     -39.1
+    ],
+    [
+     -7152.881,
+     295.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/352->https://identifiers.org/aop/12",
+   "source": "https://identifiers.org/aop.events/352",
+   "target": "https://identifiers.org/aop/12",
+   "points": [
+    [
+     -7735.245,
+     -39.1
+    ],
+    [
+     -7780.516,
+     295.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/896->https://identifiers.org/aop/3",
+   "source": "https://identifiers.org/aop.events/896",
+   "target": "https://identifiers.org/aop/3",
+   "points": [
+    [
+     -10995.245,
+     -39.1
+    ],
+    [
+     -11040.516,
+     295.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000105464->164",
+   "source": "ENSG00000105464",
+   "target": "164",
+   "points": [
+    [
+     -8217.256,
+     1025.9
+    ],
+    [
+     -8352.256,
+     1445.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/875->ENSG00000105464",
+   "source": "https://identifiers.org/aop.events/875",
+   "target": "ENSG00000105464",
+   "points": [
+    [
+     -8240.962,
+     740.9
+    ],
+    [
+     -8213.549,
+     990.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000176884->WP4875",
+   "source": "ENSG00000176884",
+   "target": "WP4875",
+   "points": [
+    [
+     -9188.62,
+     1025.9
+    ],
+    [
+     -8949.882,
+     1445.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000198785->164",
+   "source": "ENSG00000198785",
+   "target": "164",
+   "points": [
+    [
+     -8347.063,
+     1025.9
+    ],
+    [
+     -8357.448,
+     1445.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000273079->WP4875",
+   "source": "ENSG00000273079",
+   "target": "WP4875",
+   "points": [
+    [
+     -8758.873,
+     1025.9
+    ],
+    [
+     -8932.692,
+     1445.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "CHEMBL3->ENSG00000101204",
+   "source": "CHEMBL3",
+   "target": "ENSG00000101204",
+   "points": [
+    [
+     -10003.399,
+     740.9
+    ],
+    [
+     -9981.469,
+     990.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop/276->https://identifiers.org/aop.events/888",
+   "source": "https://identifiers.org/aop/276",
+   "target": "https://identifiers.org/aop.events/888",
+   "points": [
+    [
+     -11263.063,
+     330.9
+    ],
+    [
+     -11052.698,
+     705.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000198886->195",
+   "source": "ENSG00000198886",
+   "target": "195",
+   "points": [
+    [
+     -11216.631,
+     1025.9
+    ],
+    [
+     -11216.631,
+     1445.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "CHEMBL742->ENSG00000116032",
+   "source": "CHEMBL742",
+   "target": "ENSG00000116032",
+   "points": [
+    [
+     -8445.26,
+     740.9
+    ],
+    [
+     -8479.251,
+     990.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "CHEMBL275528->ENSG00000176884",
+   "source": "CHEMBL275528",
+   "target": "ENSG00000176884",
+   "points": [
+    [
+     -8677.002,
+     740.9
+    ],
+    [
+     -9164.447,
+     990.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop/48->https://identifiers.org/aop.events/875",
+   "source": "https://identifiers.org/aop/48",
+   "target": "https://identifiers.org/aop.events/875",
+   "points": [
+    [
+     -8463.063,
+     330.9
+    ],
+    [
+     -8252.698,
+     705.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/1549->https://identifiers.org/aop/273",
+   "source": "https://identifiers.org/aop.events/1549",
+   "target": "https://identifiers.org/aop/273",
+   "points": [
+    [
+     -10541.394,
+     -39.1
+    ],
+    [
+     -10704.367,
+     295.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/896->https://identifiers.org/aop/471",
+   "source": "https://identifiers.org/aop.events/896",
+   "target": "https://identifiers.org/aop/471",
+   "points": [
+    [
+     -10955.381,
+     -46.333
+    ],
+    [
+     -9678.952,
+     303.133
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/1841->https://identifiers.org/aop/471",
+   "source": "https://identifiers.org/aop.events/1841",
+   "target": "https://identifiers.org/aop/471",
+   "points": [
+    [
+     -9833.354,
+     -39.1
+    ],
+    [
+     -9650.979,
+     295.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "CHEMBL65->ENSG00000198900",
+   "source": "CHEMBL65",
+   "target": "ENSG00000198900",
+   "points": [
+    [
+     -6459.81,
+     740.9
+    ],
+    [
+     -6415.951,
+     990.9
+    ]
+   ],
+   "curved": false,
+   "color": "#848484",
+   "opacity": 1,
+   "width": 2,
+   "style": "solid",
+   "arrow": {
+    "source": "none",
+    "target": "none"
+   },
+   "label": null
+  }
+ ],
+ "groups": [],
+ "background": "#ffffff",
+ "gaps": []
+}

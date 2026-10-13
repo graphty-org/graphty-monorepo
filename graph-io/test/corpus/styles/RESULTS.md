@@ -7,7 +7,7 @@ values are those that differ from their property's most common value; opaque one
 copies values (an unexplained passthrough or the exceptions), exception ones from the exceptions rule alone.
 Tool values are elements drawn with the writing program's default.
 
-367 inputs, 364 with styles; at most 15 node and 15 edge rules.
+368 inputs, 365 with styles; at most 15 node and 15 edge rules.
 
 | Input | Import | Nodes | Edges | Node rules | Edge rules | Varying | Opaque | Exceptions | Approximated | Tool values | Declared selecting nothing | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -332,6 +332,7 @@ Tool values are elements drawn with the writing program's default.
 | pajek/generated/tamper-block-truncated.net | ok | 6 | 7 | 2 | 3 | 15 | 100% | 0% | 0 | 33 | 0 | W_STYLE_BLOCK_IGNORED, W_STYLE_UNKNOWN_VALUE |
 | pajek/generated/tamper-native-edited.net | ok | 6 | 7 | 3 | 3 | 22 | 95% | 0% | 0 | 20 | 0 | W_STYLE_UNKNOWN_VALUE |
 | pajek/generated/tamper-node-added.net | ok | 7 | 7 | 2 | 3 | 15 | 100% | 0% | 0 | 35 | 0 | W_STYLE_BLOCK_IGNORED, W_STYLE_UNKNOWN_VALUE |
+| pajek/graphstream_gs-core__B.net | ok | 111 | 193 | 4 | 3 | 62 | 0% | 0% | 0 | 1076 | 0 | W_STYLE_BAD_VALUE |
 | roles/by-group-0 | ok | 0 | 0 | 0 | 0 | 0 | - | - | 0 | 0 | 0 |  |
 | roles/by-group-1 | ok | 1 | 0 | 1 | 0 | 0 | - | - | 0 | 0 | 0 |  |
 | roles/by-group-300 | ok | 300 | 600 | 3 | 3 | 1642 | 7% | 7% | 0 | 0 | 0 |  |

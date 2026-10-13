@@ -53,7 +53,8 @@ const KINDS = {
 };
 const MECHANICAL = new Set(["already-merged", "duplicate-pr"]);
 const NEEDS_OF = new Set(["duplicate", "already-merged", "duplicate-pr"]);
-const TERMINAL = new Set(["closed", "vetoed", "dropped", "ended", "voided"]);
+/** The proposal states that have ended. */
+export const TERMINAL = new Set(["closed", "vetoed", "dropped", "ended", "voided"]);
 const GROUP = "proposals";
 /** How long a target githerd closed is watched for the owner reopening it. */
 const WATCH_MS = 30 * 86_400_000;

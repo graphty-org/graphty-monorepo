@@ -568,14 +568,17 @@ export type GraphtyErrorCode =
 | "E_UNKNOWN_OPTION"
 /**
 * An option is known but its value is outside the permitted range or not one of the
-* permitted values. `details` carry the range or the value list alongside what was passed.
-* The caller clamps or corrects the value.
+* permitted values, or a required option is missing. `details` carry `option`, the value that
+* was passed (absent when none was) and, where known, the range or the value list. An
+* algorithm's or layout's own `E_BAD_OPTION` arrives as this code. The caller clamps or
+* corrects the value.
 */
 | "E_OPTION_RANGE"
 /**
 * An expression, selector or formula names an attribute that nothing in the session answers.
-* `details.candidates` carry the nearest three names. The caller corrects the name, or loads
-* the data that would define it.
+* `details.candidates` carry the nearest three names. Also a layout option that names a node
+* column the graph does not hold (`multipartite`'s `subsets`); `details` then carry `option`
+* and `column`. The caller corrects the name, or loads the data that would define it.
 */
 | "E_UNKNOWN_ATTRIBUTE"
 /**
@@ -629,8 +632,10 @@ export type GraphtyErrorCode =
 /**
 * A call names a node or an edge id this graph does not hold -- usually an id kept from
 * before a load or a removal. The call itself is well formed. `details.kind` says whether a
-* node or an edge was asked for and `details.id` carries the id. The caller refreshes the id
-* it holds.
+* node or an edge was asked for and `details.id` carries the id. Also a layout or algorithm
+* option that names a node the graph does not hold (a `bfs` start, a `radial` root); `details`
+* then carry `option` and the `id`, or the node `index` a sibling package was handed. The
+* caller refreshes the id it holds.
 */
 | "E_UNKNOWN_ELEMENT"
 /**
@@ -758,6 +763,77 @@ export type GraphtyErrorCode =
 * or loosens `tolerance`, and runs again; the same params always fail the same way.
 */
 | "E_NOT_CONVERGED"
+/**
+* A layout that only arranges planar graphs (`planar`) was given a graph that cannot be drawn
+* without crossing edges, such as K5 or the Petersen graph. `details` carry `nodeCount` and
+* `edgeCount` of the graph it tested, and `cause` the layout package's own error. The layout
+* places nothing: every node stays where it was before. It stays the chosen layout, and it
+* arranges the graph again when the graph changes. The caller picks another layout, or changes
+* the graph.
+*/
+| "E_NOT_PLANAR"
+/**
+* The graph is not connected, and the layout or algorithm only works on a connected one: the
+* `bfs` layout reaches every node from its start or places none. `details` carry `nodeCount`
+* and, from a layout, `reached`, the nodes it did reach; `cause` is the sibling package's own
+* error. A layout that refuses places nothing: every node stays where it was, and it arranges
+* the graph again when the graph changes. The caller picks another layout or start, or
+* connects the graph.
+*/
+| "E_NOT_CONNECTED"
+/**
+* The graph is not bipartite -- its nodes cannot be split into two sides with every edge
+* running between them -- and the algorithm (bipartite matching) only works on one that is.
+* `cause` is the algorithm's own error. The caller picks another algorithm, or names the two
+* sides itself.
+*/
+| "E_NOT_BIPARTITE"
+/**
+* The graph has no nodes, and the algorithm has nothing to compute over. Distinct from
+* `E_SCOPE_EMPTY`, which a wider scope can get past: here the graph itself is empty. `cause`
+* is the algorithm's own error. The caller loads data first.
+*/
+| "E_EMPTY_GRAPH"
+/**
+* The algorithm is defined for undirected graphs only and was given a directed one. `cause`
+* is the algorithm's own error. The caller loads the graph as undirected, or picks the
+* directed variant of the algorithm.
+*/
+| "E_NEEDS_UNDIRECTED"
+/**
+* The algorithm is defined for directed graphs only (strongly connected components, a
+* topological sort) and was given an undirected one. `cause` is the algorithm's own error. The
+* caller loads the graph as directed, or picks the undirected variant of the algorithm.
+*/
+| "E_NEEDS_DIRECTED"
+/**
+* An edge weight is one the algorithm or layout cannot use: negative where weights are
+* distances (a shortest path, `kamada-kawai`), infinite or NaN. `details.weight` carries the
+* value when the sibling package reported it, and `cause` its own error. The caller corrects
+* the weights, or runs unweighted.
+*/
+| "E_BAD_WEIGHT"
+/**
+* An option names a node or edge attribute whose values are of a type the layout or algorithm
+* cannot read -- a `bipartite` side that is not true or false, layers that are not whole
+* numbers or categories. `details` carry `option`, `column`, the `dtype` it has and the
+* `expected` dtypes. The caller names another attribute, or converts this one.
+*/
+| "E_ATTRIBUTE_TYPE"
+/**
+* A shortest path could not be walked back from the predecessors an accelerator returned: the
+* walk met a gap or went round a cycle. A CPU search never produces such predecessors; this is
+* a fault of the accelerator, surfaced instead of a wrong path. `cause` is the algorithm's own
+* error. The caller runs again with the `acceleration` attribute set to `off`.
+*/
+| "E_BAD_PATH"
+/**
+* An accelerator counted more shortest paths between a pair of nodes than its counters hold,
+* so every betweenness score it computed is wrong, and none is published. `cause` is the
+* algorithm's own error. The caller runs again with the `acceleration` attribute set to
+* `off`; the CPU path counts in double precision and does not overflow.
+*/
+| "E_PATH_COUNT_OVERFLOW"
 /**
 * Acceleration was required (the `acceleration` attribute set to `required`) and no
 * accelerator is available. `details` carry the reason acceleration is absent. The caller

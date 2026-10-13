@@ -1,6 +1,16 @@
 import { describe, expect, it } from "vitest";
 
-import { applyIssues, issuesPath, MAX_PAGES, nextPage, overlapped, pollIssues } from "../lib/issues.mjs";
+import { syncJobs } from "../lib/jobs.mjs";
+import { normalizeConfig } from "../lib/config.mjs";
+import {
+    applyIssues,
+    issuesPath,
+    MAX_PAGES,
+    nextPage,
+    overlapped,
+    pollIssues,
+    pruneClosedIssues,
+} from "../lib/issues.mjs";
 
 const REPO = "graphty-org/graphty-monorepo";
 const empty = () => ({ since: null, byNumber: {} });
@@ -154,5 +164,78 @@ describe("paging", () => {
         expect(first.changed).toEqual([1]);
         expect(second.changed).toEqual([2]);
         expect(second.since).toBe("2026-10-01T00:01:00Z");
+    });
+});
+
+describe("pruneClosedIssues", () => {
+    const closed = (n) => issue(n, "2026-10-13T10:00:00Z", { state: "closed", title: `t${n}`, body: "old" });
+    const stateWith = (items, extra = {}) => ({ issues: applyIssues(empty(), items), jobs: {}, ...extra });
+
+    it("drops a closed issue nothing refers to and keeps open ones", () => {
+        const state = stateWith([closed(1), issue(2, "2026-10-13T10:00:00Z")]);
+        expect(pruneClosedIssues(state)).toBe(1);
+        expect(Object.keys(state.issues.byNumber)).toEqual(["2"]);
+    });
+
+    it("keeps a closed issue while a job, deferral, proposal, owner item or other record refers to it", () => {
+        const state = stateWith([1, 2, 3, 4, 5, 6, 7, 8, 9].map(closed), {
+            jobs: {
+                "issue-1": { kind: "issue", target: "#1", state: "working" },
+                "triage-1": { kind: "triage", target: "triage", state: "queued", facts: { batch: [2] } },
+            },
+            deferred: { 3: { revision: "x" } },
+            unbundled: { 4: "x" },
+            proposals: { "issue:5": { target: "issue:5", status: "proposed" } },
+            ownerItems: { a: { target: "issue:6", endedAt: null } },
+            flakes: { tests: { t: { issue: 7 } } },
+            releaseQueue: { 900: { issue: 8 } },
+            escalations: { "release-failed": { holdIssue: 9, resolvedAt: null } },
+        });
+        expect(pruneClosedIssues(state)).toBe(0);
+        // Each reference ends: the issue goes on the next pass.
+        state.jobs["issue-1"].state = "cancelled";
+        state.jobs["triage-1"].state = "done";
+        delete state.deferred[3];
+        delete state.unbundled[4];
+        state.proposals["issue:5"].status = "ended";
+        state.ownerItems.a.endedAt = "2026-10-13T11:00:00Z";
+        delete state.flakes.tests.t;
+        delete state.releaseQueue[900];
+        state.escalations["release-failed"].resolvedAt = "2026-10-13T11:00:00Z";
+        expect(pruneClosedIssues(state)).toBe(9);
+        expect(state.issues.byNumber).toEqual({});
+    });
+
+    it("records a dropped issue again, with its new text, when it reopens", async () => {
+        const state = stateWith([closed(1)]);
+        pruneClosedIssues(state);
+        const reopened = issue(1, "2026-10-13T12:00:00Z", { title: "t1", body: "new text" });
+        const paths = [];
+        const gitHub = { get: async (path) => (paths.push(path), { headers: {}, body: [reopened] }) };
+        const polled = await pollIssues(gitHub, REPO, state.issues);
+        expect(paths[0]).toContain("since=");
+        expect(polled.changed).toEqual([1]);
+        expect(polled.byNumber[1]).toMatchObject({ state: "open", text: "t1\nnew text" });
+    });
+
+    it("lets the job that cancels on close see the issue first, then drops it", () => {
+        const config = normalizeConfig({ repo: "o/r", lanes: { ci: { workflow: "ci.yml", gating: "required" } } });
+        const state = {
+            trust: { login: "apowers313" },
+            master: { verdict: "green", lanes: {} },
+            incidents: {},
+            escalations: {},
+            prs: {},
+            mergeGate: { heads: {} },
+            merged: { count: 0, pending: [], closed: [] },
+            triagePasses: { refreshAt: 0, fullAt: 0, queue: [], seq: 0, typesQueued: true },
+            issues: applyIssues(empty(), [closed(1)]),
+            jobs: { "issue-1": { id: "issue-1", kind: "issue", target: "#1", state: "queued", news: [] } },
+        };
+        // The poll's prune runs before the jobs are synced: the live job keeps the closed issue.
+        expect(pruneClosedIssues(state)).toBe(0);
+        const r = syncJobs(state, { config, now: new Date("2026-10-13T12:00:00Z") });
+        expect(r.cancelled).toEqual([{ job: "issue-1", reason: "the issue closed" }]);
+        expect(pruneClosedIssues(state)).toBe(1);
     });
 });

@@ -218,6 +218,11 @@ export const RouteAtRest: Story = sceneStory(async ({ runs }) => {
     await openStyle(runs["shortest-path"]);
 });
 
+/** Key people at rest: a hand-made layer of four named people inside the Annotations folder. */
+export const KeyPeopleAtRest: Story = sceneStory(async () => {
+    await openStyle("Key people");
+});
+
 /**
  * Key people's size typed over, then the minus hovered: its tooltip says what Clear gives back
  * and from which layer, before the reader clears it.
@@ -334,6 +339,16 @@ export const LabelEntry: Story = sceneStory(async () => {
     await within(tab).findByRole("button", { name: /^Label source: / });
 });
 
+/** Label settings open on Key people's name label: font, size, look and placement in one popover. */
+export const LabelSettings: Story = sceneStory(async () => {
+    const tab = await openStyle("Key people");
+    await userEvent.click(within(tab).getByRole("button", { name: "Add to node text" }));
+    await userEvent.click(await page().findByRole("menuitem", { name: /^Label/ }));
+    await userEvent.click(await page().findByRole("option", { name: "name" }));
+    await userEvent.click(await within(tab).findByRole("button", { name: "Node label settings" }));
+    await page().findByRole("dialog", { name: "Label settings" });
+});
+
 /** Key people's Effects "+": the effects the layer does not draw yet. */
 export const EffectsMenu: Story = sceneStory(async () => {
     const tab = await openStyle("Key people");
@@ -369,3 +384,82 @@ export const GraphSettings: Story = sceneStory(async () => {
     await userEvent.click(page().getByRole("button", { name: "Graph settings" }));
     await page().findByRole("combobox", { name: "Lighting" });
 });
+
+// College football: a number column that names groups, painted one color per value.
+
+/**
+ * Opens College football (115 teams; `value` is each team's conference, coded 0 to 11) from the
+ * start screen, on a circle so every capture draws the same picture.
+ * @param canvasElement - the story's root.
+ * @returns the element.
+ */
+async function loadFootball(canvasElement: HTMLElement): Promise<GraphtyElement> {
+    await userEvent.click(await page().findByRole("button", { name: "Open the College football sample" }));
+    await customElements.whenDefined("graphty-element");
+    const element = await waitFor(() => {
+        const found = canvasElement.querySelector("graphty-element");
+        expect(found).not.toBeNull();
+        return found as GraphtyElement;
+    });
+    await waitFor(
+        () => {
+            expect(element.session.data.statistics().nodeCount).toBe(115);
+        },
+        { timeout: 10_000 },
+    );
+    await element.session.layout.setDimension("2d");
+    await element.session.layout.set("circular");
+    await element.session.styles.settled();
+    return element;
+}
+
+/**
+ * A new node layer named Conference, its color varying by the conference code with one color per
+ * value, all through the panel: Add layer, Nodes, the color's vary glyph, the value, the pill's
+ * "One color per value", and a rename in the tree. The binding popover is left open.
+ */
+export const FootballConference: Story = {
+    args: { store: createWorkspaceStore() },
+    play: async ({ canvasElement }) => {
+        const element = await loadFootball(canvasElement);
+        const { session } = element;
+        const before = new Set(session.styles.list().map((l) => l.id));
+        await userEvent.click(page().getByRole("button", { name: "Add a layer or a folder" }));
+        await userEvent.click(await page().findByRole("menuitem", { name: "Add layer" }));
+        const nodes = within(await page().findByRole("radiogroup", { name: "Paints" })).getByRole("radio", {
+            name: "Nodes",
+        });
+        await userEvent.click(document.querySelector<HTMLElement>(`label[for="${nodes.id}"]`) ?? nodes);
+        const tab: HTMLElement = await page().findByTestId("style-tab");
+        const box = tab.querySelector<HTMLElement>('[aria-label^="Node color, "]')?.closest<HTMLElement>(".ws-field");
+        if (box === null || box === undefined) {
+            throw new Error("no Node color field");
+        }
+        // The glyph shows while the field holds focus (a story's pointer events move no CSS hover).
+        box.querySelector<HTMLElement>("input")?.focus();
+        await userEvent.click(await within(box).findByRole("button", { name: "Node color by attribute" }));
+        await userEvent.click(await page().findByRole("option", { name: "value" }));
+        const made = await waitFor(() => {
+            const layer = session.styles.list().find((l) => !before.has(l.id));
+            expect(layer).toBeDefined();
+            return layer as NonNullable<typeof layer>;
+        });
+
+        const tree = page().getByRole("tree", { name: "Style layers" });
+        const escaped = made.name.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        await userEvent.dblClick(await within(tree).findByRole("treeitem", { name: new RegExp(`^${escaped}, `) }));
+        await page().findByRole("textbox", { name: "Row name" });
+        await userEvent.keyboard("{Control>}a{/Control}Conference{Enter}");
+        await within(tree).findByRole("treeitem", { name: /^Conference, / });
+
+        const styleTab = await openStyle("Conference");
+        const popover = await openColorBinding(styleTab);
+        await userEvent.click(within(popover).getByRole("button", { name: "One color per value" }));
+        await waitFor(() => {
+            const binding = session.styles.get(made.id)?.encode?.["node.color"];
+            expect(binding !== undefined && "by" in binding ? binding.scale : undefined).toBe("ordinal");
+        });
+        await within(popover).findByRole("combobox", { name: /^Palette/ });
+        await element.waitForStableFrame();
+    },
+};

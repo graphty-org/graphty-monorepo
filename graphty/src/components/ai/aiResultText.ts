@@ -367,7 +367,7 @@ export function aiTranscript(source: AiTranscriptSource): ChatMessage[] {
  * @returns e.g. `Running find_nodes {"selector":"server"}`; empty when nothing runs.
  */
 export function aiActivityText(status: AiStatus | null): string {
-    if (status === null || !(["submitted", "streaming", "executing"] as const).some((s) => s === status.state)) {
+    if (status === null || !(["submitted", "streaming", "executing"] as readonly string[]).includes(status.state)) {
         return "";
     }
 

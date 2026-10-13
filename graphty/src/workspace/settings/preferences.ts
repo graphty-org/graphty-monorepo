@@ -142,7 +142,7 @@ function modelChoiceFrom(stored: unknown): AiModelChoice {
     return {
         ...(typeof model === "string" && model !== "" && { model }),
         ...(finite(temperature) && { temperature }),
-        ...(AI_REASONING_EFFORTS.some((effort) => effort === reasoningEffort) && {
+        ...((AI_REASONING_EFFORTS as readonly unknown[]).includes(reasoningEffort) && {
             reasoningEffort: reasoningEffort as AiReasoningEffort,
         }),
         ...(finite(thinkingBudgetTokens) && { thinkingBudgetTokens }),

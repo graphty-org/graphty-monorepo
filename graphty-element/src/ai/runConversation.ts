@@ -30,6 +30,7 @@ import type {
     ToolResultOutcome,
     ToolSpec,
     TurnError,
+    TurnEvent,
     TurnRequest,
 } from "./engine/types";
 import {
@@ -680,6 +681,31 @@ function combined(tally: MessageTally, llmText?: string): ExecutionResult {
 }
 
 /**
+ * A tool the provider ran, as the message keeps it: its sources are the reader's to see, and web
+ * content. The host is told of it.
+ * @param event - The turn's event.
+ * @param sink - Where the host hears of it.
+ * @returns The part.
+ */
+function hostedPart(event: Extract<TurnEvent, { type: "hosted-tool" }>, sink: ConversationRun["sink"]): HostedPart {
+    const sources = event.sources.map((source) => ({ ...source }));
+    sink.emit({
+        type: "ai-hosted-tool-result",
+        tool: event.tool,
+        status: event.status,
+        sources: sources.map((source) => ({ tool: event.tool, ...source })),
+    });
+    return {
+        type: "hosted-tool",
+        origin: "web",
+        tool: event.tool,
+        status: event.status,
+        sources,
+        ...(event.providerState && { providerState: event.providerState }),
+    };
+}
+
+/**
  * One model turn: stream its text out as it arrives and collect the calls it asks for.
  * @param run - The loop's run.
  * @param request - The turn.
@@ -717,22 +743,7 @@ async function modelTurn(
                 ...(event.providerState && { providerState: event.providerState }),
             });
         } else if (event.type === "hosted-tool") {
-            // A tool the provider ran: its sources are the reader's to see, and web content.
-            const sources = event.sources.map((source) => ({ ...source }));
-            hosted.push({
-                type: "hosted-tool",
-                origin: "web",
-                tool: event.tool,
-                status: event.status,
-                sources,
-                ...(event.providerState && { providerState: event.providerState }),
-            });
-            sink.emit({
-                type: "ai-hosted-tool-result",
-                tool: event.tool,
-                status: event.status,
-                sources: sources.map((source) => ({ tool: event.tool, ...source })),
-            });
+            hosted.push(hostedPart(event, sink));
         } else if (event.type === "usage") {
             onUsage({ inputTokens: event.inputTokens, outputTokens: event.outputTokens });
         } else if (event.type === "error") {

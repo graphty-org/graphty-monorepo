@@ -579,24 +579,10 @@ class ChunkReader {
             case EventType.TEXT_MESSAGE_CONTENT:
                 this.wrote ||= chunk.delta !== "";
                 return [{ type: "text", delta: chunk.delta }];
-            case EventType.REASONING_MESSAGE_CONTENT: {
-                if (!this.roundTripsThinking) {
-                    return [];
-                }
-
-                const block = this.reasoning.get(chunk.messageId);
-                this.reasoning.set(chunk.messageId, { ...block, content: (block?.content ?? "") + chunk.delta });
+            case EventType.REASONING_MESSAGE_CONTENT:
+            case EventType.REASONING_ENCRYPTED_VALUE:
+                this.keepReasoning(chunk);
                 return [];
-            }
-            case EventType.REASONING_ENCRYPTED_VALUE: {
-                if (!this.roundTripsThinking) {
-                    return [];
-                }
-
-                const block = this.reasoning.get(chunk.entityId);
-                this.reasoning.set(chunk.entityId, { content: block?.content ?? "", signature: chunk.encryptedValue });
-                return [];
-            }
             case EventType.TOOL_CALL_START: {
                 const { tanstack: _tanstack, ...metadata } = (chunk.metadata ?? {}) as Record<string, unknown>;
                 // A call the provider ran itself, its result already in: never one for the loop to run.
@@ -639,6 +625,31 @@ class ChunkReader {
             default:
                 return [];
         }
+    }
+
+    /**
+     * Keep a piece of the turn's reasoning, its text or the provider's signature, when the
+     * provider's reasoning goes back with its calls.
+     * @param chunk - The reasoning chunk.
+     */
+    private keepReasoning(
+        chunk: Extract<
+            StreamChunk,
+            { type: EventType.REASONING_MESSAGE_CONTENT | EventType.REASONING_ENCRYPTED_VALUE }
+        >,
+    ): void {
+        if (!this.roundTripsThinking) {
+            return;
+        }
+
+        if (chunk.type === EventType.REASONING_MESSAGE_CONTENT) {
+            const block = this.reasoning.get(chunk.messageId);
+            this.reasoning.set(chunk.messageId, { ...block, content: (block?.content ?? "") + chunk.delta });
+            return;
+        }
+
+        const block = this.reasoning.get(chunk.entityId);
+        this.reasoning.set(chunk.entityId, { content: block?.content ?? "", signature: chunk.encryptedValue });
     }
 
     /**

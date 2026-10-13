@@ -284,10 +284,10 @@ export const GROUPS = {
     ],
 };
 
-// Group members whose lcov.info coverage.yml merges. visual-review and the webgpu browser smoke
-// never uploaded coverage, and adding them would change the published numbers; graphty-storybook
-// writes none (the graphty shard measures graphty).
-const NO_COVERAGE = new Set(["visual-review", "webgpu-graph-algorithms-browser", "graphty-storybook"]);
+// Group members whose lcov.info coverage.yml merges, and tools/merge-coverage.sh feeds to Coveralls
+// and SonarQube. The webgpu browser smoke never uploaded coverage (the node shards measure the
+// package); graphty-storybook writes none (the graphty shard measures graphty).
+const NO_COVERAGE = new Set(["webgpu-graph-algorithms-browser", "graphty-storybook"]);
 
 /**
  * The matrix entry of one group, holding only the members a run must test.

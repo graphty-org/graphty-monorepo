@@ -26,7 +26,7 @@ COVERAGE_DIR="$ROOT_DIR/.coverage-packages"
 OUTPUT_FILE="$ROOT_DIR/coverage/lcov.info"
 
 # Packages to process
-PACKAGES=("graph-format" "graph-io" "webgpu-graph-algorithms" "graph-samples" "cytoscape-extensions" "algorithms" "layout" "graphty" "graphty-element")
+PACKAGES=("graph-format" "graph-io" "webgpu-graph-algorithms" "graph-samples" "cytoscape-extensions" "algorithms" "layout" "graphty" "graphty-element" "githerd" "compact-mantine" "remote-logger" "visual-review")
 
 # Colors for output
 RED='\033[0;31m'
@@ -83,6 +83,10 @@ while [[ $# -gt 0 ]]; do
             echo "  cd layout && pnpm run coverage"
             echo "  cd graphty && pnpm run coverage"
             echo "  cd graphty-element && pnpm run coverage"
+            echo "  cd githerd && pnpm run coverage"
+            echo "  cd compact-mantine && pnpm run coverage"
+            echo "  cd remote-logger && pnpm run coverage"
+            echo "  cd visual-review && pnpm run coverage"
             exit 0
             ;;
         *)
@@ -230,6 +234,10 @@ if [ $COLLECTED -eq 0 ]; then
     log_error "  cd layout && pnpm run coverage"
     log_error "  cd graphty && pnpm run coverage"
     log_error "  cd graphty-element && pnpm run coverage"
+    log_error "  cd githerd && pnpm run coverage"
+    log_error "  cd compact-mantine && pnpm run coverage"
+    log_error "  cd remote-logger && pnpm run coverage"
+    log_error "  cd visual-review && pnpm run coverage"
     exit 1
 fi
 
@@ -262,9 +270,10 @@ TOTAL_LH=0
 for pkg in "${PACKAGES[@]}"; do
     LCOV_FILE="$COVERAGE_DIR/$pkg.info"
     if [ -f "$LCOV_FILE" ]; then
-        # Sum LF (lines found) and LH (lines hit)
-        LF=$(awk -F: '/^LF:/{sum+=$2}END{print sum+0}' "$LCOV_FILE")
-        LH=$(awk -F: '/^LH:/{sum+=$2}END{print sum+0}' "$LCOV_FILE")
+        # Lines found and hit, counted from the DA: records: a file merged from several shards by
+        # lcov-result-merger has no LF:/LH: summary lines, so summing those reported "no data".
+        LF=$(awk -F'[:,]' '/^DA:/{n++}END{print n+0}' "$LCOV_FILE")
+        LH=$(awk -F'[:,]' '/^DA:/{if ($3 > 0) n++}END{print n+0}' "$LCOV_FILE")
 
         if [ "$LF" -gt 0 ]; then
             PCT=$(awk "BEGIN {printf \"%.1f\", ($LH/$LF)*100}")

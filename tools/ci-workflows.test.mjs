@@ -98,9 +98,10 @@ describe("the test matrix", () => {
         );
     });
 
-    it("uploads coverage only for the members that uploaded it before the groups", () => {
+    it("uploads coverage for every member that writes it", () => {
         const browser = plan(PACKAGES).find((e) => e.shard === "small-browser");
-        assert.doesNotMatch(browser.coverage, /visual-review|webgpu-graph-algorithms-browser/);
+        assert.doesNotMatch(browser.coverage, /webgpu-graph-algorithms-browser|graphty-storybook/);
+        assert.match(browser.coverage, /visual-review=visual-review\/coverage\/lcov.info/);
         assert.match(browser.coverage, /^algorithms-browser=algorithms\/coverage\/lcov.info /);
         assert.equal(browser["needs-browser"], true);
     });

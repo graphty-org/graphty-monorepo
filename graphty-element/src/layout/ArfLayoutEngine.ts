@@ -11,7 +11,7 @@ import { sceneUnits, SnapshotLayoutEngine, type SnapshotLayoutInput, startFrom }
  */
 const arfLayoutOptionsSchema = defineOptions({
     scalingFactor: {
-        schema: z.number().min(1).max(1000).default(100),
+        schema: z.number().min(1).max(1000).default(50),
         meta: {
             label: "Scaling Factor",
             description: "Multiplier for node positions",
@@ -22,6 +22,14 @@ const arfLayoutOptionsSchema = defineOptions({
         meta: {
             label: "Scaling",
             description: "Scale factor for the attractive force",
+            step: 0.1,
+        },
+    },
+    scale: {
+        schema: z.number().positive().default(1),
+        meta: {
+            label: "Scale",
+            description: "Distance of the farthest node from the center, as in the other one-shot layouts",
             step: 0.1,
         },
     },
@@ -53,8 +61,10 @@ const arfLayoutOptionsSchema = defineOptions({
 
 const ArfLayoutConfig = z.strictObject({
     ...SimpleLayoutConfig.shape,
+    scalingFactor: z.number().default(50),
     pos: z.record(z.number(), z.array(z.number())).or(z.null()).default(null),
     scaling: z.number().positive().default(1),
+    scale: z.number().positive().default(1),
     a: z.number().positive().default(1.1),
     maxIter: z.number().positive().default(1000),
     seed: z.number().positive().or(z.null()).default(null),
@@ -115,6 +125,8 @@ export class ArfLayout extends SnapshotLayoutEngine {
             arf(input.graph, {
                 pos: startFrom(input, 2, this.config.scalingFactor) ?? this.rowsOfRecord(this.config.pos, 2),
                 scaling: this.config.scaling,
+                // the forces settle at a size that grows with the node count; rescale it as every other one-shot layout is
+                scale: this.config.scale,
                 a: this.config.a,
                 maxIter: this.config.maxIter,
                 seed: this.config.seed,

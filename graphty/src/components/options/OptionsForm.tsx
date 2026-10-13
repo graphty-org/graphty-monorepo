@@ -23,14 +23,14 @@ import { optionDefaults } from "./optionDefaults";
  * the graph draws these itself. They are skipped here rather than dropped from the descriptor
  * list, so a caller that does have the graph can still find them.
  */
-const UNDRAWABLE_TYPES: readonly OptionDescriptor["type"][] = [
+const UNDRAWABLE_TYPES: ReadonlySet<OptionDescriptor["type"]> = new Set([
     "node-id",
     "node-set",
     "attribute",
     "partition",
     "ordering",
     "unknown",
-];
+]);
 
 /**
  * A bound the element resolved to a number. A bound that is still a reference to something
@@ -175,7 +175,7 @@ export function OptionsForm({
     const visible = useMemo(
         () =>
             options.filter((option) => {
-                if (UNDRAWABLE_TYPES.includes(option.type) || option.internal === true) {
+                if (UNDRAWABLE_TYPES.has(option.type) || option.internal === true) {
                     return false;
                 }
 

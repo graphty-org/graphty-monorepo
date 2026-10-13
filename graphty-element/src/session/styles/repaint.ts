@@ -426,7 +426,7 @@ const FLAG_TRUE = 2;
  * The generation counter is reset before it can overflow a signed 32-bit stamp, because a wrapped
  * generation would mark every element of the previous pass as already dirty in this one.
  */
-const MAX_GENERATION = 0x7fff_fffe;
+const MAX_GENERATION = 0x7f_ff_ff_fe;
 
 /** One channel's values, in the shape that channel's kind of value packs into. */
 type ChannelColumn =

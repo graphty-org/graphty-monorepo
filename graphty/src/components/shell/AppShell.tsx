@@ -383,6 +383,15 @@ const SAVE_COPY_ACTION = "Save a copy";
  */
 const SHELL_AUTOSAVE_KEY = "app.graphty.shell";
 
+/**
+ * The graph host's autosave prop: the shell's key when autosave is on, nothing when it is off.
+ * @param on - whether the shell autosaves.
+ * @returns the props to spread.
+ */
+function autosaveProps(on: boolean): { readonly autosave?: string } {
+    return on ? { autosave: SHELL_AUTOSAVE_KEY } : {};
+}
+
 /** The colour a new style layer paints until the reader changes it; any valid colour would do. */
 const NEW_LAYER_COLOR = "#F59E0B";
 
@@ -5274,7 +5283,7 @@ function ShellFrame(props: { readonly persist: boolean; readonly autosave: boole
             onSelectionChange: handleSelectionChange,
             onStylesChange: handleStylesChange,
             onSession: setSession,
-            ...(autosave ? { autosave: SHELL_AUTOSAVE_KEY } : {}),
+            ...autosaveProps(autosave),
         },
         drawer: {
             tab: drawerTab,

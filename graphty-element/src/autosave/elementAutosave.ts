@@ -77,6 +77,25 @@ export interface AutosaveEnvironment {
 }
 
 /**
+ * A Web Locks callback that hands back the lock's release, or null when the lock is taken.
+ * @param resolve - Receives the release, or null.
+ * @returns The callback.
+ */
+function holdLock(resolve: (release: (() => void) | null) => void): (lock: Lock | null) => Promise<void> | undefined {
+    return (lock) => {
+        if (lock === null) {
+            resolve(null);
+            return undefined;
+        }
+
+        // Held until released: the lock lives as long as this promise is pending.
+        return new Promise<void>((release) => {
+            resolve(release);
+        });
+    };
+}
+
+/**
  * Web Locks as autosave's locks.
  * @param locks - `navigator.locks`.
  * @returns The locks.
@@ -85,19 +104,7 @@ function webLocks(locks: LockManager): PageLocks {
     return {
         claim: (name) =>
             new Promise((resolve, reject) => {
-                locks
-                    .request(name, { ifAvailable: true }, (lock) => {
-                        if (lock === null) {
-                            resolve(null);
-                            return undefined;
-                        }
-
-                        // Held until released: the lock lives as long as this promise is pending.
-                        return new Promise<void>((release) => {
-                            resolve(release);
-                        });
-                    })
-                    .catch(reject);
+                locks.request(name, { ifAvailable: true }, holdLock(resolve)).catch(reject);
             }),
         held: async () => {
             const { held } = await locks.query();

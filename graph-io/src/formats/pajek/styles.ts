@@ -240,12 +240,34 @@ export function pajekStyles(snapshot: GraphSnapshot, context: StyleReadContext):
             set: { targetArrow: "triangle" },
         });
     }
+    // Pajek's default that is a rule: each vertex shows its label, the name its vertex line gives it
+    // (the label column is found by its role: a taken name renames it `label#<id>`).
+    const nodeRules: StyleRule[] = [];
+    const labelColumn = snapshot.nodes.byRole("label");
+    let named = 0;
+    for (let i = 0; labelColumn !== null && i < snapshot.nodeCount; i++) {
+        if (plainCell(labelColumn.value(i)) !== null) {
+            named++;
+        }
+    }
+    const labels = labelColumn?.meta.name;
+    if (labels !== undefined && named > 0) {
+        nodeRules.push({
+            id: "node.tool.label",
+            target: "node",
+            role: "passthrough",
+            origin: "tool",
+            where: { has: { data: labels } },
+            map: { label: { kind: "passthrough", by: { data: labels } } },
+            facts: { elements: named, reason: "NODE_NAME" },
+        });
+    }
     return {
         canonical: true,
         dialect: "dvips",
         tool: "pajek",
         units: "relative",
-        node: { values: node },
+        node: { values: node, rules: nodeRules },
         edge: { values: edge, rules, columns },
         notes: notes.list(),
         block,

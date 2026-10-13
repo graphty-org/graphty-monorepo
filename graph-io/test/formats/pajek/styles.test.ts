@@ -147,6 +147,14 @@ describe("Pajek styles: Pajek's rules", () => {
         expect(bare.styles.styles.rules.filter((r) => r.origin === "tool")).toEqual([]);
         expect(drawn(bare.styles, bare.snapshot, "node", "shape")).toEqual([null, null, null]);
     });
+
+    it("labels each vertex with the name its line gives it, as Pajek draws it", async () => {
+        const doc = '*Vertices 3\n1 "Doc1"\n2 "Doc2"\n3\n*Edges\n1 2\n';
+        const { snapshot, styles } = await load(doc);
+        expect(drawn(styles, snapshot, "node", "label")).toEqual(["Doc1", "Doc2", null]);
+        const bare = await load(doc, false);
+        expect(drawn(bare.styles, bare.snapshot, "node", "label")).toEqual([null, null, null]);
+    });
 });
 
 describe("Pajek files that failed to read before", () => {

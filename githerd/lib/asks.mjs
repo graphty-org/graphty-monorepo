@@ -849,7 +849,9 @@ function brokenAskDue(state, n, rec, { now, minutes, live }, lines) {
         return null;
     }
     if (gone || (same && ask.heard && !brokenAnswered(state, n, ask))) {
-        lines.push(releaseBroken(state, n, rec, owner.session, gone ? "githerd cannot ask its owner" : silence(ask)));
+        const line = releaseBroken(state, n, rec, owner.session, gone ? "githerd cannot ask its owner" : silence(ask));
+        // The question left unanswered, which stalls.mjs judges the session's silence by.
+        lines.push(gone ? line : { ...line, asked: ask.at });
         return null;
     }
     return {
@@ -1269,7 +1271,7 @@ function dueJobs(state, now, minutes, lines) {
         if (ask?.heard && !answered) {
             const reason = `no answer to the status question of ${ask.at}`;
             releaseOwnerJob(job, reason, now);
-            lines.push({ kind: "claim-released", job: job.id, session, reason });
+            lines.push({ kind: "claim-released", job: job.id, session, reason, asked: ask.at });
             continue;
         }
         due.set(session, [...(due.get(session) ?? []), job]);

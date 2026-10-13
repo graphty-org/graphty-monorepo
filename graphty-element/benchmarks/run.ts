@@ -78,7 +78,7 @@ function runSetsBenchmarks(): BenchResult[] {
 function setBasedResolve(snapshot: GraphSnapshot, ids: readonly NodeId[]): string {
     const nodes = new Set<NodeId>();
     for (const id of ids) {
-        if (snapshot.ids.indexOf(id) >= 0) {
+        if (snapshot.ids.has(id)) {
             nodes.add(id);
         }
     }

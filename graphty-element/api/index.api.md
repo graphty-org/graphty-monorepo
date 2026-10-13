@@ -1718,7 +1718,7 @@ export class Graph implements GraphContext {
     setLayoutScope(scope: ScopeInput | undefined): Promise<void>;
     setNodes(nodes: Record<string | number, unknown>[], idPath?: string, options?: QueueableOptions): Promise<void>;
     setRenderer(request: RendererRequest): void;
-    setRenderSettings(_settings: Record<string, unknown>, options?: QueueableOptions): Promise<void>;
+    setRenderSettings(settings: Record<string, unknown>, options?: QueueableOptions): Promise<void>;
     setRunning(running: boolean): void;
     setSelectionStyle(selection: GraphSelectionStyleInput): void;
     setStartingCameraDistance(distance: number | undefined): void;

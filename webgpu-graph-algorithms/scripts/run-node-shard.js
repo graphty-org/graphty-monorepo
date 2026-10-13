@@ -18,10 +18,13 @@
  * Reports go to the directory below and their essentials are printed. A run still silent after the last snapshot is
  * killed: it fails as hung either way, and waiting longer only spends the job's time limit.
  *
- * The verdict fails closed (issue #2111). A non-zero vitest exit is passed through; an exit of 0 still fails, with a
- * named cause on a line marked [shard-verdict], when the hang watcher had to signal the run, when the output holds no
- * vitest summary, or when an --outputFile the caller named was not written by this run. A run whose tests were killed
- * must never look green because some process between the wrapper and vitest reported 0.
+ * The verdict fails closed (issue #2111) and is the repository's shard rule, tools/shard-verdict.mjs: a run passes only
+ * when vitest exited 0, its output holds the vitest summary, and the --outputFile the caller named was written by this
+ * run. Anything else fails with a named cause on a line marked [shard-verdict], as does a run the watcher killed; a
+ * non-zero vitest exit keeps its code. A snapshot alone is not a failure (issue #2181): a test may legitimately be
+ * silent past the threshold, and a run that then finishes with its summary and report passed. A run whose tests were
+ * killed must never look green because some process between the wrapper and vitest reported 0, and the summary and
+ * report checks are what catch that.
  *
  * Only Node processes are signalled: Node is the only program in the tree whose SIGUSR2 writes a report
  * (--report-on-signal, set below) instead of killing it. The tree also holds `pnpm` (a packaged binary that does not
@@ -43,6 +46,7 @@ import { StringDecoder } from "node:string_decoder";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { stripVTControlCharacters } from "node:util";
 
+import { shardVerdict } from "../../tools/shard-verdict.mjs";
 import { acquire, HELD, off } from "../../tools/test-slots.mjs";
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -63,18 +67,6 @@ const VERDICT_MARKER = "[shard-verdict]";
 const REPORT_WAIT_MS = 10_000;
 /** The runner the arguments are appended to; main()'s `command` option replaces it in tests. */
 const VITEST_COMMAND = ["pnpm", "exec", "vitest", "run"];
-/**
- * Whether the output proves vitest reached its end: its summary line, or its notice of a run that matched no file.
- * @param {string} output - the run's output, colour escapes removed
- * @returns {boolean} true when vitest finished
- */
-function hasSummary(output) {
-    return (
-        output.includes("No test files found") ||
-        output.split("\n").some((line) => line.trimStart().startsWith("Test Files "))
-    );
-}
-
 /** The head of a per-file or per-test result line: one of the reporters' status glyphs and its ASCII fallbacks. */
 const RESULT_HEAD = /^\s*[\u2713\u221A\u00D7\u2717\u276F\u203A\u2193]\s/;
 /** The `stdout | <file>` / `stderr | <file>` line vitest prints above output a test file wrote. */
@@ -220,30 +212,29 @@ function outputFileOf(argv) {
 }
 
 /**
- * The wrapper's exit code and its cause. A run the hang watcher signalled fails as hung (with vitest's own code when
- * that is non-zero); otherwise vitest's non-zero exit is passed through, and an exit of 0 is believed only when the
- * output holds vitest's summary and the named --outputFile was written.
- * @param {{status: number, signalled: number, silenceMs: number, output: string, outputFile?: string,
+ * The wrapper's exit code and its cause. A run the watcher killed fails as hung (with vitest's own code when that is
+ * non-zero); otherwise tools/shard-verdict.mjs decides, and a failure keeps vitest's non-zero code. Snapshots taken
+ * along the way do not change the verdict.
+ * @param {{status: number, killed?: boolean, silenceMs: number, output: string, outputFile?: string,
  *     outputWritten?: boolean}} run - what the run did
  * @returns {{exitCode: number, cause: string}} the exit code and a one-line cause
  */
 export function verdict(run) {
-    if (run.signalled > 0) {
+    if (run.killed === true) {
         return {
             exitCode: run.status === 0 ? 1 : run.status,
-            cause: `hung: no output for ${String(run.silenceMs / 1000)}s, signalled ${String(run.signalled)} process(es)`,
+            cause: `hung: still no output ${String(run.silenceMs / 1000)}s after the last snapshot, killed`,
         };
     }
-    if (run.status !== 0) {
-        return { exitCode: run.status, cause: `vitest exited ${String(run.status)}` };
+    const missingReports =
+        run.outputFile !== undefined && run.outputWritten !== true
+            ? [`${run.outputFile} (missing, stale or not whole JSON)`]
+            : [];
+    const decision = shardVerdict({ code: run.status, log: run.output, missingReports });
+    if (decision.pass) {
+        return { exitCode: 0, cause: "vitest exited 0" };
     }
-    if (!hasSummary(stripVTControlCharacters(run.output))) {
-        return { exitCode: 1, cause: "no vitest summary: the run exited 0 without printing Test Files" };
-    }
-    if (run.outputFile !== undefined && run.outputWritten !== true) {
-        return { exitCode: 1, cause: `no JSON report: ${run.outputFile} was not written by this run` };
-    }
-    return { exitCode: 0, cause: "vitest exited 0" };
+    return { exitCode: run.status === 0 ? 1 : run.status, cause: decision.cause };
 }
 
 /**
@@ -379,13 +370,22 @@ function killTree(pid, taken) {
 }
 
 /**
- * Whether a file exists and was written at or after a moment, so a stale report never stands in for this run's.
+ * Whether a JSON report exists, was written at or after a moment (so a stale report never stands in for this run's)
+ * and parses whole (so a report cut off mid-write does not count).
  * @param {string | undefined} path - the file, or undefined when none was named
  * @param {number} since - the moment, in milliseconds since the epoch
- * @returns {boolean} true when the file was written since then
+ * @returns {boolean} true when this run wrote a complete report there
  */
-function writtenSince(path, since) {
-    return path !== undefined && existsSync(path) && statSync(path).mtimeMs >= since;
+function reportComplete(path, since) {
+    if (path === undefined || !existsSync(path) || statSync(path).mtimeMs < since) {
+        return false;
+    }
+    try {
+        JSON.parse(readFileSync(path, "utf8"));
+        return true;
+    } catch {
+        return false;
+    }
 }
 
 /**
@@ -435,6 +435,7 @@ export async function main(argv, options = {}) {
     let last = Date.now();
     let taken = 0;
     let signalled = 0;
+    let killed = false;
     let busy = false;
     // The silence snapshot in flight, awaited before the verdict: the run can close while it still waits on reports.
     let inFlight = Promise.resolve();
@@ -462,6 +463,7 @@ export async function main(argv, options = {}) {
                 // Still silent after every snapshot: the run already fails as hung, so end it rather than leave it
                 // to the job's time limit.
                 killTree(child.pid ?? 0, taken);
+                killed = true;
                 clearInterval(timer);
                 return;
             }
@@ -499,17 +501,22 @@ export async function main(argv, options = {}) {
     const outputPath = outputFile === undefined ? undefined : resolve(packageRoot, outputFile);
     const decision = verdict({
         status,
-        signalled,
+        killed,
         silenceMs,
         output,
         outputFile,
-        outputWritten: writtenSince(outputPath, started),
+        outputWritten: reportComplete(outputPath, started),
     });
     if (decision.exitCode !== 0) {
         if (status === 0) {
             console.log(`\n${formatMissingFiles(missingTestFiles(output))}`);
         }
         console.log(`${VERDICT_MARKER} FAIL ${decision.cause}`);
+    } else if (signalled > 0) {
+        console.log(
+            `${VERDICT_MARKER} PASS (note: the run went ${String(silenceMs / 1000)}s silent and ${String(signalled)} ` +
+                `process(es) were signalled for a snapshot; it then finished with its summary and report)`,
+        );
     }
     return decision.exitCode;
 }

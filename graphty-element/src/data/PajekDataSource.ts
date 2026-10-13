@@ -40,7 +40,7 @@ function nodeRecord(record: Record<string, unknown>, threeD: boolean): void {
 export class PajekDataSource extends DataSource {
     static readonly type = "pajek";
 
-    private config: PajekDataSourceConfig;
+    private readonly config: PajekDataSourceConfig;
 
     /**
      * Creates a new PajekDataSource instance.

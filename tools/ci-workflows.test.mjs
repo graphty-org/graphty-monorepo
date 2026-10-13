@@ -1,7 +1,6 @@
 // Tests of the CI shape: the test matrix's shard groups (tools/ci-test-matrix.mjs), the parts of
 // ci.yml and pr-title.yml that decide what a draft, a pull request and a merge-queue run do, the
-// release train (release.yml, tools/release-diff.mjs, deploy-pages.yml, .mergify.yml's release
-// rule), the record tools/pr-status-broker.mjs writes for agents, the local commit and push hooks
+// release train (release.yml, tools/release-diff.mjs, deploy-pages.yml), the record tools/pr-status-broker.mjs writes for agents, the local commit and push hooks
 // (.husky/pre-commit, tools/format-staged.sh, tools/prepush.sh), and the warning period of new
 // required checks (tools/ci-advisory-checks.json).
 //
@@ -1313,12 +1312,11 @@ describe("pr-issue-link.yml", () => {
             assert.ok(!linksIssue(body), String(body));
         }
     });
-    it("skips Dependabot and the release train, and only those", () => {
-        assert.ok(skipReason({ headRef: "dependabot/npm/x", author: "dependabot[bot]", sameRepo: true }));
-        assert.ok(skipReason({ headRef: "release/train-1", author: "github-actions[bot]", sameRepo: true }));
-        assert.equal(skipReason({ headRef: "release/train-1", author: "someone", sameRepo: true }), null);
-        assert.equal(skipReason({ headRef: "release/train-1", author: "github-actions[bot]", sameRepo: false }), null);
-        assert.equal(skipReason({ headRef: "fix/x", author: "someone", sameRepo: true }), null);
+    it("skips Dependabot, and only Dependabot", () => {
+        assert.ok(skipReason({ author: "dependabot[bot]" }));
+        // releases no longer open a pull request (owner decision, 2026-10-11)
+        assert.equal(skipReason({ author: "github-actions[bot]" }), null);
+        assert.equal(skipReason({ author: "someone" }), null);
     });
     it("skips the whole job for Mergify's own merge-queue draft, and re-runs on a description edit", () => {
         const wf = workflow("pr-issue-link.yml");
@@ -1523,20 +1521,21 @@ echo "${aptSays}"`,
 });
 
 describe(".mergify.yml", () => {
-    it("merges every pull request, the release one included, with its own merge commit", () => {
+    it("merges every pull request with its own merge commit", () => {
         // Never merge-batch: marking the batch's draft ready starts a second CI run on the same commit, and the
-        // ruleset waits on its unfinished "All Checks Pass" until Mergify dequeues the batch. The release rule
-        // must stay merge, because release.yml's publish job finds the release by the branch its merge commit names.
+        // ruleset waits on its unfinished "All Checks Pass" until Mergify dequeues the batch.
         const mergify = readFileSync(new URL("../.mergify.yml", import.meta.url), "utf8");
         const queues = mergify.slice(mergify.indexOf("queue_rules:"));
-        const release = queues.slice(queues.indexOf("- name: release"), queues.indexOf("- name: default"));
         const batch = queues.slice(queues.indexOf("- name: default"));
-        // the rule that matches the train's branch and author is the one that merges with a plain merge commit
-        assert.match(release, /^\s+- head~=\^release\/train-$/m);
-        assert.match(release, /^\s+- author=github-actions\[bot\]$/m);
-        assert.match(release, /^\s+merge_method: merge(\s+#.*)?$/m);
         assert.match(batch, /^\s+merge_method: merge$/m);
         assert.doesNotMatch(mergify, /^\s+merge_method: merge-batch/m);
+    });
+
+    it("has no release rule, and keeps the queue when the release train pushes to master", () => {
+        // releases are tested and published by release.yml itself, never queued (owner decision, 2026-10-11)
+        const mergify = readFileSync(new URL("../.mergify.yml", import.meta.url), "utf8");
+        assert.doesNotMatch(mergify, /release\/train-|- name: release/);
+        assert.match(mergify, /\nmerge_queue:\n(?: {4}.*\n|\s*\n)*? {4}reset_on_external_merge: never\n/);
     });
 
     it("does not make the queue wait on the visual gate before the gate accepts a batch", () => {
@@ -1595,12 +1594,6 @@ describe("gpu.yml", () => {
             if (!/gpu=t4|gpu-linux-t4|uses: \.\/\.github\/workflows\/gpu\.yml/.test(text.replace(/^\s*#.*$/gm, ""))) {
                 continue;
             }
-            if (file === "release.yml") {
-                // its push trigger only publishes; the T4 hangs off the pick job, which never runs on a push
-                assert.match(job(text, "pick"), /if: \$\{\{ github.event_name != 'push' /);
-                assert.match(job(text, "t4"), /needs: pick\n/);
-                continue;
-            }
             assert.doesNotMatch(triggers(text), /^ {4}(pull_request|pull_request_target|push|merge_group)\b/m, file);
         }
     });
@@ -1649,8 +1642,8 @@ describe("the re-run of a T4 run whose spot runner was lost", () => {
             /- name: Announce the held release\n\s+if: \$\{\{ always\(\) && steps.hold.outputs.reclaimed != 'true' \}\}/,
         );
         assert.ok(skip < held.indexOf("tools/release-held.sh open"), "before the issue is opened");
-        // the train still requires a green T4: the re-run attempt must pass it
-        assert.match(job(workflow("release.yml"), "train"), /needs.t4.result == 'success'/);
+        // versioning still requires a green T4: the re-run attempt must pass it
+        assert.match(job(workflow("release.yml"), "version"), /needs.t4.result == 'success'/);
     });
 
     describe("tools/gpu-runner-lost.sh, against a stub gh", () => {
@@ -2006,13 +1999,26 @@ describe("release.yml", () => {
     const llm = job(release, "llm");
     const coverage = job(release, "coverage");
     const held = job(release, "held");
-    const train = job(release, "train");
+    const version = job(release, "version");
+    const land = job(release, "land");
     const publish = job(release, "publish");
 
-    it("never pushes to master and holds no deploy key", () => {
-        assert.doesNotMatch(release, /RELEASE_DEPLOY_KEY|ssh-key/);
-        const pushes = release.match(/git push[^\n]*/g);
-        assert.deepEqual(pushes, ['git push origin "${COMMIT}:refs/heads/${branch}"']);
+    it("opens no pull request and pushes to master only from the land job, with the deploy key", () => {
+        assert.doesNotMatch(release, /gh pr create|head_commit/);
+        assert.deepEqual(release.match(/git push[^\n]*/g), [
+            'git push --atomic --no-verify origin HEAD:refs/heads/master "${refs[@]}"; then',
+        ]);
+        assert.match(land, /git push --atomic/);
+        // the key reaches only the land job, which installs nothing and runs no nx
+        assert.equal(release.match(/RELEASE_DEPLOY_KEY/g).length, 1);
+        assert.match(land, /ssh-key: \$\{\{ secrets.RELEASE_DEPLOY_KEY \}\}/);
+        assert.doesNotMatch(land.replace(/^\s*#.*$/gm, ""), /pnpm|nx |npm |setup-node/);
+        // the land job's token cannot write: the deploy key does the pushing
+        assert.match(land, /contents: read/);
+        assert.doesNotMatch(land, /contents: write|id-token/);
+        // no push trigger: the publish runs in the train's own run
+        const on = /^on:\n([\s\S]*?)\n\S/m.exec(release)[1];
+        assert.doesNotMatch(on, /^\s+push:/m);
     });
 
     it("tries a release on dispatch, from master's newest commit, with no GitHub cron", () => {
@@ -2030,7 +2036,7 @@ describe("release.yml", () => {
             /^env:\n {4}TRIGGER: \$\{\{ github.event_name == 'workflow_dispatch' && inputs.scheduled && 'schedule' \|\| github.event_name \}\}\n/m,
         );
         assert.doesNotMatch(release, /\$EVENT\b|\$GITHUB_EVENT_NAME|EVENT: \$\{\{/);
-        assert.match(pick, /if: \$\{\{ github.event_name != 'push' && github.ref == 'refs\/heads\/master' && /);
+        assert.match(pick, /if: \$\{\{ github.ref == 'refs\/heads\/master' && /);
         // the run's own commit (the pushed commit for a restart), so the run, Coveralls and the lanes all name
         // the tested commit
         assert.match(pick, /CANDIDATE: \$\{\{ github.event.workflow_run.head_sha \|\| github.sha \}\}/);
@@ -2043,47 +2049,19 @@ describe("release.yml", () => {
     });
 
     it("does nothing while the previous release is pending", () => {
-        // an open release pull request, unless it can no longer merge: then it is closed and replaced
+        // cut-over: a release pull request left from the old design is closed, never merged untagged
         assert.match(pick, /startswith\("release\/train-"\)/);
-        assert.match(pick, /pending \| held\) skip "release pull request #\$\{number\} is still open/);
-        assert.match(pick, /\*\) gh pr close "\$number" --delete-branch/);
+        assert.match(pick, /gh pr close "\$number" --delete-branch --comment/);
         // an open "Release held" issue stops the schedule; a restart and an ad hoc dispatch run anyway
         assert.match(pick, /if \[ -n "\$held" \] && \[ "\$TRIGGER" = schedule \]; then\n\s+skip /);
-        // the last release not tagged yet
-        assert.match(pick, /has no tag \$\{project\}@\$\{version\} yet/);
+        // a version commit on master without its tags is an error that holds the release, not a silent skip
+        assert.match(pick, /::error::the last version commit \$\{last\} has no tag \$\{project\}@\$\{version\}/);
         // nothing releasable: the same versioning the train runs, made locally, makes no commit
         assert.match(pick, /commit=\$\(tools\/release-version.sh "\$PACKAGES"\)/);
         assert.match(pick, /release: \$\{\{ steps.releasable.outputs.release \|\| 'false' \}\}/);
         for (const j of [ci, t4, hosts, audit]) {
             assert.match(j, /needs: pick\n\s+if: \$\{\{ needs.pick.outputs.release == 'true' \}\}/);
         }
-    });
-
-    it("replaces a release pull request that conflicts, has a failed check or left the merge queue", () => {
-        const jq = /--jq '\n([\s\S]*?end)'\)/.exec(pick)[1];
-        const state = (pr) => {
-            const out = spawnSync("jq", ["-r", jq], { input: JSON.stringify(pr), encoding: "utf8" });
-            assert.equal(out.status, 0, out.stderr);
-            return out.stdout.trim();
-        };
-        const queued = { name: "Mergify Merge Queue", status: "IN_PROGRESS", conclusion: "" };
-        const ok = { context: "All Checks Pass", state: "SUCCESS" };
-        const pr = (over) => ({ mergeable: "MERGEABLE", labels: [], statusCheckRollup: [ok, queued], ...over });
-        assert.equal(state(pr({})), "pending");
-        assert.equal(state(pr({ mergeable: "UNKNOWN" })), "pending");
-        assert.equal(state(pr({ mergeable: "CONFLICTING" })), "conflicts with master");
-        assert.equal(
-            state(
-                pr({ statusCheckRollup: [ok, queued, { name: "Build", status: "COMPLETED", conclusion: "FAILURE" }] }),
-            ),
-            "has a failed check",
-        );
-        assert.equal(
-            state(pr({ statusCheckRollup: [ok, { ...queued, status: "COMPLETED", conclusion: "NEUTRAL" }] })),
-            "left the merge queue",
-        );
-        // a person's hold wins over everything: it is never closed
-        assert.equal(state(pr({ mergeable: "CONFLICTING", labels: [{ name: "hold" }] })), "held");
     });
 
     it("waits on events, never on a count of hours", () => {
@@ -2094,7 +2072,7 @@ describe("release.yml", () => {
         assert.doesNotMatch(release.replace(/^\s*#.*$/gm, ""), /timeout-minutes/);
     });
 
-    it("tests the candidate with the full suite, the T4 and the audit before the release pull request", () => {
+    it("tests the candidate with the full suite, the T4 and the audit before it versions anything", () => {
         assert.match(
             ci,
             /uses: \.\/\.github\/workflows\/ci\.yml\n\s+with:\n\s+ref: \$\{\{ needs.pick.outputs.sha \}\}\n\s+secrets: inherit/,
@@ -2111,23 +2089,28 @@ describe("release.yml", () => {
         assert.match(audit, /ref: \$\{\{ needs.pick.outputs.sha \}\}/);
         assert.match(audit, /run: pnpm audit --prod --audit-level=high/);
         assert.doesNotMatch(audit, /continue-on-error/, "a high advisory holds the release");
-        assert.match(train, /needs: \[pick, ci, t4, hosts, audit, llm\]/);
+        assert.match(version, /needs: \[pick, ci, t4, hosts, audit, llm\]/);
         assert.match(
-            train,
+            version,
             /if: \$\{\{ needs.pick.outputs.release == 'true' && needs.ci.result == 'success' && needs.t4.result == 'success' && needs.hosts.result == 'success' && needs.audit.result == 'success' && needs.llm.result == 'success' \}\}/,
         );
         // the release ships the builds of its own CI call, not a master run's
-        assert.match(train, /pattern: "build-\{graph-format,[^"]*\}"\n\s+path: \$\{\{ runner.temp \}\}\/builds\n\n/);
-        assert.match(train, /commit=\$\(tools\/release-version.sh "\$PACKAGES"\)/);
-        assert.match(train, /node tools\/release-diff.mjs "\$SHA" "\$COMMIT"/);
-        // the train is put first by .mergify.yml's "release train" priority rule, not a label
-        assert.doesNotMatch(train, /gh pr create[^\n]*--label/);
+        assert.match(version, /pattern: "build-\{graph-format,[^"]*\}"\n\s+path: \$\{\{ runner.temp \}\}\/builds\n\n/);
+        assert.match(version, /commit=\$\(tools\/release-version.sh "\$PACKAGES"\)/);
+        assert.match(version, /node tools\/release-diff.mjs "\$SHA" "\$commit"/);
+        assert.match(land, /node tools\/release-diff.mjs "\$SHA" "\$COMMIT"/);
+        // land and publish follow only a version commit made after every lane passed
+        assert.match(land, /needs: \[pick, version\]\n\s+if: \$\{\{ needs.version.result == 'success' \}\}/);
+        assert.match(
+            publish,
+            /needs: \[pick, version, land\]\n\s+if: \$\{\{ always\(\) && needs.land.outputs.pushed == 'true' \}\}/,
+        );
         // one train at a time across its jobs, so two trains never pay for two T4 runs of one commit
-        assert.match(release, /^concurrency:\n {4}group: .*'release-train' \}\}\n {4}cancel-in-progress: false/m);
+        assert.match(release, /^concurrency:\n {4}group: release-train\n {4}cancel-in-progress: false/m);
         // coverage comes from the same CI call, and never holds the release
         assert.match(coverage, /needs: \[pick, ci\]\n\s+if: \$\{\{ needs.ci.result == 'success' \}\}/);
         assert.match(coverage, /uses: \.\/\.github\/workflows\/coverage\.yml/);
-        assert.doesNotMatch(train + held, /coverage/);
+        assert.doesNotMatch(version + land + publish + held, /coverage/);
         const cov = workflow("coverage.yml");
         assert.match(cov, /on:\n\s+workflow_call:/);
         assert.doesNotMatch(cov, /workflow_run|run-id/);
@@ -2169,14 +2152,17 @@ describe("release.yml", () => {
         }
     });
 
-    it("holds the whole release when anything fails: no pull request, no builds kept, nothing published, one issue", () => {
-        assert.match(held, /needs: \[pick, ci, t4, hosts, audit, llm, train\]/);
+    it("holds the whole release when anything fails: nothing pushed, nothing published, one issue", () => {
+        assert.match(held, /needs: \[pick, ci, t4, hosts, audit, llm, version, land\]/);
         assert.doesNotMatch(held, /gh pr create|git push|nx release|upload-artifact|id-token/);
-        // the publish job finds only builds the train kept, and only the train keeps them
+        // the publish job finds only builds the version job kept, and only the version job keeps them
         assert.equal(release.match(/name: release-builds-/g).length, 2);
-        assert.match(train, /name: release-builds-\$\{\{ needs.pick.outputs.sha \}\}/);
-        assert.match(publish, /name: release-builds-\$\{\{ steps.commit.outputs.sha \}\}/);
-        assert.equal(release.match(/gh pr create/g).length, 1);
+        assert.match(version, /name: release-builds-\$\{\{ needs.pick.outputs.sha \}\}/);
+        assert.match(publish, /name: release-builds-\$\{\{ needs.pick.outputs.sha \}\}/);
+        // and the land job pushes exactly the commit the version job made
+        assert.match(version, /name: release-commit-\$\{\{ needs.pick.outputs.sha \}\}/);
+        assert.match(land, /name: release-commit-\$\{\{ needs.pick.outputs.sha \}\}/);
+        assert.match(land, /\[ "\$\(git rev-parse FETCH_HEAD\)" = "\$COMMIT" \]/);
         // one issue naming what failed: found by its title prefix and updated, else created with the labels
         // githerd and triage read
         for (const [result, name] of [
@@ -2185,7 +2171,8 @@ describe("release.yml", () => {
             ["T4", "T4 GPU"],
             ["HOSTS", "Hosts"],
             ["AUDIT", "security audit"],
-            ["TRAIN", "release pull request"],
+            ["VERSION", "versioning"],
+            ["LAND", "landing on master"],
         ]) {
             assert.ok(held.includes(`"${name}=$${result}_RESULT"`), name);
         }
@@ -2209,30 +2196,30 @@ describe("release.yml", () => {
         assert.equal(held.match(/\n\s+exit [0-9]/g).length, 1);
         // a refused or lost T4 runner has no code fix: the issue says so
         assert.match(held, /if \[ "\$T4_RESULT" = failure \]; then\n\s+echo\n\s+echo "If the T4 job was refused/);
-        // and the next train that passes closes it, as its last step
-        const close = train.indexOf("tools/release-held.sh close");
-        assert.ok(close > train.indexOf("gh pr create"), "closed only after the release pull request");
+        // and the next train that lands closes it, only after the push
+        const close = land.indexOf("tools/release-held.sh close");
+        assert.ok(close > land.indexOf("git push --atomic"), "closed only after the release is on master");
     });
 
-    // A train attempt ends with a release pull request or a "Release held" issue, never with neither. Run
+    // A train attempt ends with a release on master or a "Release held" issue, never with neither. Run
     // 37635516841 (2026-10-07) ended with neither: a GitHub Actions outage left CI's "All Checks Pass" queued for
     // good, its result "abandoned", and held's `if` listed only failure and cancelled.
-    describe("never ends a train attempt without a pull request or a held issue", () => {
-        const trainNeeds = /\n {8}needs: \[([^\]]*)\]/.exec(train)[1].split(", ");
+    describe("never ends a train attempt without a landed release or a held issue", () => {
+        const trainNeeds = [.../\n {8}needs: \[([^\]]*)\]/.exec(version)[1].split(", "), "version", "land"];
         const condition = /\n {8}if: \$\{\{ (.*) \}\}\n/.exec(held)[1];
-        // the condition as JavaScript: GitHub's expression syntax here is a subset of it. `pr` is the train's
-        // output: the release pull request it opened, "" (GitHub's value for an unset output) when it opened none.
-        const runs = (results, release = "true", pr = "") =>
+        // the condition as JavaScript: GitHub's expression syntax here is a subset of it. `pushed` is the land
+        // job's output: "true" once the release is on master, "" (GitHub's value for an unset output) before.
+        const runs = (results, release = "true", pushed = "") =>
             new Function(
                 "needs",
                 `return ${condition.replace(/\balways\(\)/g, "true").replace(/!cancelled\(\)/g, "true")};`,
             )(
                 Object.fromEntries(
-                    ["pick", "ci", "t4", "hosts", "audit", "llm", "train"].map((j) => [
+                    ["pick", "ci", "t4", "hosts", "audit", "llm", "version", "land"].map((j) => [
                         j,
                         {
                             result: results[j] ?? "success",
-                            outputs: j === "pick" ? { release } : j === "train" ? { pr } : {},
+                            outputs: j === "pick" ? { release } : j === "land" ? { pushed } : {},
                         },
                     ]),
                 ),
@@ -2240,9 +2227,9 @@ describe("release.yml", () => {
         // every result a job can end with, including the ones GitHub does not document
         const NOT_SUCCESS = ["failure", "cancelled", "skipped", "abandoned", "timed_out", "a-result-not-yet-invented"];
 
-        it("needs every job the train needs, and the train", () => {
-            assert.deepEqual(trainNeeds, ["pick", "ci", "t4", "hosts", "audit", "llm"]);
-            assert.match(held, new RegExp(`needs: \\[${[...trainNeeds, "train"].join(", ")}\\]`));
+        it("needs every lane, the version job and the land job", () => {
+            assert.deepEqual(trainNeeds, ["pick", "ci", "t4", "hosts", "audit", "llm", "version", "land"]);
+            assert.match(held, new RegExp(`needs: \\[${trainNeeds.join(", ")}\\]`));
         });
 
         it("runs whatever the run's state: always(), never a list of red results", () => {
@@ -2253,12 +2240,13 @@ describe("release.yml", () => {
         it("runs for every non-success result of every lane the train needs", () => {
             for (const lane of trainNeeds.filter((j) => j !== "pick")) {
                 for (const result of NOT_SUCCESS) {
-                    // a lane that did not succeed skips the train
-                    assert.equal(runs({ [lane]: result, train: "skipped" }), true, `${lane} ${result}`);
+                    // a lane that did not succeed skips versioning and landing
+                    assert.equal(
+                        runs({ [lane]: result, version: "skipped", land: "skipped" }),
+                        true,
+                        `${lane} ${result}`,
+                    );
                 }
-            }
-            for (const result of NOT_SUCCESS) {
-                assert.equal(runs({ train: result }), true, `train ${result}`);
             }
         });
 
@@ -2273,7 +2261,8 @@ describe("release.yml", () => {
                             hosts: "skipped",
                             audit: "skipped",
                             llm: "skipped",
-                            train: "skipped",
+                            version: "skipped",
+                            land: "skipped",
                         },
                         "",
                     ),
@@ -2281,7 +2270,7 @@ describe("release.yml", () => {
                     result,
                 );
             }
-            // a push (the publish job's run) and a restart whose build failed skip the pick
+            // a restart whose build failed skips the pick
             assert.equal(
                 runs(
                     {
@@ -2291,7 +2280,8 @@ describe("release.yml", () => {
                         hosts: "skipped",
                         audit: "skipped",
                         llm: "skipped",
-                        train: "skipped",
+                        version: "skipped",
+                        land: "skipped",
                     },
                     "",
                 ),
@@ -2299,37 +2289,38 @@ describe("release.yml", () => {
             );
         });
 
-        it("stays quiet when the train opened its pull request, or the pick found nothing to release", () => {
-            assert.equal(runs({}), false);
+        it("stays quiet when the release landed, or the pick found nothing to release", () => {
+            assert.equal(runs({}, "true", "true"), false);
             const none = {
                 ci: "skipped",
                 t4: "skipped",
                 hosts: "skipped",
                 audit: "skipped",
                 llm: "skipped",
-                train: "skipped",
+                version: "skipped",
+                land: "skipped",
             };
             assert.equal(runs(none, "false"), false);
         });
 
-        // Issue #1768: a bookkeeping step after the pull request opened (closing the held issue, announcing it)
-        // failed the train, and this job posted "Release held" for a release that was going ahead.
-        it("opens no held issue when a step fails after the train opened its pull request", () => {
-            const pr = "https://github.com/graphty-org/graphty-monorepo/pull/1800";
+        // Issue #1768: a bookkeeping step after the release went ahead (closing the held issue) failed, and this
+        // job posted "Release held" for a release that was going ahead.
+        it("opens no held issue when a step fails after the release landed", () => {
             for (const result of NOT_SUCCESS.filter((r) => r !== "skipped")) {
-                assert.equal(runs({ train: result }, "true", pr), false, `train ${result}`);
+                assert.equal(runs({ land: result }, "true", "true"), false, `land ${result}`);
             }
-            assert.match(train, /\n {8}outputs:\n {12}pr: \$\{\{ steps.open.outputs.pr \}\}\n/);
-            // and the train says so in the run, rather than failing silently
+            assert.match(land, /\n {8}outputs:\n {12}pushed: \$\{\{ steps.push.outputs.pushed \}\}\n/);
+            // and the land job says so in the run, rather than failing silently
             assert.match(
-                train,
-                /- name: Report a failure after the release pull request opened\n\s+if: \$\{\{ failure\(\) && steps.open.outputs.pr != '' \}\}[\s\S]*::error::/,
+                land,
+                /- name: Report a failure after the release landed\n\s+if: \$\{\{ failure\(\) && steps.push.outputs.pushed == 'true' \}\}[\s\S]*::error::/,
             );
         });
 
-        it("still opens the held issue when the train fails before its pull request opens", () => {
+        it("still opens the held issue when versioning or landing fails before the push", () => {
             for (const result of NOT_SUCCESS) {
-                assert.equal(runs({ train: result }, "true", ""), true, `train ${result}`);
+                assert.equal(runs({ version: result, land: "skipped" }, "true", ""), true, `version ${result}`);
+                assert.equal(runs({ land: result }, "true", ""), true, `land ${result}`);
             }
         });
 
@@ -2377,7 +2368,8 @@ describe("release.yml", () => {
                         AUDIT_RESULT: "success",
                         LLM_RESULT: "success",
                         LLM_OWNER_ITEM: "",
-                        TRAIN_RESULT: "skipped",
+                        VERSION_RESULT: "success",
+                        LAND_RESULT: "skipped",
                         ...env,
                     },
                 });
@@ -2455,29 +2447,36 @@ describe("release.yml", () => {
             assert.doesNotMatch(body, /githubstatus/);
         });
 
-        it("names a failed train, and holds the outage hint back when a job failed on its own", () => {
-            const { title, body } = issue({ TRAIN_RESULT: "failure" }, [
+        it("names a failed land, and holds the outage hint back when a job failed on its own", () => {
+            const { title, body } = issue({ LAND_RESULT: "failure" }, [
                 {
                     id: 7,
-                    name: "Open the release pull request",
+                    name: "Land the release on master",
                     status: "completed",
                     conclusion: "failure",
-                    steps: [{ name: "Version the packages", conclusion: "failure" }],
+                    steps: [{ name: "Push the version commit and its tags to master", conclusion: "failure" }],
                 },
             ]);
-            assert.equal(title, "Release held: release pull request failed on 44ab26d\n");
-            assert.match(body, /Open the release pull request \(failure\): Version the packages/);
-            assert.doesNotMatch(body, /githubstatus/);
+            assert.equal(title, "Release held: landing on master failed on 44ab26d\n");
+            assert.match(body, /Land the release on master \(failure\): Push the version commit/);
+            assert.match(body, /Nothing was pushed to master and nothing was published\./);
+            assert.doesNotMatch(body, /githubstatus|pull request was/);
+            assert.equal(
+                issue({ VERSION_RESULT: "failure" }, []).title,
+                "Release held: versioning failed on 44ab26d\n",
+            );
         });
     });
 
     describe("restarts a held release on a master push whose build passed", () => {
         // The pick job's "Skip while the previous release is pending" step, run in a scratch directory with
-        // stubs for gh (no release pull request, or one still pending), git (no release yet) and
+        // stubs for gh (no release pull request left, or one from the old design to close), git (no release yet) and
         // tools/release-held.sh (the held train issue, or none; `publishHold` an open publish hold, which only a
         // plain `find` returns). `trigger` is the workflow's TRIGGER: "schedule" for a scheduler dispatch
-        // (scheduled=true), "workflow_dispatch" for one by hand.
-        const pending = (trigger, heldIssue, trainPr = false, publishHold = "") => {
+        // (scheduled=true), "workflow_dispatch" for one by hand. `calls` collects every gh call. `settle` stubs
+        // tools/publish-hold.mjs settle: "closes" (npm lists what the publish hold awaited, so the hold is gone),
+        // "keeps" or "throws".
+        const pending = (trigger, heldIssue, trainPr = false, publishHold = "", calls = [], settle = "keeps") => {
             const script = /- name: Skip while the previous release is pending[\s\S]*?run: \|\n([\s\S]*?)\n\n/.exec(
                 pick,
             )[1];
@@ -2485,15 +2484,24 @@ describe("release.yml", () => {
             try {
                 mkdirSync(join(dir, "tools"));
                 mkdirSync(join(dir, "bin"));
-                // `gh pr list` names the open train pull request; `gh pr view` finds it still pending
-                const gh = trainPr ? 'case "$2" in list) echo 77;; view) echo pending;; esac' : "";
+                // `gh pr list` names an open release pull request of the old design; every gh call is recorded
+                const log = join(dir, "gh-calls");
+                const gh = `echo "$1 $2 $3" >> "${log}"\n${trainPr ? '[ "$2" != list ] || echo 77' : ""}`;
                 writeFileSync(join(dir, "bin", "gh"), `#!/bin/sh\n${gh}\n`, { mode: 0o755 });
                 // no release commit yet, so no tag to wait for
                 writeFileSync(join(dir, "bin", "git"), "#!/bin/sh\n", { mode: 0o755 });
                 writeFileSync(
                     join(dir, "tools", "release-held.sh"),
-                    `#!/bin/sh\nif [ "$2" = --train ]; then echo ${heldIssue}; else echo ${heldIssue || publishHold}; fi\n`,
+                    `#!/bin/sh\nif [ "$2" = --train ] || [ -f settled ]; then echo ${heldIssue}; else echo ${heldIssue || publishHold}; fi\n`,
                     { mode: 0o755 },
+                );
+                writeFileSync(
+                    join(dir, "tools", "publish-hold.mjs"),
+                    {
+                        closes: `import { writeFileSync } from "node:fs";\nif (process.argv[2] === "settle" && process.argv[4] === "${publishHold}") writeFileSync("settled", "");\n`,
+                        keeps: "",
+                        throws: 'throw new Error("GitHub said 502");\n',
+                    }[settle],
                 );
                 const output = join(dir, "output");
                 writeFileSync(output, "");
@@ -2512,6 +2520,7 @@ describe("release.yml", () => {
                     },
                 });
                 assert.equal(run.status, 0, run.stderr);
+                if (existsSync(log)) calls.push(...readFileSync(log, "utf8").trim().split("\n"));
                 return readFileSync(output, "utf8");
             } finally {
                 rmSync(dir, { recursive: true, force: true });
@@ -2554,23 +2563,39 @@ describe("release.yml", () => {
             assert.match(pick, /held=\$\(tools\/release-held.sh find\)\n/);
         });
 
-        it("skips a scheduler dispatch while a train pull request or a held issue is open; runs one by hand", () => {
+        it("ends a publish hold npm only had to list, before any hold decides, and never fails the pick over it", () => {
+            // npm now lists every version it accepted: the hold closes and the schedule runs the train
+            assert.equal(pending("schedule", "", false, "2189", [], "closes"), "pending=false\nsha=abc123\n");
+            // npm refused one, or has not listed it yet: still held
+            assert.equal(pending("schedule", "", false, "2189", [], "keeps"), "pending=true\n");
+            // GitHub or npm failing to answer leaves the hold for the next attempt, never a red pick
+            assert.equal(pending("schedule", "", false, "2189", [], "throws"), "pending=true\n");
+            assert.match(pick, /issues: write/);
+            const settle = pick.indexOf("node tools/publish-hold.mjs settle");
+            assert.ok(settle > 0 && settle < pick.indexOf("held=$(tools/release-held.sh find)\n"));
+            assert.match(pick, /publish_hold=\$\(tools\/release-held.sh find "Release held: publish failed"\)/);
+            assert.match(
+                pick,
+                /GITHUB_TOKEN: \$\{\{ github.token \}\}\n\s+RELEASE_NOTIFY: \$\{\{ vars.RELEASE_NOTIFY \}\}/,
+            );
+        });
+
+        it("skips a scheduler dispatch while a held issue is open; runs one by hand", () => {
             // scheduled=true: TRIGGER is "schedule"
-            assert.equal(pending("schedule", "", true), "pending=true\n");
             assert.equal(pending("schedule", "1234"), "pending=true\n");
             assert.equal(pending("schedule", ""), "pending=false\nsha=abc123\n");
-            // by hand (scheduled=false): runs despite the held issue, waits for an open train pull request
+            // by hand (scheduled=false): runs despite the held issue
             assert.equal(pending("workflow_dispatch", "1234"), "pending=false\nsha=abc123\n");
-            assert.equal(pending("workflow_dispatch", "", true), "pending=true\n");
+        });
+
+        it("closes a release pull request left from the old design and releases anyway", () => {
+            const calls = [];
+            assert.equal(pending("schedule", "", true, "", calls), "pending=false\nsha=abc123\n");
+            assert.deepEqual(calls, ["pr list --state", "pr close 77"]);
         });
 
         it("shares the one train group, so two pushes in a row never start two trains", () => {
-            assert.match(
-                release,
-                /^concurrency:\n {4}group: \$\{\{ github.event_name == 'push' && format\('release-push-\{0\}', github.run_id\) \|\| 'release-train' \}\}\n {4}cancel-in-progress: false/m,
-            );
-            // and a restart that finds the first train's release pull request open skips
-            assert.match(pick, /pending \| held\) skip "release pull request/);
+            assert.match(release, /^concurrency:\n {4}group: release-train\n {4}cancel-in-progress: false/m);
         });
 
         it("comments on the same held issue when the restarted release fails again", () => {
@@ -2579,26 +2604,128 @@ describe("release.yml", () => {
         });
     });
 
-    it("publishes only on a push that lands a release branch, from the train's builds, with OIDC", () => {
-        assert.match(
-            publish,
-            /if: \$\{\{ github.event_name == 'push' && contains\(github.event.head_commit.message, '\/release\/train-'\) \}\}/,
-        );
+    it("publishes the landed version commit, from this run's tested builds, with OIDC", () => {
         assert.match(publish, /id-token: write/);
-        assert.match(publish, /node tools\/release-diff.mjs "\$sha" "\$commit"/);
-        assert.match(publish, /\.workflow_run.head_branch == "master"/);
-        assert.doesNotMatch(train, /id-token|nx release publish/);
-        // a Mergify merge commit of any other pull request never names the release branch, so it never publishes
-        const marker = /contains\(github.event.head_commit.message, '([^']+)'\)/.exec(publish)[1];
-        assert.ok(!"Merged #42, #43, #44\n\nMerged by Mergify Merge Queue".includes(marker));
-        assert.ok(!"Merge of #42".includes(marker));
+        assert.match(publish, /ref: \$\{\{ needs.version.outputs.commit \}\}/);
+        assert.doesNotMatch(publish, /run-id:/, "this run's own builds");
+        assert.doesNotMatch(version + land, /id-token|nx release publish/);
+        // the GitHub releases name the tags the land job pushed
+        assert.match(publish, /gh release create "\$tag" --verify-tag /);
+    });
+
+    describe("the land job's push, against a real repository", () => {
+        // The "Push the version commit and its tags to master" step, run against a bare origin: master at the
+        // tested commit T, the version commit V made on T and kept as a bundle, and optionally a commit that
+        // reached master after T (`moved`) or one that edits the same version line (`conflict`).
+        const land_ = (opts = {}) => {
+            const script =
+                /- name: Push the version commit and its tags to master\n\s+id: push\n\s+run: \|\n([\s\S]*?)\n {14}env:/.exec(
+                    land,
+                )[1];
+            const dir = mkdtempSync(join(tmpdir(), "release-land-"));
+            const git = (cwd, ...args) => {
+                const r = spawnSync("git", args, { cwd, encoding: "utf8" });
+                assert.equal(r.status, 0, `git ${args.join(" ")}: ${r.stderr}`);
+                return r.stdout.trim();
+            };
+            try {
+                const origin = join(dir, "origin.git");
+                const work = join(dir, "work");
+                git(dir, "init", "-q", "--bare", "-b", "master", origin);
+                git(dir, "clone", "-q", origin, work);
+                for (const k of ["user.name", "user.email"]) git(work, "config", k, "t@t");
+                mkdirSync(join(work, "tools"));
+                copyFileSync(new URL("./release-diff.mjs", import.meta.url), join(work, "tools", "release-diff.mjs"));
+                writeFileSync(join(work, "package.json"), '{\n    "name": "a",\n    "version": "1.0.0"\n}\n');
+                writeFileSync(join(work, "src.txt"), "code\n");
+                git(work, "add", ".");
+                git(work, "commit", "-qm", "feat: t");
+                const T = git(work, "rev-parse", "HEAD");
+                git(work, "push", "-q", "origin", "HEAD:master");
+                // the version commit and its bundle, as the version job makes them
+                writeFileSync(join(work, "package.json"), '{\n    "name": "a",\n    "version": "1.1.0"\n}\n');
+                writeFileSync(join(work, "CHANGELOG.md"), "## 1.1.0\n");
+                git(work, "add", ".");
+                git(work, "commit", "-qm", "chore(release): publish [skip ci]\n\n- project: a 1.1.0");
+                const V = git(work, "rev-parse", "HEAD");
+                mkdirSync(join(dir, "release"));
+                git(work, "branch", "release", V);
+                git(work, "bundle", "create", join(dir, "release", "release.bundle"), "release", `^${T}`);
+                git(work, "checkout", "-q", "--detach", T);
+                git(work, "branch", "-D", "release");
+                if (opts.moved || opts.conflict) {
+                    const other = join(dir, "other");
+                    git(dir, "clone", "-q", origin, other);
+                    for (const k of ["user.name", "user.email"]) git(other, "config", k, "t@t");
+                    if (opts.conflict)
+                        writeFileSync(join(other, "package.json"), '{\n    "name": "a",\n    "version": "9.9.9"\n}\n');
+                    else writeFileSync(join(other, "src.txt"), "newer code\n");
+                    git(other, "commit", "-qam", "fix: after the candidate");
+                    git(other, "push", "-q", "origin", "HEAD:master");
+                }
+                const output = join(dir, "output");
+                writeFileSync(output, "");
+                const run = spawnSync("bash", ["-c", script.replace(/^ {18}/gm, "")], {
+                    cwd: work,
+                    encoding: "utf8",
+                    env: {
+                        ...process.env,
+                        RUNNER_TEMP: dir,
+                        GITHUB_OUTPUT: output,
+                        SHA: T,
+                        COMMIT: V,
+                        TAGS: "a@1.1.0",
+                        HUSKY: "0",
+                    },
+                });
+                const master = spawnSync("git", ["--git-dir", origin, "rev-parse", "master"], {
+                    encoding: "utf8",
+                }).stdout.trim();
+                const tag = spawnSync(
+                    "git",
+                    ["--git-dir", origin, "rev-parse", "-q", "--verify", "refs/tags/a@1.1.0^{commit}"],
+                    {
+                        encoding: "utf8",
+                    },
+                ).stdout.trim();
+                const parents = git(dir, "--git-dir", origin, "log", "-1", "--format=%P %s", "master");
+                return { run, output: readFileSync(output, "utf8"), master, tag, parents, T, V };
+            } finally {
+                rmSync(dir, { recursive: true, force: true });
+            }
+        };
+
+        it("merges the version commit into master and tags the version commit, in one push", () => {
+            const r = land_();
+            assert.equal(r.run.status, 0, r.run.stdout + r.run.stderr);
+            assert.equal(r.output, "pushed=true\n");
+            assert.equal(r.tag, r.V, "the tag names the shipped source, not the merge");
+            assert.equal(r.parents, `${r.T} ${r.V} chore(release): publish a@1.1.0 onto master`);
+        });
+
+        it("lands on top of a master that moved since the candidate", () => {
+            const r = land_({ moved: true });
+            assert.equal(r.run.status, 0, r.run.stdout + r.run.stderr);
+            assert.equal(r.tag, r.V);
+            const [first, second] = r.parents.split(" ");
+            assert.notEqual(first, r.T, "the newer master commit is the first parent");
+            assert.equal(second, r.V);
+        });
+
+        it("holds, pushing nothing, when master changed a line the release writes", () => {
+            const r = land_({ conflict: true });
+            assert.equal(r.run.status, 1);
+            assert.match(r.run.stdout, /::error::the version commit .* does not merge cleanly into master/);
+            assert.equal(r.output, "");
+            assert.equal(r.tag, "", "no tag without the commit");
+        });
     });
 
     it("reports a failed publish as a held release, and closes it when a re-run publishes", () => {
         assert.match(publish, /issues: write/);
         assert.match(
             publish,
-            /- name: Report a failed publish\n\s+id: report\n\s+if: \$\{\{ failure\(\) \}\}[\s\S]*title="Release held: publish failed on \$\{GITHUB_SHA:0:7\}"[\s\S]*tools\/release-held.sh open "\$title"/,
+            /- name: Report a failed publish\n\s+id: report\n\s+if: \$\{\{ failure\(\) \}\}[\s\S]*title="Release held: publish failed on \$\{SHA:0:7\}"[\s\S]*tools\/release-held.sh open "\$title"/,
         );
         assert.match(
             publish,
@@ -2606,15 +2733,11 @@ describe("release.yml", () => {
         );
     });
 
-    it("announces every outcome on the Release status issue: held, release pull request, published or failed", () => {
+    it("announces every outcome on the Release status issue: held, published or failed", () => {
         // tools/release-status.mjs mentions RELEASE_NOTIFY; a run the owner did not start notifies nobody otherwise
-        for (const [j, outcome] of [
-            [held, "held"],
-            [train, "opened"],
-        ]) {
-            assert.match(j, new RegExp(`node tools/release-status.mjs ${outcome} `));
-            assert.match(j, /RELEASE_NOTIFY: \$\{\{ vars.RELEASE_NOTIFY \}\}/);
-        }
+        assert.match(held, /node tools\/release-status.mjs held /);
+        assert.match(held, /RELEASE_NOTIFY: \$\{\{ vars.RELEASE_NOTIFY \}\}/);
+        assert.doesNotMatch(release, /release-status.mjs (opened|dequeued)/);
         assert.match(held, /tools\/release-status.mjs\n/, "in the held job's sparse checkout");
         // the last step of the publish job, whatever happened above it, so a re-run (--failed) announces again
         assert.match(
@@ -2645,21 +2768,15 @@ describe("release.yml", () => {
             publish,
             /fetch-depth: 0\n\n[^\n]*\n\s+- name: Announce a re-run of the publish\n\s+if: \$\{\{ github.run_attempt > 1 \}\}\n\s+continue-on-error: true\n/,
         );
-        assert.match(
-            publish,
-            /node tools\/release-status.mjs started --sha "\$GITHUB_SHA" --attempt "\$GITHUB_RUN_ATTEMPT"/,
-        );
+        assert.match(publish, /node tools\/release-status.mjs started --sha "\$SHA" --attempt "\$GITHUB_RUN_ATTEMPT"/);
     });
 
-    it("hands the Pushover secrets only to the steps that run tools/release-status.mjs", () => {
-        for (const name of [
-            "release.yml",
-            "release-watch.yml",
-            "release-dequeued.yml",
-            "gpu-rerun-on-runner-loss.yml",
-        ]) {
+    it("hands the Pushover secrets only to the steps that announce (tools/release-status.mjs, publish-hold.mjs settle)", () => {
+        for (const name of ["release.yml", "release-watch.yml", "gpu-rerun-on-runner-loss.yml"]) {
             const steps = workflow(name).split(/\n(?=\s+- (?:name|uses): )/);
-            const announcing = steps.filter((st) => /node tools\/release-status.mjs /.test(st));
+            const announcing = steps.filter((st) =>
+                /node tools\/(?:release-status\.mjs |publish-hold\.mjs settle )/.test(st),
+            );
             assert.ok(announcing.length > 0, name);
             for (const st of steps) {
                 const secrets = st.match(/secrets\.PUSHOVER_\w+/g) ?? [];
@@ -2699,33 +2816,10 @@ describe("release.yml", () => {
         assert.match(watch, /tools\/gpu-runner-lost.sh "\$RUN_ID" 1/);
     });
 
-    it("announces a release pull request that left the merge queue without merging", () => {
-        const dq = workflow("release-dequeued.yml");
-        // master's copy, no merge commit needed (a conflicting release pull request still fires); Mergify's app adds
-        // the label, and a label a GitHub App adds starts workflows
-        assert.match(dq, /\non:\n {4}pull_request_target:\n {8}types: \[labeled\]\n\npermissions:/);
-        assert.match(dq, /github.event.label.name == 'dequeued'/);
-        assert.match(dq, /startsWith\(github.event.pull_request.head.ref, 'release\/train-'\)/);
-        assert.match(dq, /github.event.pull_request.user.login == 'github-actions\[bot\]'/);
-        // the same branch and author .mergify.yml's release train priority rule names
-        const mergify = readFileSync(new URL("../.mergify.yml", import.meta.url), "utf8");
-        assert.match(mergify, /- head~=\^release\/train-\n\s+- author=github-actions\[bot\]/);
-        // it runs nothing from the pull request
-        assert.match(dq, /- uses: actions\/checkout@v4\n\s+with:\n\s+ref: master\n/);
-        assert.deepEqual(dq.match(/secrets\.\w+/g), PUSHOVER_SECRETS, "GITHUB_TOKEN and Pushover only");
-        assert.deepEqual(dq.match(/\w+: write/g), ["issues: write"], "it writes only the comment");
-        assert.match(dq, /checks: read/, "it reads the Mergify Merge Queue check run");
-        assert.match(dq, /RELEASE_NOTIFY: \$\{\{ vars.RELEASE_NOTIFY \}\}/);
-        assert.match(
-            dq,
-            /node tools\/release-status.mjs dequeued --pr "\$PR_URL" --sha "\$HEAD_SHA" --run "\$RUN_URL"/,
-        );
-    });
-
     // The failed-publish report, run in a scratch directory with stubs: the publish step's output (run
     // 37691314850's shape, colors and all), `pnpm exec nx show project` answering each project's root, and
     // tools/release-held.sh recording the issue it would open.
-    const publishReport = (log) => {
+    const publishReport = (log, absent) => {
         const script = /- name: Report a failed publish\n\s+id: report\n\s+if: [^\n]*\n\s+run: \|\n([\s\S]*?)\n\n/.exec(
             publish,
         )[1];
@@ -2738,6 +2832,10 @@ describe("release.yml", () => {
                 writeFileSync(join(dir, project, "package.json"), JSON.stringify({ name: `@graphty/${project}` }));
             }
             writeFileSync(join(dir, "bin", "pnpm"), '#!/bin/sh\necho "{\\"root\\": \\"$5\\"}"\n', { mode: 0o755 });
+            for (const f of ["publish-hold.mjs", "release-status.mjs"]) {
+                copyFileSync(new URL(`./${f}`, import.meta.url), join(dir, "tools", f));
+            }
+            if (absent !== undefined) writeFileSync(join(dir, "absent.txt"), absent);
             writeFileSync(
                 join(dir, "tools", "release-held.sh"),
                 `#!/bin/sh\necho "$2" > "${join(dir, "title")}"\ncp "$3" "${join(dir, "body")}"\necho 42\n`,
@@ -2753,7 +2851,8 @@ describe("release.yml", () => {
                     GITHUB_SERVER_URL: "https://github.com",
                     GITHUB_REPOSITORY: "graphty-org/graphty-monorepo",
                     GITHUB_RUN_ID: "37691314850",
-                    GITHUB_SHA: "e140ea5c8358785f46e6a671172c30a361c6ded4",
+                    SHA: "e140ea5c8358785f46e6a671172c30a361c6ded4",
+                    COMMIT: "f00dcafe",
                     GITHUB_OUTPUT: join(dir, "output"),
                     RUNNER_TEMP: dir,
                 },
@@ -2818,12 +2917,44 @@ describe("release.yml", () => {
         assert.doesNotMatch(body, /graph-io/);
     });
 
+    it("marks a hold npm only has to list as ending by itself, and the check step says what was missing", () => {
+        assert.match(publish, /printf '%s\\n' "\$absent" > "\$RUNNER_TEMP\/absent.txt"\n\s+exit 1\n/);
+        const tarball = (name, v) => `name:          @graphty/${name}\nversion:       ${v}\n`;
+        const { title, body } = publishReport(
+            task(
+                true,
+                "compact-mantine",
+                `${tarball("compact-mantine", "0.9.20")}Published to https://registry.npmjs.org/ with tag "latest"`,
+            ),
+            "@graphty/compact-mantine@0.9.20\n",
+        );
+        assert.equal(
+            title.trim(),
+            "Release held: publish failed on e140ea5: npm has not listed @graphty/compact-mantine@0.9.20 yet",
+        );
+        assert.match(body, /^## Nothing to do: npm accepted @graphty\/compact-mantine@0\.9\.20/);
+        assert.match(body, /\n<!-- publish-hold: awaiting-registry @graphty\/compact-mantine@0\.9\.20 -->\n$/);
+        // one npm refused beside it: a person must act
+        const refused = publishReport(
+            task(
+                true,
+                "compact-mantine",
+                `${tarball("compact-mantine", "0.9.20")}Published to https://registry.npmjs.org/ with tag "latest"`,
+            ) + task(false, "layout", `${tarball("layout", "2.4.3")}npm error code E403`),
+            "@graphty/compact-mantine@0.9.20\n@graphty/layout@2.4.3\n",
+        );
+        assert.equal(refused.title.trim(), "Release held: publish failed on e140ea5");
+        assert.doesNotMatch(refused.body, /Nothing to do/);
+        assert.match(refused.body, /\n<!-- publish-hold: rejected -->\n$/);
+    });
+
     it("reports any other failed publish as before, with no owner item", () => {
         for (const log of [task(false, "graph-io", "npm error code E403\nnpm error 403 Forbidden"), undefined]) {
             const { title, body } = publishReport(log);
             assert.equal(title.trim(), "Release held: publish failed on e140ea5");
             assert.doesNotMatch(body, /OWNER ITEM/);
-            assert.match(body, /^The publish job failed on master /);
+            assert.match(body, /^The publish job failed on e140ea5c[0-9a-f]* \(released as f00dcafe\)/);
+            assert.match(body, /<!-- publish-hold: rejected -->/);
         }
     });
 
@@ -2929,28 +3060,6 @@ describe("release.yml", () => {
             );
             assert.match(publish, /until that run is re-run and passes/);
         });
-    });
-
-    it("lets Mergify take the release pull request alone, ahead of the default rule", () => {
-        const mergify = readFileSync(new URL("../.mergify.yml", import.meta.url), "utf8");
-        const rule = mergify.indexOf("- name: release");
-        assert.ok(rule > 0 && rule < mergify.indexOf("- name: default"));
-        assert.match(mergify.slice(rule), /^\s+- head~=\^release\/train-$/m);
-    });
-
-    it("puts the train first by its branch, and lets no priority rule interrupt the batches being checked", () => {
-        const mergify = readFileSync(new URL("../.mergify.yml", import.meta.url), "utf8");
-        const rules = mergify.slice(mergify.indexOf("priority_rules:"), mergify.indexOf("queue_rules:"));
-        assert.doesNotMatch(rules, /allow_checks_interruption: *true/);
-        const train = rules.slice(rules.indexOf("- name: release train"));
-        assert.match(train, /^\s+- head~=\^release\/train-$/m);
-        assert.match(train, /^\s+- author=github-actions\[bot\]$/m);
-        assert.match(train, /^\s+priority: high$/m);
-        assert.match(train, /^\s+allow_checks_interruption: false$/m);
-        const next = rules.slice(rules.indexOf("- name: next in line"));
-        assert.ok(rules.indexOf("- name: next in line") > rules.indexOf("- name: fix for a red master"));
-        assert.match(next, /^\s+- label=queue:next$/m);
-        assert.match(next, /^\s+priority: medium$/m);
     });
 
     it("deploys graphty.app from every green CI run of a push to master", () => {

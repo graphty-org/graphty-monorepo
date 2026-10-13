@@ -928,7 +928,7 @@ function applyView(
         target.y = node.y;
         target.z = node.z;
         if (node.graphics !== null) {
-            target.graphics = { ...(target.graphics ?? {}), ...node.graphics };
+            target.graphics = { ...target.graphics, ...node.graphics };
         }
     }
     for (const edge of view.edges) {
@@ -938,11 +938,11 @@ function applyView(
             continue;
         }
         if (edge.graphics !== null) {
-            target.graphics = { ...(target.graphics ?? {}), ...edge.graphics };
+            target.graphics = { ...target.graphics, ...edge.graphics };
         }
     }
     if (view.root.graphics !== null) {
-        graph.graphics = { ...(graph.graphics ?? {}), ...view.root.graphics };
+        graph.graphics = { ...graph.graphics, ...view.root.graphics };
     }
     if (dangling > 0) {
         report.warning(

@@ -424,7 +424,7 @@ export class XgmmlParser implements XmlHandler {
                 return;
             case "line":
                 if (below?.kind === "graphics") {
-                    below.target.graphics = { ...(below.target.graphics ?? {}), Line: frame.points };
+                    below.target.graphics = { ...below.target.graphics, Line: frame.points };
                 }
                 return;
             default:
@@ -967,7 +967,7 @@ export class XgmmlParser implements XmlHandler {
      * @param line - the line
      */
     private beginGraphics(target: GraphicsTarget, attrs: Map<string, string>, line: number): void {
-        const graphics: Record<string, unknown> = { ...(target.graphics ?? {}) };
+        const graphics: Record<string, unknown> = { ...target.graphics };
         for (const [key, value] of attrs) {
             if ("x" in target && (key === "x" || key === "y" || key === "z")) {
                 if (target[key] !== null && target[key] !== undefined) {
@@ -1046,7 +1046,7 @@ export class XgmmlParser implements XmlHandler {
         if (target.graphics !== null && att.name in target.graphics) {
             this.duplicateGraphics(att.name, att.line);
         }
-        target.graphics = { ...(target.graphics ?? {}), [att.name]: attJson(att) };
+        target.graphics = { ...target.graphics, [att.name]: attJson(att) };
     }
 
     /**

@@ -458,7 +458,7 @@ function copyAttribute(kind: "node" | "edge", column: Column, row: number, recor
 export class GEXFDataSource extends DataSource {
     static readonly type = "gexf";
 
-    private config: GEXFDataSourceConfig;
+    private readonly config: GEXFDataSourceConfig;
 
     /**
      * Creates a new GEXFDataSource instance.

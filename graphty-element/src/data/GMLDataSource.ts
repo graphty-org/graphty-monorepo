@@ -44,7 +44,7 @@ function statedBy(header: unknown, issues: readonly ImportIssue[]): string {
 export class GMLDataSource extends DataSource {
     static readonly type = "gml";
 
-    private config: GMLDataSourceConfig;
+    private readonly config: GMLDataSourceConfig;
 
     /**
      * Creates a new GMLDataSource instance.

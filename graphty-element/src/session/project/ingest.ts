@@ -326,7 +326,7 @@ export class Ingest<K extends KnownEdge> {
      * The store edge index each record identifier has already produced, when
      * `knownFields.edgeIdPath` names one. Empty when it does not, which is the default.
      */
-    private edgesByRecordId = new Map<string | number, number>();
+    private readonly edgesByRecordId = new Map<string | number, number>();
 
     /**
      * The endpoint expressions the load in progress resolved, so a chunked load probes ONCE.

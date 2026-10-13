@@ -49,6 +49,8 @@ const FAKE_SERVHERD = fileURLToPath(new URL("helpers/fake-servherd.mjs", import.
 const FAKE_NOTIFY = fileURLToPath(new URL("helpers/fake-notify.mjs", import.meta.url));
 const LAUNCHER_BIN = fileURLToPath(new URL("../bin/githerd-mcp.mjs", import.meta.url));
 const CLI_BIN = fileURLToPath(new URL("../bin/githerd.mjs", import.meta.url));
+/** The package's own version, escaped for a RegExp: a release bumps it, so no test spells it out. */
+const VERSION_RE = JSON.parse(readFileSync(join(PACKAGE_DIR, "package.json"), "utf8")).version.replaceAll(".", "\\.");
 
 /** @type {string} */
 let dir;
@@ -844,7 +846,7 @@ describe("restarts and upgrades", () => {
         const pages = readFileSync(notifyLog, "utf8").trim().split("\n");
         expect(pages).toHaveLength(1);
         expect(JSON.parse(pages[0]).args[1]).toMatch(
-            /^githerd update to 0\.1\.0-\w{8} REFUSED: protocol failed: broken; still running /,
+            new RegExp(`^githerd update to ${VERSION_RE}-\\w{8} REFUSED: protocol failed: broken; still running `),
         );
         expect(readFileSync(join(stateDir(), "launcher.log"), "utf8")).toMatch(
             / error update to .*: protocol FAILED: broken/,
@@ -878,7 +880,9 @@ describe("restarts and upgrades", () => {
             .map((l) => JSON.parse(l).args);
         expect(pages).toHaveLength(1);
         expect(pages[0][0]).toBe("error");
-        expect(pages[0][1]).toMatch(/^githerd ROLLED BACK from \w{8} to 0\.1\.0-\w{8}: did not answer: /);
+        expect(pages[0][1]).toMatch(
+            new RegExp(`^githerd ROLLED BACK from \\w{8} to ${VERSION_RE}-\\w{8}: did not answer: `),
+        );
         expect(readFileSync(join(stateDir(), "launcher.log"), "utf8")).toMatch(/ error githerd ROLLED BACK from /);
         expect((await ensureDaemon(context())).action).toBe("refused");
         expect((await health()).pid).toBe(h.pid);

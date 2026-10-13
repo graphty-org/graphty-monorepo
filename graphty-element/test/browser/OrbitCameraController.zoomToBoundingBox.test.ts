@@ -24,9 +24,8 @@ describe("OrbitCameraController.zoomToBoundingBox Regression Tests", () => {
     const defaultConfig: OrbitConfig = {
         trackballRotationSpeed: 0.01,
         keyboardRotationSpeed: 0.05,
-        keyboardZoomSpeed: 5,
+        keyboardZoomSpeed: 0.015,
         keyboardYawSpeed: 0.05,
-        pinchZoomSensitivity: 0.01,
         twistYawSensitivity: 0.01,
         minZoomDistance: 1,
         maxZoomDistance: 10000,

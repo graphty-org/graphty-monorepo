@@ -1,3 +1,13 @@
+## 2.5.0 (2026-10-13)
+
+### 🚀 Features
+
+- **layout:** give the planar and bfs refusals a code ([#2275](https://github.com/graphty-org/graphty-monorepo/issues/2275))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 2.4.5 (2026-10-13)
 
 ### 🩹 Fixes

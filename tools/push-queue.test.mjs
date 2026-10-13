@@ -7,7 +7,7 @@
 //   node --test tools/push-queue.test.mjs   (part of pnpm run test:ci-workflows)
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
@@ -142,6 +142,8 @@ PUSH_QUEUE_SLOTS=1 "$Q" sh -c 'echo ran > order'`,
             "gateLog",
             "gate",
             "changed",
+            "fingerprint",
+            "gateTree",
         ]);
         assert.equal(line.branch, "feat/x");
         assert.equal(line.sha, sha);
@@ -164,4 +166,106 @@ PUSH_QUEUE_SLOTS=1 "$Q" sh -c 'echo ran > order'`,
         assert.equal(line.branch, null);
         assert.equal(line.sha, null);
     });
+});
+
+// A commit whose gate failed a check of its own is not queued again until something it depends on
+// changes; a failure outside the commit's control never blocks it.
+describe("push-queue: a commit that already failed", () => {
+    // A test repository with the fingerprint tool committed, so the queue records fingerprints.
+    function setupWithInputs() {
+        const ctx = setup();
+        mkdirSync(join(ctx.repo, "tools"));
+        copyFileSync(
+            new URL("./prepush-inputs.mjs", import.meta.url).pathname,
+            join(ctx.repo, "tools", "prepush-inputs.mjs"),
+        );
+        writeFileSync(join(ctx.repo, ".gitignore"), "tmp/\n");
+        ctx.git("add", ".");
+        ctx.git("commit", "-q", "-m", "tools");
+        return ctx;
+    }
+    // Runs `git <alias>` through the queue: a stand-in gate that prints `output` and exits 1.
+    function failGate(ctx, output) {
+        const fake = join(ctx.root, "gate.sh");
+        writeFileSync(fake, `cat <<'EOF'\n${output}\nEOF\nexit 1\n`);
+        const r = spawnSync("bash", [QUEUE, "git", "-c", `alias.gate=!sh ${fake}`, "gate"], {
+            cwd: ctx.repo,
+            encoding: "utf8",
+            env: ctx.env,
+        });
+        assert.equal(r.status, 1, r.stdout + r.stderr);
+    }
+    const push = (ctx, extra = {}) =>
+        spawnSync("bash", [QUEUE, "git", "push", "-q", "origin", "HEAD:feat/x"], {
+            cwd: ctx.repo,
+            encoding: "utf8",
+            env: { ...ctx.env, ...extra },
+        });
+    const pushed = (ctx) =>
+        spawnSync("git", ["--git-dir", join(ctx.root, "origin.git"), "rev-parse", "-q", "--verify", "feat/x"], {
+            encoding: "utf8",
+        }).stdout.trim();
+
+    it("refuses the same commit after a lint failure, naming the step and the gate log", () => {
+        const ctx = setupWithInputs();
+        failGate(ctx, "[FAIL] Lint failed");
+        const first = JSON.parse(readFileSync(ctx.env.PUSH_QUEUE_LOG, "utf8").trim());
+        assert.match(first.fingerprint, /^[0-9a-f]{64}$/);
+        const r = push(ctx);
+        assert.equal(r.status, 1);
+        assert.match(r.stderr, /refused/);
+        assert.match(r.stderr, /\[FAIL\] Lint failed/);
+        assert.ok(r.stderr.includes(first.gateLog), r.stderr);
+        assert.match(r.stderr, /PUSH_QUEUE_RETRY=1/);
+        assert.equal(pushed(ctx), "", "nothing was pushed");
+        assert.equal(
+            readFileSync(ctx.env.PUSH_QUEUE_LOG, "utf8").trim().split("\n").length,
+            1,
+            "a refusal is not logged",
+        );
+        assert.deepEqual(readdirSync(ctx.env.PUSH_QUEUE_DIR), [], "a refusal leaves no ticket");
+    });
+
+    it("refuses after a test shard that exited 1", () => {
+        const ctx = setupWithInputs();
+        failGate(
+            ctx,
+            "[FAIL] Tests (the CI shards of the affected packages) failed\n  [FAIL] graphty (exit 1, 300s); the end of /x/graphty.log:",
+        );
+        const r = push(ctx);
+        assert.equal(r.status, 1);
+        assert.match(r.stderr, /\[FAIL\] graphty \(exit 1/);
+    });
+
+    it("pushes again with PUSH_QUEUE_RETRY=1", () => {
+        const ctx = setupWithInputs();
+        failGate(ctx, "[FAIL] Lint failed");
+        assert.equal(push(ctx, { PUSH_QUEUE_RETRY: "1" }).status, 0);
+        assert.notEqual(pushed(ctx), "");
+    });
+
+    it("pushes again once a file changed", () => {
+        const ctx = setupWithInputs();
+        failGate(ctx, "[FAIL] Lint failed");
+        writeFileSync(join(ctx.repo, "fix.txt"), "fixed\n");
+        assert.equal(push(ctx).status, 0);
+    });
+
+    for (const [what, output] of [
+        ["a rejected push", " ! [rejected]        HEAD -> feat/x (fetch first)"],
+        ["a gate that printed no failure line", "something crashed"],
+        ["a screenshot capture", "[FAIL] Screenshots: the capture failed or timed out (above; the log is /x)"],
+        [
+            "a shard that timed out",
+            "[FAIL] Tests (the CI shards of the affected packages) failed\n  [FAIL] graphty (exit 124, 900s); the end of /x:",
+        ],
+        ["the local GPU lane", "[FAIL] webgpu-graph-algorithms on the local NVIDIA GPU failed"],
+    ]) {
+        it(`never refuses after ${what}`, () => {
+            const ctx = setupWithInputs();
+            failGate(ctx, output);
+            const r = push(ctx);
+            assert.equal(r.status, 0, r.stdout + r.stderr);
+        });
+    }
 });

@@ -400,6 +400,46 @@ function scaleByPowerOfTwo(y: number, k: number): number {
 }
 
 /**
+ * e^x where |x| is at least 709.78 or x is not finite: Infinity, 0 or NaN, or null when x is still in range.
+ * @param x - the argument
+ * @param hx - its high word without the sign
+ * @param negative - its sign
+ * @returns the result, or null to compute it
+ */
+function expOutOfRange(x: number, hx: number, negative: boolean): number | null {
+    if (hx >= 0x7ff00000) {
+        // NaN stays NaN, +Infinity stays, -Infinity gives 0
+        return !negative || Number.isNaN(x) ? x + x : 0;
+    }
+    if (x > O_THRESHOLD) {
+        return Infinity;
+    }
+    return x < U_THRESHOLD ? 0 : null;
+}
+
+/** x = k ln 2 + (hi - lo), written by {@link reduceExp}: [k, hi, lo]. */
+const expParts = new Float64Array(3);
+
+/**
+ * Reduces |x| > 0.5 ln 2 to x = k ln 2 + (hi - lo).
+ * @param x - the argument
+ * @param hx - its high word without the sign
+ * @param negative - its sign
+ */
+function reduceExp(x: number, hx: number, negative: boolean): void {
+    if (hx < 0x3ff0a2b2) {
+        expParts[0] = negative ? -1 : 1;
+        expParts[1] = negative ? x + LN2_HI : x - LN2_HI;
+        expParts[2] = negative ? -LN2_LO : LN2_LO;
+        return;
+    }
+    const k = Math.trunc(INV_LN2 * x + (negative ? -0.5 : 0.5));
+    expParts[0] = k;
+    expParts[1] = x - k * LN2_HI;
+    expParts[2] = k * LN2_LO;
+}
+
+/**
  * e^x, bit-identical across engines.
  * @param x - the argument
  * @returns e^x; +Infinity above about 709.78, 0 below about -745.13, NaN for NaN. detExp(1) is fdlibm's
@@ -409,36 +449,21 @@ export function detExp(x: number): number {
     const hxSigned = high(x);
     const negative = hxSigned < 0;
     const hx = hxSigned & 0x7fffffff;
-    if (hx >= 0x40862e42) {
-        if (hx >= 0x7ff00000) {
-            // NaN stays NaN, +Infinity stays, -Infinity gives 0
-            return !negative || Number.isNaN(x) ? x + x : 0;
-        }
-        if (x > O_THRESHOLD) {
-            return Infinity;
-        }
-        if (x < U_THRESHOLD) {
-            return 0;
-        }
+    const outside = hx >= 0x40862e42 ? expOutOfRange(x, hx, negative) : null;
+    if (outside !== null) {
+        return outside;
+    }
+    if (hx < 0x3e300000) {
+        return 1 + x; // |x| < 2**-28
     }
     let hi = 0;
     let lo = 0;
     let k = 0;
     let r = x;
     if (hx > 0x3fd62e42) {
-        // |x| > 0.5 ln 2: reduce to r = x - k ln 2
-        if (hx < 0x3ff0a2b2) {
-            hi = negative ? x + LN2_HI : x - LN2_HI;
-            lo = negative ? -LN2_LO : LN2_LO;
-            k = negative ? -1 : 1;
-        } else {
-            k = Math.trunc(INV_LN2 * x + (negative ? -0.5 : 0.5));
-            hi = x - k * LN2_HI;
-            lo = k * LN2_LO;
-        }
+        reduceExp(x, hx, negative); // |x| > 0.5 ln 2
+        [k, hi, lo] = expParts;
         r = hi - lo;
-    } else if (hx < 0x3e300000) {
-        return 1 + x; // |x| < 2**-28
     }
     const t = r * r;
     const c = r - t * (P1 + t * (P2 + t * (P3 + t * (P4 + t * P5))));

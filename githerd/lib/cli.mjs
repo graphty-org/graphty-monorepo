@@ -14,7 +14,7 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 
 import { groupModes, modeText, renderBoard, whyText } from "./board-text.mjs";
-import { originHead, repoRoot, resolveConfig } from "./config.mjs";
+import { legacySessionsNote, originHead, repoRoot, resolveConfig } from "./config.mjs";
 import { createGitHub } from "./github.mjs";
 import { notifyCommandProblem } from "./daemon.mjs";
 import { readWorkspace } from "./flakes.mjs";
@@ -79,6 +79,9 @@ const USAGE = `usage: githerd <command>
                                            meanwhile and tells the session when it merges or closes
   pause-offers | resume-offers             from inside a Claude session: githerd offers it no jobs
                                            (it stays a worker session) until it resumes offers
+  exclude-me | include-me                  from inside a Claude session: githerd treats it as no
+                                           worker (no onboarding, invitations, status questions or
+                                           cancellation notices) until it ends or runs include-me
   next                                     from inside a Claude session, what githerd_next answers:
                                            the jobs it could take (or its worker job) and the snapshot
   claim <job> --snapshot <version> --overlap independent|join|wait [--with <job|#issue>]
@@ -577,7 +580,8 @@ async function cmdWait(c) {
 
 /**
  * `pause-offers` and `resume-offers`: for the Claude session this command runs under, as `mine <pr>`
- * finds it, stop or restart githerd's job offers (`githerd_offers`).
+ * finds it, stop or restart githerd's job offers (`githerd_offers`). `exclude-me` and `include-me`:
+ * take that session out of githerd's workers, or put it back.
  * @param {Command} c the command
  * @returns {Promise<number>} the exit code
  */
@@ -589,7 +593,9 @@ async function cmdOffers(c) {
     }
     const port = await daemonPort(c);
     if (port === null) return 1;
-    const cmd = { op: "session-offers", paused: c.name === "pause-offers", session: s.sessionId };
+    const cmd = c.name.endsWith("-me")
+        ? { op: "session-exclude", excluded: c.name === "exclude-me", session: s.sessionId }
+        : { op: "session-offers", paused: c.name === "pause-offers", session: s.sessionId };
     const answer = await post(port, "/owner", cmd, callerHeader(c.env, c.tty));
     (answer.ok ? c.out : c.err)(answer.text ?? answer.error);
     return answer.ok ? 0 : 1;
@@ -1041,6 +1047,8 @@ async function showModes(c, file) {
     }
     const override = readJson(file)?.mode ?? null;
     c.out(modeText(groupModes(config, override), await readLedger(c.stateDir, { since: new Date(0) })));
+    const note = legacySessionsNote(config.workers);
+    if (note) c.out(note);
     return 0;
 }
 
@@ -1202,6 +1210,8 @@ const HANDLERS = {
     wait: cmdWait,
     "pause-offers": cmdOffers,
     "resume-offers": cmdOffers,
+    "exclude-me": cmdOffers,
+    "include-me": cmdOffers,
     next: cmdSessionTool,
     claim: cmdSessionTool,
     "status-answer": cmdSessionTool,

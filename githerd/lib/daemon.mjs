@@ -79,8 +79,10 @@ import {
     inviteStep,
     markMine,
     onboardStep,
+    setExcluded,
     setOffersPaused,
     statusStep,
+    workerSessions,
     tellAccepted,
     tellCancelled,
 } from "./asks.mjs";
@@ -2105,7 +2107,7 @@ export async function startDaemon({
 
     /**
      * Every live session in this repository. The ownership question goes to all of them: asking
-     * whose a pull request is hands no one work, and a session outside `workers.sessions` may hold it.
+     * whose a pull request is hands no one work, and an excluded session may hold it.
      * @returns {import("./peers.mjs").PeerSession[]} the sessions
      */
     function liveInRepo() {
@@ -2116,19 +2118,17 @@ export async function startDaemon({
     }
 
     /**
-     * The live sessions in this repository githerd may hand or manage work through (invitations,
-     * status questions, cancellation notices): the config's `workers.sessions` names, or every one
-     * when it names none.
+     * The live sessions in this repository githerd may hand or manage work through (onboarding,
+     * invitations, status questions, cancellation notices): every one but the excluded, or only
+     * the deprecated `workers.sessions` allowlist's (asks.mjs workerSessions).
      * @returns {import("./peers.mjs").PeerSession[]} the sessions
      */
     function messageable() {
-        const allow = config?.workers.sessions;
-        const live = liveInRepo();
-        return allow ? live.filter((s) => allow.includes(s.name)) : live;
+        return workerSessions(liveInRepo(), state, config?.workers);
     }
 
     /**
-     * Asks every live session in this repository, `workers.sessions` or not, whose a pull request
+     * Asks every live session in this repository, worker or not, whose a pull request
      * with failed CI is (asks.mjs,
      * design 8.2); in dry-run the question is a would-do line.
      * @param {Date} t the poll's time
@@ -2185,8 +2185,8 @@ export async function startDaemon({
     }
 
     /**
-     * Tells each session the owner added to `workers.sessions` that it is a githerd worker, once,
-     * before any invitation (asks.mjs onboardStep); in dry-run each message is a would-do line.
+     * Tells each worker session that it is a githerd worker, once, before any invitation (asks.mjs
+     * onboardStep); in dry-run each message is a would-do line.
      * @param {Date} t the poll's time
      */
     async function onboardWorkers(t) {
@@ -2197,6 +2197,7 @@ export async function startDaemon({
             transport: peers.transport ?? socketTransport(),
             config,
             cli: cliCommand,
+            sessionGone,
         });
         for (const line of lines) void ledger(line);
     }
@@ -3656,6 +3657,7 @@ export async function startDaemon({
                 "session-disown",
                 "session-wait",
                 "session-offers",
+                "session-exclude",
             ].includes(cmd?.op)
         ) {
             return { status: 403, text: `${cmd.op} is the owner's: a worker cannot run it` };
@@ -3673,7 +3675,7 @@ export async function startDaemon({
         if (["mine", "mine-list", "mine-drop"].includes(cmd?.op)) return ownerMine(cmd);
         if (cmd?.op === "session-mine" || cmd?.op === "session-disown") return sessionAnswer(cmd);
         if (cmd?.op === "session-wait") return sessionWait(cmd);
-        if (cmd?.op === "session-offers") return sessionOffers(cmd);
+        if (cmd?.op === "session-offers" || cmd?.op === "session-exclude") return sessionOffers(cmd);
         if (["answer", "order", "policy", "policy-end"].includes(cmd?.op))
             return ownerCommand(state, cmd, now(), worker);
         if (CONTROL_OPS.has(cmd?.op)) {
@@ -3684,7 +3686,7 @@ export async function startDaemon({
             status: 400,
             text:
                 "op must be ack, veto, mine, mine-list, mine-drop, session-mine, session-disown, session-wait, " +
-                "session-offers, answer, " +
+                "session-offers, session-exclude, answer, " +
                 "order, policy, " +
                 "policy-end, pause, resume, " +
                 "workers, keep or release",
@@ -3781,9 +3783,10 @@ export async function startDaemon({
 
     /**
      * `githerd pause-offers` and `githerd resume-offers` run from inside a Claude session: what
-     * `githerd_offers` does for that session (asks.mjs setOffersPaused). It acts for the session the
-     * CLI runs under, which must be a live entry in Claude Code's session registry.
-     * @param {any} cmd `{op: "session-offers", paused, session}`
+     * `githerd_offers` does for that session (asks.mjs setOffersPaused); `githerd exclude-me` and
+     * `include-me` take it out of githerd's workers or put it back (asks.mjs setExcluded). It acts
+     * for the session the CLI runs under, which must be a live entry in Claude Code's session registry.
+     * @param {any} cmd `{op: "session-offers", paused, session}` or `{op: "session-exclude", excluded, session}`
      * @returns {any} the answer
      */
     function sessionOffers(cmd) {
@@ -3791,6 +3794,11 @@ export async function startDaemon({
         const s = (peers.registered ?? registeredSessions)({ sessionsDir }).find((x) => x.sessionId === cmd.session);
         if (!s) return { status: 404, text: `no live Claude Code session ${cmd.session} in the session registry` };
         const at = now().toISOString();
+        if (cmd.op === "session-exclude") {
+            const excluded = cmd.excluded === true;
+            const { text, entry } = setExcluded(state, { name: s.name, session: s.sessionId, excluded, at });
+            return { status: 200, text, entry };
+        }
         const { text, entry } = setOffersPaused(state, {
             name: s.name,
             session: s.sessionId,

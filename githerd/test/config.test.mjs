@@ -12,6 +12,7 @@ import {
     defaultBranch,
     originHead,
     effectiveMode,
+    legacySessionsNote,
     normalizeConfig,
     repoRoot,
     resolveConfig,
@@ -28,6 +29,24 @@ describe("normalizeConfig", () => {
         ).toEqual(["graphty-monorepo-2d"]);
         expect(() => normalizeConfig({ ...MINIMAL, workers: { sessions: "graphty-monorepo-2d" } })).toThrow(
             /workers.sessions must be null or a list/,
+        );
+    });
+
+    it("takes workers.exclude as a list of session names or sessionIds, empty by default", () => {
+        expect(normalizeConfig(MINIMAL).workers.exclude).toEqual([]);
+        const ids = ["graphty-monorepo-d2", "edf07b88-2700-4a9d-93d1-b77a43d817e8"];
+        expect(normalizeConfig({ ...MINIMAL, workers: { exclude: ids } }).workers.exclude).toEqual(ids);
+        for (const bad of ["graphty-monorepo-d2", [""], null, [3]]) {
+            expect(() => normalizeConfig({ ...MINIMAL, workers: { exclude: bad } })).toThrow(
+                /workers.exclude must be a list/,
+            );
+        }
+    });
+
+    it("notes that the workers.sessions allowlist is deprecated, only while a config sets it", () => {
+        expect(legacySessionsNote(normalizeConfig(MINIMAL).workers)).toBeNull();
+        expect(legacySessionsNote(with_({ workers: { sessions: ["graphty-13"] } }).workers)).toMatch(
+            /^DEPRECATED workers.sessions: .*workers.exclude$/,
         );
     });
 
@@ -60,6 +79,7 @@ describe("normalizeConfig", () => {
             statusMinutes: 15,
             maxActive: 3,
             sessions: null,
+            exclude: [],
         });
         expect(c.lanes.ci).toEqual({ workflow: "ci.yml", gating: "required", maxMinutes: null });
     });

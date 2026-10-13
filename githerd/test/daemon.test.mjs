@@ -563,6 +563,8 @@ describe("HTTP endpoints", () => {
         const transport = { send: async (/** @type {string} */ s, /** @type {string} */ t) => void sent.push([s, t]) };
         const daemon = await start({ peers: { sessions: () => listed, transport } });
         daemon.state.jobs = { "issue-7": newJob({ kind: "issue", target: "#7", id: "issue-7" }, clock) };
+        // Onboarded already: only the status question is sent.
+        daemon.state.onboarded = { "graphty-2d": { session: "wt-1", at: clock.toISOString() } };
         const tool = async (/** @type {string} */ name, /** @type {any} */ args) =>
             (
                 await (
@@ -633,6 +635,7 @@ describe("HTTP endpoints", () => {
             move(job, "starting", clock, { holder: { session: "wt-1", window: null, startedBy: "owner" } });
             move(job, "working", clock);
             daemon.state.jobs = { [job.id]: job };
+            daemon.state.onboarded = { "graphty-2d": { session: "wt-1", at: clock.toISOString() } };
             daemon.state.escalations = {
                 [key]: { key, kind: "release-stalled", raisedAt: clock.toISOString(), resolvedAt: clock.toISOString() },
             };
@@ -2370,6 +2373,38 @@ describe("who workers.sessions limits", () => {
         expect(ops).toContain("invite 1 idle session(s) to take verdict-ci-build");
         expect(ops).toContain("ask graphty-13 for the status of issue-8");
         expect(ops.some((op) => op.includes("graphty-14"))).toBe(false);
+    });
+});
+
+describe("every live session a worker unless excluded", () => {
+    it("onboards and invites a session no list names, never one workers.exclude or exclude-me leaves out", async () => {
+        writeConfig({ requiredChecks: ["All Checks Pass"], workers: { exclude: ["graphty-d2"] } });
+        const peers = {
+            sessions: () => [
+                { pid: 1, sessionId: "s1", name: "graphty-06", cwd: dir, socket: "/s1.sock", status: "idle" },
+                { pid: 2, sessionId: "s2", name: "graphty-d2", cwd: dir, socket: "/s2.sock", status: "idle" },
+                { pid: 3, sessionId: "s3", name: "graphty-7c", cwd: dir, socket: "/s3.sock", status: "idle" },
+            ],
+            transport: { send: async () => {} },
+        };
+        const daemon = await start({ peers });
+        daemon.state.excluded = { s3: { name: "graphty-7c", at: clock.toISOString() } };
+        await poll(daemon);
+        scene.head = B;
+        scene.commits = [commit(B, A, "Merge pull request #2 from o/feat"), commit(A, null, "first")];
+        scene.ci = [run(101, B, "failure"), run(100, A, "success")];
+        for (const at of ["12:03", "12:06"]) {
+            clock = new Date(`2026-10-02T${at}:00Z`);
+            await poll(daemon);
+        }
+        const ops = (await readLedger(join(dir, ".githerd")))
+            .filter((e) => e.kind === "would-do" && e.group === "workers")
+            .map((e) => e.op);
+        expect(ops).toContain("onboard graphty-06 as a githerd worker");
+        expect(ops).toContain("invite 1 idle session(s) to take verdict-ci-build");
+        expect(ops.some((op) => op.includes("graphty-d2") || op.includes("graphty-7c"))).toBe(false);
+        const invited = (await readLedger(join(dir, ".githerd"))).filter((e) => e.kind === "sessions-invited");
+        expect(invited.flatMap((e) => e.sessions)).toEqual(["graphty-06"]);
     });
 });
 

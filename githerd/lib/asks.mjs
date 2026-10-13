@@ -25,7 +25,7 @@
  * The same messaging asks each owner session holding a job for its status and whether it can take
  * another job (`statusStep`), asks the owner of a broken pull request whether it is fixing it
  * (`brokenOwned`), invites sessions with room to pull work (`inviteStep`), and first tells each
- * session the owner made a worker what that means (`onboardStep`).
+ * session githerd first sees as a worker what that means (`onboardStep`).
  */
 
 import {
@@ -325,17 +325,40 @@ function inviteText(job, reason, cli, filed = false) {
 }
 
 /**
- * The one message a session hears when the owner adds it to `workers.sessions`, before any
- * invitation: written for a session that has never heard of githerd.
+ * The worker sessions among the live ones: githerd hands or manages work through these
+ * (onboarding, invitations, status questions, cancellation notices). Every live session is one,
+ * except a session `workers.exclude` names (by name or sessionId) and one that excluded itself
+ * (`setExcluded`, `state.excluded[<sessionId>]`). A config that still sets the deprecated
+ * `workers.sessions` allowlist keeps only the sessions it names.
+ * @param {import("./peers.mjs").PeerSession[]} live the live sessions in this repository
+ * @param {any} state the daemon state
+ * @param {{sessions?: string[] | null, exclude?: string[]} | undefined} workers the config's `workers`
+ * @returns {import("./peers.mjs").PeerSession[]} the worker sessions
+ */
+export function workerSessions(live, state, workers) {
+    const allow = workers?.sessions;
+    const exclude = workers?.exclude ?? [];
+    return live.filter(
+        (s) =>
+            (!allow || allow.includes(s.name)) &&
+            !exclude.includes(s.name) &&
+            !exclude.includes(s.sessionId) &&
+            !state.excluded?.[s.sessionId],
+    );
+}
+
+/**
+ * The one message a session hears when githerd first sees it as a worker (`workerSessions`),
+ * before any invitation: written for a session that has never heard of githerd.
  * @param {string} name the session's name
  * @param {string} cli the githerd command line a session without githerd's tools runs
  * @returns {string} the message
  */
 function onboardText(name, cli) {
     return (
-        `githerd: the owner has made this session (${name}) a githerd worker. githerd is this repository's job ` +
+        `githerd: this session (${name}) is a githerd worker. githerd is this repository's job ` +
         "queue: it turns the owner's issues, pull requests and CI failures into jobs and offers them to its " +
-        "workers.\n" +
+        "workers, which are every Claude session working in this repository unless excluded.\n" +
         "What that means for you: githerd will message you when work is queued. Take a job with githerd_next " +
         "(the queue, with each job's text) and githerd_claim. Do each job's work in a background subagent or " +
         "workflow, so this conversation stays free to answer githerd's status questions with githerd_expect. " +
@@ -349,32 +372,42 @@ function onboardText(name, cli) {
         "Read more in githerd/README.md and in each job's text.\n" +
         "Start taking jobs now, unless the owner tells you otherwise. If the owner has you busy with other work, " +
         `call githerd_offers with pause true (or run \`${cli} pause-offers\`) and githerd offers you nothing ` +
-        `until you resume (pause false, or \`${cli} resume-offers\`).`
+        `until you resume (pause false, or \`${cli} resume-offers\`). A session that must never be a worker ` +
+        `(one that coordinates the others) runs \`${cli} exclude-me\`, and githerd messages it no work at all.`
     );
 }
 
 /**
- * Tells each live session in `workers.sessions` that it has become a githerd worker
+ * Tells each worker session (`sessions()`, already `workerSessions`) that it is a githerd worker
  * (`onboardText`), once: `state.onboarded[<name>]` = `{session, at}` records it, so a restart does
- * not repeat it, and drops when the name leaves `workers.sessions`, so adding it back tells it again.
- * Nothing is recorded for a send that failed (the next pass retries it) nor in dry-run, where each
- * send is a would-do line. With `workers.sessions` naming none, every session is messageable and
- * nobody was made a worker, so nobody is told. Runs before `inviteStep`.
+ * not repeat it. Under the deprecated `workers.sessions` allowlist the record is by name and drops
+ * when the name leaves the list, so adding it back tells it again. Otherwise it is by sessionId,
+ * since names are random per client: a session is told once, and its record drops when it ends
+ * (`sessionGone`), as does a self-exclusion (`setExcluded`). Nothing is recorded for a send that failed (the next pass retries it) nor in
+ * dry-run, where each send is a would-do line. Runs before `inviteStep`.
  * @param {any} state the daemon state, changed in place
  * @param {{acting: boolean, sessions: () => import("./peers.mjs").PeerSession[],
- *   transport: import("./peers.mjs").Transport, now: Date, config?: any, cli?: string}} opts
- *   whether the `workers` write group acts, the sessions githerd may message, the transport, the
- *   clock, the config and the githerd command line
+ *   transport: import("./peers.mjs").Transport, now: Date, config?: any, cli?: string,
+ *   sessionGone?: (session: string) => boolean}} opts
+ *   whether the `workers` write group acts, the worker sessions, the transport, the clock, the
+ *   config, the githerd command line and whether a session ended
  * @returns {Promise<({kind: string} & Record<string, unknown>)[]>} the ledger lines
  */
-export async function onboardStep(state, { acting, sessions, transport, now, config, cli = DEFAULT_CLI }) {
+export async function onboardStep(
+    state,
+    { acting, sessions, transport, now, config, cli = DEFAULT_CLI, sessionGone = () => false },
+) {
     const members = config?.workers?.sessions;
-    if (!members) return [];
     state.onboarded ??= {};
-    for (const name of Object.keys(state.onboarded)) if (!members.includes(name)) delete state.onboarded[name];
+    for (const [name, o] of Object.entries(state.onboarded)) {
+        if (members ? !members.includes(name) : sessionGone(o.session)) delete state.onboarded[name];
+    }
+    for (const id of Object.keys(state.excluded ?? {})) if (sessionGone(id)) delete state.excluded[id];
+    const told = (/** @type {import("./peers.mjs").PeerSession} */ s) =>
+        members ? state.onboarded[s.name] : Object.values(state.onboarded).some((o) => o.session === s.sessionId);
     const lines = [];
-    for (const s of sessions()) {
-        if (!members.includes(s.name) || state.onboarded[s.name]) continue;
+    for (const s of workerSessions(sessions(), state, config?.workers)) {
+        if (told(s)) continue;
         if (!acting) {
             const op = `onboard ${s.name} as a githerd worker`;
             lines.push({ kind: "would-do", group: "workers", op, session: s.name });
@@ -388,9 +421,32 @@ export async function onboardStep(state, { acting, sessions, transport, now, con
 }
 
 /**
+ * Excludes one session from githerd's workers, or includes it again (`githerd exclude-me` /
+ * `include-me` from its shell): `state.excluded[<sessionId>]` = `{name, at}`. Keyed by sessionId,
+ * since a name is random per client and may be reused; it lasts while the session lives
+ * (`workerSessions`). Unlike pausing offers, an excluded session hears no onboarding, invitation,
+ * status question or cancellation notice.
+ * @param {any} state the daemon state, changed in place
+ * @param {{name: string, session: string, excluded: boolean, at: string}} who the session's name
+ *   and id, whether to exclude it, and the time
+ * @returns {{text: string, entry: {kind: string} & Record<string, unknown>}} the answer and its ledger entry
+ */
+export function setExcluded(state, { name, session, excluded, at }) {
+    state.excluded ??= {};
+    if (excluded) state.excluded[session] = { name, at };
+    else delete state.excluded[session];
+    return {
+        text: excluded
+            ? `githerd treats ${name} as no worker until it ends or runs include-me`
+            : `githerd treats ${name} as a worker again`,
+        entry: { kind: excluded ? "session-excluded" : "session-included", name, session },
+    };
+}
+
+/**
  * Pauses or resumes githerd's job offers to one session (`githerd_offers`, or `githerd
  * pause-offers` / `resume-offers` from its shell): `state.offersPaused[<name>]` = `{session, at,
- * by}`. A paused session is invited to nothing (`inviteStep`); it stays in `workers.sessions`.
+ * by}`. A paused session is invited to nothing (`inviteStep`); it stays a worker.
  * @param {any} state the daemon state, changed in place
  * @param {{name: string, session: string, paused: boolean, at: string, by: string}} who the
  *   session's name and id, whether to pause, the time and how it said so
@@ -1037,11 +1093,11 @@ function githerdWatches(job) {
  * else here ends a claim, and elapsed time alone never does. A job githerd itself is watching for
  * (blocked, parked, or waiting on something but a local task) is not asked about, and any question
  * it had pending is dropped, so it is never released for silence. A session githerd may not
- * message (`workers.sessions`) is not asked, so its silence is never held against it; nor is a
+ * message (no worker, `workerSessions`) is not asked, so its silence is never held against it; nor is a
  * question nobody heard (dry-run, or a send that failed). githerd's own workers have the watchdog
  * instead. The same message asks the owner of each broken pull request whether it is fixing it
  * (`brokenOwned`), whoever that owner is: it asks about the session's own pull request, so
- * `workers.sessions` does not apply. A session the question does not reach because it holds no job
+ * worker or not does not matter. A session the question does not reach because it holds no job
  * it is asked about is asked for its capacity alone (`capacityDue`).
  * @param {any} state the daemon state, changed in place
  * @param {{now: Date, acting: boolean, sessions: () => import("./peers.mjs").PeerSession[],
@@ -1330,7 +1386,7 @@ async function askSession(state, { session, jobs, prs, target }, { now, acting, 
  * Tells each owner session that held a job the reconcile cancelled (its cause ended: the incident
  * ended, the pull request closed or needs no work, the issue closed) that the job is gone, through
  * the same messaging as the status question: one message to that session only, none to a session
- * githerd may not message (`workers.sessions`), and a would-do line in dry-run. A githerd worker
+ * githerd may not message (no worker, `workerSessions`), and a would-do line in dry-run. A githerd worker
  * reads the job's news instead.
  * @param {{job: string, reason: string, session?: string | null, startedBy?: string | null}[]} cancelled
  *   the jobs syncJobs cancelled

@@ -143,7 +143,7 @@ PUSH_QUEUE_SLOTS=1 "$Q" sh -c 'echo ran > order'`,
             "gate",
             "changed",
             "fingerprint",
-            "gateRev",
+            "gateTree",
         ]);
         assert.equal(line.branch, "feat/x");
         assert.equal(line.sha, sha);
@@ -253,7 +253,7 @@ describe("push-queue: a commit that already failed", () => {
 
     for (const [what, output] of [
         ["a rejected push", " ! [rejected]        HEAD -> feat/x (fetch first)"],
-        ["a gate with no [FAIL] line", "something crashed"],
+        ["a gate that printed no failure line", "something crashed"],
         ["a screenshot capture", "[FAIL] Screenshots: the capture failed or timed out (above; the log is /x)"],
         [
             "a shard that timed out",

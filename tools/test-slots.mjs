@@ -26,6 +26,12 @@
  *  - In process: a script that runs tests under a time limit of its own (webgpu-graph-algorithms'
  *    scripts/run-browser-project.js) awaits acquire() before it starts the clock and passes HELD on.
  *
+ * The GPU slot: `node tools/test-slots.mjs --gpu <command...>` holds the one machine-wide GPU slot
+ * (<main checkout>/tmp/gpu-slots; this machine has one NVIDIA card) for the whole command INSTEAD of
+ * a test slot, and marks the command's environment HELD so its vitest runs take no test slot either.
+ * tools/prepush.sh runs its NVIDIA step that way, beside the CPU test shards: it waits on the card
+ * for most of its run and uses under one core, so it should not keep a CPU test slot from them.
+ *
  * Mechanism: a directory of tickets (<main checkout>/tmp/test-slots, shared by every worktree), one
  * per run, named by arrival time and pid. A run proceeds once its ticket is among the oldest
  * GRAPHTY_TEST_SLOTS live tickets, so runs start in arrival order. A ticket whose process is gone
@@ -38,6 +44,9 @@
  *  - A gate shard that needs a browser takes the browser slot (tmp/with-browser.sh) BEFORE this
  *    one, and nothing holding a test slot ever waits for a browser slot, so the two never wait on
  *    each other. The push queue is outside both.
+ *  - The GPU slot holder takes no test slot (HELD), and nothing holding a test slot waits for the
+ *    GPU slot (the gate starts its NVIDIA step outside any test slot), so those never wait on each
+ *    other either.
  *  - Liveness is a signal-0 check of the pid plus its start time from /proc, never pgrep (whose
  *    pattern matches its own command line).
  *
@@ -88,13 +97,16 @@ export function workerShare(env = process.env, cores = availableParallelism()) {
 }
 
 /**
- * The ticket directory: GRAPHTY_TEST_SLOTS_DIR, else the main checkout's tmp/test-slots (every
- * worktree shares it), else one under the system temp directory.
+ * The ticket directory: GRAPHTY_TEST_SLOTS_DIR (GRAPHTY_GPU_SLOTS_DIR for the GPU slot), else the
+ * main checkout's tmp/test-slots (tmp/gpu-slots; every worktree shares it), else one under the system
+ * temp directory.
+ * @param kind "test" or "gpu"
  * @returns an absolute path
  */
-export function slotDir() {
-    if (process.env.GRAPHTY_TEST_SLOTS_DIR) {
-        return process.env.GRAPHTY_TEST_SLOTS_DIR;
+export function slotDir(kind = "test") {
+    const set = process.env[kind === "gpu" ? "GRAPHTY_GPU_SLOTS_DIR" : "GRAPHTY_TEST_SLOTS_DIR"];
+    if (set) {
+        return set;
     }
     try {
         const common = execFileSync("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], {
@@ -102,9 +114,9 @@ export function slotDir() {
             encoding: "utf8",
             stdio: ["ignore", "pipe", "ignore"],
         }).trim();
-        return join(dirname(common), "tmp/test-slots");
+        return join(dirname(common), `tmp/${kind}-slots`);
     } catch {
-        return join(tmpdir(), "graphty-test-slots");
+        return join(tmpdir(), `graphty-${kind}-slots`);
     }
 }
 
@@ -280,14 +292,21 @@ export default async function setup(project) {
     return release;
 }
 
-// The command wrapper: node tools/test-slots.mjs <command...>
+// The command wrapper: node tools/test-slots.mjs [--gpu] <command...>
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
-    const [cmd, ...args] = process.argv.slice(2);
+    const gpu = process.argv[2] === "--gpu";
+    const [cmd, ...args] = process.argv.slice(gpu ? 3 : 2);
     if (!cmd) {
-        console.error("usage: node tools/test-slots.mjs <command...>");
+        console.error("usage: node tools/test-slots.mjs [--gpu] <command...>");
         process.exit(2);
     }
-    const release = off() ? () => {} : await acquire({ label: labelOf([cmd, ...args]) });
+    const label = labelOf([cmd, ...args]);
+    // The GPU slot is one card, not a share of the cores: one holder, whatever GRAPHTY_TEST_SLOTS
+    // says (0 still turns every limit off), and HELD (a test slot) does not stand in for it.
+    const take = gpu
+        ? () => acquire({ label, dir: slotDir("gpu"), slots: Math.min(1, slotCount()), env: {} })
+        : () => acquire({ label });
+    const release = off() ? () => {} : await take();
     process.on("exit", release);
     const child = spawn(cmd, args, { stdio: "inherit", env: { ...process.env, [HELD]: String(process.pid) } });
     child.on("error", (err) => {

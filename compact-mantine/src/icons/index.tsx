@@ -346,12 +346,9 @@ const UI_GLYPH_SHAPES: Record<UiGlyphName, React.JSX.Element> = {
             <line x1="8" y1="4.5" x2="8" y2="4.75" />
         </>
     ),
-    reset: (
-        <>
-            <line x1="4" y1="4" x2="12" y2="12" />
-            <line x1="12" y1="4" x2="4" y2="12" />
-        </>
-    ),
+    // Clear is a minus, as Figma's "-" on a set row: one Clear glyph on every control, never an
+    // "x", which reads as close or delete.
+    reset: <line x1="3" y1="8" x2="13" y2="8" />,
     // Figma-register glyphs (design/figma-spec.md 13), drawn by this package. Carets are filled
     // triangles, 5 x 3 when drawn in the 10px CHEVRON box.
     caretDown: <path d="M4 5.6h8L8 10.4z" {...FILL_ATTRIBUTES} />,

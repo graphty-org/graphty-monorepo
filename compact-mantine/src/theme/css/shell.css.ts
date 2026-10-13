@@ -747,6 +747,10 @@ const css = `
     color: var(--cm-text-secondary);
 }
 .cm-qa-row[aria-disabled="true"] .cm-qa-row-description { color: var(--cm-text-disabled); }
+/* A description at the end of the name's line: the row stays one line, the name gives way first. */
+.cm-qa-row-text[data-descriptions="end"] { flex-direction: row; align-items: baseline; gap: 8px; }
+.cm-qa-row-text[data-descriptions="end"] .cm-qa-row-label { flex: 1; }
+.cm-qa-row-text[data-descriptions="end"] .cm-qa-row-description { flex: 0 1 auto; max-width: 60%; }
 .cm-qa-row-shortcut {
     flex: none;
     padding-inline-end: 4px;

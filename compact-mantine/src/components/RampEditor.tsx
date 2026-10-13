@@ -537,6 +537,10 @@ export function RampEditor({
                 className="cm-field"
                 ariaLabel={name}
                 testId={testId}
+                // A percentage width gives the input no minimum of its own (a text input's is
+                // about 20 characters), so the two fields share any width and never widen a
+                // 240 px pop-out.
+                style={{ width: "100%" }}
                 value={value}
                 format={format}
                 normalize={(typed) => typed}

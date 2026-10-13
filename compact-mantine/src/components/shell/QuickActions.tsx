@@ -104,6 +104,19 @@ export interface QuickActionsProps {
      * the end. A middle-cut name carries the full name as its tooltip.
      */
     truncate?: "end" | "middle";
+    /**
+     * Where each action's `description` goes: `"below"` (the default) on a dimmed second line
+     * under the name, `"end"` dimmed at the end of the name's line, so every row stays one line
+     * tall (a fact such as "1 to 36" beside a value's name).
+     * @default "below"
+     */
+    descriptions?: "below" | "end";
+    /**
+     * What the list says when there is nothing to list before any search: why it is empty and
+     * where to go instead. Defaults to the "No results" label, which a search with no match
+     * always says.
+     */
+    emptyText?: string;
     /** Panel width. Default 529 (Figma's, the toolbar's width). */
     width?: number;
     /** Panel height. Default 354. */
@@ -155,6 +168,8 @@ function defaultFilter(action: QuickAction, query: string): boolean {
  * @param props.searchAction - A trailing action at the right end of the search field
  * @param props.listId - The id of the result list, for a header control to name in `aria-controls`
  * @param props.truncate - Cut a long name at the end or in the middle
+ * @param props.descriptions - Each description under the name or at the end of its line
+ * @param props.emptyText - What an empty list says before any search
  * @param props.placeholder - Placeholder of the search field
  * @param props.width - Panel width
  * @param props.height - Panel height
@@ -174,6 +189,8 @@ export function QuickActions({
     searchAction,
     listId: listIdProp,
     truncate = "end",
+    descriptions = "below",
+    emptyText,
     placeholder,
     width = 529,
     height = 354,
@@ -298,7 +315,11 @@ export function QuickActions({
             </div>
             {header ? <div className="cm-qa-header">{header}</div> : null}
             {/* Above the listbox, not in it: a listbox may hold only options and groups. */}
-            {sections.length === 0 ? <output className="cm-qa-empty">{labels.noResults}</output> : null}
+            {sections.length === 0 ? (
+                <output className="cm-qa-empty">
+                    {search.trim() === "" && emptyText !== undefined ? emptyText : labels.noResults}
+                </output>
+            ) : null}
             <div // NOSONAR(S6819): the popup of an ARIA combobox with grouped rows; a native select cannot be one
                 className="cm-qa-list"
                 id={listId}
@@ -326,7 +347,7 @@ export function QuickActions({
                                     action.description ? `${optionId(action.value)}-description` : undefined
                                 }
                                 title={truncate === "middle" ? action.label : undefined}
-                                data-two-line={action.description ? "" : undefined}
+                                data-two-line={action.description && descriptions === "below" ? "" : undefined}
                                 className="cm-qa-row"
                                 data-highlighted={action.value === current || undefined}
                                 onMouseMove={() => {
@@ -355,7 +376,7 @@ export function QuickActions({
                                 <span className="cm-qa-row-icon" aria-hidden="true">
                                     {action.icon}
                                 </span>
-                                <span className="cm-qa-row-text">
+                                <span className="cm-qa-row-text" data-descriptions={descriptions}>
                                     <span className="cm-qa-row-label" data-truncate={truncate}>
                                         {truncate === "middle" ? <MiddleCut label={action.label} /> : action.label}
                                     </span>

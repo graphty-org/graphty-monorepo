@@ -77,6 +77,8 @@ export interface UnitFieldProps {
     min?: number;
     max?: number;
     testId: string;
+    /** Inline style of the input, such as a width that lets the field shrink with its column. */
+    style?: React.CSSProperties;
 }
 
 /**
@@ -93,6 +95,7 @@ export interface UnitFieldProps {
  * @param props.min - the lowest value
  * @param props.max - the highest value
  * @param props.testId - test id
+ * @param props.style - inline style of the input
  * @returns the field
  */
 export function UnitField({
@@ -106,6 +109,7 @@ export function UnitField({
     min,
     max,
     testId,
+    style,
 }: UnitFieldProps): React.JSX.Element {
     const parse = useNumberParser();
     const [draft, setDraft] = useState(format(value));
@@ -145,6 +149,7 @@ export function UnitField({
             aria-valuemax={role === undefined ? undefined : max}
             aria-valuetext={role === undefined ? undefined : format(value)}
             data-testid={testId}
+            style={style}
             value={draft}
             onChange={(event) => {
                 setDraft(event.currentTarget.value);

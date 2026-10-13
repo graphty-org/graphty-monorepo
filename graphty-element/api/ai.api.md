@@ -368,7 +368,10 @@ export interface AiManagerConfig {
     provider: ProviderType;
     providerInstance?: LlmProvider;
     questions?: boolean;
+    reasoningEffort?: AiReasoningEffort;
     registerBuiltinCommands?: boolean;
+    temperature?: number;
+    thinkingBudgetTokens?: number;
     toolProfile?: "standard" | "small" | "auto";
     tools?: AiToolOptions;
     voice?: AiVoiceOptions;
@@ -466,7 +469,7 @@ export interface AiStatus {
 // @public
 export class AiStatusManager {
     constructor();
-    addToolCall(name: string): void;
+    addToolCall(name: string, args?: Readonly<Record<string, unknown>>): void;
     appendStreamedText(text: string): void;
     complete(): void;
     get current(): Readonly<AiStatus>;
@@ -898,7 +901,9 @@ export interface ProviderOptions {
     baseUrl?: string;
     maxTokens?: number;
     model?: string;
+    reasoningEffort?: AiReasoningEffort;
     temperature?: number;
+    thinkingBudgetTokens?: number;
 }
 
 // @public
@@ -1013,6 +1018,7 @@ export interface ToolCall {
 
 // @public
 export interface ToolCallStatus {
+    arguments?: Readonly<Record<string, unknown>>;
     name: string;
     result?: unknown;
     status: ToolCallStatusType;

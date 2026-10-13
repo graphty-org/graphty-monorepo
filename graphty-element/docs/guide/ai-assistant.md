@@ -34,6 +34,42 @@ console.log(result.llmText); // the model's answer, in the model's words
 `result.code` is a code, never a sentence: your page decides what to tell the reader. The words in
 `result.llmText` are the model's own.
 
+### Model options
+
+Each is optional, and left out it is the provider's own default:
+
+```typescript
+await element.enableAiControl({
+    provider: "google",
+    apiKey: myKey,
+    model: "gemini-3.1-pro-preview",
+    reasoningEffort: "high", // Gemini 3's thinking level, OpenAI's reasoning effort
+    temperature: 0.4,
+});
+await element.enableAiControl({ provider: "anthropic", apiKey: myKey, thinkingBudgetTokens: 4096 });
+```
+
+`reasoningEffort` is one of `AI_REASONING_EFFORTS` (`"minimal"`, `"low"`, `"medium"`, `"high"`);
+`thinkingBudgetTokens` turns on Anthropic's extended thinking, and while it is on no `temperature` is
+sent, because Anthropic refuses one beside it. Which models the element knows, and which of these
+each takes, is catalog data: `aiProviderDescriptor(provider).models`, where each model's `reasoning`
+is `{ efforts }` or `{ budgetTokens: { min } }` and its `temperature` is the range it honors.
+
+### Showing the reply as it arrives
+
+`onAiStatusChange` reports the reply while the message runs: `status.streamedText` is the model's text
+so far (a later turn of the same message starts on a new line), and `status.toolCalls` lists each
+call with its `name`, `arguments` and `status`, the running one `"executing"`. When the message ends
+the reply is in the saved conversation (`getAiConversation()`).
+
+```typescript
+element.onAiStatusChange((status) => {
+    const running = status.toolCalls?.findLast((call) => call.status === "executing");
+    replyBox.textContent = status.streamedText ?? "";
+    stepLine.textContent = running ? `Running ${running.name}` : "";
+});
+```
+
 ## Remember the conversation and ask before changing the graph
 
 ```typescript

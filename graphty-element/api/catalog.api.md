@@ -26,6 +26,9 @@ export const AI_PROVIDER_DESCRIPTORS: readonly AiProviderDescriptor[];
 export const AI_PROVIDER_IDS: readonly ["openai", "anthropic", "google", "webllm", "mock"];
 
 // @public
+export const AI_REASONING_EFFORTS: readonly ["minimal", "low", "medium", "high"];
+
+// @public
 export const AI_RESULT_CODES: readonly ["AI_COMPLETED", "AI_NO_RESPONSE", "AI_NOT_ENABLED", "AI_DISPOSED", "AI_KEY_MISSING", "AI_KEY_REJECTED", "AI_PROVIDER_ERROR", "AI_CANCELLED", "AI_UNDONE", "AI_TOOL_UNKNOWN", "AI_TOOL_INVALID_ARGUMENTS", "AI_TOOL_FAILED", "AI_TOOL_THREW", "AI_FAILED", "AI_CONFIRMATION_NEEDED", "AI_ROLLBACK_PARTIAL", "AI_APPROVAL_STALE", "AI_APPROVAL_DENIED", "AI_TOOL_DENIED_BY_POLICY", "AI_TOOL_NOT_RUN", "AI_HISTORY_UNAVAILABLE", "AI_HISTORY_NEWER_FORMAT", "AI_STORAGE_FAILED", "AI_QUESTION_ASKED", "AI_ANSWER_INVALID", "AI_CONFIG_INVALID", "AI_HOSTED_TOOL_UNSUPPORTED", "AI_PROVIDER_PAUSED", "AI_VOICE_UNAVAILABLE"];
 
 // @public
@@ -100,8 +103,22 @@ export interface AiModelDescriptor {
     readonly downloadMB?: number;
     readonly id: string;
     readonly plainName: string;
+    readonly reasoning?: AiModelReasoning;
     readonly supportsTools: boolean;
+    readonly temperature?: {
+        readonly min: number;
+        readonly max: number;
+    };
 }
+
+// @public
+export type AiModelReasoning = {
+    readonly efforts: readonly AiReasoningEffort[];
+} | {
+    readonly budgetTokens: {
+        readonly min: number;
+    };
+};
 
 // @public
 export type AiPageRetrieval = "loaded" | "failed" | "paywalled" | "unsafe" | "unknown";
@@ -140,6 +157,9 @@ export interface AiProviderVoice {
         readonly viaChatModel?: boolean;
     };
 }
+
+// @public
+export type AiReasoningEffort = (typeof AI_REASONING_EFFORTS)[number];
 
 // @public
 export type AiResultCode = (typeof AI_RESULT_CODES)[number];

@@ -343,3 +343,57 @@ describe("runConversation", () => {
         }
     });
 });
+
+describe("the status a host draws while a message runs", () => {
+    it("streams each turn's text, a later turn on a new line, and names each call with its arguments", async () => {
+        const registry = new CommandRegistry();
+        registry.register({
+            name: "look",
+            description: "look",
+            parameters: z.object({ at: z.string() }),
+            examples: [],
+            execute: () => Promise.resolve({ success: true, message: "looked" }),
+        });
+        const engine = new FakeEngine([
+            [
+                { type: "text", delta: "Looking." },
+                { type: "tool-call", id: "c1", name: "look", arguments: { at: "a" } },
+                { type: "finish", reason: "tool-calls" },
+            ],
+            [
+                { type: "tool-call", id: "c2", name: "look", arguments: { at: "b" } },
+                { type: "finish", reason: "tool-calls" },
+            ],
+            textTurn("Done."),
+        ]);
+        const status = new AiStatusManager();
+        const seen: string[] = [];
+        status.subscribe((now) => {
+            const running = now.toolCalls?.find((call) => call.status === "executing");
+            if (running) {
+                seen.push(`${running.name} ${JSON.stringify(running.arguments)}`);
+            }
+        });
+        status.submit();
+        const graph = createMessageGraph();
+        await runConversation({
+            conversation: conversation("look twice"),
+            engine,
+            tools: registry,
+            graph,
+            session: graph.getSession(),
+            label: "look twice",
+            message: "1",
+            abort: new AbortController(),
+            sink: { emit: () => undefined, status },
+        });
+
+        assert.strictEqual(status.current.streamedText, "Looking.\nDone.");
+        // The second call of the same tool is the one marked running, then done; the first stays done.
+        assert.deepStrictEqual([...new Set(seen)], ['look {"at":"a"}', 'look {"at":"b"}']);
+        assert.deepStrictEqual(
+            status.current.toolCalls?.map((call) => call.status),
+            ["complete", "complete"],
+        );
+    });
+});

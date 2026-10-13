@@ -261,7 +261,7 @@ function writesFor(command: Pick<AssistantTool, "writesFor">, request: ToolCallR
  * @param request - The call.
  */
 function started(batch: ToolBatch, request: ToolCallRequest): void {
-    batch.sink.status.addToolCall(request.name);
+    batch.sink.status.addToolCall(request.name, request.arguments);
     batch.sink.status.updateToolCallStatus(request.name, "executing");
     batch.sink.emit({ type: "ai-stream-tool-call", name: request.name, params: request.arguments });
 }

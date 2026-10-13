@@ -703,8 +703,10 @@ async function modelTurn(
     const hosted: HostedPart[] = [];
     for await (const event of engine.turn(request, abort.signal)) {
         if (event.type === "text") {
+            // A later turn's text starts on a new line of the status's text, as `accumulated` joins them.
+            const later = text === "" && event.delta !== "" && (sink.status.current.streamedText ?? "") !== "";
             text += event.delta;
-            sink.status.appendStreamedText(event.delta);
+            sink.status.appendStreamedText(later ? `\n${event.delta}` : event.delta);
             sink.emit({ type: "ai-stream-chunk", text: event.delta, accumulated: [...earlier, text].join("\n") });
         } else if (event.type === "tool-call") {
             calls.push({

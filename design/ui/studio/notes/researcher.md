@@ -10,6 +10,31 @@ made and evidence comes in.
 
 ## Top of mind
 
+- 2026-10-13 -- **Tier 3 build paused for the owner's review after iteration 3** (served
+  `tier3-i3-617b43b270`, app 0.8.68; review `tier3/iterations/3/review.md`). Built: one 28 px line
+  per property, Clear that names what comes back plus announced Undo, effect and category rows as
+  Figma draws them, one name per value, kind change keeps the layer, generic picking. 107 expert
+  findings, 9 sev 3; iteration 4 is planned, not built. Reason to pause: owner approves the panel
+  before any study runs.
+- 2026-10-13 -- **Owner's three questions, as answered:** (1) unset = an empty field writes
+  nothing; the minus clears and names what comes back; covering something beneath is a separate
+  act ("Hide label from Key people" adds an entry set to nothing). (2) No "split parent": two row
+  kinds only (layer, folder); per-group colors are entries of an ordinary binding, reused for
+  College football's conference. (3) Figma grammar taken and listed; vary glyph at rest and the
+  painted-over mark kept as graphty's own, with reasons.
+- 2026-10-13 -- **Watch at the owner review:** names cut to "Sh..."/"Co..." (sev 3, first thing
+  seen; fixed only in iteration 4); kind change dropping settings while announcing success (sev 3);
+  whether a dimmed painted-over value reads as "not drawn"; whether a reader looks in the "+" menu
+  to cover a lower layer. These are the studio's untested assumptions -- the owner's read is
+  expert opinion, not evidence.
+- 2026-10-13 -- **Watch in the study:** "unset" vs "cover" is the core risk -- write one task that
+  needs each, in reader words (never "clear", "unset", "override", "layer"), and score which
+  control is used first. Probe reuse of category rows on a second dataset to test question 2.
+  Do not let a Figma-fluent persona stand in for the population; include non-Figma readers and
+  grep histories for "Figma" before claiming transfer.
+- 2026-10-13 -- Expert counts are not user evidence: 107 findings merged to ~55; severities are
+  walkthrough judgments. Before reporting "fixed", rerun on the frozen build, not the dev server.
+
 - 2026-10-11 -- **Round 5 verdicts applied (`round-5/insights.md`).** 55 of 55 valid succeed; bars
   9 (b) and 10 fail (one sev 3: names and nodes over each other, graphty-element). Strictly read,
   the stall rule is met: core four +2, the sev 3 fix seen only by specialists, bar 5 by absence.

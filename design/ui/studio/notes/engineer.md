@@ -11,6 +11,45 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-13) **Paused for the owner's review before iteration 4 is built.** Built and frozen:
+  iteration 3 (build tier3-i3-617b43b270, served by servherd `design-studio-tier3`), its review
+  stories, the three element guides, and the screenshot audit. Nothing of iteration 4 is built;
+  its decisions and units are in `tier3/iterations/3/review.md` ("Decided for iteration 4",
+  "Units for iteration 4"). The owner's three questions, as the build answers them:
+  (1) Unsetting: an empty field writes nothing; a set field's minus (or emptying it and Enter)
+  clears it and its tooltip names what comes back; covering a lower layer is a separate act, an
+  entry of one's own ("Hide label from Key people"). Why it can still read wrong: lower layers'
+  entries listed on every layer above, a kind change that silently empties a layer, and a
+  painted-over value drawn at full strength -- iteration 4 fixes all three. (2) No split parent:
+  the tree has layers and folders only; per-group colors are entries of an ordinary binding, and
+  "New layer for <value>" makes an ordinary layer with an ordinary rule, for categories and
+  number columns alike. Keep it that way: any request that needs a third row kind goes back to
+  the director, not into code. (3) Figma: taken and next-to-take lists are in the review; the
+  big build item for me is the settings button leaving the name column for one "Node settings" /
+  "Edge settings" button per section (Figma's Type settings), the painted-over mark moving into
+  the field as a dimmed value, and inline opacity in the color row. Watch at the owner's review
+  and in the study: names cut in the 56 px label column (fixed only by that move), "One color per
+  value" on a number column painting oranges (decide: the app passes a categorical palette as its
+  choice; changing the element's ordinal default is breaking and the owner's), the Values
+  histogram's "0 to 0" for category bindings (`LayerValues.tsx` `NumberValues`), and whether
+  readers tell "mine" from "beneath" before the listing change lands. When the build resumes,
+  freeze a new `.study-builds/` dir and restart the same servherd name with the new `--outDir`.
+
+- (2026-10-13) **Iteration 3 screenshot audit done** (`tier3/iterations/3/engineer.md`, frozen
+  build tier3-i3-617b43b270, 1366 x 768 and 1920 x 1080; pictures `tier3/build/audit-i3/`, scripts
+  `tmp/engineer-i3-audit/walk.mjs` and `sup3.mjs`). No severity 4. Worst: the 56 px label column
+  cuts names to "Sh...", "Co...", "He..." and "C." whenever the gear and the painted-over mark sit
+  in it (the app's `Field`; Figma puts extra buttons at the row's end); "One color per value" on
+  a number column still paints oranges with a sequential key (the element's ordinal default, or
+  the app passes a categorical palette); the Values histogram prints "0 to 0" for a category or
+  text binding because `LayerValues.tsx` `NumberValues` uses preview bins with no `from`/`to`.
+  Also: vary picker names cut where they differ, a 289 px key cap with the canvas empty below,
+  "from Key people" entries on every layer above it, header and tabs that scroll away, a locked
+  layer drawing hex, sources and gears live. Most iteration 2 findings are fixed. Traps for the
+  next audit script: Effects' "+" becomes a direct "Add motion" / "Add outline" when one effect
+  is left (no menu), and a category row's menu is "<value> actions", not "... menu". A Tab stop
+  whose text is CSS is just `<body>` at the end of the document, not a defect.
+
 - (2026-10-13) **Iteration 3's owner review: stories, guides, frozen build, pictures** (graphty
   app stories, graphty-element guides). `StylePanel.stories.tsx` gains Key people at rest, Label
   settings (Key people's name label, its settings open) and College football's Conference, made
@@ -316,18 +355,22 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   agent's write reverted `StylesApi.ts` mid-task (my hunk and theirs vanished); keep the edit as a
   script in scratch and re-check `git diff` right before committing.
 
-- (2026-10-12) **`styles.agreement` takes `over: rowId`** (graphty-element, test
-  `test/session/styles-agreement-over.test.ts`). With `{ below: row, over: row }` the layers beneath
-  a row are read over the row's own elements, so "New layer for Group 3" reads one green, not
-  Mixed. A row matching nothing (Selected with nothing selected, Hovered) is read over its kinds
-  through only the layers whose compiled `selector.test` is null (Everything and the element's own
-  base layers), and the answer carries `readOver: "everyElement"` (else `"row"`). A value from the
-  element's floor is told by `styles.get(layerId).source.by === "element"`; no field added.
-  `counts().paintedBy` already never lists an empty row (it only walks matched elements). NOT done
-  here, the app's to take up: `sharesBeneath` and `beneathOf` in `graphty/src/workspace/style/row.ts`
-  still read over the whole graph -- pass `over` and delete their ponytail notes. Lesson: another
-  agent's write reverted `StylesApi.ts` mid-task (my hunk and theirs vanished); keep the edit as a
-  script in scratch and re-check `git diff` right before committing.
+- (2026-10-12) **Iteration 2 screenshot audit done** (`tier3/iterations/2/engineer.md`, frozen build
+  tier3-i2-2faecd941b, 1366 x 768 and 1920 x 1080; pictures `tier3/build/audit-i2/`). No severity
+  4. Worst, all the app's: effect entries' color fields are 34 px and show two hex digits ("FF",
+  "11"), so Selected's look is unreadable at rest (`Effects.tsx` slot); a label and a tooltip
+  entry look identical (the kind is only in the accessible name); the route's Which elements is
+  raw JMESPath because `whichRule.ts` `formOf` never calls the element's `selectorRule`; Values
+  still names Louvain groups "0".."5". Also: one value named up to four ways (rule sentence
+  "Bridging"/"Community"/"Connections" against the pill's and key's names), "Mixed" for a layer
+  matching nothing (the element returns no channel; the app draws Mixed), pop-outs with 80 px
+  empty bands, a number label listed as 15-digit "groups" in Values and printed unrounded on the
+  canvas (that one is the element's). Most iteration 1 findings are fixed and listed at the end
+  of the report. Walk scripts: `tmp/engineer-i2-audit/{walk,sup,sup2,sum}.mjs` -- reuse them for
+  iteration 3 (sum.mjs prints only measurements that are new since the previous shot and drops
+  visually hidden text). Lessons: a list's "+" becomes the kind's own button when one kind is
+  left ("Add motion"), so a script must match both names; `Group N` row menus are named
+  "Louvain Group N actions"; a measured "overlap" with a menu item is just the menu on top.
 
 - (2026-10-12) **A new layer chooses its elements first; Which elements reads every readable
   value** (test `style/__tests__/WhichElementsDraft.real-element.test.tsx`, College football). The
@@ -539,6 +582,17 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   `data.attributes()` (its `conditionOf` drops a `results.` path it cannot find there), enable
   Nodes/Edges/Both through `target`, and set `runPlacement: "top"` -- with the default "beneath"
   is why Bridge edges sat above the route; "top" already stacks runs in order (tested).
+
+- (2026-10-12) **Iteration 1 screenshot audit done** (`tier3/iterations/1/engineer.md`, on frozen build
+  tier3-i1-68a2140049 at 1366 x 768 and 1920 x 1080). Worst: Label settings is 2280 px tall and does
+  not scroll, so Letters, Placement, Motion and Badge are unreachable (sev 4, compact-mantine
+  `Popout`); the category popover's color field covers each value's name and count (`ValueRow`
+  passes no `width` to `CompactColorInput`); Which elements shows only on `source.by === "user"`
+  layers (provenance changing behavior); the real app never turns `startingRows` on; a route is two
+  rows; Bridge edges sits above the later route and paints its edges; Values names groups "0".."5"
+  where the legend says "Group 1".."Group 6"; the legend's `keyBlocks` filter predates the label
+  size, halo and band channels. Why record these here: most are mine to fix next, and three
+  (route rows, run order, the run-layer rule read) may be graphty-element's.
 
 - (2026-10-12) **The style panel's element additions are documented, and the examples are
   compiled against what npm ships.** Seven guide pages in `graphty-element/docs/guide/`
@@ -1008,7 +1062,7 @@ caseSensitive? }` on one matcher `textMatcher` (`session/text.ts`) that selectio
   test's executor runs the algorithms package's `degrees` and `louvain` (on
   `snapshot.toUndirected().snapshot`, or Louvain refuses) and publishes the catalog's fields.
   Trap: a session built from `addNodes` is directed until `config.set({ data: { directed: false
-  } })`. A new session method needs a line in `doors.ts` and `test/cost-coverage/method-classes.ts`.
+} })`. A new session method needs a line in `doors.ts` and `test/cost-coverage/method-classes.ts`.
 
 - (2026-10-12) **The style tree rides on the stack array, not in a new project slice.** The
   `styles` slice is the stack, and undo keeps it by reference, so a tree carried as a property of
@@ -1182,10 +1236,17 @@ caseSensitive? }` on one matcher `textMatcher` (`session/text.ts`) that selectio
   destructure the node layer first; the row helpers do not need a part order, so the highlight
   keeps node first.
 
-- (2026-10-12) DID NOT WORK at first: putting a highlight row's edge part under its node part,
-  as `addRow` does. It reversed what `styles.highlight()` returns and broke callers that
-  destructure the node layer first; the row helpers do not need a part order, so the highlight
-  keeps node first.
+- (2026-10-12) WORKED: an audit walk as one Playwright script per size (own context, through
+  `with-browser.sh`), with a `measure()` run after every screenshot: text cut by its box
+  (`scrollWidth > clientWidth` under `overflow: hidden` or ellipsis), input values wider than the
+  field, interactive controls past the window that no clipping scroller holds, scrollers with hidden
+  content, overlapping controls in the inspector and popovers, and each popover's box. It found the
+  unscrollable Label settings and the covered category names that the eye alone would have called
+  "long" and "fine". Noise to ignore: visually hidden live regions read as "shows 1px of N px", and
+  overlaps under an open popover. A first run named controls from the source and missed: the
+  settings buttons are "<Kind> <title> settings", the vary glyph is hover-only, and run layers have
+  no "Which elements" button. List `button[aria-haspopup=dialog]` names first, then click by index.
+  `timeout 900` around `with-browser.sh` counts the slot wait too; run without it in the background.
 
 - (2026-10-11) WORKED: completing a committed audit instead of redoing it: list both size folders
   side by side, run only the missing walk, take its commands from the earlier transcript.

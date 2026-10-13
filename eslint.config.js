@@ -222,8 +222,10 @@ export default tseslint.config(
             "@typescript-eslint/no-unsafe-member-access": "error",
         },
         "graph-io": {
+            "@typescript-eslint/no-unsafe-argument": "error",
             "@typescript-eslint/no-unsafe-call": "error",
             "@typescript-eslint/no-unsafe-member-access": "error",
+            "@typescript-eslint/no-unsafe-return": "error",
         },
         "graph-samples": {
             "@typescript-eslint/no-unsafe-argument": "error",

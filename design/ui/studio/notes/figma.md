@@ -5,11 +5,31 @@ controls and gestures, and make the studio justify every divergence with a forci
 plainly where graphty is genuinely different. Read this file at the start of every session; update
 it as decisions land.
 
-Last updated: 2026-10-13 (tier 3 iteration 3 walk).
+Last updated: 2026-10-13 (tier 3 paused for the owner review).
 
 ## Top of mind
 
-0. (2026-10-13) Tier 3 iteration 3 walk: `tier3/iterations/3/figma.md`, build 617b43b270eb.
+0. (2026-10-13) Build paused for the owner's approval review. Built and walked: iteration 3
+   (build 617b43b270, served as tier3-i3-617b43b270): one-line property rows, Clear's minus naming
+   what comes back, Undo after Clear, effect and category rows in Figma's chip/name/settings/eye/
+   minus grammar, one name per value, kind change keeps the layer. Decided, not yet built
+   (`tier3/iterations/3/review.md`, "Decided for iteration 4"): the per-row gear leaves the name
+   column for one settings button per Nodes/Edges section title (Figma's Type settings), so names
+   are never cut; painted-over values drawn dimmed in the field with a real tooltip; opacity inline
+   in the color row; a layer lists only its own entries, covering what is beneath via "Hide label
+   from <layer>" in the "+" menu; multi-select shows only shared properties; 240 px icon shape
+   grid; swatch inner border; draggable color popover. Why: every one is a Figma pattern that
+   removes a sev 2-3 finding without adding a column to a 240 px row. Owner's three questions,
+   as answered: unset = the minus (or empty + Enter), covering = an ordinary entry set to nothing,
+   two different acts; no "split parent" kind exists or is planned -- two row kinds, layer and
+   folder, and category rows are reused by any column (conference too); Figma taken where it
+   governs controls, diverged only on the vary glyph at rest and the painted-over mark (Figma does
+   not stack paints). Watch at the owner review: whether one section settings button reads as
+   Type settings or hides rare properties too well; whether a dimmed value reads as "not what is
+   drawn" rather than "disabled"; whether readers look in "+" to cover something beneath. Watch in
+   the study: the first time a reader wants a rare property (do they find the section button?),
+   Clear vs cover confusion, and any reader who expects Figma's "detach"/instance language.
+1. (2026-10-13) Tier 3 iteration 3 walk: `tier3/iterations/3/figma.md`, build 617b43b270eb.
    21 findings (1 sev 3, 13 sev 2, 7 sev 1); of iteration 2's 24: 15 fixed, 6 partly, 3 open.
    Iteration 2's sev 4 (kind change destroyed the layer) is fixed. Sev 3: property names cut to
    "Sh...", "C." because the 56 px label column also holds the gear and painted-over mark
@@ -17,7 +37,7 @@ Last updated: 2026-10-13 (tier 3 iteration 3 walk).
    positions. Next to bring: gear at the row's right end (Figma's Stroke), swatch inner border,
    multi-select shows only shared properties, opacity back inline (the decision said so), own
    entries only (inherited "Label, from X" rows on every layer above), 240 px icon shape picker.
-1. (2026-10-12) Tier 3 iteration 2 walk: `tier3/iterations/2/figma.md`, build 2faecd941bc0.
+2. (2026-10-12) Tier 3 iteration 2 walk: `tier3/iterations/2/figma.md`, build 2faecd941bc0.
    24 findings (2 sev 3, 13 sev 2, 9 sev 1); of iteration 1's 22: 14 fixed, 5 partly, 3 open.
    Sev 3: Undo right after a Clear is lost (Clear focuses the field, `keys.ts` `isTypingTarget`
    hands Ctrl+Z to the empty input; Figma passes it through when no edit is pending); one value
@@ -25,13 +45,13 @@ Last updated: 2026-10-13 (tier 3 iteration 3 walk).
    edges/Bridging/Edge betweenness). Next to bring: Figma's one-line property row (prefix or
    section-title label, paired short fields) for panel length; Mixed only for a selection, an
    unset field over varied values shows the range; effect row = icon, name, eye, minus.
-2. (2026-10-12) Tier 3 iteration 1 walk: `tier3/iterations/1/figma.md`, build cfa6408d84a4.
+3. (2026-10-12) Tier 3 iteration 1 walk: `tier3/iterations/1/figma.md`, build cfa6408d84a4.
    22 findings (4 sev 3, 14 sev 2, 4 sev 1). Sev 3: run-made rows have no Which elements
    (`StylePanel.tsx` 149 gates on `source.by === "user"`), a route is two rows, category rows
    lose their names to a full hex field, the key lists six blocks for the empty Selected layer.
    Next to bring: Figma's 24 px icon column, popovers beside the panel, chip-only color control,
    no one-item menus. Verify each in iteration 2 by clicking, not by reading.
-3. (2026-10-12) Owner feedback 1 answered in `tier3/decide/feedback-1-figma.md`. Unset: minus
+4. (2026-10-12) Owner feedback 1 answered in `tier3/decide/feedback-1-figma.md`. Unset: minus
    always visible on a set field, inherited value in secondary text, Delete/Backspace on non-text
    controls, the minus's tooltip names the value and layer that come back (element already has it:
    `styles.agreement(..., { below })`), one word Clear / Clear all. Split: two row kinds only
@@ -39,44 +59,44 @@ Last updated: 2026-10-13 (tier 3 iteration 3 walk).
    for children); a child's unset field shows the parent, so "Follow parent" becomes Clear all.
    Figma pass: adopt Selection colors on folders, remove eye and lock from the panel header (a
    second control for the row's state), eye per list entry, empty list title opens "+".
-4. (2026-10-12) Tier 3 is unified styles. My answers to the owner's 12 questions:
+5. (2026-10-12) Tier 3 is unified styles. My answers to the owner's 12 questions:
    `tier3/decide/figma.md`. Core calls: "+" only where a list grows; a single-value section is
    one unit added by its title (Figma's stroke grammar), placeholders show the value beneath;
    unwritten sections fold into one "+" per Nodes/Edges heading; a data gradient
    (`GradientEditor` over a histogram); split parent drawn as a Figma frame, folder as a group;
    label text styles as presets; one rule editor shared with Data > Filters. Reason: the panel had
    11 empty titles and "+" promised a second value where only one can exist.
-5. (2026-10-11) Round 5 walk: 0 severity 3 left. Six new severity 2s, each with a mechanism or a
+6. (2026-10-11) Round 5 walk: 0 severity 3 left. Six new severity 2s, each with a mechanism or a
    script: Filter to neighbors hidden for Follow Out/In (element rule has no direction), Escape
    after a Follow click clears the selection, the To list painted under Follow at 1280 x 800,
    pickers show ids for a name match, missing-column rule says "Nothing matches" and drops the
    selection, "minutes 10" is "No match" while "10" works.
-6. (2026-10-11) Verified fixed on 8c015b806: New project > Discard, "10" offers "or more", layer
+7. (2026-10-11) Verified fixed on 8c015b806: New project > Discard, "10" offers "or more", layer
    named "minutes >= `10`", table "12 of 41 edges", off step stays off, Delete returns the
    inspector to the graph, note Cancel focuses "+".
-7. (2026-10-11) Bring to round 5's critique: the neighborhood rule gains an optional direction
+8. (2026-10-11) Bring to round 5's critique: the neighborhood rule gains an optional direction
    (element, additive) so the command stays for Out/In; `find` reads "<column> <number>".
-8. (2026-10-11) A suggestion must pass the consumer's own acceptance test, fixed in the element,
+9. (2026-10-11) A suggestion must pass the consumer's own acceptance test, fixed in the element,
    never guarded in the app. Not "has matches": a valid rule that matches nothing is still a rule.
-9. (2026-10-11) Diff before cutting words; scope words that prevent a wrong reading stay.
-10. (2026-10-11) Delete app copies of element logic by adding the element export. Additive exports
+10. (2026-10-11) Diff before cutting words; scope words that prevent a wrong reading stay.
+11. (2026-10-11) Delete app copies of element logic by adding the element export. Additive exports
     are the team's call; record them, do not ask.
-11. (2026-10-11) Label and node overlap stays an element fix on the owner's list. No app font,
+12. (2026-10-11) Label and node overlap stays an element fix on the owner's list. No app font,
     offset, seed or names-off setup.
-12. (2026-10-11) A source-visible mechanism needs no extra script; a single-source claim does.
+13. (2026-10-11) A source-visible mechanism needs no extra script; a single-source claim does.
     A keyboard-only claim (Color Escape) did not reproduce by pointer: say which input was tried.
-13. (2026-10-11) Still open, carried: Shift toggle, To = From, weight forgotten, Delete key,
+14. (2026-10-11) Still open, carried: Shift toggle, To = From, weight forgotten, Delete key,
     step-editor Tab/Escape, focus after pick, empty Filters form, N after run row, Follow arrows,
     Analyze field moves, note edit, popover covers nodes.
-14. (2026-10-10) Walk Figma's selection grammar on every object kind and every command twice then
+15. (2026-10-10) Walk Figma's selection grammar on every object kind and every command twice then
     Undo; when a crash appears, rerun the minimal state in its own folder at once.
-15. (2026-10-10) Do NOT move: Replace, weight role at load, note subject, names-off default,
+16. (2026-10-10) Do NOT move: Replace, weight role at load, note subject, names-off default,
     Recent in Analyze, Filters door, Analyze ranking, "Settings" rail label.
-16. (2026-10-09) Deferred divergences, only with clean-run evidence: Save form vs live inspector;
+17. (2026-10-09) Deferred divergences, only with clean-run evidence: Save form vs live inspector;
     checkbox vs eye; two row grammars; add-first for "+".
-17. (2026-10-06, owner) Figma's authority covers controls and gestures only; structure comes from
+18. (2026-10-06, owner) Figma's authority covers controls and gestures only; structure comes from
     graphty's ontology. Every control must visibly change canvas, key or popover.
-18. (2026-10-07) One model plays every persona: a failure is strong, a pass weak.
+19. (2026-10-07) One model plays every persona: a failure is strong, a pass weak.
 
 ## Priorities and values
 

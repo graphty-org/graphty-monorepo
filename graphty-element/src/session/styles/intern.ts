@@ -77,6 +77,7 @@ export type StyleRole = "mesh" | "instance" | "content";
 const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     // Geometry and material: a different value is a different source mesh.
     "node.size": "mesh",
+    "node.sizeMode": "mesh",
     "node.shape": "mesh",
     "node.wireframe": "mesh",
     "node.flat": "mesh",

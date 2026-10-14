@@ -3292,6 +3292,10 @@ export const NodeShapes: z.ZodEnum<{
 export const NodeStyle: z.ZodObject<{
     shape: z.ZodOptional<z.ZodObject<{
         size: z.ZodOptional<z.ZodNumber>;
+        sizeMode: z.ZodOptional<z.ZodEnum<{
+            scale: "scale";
+            diameter: "diameter";
+        }>>;
         type: z.ZodOptional<z.ZodEnum<{
             box: "box";
             sphere: "sphere";

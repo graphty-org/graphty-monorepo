@@ -76,94 +76,85 @@ describe("Graph settings", () => {
         });
     });
 
-    it("writes the background color and the highlight color the reader types", async () => {
-        const element = await openGraphSettings();
-        const background = screen.getByRole("textbox", { name: /^Background color(,|$)/ });
-        await userEvent.clear(background);
-        await userEvent.type(background, "112233{Enter}");
-        await waitFor(() => {
-            const now = element.session.config.background;
-            assert.strictEqual(
-                now.backgroundType === "color" ? now.color?.toLowerCase() : now.backgroundType,
-                "#112233",
-            );
-        });
-
-        const highlight = screen.getByRole("textbox", { name: /^Highlight color(,|$)/ });
-        await userEvent.clear(highlight);
-        await userEvent.type(highlight, "AA0011{Enter}");
-        await waitFor(() => {
-            const color = element.session.styles.highlightStyle("node")["node.color"];
-            assert.strictEqual(typeof color === "string" ? color.toLowerCase() : color, "#aa0011");
-        });
-    });
-
-    it("returns the background color and the highlight color to their defaults on Reset", async () => {
+    it("writes the background color the reader types, and Reset returns it to the element's default", async () => {
         const element = await openGraphSettings();
         const backgroundNow = (): string | undefined => {
             const now = element.session.config.background;
             return now.backgroundType === "color" ? now.color?.toLowerCase() : now.backgroundType;
         };
-        const highlightNow = (): unknown => {
-            const color = element.session.styles.highlightStyle("node")["node.color"];
-            return typeof color === "string" ? color.toLowerCase() : color;
-        };
         const backgroundDefault = backgroundNow();
-        const highlightDefault = highlightNow();
-
         const background = screen.getByRole("textbox", { name: /^Background color(,|$)/ });
         await userEvent.clear(background);
-        await userEvent.type(background, "ff0000{Enter}");
+        await userEvent.type(background, "112233{Enter}");
         await waitFor(() => {
-            assert.strictEqual(backgroundNow(), "#ff0000");
+            assert.strictEqual(backgroundNow(), "#112233");
         });
         await userEvent.click(screen.getByRole("button", { name: "Reset Background color to default" }));
         await waitFor(() => {
             assert.strictEqual(backgroundNow(), backgroundDefault);
         });
-
-        const highlight = screen.getByRole("textbox", { name: /^Highlight color(,|$)/ });
-        await userEvent.clear(highlight);
-        await userEvent.type(highlight, "ff0000{Enter}");
-        await waitFor(() => {
-            assert.strictEqual(highlightNow(), "#ff0000");
-        });
-        await userEvent.click(screen.getByRole("button", { name: "Reset Highlight color to default" }));
-        await waitFor(() => {
-            assert.strictEqual(highlightNow(), highlightDefault);
-        });
-        // Back at its default, the highlight color offers no reset: there is nothing to undo.
-        assert.isNull(screen.queryByRole("button", { name: "Reset Highlight color to default" }));
+        // No Highlight color row: it changed nothing already drawn and was not saved.
+        assert.isNull(screen.queryByRole("textbox", { name: /^Highlight color/ }));
     });
 
-    it("draws the view in 2D after a click on 2D", async () => {
+    it("writes Outline width to the element's layout behavior", async () => {
         const element = await openGraphSettings();
-        await userEvent.click(within(screen.getByRole("radiogroup", { name: "View" })).getByText("2D"));
+        const width = screen.getByRole("spinbutton", { name: /^Outline width/ });
+        await userEvent.clear(width);
+        await userEvent.type(width, "3{Enter}");
+        await waitFor(() => {
+            assert.strictEqual(element.layoutBehavior?.node?.outlineWidth, 3);
+        });
+        assert.isNotNull(screen.getByText(/use Halo/));
+    });
+
+    it("hides Lighting and Same size at any depth in 2D, moves focus on, and the Values tab counts them", async () => {
+        const element = await openGraphSettings();
+        // Focus on Same size at any depth, then 5, the toolbar View's key for 2D.
+        await userEvent.click(screen.getByRole("switch", { name: "Same size at any depth" }));
+        await userEvent.click(screen.getByRole("switch", { name: "Same size at any depth" }));
+        await userEvent.keyboard("5");
         await waitFor(() => {
             assert.strictEqual(element.session.layout.dimension, "2d");
+            assert.isNull(screen.queryByRole("combobox", { name: "Lighting" }));
+            assert.isNull(screen.queryByRole("switch", { name: "Same size at any depth" }));
         });
+        assert.isFalse(element.session.config.inEffect("lighting").inEffect);
+        // The hidden row held focus: it moves to the next row still shown.
+        await waitFor(() => {
+            assert.strictEqual(document.activeElement, screen.getByRole("spinbutton", { name: /^Outline width/ }));
+        });
+        await userEvent.click(screen.getByRole("tab", { name: "Values" }));
+        const note = await screen.findByTestId("settings-other-view");
+        assert.strictEqual(note.textContent, "2 graph settings apply only in another view");
     });
 
-    it("titles the layout, offers one 3D | 2D, and never scrolls sideways", async () => {
+    it("draws no View switch and no Layout section: the toolbar is their one home", async () => {
         await openGraphSettings();
         const inspector = screen.getByRole("complementary", { name: "Inspector" });
-        const layout = await within(inspector).findByRole("group", { name: "Layout" });
-        const lighting = within(inspector).getByRole("combobox", { name: "Lighting" });
-        const method = (await within(inspector).findAllByLabelText("Method")).find((e) => e.tagName === "INPUT");
-        assert.isDefined(method);
-        // The layout's fields begin at the same left edge as the sections above it.
-        assert.equal(method?.getBoundingClientRect().left, lighting.getBoundingClientRect().left);
-        assert.isAbove(method?.getBoundingClientRect().top ?? 0, layout.getBoundingClientRect().top);
         const threeD = within(inspector)
-            .getAllByRole("radiogroup")
+            .queryAllByRole("radiogroup")
             .filter((group) => within(group).queryByText("3D") !== null);
-        assert.lengthOf(threeD, 1, "View is the one 3D | 2D control");
+        assert.lengthOf(threeD, 0);
+        assert.isNull(within(inspector).queryByRole("heading", { name: "Layout" }));
         const scroller = inspector.querySelector<HTMLElement>("[data-inspected]");
         assert.isNotNull(scroller);
-        assert.isAbove(scroller?.scrollHeight ?? 0, scroller?.clientHeight ?? 0, "the settings scroll lengthwise");
         assert.isAtMost(scroller?.scrollWidth ?? 0, scroller?.clientWidth ?? 0, "no sideways scrolling");
         await page.screenshot({
             path: "../../../../../design/ui/studio/tier3/build/key-values-settings/graph-settings-1366x768.png",
         });
+    });
+
+    it("shows Direction in one word with its explanation, and Degree one figure per row", async () => {
+        await openGraphSettings();
+        await userEvent.click(screen.getByRole("tab", { name: "Values" }));
+        const direction = await screen.findByRole("group", { name: "Direction" });
+        const word = direction.querySelector("[data-testid=data-row-value]")?.textContent;
+        assert.oneOf(word, ["Undirected", "Directed", "Mixed", "Not settled"]);
+        const spread = await screen.findByTestId("values-spread");
+        for (const name of ["Lowest", "Median", "Mean", "Highest"]) {
+            assert.isNotNull(within(spread).getByRole("group", { name }), name);
+        }
+        assert.isNull(screen.queryByRole("group", { name: "Edges per node" }));
     });
 });

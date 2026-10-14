@@ -125,10 +125,9 @@ describe("a layer row's Values tab on the real element", () => {
         const summary = session.runs.get(runId)?.result?.summary();
         assert.isDefined(summary);
         const spread = await within(inspector).findByTestId("values-spread");
-        assert.include(
-            spread.textContent,
-            `${formatNumber(summary?.min ?? 0)} to ${formatNumber(summary?.max ?? 0)}, median ${formatNumber(summary?.median ?? 0)}`,
-        );
+        assert.equal(statValue(spread, "Lowest"), formatNumber(summary?.min ?? 0));
+        assert.equal(statValue(spread, "Median"), formatNumber(summary?.median ?? 0));
+        assert.equal(statValue(spread, "Highest"), formatNumber(summary?.max ?? 0));
         assert.isNotEmpty(within(inspector).getAllByTestId("histogram-bar"));
         assert.equal(statValue(inspector, "Matched nodes"), formatNumber(session.styles.counts(layer.id).matched));
         assertPainted(session, inspector, layer);

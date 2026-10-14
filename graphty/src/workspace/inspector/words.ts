@@ -140,26 +140,54 @@ export function formatNumber(value: number): string {
 }
 
 /**
- * The graph's direction and who settled it ("Undirected, from the file"). The file's own
- * statement (GML "directed 0", DOT "digraph") is not quoted: a reader cannot read it.
+ * The graph's direction in one word ("Undirected"); where it came from and what it means for
+ * arrowheads are in {@link directionNote}.
  * @param statistics - the element's statistics.
- * @returns the words.
+ * @returns the word.
  */
 export function directionWords(statistics: GraphStatistics): string {
-    const word = {
-        directed: "Directed",
-        undirected: "Undirected",
-        mixed: "Mixed",
-        unknown: "Not settled",
-    }[statistics.directedness];
+    return { directed: "Directed", undirected: "Undirected", mixed: "Mixed", unknown: "Not settled" }[
+        statistics.directedness
+    ];
+}
+
+/**
+ * What arrowheads follow on a graph of this direction, or null on a directed graph, where they
+ * point at each edge's target as a reader expects.
+ * @param directedness - the element's direction.
+ * @returns the sentence, or null.
+ */
+export function arrowheadNote(directedness: GraphStatistics["directedness"]): string | null {
+    const follows = "arrowheads point from each edge's first-listed node to its second, the file's order";
+    switch (directedness) {
+        case "undirected":
+            return `Edges have no direction, so ${follows}.`;
+        case "mixed":
+            return `Some edges have a direction and some do not; on those that do not, ${follows}.`;
+        case "unknown":
+            return `Nothing says whether edges have a direction, so ${follows}.`;
+        default:
+            return null;
+    }
+}
+
+/**
+ * The Direction row's explanation: what the direction means for arrowheads and where it came
+ * from (the file, or the Data page). The file's own statement (GML "directed 0", DOT "digraph")
+ * is not quoted: a reader cannot read it.
+ * @param statistics - the element's statistics.
+ * @returns the sentences.
+ */
+export function directionNote(statistics: GraphStatistics): string {
     const { by, statedBy } = statistics.directednessSource;
-    if (by === "file" && statedBy !== null) {
-        return `${word}, from the file`;
+    let from = "Nothing has said yet; set it on the Data page.";
+    if (by === "file") {
+        from = statedBy === null ? "From the file's format." : "From the file.";
+    } else if (by === "configuration") {
+        from = "Set on the Data page.";
     }
-    if (by === "configuration") {
-        return `${word}, set in the project`;
-    }
-    return word;
+    const arrows = arrowheadNote(statistics.directedness) ?? "Each edge goes from its source to its target.";
+    return `${arrows} ${from}`;
 }
 
 /**

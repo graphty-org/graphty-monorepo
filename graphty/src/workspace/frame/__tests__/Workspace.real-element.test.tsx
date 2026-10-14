@@ -112,19 +112,21 @@ describe("the workspace frame on the real element", () => {
 
     // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
-        "keeps Method inside the inspector's padding on the graph's Style tab",
+        "keeps Lighting inside the inspector's padding on the graph's Style tab, with no Layout copy there",
         async () => {
             const session = await openWorkspace();
             await session.data.addNodes([{ id: "a" }, { id: "b" }]);
             const inspector = screen.getByRole("complementary", { name: "Inspector" });
             await userEvent.click(within(inspector).getByRole("tab", { name: "Style" }));
 
-            const method = (await within(inspector).findAllByLabelText("Method")).find((e) => e.tagName === "INPUT");
-            assert.isDefined(method);
+            const lighting = await within(inspector).findByRole("combobox", { name: "Lighting" });
             const panel = within(inspector).getByRole("tabpanel", { name: "Style" });
-            const left = method?.getBoundingClientRect().left ?? 0;
+            const { left } = lighting.getBoundingClientRect();
             // compact-mantine's panel grid: content begins 16px in from the panel's leading edge.
-            assert.closeTo(left - panel.getBoundingClientRect().left, 16, 1, "Method starts at the content band");
+            assert.closeTo(left - panel.getBoundingClientRect().left, 16, 1, "Lighting starts at the content band");
+            // The toolbar is the one home of the layout and of 2D / 3D.
+            assert.isEmpty(within(panel).queryAllByLabelText("Method"));
+            assert.isNull(within(panel).queryByRole("heading", { name: "Layout" }));
         },
         TIMEOUT_MS,
     );

@@ -11,7 +11,6 @@ import type { Lighting, ViewInsets } from "@graphty/graphty-element";
 import type { GraphSession, NoteTargetInput } from "@graphty/graphty-element/session";
 import { useSyncExternalStore } from "react";
 
-import { APP_HIGHLIGHT_COLOR } from "../../constants/highlight";
 import type { InspectedKind } from "../commands/registry";
 
 /** A left-panel place on the rail (tier1-design.md section 2.2). */
@@ -89,8 +88,8 @@ export interface WorkspaceState {
     readonly sameSizeAtAnyDepth: boolean | null;
     /** Graph settings, Lighting: how the 3D nodes are lit. A view preference, never saved. */
     readonly lighting: Lighting;
-    /** Graph settings, Highlight color: what a run paints its result in when no layer says otherwise. */
-    readonly highlightColor: string;
+    /** Graph settings, Outline width: every outline's width, or null for the element's own. */
+    readonly outlineWidth: number | null;
     /**
      * The canvas margins the legend card covers, reported by the card and handed to the element
      * so a fit never puts a node under it. Empty while no card is drawn.
@@ -152,7 +151,7 @@ const INITIAL: WorkspaceState = {
     labelsAvoid: false,
     sameSizeAtAnyDepth: null,
     lighting: "studio",
-    highlightColor: APP_HIGHLIGHT_COLOR,
+    outlineWidth: null,
     viewInsets: {},
     exportOn: "image",
     singleKeyShortcuts: true,

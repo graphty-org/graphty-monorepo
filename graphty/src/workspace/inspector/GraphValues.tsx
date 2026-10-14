@@ -1,12 +1,80 @@
-import { ControlSection, DataRow } from "@graphty/compact-mantine";
-import type { ScopeInput } from "@graphty/graphty-element/session";
+import { ControlSection, DataRow, HistogramRow, InfoCircle, SegmentedControl } from "@graphty/compact-mantine";
+import type { GraphStatistics, Histogram, ScopeInput } from "@graphty/graphty-element/session";
 import { Text, Tooltip } from "@mantine/core";
-import type React from "react";
+import React, { useState } from "react";
 
 import { weightName } from "../analyze/words";
 import { useVisibilityVersion } from "../data-place/useVisibilityVersion";
 import { useWorkspace } from "../state/WorkspaceContext";
-import { count, directionWords, formatNumber, measurementGloss, measurementWord } from "./words";
+import { DistributionRows } from "./Distribution";
+import { settingsNotInEffect } from "./settingsInEffect";
+import { count, directionNote, directionWords, formatNumber, measurementGloss, measurementWord } from "./words";
+
+/** Which degree the Degree section shows on a directed graph. */
+type DegreeKind = "all" | "in" | "out";
+
+const DEGREE_NOTE =
+    "A node's degree is how many edges touch it. On a directed graph, in-degree counts the edges that arrive and out-degree the edges that leave.";
+
+/**
+ * The graph's Degree section: the element's degree histogram (its bins chosen within a budget, so a
+ * large graph never draws thousands of bars), then Lowest, Median, Mean and Highest, one per row.
+ * A directed graph offers All, In and Out. Transitivity follows when the element measured it.
+ * @param props - Component props
+ * @param props.statistics - the element's statistics
+ * @returns The section
+ */
+function DegreeSection({ statistics }: Readonly<{ statistics: GraphStatistics }>): React.JSX.Element {
+    const [kind, setKind] = useState<DegreeKind>("all");
+    const directed = statistics.inDegreeHistogram !== undefined && statistics.outDegreeHistogram !== undefined;
+    const histograms: Record<DegreeKind, Histogram | undefined> = {
+        all: statistics.degreeHistogram,
+        in: statistics.inDegreeHistogram,
+        out: statistics.outDegreeHistogram,
+    };
+    const shown = directed ? kind : "all";
+    const histogram = histograms[shown];
+    const [low, high] = statistics.degreeRange;
+    const figures =
+        shown === "all"
+            ? { min: low, median: histogram?.median, mean: statistics.meanDegree, max: high }
+            : { min: histogram?.min, median: histogram?.median, max: histogram?.max };
+    const name = { all: "Degree", in: "In-degree", out: "Out-degree" }[shown];
+    return (
+        <ControlSection label="Degree" collapsible={false} headingLevel={3} info={DEGREE_NOTE}>
+            {directed && (
+                <SegmentedControl
+                    fullWidth
+                    aria-label="Which degree"
+                    value={kind}
+                    data={[
+                        { value: "all", label: "All" },
+                        { value: "in", label: "In" },
+                        { value: "out", label: "Out" },
+                    ]}
+                    onChange={(picked) => {
+                        setKind(picked as DegreeKind);
+                    }}
+                />
+            )}
+            {histogram !== undefined && histogram.bins.length > 0 && (
+                <HistogramRow
+                    label={name}
+                    bins={histogram.bins.map((bin) => ({
+                        label: `${formatNumber(bin.from)} to ${formatNumber(bin.to)}: ${String(bin.count)}`,
+                        count: bin.count,
+                    }))}
+                    minLabel={formatNumber(histogram.bins[0].from)}
+                    maxLabel={formatNumber(histogram.bins[histogram.bins.length - 1].to)}
+                />
+            )}
+            <DistributionRows figures={figures} />
+            {statistics.transitivity !== undefined && (
+                <DataRow stat name="Transitivity" value={formatNumber(statistics.transitivity)} />
+            )}
+        </ControlSection>
+    );
+}
 
 /**
  * "19 of 20", exact counts.
@@ -43,7 +111,6 @@ export function Overview(): React.JSX.Element | null {
     const select = (scope: ScopeInput) => () => {
         void session.selection.apply({ scope });
     };
-    const [low, high] = statistics.degreeRange;
     const weight = session.data.loadedWeight();
     const filtered = session.visibility.steps.some((step) => step.on);
     const showing = session.visibility.summary;
@@ -52,7 +119,12 @@ export function Overview(): React.JSX.Element | null {
         <>
             <DataRow stat name="Nodes" value={statistics.nodeCount} />
             <DataRow stat name="Edges" value={statistics.edgeCount} />
-            <DataRow stat name="Direction" value={directionWords(statistics)} />
+            <DataRow
+                stat
+                name="Direction"
+                value={directionWords(statistics)}
+                trailing={<InfoCircle label="Direction">{directionNote(statistics)}</InfoCircle>}
+            />
             {weight !== null && (
                 <DataRow stat name="Loaded weight" value={weightName(weight.attribute, weight.meaning)} />
             )}
@@ -65,12 +137,6 @@ export function Overview(): React.JSX.Element | null {
                     onClick={select("largest-component")}
                 />
             )}
-            {/* The distribution's histogram waits for graphty-element #896; range and mean show. */}
-            <DataRow
-                stat
-                name="Edges per node"
-                value={`${formatNumber(low)} to ${formatNumber(high)}, mean ${formatNumber(statistics.meanDegree)}`}
-            />
             {/* Text, not links, until graphty-element can select the isolated nodes it counts
                 (#931) and the self-loops and repeated edges (#899). */}
             {statistics.components.isolatedCount > 0 && (
@@ -85,11 +151,25 @@ export function Overview(): React.JSX.Element | null {
         </>
     );
 
+    const otherView = settingsNotInEffect(session).length;
+    const tail = (
+        <>
+            <DegreeSection statistics={statistics} />
+            {otherView > 0 && (
+                <Text size="xs" c="dimmed" px="md" data-testid="settings-other-view">
+                    {`${count(otherView, "graph setting")} ${otherView === 1 ? "applies" : "apply"} only in another view`}
+                </Text>
+            )}
+        </>
+    );
     if (!filtered) {
         return (
-            <ControlSection label="Overview" collapsible={false} headingLevel={3}>
-                {whole}
-            </ControlSection>
+            <>
+                <ControlSection label="Overview" collapsible={false} headingLevel={3}>
+                    {whole}
+                </ControlSection>
+                {tail}
+            </>
         );
     }
     return (
@@ -101,6 +181,7 @@ export function Overview(): React.JSX.Element | null {
             <ControlSection label="Full graph" collapsible={false} headingLevel={3}>
                 {whole}
             </ControlSection>
+            {tail}
         </>
     );
 }
@@ -165,9 +246,7 @@ export function AttributeValues({ path }: Readonly<{ path: string }>): React.JSX
             <DataRow stat name="Origin" value={ORIGIN_WORDS[column.origin]} />
             <DataRow stat name="Has a value" value={`${formatNumber(column.completeness * 100)}%`} />
             {column.uniqueCount !== undefined && <DataRow stat name="Distinct values" value={column.uniqueCount} />}
-            {column.min !== undefined && column.max !== undefined && (
-                <DataRow stat name="Range" value={`${formatNumber(column.min)} to ${formatNumber(column.max)}`} />
-            )}
+            <DistributionRows figures={{ min: column.min, max: column.max }} />
         </ControlSection>
     );
 }

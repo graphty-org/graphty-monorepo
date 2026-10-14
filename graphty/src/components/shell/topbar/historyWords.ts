@@ -62,6 +62,8 @@ const WORDS: Readonly<Record<HistoryCode, (params: Params) => string>> = {
     "data.remove-edges": (p) => `Removed ${some(p.count, "edge", "an")}`,
     "data.edit": (p) => `Edited ${some(p.count, text(p.target), "1")}`,
     "data.clear": () => "Cleared the graph",
+    "data.label": (p) =>
+        p.label === null ? `Removed the name of ${String(p.value)}` : `Named ${String(p.value)} ${String(p.label)}`,
     "data.set": () => "Set the graph data",
     "data.replace-nodes": () => "Replaced the nodes",
     "data.replace-edges": () => "Replaced the edges",

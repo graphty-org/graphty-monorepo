@@ -219,17 +219,18 @@ export const GRAPH_SETTING_HOMES: Readonly<Record<string, Home>> = {
     "selection.edgeColor": at("Selected row, Effects, Band"),
     "selection.edgeScale": at("Selected row, Effects, Band settings"),
     "selection.edgeOpacity": at("Selected row, Effects, Band settings"),
-    viewMode: at("Graph settings, Canvas, View"),
+    viewMode: no("not a style: the toolbar's 2D / 3D"),
     lighting: at("Graph settings, Canvas, Lighting"),
     "layoutBehavior.labels": at("Graph settings, Labels"),
     "layoutBehavior.node.depthIndependentSize": at("Graph settings, Canvas, Same size at any depth"),
-    highlightColor: at("Graph settings, Canvas, Highlight color"),
+    highlightColor: no("the app keeps one highlight color; a route's color is its layer's Fill"),
+    "layoutBehavior.node.outlineWidth": at("Graph settings, Canvas, Outline width"),
     twoD: no("deprecated: View sets it"),
     addDefaultStyle: no("ignored by graphty-element"),
     startingRows: no("a project setting, not a style"),
     startingCameraDistance: no("not a style: the camera"),
-    layout: no("not a style: the Layout panel"),
-    layoutOptions: no("not a style: the Layout panel"),
+    layout: no("not a style: the toolbar's Layout"),
+    layoutOptions: no("not a style: the toolbar's Layout"),
 };
 
 /**

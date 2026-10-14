@@ -1,4 +1,4 @@
-import { ControlSection, PopoutManager } from "@graphty/compact-mantine";
+import { PopoutManager } from "@graphty/compact-mantine";
 import type { GraphSession, Run } from "@graphty/graphty-element/session";
 import { ActionIcon, Anchor, ColorSwatch, Group, Menu, Stack, Tabs, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useState } from "react";
@@ -21,7 +21,6 @@ import { KindGlyph } from "../graph-place/KindGlyph";
 import { RowMenuItems } from "../graph-place/RowMenu";
 import { findTreeRow, placeOf, rowName, rowsHeading, runRowKind } from "../graph-place/rows";
 import { LayerRowPanel } from "../graph-place/StyleTree";
-import { LayoutGroup } from "../layout/LayoutForm";
 import { notesAbout } from "../notes/words";
 import { runName } from "../runWords";
 import { tabFor } from "../state/store";
@@ -501,15 +500,7 @@ function bodyOf(
     switch (resolved.kind) {
         case "graph":
             return {
-                style: (
-                    <>
-                        <GraphSettings />
-                        {/* Titled, and on the panel grid's content band as the sections above it. */}
-                        <ControlSection label="Layout" collapsible={false} headingLevel={3}>
-                            <LayoutGroup />
-                        </ControlSection>
-                    </>
-                ),
+                style: <GraphSettings />,
                 values: <Overview />,
             };
         case "node":

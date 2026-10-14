@@ -8,6 +8,7 @@ import { useWorkspace } from "../state/WorkspaceContext";
 import { sourceName } from "../style/row";
 import { useStyleVersion } from "../style/useStyleVersion";
 import { channelWord, groupRank, hexOf, valueName } from "../style/words";
+import { DistributionRows } from "./Distribution";
 import { useAsyncValue, useSessionVersion } from "./hooks";
 import { nodeKey } from "./inspected";
 import { selectNode } from "./reads";
@@ -177,11 +178,7 @@ function NumberValues({
                 minLabel={formatNumber(bins[0].from)}
                 maxLabel={formatNumber(bins[bins.length - 1].to)}
             />
-            {min !== undefined && median !== undefined && max !== undefined && (
-                <Text size="sm" c="dimmed" data-testid="values-spread">
-                    {`${formatNumber(measured)} have a value, ${formatNumber(min)} to ${formatNumber(max)}, median ${formatNumber(median)}`}
-                </Text>
-            )}
+            <DistributionRows figures={{ count: measured, min, median, max }} />
             {stepped.map(({ channel, preview }) => (
                 <React.Fragment key={channel}>
                     <DataRowHeader label={`${channelWord(channel)} steps`} />

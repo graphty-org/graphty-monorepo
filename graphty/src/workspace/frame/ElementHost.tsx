@@ -2,8 +2,9 @@ import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { APP_HIGHLIGHT_COLOR } from "../../constants/highlight";
 import { LAYOUT_SEED } from "../layout/methods";
-import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
+import { useWorkspaceState } from "../state/WorkspaceContext";
 import { useSizeBound } from "./useSizeBound";
 
 /**
@@ -37,7 +38,6 @@ interface ElementHostProps {
  */
 export function ElementHost({ onReady }: Readonly<ElementHostProps>): React.JSX.Element {
     const ref = useRef<GraphtyElement>(null);
-    const { store } = useWorkspace();
     // Labels that would land on each other are thinned out until the reader turns on Show all
     // labels (tier1-design.md section 2.7), and a still graph is not drawn again on every animation
     // frame: the workspace never changes the Babylon scene behind the element's back, so nothing it
@@ -55,18 +55,15 @@ export function ElementHost({ onReady }: Readonly<ElementHostProps>): React.JSX.
     const labelsAvoid = useWorkspaceState((state) => state.labelsAvoid);
     const sameSize = useWorkspaceState((state) => state.sameSizeAtAnyDepth) ?? sizeBound;
     const lighting = useWorkspaceState((state) => state.lighting);
-    const highlightColor = useWorkspaceState((state) => state.highlightColor);
+    const outlineWidth = useWorkspaceState((state) => state.outlineWidth);
     const layoutBehavior = useMemo(
         () => ({
             labels: { declutter: !allLabelsShown, avoidNodesAndEdges: labelsAvoid },
-            node: { depthIndependentSize: sameSize },
+            node: { depthIndependentSize: sameSize, ...(outlineWidth === null ? {} : { outlineWidth }) },
             rendering: { onDemand: true },
         }),
-        [allLabelsShown, labelsAvoid, sameSize],
+        [allLabelsShown, labelsAvoid, sameSize, outlineWidth],
     );
-    useEffect(() => {
-        hosted?.styles.setHighlightColor(highlightColor);
-    }, [hosted, highlightColor]);
     // The legend card's margins: the element keeps every fit clear of them.
     const viewInsets = useWorkspaceState((state) => state.viewInsets);
 
@@ -77,7 +74,8 @@ export function ElementHost({ onReady }: Readonly<ElementHostProps>): React.JSX.
             // Undefined until the tag has upgraded to the element.
             const session: GraphSession | undefined = element?.session;
             if (!disposed && element !== null && session !== undefined) {
-                session.styles.setHighlightColor(store.get().highlightColor);
+                // The app keeps one highlight color, a presentation choice (constants/highlight.ts).
+                session.styles.setHighlightColor(APP_HIGHLIGHT_COLOR);
                 setHosted(session);
                 onReady(element, session);
             }
@@ -91,7 +89,7 @@ export function ElementHost({ onReady }: Readonly<ElementHostProps>): React.JSX.
             disposed = true;
             onReady(null, null);
         };
-    }, [onReady, store]);
+    }, [onReady]);
 
     return (
         <graphty-element

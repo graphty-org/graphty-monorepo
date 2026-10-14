@@ -106,6 +106,8 @@ const WORDS: Readonly<Record<HistoryCode, (params: Params, session: GraphSession
     "data.remove-edges": (p) => `removing ${counted(p, "edge")}`,
     "data.edit": (p) => `editing ${counted(p, p.target === "edge" ? "edge" : "node")}`,
     "data.clear": () => "clearing the data",
+    "data.label": (p) =>
+        p.label === null ? `removing the name of ${String(p.value)}` : `naming ${String(p.value)} ${String(p.label)}`,
     "data.set": () => "replacing the data",
     "data.replace-nodes": () => "replacing the nodes",
     "data.replace-edges": () => "replacing the edges",

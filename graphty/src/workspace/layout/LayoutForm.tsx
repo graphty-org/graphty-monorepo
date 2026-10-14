@@ -1,13 +1,12 @@
 import { SegmentedControl, StyleNumberInput } from "@graphty/compact-mantine";
 import type { LayoutDescriptor } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
-import { Button, Group, Select, Stack, Text } from "@mantine/core";
+import { Button, Group, Stack, Text } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
 import { costLine, optionWords } from "../analyze/words";
 import { OptionsForm } from "../options/OptionsForm";
-import { useWorkspace } from "../state/WorkspaceContext";
-import { LAYOUT_SEED, layoutChoices, layoutName, randomSeed, startingValues, unavailable, useLayouts } from "./methods";
+import { LAYOUT_SEED, layoutName, randomSeed, startingValues, unavailable } from "./methods";
 
 /** Props for LayoutForm. */
 interface LayoutFormProps {
@@ -235,54 +234,5 @@ export function LayoutForm({
                 </Group>
             </Stack>
         </form>
-    );
-}
-
-/**
- * The graph inspector's Layout group: a Method select over the element's catalog (a layout that
- * cannot run now is disabled) and the picked layout's form inline, the way Figma edits Auto
- * layout in its right panel.
- * @returns The group, or nothing before the element has come up
- */
-export function LayoutGroup(): React.JSX.Element | null {
-    const { session } = useWorkspace();
-    const layouts = useLayouts(session);
-    const [picked, setPicked] = useState<string | null>(null);
-    if (session === null) {
-        return null;
-    }
-    const choices = layoutChoices(session, layouts);
-    const id = picked ?? session.layout.id;
-    const open = choices.find((choice) => choice.descriptor.id === id);
-    return (
-        <Stack gap={8}>
-            <Select
-                label="Method"
-                value={id}
-                data={choices.map((choice) => ({
-                    value: choice.descriptor.id,
-                    label: choice.recommended ? `${choice.name} - Recommended` : choice.name,
-                    disabled: choice.reason !== null,
-                }))}
-                allowDeselect={false}
-                onChange={(value) => {
-                    if (value !== null) {
-                        setPicked(value);
-                    }
-                }}
-            />
-            {open === undefined ? null : (
-                // A new start whenever what is drawn changes (Apply, undo, a project opening), so
-                // the form never edits a layout that is gone.
-                // ponytail: Reshuffle here also closes the Advanced fold; keep its state outside the
-                // form if that bothers anyone.
-                <LayoutForm
-                    key={`${id}|${session.layout.engine}|${JSON.stringify(session.layout.options)}`}
-                    session={session}
-                    descriptor={open.descriptor}
-                    shapeChoice={false}
-                />
-            )}
-        </Stack>
     );
 }

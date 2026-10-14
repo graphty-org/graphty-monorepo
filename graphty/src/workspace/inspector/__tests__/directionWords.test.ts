@@ -5,7 +5,7 @@ import type { GraphStatistics } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 
 import { EMPTY_GRAPH_STATISTICS } from "../../../components/shell/analysis/graphShape";
-import { directionWords } from "../words";
+import { directionNote, directionWords } from "../words";
 
 /**
  * Statistics carrying only the direction facts the row reads.
@@ -21,20 +21,27 @@ function stats(
 }
 
 describe("directionWords", () => {
-    it("says the file settled it without quoting the file's statement", () => {
-        const words = directionWords(stats("undirected", { by: "file", statedBy: "directed 0" }));
-        assert.strictEqual(words, "Undirected, from the file");
-        assert.notInclude(words, "directed 0");
+    it("names the direction in one word and leaves where it came from to the note", () => {
+        const statistics = stats("undirected", { by: "file", statedBy: "directed 0" });
+        assert.strictEqual(directionWords(statistics), "Undirected");
+        const note = directionNote(statistics);
+        assert.include(note, "first-listed node");
+        assert.include(note, "From the file.");
+        assert.notInclude(note, "directed 0");
     });
 
-    it("says the project settled it", () => {
-        assert.strictEqual(
-            directionWords(stats("directed", { by: "configuration", statedBy: null })),
-            "Directed, set in the project",
-        );
+    it("says the Data page settled it", () => {
+        const statistics = stats("directed", { by: "configuration", statedBy: null });
+        assert.strictEqual(directionWords(statistics), "Directed");
+        assert.include(directionNote(statistics), "Set on the Data page.");
+        assert.notInclude(directionNote(statistics), "first-listed");
     });
 
-    it("gives only the direction when nothing settled it", () => {
+    it("words mixed and unknown direction each its own way", () => {
+        const mixed = directionNote(stats("mixed", { by: "file", statedBy: null }));
+        const unknown = directionNote(stats("unknown", { by: "unsettled", statedBy: null }));
+        assert.include(mixed, "Some edges have a direction");
+        assert.include(unknown, "Nothing says whether edges have a direction");
         assert.strictEqual(directionWords(stats("unknown", { by: "unsettled", statedBy: null })), "Not settled");
     });
 });

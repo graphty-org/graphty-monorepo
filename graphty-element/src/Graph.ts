@@ -1589,21 +1589,10 @@ export class Graph implements GraphContext {
                 // Only process settlement events if there are nodes - an empty graph
                 // has nothing to settle, so we shouldn't emit events or log
                 if (this.dataManager.nodes.size > 0) {
-                    // A label built while the layout is at rest -- by the load, a style layer or
-                    // any later write -- has no settlement coming to start its animation, so the
-                    // first frame at rest does. See `oweLabelAnimations`.
-                    if (!this.layoutManager.running && !this.layoutManager.building && payLabelAnimations(this.scene)) {
-                        this.dataManager.startLabelAnimations();
-                    }
-
                     // Check if layout has settled
                     if (this.layoutManager.isSettled && this.layoutManager.running) {
                         this.eventManager.emitGraphSettled(this);
                         this.layoutManager.running = false;
-
-                        // Start label animations after layout has settled
-                        payLabelAnimations(this.scene);
-                        this.dataManager.startLabelAnimations();
 
                         // Only zoom to fit on FIRST settlement after data load.
                         // Subsequent settlements (e.g., after node selection/style change)
@@ -1621,6 +1610,22 @@ export class Graph implements GraphContext {
                                 this.initialCameraState = this.getCameraState();
                             }
                         }
+                    }
+
+                    // A label's animation starts on the first frame that finds the layout at rest
+                    // -- settled just above, or never running -- and no style paint still to
+                    // draw: a load's labels are built from that paint, and a pass that has not
+                    // been drawn yet (a slow machine settles a `fixed` layout first) would leave
+                    // some unbuilt and start the rest early, then again. See `oweLabelAnimations`.
+                    const painter = this.getStylePainter();
+                    if (
+                        !this.layoutManager.running &&
+                        !this.layoutManager.building &&
+                        !painter.hasPending &&
+                        !painter.isPainting &&
+                        payLabelAnimations(this.scene)
+                    ) {
+                        this.dataManager.startLabelAnimations();
                     }
 
                     // Report performance when transitioning from unsettled to settled

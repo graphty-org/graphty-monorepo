@@ -1,11 +1,8 @@
 import "../index.ts";
 
-import type { SampleGraph } from "@graphty/graph-samples";
-import { completeGraph, petersenGraph, randomApollonianGraph } from "@graphty/graph-samples/generators";
+import { randomApollonianGraph } from "@graphty/graph-samples/generators";
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
-import { expect, waitFor } from "storybook/test";
 
-import { countCrossings } from "../../layout/stories/utils/crossings";
 import { Graphty } from "../src/graphty-element";
 import {
     assertDistinctPicture,
@@ -374,125 +371,34 @@ export const Spring: Story = {
     },
 };
 
-/** The planar story's graph: a seeded random Apollonian network, a planar triangulation a force layout tangles. */
+/** The planar story's graph: a seeded random Apollonian network, a planar triangulation other layouts tangle. */
 const apollonian = randomApollonianGraph({ n: 20, seed: 42 });
 
 /**
- * A graph-samples graph as the element's node and edge rows.
- * @param g - the graph
- * @returns the rows
- */
-const rowsOf = (g: SampleGraph): { nodeData: { id: number }[]; edgeData: { src: number; dst: number }[] } => ({
-    nodeData: Array.from({ length: g.nodeCount }, (_, id) => ({ id })),
-    edgeData: Array.from(g.src, (src, e) => ({ src, dst: g.dst[e] })),
-});
-
-/**
- * One element of the planar story, with a heading above it and, once its frame is stable, a line under it: the
- * drawing's edge-crossing count, or the reason the layout refused the graph.
- * @param heading - what the panel shows
- * @param g - its graph
- * @param layout - the layout and its options
- * @param layout.name - the layout
- * @param layout.config - its options
- * @param context - the story's render context, which renderFn reads the controls from
- * @returns the panel
- */
-const planarPanel = (
-    heading: string,
-    g: SampleGraph,
-    layout: { name: string; config: Record<string, unknown> },
-    context: Parameters<typeof renderFn>[1],
-): HTMLElement => {
-    const panel = document.createElement("div");
-    panel.style.cssText =
-        "display:flex;flex-direction:column;min-width:0;font:14px system-ui,sans-serif;color:#1e293b;";
-    const title = document.createElement("div");
-    title.style.cssText = "font-weight:600;padding:4px 0;";
-    title.textContent = heading;
-    const element = renderFn(
-        {
-            ...rowsOf(g),
-            dataSource: undefined,
-            setup: storySetup({ viewMode: "2d" }),
-            layout: layout.name,
-            layoutConfig: layout.config,
-        },
-        context,
-    ) as Graphty;
-    element.style.cssText = "display:block;width:100%;height:100%;min-height:0;flex:1;";
-    const caption = document.createElement("div");
-    caption.dataset.planarCaption = "";
-    // A fixed height, room for two lines: the caption is written after the frame is stable, and a caption that grew
-    // the panel then would resize the canvas after the picture was declared final.
-    caption.style.cssText =
-        "padding:4px 0;height:44px;line-height:18px;box-sizing:border-box;flex:none;overflow:hidden;color:#475569;";
-    let refused: string | undefined;
-    element.addEventListener("error", (event) => {
-        const { error } = (event as CustomEvent<{ error: Error }>).detail;
-        refused = error.message;
-    });
-    void element.waitForStableFrame().then(() => {
-        if (refused !== undefined) {
-            caption.textContent = `Refused: ${refused} The nodes stay where they were drawn before the refusal.`;
-            return;
-        }
-        const at = (id: number): readonly [number, number] => {
-            const p = element.nodeScreenPosition(id);
-            return [p?.x ?? Number.NaN, p?.y ?? Number.NaN];
-        };
-        const edges = Array.from(g.src, (s, e) => [s, g.dst[e]] as const);
-        caption.textContent = `${String(countCrossings(edges, at))} edge crossings`;
-    });
-    panel.append(title, element, caption);
-    return panel;
-};
-
-/**
- * Planar layout beside a force layout of the same planar graph -- a 20-node random Apollonian network, seed 42 --
- * with each drawing's edge-crossing count read off the screen, and below them two graphs that cannot be drawn
- * without crossings (K5 and the Petersen graph), which planar layout refuses on the element's error channel. Planar
- * layout guarantees no crossings, straight edges and nodes on a grid; it does not space the nodes evenly.
+ * A planar layout of a 20-node random Apollonian network (seed 42): every edge straight, every node on a grid point,
+ * and no two edges crossing. The nodes are not evenly spaced.
  */
 export const Planar: Story = {
-    render: (_args, context) => {
-        const root = document.createElement("div");
-        root.style.cssText =
-            "display:grid;grid-template-columns:1fr 1fr;grid-template-rows:2fr 1fr;gap:12px;width:100%;height:100vh;box-sizing:border-box;padding:12px;";
-        root.append(
-            planarPanel("Planar layout", apollonian, { name: "planar", config: {} }, context),
-            planarPanel(
-                "Force layout (Fruchterman-Reingold, seed 42)",
-                apollonian,
-                { name: "spring", config: { seed: 42 } },
-                context,
-            ),
-            planarPanel("K5 with planar layout", completeGraph({ n: 5 }), { name: "planar", config: {} }, context),
-            planarPanel(
-                "The Petersen graph with planar layout",
-                petersenGraph(),
-                { name: "planar", config: {} },
-                context,
-            ),
-        );
-        return root;
+    args: {
+        dataSource: undefined,
+        nodeData: Array.from({ length: apollonian.nodeCount }, (_, id) => ({ id })),
+        edgeData: Array.from(apollonian.src, (src, e) => ({ src, dst: apollonian.dst[e] })),
+        setup: storySetup({ viewMode: "2d" }),
+        layout: "planar",
+        planarScale: 1,
     },
     parameters: {
-        controls: { disable: true },
+        controls: {
+            include: ["layoutConfig.scale"],
+        },
     },
     play: async ({ canvasElement }) => {
-        const panels = [...canvasElement.querySelectorAll<HTMLElement>("[data-planar-caption]")];
-        await waitFor(
-            async () => {
-                await expect(panels.every((caption) => caption.textContent !== "")).toBe(true);
-            },
-            { timeout: 15000 },
-        );
-        const [planarCaption, forceCaption, k5, petersen] = panels.map((caption) => caption.textContent);
-        await expect(planarCaption).toBe("0 edge crossings");
-        await expect(forceCaption).toMatch(/^[1-9]\d* edge crossings$/);
-        await expect(k5).toContain("G is not planar.");
-        await expect(petersen).toContain("G is not planar.");
+        const scene = await placed(canvasElement, "Planar", {
+            nodes: apollonian.nodeCount,
+            edges: apollonian.src.length,
+        });
+
+        await assertDistinctPicture(scene, "Layout/2D");
     },
 };
 

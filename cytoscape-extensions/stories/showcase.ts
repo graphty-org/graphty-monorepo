@@ -141,77 +141,6 @@ interface LayoutShowcase {
     paint?(cy: Core): void;
     /** What the picture shows. */
     caption: string;
-    /** Draws a second copy of the graph beside the result, after the layout ran; returns more caption. */
-    beside?(cy: Core, seed: number): Promise<string>;
-}
-
-/**
- * How many pairs of edges cross in the drawing of some nodes; edges that share an end never count.
- * @param nodes - the nodes; only the edges between them count
- * @returns the number of crossing pairs
- */
-function crossings(nodes: NodeCollection): number {
-    const at = (id: string): [number, number] => {
-        const p = nodes.getElementById(id).position();
-        return [p.x, p.y];
-    };
-    const side = (a: number[], b: number[], c: number[]): number =>
-        Math.sign((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]));
-    const edges = nodes.edgesWith(nodes).map((e) => [e.source().id(), e.target().id()]);
-    let count = 0;
-    for (let i = 0; i < edges.length; i++) {
-        const [a, b] = edges[i];
-        for (let j = i + 1; j < edges.length; j++) {
-            const [c, d] = edges[j];
-            if (a === c || a === d || b === c || b === d) {
-                continue;
-            }
-            const [pa, pb, pc, pd] = [at(a), at(b), at(c), at(d)];
-            if (side(pa, pb, pc) * side(pa, pb, pd) < 0 && side(pc, pd, pa) * side(pc, pd, pb) < 0) {
-                count++;
-            }
-        }
-    }
-    return count;
-}
-
-/**
- * Adds a copy of the graph, lays it out with seeded Fruchterman-Reingold on the CPU, and puts it to the right of the
- * original at the same height, so the two drawings sit side by side.
- * @param cy - the core, holding the graph the layout drew
- * @param seed - the seed
- * @returns both drawings' crossing counts, in words
- */
-async function besideForce(cy: Core, seed: number): Promise<string> {
-    const original = cy.nodes();
-    const copy = cy.add(
-        cy.elements().map((e) => {
-            const json = e.json() as { data: Record<string, unknown> };
-            const data = { ...json.data, id: `force-${String(json.data.id)}` };
-            if (e.isEdge()) {
-                Object.assign(data, { source: `force-${e.source().id()}`, target: `force-${e.target().id()}` });
-            }
-            return { group: e.isEdge() ? "edges" : "nodes", data } as const;
-        }),
-    );
-    await runLayout(cy, "fruchterman-reingold", {
-        gpuMode: "off",
-        seed,
-        iterations: 0,
-        animate: false,
-        extra: { eles: copy },
-    });
-    const left = original.boundingBox({ includeLabels: false });
-    const right = copy.nodes().boundingBox({ includeLabels: false });
-    const k = left.h / Math.max(right.h, 1e-9);
-    copy.nodes().positions((n) => {
-        const p = n.position();
-        return { x: left.x2 + left.w * 0.15 + (p.x - right.x1) * k, y: left.y1 + (p.y - right.y1) * k };
-    });
-    return (
-        `Left, planar layout: ${crossings(original)} edge crossings, straight edges, nodes on a grid, uneven ` +
-        `spacing. Right, Fruchterman-Reingold (seed ${seed}): ${crossings(copy.nodes())} edge crossings.`
-    );
 }
 
 /**
@@ -325,8 +254,8 @@ export const LAYOUT_SHOWCASE: Record<string, LayoutShowcase> = {
     },
     planar: {
         load: generated("random-apollonian", { n: 20 }),
-        beside: besideForce,
-        caption: "A 20-node random Apollonian network (a planar triangulation), drawn twice.",
+        caption:
+            "A 20-node planar triangulation (a random Apollonian network) drawn with no two edges crossing: straight edges, nodes on integer grid points, uneven spacing.",
     },
     spectral: {
         load: network("grid", 100),
@@ -772,5 +701,5 @@ export async function showLayout(
         extra: { ...show.options?.(cy), ...run.extra },
     });
     show.paint?.(cy);
-    return { ...out, note: show.beside ? `${show.caption} ${await show.beside(cy, seed)}` : show.caption };
+    return { ...out, note: show.caption };
 }

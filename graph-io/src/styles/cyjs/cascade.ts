@@ -1620,26 +1620,37 @@ function straightenUnpairedBeziers(
     if (curved === undefined) {
         return;
     }
-    const bundles = new Map<string, number[]>();
-    for (let e = 0; e < graph.edges.length; e++) {
-        const s = graph.source[e];
-        const t = graph.target[e];
-        if (s !== t && styles[e] === "bezier") {
-            const key = s < t ? `${s} ${t}` : `${t} ${s}`;
-            const bundle = bundles.get(key);
-            if (bundle === undefined) {
-                bundles.set(key, [e]);
-            } else {
-                bundle.push(e);
-            }
-        }
-    }
-    for (const bundle of bundles.values()) {
+    for (const bundle of bezierBundles(graph, styles)) {
         const k = bundle.length % 2 === 1 ? coreToOut[bundle[(bundle.length - 1) / 2]] : -1;
         if (k >= 0) {
             curved[k] = false;
         }
     }
+}
+
+/**
+ * The `bezier` edges that are not loops, grouped by the two nodes they join (either way round), in core order.
+ * @param graph - the core's elements
+ * @param styles - each edge's curve style, in core order
+ * @returns the groups
+ */
+function bezierBundles(graph: CyjsGraph, styles: readonly unknown[]): Iterable<number[]> {
+    const bundles = new Map<string, number[]>();
+    for (let e = 0; e < graph.edges.length; e++) {
+        const s = graph.source[e];
+        const t = graph.target[e];
+        if (s === t || styles[e] !== "bezier") {
+            continue;
+        }
+        const key = s < t ? `${s} ${t}` : `${t} ${s}`;
+        const bundle = bundles.get(key);
+        if (bundle === undefined) {
+            bundles.set(key, [e]);
+        } else {
+            bundle.push(e);
+        }
+    }
+    return bundles.values();
 }
 
 /**

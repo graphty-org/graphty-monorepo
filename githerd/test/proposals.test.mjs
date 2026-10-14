@@ -7,6 +7,7 @@ import {
     droppableProposals,
     GRACE_DAYS,
     proposalComment,
+    proposeSplitParents,
     recordVerdict,
     veto,
 } from "../lib/proposals.mjs";
@@ -492,6 +493,44 @@ describe("advanceProposals: dry-run to acting, crashes and reopens", () => {
     });
 });
 
+describe("proposeSplitParents (issue #2557)", () => {
+    const at = new Date(START).toISOString();
+    const splitState = (childStates, parentState = "open") => ({
+        jobs: { "issue-10": { id: "issue-10", kind: "issue", target: "#10", state: "done", children: [11, 12] } },
+        issues: {
+            byNumber: {
+                10: { state: parentState },
+                11: { state: childStates[0] },
+                12: { state: childStates[1] },
+            },
+        },
+    });
+
+    it("proposes closing a split parent once every child is closed, naming the children", () => {
+        const state = splitState(["closed", "closed"]);
+        const made = proposeSplitParents(state, at);
+        expect(made.map((p) => p.target)).toEqual(["issue:10"]);
+        expect(state.proposals["issue:10"]).toMatchObject({ kind: "split", status: "confirmed" });
+        expect(proposalComment(state.proposals["issue:10"])).toContain("#11, #12");
+        // Once only: a second pass makes nothing new.
+        expect(proposeSplitParents(state, at)).toEqual([]);
+    });
+
+    it("proposes nothing while a child is open, or once the parent is closed", () => {
+        expect(proposeSplitParents(splitState(["closed", "open"]), at)).toEqual([]);
+        expect(proposeSplitParents(splitState(["closed", "closed"], "closed"), at)).toEqual([]);
+    });
+
+    it("proposes nothing while a child is not known closed, or after the owner vetoed the parent", () => {
+        const unknown = splitState(["closed", "closed"]);
+        delete unknown.issues.byNumber[12];
+        expect(proposeSplitParents(unknown, at)).toEqual([]);
+        const vetoed = splitState(["closed", "closed"]);
+        veto(vetoed, "issue:10", { by: "owner", reason: "keep", at });
+        expect(proposeSplitParents(vetoed, at)).toEqual([]);
+    });
+});
+
 describe("droppableProposals: an ended proposal leaves the state once nothing reads it", () => {
     /**
      * Drops what `droppableProposals` names the way the daemon does: its whole record to the
@@ -546,6 +585,20 @@ describe("droppableProposals: an ended proposal leaves the state once nothing re
         expect(drop(state, ledger)).toEqual([]);
         state.jobs["issue-8"].state = "done";
         expect(drop(state, ledger)).toEqual(["issue:8"]);
+    });
+
+    it("keeps a split parent's ended proposal while the job that split it is in the state, so it is proposed once", () => {
+        const state = /** @type {any} */ ({
+            jobs: { "issue-10": { id: "issue-10", kind: "issue", target: "#10", state: "done", children: [11] } },
+            issues: { byNumber: { 10: { state: "open" }, 11: { state: "closed" } } },
+        });
+        proposeSplitParents(state, at);
+        state.proposals["issue:10"].status = "ended";
+        const ledger = [];
+        expect(drop(state, ledger)).toEqual([]);
+        expect(proposeSplitParents(state, at)).toEqual([]);
+        delete state.jobs["issue-10"];
+        expect(drop(state, ledger)).toEqual(["issue:10"]);
     });
 
     it("leaves an entry in an older shape alone", () => {

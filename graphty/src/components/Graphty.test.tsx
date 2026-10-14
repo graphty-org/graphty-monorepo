@@ -1,3 +1,4 @@
+import { PALETTE_DESCRIPTORS } from "@graphty/graphty-element/catalog";
 import { createRef } from "react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -79,7 +80,14 @@ describe("Graphty", () => {
         await vi.waitFor(() => {
             expect(element.session.styles.setHighlightColor).toHaveBeenCalledWith(APP_HIGHLIGHT_COLOR);
         });
-        expect(APP_HIGHLIGHT_COLOR).toBe("#000000");
+    });
+
+    it("paints routes in a color no palette of the element holds, so a route never reads as a group", () => {
+        const paletteColors = PALETTE_DESCRIPTORS.flatMap((palette) =>
+            palette.colors.map((color) => color.toLowerCase()),
+        );
+        expect(paletteColors.length).toBeGreaterThan(0);
+        expect(paletteColors).not.toContain(APP_HIGHLIGHT_COLOR.toLowerCase());
     });
 
     it("leaves the element's size to the element, which fills the sized container", () => {

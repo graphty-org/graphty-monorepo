@@ -55,7 +55,7 @@ export interface Form {
 }
 
 /** A form with nothing chosen yet. */
-export const BLANK_FORM: Form = {
+const BLANK_FORM: Form = {
     mode: "where",
     conditions: [],
     topReads: "",

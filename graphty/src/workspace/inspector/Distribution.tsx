@@ -4,7 +4,7 @@ import React from "react";
 import { formatNumber } from "./words";
 
 /** The figures a distribution's rows show; each one left out is not drawn. */
-export interface DistributionFigures {
+interface DistributionFigures {
     readonly count?: number;
     readonly min?: number;
     readonly median?: number;

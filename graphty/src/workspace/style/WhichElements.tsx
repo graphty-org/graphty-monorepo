@@ -156,7 +156,7 @@ interface RuleEditorProps {
  * @param props - Component props
  * @returns The editor
  */
-export function RuleEditor(props: Readonly<RuleEditorProps>): React.JSX.Element {
+function RuleEditor(props: Readonly<RuleEditorProps>): React.JSX.Element {
     const { session, attributes, kind, onKind, form, onForm, onPick, sentence, status, onDone } = props;
     const kinds = new Set<SelectorTarget>(kind === undefined || kind === "both" ? ["node", "edge"] : [kind]);
     const kindRef = useRef<HTMLDivElement>(null);

@@ -25,7 +25,7 @@ export const ADD_ROW_LABEL = "Add a layer or a folder";
 /**
  * Puts focus on the style tree's "+".
  */
-export function focusAddButton(): void {
+function focusAddButton(): void {
     document.querySelector<HTMLElement>(`[aria-label="${ADD_ROW_LABEL}"]`)?.focus();
 }
 
@@ -43,7 +43,7 @@ function rowNames(rows: readonly StyleRow[]): string[] {
  * @param tree - the element's tree.
  * @returns the name.
  */
-export function nextLayerName(tree: readonly StyleRow[]): string {
+function nextLayerName(tree: readonly StyleRow[]): string {
     const used = new Set(rowNames(tree));
     let n = 1;
     while (used.has(`Layer ${String(n)}`)) {

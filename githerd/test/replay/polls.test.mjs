@@ -40,7 +40,10 @@ function client(replay, saved = {}) {
 }
 
 /**
- * Polls master's runs every minute and folds each answer into the sighting record.
+ * Polls master's runs as a minute-by-minute poller would and folds each answer into the sighting
+ * record. Only the minutes whose answer changed, and the minute after each (the same answer again,
+ * which must be no sighting), are polled: every other minute repeats a 304, and folding it is the
+ * case the minute after a change already covers: 291 of the 1,440 minutes of 10-02.
  * @param {ReturnType<typeof createReplay>} replay the replay
  * @param {string} from first minute
  * @param {string} to end, exclusive
@@ -50,7 +53,8 @@ async function sightMaster(replay, from, to) {
     const { gh } = client(replay);
     let record = {};
     const out = [];
-    for (let at = Date.parse(from); at < Date.parse(to); at += MINUTE) {
+    const minutes = [...replay.changedMinutes(MASTER, from, to)].filter((at) => at < Date.parse(to));
+    for (const at of minutes) {
         replay.setTime(at);
         const res = await gh.get(MASTER, { purpose: "essential" });
         const next = sightRuns(record, res.body.workflow_runs, "master");

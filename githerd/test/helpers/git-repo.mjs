@@ -4,7 +4,7 @@
  * keyring. Call `isolateGit()` from visual-review's helpers first.
  */
 import { execFileSync } from "node:child_process";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 import { git } from "../../../visual-review/test/helpers.mjs";
@@ -29,16 +29,17 @@ export function put(path, data) {
  */
 export function commitAll(cwd, message, { sign = true } = {}) {
     git(cwd, "add", "-A");
-    git(cwd, "commit", ...(sign ? ["-S"] : []), "-q", "-m", message);
-    return git(cwd, "rev-parse", "HEAD");
+    // The summary line (`[master <sha>] message`) names the commit in full, so no `git rev-parse`
+    // process follows: a test's time is mostly the git processes it runs one after another.
+    const out = git(cwd, "-c", "core.abbrev=40", "commit", ...(sign ? ["-S"] : []), "-m", message);
+    return /** @type {RegExpExecArray} */ (/ ([0-9a-f]{40})\] /.exec(out))[1];
 }
 
 /**
- * Creates `<tmp>/remote.git` and the clone `<tmp>/root` on branch master with one signed commit,
- * configured to sign with a fresh SSH key it trusts.
+ * Builds a repository as `makeRepo` returns it, from git commands.
  * @returns {{tmp: string, root: string, remote: string}} the paths
  */
-export function makeRepo() {
+function buildRepo() {
     const tmp = tempDir("githerd-git-");
     const remote = join(tmp, "remote.git");
     const root = join(tmp, "root");
@@ -64,4 +65,24 @@ export function makeRepo() {
     commitAll(root, "chore: first");
     git(root, "push", "-q", "origin", "master");
     return { tmp, root, remote };
+}
+
+/** @type {string | null} a repository this test file built and never hands out, which each copies */
+let template = null;
+
+/**
+ * Creates `<tmp>/remote.git` and the clone `<tmp>/root` on branch master with one signed commit,
+ * configured to sign with a fresh SSH key it trusts. Each is a copy of one repository the test file
+ * builds with git at its first call, with the clone's config (key, trust list, remote) pointed at
+ * the copy: a copy runs no process, and building runs fifteen, one after another, which on a
+ * machine busy with gates took seconds of the calling test's time.
+ * @returns {{tmp: string, root: string, remote: string}} the paths
+ */
+export function makeRepo() {
+    if (template === null || !existsSync(template)) template = buildRepo().tmp;
+    const tmp = tempDir("githerd-git-");
+    cpSync(template, tmp, { recursive: true });
+    const config = join(tmp, "root", ".git", "config");
+    writeFileSync(config, readFileSync(config, "utf8").replaceAll(template, tmp));
+    return { tmp, root: join(tmp, "root"), remote: join(tmp, "remote.git") };
 }

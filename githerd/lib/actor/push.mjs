@@ -16,7 +16,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { stripVTControlCharacters } from "node:util";
 
-import { move, TERMINAL } from "../board.mjs";
+import { move, sessionName, TERMINAL } from "../board.mjs";
 import { classify } from "../classify.mjs";
 import { isMasterFix } from "../master-fix.mjs";
 import { identify, pushQueueScript } from "../proc.mjs";
@@ -80,6 +80,13 @@ async function commitReasons(dir, sha, greenSha, env) {
  * made fast never cuts the next, cold one short.
  */
 const DEFAULT_GATE_MS = 30 * 60_000;
+
+/**
+ * How long a killed push's process group gets after SIGTERM before SIGKILL: the gate's exit trap
+ * ends the process groups it started on its own (tools/prepush.sh's GPU tests and screenshot
+ * capture, setsid), which a SIGKILL to the push's group never reaches.
+ */
+const KILL_GRACE_MS = 60_000;
 /** The longest a push waits in the machine's push queue before its gate starts. */
 const QUEUE_WAIT_MS = 4 * 3_600_000;
 /** How many recent successful gate durations are kept. */
@@ -134,13 +141,13 @@ export function livePushGroups(state, job) {
 }
 
 /**
- * Kills a process group, ignoring one that is already gone.
- * @param {number | null} pid the group's leader
+ * Signals a process group, ignoring one that is already gone.
+ * @param {number} pid the group's leader
+ * @param {NodeJS.Signals} sig the signal
  */
-function kill(pid) {
-    if (!pid) return;
+function signalGroup(pid, sig) {
     try {
-        process.kill(-pid, "SIGKILL");
+        process.kill(-pid, sig);
     } catch {
         // Already gone.
     }
@@ -200,6 +207,7 @@ const rank = (state, job) => {
  *   queueScript?: string,
  *   protectedPaths?: () => string[],
  *   defaultGateMs?: number,
+ *   killGraceMs?: number,
  *   now?: () => Date,
  *   others?: (job: string) => Promise<{job?: string, session?: string, files: string[]}[]>,
  * }} options `root` is the main checkout, where commits are checked; `mode` answers a write
@@ -239,6 +247,7 @@ export function createPushQueue({
     queueScript,
     protectedPaths = () => [],
     defaultGateMs = DEFAULT_GATE_MS,
+    killGraceMs = KILL_GRACE_MS,
     now = () => new Date(),
     others = async () => [],
 }) {
@@ -249,6 +258,22 @@ export function createPushQueue({
     /** @type {Promise<unknown> | null} */
     let running = null;
     let stopped = false;
+
+    /**
+     * Kills an entry's push: SIGTERM to its process group, so the gate's exit trap ends what it
+     * started outside the group, then SIGKILL to whatever of the group still runs `killGraceMs`
+     * later. The push's result is read on its close, after git and every process holding its
+     * output (the gate) have exited, so nothing is reported while the gate still runs.
+     * @param {PushEntry} e the entry
+     */
+    function kill(e) {
+        const pid = e.pid;
+        if (!pid) return;
+        signalGroup(pid, "SIGTERM");
+        // A push of this daemon clears its pid on close. The group's id cannot be reused while any
+        // process of the group lives, so a SIGKILL to it reaches only the push's own leftovers.
+        setTimeout(() => e.pid === pid && signalGroup(pid, "SIGKILL"), killGraceMs).unref();
+    }
 
     const gateMs = () => Math.max(defaultGateMs, ...q.gateRuns);
     /**
@@ -368,19 +393,36 @@ export function createPushQueue({
      * @returns {Promise<string>} the result, as the job's news line
      */
     async function attempt(e, job) {
-        const head = await worktreeHead(e.worktree);
+        // The commits the remote lacks are read beside the HEAD check; a moved HEAD answers first.
+        const [head, unpushed] = await Promise.all([
+            worktreeHead(e.worktree),
+            git(root, ["rev-list", e.head, "--not", `--remotes=${remote}`]).catch((/** @type {Error} */ err) => err),
+        ]);
         if (head !== e.head) return `push refused: the worktree's HEAD moved from ${e.head} to ${head}; push again`;
-        const reasons = [];
-        const shas = lines(await git(root, ["rev-list", e.head, "--not", `--remotes=${remote}`]));
-        for (const sha of shas) {
-            reasons.push(...(await commitReasons(root, sha, null, secrets)));
-            const patch = await git(root, ["show", "--format=", "--no-color", "--no-ext-diff", "-U0", sha]);
-            const added = patch.split("\n").filter((l) => l.startsWith("+") && !l.startsWith("+++ "));
-            for (const r of checkOutgoing(added.join("\n"), secrets)) {
-                reasons.push(`commit ${sha.slice(0, 9)}'s diff ${r}`);
-            }
-        }
-        reasons.push(...(await gateReasons(e, shas)));
+        if (unpushed instanceof Error) throw unpushed;
+        const shas = lines(unpushed);
+        // Every check is its own git process, and none waits on another: run side by side, a push
+        // waits for the slowest instead of the sum (five processes a commit, each slow to start on
+        // a machine busy with gates).
+        // ponytail: one batch of processes per push, unbounded; bound it if a push of hundreds of
+        // new commits ever matters.
+        const [own, gate] = await Promise.all([
+            Promise.all(
+                shas.map(async (sha) => {
+                    const [message, patch] = await Promise.all([
+                        commitReasons(root, sha, null, secrets),
+                        git(root, ["show", "--format=", "--no-color", "--no-ext-diff", "-U0", sha]),
+                    ]);
+                    const added = patch.split("\n").filter((l) => l.startsWith("+") && !l.startsWith("+++ "));
+                    const diff = checkOutgoing(added.join("\n"), secrets).map(
+                        (r) => `commit ${sha.slice(0, 9)}'s diff ${r}`,
+                    );
+                    return [...message, ...diff];
+                }),
+            ),
+            gateReasons(e, shas),
+        ]);
+        const reasons = [...own.flat(), ...gate];
         if (reasons.length) {
             await ledger({ kind: "push-refused", job: job.id, branch: e.branch, head: e.head, reasons });
             return `push refused: ${reasons.join("; ")}`;
@@ -428,7 +470,7 @@ export function createPushQueue({
             const both = o.files.filter((f) => pushed.has(f)).sort((a, b) => a.localeCompare(b));
             if (!both.length) continue;
             const named = both.slice(0, 10).join(", ") + (both.length > 10 ? ` and ${both.length - 10} more` : "");
-            const name = o.job ? `job ${o.job}` : `session ${o.session}`;
+            const name = o.job ? `job ${o.job}` : `session ${sessionName(state, o.session)}`;
             job.related = [...new Set([...(job.related ?? []), o.job ?? `session:${o.session}`])];
             const text = (/** @type {string} */ who) =>
                 `overlap: ${who} changes files your work changes too: ${named}; recorded as related. ` +
@@ -457,19 +499,14 @@ export function createPushQueue({
      */
     async function gateReasons(e, shas) {
         const guarded = [...GATE_PATHS, ...protectedPaths()];
+        const dirtyCheck = exec("git", [...SAFE, "status", "--porcelain", "--", ...guarded], { cwd: e.worktree });
+        const trees = await Promise.all(
+            shas.map((sha) =>
+                git(root, ["diff-tree", "-r", "-m", "--first-parent", "--no-commit-id", "--name-only", sha]),
+            ),
+        );
         const changed = new Set();
-        for (const sha of shas) {
-            const out = await git(root, [
-                "diff-tree",
-                "-r",
-                "-m",
-                "--first-parent",
-                "--no-commit-id",
-                "--name-only",
-                sha,
-            ]);
-            for (const p of lines(out)) if (isProtected(p, guarded)) changed.add(p);
-        }
+        for (const out of trees) for (const p of lines(out)) if (isProtected(p, guarded)) changed.add(p);
         const reasons = [];
         const master = `refs/remotes/${remote}/${defaultBranch}`;
         for (const p of changed) {
@@ -480,7 +517,7 @@ export function createPushQueue({
             if (mine.code === theirs.code && mine.stdout === theirs.stdout) continue;
             reasons.push(`it changes ${p}, which decides what the gate runs or is githerd's own`);
         }
-        const dirty = await exec("git", [...SAFE, "status", "--porcelain", "--", ...guarded], { cwd: e.worktree });
+        const dirty = await dirtyCheck;
         if (dirty.code !== 0 || dirty.stdout.trim()) {
             const what = dirty.stdout.trim().split("\n").slice(0, 3).join(", ") || dirty.stderr.trim();
             reasons.push(`the worktree has uncommitted changes to gate paths: ${what}`);
@@ -527,7 +564,7 @@ export function createPushQueue({
             e.startTime = e.pid ? (identify(e.pid)?.startTime ?? null) : null;
             const expire = () => {
                 timedOut = true;
-                kill(e.pid);
+                kill(e);
             };
             // ponytail: a push waits behind other sessions' gates for at most 4 hours; read the
             // queue's tickets if a longer wait must be told apart from a stuck queue.
@@ -614,7 +651,7 @@ export function createPushQueue({
         const t = now();
         const interrupted = q.entries.filter((/** @type {PushEntry} */ x) => x.status === "running");
         for (const e of interrupted) {
-            if (livePush(e)) kill(e.pid);
+            if (livePush(e)) kill(e);
             q.entries = q.entries.filter((/** @type {PushEntry} */ x) => x !== e);
             const job = state.jobs?.[e.job];
             ledger({ kind: "push-interrupted", job: e.job, branch: e.branch, head: e.head });
@@ -641,7 +678,7 @@ export function createPushQueue({
         drain,
         stop() {
             stopped = true;
-            for (const e of q.entries) if (livePush(e)) kill(e.pid);
+            for (const e of q.entries) if (livePush(e)) kill(e);
         },
     };
 }

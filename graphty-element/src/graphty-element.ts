@@ -1817,7 +1817,9 @@ export class Graphty extends LitElement {
      * {@link Graphty.nodeLabelCounts} says how many it hid. `node.depthIndependentSize` (off by
      * default) draws every node in the 3D view as if it stood at the depth the camera turns about,
      * so a node with a larger size is never drawn smaller because it is farther away -- turn it on
-     * when node size shows a value readers compare.
+     * when node size shows a value readers compare. `camera.pivotOnSelection` (off by default)
+     * makes the selection the camera's pivot: one selected node, or the average position of
+     * several, is what the camera turns and zooms about, in 2D, 3D, VR and AR.
      *
      * Merged over what is already set, so naming one field leaves the others alone.
      * @since 2.0.0
@@ -1826,6 +1828,7 @@ export class Graphty extends LitElement {
      * element.layoutBehavior = { layout: { preSteps: 1000 } };
      * element.layoutBehavior = { labels: { declutter: true } };
      * element.layoutBehavior = { node: { depthIndependentSize: true } };
+     * element.layoutBehavior = { camera: { pivotOnSelection: true } };
      * ```
      * @returns The view preferences set on this element, with the pacing settings saved in the
      *     project (`preSteps`, `stepMultiplier`, `minDelta`) as they are in effect

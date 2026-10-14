@@ -481,14 +481,14 @@ describe("recoverInherited", () => {
     }
 
     /**
-     * Pushes a branch per pull request and a master fix after them.
+     * Pushes #7's branch and a master fix after it. Only #7 is ever updated, so only its head is a
+     * real commit; git never reads the others', which are placeholders.
      * @returns {{heads: Record<number, string>, tip: string}} the heads and master's new tip
      */
     function setup() {
-        const base = git(repo.root, "rev-parse", "HEAD");
         /** @type {Record<number, string>} */
-        const heads = {};
-        for (const n of [7, 8, 9, 10, 11]) heads[n] = branch(`b${n}`, base, `f${n}.txt`, `${n}\n`);
+        const heads = { 7: branch("b7", "master", "f7.txt", "7\n") };
+        for (const n of [8, 9, 10, 11]) heads[n] = String(n % 10).repeat(40);
         return { heads, tip: masterCommit("fix.txt", "fixed\n") };
     }
 
@@ -590,14 +590,14 @@ describe("updateDequeued", () => {
     }
 
     /**
-     * Pushes a branch per pull request and a master commit after them.
+     * Pushes #7's and #8's branches and a master commit after them. #9 is never updated, so git
+     * never reads its head, a placeholder.
      * @returns {{heads: Record<number, string>, tip: string}} the heads and master's tip
      */
     function setup() {
-        const base = git(repo.root, "rev-parse", "HEAD");
         /** @type {Record<number, string>} */
-        const heads = {};
-        for (const n of [7, 8, 9]) heads[n] = branch(`b${n}`, base, `f${n}.txt`, `${n}\n`);
+        const heads = { 9: "9".repeat(40) };
+        for (const n of [7, 8]) heads[n] = branch(`b${n}`, "master", `f${n}.txt`, `${n}\n`);
         return { heads, tip: masterCommit("m.txt", "m\n") };
     }
 

@@ -395,10 +395,9 @@ export function GraphSummary(props: GraphSummaryProps): React.JSX.Element {
     const shownAttributes = filteredAttributes.slice(0, ATTRIBUTE_ROW_CAP);
     const hiddenAttributeCount = filteredAttributes.length - shownAttributes.length;
 
+    const caseNoteNoun = caseNoteCount === 1 ? "case note" : "case notes";
     const caseNoteWords =
-        caseNoteCount === 0
-            ? GRAPH_SUMMARY_LABELS.addCaseNote
-            : `${formatter.format(caseNoteCount)} ${caseNoteCount === 1 ? "case note" : "case notes"}`;
+        caseNoteCount === 0 ? GRAPH_SUMMARY_LABELS.addCaseNote : `${formatter.format(caseNoteCount)} ${caseNoteNoun}`;
     const addNoteChip = keyChipFor("addNote");
     const caseNoteTitle =
         caseNoteCount === 0 && addNoteChip !== null

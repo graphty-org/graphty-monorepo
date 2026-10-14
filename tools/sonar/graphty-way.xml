@@ -42,6 +42,30 @@
              shared harness or ESLint's RuleTester, which the rule does not follow; Vitest already fails a
              file that registers no test. -->
         <deactivate rule="typescript:S2187" />
+        <!-- Regular expression too complex (9). Decided in stage 3: each site is the one regex for a token of a
+             format's grammar, checked against that format's specification; S5852 (backtracking) stays on. -->
+        <deactivate rule="typescript:S5843" />
+        <!-- Deprecated API used (8). Decided in stage 3: ESLint's no-deprecated (an error here) already reports
+             each use, and every remaining one carries a disable comment with its reason. -->
+        <deactivate rule="typescript:S1874" />
+        <!-- Boolean parameter selects the action (5). Decided in stage 3: the callers hold the flag as a boolean,
+             and two sites are graph-format exports, where a split changes the public API. -->
+        <deactivate rule="typescript:S2301" />
+        <!-- Functions nested more than 4 deep (5). Decided in stage 3: callbacks inside callbacks in React and
+             promise code; S3776 is the rule that asks for splitting. -->
+        <deactivate rule="typescript:S2004" />
+        <!-- useState not named [x, setX] (6). Decided in stage 3: the raw setter is named setXState where a
+             wrapper that callers must use takes the plain setX name. -->
+        <deactivate rule="typescript:S6754" />
+        <!-- Prop type never used (3). Decided in stage 3: the rule misses props passed whole to a helper; the
+             one unused prop is deprecated public API. TypeScript reports props a caller cannot pass. -->
+        <deactivate rule="typescript:S6767" />
+        <!-- export {} with no names (2). Decided in stage 3: it is how TypeScript marks a file with no exports
+             as a module. -->
+        <deactivate rule="typescript:S7787" />
+        <!-- Trivial promise (3). Decided in stage 3: every site uses the executor so a throw becomes a
+             rejection; Promise.resolve(work()) would throw synchronously instead. -->
+        <deactivate rule="typescript:S4634" />
     </language>
     <language key="js">
         <!-- Negated condition with an else. Off, as for TypeScript above. -->
@@ -52,5 +76,7 @@
         <deactivate rule="javascript:S7747" />
         <!-- Test file with no test case. Off, as for TypeScript above. -->
         <deactivate rule="javascript:S2187" />
+        <!-- Regular expression too complex. Off, as for TypeScript above. -->
+        <deactivate rule="javascript:S5843" />
     </language>
 </graphty-way>

@@ -113,6 +113,9 @@ function createMinimalStyles(): Styles {
             rendering: {
                 onDemand: false,
             },
+            camera: {
+                pivotOnSelection: false,
+            },
         },
         data: {
             knownFields: {

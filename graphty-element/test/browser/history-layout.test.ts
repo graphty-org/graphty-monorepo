@@ -19,6 +19,7 @@ import { Graph, operationQueueOf } from "../../src/Graph";
 import { SimulationLayoutEngine } from "../../src/layout/SimulationLayoutEngine";
 import { laneOf } from "../../src/session/GraphSession";
 import type { GraphSession } from "../../src/session/types";
+import { drawnFrames } from "../helpers/drawn-frames";
 import { nextFrame } from "../helpers/real-input";
 
 const cleanups: (() => void)[] = [];
@@ -68,9 +69,7 @@ async function atRest(graph: Graph): Promise<void> {
         await nextFrame();
     }
 
-    for (let frame = 0; frame < 2; frame++) {
-        await new Promise((resolve) => requestAnimationFrame(resolve));
-    }
+    await drawnFrames(graph.getScene(), 2);
 }
 
 /**

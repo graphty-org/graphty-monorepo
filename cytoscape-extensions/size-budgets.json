@@ -3,7 +3,7 @@
     "headroomPercent": 10,
     "minimumHeadroomBytes": 1024,
     "parts": {
-        "main entry (loaded up front)": 120601,
+        "main entry (loaded up front)": 134287,
         "dataset celegans-neural": 10135,
         "dataset contiguous-usa": 3899,
         "dataset davis-southern-women": 2555,

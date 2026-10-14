@@ -2,6 +2,7 @@ import { Camera, Engine, FreeCamera, Scene, TransformNode, Vector3, WebGPUEngine
 
 import { freeArea } from "../camera/insets";
 import type { ViewInsets } from "../camera/types";
+import { glideTowards } from "./CameraManager";
 
 // === Configuration Object ===
 export interface TwoDCameraControlsConfigType {
@@ -104,6 +105,15 @@ export class TwoDCameraController {
     public pan(dx: number, dy: number): void {
         this.camera.position.x += dx;
         this.camera.position.y += dy;
+    }
+
+    /**
+     * Glide the view's center to a point, which is then what the view zooms about.
+     * @param point - The point; only its x and y are used.
+     * @returns Whether the view moved.
+     */
+    public followPoint(point: Vector3): boolean {
+        return glideTowards(this.camera.position, new Vector3(point.x, point.y, this.camera.position.z));
     }
 
     /**

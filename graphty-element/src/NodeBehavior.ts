@@ -633,17 +633,18 @@ export class NodeDragHandler {
     }
 
     /**
-     * Handle a click on this node - select it (Shift adds it) and emit node-click event.
+     * Handle a click on this node - select it (shift-click adds it to the selection, or takes it
+     * out) and emit node-click event.
      */
     private handleClick(): void {
         const context = this.getContext();
-        // Shift adds the node to the selection, as Shift on an edge does (Graph.ts); a plain click
-        // replaces it. XR's select() has no pointer event, so it always replaces.
+        // Shift adds the node to the selection, or takes it out if it is in; a plain click replaces
+        // it. XR's select() has no pointer event, so it always replaces.
         const selectionManager = context.getSelectionManager?.();
-        if (this.clickState?.pointerEvent?.shiftKey === true) {
-            selectionManager?.add(this.node);
-        } else {
-            selectionManager?.select(this.node);
+        if (selectionManager && this.clickState?.pointerEvent?.shiftKey === true) {
+            selectionManager.toggle(this.node);
+        } else if (selectionManager) {
+            selectionManager.select(this.node);
         }
 
         // A click does NOT pin. `pinOnDrag` means what it says: a node is fixed because the user

@@ -28,6 +28,7 @@ export const COUNTED_WORK_TESTS: Readonly<Record<string, readonly string[]>> = {
     "SelectionApi.apply": ["test/session/mutation-scaling.test.ts"],
     "SelectionApi.clear": ["test/session/mutation-scaling.test.ts"],
     "SelectionApi.promote": ["test/session/mutation-scaling.test.ts"],
+    "SelectionManager.toggle": ["test/managers/SelectionManager.test.ts"],
     "SessionConfig.set": ["test/session/mutation-scaling.test.ts"],
     "SessionDataApi.addEdges": ["test/session/history/graph-paint.test.ts"],
     "SessionDataApi.addNodes": ["test/session/history/graph-paint.test.ts"],

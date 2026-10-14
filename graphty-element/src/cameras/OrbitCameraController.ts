@@ -2,6 +2,7 @@ import { Camera, Color4, Scalar, Scene, type TransformNode, UniversalCamera, Vec
 
 import { type FreeArea, freeArea } from "../camera/insets";
 import type { ViewInsets } from "../camera/types";
+import { glideTowards } from "./CameraManager";
 import { PivotController } from "./PivotController";
 
 export interface OrbitConfig {
@@ -140,6 +141,19 @@ export class OrbitCameraController {
      */
     public clampDistance(distance: number): number {
         return Math.max(distance, this.config.minZoomDistance);
+    }
+
+    /**
+     * Glide the pivot to a point, turning about that point meanwhile, so the camera ends up
+     * looking at it and orbits, spins and zooms about it.
+     * @param point - The point, in world space.
+     * @returns Whether the pivot moved.
+     */
+    public followPoint(point: Vector3): boolean {
+        this.pivotController.center = point;
+        const moved = glideTowards(this.pivot.position, point);
+        this.updateCameraPosition();
+        return moved;
     }
 
     /**

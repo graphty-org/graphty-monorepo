@@ -83,6 +83,7 @@ export function ElementHost({ onReady }: Readonly<ElementHostProps>): React.JSX.
             labels: { declutter: !allLabelsShown },
             node: { depthIndependentSize: sizeBound },
             rendering: { onDemand: true },
+            camera: { pivotOnSelection: true },
         }),
         [allLabelsShown, sizeBound],
     );

@@ -1,17 +1,7 @@
 import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { once } from "node:events";
-import {
-    existsSync,
-    mkdirSync,
-    mkdtempSync,
-    readFileSync,
-    readdirSync,
-    realpathSync,
-    rmSync,
-    writeFileSync,
-} from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -39,6 +29,7 @@ import {
 } from "../lib/hook.mjs";
 import { SESSION_WRITES } from "../lib/session-writes.mjs";
 import { repoIdentity } from "../lib/store.mjs";
+import { tempDir } from "./helpers/temp-dir.mjs";
 
 const REPO = fileURLToPath(new URL("../..", import.meta.url));
 const HOOK = fileURLToPath(new URL("../bin/githerd-hook.mjs", import.meta.url));
@@ -132,7 +123,7 @@ async function fakeDaemon(stateDir, state, override = () => null) {
 }
 
 beforeEach(() => {
-    dir = realpathSync(mkdtempSync(join(tmpdir(), "githerd-hook-")));
+    dir = realpathSync(tempDir("githerd-hook-"));
     repo = join(dir, "work", "repo");
     mkdirSync(repo, { recursive: true });
     execFileSync("git", ["init", "-q", repo], { env: { ...process.env, GIT_CONFIG_GLOBAL: "/dev/null" } });

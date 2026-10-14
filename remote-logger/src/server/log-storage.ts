@@ -414,9 +414,10 @@ export class LogStorage {
             const toDelete: string[] = [];
 
             for (const [sessionId, sessionData] of this.sessions) {
-                if (filter.sessionId && sessionId === filter.sessionId) {
-                    toDelete.push(sessionId);
-                } else if (filter.projectMarker && sessionData.metadata.projectMarker === filter.projectMarker) {
+                if (
+                    (filter.sessionId && sessionId === filter.sessionId) ||
+                    (filter.projectMarker && sessionData.metadata.projectMarker === filter.projectMarker)
+                ) {
                     toDelete.push(sessionId);
                 }
             }

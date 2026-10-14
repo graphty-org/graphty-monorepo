@@ -1,5 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -8,6 +7,7 @@ import { startDaemon } from "../../lib/daemon.mjs";
 import { ownerItemsPoll, endItem, raiseItem } from "../../lib/notify.mjs";
 import { readLedger } from "../../lib/store.mjs";
 import { createFakeGh, httpOutput } from "../helpers/fake-gh.mjs";
+import { tempDir } from "../helpers/temp-dir.mjs";
 
 const DATA = new URL("data/", import.meta.url);
 const FROM = Date.parse("2026-09-26T00:00:00Z");
@@ -127,7 +127,7 @@ describe("an absent week", () => {
 
 describe("an absent week, through the whole daemon", () => {
     it("every page it sends is a digest or a blocking item: no alive notice, no reminder, no recovery", async () => {
-        const dir = mkdtempSync(join(tmpdir(), "githerd-absent-"));
+        const dir = tempDir("githerd-absent-");
         const config = join(dir, "githerd.config.json");
         writeFileSync(
             config,

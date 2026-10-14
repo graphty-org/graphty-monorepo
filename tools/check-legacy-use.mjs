@@ -259,11 +259,12 @@ function checkFile(file, text, legacy) {
             const name = calleeName(node.expression);
             // `ns.circularLayout()` on `import * as ns from "@graphty/layout"`
             const target = node.expression;
-            const info = !ts.isPropertyAccessExpression(target)
-                ? locals.get(name)
-                : ts.isIdentifier(target.expression)
-                  ? namespaces.get(target.expression.text)?.get(name)
-                  : undefined;
+            let info;
+            if (!ts.isPropertyAccessExpression(target)) {
+                info = locals.get(name);
+            } else if (ts.isIdentifier(target.expression)) {
+                info = namespaces.get(target.expression.text)?.get(name);
+            }
             if (ts.isCallExpression(node) && BRIDGE_CALLS.has(name)) {
                 report("legacy-graph-bridge", name);
             } else if (ts.isCallExpression(node) && info?.positional) {
@@ -273,11 +274,12 @@ function checkFile(file, text, legacy) {
             }
         }
         // `ns.dijkstra` or the type `ns.Graph` on a namespace import of a legacy package
-        const member = ts.isPropertyAccessExpression(node)
-            ? [node.expression, node.name]
-            : ts.isQualifiedName(node)
-              ? [node.left, node.right]
-              : undefined;
+        let member;
+        if (ts.isPropertyAccessExpression(node)) {
+            member = [node.expression, node.name];
+        } else if (ts.isQualifiedName(node)) {
+            member = [node.left, node.right];
+        }
         if (member !== undefined && ts.isIdentifier(member[0]) && namespaces.get(member[0].text)?.has(member[1].text)) {
             report("legacy-import", member[1].text);
         }

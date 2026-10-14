@@ -43,7 +43,8 @@ import { ingestEdge, ingestNode } from "../test/helpers/rawIngest";
 const LARGE = process.env.GRAPHTY_BENCH_SCALE === "large";
 const NODES = LARGE ? 1_000_000 : 100_000;
 const M = Number(process.env.GRAPHTY_BENCH_M ?? 5);
-const LABEL = `${LARGE ? "1M" : "100k"}${M === 5 ? "" : `, m = ${String(M)}`}`;
+const M_LABEL = M === 5 ? "" : `, m = ${String(M)}`;
+const LABEL = `${LARGE ? "1M" : "100k"}${M_LABEL}`;
 
 /**
  * The sets rows: the revision of a fixed set of every node, and of as many listed edges.

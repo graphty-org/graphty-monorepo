@@ -837,7 +837,8 @@ function issueCandidates(state, config, now, deferred) {
         .ranked.map((r) => ({ ...r, order: orderPosition(state, r.number) }))
         .filter((r) => {
             const old = state.jobs[`issue-${r.number}`];
-            const free = (!old || old.facts?.withdrawn) && !deferred[r.number] && !bundled.has(r.number);
+            const free =
+                (!old || old.facts?.withdrawn || fixGone(state, old)) && !deferred[r.number] && !bundled.has(r.number);
             // A master-guard issue whose lane is red now is the open incident's, not an issue job.
             const title = String(state.issues.byNumber[r.number]?.text ?? "").split("\n")[0];
             return free && r.offered && !guardIssue(state, title)?.live;
@@ -845,6 +846,22 @@ function issueCandidates(state, config, now, deferred) {
     // An open order comes before the ranked list (design 5.4); the sort is stable otherwise.
     candidates.sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity));
     return candidates;
+}
+
+/**
+ * Whether a done issue job's fix is gone (issue #2644): the pull request it named is no longer open
+ * while its issue still is. Closed unmerged, the issue needs a new job; merged without closing it,
+ * the new job verifies the merge first (`masterRefs`). A job still holding a session, a kept window
+ * or a worktree waits until tidyEndedJobs ends them. A done job with no pull request (a split's
+ * parent, a not-needed proposal) keeps the issue.
+ * @param {any} state the daemon state
+ * @param {any} job the issue's finished job
+ * @returns {boolean} whether the issue is free again
+ */
+function fixGone(state, job) {
+    const pr = job.pr ?? job.report?.pr;
+    if (job.state !== "done" || pr == null || job.holder || job.kept || job.worktree) return false;
+    return !state.prs?.[String(pr)];
 }
 
 /** Labels that keep an issue out of a bundle: it must not merge, or needs a person's eyes. */
@@ -988,7 +1005,7 @@ export function finishedJobsToPrune(state, busy = () => false) {
  * - its claim counts against its session's capacity answer (claimed or ended since the answer, or
  *   listed as held in it), until the session answers again or ends;
  * - `issue-<n>`: while issue n is in the state or an order lists it, a finished job keeps the issue
- *   from a new job (`issueCandidates`, unless withdrawn) and an order's issue counts as having one;
+ *   from a new job (`issueCandidates`, unless withdrawn or its fix is gone: `fixGone`) and an order's issue counts as having one;
  * - `issue-reland-<n>`: while the revert of n is recorded, the re-land is not made again;
  * - a promotion, while its check is still advisory; a release queue job, while its release pull
  *   request is in `state.releaseQueue`; a shared failure's job, while the key is shared; a verdict
@@ -1040,6 +1057,8 @@ export function tombstoneOf(j) {
         tombstone: true,
         ...(j.pr == null ? {} : { pr: j.pr }),
         ...(j.acknowledgedRevision ? { acknowledgedRevision: j.acknowledgedRevision } : {}),
+        // A split's children: proposals.mjs proposeSplitParents closes the parent once they close.
+        ...(j.children?.length ? { children: j.children } : {}),
         facts,
         sessions: j.sessions ?? [],
         claim: j.claim ? { session: j.claim.session, at: j.claim.at } : null,

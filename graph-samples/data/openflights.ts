@@ -4,7 +4,7 @@
 // Source: https://raw.githubusercontent.com/jpatokal/openflights/e3bc6dedbcceb8b7b74248a00dcd6207254da6bd/data/routes.dat
 // sha256: bd373706238134f619c624c606dccc74c05c2582a977c489c81de501735f2390
 
-import { type DatasetData } from "../build.js";
+import { type DatasetData } from "./build.js";
 
 export const DATA: DatasetData = {
     directed: true,

@@ -4392,6 +4392,7 @@ export class SelectionManager implements Manager {
     deselect(): void;
     dispose(): void;
     getSelectedNode(): Node_2 | null;
+    getSelectedNodes(): Node_2[];
     init(): Promise<void>;
     isSelected(node: Node_2): boolean;
     onEdgesRemoved(ids: readonly EdgeId[]): void;
@@ -4399,6 +4400,7 @@ export class SelectionManager implements Manager {
     select(node: Node_2): void;
     selectById(nodeId: string | number): boolean;
     setDataManager(dataManager: DataManager): void;
+    toggle(node: Node_2): void;
 }
 
 // @public

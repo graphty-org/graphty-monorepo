@@ -156,8 +156,10 @@ const algoRemove: UndoableDefinition<AlgoRemoveCommand> = {
     op: "algo.remove",
     undo: {
         kind: "undoable",
-        label: (command, state) =>
-            `Removed ${state.runs.get(command.runId)?.command.algorithm ?? `run ${command.runId}`}`,
+        label: (command, state) => {
+            const name = state.runs.get(command.runId)?.command.algorithm ?? `run ${command.runId}`;
+            return `Removed ${name}`;
+        },
         fact: (command, state) => ({
             code: "algo.remove",
             params: { run: command.runId, algorithm: state.runs.get(command.runId)?.command.algorithm ?? null },

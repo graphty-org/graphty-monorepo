@@ -421,6 +421,21 @@ function toLayout(sx: number, sy: number): [number, number] {
     return [(sx - canvas.width / 2) / view.scale + view.cx, (sy - canvas.height / 2) / view.scale + view.cy];
 }
 
+/**
+ * The drawn radius of a node, smaller as the graph grows.
+ * @param n - the node count
+ * @returns the radius in pixels
+ */
+function pointRadius(n: number): number {
+    if (n <= 100) {
+        return 6;
+    }
+    if (n <= 2_000) {
+        return 3.5;
+    }
+    return n <= 12_000 ? 2.2 : 1.4;
+}
+
 function draw(d: Demo): void {
     resize();
     fitView(d);
@@ -446,7 +461,7 @@ function draw(d: Demo): void {
         }
         g.stroke();
     }
-    const radius = n <= 100 ? 6 : n <= 2_000 ? 3.5 : n <= 12_000 ? 2.2 : 1.4;
+    const radius = pointRadius(n);
     const byScore = colourSelect.value === "pagerank" && d.scores !== null ? d.scores : null;
     // t in [0, 1]: log-scaled degree, or log-scaled PageRank score between the graph's min and max.
     let lo = 0;

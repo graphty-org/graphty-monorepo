@@ -498,6 +498,8 @@ const SELECTION_API: Readonly<Record<string, Door>> = {
     clear: SELECTION,
     hovered: READ,
     hover: exempt("The pointer resting on a node is view state, not a step, like the selection."),
+    hoverPreview: READ,
+    previewHover: exempt("A preview of the hover look on the selection is view state, like the pointer."),
     // The doors test selects node "d1" before calling it.
     promote: calls(
         ["door set"],
@@ -634,6 +636,11 @@ const STYLES_API: Readonly<Record<string, Door>> = {
         [{ op: "style.patch", action: "update", id: "no-such-layer", patch: {} }],
     ),
     categories: READ,
+    groups: READ,
+    setValueEntries: calls(
+        ["no-such-layer", "data.group", [{ channel: "node.shape", value: 0, entry: "box" }]],
+        [{ op: "style.patch", action: "update", id: "no-such-layer", patch: {} }],
+    ),
     applyTemplate: calls(
         [{ version: 1, layers: [] }],
         [{ op: "style.template", document: { version: 1, layers: [] } }],
@@ -1638,6 +1645,11 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                     },
                 ],
             },
+            setValueLabel: calls(
+                ["data.group", 1, "First"],
+                [{ op: "data.label", path: "data.group", value: 1, label: "First" }],
+            ),
+            valueLabels: READ,
             statistics: READ,
             fingerprint: READ,
             addNodes: calls([[{ id: "door-a" }]], [addNodes({ id: "door-a" })]),
@@ -1715,6 +1727,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             move: calls(["door-run", null], [{ op: "algo.move", runId: "door-run", before: null }]),
             bindings: READ,
             painting: READ,
+            layers: READ,
             queue: READ,
         },
     },
@@ -2011,6 +2024,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             author: READ,
             name: READ,
             acceleration: READ,
+            inEffect: READ,
             set: calls([{ runAlgorithmsOnLoad: true }], [{ op: "config.set", values: { runAlgorithmsOnLoad: true } }]),
         },
     },

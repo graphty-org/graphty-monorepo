@@ -93,6 +93,7 @@ export type {
     FindResult,
     FindValueRow,
     GraphSession,
+    GraphSettingKey,
     GraphStatistics,
     HistoryCause,
     HistoryCode,
@@ -142,6 +143,8 @@ export type {
     SessionRunsOptions,
     SessionStatus,
     SessionViews,
+    SettingEffect,
+    SettingEffectCode,
     StyleProblem,
     TableMapping,
     TableMappingRead,
@@ -208,6 +211,7 @@ export type {
     RunDistinction,
     RunExecutionContext,
     RunExecutor,
+    RunLayers,
     RunOptions,
     RunOutcome,
     RunPainting,
@@ -446,6 +450,7 @@ export type {
     ResultId,
     ResultItem,
     ResultShape,
+    RuleTestKind,
     RunId,
     Scope,
     ScopeId,
@@ -460,6 +465,7 @@ export type {
     StaticStyle,
     StyleDocument,
     StyleDocumentRow,
+    TopTies,
 } from "./src/catalog/types";
 export { isResultShape, RESULT_SHAPES } from "./src/catalog/types";
 
@@ -472,6 +478,7 @@ export type {
     BindingPreview,
     BindingPreviewBin,
     ChannelAgreement,
+    ChannelCovers,
     ChannelExplanation,
     ChannelRefusalCode,
     ChannelShare,
@@ -498,6 +505,7 @@ export type {
     LegendFactCode,
     LegendReading,
     LegendSwatch,
+    PreviewDefaultedPart,
     PreviewSpan,
     RepaintReason,
     RepaintReport,
@@ -524,11 +532,14 @@ export type {
     StyleUpdateOptions,
     TemplateOptions,
     TemplateReport,
+    TopFactCode,
     UnboundLayer,
     UnboundLayerCode,
     UndrawnCode,
     ValidationResult,
     ValueCategory,
+    ValueEntryWrite,
+    ValueGroup,
 } from "./src/session/styles";
 export { quotePath, rulePath, selectorRule } from "./src/session/styles";
 

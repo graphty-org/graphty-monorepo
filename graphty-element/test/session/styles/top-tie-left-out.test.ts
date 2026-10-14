@@ -37,4 +37,66 @@ describe("styles.counts: a top N a tie stopped short", () => {
         assert.deepStrictEqual(session.styles.counts(layer.id).leftOut, []);
         session.dispose();
     });
+
+    it("takes the tied group whole with ties all, and says how many more it took", async () => {
+        const { session } = makeSession();
+        await session.data.addNodes([
+            { id: "a", size: 3 },
+            { id: "b", size: 3 },
+            { id: "c", size: 3 },
+            { id: "d", size: 1 },
+        ]);
+        const layer = await session.styles.add({
+            name: "Top",
+            target: "node",
+            selector: { match: "rule", where: { kind: "threshold", path: "data.size", top: 2, ties: "all" } },
+            set: { "node.color": "#ff0000" },
+        });
+
+        const counts = session.styles.counts(layer.id);
+        assert.strictEqual(counts.matched, 3, "you asked for 2; the third ties at 3");
+        assert.deepStrictEqual(counts.leftOut, []);
+        assert.deepStrictEqual(counts.tops, [
+            {
+                code: "top.tiesTaken",
+                params: { path: "data.size", n: 2, taken: 3, ties: "all", value: 3, count: 3 },
+            },
+        ]);
+
+        await session.styles.update(layer.id, {
+            selector: { match: "rule", where: { kind: "threshold", path: "data.size", top: 3, ties: "all" } },
+        });
+        assert.deepStrictEqual(session.styles.counts(layer.id).tops, [
+            { code: "top.exact", params: { path: "data.size", n: 3, taken: 3, ties: "all" } },
+        ]);
+
+        await session.styles.update(layer.id, {
+            selector: { match: "rule", where: { kind: "threshold", path: "data.size", top: 9 } },
+        });
+        assert.deepStrictEqual(session.styles.counts(layer.id).tops, [
+            { code: "top.fewerMeasured", params: { path: "data.size", n: 9, taken: 4, ties: "fewer" } },
+        ]);
+        session.dispose();
+    });
+
+    it("refuses a tie policy it does not know", async () => {
+        const { session } = makeSession();
+        await session.data.addNodes([{ id: "a", size: 1 }]);
+        let refused = false;
+        try {
+            await session.styles.add({
+                name: "Top",
+                target: "node",
+                selector: {
+                    match: "rule",
+                    where: { kind: "threshold", path: "data.size", top: 1, ties: "some" as "all" },
+                },
+                set: { "node.color": "#ff0000" },
+            });
+        } catch {
+            refused = true;
+        }
+        assert.isTrue(refused);
+        session.dispose();
+    });
 });

@@ -97,6 +97,12 @@ export interface AlgorithmRunCommand {
      * one undo takes the run and those layers away together.
      */
     readonly applySuggestedStyles?: boolean;
+    /**
+     * Put back the layers the run added on its first completion that the stack no longer holds,
+     * in the same step as the run. See `StartOptions.restoreLayer`.
+     * @since 3.26.0
+     */
+    readonly restoreLayer?: boolean;
 }
 
 /**

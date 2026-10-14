@@ -37,6 +37,7 @@ import type {
     ProjectSlice,
     TransactionScope,
 } from "./types";
+import { valueLabelOf } from "./valueLabels";
 
 /** The container's `kind`. */
 const DOCUMENT_KIND = "graphty-document";
@@ -474,7 +475,7 @@ function write(
 
     const runs = [...dispatcher.state.runs].map(([id, entry]) => {
         const { result } = entry;
-        const { op: _op, as: _as, applySuggestedStyles: _style, ...command } = entry.command;
+        const { op: _op, as: _as, applySuggestedStyles: _style, restoreLayer: _restore, ...command } = entry.command;
         const nodeColumn: NodeId[] = [];
         const nodeValues: Readonly<Record<string, unknown>>[] = [];
         for (const node of nodeIds) {
@@ -538,6 +539,15 @@ function write(
             },
             sets: session.sets.list().map((set) => ({ id: set.id, name: set.name, definition: set.definition })),
             views: [...session.views].map(([name, camera]) => ({ name, camera })),
+            // Written only when a value is named, so a project without names saves as before.
+            ...(dispatcher.state.valueLabels.size === 0
+                ? {}
+                : {
+                      valueLabels: [...dispatcher.state.valueLabels].map(([key, label]) => ({
+                          ...valueLabelOf(key),
+                          label,
+                      })),
+                  }),
         },
         {
             kind: "graphty-arrangement",
@@ -1212,6 +1222,10 @@ async function readProject(
     }
 
     await addStylesAndNotes(opening, doc.members, remap, name);
+
+    for (const named of (state.valueLabels ?? []) as { path: string; value: string; label: string }[]) {
+        await attempt(opening, "valueLabels", () => tx.data.setValueLabel(named.path, named.value, named.label));
+    }
 
     const views = (state.views ?? []) as never[];
     if (views.length > 0) {

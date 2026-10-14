@@ -99,6 +99,13 @@ export const DEFAULT_SELECTION_STYLE: GraphSelectionStyleConfig = GraphSelection
  */
 const ViewModeSchema = z.enum(["2d", "3d", "ar", "vr"]);
 
+/**
+ * The colour the element clears its canvas to when no background is set: whitesmoke. What a
+ * background field shows when the project names none, and what clearing it returns to.
+ * @since 3.26.0
+ */
+export const DEFAULT_BACKGROUND_COLOR = "#F5F5F5";
+
 export const GraphStyle = z.strictObject({
     /**
      * ACCEPTED AND IGNORED. It used to decide whether the element unshifted a default layer onto

@@ -48,6 +48,9 @@ export const COMMANDS: Readonly<{
     readonly "data.setSource": {
         readonly undo: "undoable";
     };
+    readonly "data.label": {
+        readonly undo: "undoable";
+    };
     readonly "style.patch": {
         readonly undo: "undoable";
     };

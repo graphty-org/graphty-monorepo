@@ -532,14 +532,21 @@ export function planEncoding(spec: EncodingSpec, source: EncodingSource): LayerS
 
     const { field } = resolveField(spec, run, descriptor);
     const path = resultPath(run.id, field.name);
-    const scale = spec.scale ?? defaultScale(field, run.shape, descriptor.accepts);
+    // An amount on a channel that takes one of a list is stepped, as a column's is.
+    const stepped =
+        spec.scale === undefined &&
+        descriptor.accepts === "enum" &&
+        fieldMeasurement(field, run.shape) === "quantitative"
+            ? steppedBinding(descriptor)
+            : undefined;
+    const scale = stepped?.scale ?? spec.scale ?? defaultScale(field, run.shape, descriptor.accepts);
     // An amount on a size gets the same default range a column's does, written into the layer
     // now, rather than the unit interval that draws every node smaller than the default size.
     const sized =
         spec.scale === undefined && spec.range === undefined && scaleDescriptor(scale)?.domainKind === "numeric";
-    const defaultRange = sized ? DEFAULT_RANGES.get(descriptor.channel) : undefined;
+    const defaultRange = sized ? defaultRangeOf(descriptor) : undefined;
     const ranged: EncodingOptions = defaultRange ? { ...spec, range: [defaultRange[0], defaultRange[1]] } : spec;
-    const binding = buildBinding(ranged, path, scale, descriptor);
+    const binding = { ...buildBinding(ranged, path, scale, descriptor), ...stepped?.extra };
 
     return {
         name: spec.name ?? englishRunLabel(run),
@@ -566,6 +573,61 @@ const DEFAULT_RANGES: ReadonlyMap<Channel, readonly [number, number]> = new Map(
     ["node.size", DEFAULT_SIZE_RANGE],
     ["edge.width", DEFAULT_EDGE_WIDTH_RANGE],
 ]);
+
+/** How many steps a number is cut into on a channel that takes one of a list, at most. */
+const MAX_STEPS = 5;
+
+/**
+ * The ordered sets a number steps through on a channel that takes one of a list, lightest first:
+ * a line from dotted to solid, a shape from fewest faces to most, an arrow from a bar to a box.
+ * A channel not listed walks its own catalogue list.
+ */
+const STEPPED_CHOICES: ReadonlyMap<Channel, readonly string[]> = new Map([
+    ["edge.style", ["dot", "dash-dot", "dash", "solid"]],
+    ["node.shape", ["tetrahedron", "box", "octahedron", "dodecahedron", "icosahedron"]],
+    ["edge.arrowHead", ["tee", "vee", "normal", "diamond", "box"]],
+    ["edge.arrowTail", ["tee", "vee", "normal", "diamond", "box"]],
+]);
+
+/**
+ * The stepped binding a number gets on a channel that takes one of a list: equal-count groups,
+ * one per choice, at most {@link MAX_STEPS}, through an ordered set. The same answer for a run's
+ * field and a data column.
+ * @param descriptor - The channel.
+ * @returns The scale and the binding fields that go with it.
+ */
+function steppedBinding(descriptor: ChannelDescriptor): {
+    readonly scale: "quantile";
+    readonly extra: Partial<RuleBinding>;
+} {
+    const ordered = STEPPED_CHOICES.get(descriptor.channel) ?? descriptor.values ?? [];
+    const steps = Math.max(1, Math.min(MAX_STEPS, ordered.length));
+
+    return { scale: "quantile", extra: { bins: steps, choices: ordered.slice(0, steps) } };
+}
+
+/**
+ * The output range a numeric binding gets when its author names none: a size's own range, else
+ * the unit interval moved inside what the channel draws (a pattern count of at least 2 gets
+ * [2, 3], never values the channel refuses). Undefined when the unit interval already fits.
+ * @param descriptor - The channel.
+ * @returns The range, or undefined to leave the binding without one.
+ */
+export function defaultRangeOf(descriptor: ChannelDescriptor): readonly [number, number] | undefined {
+    const sized = DEFAULT_RANGES.get(descriptor.channel);
+    if (sized !== undefined || descriptor.accepts !== "number") {
+        return sized;
+    }
+
+    const min = descriptor.min ?? Number.NEGATIVE_INFINITY;
+    const max = descriptor.max ?? Number.POSITIVE_INFINITY;
+    if (min <= 0 && max >= 1) {
+        return undefined;
+    }
+
+    const low = Math.min(Math.max(0, min), max);
+    return [low, Math.min(low + 1, max)];
+}
 
 /** A default the column measurement chose: a scale and what goes with it, or a refusal. */
 type DefaultChoice =
@@ -638,7 +700,7 @@ function chooseForAmounts(
         return { scale: "linear", extra: { palette: spec.palette ?? columnPaletteFor(scales, "linear", 0) } };
     }
 
-    const range = spec.range ?? DEFAULT_RANGES.get(descriptor.channel);
+    const range = spec.range ?? defaultRangeOf(descriptor);
     return { scale: "linear", extra: range === undefined ? {} : { range: [range[0], range[1]] } };
 }
 
@@ -667,6 +729,8 @@ function chooseDefault(
             return chooseForOrder(spec, route.order, descriptor);
         case "amounts":
             return chooseForAmounts(spec, descriptor, scales);
+        case "steps":
+            return steppedBinding(descriptor);
         default:
             // Time has no default yet; groups on a size or amounts on a shape have none at all.
             return { refuse: "E_UNSUPPORTED" };
@@ -675,7 +739,7 @@ function chooseDefault(
 
 /** Which default a column's measurement leads to on a kind of channel, before any palette. */
 type DefaultRoute =
-    | { readonly kind: "groups" | "amounts" | "none" }
+    | { readonly kind: "groups" | "amounts" | "steps" | "none" }
     | { readonly kind: "order"; readonly order: readonly (string | number)[] };
 
 /**
@@ -701,7 +765,11 @@ function defaultRoute(
         return { kind: "order", order };
     }
 
-    return { kind: measurement === "quantitative" && accepts !== "enum" ? "amounts" : "none" };
+    if (measurement !== "quantitative") {
+        return { kind: "none" };
+    }
+
+    return { kind: accepts === "enum" ? "steps" : "amounts" };
 }
 
 /**

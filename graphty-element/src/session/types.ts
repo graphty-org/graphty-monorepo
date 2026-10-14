@@ -666,6 +666,19 @@ export interface GraphStatistics {
      */
     readonly degreeHistogram?: Histogram;
     /**
+     * How the in-degree (edges arriving at each node) is distributed, binned as
+     * {@link GraphStatistics.degreeHistogram} is: present only on a directed snapshot, where in
+     * and out differ. A self-loop counts once here and once in the out-degree.
+     * @since 3.26.0
+     */
+    readonly inDegreeHistogram?: Histogram;
+    /**
+     * How the out-degree (edges leaving each node) is distributed: present only on a directed
+     * snapshot, as {@link GraphStatistics.inDegreeHistogram} is.
+     * @since 3.26.0
+     */
+    readonly outDegreeHistogram?: Histogram;
+    /**
      * The share of wedges -- two edges meeting at a node -- whose open ends are also joined, so
      * that the three nodes form a triangle: the global clustering coefficient, read with arc
      * direction ignored. 0 on a graph with no triangles (a tree, a grid, a sparse random graph),
@@ -1038,6 +1051,33 @@ export interface SessionDataApi {
      *     no record carries, and `E_BAD_COMMAND` for a declaration that is not one.
      */
     declare(column: ColumnRef, declaration: MeasurementDeclaration): Promise<void>;
+    /**
+     * Name one value of a path -- a community the run calls group 3, "Students" -- or take its
+     * name away with `null`. One undoable step, saved with the project. A name is not a data edit:
+     * rules, bindings and exports still read the value; the legend's swatch for the value carries
+     * the name as its `label`. A run's re-run carries each name to the group that shares the most
+     * members with the one it was given to.
+     *
+     * ```ts
+     * await session.data.setValueLabel("results.louvain.group", 3, "Students");
+     * session.data.valueLabels("results.louvain.group").get("3"); // "Students"
+     * ```
+     * @param path - The value path: `data.<column>` or `results.<run>.<field>`.
+     * @param value - The value, compared as the legend spells it, so `3` and `"3"` are one value.
+     * @param label - The name, or null (or empty text) to remove it.
+     * @returns Settles once the name is recorded.
+     * @throws A `GraphtyError` (as a rejection) with `E_BAD_COMMAND` for a path that is not a value
+     *     path, or a value or name of the wrong kind.
+     * @since 3.26.0
+     */
+    setValueLabel(path: Path, value: string | number | boolean, label: string | null): Promise<void>;
+    /**
+     * The names given to a path's values with {@link SessionDataApi.setValueLabel}.
+     * @param path - The value path.
+     * @returns The names, keyed by the value as the legend spells it. Empty when none is named.
+     * @since 3.26.0
+     */
+    valueLabels(path: Path): ReadonlyMap<string, string>;
     /**
      * How a data column's values are distributed, for a chart of one attribute. A quantitative
      * column comes back binned (`kind: "numeric"`, the {@link Histogram} shape a run's field has),
@@ -1618,6 +1658,50 @@ export interface SessionConfig extends ProjectConfig {
         /** The node count at or above which accelerated work actually uses the accelerator. */
         readonly minNodes: number;
     };
+    /**
+     * Whether a graph setting changes the drawing in the view as it is now: lighting and same size
+     * at any depth do nothing in the 2D view, which is drawn flat and without depth. A settings
+     * panel shows only the settings in effect, without knowing which view ignores what.
+     *
+     * ```ts
+     * session.config.inEffect("lighting"); // { inEffect: false, code: "setting.notIn2d", params: { setting: "lighting" } }
+     * ```
+     * @param key - The setting.
+     * @returns Whether it is in effect, with the reason as a code.
+     * @throws A `GraphtyError` with code `E_BAD_COMMAND` for a key that names no graph setting.
+     * @since 3.26.0
+     */
+    inEffect(key: GraphSettingKey): SettingEffect;
+}
+
+/**
+ * A graph setting {@link SessionConfig.inEffect} answers for: the project's background, and the
+ * element's `lighting` and `layoutBehavior` settings by their path.
+ * @since 3.26.0
+ */
+export type GraphSettingKey =
+    | "background"
+    | "lighting"
+    | "node.depthIndependentSize"
+    | "node.outlineWidth"
+    | "labels.declutter"
+    | "labels.avoidNodesAndEdges";
+
+/**
+ * Why a graph setting is or is not in effect. `params.setting` names the setting.
+ *
+ * - `"setting.inEffect"`: it changes the drawing in this view.
+ * - `"setting.notIn2d"`: the 2D view ignores it.
+ *
+ * More codes may be added in a minor release.
+ * @since 3.26.0
+ */
+export type SettingEffectCode = "setting.inEffect" | "setting.notIn2d";
+
+/** What {@link SessionConfig.inEffect} answers. @since 3.26.0 */
+export interface SettingEffect extends CodedFact<SettingEffectCode> {
+    /** Whether the setting changes the drawing now. */
+    readonly inEffect: boolean;
 }
 
 /**
@@ -1748,7 +1832,8 @@ export type ProjectSlice =
     | "sets"
     | "views"
     | "notes"
-    | "attributes";
+    | "attributes"
+    | "valueLabels";
 
 /** What moved project state: a command, a history move, or a failed command being reverted. */
 export type HistoryCause = "command" | "undo" | "redo" | "restore" | "rollback";
@@ -1777,6 +1862,7 @@ export type PendingId = string & { readonly __brand: "PendingId" };
  * | `data.expand` | `node`: the id expanded |
  * | `data.declare` | `kind`: `"node"` or `"edge"`; `column`: the column's name |
  * | `data.set-source` | `name`: the source's name, or null |
+ * | `data.label` | `path`: the value path; `value`: the value named; `label`: its name, or null when it was removed |
  * | `style.add-layer`, `style.remove-layer`, `style.move-layer` | `layer`: its name, or its id |
  * | `style.update-layer` | `layer`: its name, or its id; `channels`: the channels whose set value or binding changed (empty when only another key did) |
  * | `style.remove-layers` | `count` |
@@ -1838,6 +1924,7 @@ export type HistoryCode =
     | "data.expand"
     | "data.declare"
     | "data.set-source"
+    | "data.label"
     | "style.add-layer"
     | "style.update-layer"
     | "style.remove-layer"
@@ -2042,6 +2129,8 @@ export interface CommandOutcomeMap {
     "data.declare": Promise<void>;
     /** Settles once the source is recorded. */
     "data.setSource": Promise<void>;
+    /** Settles once the name is recorded. */
+    "data.label": Promise<void>;
     /** Settles once the edit is recorded and the pass that repaints it has run. */
     "style.patch": Promise<void>;
     /** Settles once the edit is recorded and the pass that repaints it has run. */

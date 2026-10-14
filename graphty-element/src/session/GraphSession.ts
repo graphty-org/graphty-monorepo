@@ -163,6 +163,7 @@ import type {
     FindOptions,
     FindResult,
     GraphSession,
+    GraphSettingKey,
     HistoryOutcome,
     PositionEntry,
     ProjectConfig,
@@ -181,6 +182,7 @@ import type {
     SessionRunsOptions,
     SessionStatus,
     SessionViews,
+    SettingEffect,
     TransactionOptions,
     TransactionScope,
 } from "./types";
@@ -1268,6 +1270,46 @@ function configOf(
         set: async (values: ProjectConfigPatch) => {
             await dispatcher.dispatch({ op: "config.set", values });
         },
+        inEffect: (key: GraphSettingKey): SettingEffect =>
+            settingEffect(key, dispatcher.state.layout?.dimension ?? "3d"),
+    });
+}
+
+/** The graph settings the 2D view ignores: it is drawn flat, and without depth. */
+const IGNORED_IN_2D: ReadonlySet<GraphSettingKey> = new Set(["lighting", "node.depthIndependentSize"]);
+
+/** Every graph setting `config.inEffect` answers for. */
+const GRAPH_SETTINGS: ReadonlySet<string> = new Set<GraphSettingKey>([
+    "background",
+    "lighting",
+    "node.depthIndependentSize",
+    "node.outlineWidth",
+    "labels.declutter",
+    "labels.avoidNodesAndEdges",
+]);
+
+/**
+ * Whether a graph setting changes the drawing in a view: see `SessionConfig.inEffect`.
+ * @param key - The setting.
+ * @param dimension - The view's dimension.
+ * @returns The answer, coded.
+ * @throws A `GraphtyError` with code `E_BAD_COMMAND` for a key that names no graph setting.
+ */
+function settingEffect(key: GraphSettingKey, dimension: "2d" | "3d"): SettingEffect {
+    if (!GRAPH_SETTINGS.has(key)) {
+        throw new GraphtyError({
+            code: "E_BAD_COMMAND",
+            message: `"${key}" is not a graph setting.`,
+            source: "config",
+            details: { key, known: [...GRAPH_SETTINGS] },
+        });
+    }
+
+    const ignored = dimension === "2d" && IGNORED_IN_2D.has(key);
+    return Object.freeze({
+        inEffect: !ignored,
+        code: ignored ? "setting.notIn2d" : "setting.inEffect",
+        params: { setting: key },
     });
 }
 
@@ -2109,6 +2151,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             setSource: (source, sources) =>
                 dispatcher.dispatch({ op: "data.setSource", source, ...(sources === undefined ? {} : { sources }) }),
             declarations: () => dispatcher.state.attributes,
+            label: (path, value, label) => dispatcher.dispatch({ op: "data.label", path, value, label }),
+            valueLabels: () => dispatcher.state.valueLabels,
             progress: (change) => {
                 publish(watchers, "progress:changed", change);
             },
@@ -2675,6 +2719,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             advanceTick();
             repaintStates({ node: nodes, edge: [] });
         },
+        onHoverPreview: (ids) => {
+            advanceTick();
+            repaintStates({ node: ids.flatMap((id) => nodeIndex(id) ?? []), edge: [] });
+        },
         // The origin moved with no member: `selection:changed` stays a membership event, so the
         // origin has its own.
         onOriginChange: (origin) => {
@@ -2789,7 +2837,11 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             inState: (state, target, index) => {
                 const owner = requireSelection(selection);
                 if (state === "hovered") {
-                    return target === "node" && owner.hovered !== null && nodeIndex(owner.hovered) === index;
+                    return (
+                        target === "node" &&
+                        ((owner.hovered !== null && nodeIndex(owner.hovered) === index) ||
+                            (owner.hoverPreview && owner.nodeMembers().has(index)))
+                    );
                 }
 
                 return (target === "node" ? owner.nodeMembers() : owner.edgeMembers()).has(index);

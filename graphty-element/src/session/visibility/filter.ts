@@ -346,8 +346,8 @@ function readsItself(through: readonly ChainStep[]): GraphtyError {
  * @param kind - The filter kind, for the message.
  */
 function assertNodesChoice(nodes: unknown, kind: string): void {
-    if (nodes !== undefined && nodes !== "all" && nodes !== "ends") {
-        throw malformed(`A "${kind}" filter's nodes are "all" or "ends".`, { kind, nodes });
+    if (nodes !== undefined && nodes !== "all" && nodes !== "ends" && nodes !== "none") {
+        throw malformed(`A "${kind}" filter's nodes are "all", "ends" or "none".`, { kind, nodes });
     }
 }
 
@@ -990,6 +990,8 @@ function compileValueLeaf(
 
         const own = node;
         node = (index) => ends[index] === 1 && (own === null || own(index));
+    } else if (nodes === "none") {
+        node = () => false;
     }
 
     return { node, edge };
@@ -1278,7 +1280,7 @@ function thresholdHalf(
     mark.seen = true;
     const hit = new Uint8Array(count);
     if (filter.top !== undefined) {
-        for (const entry of topOfRanking(rankEntries(population), filter.top).entries) {
+        for (const entry of topOfRanking(rankEntries(population), filter.top, filter.ties).entries) {
             hit[entry.id as number] = 1;
         }
     } else {

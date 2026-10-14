@@ -14,9 +14,11 @@ import type {
     AttributeDescriptor,
     AttributeUse,
     MeasurementDeclaration,
+    Path,
     ReadableChannelKind,
     ReadableValue,
     ReadableValueKind,
+    RuleTestKind,
 } from "../catalog/types";
 import { describeRows } from "./attributes";
 import { elementIdsOf } from "./results/RunResult";
@@ -114,7 +116,33 @@ function entryOf(
         completeness: column.completeness,
         fits: Object.freeze(kinds.filter((each) => columnFits(column, declaration, each))),
         ...(usedBy === undefined || usedBy.length === 0 ? {} : { usedBy: Object.freeze([...usedBy]) }),
+        tests: testsOf(kind, column.path, column.uniqueCount !== undefined),
     });
+}
+
+/**
+ * The rule leaves that can test a value: see `ReadableValue.tests`.
+ * @param kind - What kind of value it is.
+ * @param path - Its path; a `threshold` leaf reads only `data.` and `results.` paths.
+ * @param countable - Whether its distinct values were few enough to count.
+ * @returns The leaf kinds.
+ */
+function testsOf(kind: ReadableValueKind, path: Path, countable: boolean): readonly RuleTestKind[] {
+    const ranked = path.startsWith("data.") || path.startsWith("results.");
+    const tests: RuleTestKind[] = [];
+    if (kind === "number") {
+        tests.push("range", ...(ranked ? (["top", "above"] as const) : []));
+    }
+
+    if (kind === "category" || kind === "yes-no" || countable) {
+        tests.push("categories");
+    }
+
+    if (kind === "text" || kind === "category") {
+        tests.push("text");
+    }
+
+    return Object.freeze(tests);
 }
 
 /**
@@ -187,6 +215,7 @@ export function readableValues(input: ReadableInput): readonly ReadableValue[] {
             kind: "text",
             completeness: 1,
             fits: Object.freeze([]),
+            tests: Object.freeze(["text"] as const),
         }),
     ];
 

@@ -1836,7 +1836,9 @@ export class Graphty extends LitElement {
      * {@link Graphty.nodeLabelCounts} says how many it hid. `node.depthIndependentSize` (off by
      * default) draws every node in the 3D view as if it stood at the depth the camera turns about,
      * so a node with a larger size is never drawn smaller because it is farther away -- turn it on
-     * when node size shows a value readers compare.
+     * when node size shows a value readers compare. `node.outlineWidth` (unset by default) draws
+     * every outline at that multiple of the renderer's own stroke: one width for all of them,
+     * because every outline is drawn in one pass.
      *
      * Merged over what is already set, so naming one field leaves the others alone.
      * @since 2.0.0

@@ -25,7 +25,7 @@ export { createAutoApplyPolicy } from "./autoApply";
 export type { ColorWrite, StyleColor } from "./colors";
 export type { EncodingSuggestion, HighlightSuggestion, StyleSuggestion } from "./derive";
 export { suggestStyles } from "./derive";
-export type { BindingPreview, BindingPreviewBin, PreviewSpan } from "./encoding";
+export type { BindingPreview, BindingPreviewBin, PreviewDefaultedPart, PreviewSpan } from "./encoding";
 export type {
     ColumnEncodingSpec,
     EncodingOptions,
@@ -37,6 +37,7 @@ export type {
 } from "./EncodingSpec";
 export type {
     ChannelAgreement,
+    ChannelCovers,
     ChannelExplanation,
     ChannelRefusalCode,
     ChannelShare,
@@ -46,6 +47,7 @@ export type {
     StyleContribution,
     StyleCounts,
     StyleExplanation,
+    TopFactCode,
     UnboundLayer,
     UnboundLayerCode,
     UndrawnCode,
@@ -93,4 +95,4 @@ export type {
 } from "./StylesApi";
 export { createStylesApi } from "./StylesApi";
 export type { StyleRow, StyleRowId, StyleRowPin, StyleRowPlace } from "./tree";
-export type { ValueCategory } from "./values";
+export type { ValueCategory, ValueEntryWrite, ValueGroup } from "./values";

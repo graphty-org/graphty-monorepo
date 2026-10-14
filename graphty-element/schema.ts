@@ -96,6 +96,7 @@ export type {
 } from "./src/config/index";
 export {
     colorToHex,
+    DEFAULT_BACKGROUND_COLOR,
     DEFAULT_LIGHTING,
     DEFAULT_SELECTION_STYLE,
     DEFAULT_VIEW_MODE,

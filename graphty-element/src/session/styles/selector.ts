@@ -33,7 +33,7 @@
  */
 
 import { parseScope } from "../../catalog/sets/parse";
-import type { EdgeId, EdgeReading, NodeId, Path, Query, RuleTree, Scope } from "../../catalog/types";
+import type { EdgeId, EdgeReading, NodeId, Path, Query, RuleTree, Scope, TopTies } from "../../catalog/types";
 import { GraphtyError, isGraphtyError } from "../../errors";
 import {
     columnsFor,
@@ -83,9 +83,10 @@ export type Selector =
      * The top `n` elements by one run field, `results.<run>.<field>`, cut only between tie
      * groups: a group of equal values is painted whole, and only when all of it fits inside `n`.
      * So a layer never paints more than `n` elements, and paints none on a graph whose highest
-     * value is shared by more than `n`. `RunResult.top` is the same cut with its reason.
+     * value is shared by more than `n`. `RunResult.top` is the same cut with its reason. With
+     * `ties: "all"` the group the cut falls in is painted whole instead, past `n`.
      */
-    | { readonly match: "top"; readonly path: Path; readonly n: number }
+    | { readonly match: "top"; readonly path: Path; readonly n: number; readonly ties?: TopTies }
     /**
      * The members of a scope, usually a kept set. One bit test per element against the scope's
      * live bitmap, which follows the set; a scope that cannot be resolved paints nothing.
@@ -272,6 +273,12 @@ function assertSelector(selector: Selector): void {
                 });
             }
 
+            if (selector.ties !== undefined && selector.ties !== "fewer" && selector.ties !== "all") {
+                throw badShape("top-ties-unknown", 'A "top" selector\'s ties is "fewer" or "all".', {
+                    ties: selector.ties,
+                });
+            }
+
             return;
         case "state":
             if (!ELEMENT_STATES.includes(selector.state)) {
@@ -357,7 +364,15 @@ export function selectorRule(selector: Selector): RuleSelector | undefined {
         case "has":
             return { match: "rule", where: { kind: "text", reads: selector.path, mode: "regex", text: "" } };
         case "top":
-            return { match: "rule", where: { kind: "threshold", path: selector.path, top: selector.n } };
+            return {
+                match: "rule",
+                where: {
+                    kind: "threshold",
+                    path: selector.path,
+                    top: selector.n,
+                    ...(selector.ties === undefined ? {} : { ties: selector.ties }),
+                },
+            };
         case "expression": {
             const where = expressionRule(selector.where);
             return where === undefined ? undefined : { match: "rule", where };
@@ -409,7 +424,7 @@ export function compileSelector(selector: Selector, target: SelectorTarget, sour
         }
         case "top": {
             const { topCut } = source;
-            const { path, n } = selector;
+            const { path, n, ties } = selector;
 
             if (topCut === undefined) {
                 throw new GraphtyError({
@@ -423,7 +438,7 @@ export function compileSelector(selector: Selector, target: SelectorTarget, sour
             return {
                 match: "top",
                 target,
-                test: topPredicate(columns, path, () => topCut(path, target, n)),
+                test: topPredicate(columns, path, () => topCut(path, target, n, ties)),
                 paths: Object.freeze([path]),
             };
         }

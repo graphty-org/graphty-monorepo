@@ -6,7 +6,12 @@ export type { FetchEdgesFn, FetchNodesFn, GraphBehaviorConfig } from "./GraphBeh
 export type { NodeIdType } from "./GraphBehavior";
 export { GraphBehaviorOpts } from "./GraphBehavior";
 export type { GraphBackgroundConfig, GraphSelectionStyleConfig, GraphSelectionStyleInput } from "./GraphStyle";
-export { DEFAULT_SELECTION_STYLE, GraphBackground, GraphSelectionStyleOpts } from "./GraphStyle";
+export {
+    DEFAULT_BACKGROUND_COLOR,
+    DEFAULT_SELECTION_STYLE,
+    GraphBackground,
+    GraphSelectionStyleOpts,
+} from "./GraphStyle";
 export type { Lighting } from "./Lighting";
 export { DEFAULT_LIGHTING, isLighting, LIGHTING_VALUES } from "./Lighting";
 export type { NodeStyleConfig } from "./NodeStyle";

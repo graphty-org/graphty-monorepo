@@ -645,6 +645,11 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         command: { op: "data.setSource", source: { type: "json", name: "Renamed" } },
     },
     {
+        name: "data.label",
+        tags: BOTH,
+        command: { op: "data.label", path: "data.name", value: "a", label: "Alpha" },
+    },
+    {
         name: "view.save",
         tags: ["session"],
         command: { op: "view.save", views: [{ name: "Fixture view", camera: { zoom: 2, pan: { x: 1, y: 2 } } }] },

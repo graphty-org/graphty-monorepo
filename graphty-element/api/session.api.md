@@ -67,6 +67,7 @@ export interface AlgorithmRunCommand {
     readonly exact?: boolean;
     readonly op: "algo.run";
     readonly params?: Readonly<Record<string, unknown>>;
+    readonly restoreLayer?: boolean;
     readonly sample?: number;
     readonly scope?: Scope;
     readonly seed?: number;
@@ -106,7 +107,7 @@ export interface AttributeDescriptor {
 }
 
 // @public
-export type AttributeLeafNodes = "all" | "ends";
+export type AttributeLeafNodes = "all" | "ends" | "none";
 
 // @public
 export type AttributeRole = "key" | "label" | "weight" | "source" | "target" | "time" | "edgeId";
@@ -151,6 +152,7 @@ export type Binding = {
     clamp?: [number, number];
     range?: [number, number];
     map?: Record<string, string | number>;
+    otherwise?: string | number;
     other?: {
         threshold: number;
         value: string | number;
@@ -165,6 +167,7 @@ export type Binding = {
     midpoint?: number;
     bins?: number;
     exponent?: number;
+    choices?: string[];
 };
 
 // @public
@@ -183,10 +186,15 @@ export interface BindingPreview {
     readonly below: number;
     readonly bins: readonly BindingPreviewBin[];
     readonly channel: Channel;
+    readonly defaulted: readonly PreviewDefaultedPart[];
     readonly domain: readonly [number, number] | null;
+    readonly endPercentiles: readonly [number, number] | null;
+    readonly endTies: readonly [number, number] | null;
+    readonly extent: readonly [number, number] | null;
     readonly noValue: number;
     readonly noValuePaints: EncodedValue | null;
     readonly outsideScale: number;
+    readonly palette: PaletteId | null;
     readonly scale: NonNullable<RuleBinding["scale"]>;
     readonly stepCounts: readonly number[];
     readonly steps: readonly number[];
@@ -283,6 +291,15 @@ export type ChannelAgreement = {
 };
 
 // @public
+export interface ChannelCovers {
+    readonly layers: readonly {
+        readonly layerId: LayerId;
+        readonly count: number;
+    }[];
+    readonly more: number;
+}
+
+// @public
 export interface ChannelExplanation {
     readonly channel: Channel;
     readonly editable: boolean;
@@ -362,6 +379,7 @@ export interface CommandOutcomeMap {
     "data.declare": Promise<void>;
     "data.expand": Promise<void>;
     "data.import": Promise<void>;
+    "data.label": Promise<void>;
     "data.setSource": Promise<void>;
     "layout.scope": Promise<void>;
     "layout.set": Promise<void>;
@@ -928,6 +946,9 @@ export interface GraphSession {
 }
 
 // @public
+export type GraphSettingKey = "background" | "lighting" | "node.depthIndependentSize" | "node.outlineWidth" | "labels.declutter" | "labels.avoidNodesAndEdges";
+
+// @public
 export interface GraphStatistics {
     readonly components: ComponentStatistics;
     readonly degreeHistogram?: Histogram;
@@ -936,8 +957,10 @@ export interface GraphStatistics {
     readonly directedness: "directed" | "undirected" | "mixed" | "unknown";
     readonly directednessSource: DirectionProvenance;
     readonly edgeCount: number;
+    readonly inDegreeHistogram?: Histogram;
     readonly meanDegree: number;
     readonly nodeCount: number;
+    readonly outDegreeHistogram?: Histogram;
     readonly repeatedEdgeCount: number;
     readonly selfLoopCount: number;
     readonly transitivity?: number;
@@ -1451,7 +1474,7 @@ export interface HistogramOptions {
 export type HistoryCause = "command" | "undo" | "redo" | "restore" | "rollback";
 
 // @public
-export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.move" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.import" | "data.expand" | "data.declare" | "data.set-source" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "style.add-folder" | "style.rename-row" | "style.move-row" | "style.pin-row" | "style.lock-row" | "style.hide-row" | "style.delete-row" | "style.restore-starting-rows" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "visibility.step-add" | "visibility.step-edit" | "visibility.step-on" | "visibility.step-off" | "visibility.step-remove" | "visibility.steps" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
+export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.move" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.import" | "data.expand" | "data.declare" | "data.set-source" | "data.label" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "style.add-folder" | "style.rename-row" | "style.move-row" | "style.pin-row" | "style.lock-row" | "style.hide-row" | "style.delete-row" | "style.restore-starting-rows" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "visibility.step-add" | "visibility.step-edit" | "visibility.step-on" | "visibility.step-off" | "visibility.step-remove" | "visibility.steps" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
 
 // @public
 export type HistoryOutcome = {
@@ -1753,6 +1776,7 @@ export interface LegendReading {
 
 // @public
 export interface LegendSwatch {
+    readonly arbitrary?: true;
     readonly color?: string;
     readonly count?: number;
     readonly extent?: {
@@ -1762,6 +1786,7 @@ export interface LegendSwatch {
     readonly hidden?: true;
     // @deprecated
     readonly label: string;
+    readonly name?: string;
     readonly paints?: unknown;
     readonly rank?: number;
     readonly role?: "other" | (string & {});
@@ -2235,6 +2260,9 @@ export interface PositionEntry {
 export type Precision = "f32" | "f64";
 
 // @public
+export type PreviewDefaultedPart = "palette" | "scale" | "domain" | "range";
+
+// @public
 export type PreviewSpan = "domain" | "data";
 
 // @public
@@ -2374,7 +2402,7 @@ export interface ProjectSaveReport {
 }
 
 // @public
-export type ProjectSlice = "graph" | "config" | "layout" | "pins" | "arrangement" | "runs" | "styles" | "visibility" | "sets" | "views" | "notes" | "attributes";
+export type ProjectSlice = "graph" | "config" | "layout" | "pins" | "arrangement" | "runs" | "styles" | "visibility" | "sets" | "views" | "notes" | "attributes" | "valueLabels";
 
 // @public
 export type ProjectSource = Blob | Uint8Array | string;
@@ -2451,6 +2479,7 @@ export interface ReadableValue {
     };
     readonly runId?: RunId;
     readonly technicalName: string;
+    readonly tests: readonly RuleTestKind[];
     readonly usedBy?: readonly AttributeUse[];
     readonly valueCount?: number;
     readonly valuesAreColors?: true;
@@ -2783,6 +2812,9 @@ export type RuleSelector = Extract<Selector_2, {
 }>;
 
 // @public
+export type RuleTestKind = "range" | "top" | "above" | "categories" | "text";
+
+// @public
 export type RuleTree = {
     readonly kind: "expression";
     readonly where: Query;
@@ -2858,6 +2890,7 @@ export type RuleTree = {
     readonly kind: "threshold";
     readonly path: Path;
     readonly top?: number;
+    readonly ties?: TopTies;
     readonly above?: number;
 }
 /**
@@ -2962,6 +2995,12 @@ export type RunExecutor<T = RunResult> = (context: RunExecutionContext) => Promi
 
 // @public
 export type RunId = string;
+
+// @public
+export interface RunLayers {
+    readonly missing: readonly StyleSuggestion[];
+    readonly present: readonly LayerId[];
+}
 
 // @public
 export interface RunOptions {
@@ -3075,6 +3114,7 @@ export interface RunsApi {
     }): Run<BatchResult>;
     bindings(id: RunId): readonly LayerId[];
     get(id: RunId): Run | undefined;
+    layers(id: RunId): RunLayers | undefined;
     list(): readonly Run[];
     move(id: RunId, before: LayerId | null, options?: {
         readonly signal?: AbortSignal;
@@ -3196,11 +3236,13 @@ export interface SelectionApi {
     has(id: NodeId | EdgeId): boolean;
     hover(id: NodeId | null): void;
     readonly hovered: NodeId | null;
+    readonly hoverPreview: boolean;
     readonly layerSelector: Selector;
     nodeMask(): Uint8Array;
     readonly nodes: readonly NodeId[];
     readonly origin: SelectionTarget | null;
     readonly originPaths: readonly Path[];
+    previewHover(on: boolean): void;
     // @deprecated
     promote(name: string): ScopeId;
     readonly size: number;
@@ -3359,12 +3401,14 @@ export type Selector = {
 /**
 * The top `n` elements by one run field (`results.<run>.<field>`), cut only between tie
 * groups: a group of equal values is painted whole, and only when all of it fits inside `n`.
-* See `TopRanking` for the policy.
+* See `TopRanking` for the policy. `ties: "all"` takes the group the cut falls in whole
+* instead, so the top can hold more than `n` (see {@link TopTies}).
 */
 | {
     match: "top";
     path: Path;
     n: number;
+    ties?: TopTies;
 } | {
     match: "everything";
 }
@@ -3418,6 +3462,7 @@ export interface SessionConfig extends ProjectConfig {
         readonly policy: AccelerationPolicy;
         readonly minNodes: number;
     };
+    inEffect(key: GraphSettingKey): SettingEffect;
     set(values: ProjectConfigPatch): Promise<void>;
 }
 
@@ -3461,6 +3506,7 @@ export interface SessionDataApi {
     removeNodes(ids: readonly NodeId_2[]): Promise<void>;
     renameSource(name: string): Promise<void>;
     resultColumns(kind: "node" | "edge"): readonly ResultColumnDescriptor[];
+    setValueLabel(path: Path, value: string | number | boolean, label: string | null): Promise<void>;
     snapshot(): GraphSnapshot;
     source(): DataSourceDescriptor | null;
     sources(): readonly LoadedSource[];
@@ -3469,6 +3515,7 @@ export interface SessionDataApi {
     undirected(snapshot?: GraphSnapshot): DerivedGraph;
     updateEdges(rows: readonly RowUpdate<EdgeId>[]): Promise<void>;
     updateNodes(rows: readonly RowUpdate<NodeId_2>[]): Promise<void>;
+    valueLabels(path: Path): ReadonlyMap<string, string>;
 }
 
 // @public
@@ -3790,6 +3837,14 @@ export type SetStatusReason = {
 };
 
 // @public
+export interface SettingEffect extends CodedFact<SettingEffectCode> {
+    readonly inEffect: boolean;
+}
+
+// @public
+export type SettingEffectCode = "setting.inEffect" | "setting.notIn2d";
+
+// @public
 export interface SetUser {
     readonly id?: string;
     readonly kind: "set" | "layer" | "filter" | "layout" | "run" | "note";
@@ -3812,6 +3867,7 @@ export interface StartOptions extends RunOptions {
     readonly applySuggestedStyles?: boolean;
     readonly as?: RunId;
     readonly exact?: boolean;
+    readonly restoreLayer?: boolean;
     readonly sample?: number;
     readonly scope?: ScopeInput;
     readonly seed?: number;
@@ -3863,6 +3919,7 @@ export interface StyleContribution {
 
 // @public
 export interface StyleCounts {
+    readonly covers: Readonly<Partial<Record<Channel, ChannelCovers>>>;
     readonly leftOut: readonly CodedFact<LeftOutCode>[];
     readonly matched: number;
     readonly noValue: number;
@@ -3871,6 +3928,7 @@ export interface StyleCounts {
     readonly paintedBy: readonly LayerId[];
     readonly reads: readonly Path[];
     readonly revision: string;
+    readonly tops: readonly CodedFact<TopFactCode>[];
     readonly undrawn: readonly CodedFact<UndrawnCode>[];
 }
 
@@ -3948,6 +4006,7 @@ export interface StylesApi {
     encode(spec: EncodingSpec | ColumnEncodingSpec, options?: RunOptions): Run<Layer>;
     explain(target: ExplainTarget): StyleExplanation;
     get(id: LayerId): Layer | undefined;
+    groups(id: LayerId, path: Path): readonly ValueGroup[];
     hideRow(id: StyleRowId, hidden: boolean, options?: RunOptions): Run<StyleRow>;
     highlight(spec: HighlightSpec, options?: RunOptions): Run<readonly Layer[]>;
     highlightStyle(target: SelectorTarget): StaticStyle;
@@ -3976,6 +4035,7 @@ export interface StylesApi {
     }): void;
     setHighlightColor(color: string | undefined): void;
     settled(): Promise<void>;
+    setValueEntries(id: LayerId, by: Path, writes: readonly ValueEntryWrite[], options?: RunOptions): Run<Layer>;
     setValueEntry(id: LayerId, channel: Channel, value: string | number | boolean, entry: ChannelValue | undefined, options?: RunOptions): Run<Layer>;
     setValueHidden(id: LayerId, channel: Channel, value: string | number | boolean, hidden: boolean, options?: RunOptions): Run<Layer>;
     toDocument(): StyleDocument;
@@ -4094,6 +4154,9 @@ export interface TooLargeDetails {
 }
 
 // @public
+export type TopFactCode = "top.exact" | "top.tiesLeftOut" | "top.tiesTaken" | "top.fewerMeasured";
+
+// @public
 export interface TopRanking {
     readonly entries: readonly RankingEntry[];
     readonly leftOut: {
@@ -4103,6 +4166,9 @@ export interface TopRanking {
     readonly reason: string | null;
     readonly threshold: number | null;
 }
+
+// @public
+export type TopTies = "fewer" | "all";
 
 // @public
 export interface TransactionOptions {
@@ -4142,6 +4208,23 @@ export interface ValueCategory {
     readonly count: number;
     readonly entry?: string | number;
     readonly hidden: boolean;
+    readonly name?: string;
+    readonly value: unknown;
+}
+
+// @public
+export interface ValueEntryWrite {
+    readonly channel: Channel;
+    readonly entry: ChannelValue | undefined;
+    readonly value: string | number | boolean;
+}
+
+// @public
+export interface ValueGroup {
+    readonly count: number;
+    readonly entries: Readonly<Partial<Record<Channel, string | number>>>;
+    readonly hidden: boolean;
+    readonly name?: string;
     readonly value: unknown;
 }
 

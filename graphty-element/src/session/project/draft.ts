@@ -36,7 +36,8 @@ import { strictStateEnabled, strictViolation } from "./strict";
 export const ABSENT: unique symbol = Symbol("absent");
 
 /** The slices a draft writes by value. */
-type ValueSlice = "config" | "layout" | "runs" | "styles" | "visibility" | "sets" | "views" | "notes" | "attributes";
+type ValueSlice =
+    "config" | "layout" | "runs" | "styles" | "visibility" | "sets" | "views" | "notes" | "attributes" | "valueLabels";
 
 /** One key a patch wrote: what it held before, and what the patch left in it. */
 interface PatchEntry {
@@ -326,6 +327,7 @@ export interface Draft {
     readonly views: KeyedWriter<string, CameraState>;
     readonly notes: KeyedWriter<string, NoteEntry>;
     readonly attributes: KeyedWriter<string, MeasurementDeclaration>;
+    readonly valueLabels: KeyedWriter<string, string>;
     readonly visibility: {
         set<K extends keyof VisibilityState>(key: K, value: VisibilityState[K]): void;
     };
@@ -428,6 +430,7 @@ export function createProjectStore(
         views: state.views as Map<string, unknown>,
         notes: state.notes as Map<string, unknown>,
         attributes: state.attributes as Map<string, unknown>,
+        valueLabels: state.valueLabels as Map<string, unknown>,
     };
     /** Which open draft holds each key, by `slice/key`. */
     const owners = new Map<string, OpenDraft>();
@@ -588,6 +591,7 @@ export function createProjectStore(
                 views: keyed(draft, "views"),
                 notes: keyed(draft, "notes"),
                 attributes: keyed(draft, "attributes"),
+                valueLabels: keyed(draft, "valueLabels"),
                 visibility: {
                     set: (key, value) => {
                         write(draft, "visibility", key, value);

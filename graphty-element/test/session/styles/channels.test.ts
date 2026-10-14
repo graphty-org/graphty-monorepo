@@ -569,3 +569,42 @@ describe("the arrow-end channels", () => {
         }
     });
 });
+
+describe("how far one step moves a number channel", () => {
+    it("is given on every number channel and on no other", () => {
+        for (const channel of CHANNELS) {
+            const descriptor = CHANNEL_DESCRIPTORS[channel];
+            assert.strictEqual(descriptor.step !== undefined, descriptor.accepts === "number", channel);
+        }
+    });
+
+    it("moves an opacity by a hundredth, a count and a label size by one, a length by a tenth", () => {
+        assert.strictEqual(CHANNEL_DESCRIPTORS["node.opacity"].step, 0.01);
+        assert.strictEqual(CHANNEL_DESCRIPTORS["edge.patternCount"].step, 1);
+        assert.strictEqual(CHANNEL_DESCRIPTORS["node.labelSize"].step, 1);
+        assert.strictEqual(CHANNEL_DESCRIPTORS["edge.width"].step, 0.1);
+    });
+});
+
+describe("which drawn part a channel adjusts", () => {
+    it("names a part that is itself a channel with no part above it", () => {
+        for (const channel of CHANNELS) {
+            const { modifies } = CHANNEL_DESCRIPTORS[channel];
+            if (modifies !== undefined) {
+                assert.isTrue(isChannel(modifies), `${channel} modifies a channel`);
+                assert.isUndefined(CHANNEL_DESCRIPTORS[modifies].modifies, `${modifies} is a part of its own`);
+                assert.strictEqual(CHANNEL_DESCRIPTORS[modifies].target, CHANNEL_DESCRIPTORS[channel].target);
+            }
+        }
+    });
+
+    it("folds a band, a halo, an arrowhead and a label's look into their parts", () => {
+        assert.strictEqual(CHANNEL_DESCRIPTORS["edge.bandWidth"].modifies, "edge.bandColor");
+        assert.strictEqual(CHANNEL_DESCRIPTORS["node.haloOpacity"].modifies, "node.haloColor");
+        assert.strictEqual(CHANNEL_DESCRIPTORS["edge.arrowTailSize"].modifies, "edge.arrowTail");
+        assert.strictEqual(CHANNEL_DESCRIPTORS["edge.arrowHeadTextColor"].modifies, "edge.arrowHeadText");
+        assert.strictEqual(CHANNEL_DESCRIPTORS["node.labelSize"].modifies, "node.label");
+        assert.isUndefined(CHANNEL_DESCRIPTORS["edge.arrowHeadText"].modifies, "an end label is a part of its own");
+        assert.isUndefined(CHANNEL_DESCRIPTORS["node.outline"].modifies);
+    });
+});

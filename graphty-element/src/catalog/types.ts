@@ -711,6 +711,13 @@ export type Binding =
           clamp?: [number, number];
           range?: [number, number];
           map?: Record<string, string | number>;
+          /**
+           * What a value with no `map` entry paints, in place of the scale: a layer that varies a
+           * property for a few groups keeps one value for every other group. An element with no
+           * value at all is still `missing`'s, and a group folded into `other` keeps that.
+           * @since 3.26.0
+           */
+          otherwise?: string | number;
           other?: { threshold: number; value: string | number };
           /**
            * What a categorical colour binding does with more groups than its palette can keep
@@ -737,10 +744,28 @@ export type Binding =
           midpoint?: number;
           bins?: number;
           exponent?: number;
+          /**
+           * The values a scale's groups paint, lowest group first, on a channel that carries one
+           * of a fixed list (a line pattern, a node shape, an arrow): group 0 paints the first,
+           * group 1 the second. Each must be one the channel takes. Absent, the groups walk the
+           * channel's own list in catalogue order. `styles.proposeEncoding` writes an ordered set
+           * here when it steps a number onto such a channel.
+           * @since 3.26.0
+           */
+          choices?: string[];
       };
 
 /** Declarative attribute-to-channel bindings. */
 export type Encoding = Partial<Record<Channel, Binding>>;
+
+/**
+ * What a "top N" does with the tie group its cut falls in. `"fewer"` (the default) leaves the
+ * whole group out, so the top holds at most `n` and can hold none when every element ties;
+ * `"all"` takes the whole group, so the top holds every element tied at the cut and can hold more
+ * than `n`.
+ * @since 3.26.0
+ */
+export type TopTies = "fewer" | "all";
 
 /**
  * What a layer matches. Spelled out rather than implied, so it is greppable and lintable.
@@ -754,9 +779,10 @@ export type Selector =
     /**
      * The top `n` elements by one run field (`results.<run>.<field>`), cut only between tie
      * groups: a group of equal values is painted whole, and only when all of it fits inside `n`.
-     * See `TopRanking` for the policy.
+     * See `TopRanking` for the policy. `ties: "all"` takes the group the cut falls in whole
+     * instead, so the top can hold more than `n` (see {@link TopTies}).
      */
-    | { match: "top"; path: Path; n: number }
+    | { match: "top"; path: Path; n: number; ties?: TopTies }
     | { match: "everything" }
     /**
      * The members of a scope, usually a kept set: `{ match: "member", of: { set: id } }`. The
@@ -1274,7 +1300,25 @@ export interface ReadableValue {
      * @since 3.26.0
      */
     readonly usedBy?: readonly AttributeUse[];
+    /**
+     * The rule leaves that can test it, so a condition editor offers the tests the value supports
+     * after the reader picks it: see {@link RuleTestKind}. A number with few enough distinct values
+     * to count is offered both number and category tests.
+     * @since 3.26.0
+     */
+    readonly tests: readonly RuleTestKind[];
 }
+
+/**
+ * A rule leaf that can test a {@link ReadableValue}, by the `kind` it has in a {@link RuleTree}:
+ * `range` (between, at least, at most, is), `top` (a `threshold` leaf's top N), `above` (a
+ * `threshold` leaf's strictly above), `categories` (is one of, is not one of) and `text`
+ * (contains, is, starts with, ends with, matches).
+ *
+ * More kinds may be added in a minor release.
+ * @since 3.26.0
+ */
+export type RuleTestKind = "range" | "top" | "above" | "categories" | "text";
 
 /**
  * Whether a metric can be computed on this graph, what it would cost, and whether it has
@@ -1346,8 +1390,11 @@ export type SelectionDirection = "in" | "out" | "all";
  * `data.weight`). `"all"` (the default): the leaf is silent about nodes, so every node stays and
  * only the passing edges are kept. `"ends"`: only the nodes at the ends of a passing edge are kept.
  * When the nodes carry the attribute too, `"ends"` keeps a node only when it passes AND is an end.
+ * `"none"` (since 3.26.0): the leaf holds no nodes at all, and the edges that pass are kept
+ * whatever the rule's edge reading says of their ends, so a rule about edges on a layer that paints
+ * nodes and edges paints just the passing edges.
  */
-export type AttributeLeafNodes = "all" | "ends";
+export type AttributeLeafNodes = "all" | "ends" | "none";
 
 /**
  * How a text test compares: the value contains the text (`substring`), is it (`exact`), starts
@@ -1431,6 +1478,8 @@ export type RuleTree =
           readonly path: Path;
           /** The top `n`, whole tie groups only (the `TopRanking` tie policy). Exactly one cut. */
           readonly top?: number;
+          /** What `top` does with the tie group its cut falls in: see {@link TopTies}. @since 3.26.0 */
+          readonly ties?: TopTies;
           /** Strictly above this value. Exactly one cut. */
           readonly above?: number;
       }

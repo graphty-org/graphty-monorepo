@@ -174,7 +174,7 @@ export interface AttributeDescriptor {
 }
 
 // @public
-export type AttributeLeafNodes = "all" | "ends";
+export type AttributeLeafNodes = "all" | "ends" | "none";
 
 // @public
 export type AttributeType = (typeof ATTRIBUTE_TYPES)[number];
@@ -193,6 +193,7 @@ export type Binding = {
     clamp?: [number, number];
     range?: [number, number];
     map?: Record<string, string | number>;
+    otherwise?: string | number;
     other?: {
         threshold: number;
         value: string | number;
@@ -207,6 +208,7 @@ export type Binding = {
     midpoint?: number;
     bins?: number;
     exponent?: number;
+    choices?: string[];
 };
 
 // @public
@@ -290,9 +292,13 @@ export type Channel = "node.color" | "node.size" | "node.shape" | "node.label" |
 export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>>;
 
 // @public
+export type ChannelCaveatCode = "outline.sharedWidth";
+
+// @public
 export interface ChannelDescriptor {
     readonly accepts: ChannelValueKind;
     readonly caveat?: string;
+    readonly caveatCode?: ChannelCaveatCode;
     readonly channel: Channel;
     readonly default?: string | number | boolean;
     readonly exclusiveMin?: boolean;
@@ -300,11 +306,13 @@ export interface ChannelDescriptor {
     readonly group: ChannelGroup;
     readonly max?: number;
     readonly min?: number;
+    readonly modifies?: Channel;
     readonly off?: string | number;
     readonly perWorldUnit?: number;
     readonly plainName: string;
     readonly renderable: boolean;
     readonly shortName: string;
+    readonly step?: number;
     readonly stylePath: string;
     readonly target: "node" | "edge";
     readonly unsupportedReason?: string;
@@ -1423,6 +1431,7 @@ export interface ReadableValue {
     };
     readonly runId?: RunId;
     readonly technicalName: string;
+    readonly tests: readonly RuleTestKind[];
     readonly usedBy?: readonly AttributeUse[];
     readonly valueCount?: number;
     readonly valuesAreColors?: true;
@@ -1535,6 +1544,7 @@ export type RuleTree = {
     readonly kind: "threshold";
     readonly path: Path;
     readonly top?: number;
+    readonly ties?: TopTies;
     readonly above?: number;
 }
 /**
@@ -1624,12 +1634,14 @@ export type Selector = {
 /**
 * The top `n` elements by one run field (`results.<run>.<field>`), cut only between tie
 * groups: a group of equal values is painted whole, and only when all of it fits inside `n`.
-* See `TopRanking` for the policy.
+* See `TopRanking` for the policy. `ties: "all"` takes the group the cut falls in whole
+* instead, so the top can hold more than `n` (see {@link TopTies}).
 */
 | {
     match: "top";
     path: Path;
     n: number;
+    ties?: TopTies;
 } | {
     match: "everything";
 }
@@ -1779,6 +1791,9 @@ export interface ThemeDescriptor {
 
 // @public
 export function toColorValue(value: string | Rgba | null | undefined): ColorValue | null;
+
+// @public
+export type TopTies = "fewer" | "all";
 
 // @public
 export const UNPAINTED_CHANNELS: readonly UnpaintedChannel[];

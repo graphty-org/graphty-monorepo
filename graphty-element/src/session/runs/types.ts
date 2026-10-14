@@ -462,6 +462,30 @@ export interface StartOptions extends RunOptions {
      * so one undo takes the run and those layers away together.
      */
     readonly applySuggestedStyles?: boolean;
+    /**
+     * Put back the layers this run added when it first completed that are no longer in the stack
+     * (a reader deleted them), as they were suggested, in the same step as the run: one undo takes
+     * them away again. A run that already answers the question is not computed again -- its stored
+     * result paints the layers -- unless its parameters or the data changed, in which case it runs
+     * and the layers come back on the new result. A layer still in the stack is left as it is.
+     * {@link RunsApi.layers} says beforehand whether anything is missing.
+     * @since 3.26.0
+     */
+    readonly restoreLayer?: boolean;
+}
+
+/**
+ * Which of a run's layers the stack holds: what {@link RunsApi.layers} answers.
+ * @since 3.26.0
+ */
+export interface RunLayers {
+    /** The layers reading the run, as {@link RunsApi.bindings} lists them. */
+    readonly present: readonly LayerId[];
+    /**
+     * What the run painted on its first completion that no layer reading the run paints any more:
+     * what `start(..., { restoreLayer: true })` puts back. Empty when nothing is missing.
+     */
+    readonly missing: readonly StyleSuggestion[];
 }
 
 /**
@@ -936,6 +960,15 @@ export interface RunsApi {
      * @returns The decision, or undefined when this session holds no run with that id.
      */
     painting(id: RunId): RunPainting | undefined;
+    /**
+     * Which of a run's layers the stack holds, and which of those it added on its first
+     * completion are gone: what decides between "update the layer" and "add the layer back" before
+     * a reader starts the run again.
+     * @param id - The run id.
+     * @returns The layers, or undefined when this session holds no run with that id.
+     * @since 3.26.0
+     */
+    layers(id: RunId): RunLayers | undefined;
     /** The runs waiting to start, in queue order. */
     readonly queue: readonly QueueEntry[];
 }

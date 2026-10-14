@@ -40,7 +40,7 @@
 
 import { maskTest, type U32 } from "@graphty/graph-format";
 
-import type { EdgeId, NodeId, Path, Query, RuleTree, Scope } from "../../catalog/types";
+import type { EdgeId, NodeId, Path, Query, RuleTree, Scope, TopTies } from "../../catalog/types";
 import { otherIdSpelling } from "../../data/nodeIdSpelling";
 import { GraphtyError } from "../../errors";
 
@@ -152,9 +152,10 @@ export interface SelectorSource {
      * @param path - The column path, `results.<run>.<field>`.
      * @param target - Whether the asking layer paints nodes or edges.
      * @param n - The most elements the top may hold.
+     * @param ties - What the top does with the tie group its cut falls in.
      * @returns The cut, or undefined.
      */
-    readonly topCut?: (path: Path, target: SelectorTarget, n: number) => number | undefined;
+    readonly topCut?: (path: Path, target: SelectorTarget, n: number, ties?: TopTies) => number | undefined;
     /**
      * The live membership of one scope, which a `{match:"member"}` selector tests by index.
      * Absent, a `{match:"member"}` selector is refused.

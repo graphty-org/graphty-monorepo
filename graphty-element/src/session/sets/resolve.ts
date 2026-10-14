@@ -618,6 +618,8 @@ function resolveRule(
     }
 
     const half: NodeHalf = { nodes, constraint: null, all: false, missingNodes: 0 };
+    // A rule that holds no nodes by its own say (`nodes: "none"`) keeps its passing edges unclipped.
+    const noNodes = typeof definition.where !== "string" && holdsNoNodes(definition.where);
     if (reading === "induced" || (reading === "clipped" && halves.edge === null)) {
         return resolutionOf(half, deriveEdges(half, snapshot), context, 0);
     }
@@ -638,13 +640,34 @@ function resolveRule(
             const dstIn = (nodes[dst[edge] >>> 5] & (1 << (dst[edge] & 31))) !== 0;
             if (reading === "listed") {
                 addEdgeRow(edge, snapshot, nodes, edges);
-            } else if (reading === "incident" ? srcIn || dstIn : srcIn && dstIn) {
+            } else if (noNodes || (reading === "incident" ? srcIn || dstIn : srcIn && dstIn)) {
                 edges[edge >>> 5] |= 1 << (edge & 31);
             }
         }
     }
 
     return resolutionOf(half, edges, context, 0);
+}
+
+/**
+ * Whether a rule holds no nodes because it says so: a value leaf with `nodes: "none"`, an `all`
+ * holding one, or an `any` whose every member holds none.
+ * @param tree - The rule.
+ * @returns True when it holds no nodes by its own say.
+ */
+function holdsNoNodes(tree: RuleTree): boolean {
+    switch (tree.kind) {
+        case "range":
+        case "categories":
+        case "text":
+            return tree.nodes === "none";
+        case "all":
+            return tree.of.some(holdsNoNodes);
+        case "any":
+            return tree.of.length > 0 && tree.of.every(holdsNoNodes);
+        default:
+            return false;
+    }
 }
 
 /**

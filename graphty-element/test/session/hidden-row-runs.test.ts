@@ -78,4 +78,42 @@ describe("a hidden row under a run", () => {
         assert.isTrue(session.styles.get(red.id)?.hidden);
         session.dispose();
     });
+
+    it("leaves a hidden edge row unpainted through a run, an undo and a data change", async () => {
+        const session = createGraphSession({ runs: { execute: groups } });
+        await session.data.addNodes([{ id: "a" }, { id: "b" }, { id: "c" }]);
+        await session.data.addEdges([
+            { source: "a", target: "b" },
+            { source: "b", target: "c" },
+        ]);
+        const element = session as ElementSession;
+        const edges = (): (string | undefined)[] =>
+            Array.from(
+                { length: session.data.snapshot().edgeCount },
+                (_, index) => element.paint.styleOf("edge", index)["edge.color"]?.hex,
+            );
+        const red = await session.styles.add({
+            name: "Red edges",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.color": RED },
+        });
+        await session.styles.hideRow(red.id, true);
+        await session.styles.settled();
+        assert.notInclude(edges(), RED);
+
+        await session.runs.start("louvain", undefined, { style: true });
+        await session.styles.settled();
+        assert.notInclude(edges(), RED, "the run's repaint painted what each edge shows, not the hidden row");
+
+        await session.undo();
+        await session.styles.settled();
+        assert.notInclude(edges(), RED, "undoing the run repainted without the hidden row");
+
+        await session.data.addEdges([{ source: "a", target: "c" }]);
+        await session.styles.settled();
+        assert.lengthOf(edges(), 3);
+        assert.notInclude(edges(), RED, "a data change repainted without the hidden row");
+        session.dispose();
+    });
 });

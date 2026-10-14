@@ -7,6 +7,9 @@ import { readColor } from "./readColor";
 /** How far a glow reaches at strength 1: the blur width of the glow layer, in glow-map texels. */
 const GLOW_SPREAD = 2;
 
+/** The outline pass's blur size at `outlineWidth` 1: a stroke about four device pixels wide. */
+const OUTLINE_BLUR = 0.5;
+
 /**
  * The narrowest and the widest a glow is spread, as multiples of {@link GLOW_SPREAD}. The blur
  * takes seven samples, so a wider spacing breaks the glow into blotches.
@@ -136,6 +139,33 @@ export class NodeEffects {
      * @param scene - The Babylon.js scene
      * @returns The highlight layer for the scene
      */
+    /**
+     * The outline pass's blur size for a scene's outline width.
+     * @param scene - The Babylon.js scene.
+     * @returns The blur size.
+     */
+    private static outlineBlurOf(scene: Scene): number {
+        const width: unknown = scene.metadata?.outlineWidth;
+        return OUTLINE_BLUR * (typeof width === "number" ? width : 1);
+    }
+
+    /**
+     * Set how wide every outline in a scene is drawn (`layoutBehavior.node.outlineWidth`): the
+     * one highlight pass's stroke, now if it exists and when it is first made otherwise.
+     * @param scene - The Babylon.js scene.
+     * @param width - The width as a multiple of the renderer's own, or undefined for that.
+     */
+    static setOutlineWidth(scene: Scene, width: number | undefined): void {
+        scene.metadata = scene.metadata ?? {};
+        scene.metadata.outlineWidth = width;
+        const layer = scene.metadata.highlightLayer as HighlightLayer | undefined;
+        if (layer && !this.isLayerDisposed(layer, scene)) {
+            const blur = this.outlineBlurOf(scene);
+            layer.blurHorizontalSize = blur;
+            layer.blurVerticalSize = blur;
+        }
+    }
+
     private static getOrCreateHighlightLayer(scene: Scene): HighlightLayer {
         // Check if layer already exists on scene metadata
         const existingLayer = scene.metadata?.highlightLayer as HighlightLayer | undefined;
@@ -144,11 +174,12 @@ export class NodeEffects {
         }
 
         // Create new highlight layer
+        const blur = this.outlineBlurOf(scene);
         const highlightLayer = new HighlightLayer(this.HIGHLIGHT_LAYER_NAME, scene, {
             isStroke: true,
             mainTextureRatio: 1,
-            blurHorizontalSize: 0.5,
-            blurVerticalSize: 0.5,
+            blurHorizontalSize: blur,
+            blurVerticalSize: blur,
         });
         // Around the node, never over it: the inner glow blends the outline color over the
         // node's own surface from its rim inwards, a fixed number of pixels deep, which filled a

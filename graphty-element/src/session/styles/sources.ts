@@ -44,7 +44,7 @@
 
 import type { Column, GraphSnapshot } from "@graphty/graph-format";
 
-import type { EdgeId, NodeId, Path, RunId } from "../../catalog/types";
+import type { EdgeId, NodeId, Path, RunId, TopTies } from "../../catalog/types";
 import { type NoteFacts, type NoteFactsReader, noteFieldOf } from "../notes/paths";
 import { RESULT_ROOT, type RunResult } from "../results";
 import { edgeSpaceOf } from "../scope/spaces";
@@ -154,7 +154,7 @@ export interface SessionSelectorSource extends SelectorSource {
      * @returns The cut, or undefined when nothing is taken or the path names no numeric field of
      *     this kind of element.
      */
-    readonly topCut: (path: Path, target: SelectorTarget, n: number) => number | undefined;
+    readonly topCut: (path: Path, target: SelectorTarget, n: number, ties?: TopTies) => number | undefined;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -772,7 +772,7 @@ export function createSelectorSource(parts: SelectorSourceParts): SessionSelecto
 
             return indices;
         },
-        topCut: (path: Path, target: SelectorTarget, n: number): number | undefined => {
+        topCut: (path: Path, target: SelectorTarget, n: number, ties?: TopTies): number | undefined => {
             const entry = entryFor(path);
             const result = entry.kind === "result" ? readResult?.(entry.runId) : undefined;
             const declared = result?.fields.find((candidate) => candidate.name === entry.field);
@@ -787,7 +787,9 @@ export function createSelectorSource(parts: SelectorSourceParts): SessionSelecto
                 return undefined;
             }
 
-            return result.top(entry.field, n).entries.at(-1)?.value;
+            const top = result.top(entry.field, n);
+            // Taking ties, the cut is the value of the group the limit fell in.
+            return ties === "all" ? (top.leftOut?.value ?? top.entries.at(-1)?.value) : top.entries.at(-1)?.value;
         },
     };
 }

@@ -126,6 +126,7 @@ import {
 import { sealedSet } from "../sealed";
 import type { CodedFact, CodedFactParam, ColumnRef } from "../shared";
 import type { HistoryCause } from "../types";
+import { valueLabelsAt } from "../valueLabels";
 import { beneathAuthored, placementLayers } from "./autoApply";
 import { channelDescriptor, isChannel, toColorValue } from "./channels";
 import { colorsOf, replaceColorPatch, type StyleColor } from "./colors";
@@ -230,7 +231,15 @@ import {
     type StyleRowPin,
     type StyleRowPlace,
 } from "./tree";
-import { categoriesOf, type ValueCategory, valueEntryPatch } from "./values";
+import {
+    categoriesOf,
+    groupsOf,
+    type ValueCategory,
+    valueEntriesPatch,
+    valueEntryPatch,
+    type ValueEntryWrite,
+    type ValueGroup,
+} from "./values";
 
 // ---------------------------------------------------------------------------------------------
 // The surface
@@ -771,6 +780,44 @@ export interface StylesApi {
      * @throws `E_UNKNOWN_LAYER` for an id the stack does not hold.
      */
     categories(id: LayerId, channel: Channel): readonly ValueCategory[];
+    /**
+     * Every value a layer paints by one category path, with what each channel paints it: one read
+     * for a group editor that shows a group's color, shape and text together. Largest first, with
+     * each value's count, hidden state, name and per-channel value-table entries.
+     *
+     * ```ts
+     * const groups = session.styles.groups(layer.id, "results.louvain.group");
+     * groups[0].entries["node.shape"]; // "box", when the largest group has a shape entry
+     * ```
+     * @param id - The layer.
+     * @param path - The category path, such as `results.<run>.group`.
+     * @returns The values; none when no channel of the layer reads the path by category.
+     * @throws `E_UNKNOWN_LAYER` for an id the stack does not hold.
+     * @since 3.26.0
+     */
+    groups(id: LayerId, path: Path): readonly ValueGroup[];
+    /**
+     * Write several value-table entries of one category path as one undoable step: several groups,
+     * several channels. A channel the layer does not yet vary by the path is bound to it, and every
+     * value without an entry keeps the one value the layer painted that channel before (its set
+     * value, else the channel's default) as the binding's `otherwise`.
+     *
+     * ```ts
+     * await session.styles.setValueEntries(layer.id, "results.louvain.group", [
+     *     { channel: "node.shape", value: 3, entry: "box" },
+     *     { channel: "node.label", value: 3, entry: "Students" },
+     * ]);
+     * ```
+     * @param id - The layer.
+     * @param by - The category path every write is a value of.
+     * @param writes - The writes, applied in order.
+     * @param options - A signal to cancel with, and a progress handler.
+     * @returns A run that resolves with the layer, and rejects with `E_BAD_COMMAND` when a channel
+     *   already varies by another path (`details.reason` `"bound-to-other-path"`) or an entry is
+     *   not a text or a number (`"bad-entry"`), `E_UNKNOWN_LAYER`, `E_PROTECTED` and `E_LOCKED`.
+     * @since 3.26.0
+     */
+    setValueEntries(id: LayerId, by: Path, writes: readonly ValueEntryWrite[], options?: RunOptions): Run<Layer>;
     /**
      * Set what one value of a categorical binding paints, or let it follow the palette again, as
      * one undoable step: an entry in the binding's value table (its `map`). A palette change
@@ -1984,6 +2031,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         scales,
         ...(sources.field === undefined ? {} : { field: sources.field }),
         ...(sources.groupRanks === undefined ? {} : { groupRanks: sources.groupRanks }),
+        valueLabels: (path) => valueLabelsAt(dispatcher.state.valueLabels, path),
         painted: (id) => api.counts(id).painted,
         // Only a `{match:"has"}` layer below can be answered: its elements are the ones a column
         // lists, and each is put to the compiled test of the layer above. Every other shape would
@@ -3777,7 +3825,40 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 );
             }
 
-            return categoriesOf(entry.layer, channel, encodingOf(id));
+            return categoriesOf(entry.layer, channel, encodingOf(id), (path) =>
+                valueLabelsAt(dispatcher.state.valueLabels, path),
+            );
+        },
+
+        groups(id: LayerId, path: Path): readonly ValueGroup[] {
+            const entry = byId().get(id);
+            if (entry === undefined) {
+                throw unknownLayer(
+                    id,
+                    listLayers().map((layer) => layer.id),
+                );
+            }
+
+            return groupsOf(entry.layer, path, encodingOf(id), (at) => valueLabelsAt(dispatcher.state.valueLabels, at));
+        },
+
+        setValueEntries(
+            id: LayerId,
+            by: Path,
+            writes: readonly ValueEntryWrite[],
+            options: RunOptions = {},
+        ): Run<Layer> {
+            return edit<Layer>(
+                "update",
+                `Change ${String(writes.length)} values of ${by} on layer ${id}`,
+                (state) => ({
+                    op: "style.patch",
+                    action: "update",
+                    id,
+                    patch: valueEntriesPatch(layerIn(state, id), by, writes),
+                }),
+                options,
+            );
         },
 
         setValueEntry(
@@ -3917,6 +3998,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 binding: filled,
                 column,
                 scales,
+                asWritten: binding,
                 ...(options.bins === undefined ? {} : { bins: options.bins }),
                 ...(options.span === undefined ? {} : { span: options.span }),
             });

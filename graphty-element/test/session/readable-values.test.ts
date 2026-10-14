@@ -232,6 +232,24 @@ describe("session.data.readableValues()", () => {
         assert.strictEqual(conference.kind, "number");
         assert.deepEqual(conference.range, { min: 0, max: 11 });
         assert.strictEqual(conference.valueCount, 12);
+        assert.deepStrictEqual(
+            [...conference.tests],
+            ["range", "top", "above", "categories"],
+            "a number with few values gets number and category tests",
+        );
+    });
+
+    it("says which rule tests each value takes", async () => {
+        const session = await lesMisAfterRuns();
+        const values = session.data.readableValues();
+
+        assert.deepStrictEqual([...entry(values, "data.name").tests], ["categories", "text"]);
+        assert.deepStrictEqual([...entry(values, ".group").tests], ["categories", "text"]);
+        assert.include([...entry(values, ".value").tests], "top");
+        const id = values.find((value) => value.path === "id");
+        assert.deepStrictEqual([...(id?.tests ?? [])], ["text"]);
+        const atSource = values.find((value) => value.end === "source" && value.path.endsWith(".value"));
+        assert.notInclude([...(atSource?.tests ?? ["top"])], "top", "a top reads data and results paths only");
     });
 
     it("says a column of colors holds colors, and a column of names does not", async () => {

@@ -297,6 +297,24 @@ export interface SelectionApi {
      */
     hover(id: NodeId | null): void;
     /**
+     * Whether every selected node reads as hovered: see {@link SelectionApi.previewHover}.
+     * @since 3.26.0
+     */
+    readonly hoverPreview: boolean;
+    /**
+     * Preview what a `{ match: "state", state: "hovered" }` layer paints on the selection: while on,
+     * every selected node reads as hovered to a state selector, beside the node under the pointer.
+     * View-only, like the pointer: never a step, never saved, and a selection change while it is on
+     * repaints the new members.
+     *
+     * ```ts
+     * session.selection.previewHover(true); // the hover look on every selected node
+     * ```
+     * @param on - True to preview, false to read only the pointer again.
+     * @since 3.26.0
+     */
+    previewHover(on: boolean): void;
+    /**
      * Keep this selection under a name, as a kept set created from the selection, so it can be
      * named as `{ set: id }` later.
      *
@@ -442,6 +460,11 @@ export interface SelectionSources {
      * @param after - The node hovered now, or null.
      */
     readonly onHover?: (before: NodeId | null, after: NodeId | null) => void;
+    /**
+     * Called when the hover preview turns on or off, with the nodes whose hovered state it moved.
+     * @param nodes - The selected nodes.
+     */
+    readonly onHoverPreview?: (nodes: readonly NodeId[]) => void;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -587,6 +610,7 @@ class Selection implements SelectionOwner {
 
     /** The node under the pointer. */
     #hovered: NodeId | null = null;
+    #hoverPreview = false;
 
     /** The target the selection is exactly, while nothing else has changed it. */
     #origin: SelectionTarget | null = null;
@@ -888,6 +912,20 @@ class Selection implements SelectionOwner {
 
         this.#hovered = id;
         this.#sources.onHover?.(before, id);
+    }
+
+    get hoverPreview(): boolean {
+        return this.#hoverPreview;
+    }
+
+    previewHover(on: boolean): void {
+        if (this.#hoverPreview === on) {
+            return;
+        }
+
+        this.#sync();
+        this.#hoverPreview = on;
+        this.#sources.onHoverPreview?.(this.#nodes.ids());
     }
 
     clear(): SelectionDelta {

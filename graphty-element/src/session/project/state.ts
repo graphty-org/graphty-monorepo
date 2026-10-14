@@ -171,6 +171,8 @@ export interface ProjectState {
     readonly notes: ReadonlyMap<NoteId, NoteEntry>;
     /** What columns were declared to measure, by `<kind>:<name>`. */
     readonly attributes: ReadonlyMap<string, MeasurementDeclaration>;
+    /** The names given to values, by `valueLabelKey(path, value)`. */
+    readonly valueLabels: ReadonlyMap<string, string>;
 }
 
 /** A counter that only ever increases, so a value it issued never names two different things. */
@@ -212,5 +214,6 @@ export function createProjectState(init: Partial<ProjectState> = {}): ProjectSta
         views: new Map(init.views),
         notes: new Map(init.notes),
         attributes: new Map(init.attributes),
+        valueLabels: new Map(init.valueLabels),
     };
 }

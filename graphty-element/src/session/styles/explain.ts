@@ -44,6 +44,7 @@ import type {
     NodeId,
     Path,
     RuleTree,
+    TopTies,
 } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
 import { rankEntries, topOfRanking } from "../results/statistics";
@@ -230,6 +231,14 @@ export interface StyleCounts {
      */
     readonly paintedBy: readonly LayerId[];
     /**
+     * Per channel the layer writes, the layers the picture shows instead on its matched elements
+     * and on how many each: the {@link COVERS_LISTED} that cover most, then how many more layers
+     * cover it. A channel the layer wins everywhere has no entry. What answers "why don't I see my
+     * look?" property by property.
+     * @since 3.26.0
+     */
+    readonly covers: Readonly<Partial<Record<Channel, ChannelCovers>>>;
+    /**
      * Channels the layer wins on some elements where the canvas draws nothing for them, one fact
      * per channel with how many elements: today an end caption (`edge.arrowHeadText`,
      * `edge.arrowTailText`) on an edge whose end draws no arrow, since a caption hangs from its
@@ -246,10 +255,32 @@ export interface StyleCounts {
      */
     readonly leftOut: readonly CodedFact<LeftOutCode>[];
     /**
+     * What each "top N" in the layer's selector took, one fact per top, whichever tie policy it
+     * runs: exactly N, fewer because a tie group was left out, more because one was taken whole,
+     * or fewer because fewer elements carry the value. What a count line under a top reads. See
+     * {@link TopFactCode}.
+     * @since 3.26.0
+     */
+    readonly tops: readonly CodedFact<TopFactCode>[];
+    /**
      * Changes whenever these counts may have changed: on every `style:changed`, and on every change
      * to the data or the run results the layers read. Equal revisions mean equal counts.
      */
     readonly revision: string;
+}
+
+/** How many covering layers {@link StyleCounts.covers} lists per channel before counting the rest. */
+export const COVERS_LISTED = 3;
+
+/**
+ * The layers covering one channel of a layer: see {@link StyleCounts.covers}.
+ * @since 3.26.0
+ */
+export interface ChannelCovers {
+    /** The layers that cover it most, most elements first, each with how many it covers. */
+    readonly layers: readonly { readonly layerId: LayerId; readonly count: number }[];
+    /** How many further layers cover it on some elements, beyond `layers`. */
+    readonly more: number;
 }
 
 /**
@@ -277,6 +308,24 @@ export type UndrawnCode = "caption.noArrow";
  * @since 3.27.0
  */
 export type LeftOutCode = "top.tie";
+
+/**
+ * What a "top N" took, as the `code` of a {@link StyleCounts.tops} fact. Every code's `params`
+ * carry `path` (the value ranked), `n` (how many were asked for), `taken` (how many it took) and
+ * `ties` (`"fewer"` or `"all"`); the two tie codes add `value` (the value the group ties at) and
+ * `count` (how many tie there).
+ *
+ * | Code | Meaning |
+ * | --- | --- |
+ * | `top.exact` | It took exactly `n`. |
+ * | `top.tiesLeftOut` | A tie group at the cut was left out, so it took fewer than `n`. |
+ * | `top.tiesTaken` | A tie group at the cut was taken whole, so it took more than `n`. |
+ * | `top.fewerMeasured` | Fewer than `n` elements carry a number for `path`, and it took them all. |
+ *
+ * New codes may be added in a minor release: word an unknown one generically.
+ * @since 3.26.0
+ */
+export type TopFactCode = "top.exact" | "top.tiesLeftOut" | "top.tiesTaken" | "top.fewerMeasured";
 
 /** The elements an agreement is read over, as dense indices. */
 export interface AgreementElements {
@@ -828,6 +877,7 @@ function readValues(
  * @param painted - The tally to add to.
  * @param others - The tally of the other layers that won a channel it writes.
  * @param undrawn - Told each channel the layer wins, with everything painted on the element.
+ * @param perChannel - The tally of the other layers that won each channel it writes, per channel.
  */
 function countWins(
     stack: readonly StackEntry[],
@@ -837,6 +887,7 @@ function countWins(
     painted: Partial<Record<Channel, number>>,
     others: Map<LayerId, number>,
     undrawn?: (channel: Channel, values: Partial<Record<Channel, unknown>>) => void,
+    perChannel?: Map<Channel, Map<LayerId, number>>,
 ): void {
     const winners = new Map<Channel, LayerId>();
     const values: Partial<Record<Channel, unknown>> = {};
@@ -850,6 +901,9 @@ function countWins(
             undrawn?.(channel, values);
         } else if (channel in painted) {
             others.set(winner, (others.get(winner) ?? 0) + 1);
+            const covering = perChannel?.get(channel) ?? new Map<LayerId, number>();
+            covering.set(winner, (covering.get(winner) ?? 0) + 1);
+            perChannel?.set(channel, covering);
         }
     }
 }
@@ -924,6 +978,7 @@ export function styleCounts(
     let outsideScale = 0;
     const others = new Map<LayerId, number>();
     const captions = captionTally(sources.directed?.() ?? true);
+    const perChannel = new Map<Channel, Map<LayerId, number>>();
     // The elements once, as an array: the walk below and the tops' ranking both read them.
     const indices = [...(layer.target === "node" ? elements.nodes : elements.edges)];
 
@@ -938,7 +993,16 @@ export function styleCounts(
         outsideScale += outside ? 1 : 0;
 
         if (layer.enabled) {
-            countWins(stack, { target: layer.target, index }, columns, layerId, painted, others, captions.add);
+            countWins(
+                stack,
+                { target: layer.target, index },
+                columns,
+                layerId,
+                painted,
+                others,
+                captions.add,
+                perChannel,
+            );
         }
     }
 
@@ -951,29 +1015,57 @@ export function styleCounts(
         outsideScale,
         reads,
         paintedBy,
+        covers: coversOf(perChannel),
         undrawn: captions.facts(),
-        leftOut: topTies(layer.selector, columns, indices),
+        ...topFacts(layer.selector, columns, indices),
         revision,
     };
 }
 
 /**
- * Every "top N" a selector names, as a path and a count: a `top` selector, and each `threshold`
- * leaf with a `top` in a rule.
+ * The covering layers per channel, capped at {@link COVERS_LISTED} with the rest counted.
+ * @param perChannel - Per channel, each covering layer and how many elements it covers.
+ * @returns The covers.
+ */
+function coversOf(perChannel: ReadonlyMap<Channel, ReadonlyMap<LayerId, number>>): StyleCounts["covers"] {
+    const covers: Partial<Record<Channel, ChannelCovers>> = {};
+    for (const [channel, covering] of perChannel) {
+        const ranked = [...covering].sort((a, b) => b[1] - a[1]);
+        covers[channel] = Object.freeze({
+            layers: Object.freeze(
+                ranked.slice(0, COVERS_LISTED).map(([layerId, count]) => Object.freeze({ layerId, count })),
+            ),
+            more: Math.max(0, ranked.length - COVERS_LISTED),
+        });
+    }
+
+    return Object.freeze(covers);
+}
+
+/** One "top N" a selector names. */
+interface NamedTop {
+    readonly path: Path;
+    readonly n: number;
+    readonly ties: TopTies;
+}
+
+/**
+ * Every "top N" a selector names, as a path, a count and a tie policy: a `top` selector, and each
+ * `threshold` leaf with a `top` in a rule.
  * @param selector - The layer's selector.
  * @returns The tops.
  */
-function topsOf(selector: Layer["selector"]): { path: Path; n: number }[] {
+function topsOf(selector: Layer["selector"]): NamedTop[] {
     if (selector.match === "top") {
-        return [{ path: selector.path, n: selector.n }];
+        return [{ path: selector.path, n: selector.n, ties: selector.ties ?? "fewer" }];
     }
     if (selector.match !== "rule") {
         return [];
     }
-    const found: { path: Path; n: number }[] = [];
+    const found: NamedTop[] = [];
     const walk = (tree: RuleTree): void => {
         if (tree.kind === "threshold" && tree.top !== undefined) {
-            found.push({ path: tree.path, n: tree.top });
+            found.push({ path: tree.path, n: tree.top, ties: tree.ties ?? "fewer" });
         } else if (tree.kind === "all" || tree.kind === "any") {
             tree.of.forEach(walk);
         } else if (tree.kind === "not") {
@@ -986,20 +1078,21 @@ function topsOf(selector: Layer["selector"]): { path: Path; n: number }[] {
 }
 
 /**
- * The tops a selector names that a tie stopped short, ranked by the same cut the selector runs
- * (`topOfRanking`), so the fact and the match count can never disagree.
+ * What each top a selector names took, ranked by the same cut the selector runs
+ * (`topOfRanking`), so the facts and the match count can never disagree.
  * @param selector - The layer's selector.
  * @param columns - The layer's kind of element.
  * @param elements - The elements of that kind, as dense indices.
- * @returns One `top.tie` fact per top that took fewer than asked.
+ * @returns A `top.tie` fact per top a tie stopped short, and a fact per top for what it took.
  */
-function topTies(
+function topFacts(
     selector: Layer["selector"],
     columns: ElementColumns,
     elements: readonly number[],
-): readonly CodedFact<LeftOutCode>[] {
-    const facts: CodedFact<LeftOutCode>[] = [];
-    for (const { path, n } of topsOf(selector)) {
+): Pick<StyleCounts, "leftOut" | "tops"> {
+    const leftOut: CodedFact<LeftOutCode>[] = [];
+    const tops: CodedFact<TopFactCode>[] = [];
+    for (const { path, n, ties } of topsOf(selector)) {
         const population: { id: NodeId; value: number }[] = [];
         for (const index of elements) {
             const value = columns.value(index, path);
@@ -1007,16 +1100,40 @@ function topTies(
                 population.push({ id: index, value });
             }
         }
-        const { entries, leftOut } = topOfRanking(rankEntries(population), n);
-        if (leftOut !== null) {
-            facts.push({
-                code: "top.tie",
-                params: { path, n, taken: entries.length, value: leftOut.value, count: leftOut.count },
-            });
+        const ranking = rankEntries(population);
+        const fewer = topOfRanking(ranking, n);
+        const taken = topOfRanking(ranking, n, ties).entries.length;
+        const tie = fewer.leftOut;
+        if (tie !== null && ties === "fewer") {
+            leftOut.push({ code: "top.tie", params: { path, n, taken, value: tie.value, count: tie.count } });
         }
+        tops.push(topFact({ path, n, ties }, taken, tie, ranking.length));
     }
 
-    return Object.freeze(facts);
+    return { leftOut: Object.freeze(leftOut), tops: Object.freeze(tops) };
+}
+
+/**
+ * The fact for what one top took.
+ * @param top - The top.
+ * @param taken - How many it took.
+ * @param tie - The tie group at the cut, when there is one.
+ * @param measured - How many elements carry a number for its path.
+ * @returns The fact.
+ */
+function topFact(
+    top: NamedTop,
+    taken: number,
+    tie: { readonly value: number; readonly count: number } | null,
+    measured: number,
+): CodedFact<TopFactCode> {
+    const params = { path: top.path, n: top.n, taken, ties: top.ties };
+    if (tie !== null) {
+        const code = top.ties === "all" ? "top.tiesTaken" : "top.tiesLeftOut";
+        return { code, params: { ...params, value: tie.value, count: tie.count } };
+    }
+
+    return { code: measured < top.n ? "top.fewerMeasured" : "top.exact", params };
 }
 
 /**

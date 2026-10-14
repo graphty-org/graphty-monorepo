@@ -28,6 +28,7 @@ export type Binding = {
     clamp?: [number, number];
     range?: [number, number];
     map?: Record<string, string | number>;
+    otherwise?: string | number;
     other?: {
         threshold: number;
         value: string | number;
@@ -42,6 +43,7 @@ export type Binding = {
     midpoint?: number;
     bins?: number;
     exponent?: number;
+    choices?: string[];
 };
 
 // @public
@@ -83,6 +85,9 @@ export function colorToHex(s: string): string | undefined;
 
 // @public
 export type CombineMode = "replace" | "multiply" | "add";
+
+// @public
+export const DEFAULT_BACKGROUND_COLOR = "#F5F5F5";
 
 // @public
 export const DEFAULT_LIGHTING: Lighting;
@@ -1583,6 +1588,7 @@ export type RuleTree = {
     readonly kind: "threshold";
     readonly path: Path;
     readonly top?: number;
+    readonly ties?: TopTies;
     readonly above?: number;
 }
 /**
@@ -1651,12 +1657,14 @@ export type Selector = {
 /**
 * The top `n` elements by one run field (`results.<run>.<field>`), cut only between tie
 * groups: a group of equal values is painted whole, and only when all of it fits inside `n`.
-* See `TopRanking` for the policy.
+* See `TopRanking` for the policy. `ties: "all"` takes the group the cut falls in whole
+* instead, so the top can hold more than `n` (see {@link TopTies}).
 */
 | {
     match: "top";
     path: Path;
     n: number;
+    ties?: TopTies;
 } | {
     match: "everything";
 }

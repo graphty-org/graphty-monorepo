@@ -22,7 +22,7 @@ import { OrbitCameraController } from "../cameras/OrbitCameraController";
 import { OrbitInputController } from "../cameras/OrbitInputController";
 import { TwoDCameraController } from "../cameras/TwoDCameraController";
 import { InputController } from "../cameras/TwoDInputController";
-import type { GraphBackgroundConfig } from "../config/GraphStyle";
+import { DEFAULT_BACKGROUND_COLOR, type GraphBackgroundConfig } from "../config/GraphStyle";
 import { DEFAULT_LIGHTING, type Lighting } from "../config/Lighting";
 import { isNodeMaterial, lightNodeMaterial, outlineNodeMesh } from "../meshes/NodeLighting";
 import { reportCaught } from "../session/project/strict";
@@ -204,9 +204,6 @@ export async function openWebGPUEngine(canvas: HTMLCanvasElement): Promise<WebGP
  * Gestures (zoom, rotate, pan) manipulate this node to transform the entire graph
  */
 const GRAPH_ROOT_NAME = "graph-root";
-
-/** What the scene is cleared to when nothing names a colour. Whitesmoke. */
-const DEFAULT_BACKGROUND_COLOR = "#F5F5F5";
 
 /** How often a disposed graph checks whether the GPU has finished its last frames. */
 const RELEASE_POLL_MS = 16;

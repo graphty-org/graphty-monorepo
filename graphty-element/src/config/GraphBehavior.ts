@@ -32,6 +32,16 @@ const NodeBehaviorOpts = z
          * The 2D view (orthographic) and an XR session ignore it.
          */
         depthIndependentSize: z.boolean().optional(),
+
+        /*
+         * How wide every node outline is drawn, as a multiple of the renderer's own stroke (about
+         * four device pixels at 1).
+         *
+         * ONE WIDTH FOR EVERY OUTLINE, which is why it is a graph setting and not a style channel:
+         * the renderer draws all outlines in one full-screen pass, and the stroke's width belongs
+         * to that pass (see the `node.outline` channel's caveat). Unset, the renderer's own width.
+         */
+        outlineWidth: z.number().positive().max(10).optional(),
     })
     .prefault({});
 

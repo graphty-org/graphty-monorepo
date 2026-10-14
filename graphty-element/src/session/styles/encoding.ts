@@ -64,6 +64,7 @@ import type {
     Channel,
     ChannelValue,
     PaletteDescriptor,
+    PaletteId,
     Path,
     Rgba,
 } from "../../catalog/types";
@@ -1255,16 +1256,20 @@ function colorPainter(descriptor: ChannelDescriptor, binding: RuleBinding, parts
     };
     const ramp: PreparedRamp = prepareRamp(spec, parts.scales);
     const overrides = colorOverrides(binding, parts.categories.lumped, descriptor);
+    const otherwise =
+        binding.otherwise === undefined
+            ? undefined
+            : requireColor(binding.otherwise, `What a value with no entry paints on ${descriptor.channel}`);
 
     return {
         palette: ramp.palette,
         groups: ramp.groups,
         paint:
-            overrides === null
+            overrides === null && otherwise === undefined
                 ? (value): EncodedValue | undefined => ramp.color(value)
                 : (value): EncodedValue | undefined => {
                       const name = readCategory(value);
-                      const override = name === null ? undefined : overrides.get(name);
+                      const override = name === null ? undefined : (overrides?.get(name) ?? otherwise);
 
                       return override ?? ramp.color(value);
                   },
@@ -1363,8 +1368,40 @@ function valueOverrides(
 }
 
 /**
- * Build the painter for every channel that does not carry a colour.
+ * The channel as a binding's `choices` narrow it: the same descriptor with its list replaced.
  * @param descriptor - The channel.
+ * @param choices - The binding's choices, if any.
+ * @returns The descriptor the painter reads.
+ * @throws A `GraphtyError` with code `E_OPTION_RANGE` for a choice the channel does not take, and
+ *   `E_BAD_LAYER` for choices on a channel that carries no list or an empty list of them.
+ */
+function withChoices(descriptor: ChannelDescriptor, choices: readonly string[] | undefined): ChannelDescriptor {
+    if (choices === undefined) {
+        return descriptor;
+    }
+
+    if (descriptor.accepts !== "enum" || choices.length === 0) {
+        throw badBinding(
+            `Choices are a list of ${descriptor.channel}'s values, on a channel that takes one of a list.`,
+            {
+                channel: descriptor.channel,
+                choices,
+            },
+        );
+    }
+
+    for (const choice of choices) {
+        if (!(descriptor.values ?? []).includes(choice)) {
+            throw outOfRange(descriptor, choice, `The choice "${choice}" on ${descriptor.channel}`);
+        }
+    }
+
+    return { ...descriptor, values: choices };
+}
+
+/**
+ * Build the painter for every channel that does not carry a colour.
+ * @param declared - The channel, before a binding's `choices` narrow its list.
  * @param binding - The rule binding.
  * @param parts - What preparing it worked out.
  * @returns The painter.
@@ -1372,7 +1409,8 @@ function valueOverrides(
  *   the channel carries, and `E_CAP_EXCEEDED` when the encoding has more groups than the channel
  *   has values.
  */
-function valuePainter(descriptor: ChannelDescriptor, binding: RuleBinding, parts: AssemblyParts): Painter {
+function valuePainter(declared: ChannelDescriptor, binding: RuleBinding, parts: AssemblyParts): Painter {
+    const descriptor = withChoices(declared, binding.choices);
     if (binding.overflow === "shape" && descriptor.channel === "node.shape") {
         return shapeCyclePainter(binding, parts);
     }
@@ -1382,10 +1420,22 @@ function valuePainter(descriptor: ChannelDescriptor, binding: RuleBinding, parts
     const context = rangeFor(descriptor, binding, parts, groups);
     const absent = missingValue(descriptor, binding);
     const overrides = valueOverrides(binding, parts.categories.lumped, descriptor);
+    const otherwise =
+        binding.otherwise === undefined
+            ? undefined
+            : authoredValue(
+                  descriptor,
+                  binding.otherwise,
+                  `What a value with no entry paints on ${descriptor.channel}`,
+              );
     const { map } = parts;
     // Passthrough reads neither the domain nor the range, so it maps onto no range at all. A `map`
     // or an `other` value paints values of its own, so the range no longer bounds what is drawn.
-    const bounded = descriptor.accepts === "number" && parts.scale !== "passthrough" && overrides === null;
+    const bounded =
+        descriptor.accepts === "number" &&
+        parts.scale !== "passthrough" &&
+        overrides === null &&
+        otherwise === undefined;
     const ends = bounded ? (context.range ?? [0, 1]) : null;
     const low = ends === null ? undefined : convert(ends[0]);
     const high = ends === null ? undefined : convert(ends[1]);
@@ -1395,9 +1445,9 @@ function valuePainter(descriptor: ChannelDescriptor, binding: RuleBinding, parts
         groups,
         ...(typeof low === "number" && typeof high === "number" ? { range: [low, high] as const } : {}),
         paint: (value): EncodedValue | undefined => {
-            if (overrides !== null) {
+            if (overrides !== null || otherwise !== undefined) {
                 const name = readCategory(value);
-                const override = name === null ? undefined : overrides.get(name);
+                const override = name === null ? undefined : (overrides?.get(name) ?? otherwise);
                 if (override !== undefined) {
                     return override;
                 }
@@ -1751,7 +1801,38 @@ export interface BindingPreview {
     readonly outsideScale: number;
     /** What an element with no value is painted, or null when it is left to the layers beneath. */
     readonly noValuePaints: EncodedValue | null;
+    /**
+     * The palette painting a colour channel: a catalogue palette's id, `"custom"` for a binding
+     * carrying its own stops, null on a channel that carries no colour.
+     * @since 3.26.0
+     */
+    readonly palette: PaletteId | null;
+    /**
+     * The parts of the binding the element filled in because the binding left them out: the
+     * palette (a session default), the scale (linear), the domain (the data's extent) and the
+     * range (the channel's default output). A part the binding names is never listed.
+     * @since 3.26.0
+     */
+    readonly defaulted: readonly PreviewDefaultedPart[];
+    /** The values' own extent, lowest and highest number carried; null when none is a number. @since 3.26.0 */
+    readonly extent: readonly [number, number] | null;
+    /**
+     * Where the domain's ends sit in the data, as percentiles from 0 to 100: the share of the
+     * numbers below the lower end, and the share at or below the upper end. Null for a scale of
+     * categories or a column with no numbers.
+     * @since 3.26.0
+     */
+    readonly endPercentiles: readonly [number, number] | null;
+    /**
+     * How many elements carry exactly the value at each end of the domain. A large count means
+     * moving a percentile end a little moves nothing: the tie is the reason.
+     * @since 3.26.0
+     */
+    readonly endTies: readonly [number, number] | null;
 }
+
+/** A part of a binding {@link BindingPreview.defaulted} can report as filled in. @since 3.26.0 */
+export type PreviewDefaultedPart = "palette" | "scale" | "domain" | "range";
 
 /** Everything {@link previewBinding} is given. */
 export interface PreviewBindingOptions {
@@ -1767,6 +1848,11 @@ export interface PreviewBindingOptions {
     readonly bins?: number;
     /** What the numeric bins span: the domain (the default), or the data's extent and the domain together. */
     readonly span?: PreviewSpan;
+    /**
+     * The binding as its author wrote it, before the session filled in a default palette: what
+     * {@link BindingPreview.defaulted} is read against. `binding` when absent.
+     */
+    readonly asWritten?: RuleBinding;
 }
 
 /**
@@ -1817,6 +1903,72 @@ function dataAxis(options: PreviewBindingOptions, low: number, high: number): [n
 }
 
 /**
+ * The parts of a binding the preparation filled in: see {@link BindingPreview.defaulted}.
+ * @param binding - The binding as the caller wrote it.
+ * @param prepared - What preparing it worked out.
+ * @returns The parts, in a fixed order.
+ */
+function defaultedParts(binding: RuleBinding, prepared: PreparedBinding): PreviewDefaultedPart[] {
+    const parts: PreviewDefaultedPart[] = [];
+    if (prepared.palette !== null && binding.palette === undefined && binding.stops === undefined) {
+        parts.push("palette");
+    }
+
+    if (binding.scale === undefined) {
+        parts.push("scale");
+    }
+
+    if (prepared.domain !== null && (binding.domain === undefined || binding.domain === "auto")) {
+        parts.push("domain");
+    }
+
+    if (prepared.range !== undefined && binding.range === undefined) {
+        parts.push("range");
+    }
+
+    return parts;
+}
+
+/**
+ * The data's extent, and where a domain's ends sit in it: see {@link BindingPreview.extent}.
+ * @param column - The values.
+ * @param domain - The prepared domain, or null for categories.
+ * @returns The extent, the ends' percentiles and the ties at each end.
+ */
+function previewEnds(
+    column: readonly unknown[],
+    domain: readonly [number, number] | null,
+): Pick<BindingPreview, "extent" | "endPercentiles" | "endTies"> {
+    const numbers = column.flatMap((value) => {
+        const number = value === undefined || value === null ? Number.NaN : readNumber(value);
+        return Number.isFinite(number) ? [number] : [];
+    });
+    if (numbers.length === 0) {
+        return { extent: null, endPercentiles: null, endTies: null };
+    }
+
+    const extent: [number, number] = [Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY];
+    for (const number of numbers) {
+        extent[0] = Math.min(extent[0], number);
+        extent[1] = Math.max(extent[1], number);
+    }
+
+    if (domain === null) {
+        return { extent, endPercentiles: null, endTies: null };
+    }
+
+    const [low, high] = [Math.min(...domain), Math.max(...domain)];
+    const share = (count: number): number => (100 * count) / numbers.length;
+    const count = (test: (value: number) => boolean): number => numbers.filter(test).length;
+
+    return {
+        extent,
+        endPercentiles: [share(count((value) => value < low)), share(count((value) => value <= high))],
+        endTies: [count((value) => value === low), count((value) => value === high)],
+    };
+}
+
+/**
  * Preview a binding not yet written: its bins, counts, steps and what each bin paints.
  * @param options - The channel, the binding, the column and the session's scales.
  * @returns The preview.
@@ -1825,6 +1977,7 @@ function dataAxis(options: PreviewBindingOptions, low: number, high: number): [n
 export function previewBinding(options: PreviewBindingOptions): BindingPreview {
     const { channel, binding, column, scales } = options;
     const prepared = prepareBinding({ channel, binding, column, scales });
+    const ends = previewEnds(column, prepared.domain);
     const scale = prepared.scale ?? "linear";
     const orNull = (value: EncodedValue | undefined): EncodedValue | null => value ?? null;
     let noValue = 0;
@@ -1836,6 +1989,9 @@ export function previewBinding(options: PreviewBindingOptions): BindingPreview {
         scale,
         steps: prepared.steps ?? [],
         noValuePaints: orNull(prepared.paint(undefined)),
+        palette: binding.stops === undefined ? (prepared.palette?.id ?? null) : "custom",
+        defaulted: defaultedParts(options.asWritten ?? binding, prepared),
+        ...ends,
     };
 
     if (prepared.domain === null) {

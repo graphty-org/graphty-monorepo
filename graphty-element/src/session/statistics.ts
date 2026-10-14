@@ -370,6 +370,12 @@ export function computeStatistics(
         degreeRange: Object.freeze(degrees.range),
         meanDegree: degrees.mean,
         degreeHistogram: buildHistogram(arrayColumn(degreeVector), { integerValued: true }),
+        ...(snapshot.directed
+            ? {
+                  inDegreeHistogram: buildHistogram(arrayColumn(snapshot.inDegree()), { integerValued: true }),
+                  outDegreeHistogram: buildHistogram(arrayColumn(snapshot.outDegree()), { integerValued: true }),
+              }
+            : {}),
         transitivity: sampledTransitivity(snapshot),
         components: Object.freeze(summariseComponents(snapshot, labels, count)),
     } satisfies GraphStatistics);

@@ -20,6 +20,7 @@ import type {
     AttributeUse,
     EdgeId,
     MeasurementDeclaration,
+    Path,
     ReadableValue,
     RunId,
     ScopeInput,
@@ -102,6 +103,7 @@ import type {
     SessionGraphStore,
     SessionRecordSource,
 } from "./types";
+import { valueLabelsAt } from "./valueLabels";
 
 /** What the data surface writes through, and where it reads what the graph holds beside rows. */
 interface DataWrites {
@@ -122,6 +124,10 @@ interface DataWrites {
     setSource(source: DataSourceDescriptor, sources?: readonly LoadedSource[]): Promise<unknown>;
     /** The `attributes` slice now: what each column was declared to measure, by `<kind>:<name>`. */
     declarations(): ReadonlyMap<string, MeasurementDeclaration>;
+    /** Dispatch `data.label`. */
+    label(path: Path, value: string | number | boolean, label: string | null): Promise<unknown>;
+    /** The `valueLabels` slice now: the names given to values, by `valueLabelKey`. */
+    valueLabels(): ReadonlyMap<string, string>;
     /** Publish a progress change as the session's `progress:changed`. */
     progress?(change: ProgressChange): void;
     /** The style stack and the finished runs now: what reads a column. */
@@ -1488,6 +1494,27 @@ export class SessionData implements SessionDataApi {
         this.requireLive("declare");
         const { kind, name } = resolveColumn(this.attributes(), column);
         await this.writes.declare({ kind, name }, declaration);
+    }
+
+    /**
+     * Name one value of a path, or take its name away. One undoable step.
+     * @param path - The value path.
+     * @param value - The value.
+     * @param label - The name, or null.
+     * @returns Settles once the name is recorded.
+     */
+    async setValueLabel(path: Path, value: string | number | boolean, label: string | null): Promise<void> {
+        this.requireLive("setValueLabel");
+        await this.writes.label(path, value, label);
+    }
+
+    /**
+     * The names given to a path's values.
+     * @param path - The value path.
+     * @returns The names, by the value as the legend spells it.
+     */
+    valueLabels(path: Path): ReadonlyMap<string, string> {
+        return valueLabelsAt(this.writes.valueLabels(), path);
     }
 
     /**

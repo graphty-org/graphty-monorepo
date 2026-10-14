@@ -61,6 +61,7 @@ import type { StyleSuggestion } from "../styles/derive";
 import type { Layer } from "../styles/Layer";
 import { type GroupMatch, matchGroups, realignPatch } from "../styles/values";
 import type { HistoryCode } from "../types";
+import { valueLabelKey, valueLabelOf } from "../valueLabels";
 import {
     ManagedRun,
     type RunBody,
@@ -93,6 +94,7 @@ import {
     type ResolvedScope,
     type Run,
     type RunChange,
+    type RunLayers,
     type RunOptions,
     type RunPainting,
     type RunPhase,
@@ -617,6 +619,7 @@ function runCommand(
         ...(options.exact === undefined ? {} : { exact: options.exact }),
         ...(options.as === undefined ? {} : { as: options.as }),
         ...(options.applySuggestedStyles === true ? { applySuggestedStyles: true } : {}),
+        ...(options.restoreLayer === true ? { restoreLayer: true } : {}),
     };
 }
 
@@ -627,9 +630,9 @@ function runCommand(
  * @returns The command a re-run dispatches.
  */
 function withoutSuggested(command: AlgorithmRunCommand): AlgorithmRunCommand {
-    const { applySuggestedStyles, ...rest } = command;
+    const { applySuggestedStyles, restoreLayer, ...rest } = command;
 
-    return applySuggestedStyles === undefined ? command : rest;
+    return applySuggestedStyles === undefined && restoreLayer === undefined ? command : rest;
 }
 
 /** What a run is and what it answers to, worked out from what the caller asked for. */
@@ -1270,7 +1273,10 @@ class Runs implements SessionRunsApi {
         if (this.shouldReexecute(existing)) {
             this.launches.set(existing.id, launch);
             existing.rerun();
-        } else if (launch.command.applySuggestedStyles === true && !this.adopting) {
+        } else if (
+            (launch.command.applySuggestedStyles === true || launch.command.restoreLayer === true) &&
+            !this.adopting
+        ) {
             // Nothing to compute, but its layers were asked for: the command still goes through,
             // and applies them from the result the run already has, as one step.
             existing.settleAfter(launch.via(launch.command));
@@ -1394,6 +1400,10 @@ class Runs implements SessionRunsApi {
             // layers it was asked to apply are written.
             if (command.applySuggestedStyles === true && run.status === "succeeded") {
                 this.applySuggested(ctx.draft, run);
+            }
+
+            if (command.restoreLayer === true && run.status === "succeeded") {
+                this.restoreMissing(ctx.draft, run.id);
             }
 
             return run.id;
@@ -1525,6 +1535,10 @@ class Runs implements SessionRunsApi {
             if (command.applySuggestedStyles === true) {
                 this.applySuggested(draft, run);
             }
+
+            if (command.restoreLayer === true) {
+                this.restoreMissing(draft, run.id);
+            }
         } catch (error) {
             revert();
             throw error;
@@ -1541,14 +1555,15 @@ class Runs implements SessionRunsApi {
      * @param after - The result replacing it.
      */
     private realignGroups(draft: Draft, before: RunResult, after: RunResult): void {
+        const root = `${RESULT_ROOT}.${after.runId}.`;
+        // A run that publishes group sizes made its labels up; any other value is a name.
+        const byOverlap = Array.isArray(after.graph.sizes);
+        this.realignNames(draft, before, after, byOverlap);
         const { styles } = this.dispatcher.services;
         if (styles === undefined) {
             return;
         }
 
-        const root = `${RESULT_ROOT}.${after.runId}.`;
-        // A run that publishes group sizes made its labels up; any other value is a name.
-        const byOverlap = Array.isArray(after.graph.sizes);
         const matches = new Map<string, GroupMatch>();
 
         for (const { layer } of draft.styles) {
@@ -1599,6 +1614,51 @@ class Runs implements SessionRunsApi {
     }
 
     /**
+     * Carry the names given to a run's values (`data.setValueLabel`) across its re-run: a name
+     * follows its group to the group sharing most members (on a merge, the larger overlap keeps
+     * it), and the name of a group that matched none is dropped. Written into the run's own step.
+     * @param draft - The run's draft.
+     * @param before - The result being replaced.
+     * @param after - The result replacing it.
+     * @param byOverlap - Whether the run made its groups' labels up.
+     */
+    private realignNames(draft: Draft, before: RunResult, after: RunResult, byOverlap: boolean): void {
+        const root = `${RESULT_ROOT}.${after.runId}.`;
+        const named = [...this.dispatcher.state.valueLabels].map(([key, label]) => ({
+            key,
+            label,
+            ...valueLabelOf(key),
+        }));
+        const moved: [string, string][] = [];
+        const fields = new Set(named.filter(({ path }) => path.startsWith(root)).map(({ path }) => path));
+        for (const path of fields) {
+            const field = path.slice(root.length);
+            const half = after.fields.find((candidate) => candidate.name === field)?.kind === "edge" ? "edge" : "node";
+            const read =
+                (result: RunResult) =>
+                (id: NodeId): unknown =>
+                    (half === "edge" ? result.edge(String(id)) : result.node(id))?.[field];
+            const match = matchGroups<NodeId>(
+                new Set([...elementIdsOf(before, half), ...elementIdsOf(after, half)]),
+                read(before),
+                read(after),
+                byOverlap,
+            );
+            for (const { key, label, value } of named.filter((entry) => entry.path === path)) {
+                draft.valueLabels.delete(key);
+                const to = match.to.get(value);
+                if (to !== undefined) {
+                    moved.push([valueLabelKey(path, to), label]);
+                }
+            }
+        }
+
+        for (const [key, label] of moved) {
+            draft.valueLabels.set(key, label);
+        }
+    }
+
+    /**
      * Plan suggested layers into a draft. A refused one is reported and the rest still land.
      * @param draft - The draft.
      * @param runId - The run they come from.
@@ -1626,6 +1686,64 @@ class Runs implements SessionRunsApi {
 
                 return refusedOutcome(suggestion, error);
             }
+        });
+    }
+
+    /**
+     * The suggestions a run's first completion added that no layer reading the run paints now.
+     * @param stack - The layers, as the draft or the session holds them.
+     * @param painting - The run's first decision.
+     * @param runId - The run.
+     * @returns The missing suggestions, in the order they were made.
+     */
+    private missingOf(
+        stack: readonly { readonly layer: Layer }[],
+        painting: RunPainting | undefined,
+        runId: RunId,
+    ): StyleSuggestion[] {
+        const painted = new Set(
+            stack
+                .filter(({ layer }) => layer.source.by === "run" && layer.source.runId === runId)
+                .flatMap(({ layer }) => [...Object.keys(layer.encode ?? {}), ...Object.keys(layer.set ?? {})]),
+        );
+
+        return (painting?.suggestions ?? [])
+            .filter((outcome) => outcome.outcome === "added")
+            .map((outcome) => outcome.suggestion)
+            .filter((suggestion) => !suggestion.channels.some((channel) => painted.has(channel)));
+    }
+
+    /**
+     * Put back what {@link missingOf} finds, into the run's step, where the run's first completion
+     * put it (beneath the reader's own layers when the project places runs there).
+     * @param draft - The draft.
+     * @param runId - The run.
+     */
+    private restoreMissing(draft: Draft, runId: RunId): void {
+        const { styles } = this.dispatcher.services;
+        if (styles === undefined) {
+            return;
+        }
+
+        for (const suggestion of this.missingOf(draft.styles, this.dispatcher.state.runs.get(runId)?.painting, runId)) {
+            styles.execute(suggestionCommand(suggestion, true), draft);
+        }
+    }
+
+    /**
+     * Which of a run's layers the stack holds: see {@link RunsApi.layers}.
+     * @param id - The run id.
+     * @returns The layers, or undefined when this session holds no such run.
+     */
+    layers(id: RunId): RunLayers | undefined {
+        if (this.get(id) === undefined) {
+            return undefined;
+        }
+
+        const stack = this.dispatcher.state.styles;
+        return Object.freeze({
+            present: this.bindings(id),
+            missing: Object.freeze(this.missingOf(stack, this.dispatcher.state.runs.get(id)?.painting, id)),
         });
     }
 

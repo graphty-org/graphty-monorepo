@@ -272,6 +272,18 @@ const CASES: readonly Case[] = [
         },
     },
     {
+        method: "SelectionApi.previewHover",
+        growth: "linear",
+        prepare: async (session, size) => {
+            await session.config.set({ startingRows: true });
+            await session.selection.apply({ nodes: ids(size) });
+            return async () => {
+                session.selection.previewHover(true);
+                await session.styles.settled();
+            };
+        },
+    },
+    {
         method: "SelectionApi.hover",
         growth: "constant",
         prepare: async (session, size) => {
@@ -417,6 +429,20 @@ const CASES: readonly Case[] = [
             const id = await categoryLayer(session);
             return async () => {
                 await session.styles.setValueEntry(id, "node.color", 2, "#123456");
+                await session.styles.settled();
+            };
+        },
+    },
+    {
+        method: "StylesApi.setValueEntries",
+        growth: "linear",
+        prepare: async (session) => {
+            const id = await categoryLayer(session);
+            return async () => {
+                await session.styles.setValueEntries(id, "data.group", [
+                    { channel: "node.color", value: 2, entry: "#123456" },
+                    { channel: "node.shape", value: 2, entry: "box" },
+                ]);
                 await session.styles.settled();
             };
         },
@@ -605,6 +631,11 @@ const CASES: readonly Case[] = [
             Promise.resolve(() =>
                 session.data.declare({ kind: "node", name: "group" }, { measurement: "categorical" }),
             ),
+    },
+    {
+        method: "SessionDataApi.setValueLabel",
+        growth: "linear",
+        prepare: (session) => Promise.resolve(() => session.data.setValueLabel("data.group", 1, "First")),
     },
     // Visibility, scope and settings
     {

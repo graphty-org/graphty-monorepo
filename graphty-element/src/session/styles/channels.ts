@@ -430,7 +430,41 @@ export interface ChannelDescriptor {
      * @since 3.26.0
      */
     readonly follows?: Channel;
+    /**
+     * How far one keyboard or scrub step moves the value, on a channel that carries a number: a
+     * hundredth on a channel bounded by 1 (an opacity), 1 on a count or a label size, a tenth on
+     * every other length. Absent on a channel that carries no number.
+     * @since 3.26.0
+     */
+    readonly step?: number;
+    /**
+     * What {@link ChannelDescriptor.caveat} says, as a code an application words: see
+     * {@link ChannelCaveatCode}. Absent on a channel whose caveat has no code yet.
+     * @since 3.26.0
+     */
+    readonly caveatCode?: ChannelCaveatCode;
+    /**
+     * The channel whose drawn part this one adjusts, on a channel that is a sub-setting of
+     * another: a band's width and opacity modify `edge.bandColor`, an arrowhead's size, colour and
+     * opacity modify `edge.arrowHead`, a label's size, colour, background and style modify its
+     * words (`node.label`). A style editor offers one item per drawn part -- the channels with no
+     * `modifies` -- and the channels that modify it as that part's settings. Absent on a channel
+     * that is a part of its own.
+     * @since 3.26.0
+     */
+    readonly modifies?: Channel;
 }
+
+/**
+ * A caveat a channel carries, as a code.
+ *
+ * - `"outline.sharedWidth"`: every outline is drawn at one width, the graph's
+ *   `layoutBehavior.node.outlineWidth`; a layer sets an outline's colour and not its width.
+ *
+ * More codes may be added in a minor release.
+ * @since 3.26.0
+ */
+export type ChannelCaveatCode = "outline.sharedWidth";
 
 /**
  * The groups a style editor sorts channels into. A node's channels sit in shape, color, effects
@@ -885,6 +919,7 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         off: EFFECT_OFF,
         renderable: true,
         caveat: NODE_OUTLINE_CAVEAT,
+        caveatCode: "outline.sharedWidth",
     },
     "node.glow": {
         channel: "node.glow",
@@ -1185,6 +1220,46 @@ function shippedDefault(descriptor: ChannelDescriptor): string | number | boolea
     return typeof value === "string" || typeof value === "number" || typeof value === "boolean" ? value : undefined;
 }
 
+/** Which drawn part each sub-setting channel adjusts: see {@link ChannelDescriptor.modifies}. */
+const MODIFIES: ReadonlyMap<string, Channel> = new Map<string, Channel>([
+    ["node.glowStrength", "node.glow"],
+    ["node.haloSize", "node.haloColor"],
+    ["node.haloOpacity", "node.haloColor"],
+    ["edge.bandWidth", "edge.bandColor"],
+    ["edge.bandOpacity", "edge.bandColor"],
+    ["edge.patternCount", "edge.style"],
+    ...(["Head", "Tail"] as const).flatMap((end) => [
+        ...["Size", "Color", "Opacity"].map((suffix): [string, Channel] => [
+            `edge.arrow${end}${suffix}`,
+            `edge.arrow${end}` as Channel,
+        ]),
+        ...["TextStyle", "TextSize", "TextColor", "TextBackground"].map((suffix): [string, Channel] => [
+            `edge.arrow${end}${suffix}`,
+            `edge.arrow${end}Text` as Channel,
+        ]),
+    ]),
+    ...(["node.label", "node.tooltip", "edge.label"] as const).flatMap((base) =>
+        ["Style", "Size", "Color", "Background"].map((suffix): [string, Channel] => [`${base}${suffix}`, base]),
+    ),
+]);
+
+/**
+ * How far one step moves a number channel: see {@link ChannelDescriptor.step}.
+ * @param descriptor - The declared descriptor.
+ * @returns The step, or undefined for a channel that carries no number.
+ */
+function stepOf(descriptor: ChannelDescriptor): number | undefined {
+    if (descriptor.accepts !== "number") {
+        return undefined;
+    }
+
+    if (descriptor.max === 1) {
+        return 0.01;
+    }
+
+    return descriptor.perWorldUnit !== undefined || descriptor.channel === "edge.patternCount" ? 1 : 0.1;
+}
+
 /**
  * Every channel, with what the element actually does with it and what a style editor needs to
  * draw a row for it: a short name, a group, the default it opens on, and why it cannot be set.
@@ -1194,8 +1269,18 @@ function shippedDefault(descriptor: ChannelDescriptor): string | number | boolea
 export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> = Object.fromEntries(
     Object.values(DECLARED).map((descriptor): [Channel, ChannelDescriptor] => {
         const value = shippedDefault(descriptor) ?? descriptor.default;
+        const step = descriptor.step ?? stepOf(descriptor);
+        const modifies = MODIFIES.get(descriptor.channel);
 
-        return [descriptor.channel, value === undefined ? descriptor : { ...descriptor, default: value }];
+        return [
+            descriptor.channel,
+            {
+                ...descriptor,
+                ...(value === undefined ? {} : { default: value }),
+                ...(step === undefined ? {} : { step }),
+                ...(modifies === undefined ? {} : { modifies }),
+            },
+        ];
     }),
 ) as Record<Channel, ChannelDescriptor>;
 

@@ -97,6 +97,18 @@ export interface LegendSwatch {
      * value is painted when it is shown again. Absent on a row that is painted.
      */
     readonly hidden?: true;
+    /**
+     * The name a reader gave this value (`session.data.setValueLabel`). Absent when it has none.
+     * @since 3.26.0
+     */
+    readonly name?: string;
+    /**
+     * The value is an arbitrary code the element made up (a run's group id), not something the
+     * data says: an application names it ("Group 3", by `rank`) until a reader names it. Absent on
+     * a value the data supplied.
+     * @since 3.26.0
+     */
+    readonly arbitrary?: true;
     /** The colour the encoding paints it, as `#rrggbb` or `#rrggbbaa`. */
     readonly color?: string;
     /** The size or width the encoding paints it. */
@@ -383,6 +395,13 @@ export interface LegendSources {
      */
     readonly groupRanks?: (runId: string) => ReadonlyMap<string, number> | undefined;
     /**
+     * The names given to one path's values (`data.setValueLabel`), by the value as the legend
+     * spells it. Absent, no swatch carries a name.
+     * @param path - The value path.
+     * @returns The names.
+     */
+    readonly valueLabels?: (path: Path) => ReadonlyMap<string, string>;
+    /**
      * How many elements one layer is the shown layer on, per channel it writes.
      *
      * Absent, the blocks carry no `painted` count.
@@ -649,12 +668,17 @@ function categorySwatches(
     // A stable sort, so the categories no order names keep their largest-first order.
     const categories = [...prepared.categories].sort((left, right) => rank(left) - rank(right));
     const valueOf = (category: string): unknown => prepared.categoryValues.get(category) ?? category;
+    const names = prepared.path === null ? undefined : sources.valueLabels?.(prepared.path);
     const row = (category: string, index: number): LegendSwatch => {
         const rank = groups ? rankOf(category, index) : undefined;
+        const name = names?.get(category);
         return {
-            label: rank === undefined ? category : groupName(rank),
+            label: name ?? (rank === undefined ? category : groupName(rank)),
             value: valueOf(category),
             ...(rank === undefined ? {} : { rank }),
+            ...(name === undefined ? {} : { name }),
+            // A run's group ids are made up by the run: a reader names them, never reads them.
+            ...(groups ? { arbitrary: true as const } : {}),
             ...swatchPaint(prepared.paintIgnoringHidden(category)),
             ...(prepared.hidden.has(category) ? { hidden: true as const } : {}),
         };

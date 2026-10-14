@@ -31,8 +31,41 @@ import type {
     Selector,
 } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
+import { channelDescriptor } from "./channels";
 import type { PreparedBinding } from "./encoding";
 import type { Layer } from "./Layer";
+
+/**
+ * One value of a category path with everything one layer paints it, across every channel: what
+ * `styles.groups` answers.
+ * @since 3.26.0
+ */
+export interface ValueGroup {
+    /** The value, spelled as the data spells it. */
+    readonly value: unknown;
+    /** How many of the layer's elements carry it. */
+    readonly count: number;
+    /** Whether the layer hides it (`styles.setValueHidden`), which it does in every channel at once. */
+    readonly hidden: boolean;
+    /** The name a reader gave the value (`session.data.setValueLabel`), when it has one. */
+    readonly name?: string;
+    /** Each channel's value-table entry for it, for the channels that have one. */
+    readonly entries: Readonly<Partial<Record<Channel, string | number>>>;
+}
+
+/**
+ * One value-table write of `styles.setValueEntries`: what one value paints on one channel, or
+ * undefined to clear its entry.
+ * @since 3.26.0
+ */
+export interface ValueEntryWrite {
+    /** The channel, such as `"node.shape"`. */
+    readonly channel: Channel;
+    /** The value, as {@link ValueGroup.value} spells it. */
+    readonly value: string | number | boolean;
+    /** What it paints, or undefined to clear the entry. */
+    readonly entry: ChannelValue | undefined;
+}
 
 /** One value a categorical binding paints: its group of the layer's elements. */
 export interface ValueCategory {
@@ -44,6 +77,8 @@ export interface ValueCategory {
     readonly hidden: boolean;
     /** The binding's value-table entry for it, or undefined when it follows the palette. */
     readonly entry?: string | number;
+    /** The name a reader gave the value (`session.data.setValueLabel`), when it has one. @since 3.26.0 */
+    readonly name?: string;
 }
 
 /**
@@ -61,12 +96,14 @@ function refused(message: string, details: Readonly<Record<string, unknown>>): G
  * @param layer - The layer.
  * @param channel - The channel.
  * @param prepared - What the last repaint prepared for the layer.
+ * @param names - The names given to the binding's values, by value as the legend spells it.
  * @returns The values; none when the channel is not painted by category.
  */
 export function categoriesOf(
     layer: Layer,
     channel: Channel,
     prepared: readonly PreparedBinding[],
+    names: (path: Path) => ReadonlyMap<string, string> = () => new Map(),
 ): readonly ValueCategory[] {
     const binding = layer.encode?.[channel];
     const ready = prepared.find((entry) => entry.channel === channel && entry.categories.length > 0);
@@ -74,16 +111,119 @@ export function categoriesOf(
         return [];
     }
 
+    const named = names(binding.by);
     return ready.categories.map((name) => {
         const entry = binding.map?.[name];
+        const label = named.get(name);
 
         return Object.freeze({
             value: ready.categoryValues.get(name) ?? name,
             count: ready.categoryCounts.get(name) ?? 0,
             hidden: ready.hidden.has(name),
             ...(entry === undefined ? {} : { entry }),
+            ...(label === undefined ? {} : { name: label }),
         });
     });
+}
+
+/**
+ * Every value one layer paints by a category path, with each channel's entry for it.
+ * @param layer - The layer.
+ * @param path - The category path, such as `results.louvain.group`.
+ * @param prepared - What the last repaint prepared for the layer.
+ * @param names - The names given to the path's values.
+ * @returns The values, largest first; none when no channel of the layer reads the path.
+ */
+export function groupsOf(
+    layer: Layer,
+    path: Path,
+    prepared: readonly PreparedBinding[],
+    names: (path: Path) => ReadonlyMap<string, string>,
+): readonly ValueGroup[] {
+    const channels = (Object.entries(layer.encode ?? {}) as [Channel, Binding | undefined][]).flatMap(
+        ([channel, binding]) => (binding !== undefined && "by" in binding && binding.by === path ? [channel] : []),
+    );
+    const first = channels.find((channel) => categoriesOf(layer, channel, prepared).length > 0);
+    if (first === undefined) {
+        return [];
+    }
+
+    return categoriesOf(layer, first, prepared, names).map((category) => {
+        const key = String(category.value);
+        const entries = Object.fromEntries(
+            channels.flatMap((channel) => {
+                const binding = layer.encode?.[channel];
+                const entry = binding !== undefined && "by" in binding ? binding.map?.[key] : undefined;
+                return entry === undefined ? [] : [[channel, entry]];
+            }),
+        );
+        const { entry: _entry, ...group } = category;
+        return Object.freeze({ ...group, entries: Object.freeze(entries) });
+    });
+}
+
+/**
+ * The patch that writes several value-table entries of one category path at once: see
+ * `styles.setValueEntries`. A channel the layer does not yet paint by the path is bound to it,
+ * every other value keeping the one value the layer painted before (its set value, else the
+ * channel's default) as the binding's `otherwise`.
+ * @param layer - The layer, or undefined when the stack holds none with that id.
+ * @param by - The category path every write is a value of.
+ * @param writes - The writes, applied in order.
+ * @returns The patch.
+ * @throws A `GraphtyError` with code `E_BAD_COMMAND` when a channel already varies by another
+ *   path (`details.reason` `"bound-to-other-path"`) or an entry is not a text or a number.
+ */
+export function valueEntriesPatch(
+    layer: Layer | undefined,
+    by: Path,
+    writes: readonly ValueEntryWrite[],
+): Partial<LayerSpec> {
+    if (layer === undefined) {
+        return {};
+    }
+
+    let current: Layer = layer;
+    for (const { channel, value, entry } of writes) {
+        const binding = current.encode?.[channel];
+        if (binding !== undefined && "by" in binding && binding.by !== by) {
+            throw refused(`Layer ${layer.id} already varies ${channel} by ${binding.by}, so it is not replaced.`, {
+                id: layer.id,
+                channel,
+                path: binding.by,
+                reason: "bound-to-other-path",
+            });
+        }
+
+        if (binding === undefined || !("by" in binding)) {
+            current = boundTo(current, channel, by);
+        }
+
+        current = { ...current, ...valueEntryPatch(current, channel, value, entry) };
+    }
+
+    return { encode: current.encode, ...(current.set === layer.set ? {} : { set: current.set }) };
+}
+
+/**
+ * A layer with one more channel bound to a category path, the rest of its values keeping the one
+ * value the layer painted the channel before.
+ * @param layer - The layer.
+ * @param channel - The channel.
+ * @param by - The path.
+ * @returns The layer.
+ */
+function boundTo(layer: Layer, channel: Channel, by: Path): Layer {
+    const { [channel]: single, ...set } = layer.set ?? {};
+    const before = single ?? channelDescriptor(channel)?.default;
+    const otherwise = typeof before === "string" || typeof before === "number" ? before : undefined;
+    const binding: Binding = { by, scale: "ordinal", ...(otherwise === undefined ? {} : { otherwise }) };
+
+    return {
+        ...layer,
+        encode: { ...layer.encode, [channel]: binding },
+        ...(single === undefined ? {} : { set }),
+    };
 }
 
 /**

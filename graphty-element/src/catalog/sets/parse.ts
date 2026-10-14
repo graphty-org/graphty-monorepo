@@ -313,7 +313,7 @@ function isValuePath(path: unknown): boolean {
  * @param walker - The pass.
  */
 function checkThreshold(value: Loose, walker: Walker): void {
-    walker.fields(value, "threshold", ["kind", "path", "top", "above"]);
+    walker.fields(value, "threshold", ["kind", "path", "top", "above", "ties"]);
     checkRoot(value.path);
 
     if (!isValuePath(value.path)) {
@@ -333,6 +333,10 @@ function checkThreshold(value: Loose, walker: Walker): void {
 
     if (value.above !== undefined && !isFiniteNumber(value.above)) {
         throw bad('A "threshold" leaf\'s above is a finite number.', { above: value.above });
+    }
+
+    if (value.ties !== undefined && value.ties !== "fewer" && value.ties !== "all") {
+        throw bad('A "threshold" leaf\'s ties is "fewer" or "all".', { ties: value.ties });
     }
 }
 
@@ -391,8 +395,8 @@ function checkDoorRoot(path: unknown, walker: Walker): void {
  * @param value - The leaf.
  */
 function checkLeafNodes(value: Readonly<Record<string, unknown>>): void {
-    if (value.nodes !== undefined && value.nodes !== "all" && value.nodes !== "ends") {
-        throw bad(`A "${String(value.kind)}" leaf's nodes are "all" or "ends".`, { nodes: value.nodes });
+    if (value.nodes !== undefined && value.nodes !== "all" && value.nodes !== "ends" && value.nodes !== "none") {
+        throw bad(`A "${String(value.kind)}" leaf's nodes are "all", "ends" or "none".`, { nodes: value.nodes });
     }
 }
 

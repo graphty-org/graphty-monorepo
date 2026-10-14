@@ -25,7 +25,7 @@
  * published from the Node-safe `./session` entry point.
  */
 
-import type { NodeId } from "../../catalog/types";
+import type { NodeId, TopTies } from "../../catalog/types";
 import { GraphtyError } from "../../errors/GraphtyError";
 import type {
     Histogram,
@@ -550,9 +550,33 @@ export function rankedPrefix(
  * The top `n` of a ranking, cut only between tie groups. See {@link TopRanking} for the policy.
  * @param ranking - The ranking, best first, with tied entries sharing a rank.
  * @param n - The most entries the top may hold, a whole number.
+ * @param ties - `"all"` takes the tie group the cut falls in whole, past `n`; `"fewer"` (the
+ *     default) leaves it out.
  * @returns The entries taken, and the group that did not fit when one did not.
  */
-export function topOfRanking(ranking: readonly RankingEntry[], n: number): TopRanking {
+export function topOfRanking(ranking: readonly RankingEntry[], n: number, ties: TopTies = "fewer"): TopRanking {
+    const fewer = topWithinLimit(ranking, n);
+    if (ties === "fewer" || fewer.leftOut === null) {
+        return fewer;
+    }
+
+    // Take the group the cut fell in, whole.
+    const end = fewer.entries.length + fewer.leftOut.count;
+    return Object.freeze({
+        entries: ranking.slice(0, end),
+        leftOut: null,
+        reason: null,
+        threshold: end < ranking.length ? ranking[end].value : null,
+    });
+}
+
+/**
+ * The top `n` of a ranking under the `"fewer"` tie policy.
+ * @param ranking - The ranking, best first, with tied entries sharing a rank.
+ * @param n - The most entries the top may hold.
+ * @returns The top.
+ */
+function topWithinLimit(ranking: readonly RankingEntry[], n: number): TopRanking {
     let taken = Math.min(n, ranking.length);
 
     // Walk the cut back while it falls inside a tie group: taking one of the group means taking

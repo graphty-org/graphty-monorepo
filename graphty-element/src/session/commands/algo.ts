@@ -140,7 +140,8 @@ const algoRun: UndoableDefinition<AlgorithmRunCommand> = {
     draws: true,
     // Written only in the commit tail, which is synchronous, so a run holds nothing while it
     // computes and never blocks a style edit.
-    keys: () => ["runs", "styles"],
+    // `valueLabels`: a re-run carries the names given to its groups to the groups they became.
+    keys: () => ["runs", "styles", "valueLabels"],
     lane: { kind: "queued", category: "algorithm-run" },
     execute: (command, ctx) => required(ctx.services.runs).run(command, ctx),
 };

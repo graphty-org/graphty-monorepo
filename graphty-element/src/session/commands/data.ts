@@ -27,7 +27,7 @@
 import type { DuplicatePolicy } from "@graphty/graph-format";
 import jmespath from "jmespath";
 
-import type { EdgeId, MeasurementDeclaration, NodeId } from "../../catalog/types";
+import type { EdgeId, MeasurementDeclaration, NodeId, Path } from "../../catalog/types";
 import type { DeclaredDirection } from "../../data/DataSource";
 import type { DataLoadingError } from "../../data/ErrorAggregator";
 import { GraphtyError } from "../../errors/GraphtyError";
@@ -38,6 +38,7 @@ import { edgeKey, nodeKey } from "../project/graphOps";
 import type { CodedFact } from "../shared";
 import { deepEquals } from "../styles/predicate";
 import type { HistoryCode, LoadedSource, NodeRecordInput, RowUpdate } from "../types";
+import { valueLabelKey } from "../valueLabels";
 import type { BatchCommand } from "./index";
 
 /** A record to add; its id, or its endpoints, are read through the configured paths. */
@@ -212,9 +213,29 @@ interface DataSetSourceCommand {
     readonly sources?: readonly LoadedSource[];
 }
 
+/**
+ * `data.label`: the name one value of a path is shown by (a community's "Group 3" called
+ * "Students"), or `null` to take the name away. A name is not a data edit: rules, bindings and
+ * exports still read the value itself.
+ */
+interface DataLabelCommand {
+    readonly op: "data.label";
+    /** The value path: `data.<column>` or `results.<run>.<field>`. */
+    readonly path: Path;
+    /** The value, compared as the legend spells it, so `3` and `"3"` are one value. */
+    readonly value: string | number | boolean;
+    /** The name, or null to remove it. */
+    readonly label: string | null;
+}
+
 /** Every data op. */
 export type DataCommand =
-    DataApplyCommand | DataImportCommand | DataExpandCommand | DataDeclareCommand | DataSetSourceCommand;
+    | DataApplyCommand
+    | DataImportCommand
+    | DataExpandCommand
+    | DataDeclareCommand
+    | DataSetSourceCommand
+    | DataLabelCommand;
 
 /** The measurements every declaration may name. */
 const DECLARABLE: ReadonlySet<string> = new Set(["categorical", "ordinal", "quantitative", "time"]);
@@ -720,4 +741,48 @@ const dataSetSource: UndoableDefinition<DataSetSourceCommand> = {
 };
 
 /** The data ops' definitions. */
-export const DATA_DEFINITIONS = [dataApply, dataImport, dataExpand, dataDeclare, dataSetSource] as const;
+const dataLabel: UndoableDefinition<DataLabelCommand> = {
+    op: "data.label",
+    undo: {
+        kind: "undoable",
+        label: (command) =>
+            command.label === null
+                ? `Remove the name of ${String(command.value)}`
+                : `Name ${String(command.value)} ${command.label}`,
+        fact: (command) => ({
+            code: "data.label",
+            params: { path: command.path, value: command.value, label: command.label },
+        }),
+    },
+    // A name repaints nothing: what an element is drawn as reads the value, never its name.
+    moves: false,
+    keys: (command) => [`valueLabels/${valueLabelKey(command.path, command.value)}`],
+    lane: { kind: "immediate" },
+    execute: (command, ctx) => {
+        const { path, value, label } = command;
+        const valid =
+            typeof path === "string" &&
+            (path.startsWith("data.") || path.startsWith("results.")) &&
+            ["string", "number", "boolean"].includes(typeof value) &&
+            (label === null || typeof label === "string");
+        if (!valid) {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message:
+                    'A value is named on a path ("data.<column>" or "results.<run>.<field>"), with text or null to remove the name.',
+                source: "data",
+                details: { path, value, label },
+            });
+        }
+
+        const key = valueLabelKey(path, value);
+        const name = label?.trim() ?? "";
+        if (name === "") {
+            ctx.draft.valueLabels.delete(key);
+        } else {
+            ctx.draft.valueLabels.set(key, name);
+        }
+    },
+};
+
+export const DATA_DEFINITIONS = [dataApply, dataImport, dataExpand, dataDeclare, dataSetSource, dataLabel] as const;

@@ -1,9 +1,4 @@
-import {
-    type AbstractActionManager,
-    AbstractMesh,
-    type Node as SceneNode,
-    type Scene,
-} from "@babylonjs/core";
+import { type AbstractActionManager, AbstractMesh, type Node as SceneNode, type Scene } from "@babylonjs/core";
 import { type DerivedGraph, type GraphSnapshot, INVALID_INDEX, type U32 } from "@graphty/graph-format";
 
 import type { EdgeId } from "../catalog/types";

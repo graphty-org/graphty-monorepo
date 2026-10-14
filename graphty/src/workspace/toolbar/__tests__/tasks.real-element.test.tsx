@@ -129,7 +129,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         await userEvent.click(analyzeTool());
         const recent = await screen.findByRole("group", { name: "Recent" });
         await userEvent.click(within(recent).getByRole("option", { name: /^PageRank/ }));
-        assert.isNotNull(await screen.findByRole("button", { name: "Update PageRank row" }));
+        assert.isNotNull(await screen.findByRole("button", { name: "Update PageRank layer" }));
         await userEvent.keyboard("{Escape}");
         assert.isNotNull(await screen.findByRole("combobox", { name: "Filter analyses" }));
         await userEvent.keyboard("{Escape}");
@@ -176,7 +176,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         });
     });
 
-    it("a run whose row was deleted gets its row back when Analyze runs it again", async () => {
+    it("a run whose layer was deleted: the notice keeps its results, and Add Louvain layer puts it back without a rerun", async () => {
         const session = await openKarate();
         await analyze("communities", "Louvain");
         const louvain = await finished(session, "louvain");
@@ -187,18 +187,24 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
             await userEvent.click(screen.getByRole("button", { name: "Graph" }));
         }
         const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
-        await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Louvain, layer/ }));
+        await userEvent.click(
+            await within(tree).findByRole("treeitem", { name: /^Louvain, (node |edge |node and edge )?layer/ }),
+        );
         await userEvent.keyboard("{Delete}");
         await waitFor(() => {
-            assert.isNull(within(tree).queryByRole("treeitem", { name: /^Louvain, layer/ }));
+            assert.isNull(
+                within(tree).queryByRole("treeitem", { name: /^Louvain, (node |edge |node and edge )?layer/ }),
+            );
             assert.lengthOf(session.runs.bindings(louvain), 0);
         });
+        await screen.findByText("Deleted Louvain layer. Its results are kept.");
+        const computedAt = session.runs.get(louvain)?.startedAt;
 
         await userEvent.click(analyzeTool());
         await userEvent.type(await screen.findByRole("combobox", { name: "Filter analyses" }), "communities");
         await userEvent.click(await screen.findByRole("option", { name: /^Louvain/ }));
         const form = await screen.findByRole("form", { name: "Louvain" });
-        await userEvent.click(within(form).getByRole("button", { name: /Louvain row|^Run$/ }));
+        await userEvent.click(within(form).getByRole("button", { name: "Add Louvain layer" }));
         // Nothing needs computing again, so the run settles once whatever Analyze asked of it has.
         await session.runs.get(louvain)?.then(
             () => undefined,
@@ -206,7 +212,12 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         );
         await session.styles.settled();
         assert.isAbove(session.runs.bindings(louvain).length, 0, "the run painted its layer again");
-        await within(tree).findByRole("treeitem", { name: /^Louvain, layer/ }, { timeout: TIMEOUT_MS });
+        assert.equal(session.runs.get(louvain)?.startedAt, computedAt, "restored from the stored result");
+        await within(tree).findByRole(
+            "treeitem",
+            { name: /^Louvain, (node |edge |node and edge )?layer/ },
+            { timeout: TIMEOUT_MS },
+        );
     });
 
     it("a run's layer, its key entry and its values go by the algorithm's name: Closeness, not Reach", async () => {
@@ -220,7 +231,11 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
             await userEvent.click(screen.getByRole("button", { name: "Graph" }));
         }
         const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
-        await within(tree).findByRole("treeitem", { name: /^Closeness, layer/ }, { timeout: TIMEOUT_MS });
+        await within(tree).findByRole(
+            "treeitem",
+            { name: /^Closeness, (node |edge |node and edge )?layer/ },
+            { timeout: TIMEOUT_MS },
+        );
         assert.notMatch(tree.textContent ?? "", /Reach/);
         const legend = await screen.findByRole("region", { name: "Legend" }, { timeout: TIMEOUT_MS });
         await within(legend).findByRole("group", { name: "Color: Closeness" });

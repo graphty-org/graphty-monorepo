@@ -30,17 +30,34 @@ const ROW_ICON: Readonly<Record<Heading["id"], React.ReactNode>> = {
 /** How many recent algorithms the list leads with. */
 const RECENT = 3;
 
+/** What Analyze's button will do with an algorithm: run it, update its layer, or add its layer back. */
+interface RunPlan {
+    readonly label: string;
+    /** Ask the element to put back the kept run's missing layers, from the stored result. */
+    readonly restoreLayer: boolean;
+}
+
 /**
- * Whether a run of this algorithm is kept but no row shows it any more (its layer was deleted).
- * The element paints a run on its first completion only, so running it again would paint nothing;
- * this asks for its suggested layers back.
+ * The button's words, named for the kept run `start()` reuses (the algorithm's latest): "Run"
+ * when there is none, "Update <name> layer" while its layer shows, "Add <name> layer" once its
+ * layer was deleted, which the element restores from the stored result without computing again
+ * unless the settings changed.
  * @param session - The element's session
  * @param key - The algorithm
- * @returns True when the run should bring its layers back
+ * @param name - The algorithm's name in words
+ * @returns The plan
  */
-function lostItsRow(session: GraphSession, key: string): boolean {
-    const runs = session.runs.list().filter((run) => run.algorithm === key && run.status !== "removed");
-    return runs.length > 0 && runs.every((run) => session.runs.bindings(run.id).length === 0);
+function runPlan(session: GraphSession, key: string, name: string): RunPlan {
+    const kept = session.runs.list().filter((run) => run.algorithm === key && run.status !== "removed");
+    const latest = kept.at(-1);
+    if (latest === undefined) {
+        return { label: "Run", restoreLayer: false };
+    }
+    const layers = session.runs.layers(latest.id);
+    const gone = layers !== undefined && layers.present.length === 0 && layers.missing.length > 0;
+    return gone
+        ? { label: `Add ${name} layer`, restoreLayer: true }
+        : { label: `Update ${name} layer`, restoreLayer: false };
 }
 
 /**
@@ -195,7 +212,7 @@ export function AnalyzePopover({
                     // Each From and To is its own run, so its own row.
                     const run = session.runs.start(picked.key, params, {
                         style: { name: wordsFor(picked).name },
-                        applySuggestedStyles: lostItsRow(session, picked.key),
+                        restoreLayer: runPlan(session, picked.key, wordsFor(picked).name).restoreLayer,
                     });
                     run.then(undefined, () => undefined);
                     onStarted(wordsFor(picked).name);
@@ -220,7 +237,7 @@ export function AnalyzePopover({
                     // The layers it adds go by the algorithm's name as the reader picked it ("Closeness").
                     const run = session.runs.start(picked.key, paramsFor(session, picked, values), {
                         style: { name: wordsFor(picked).name },
-                        applySuggestedStyles: lostItsRow(session, picked.key),
+                        restoreLayer: runPlan(session, picked.key, wordsFor(picked).name).restoreLayer,
                     });
                     // A failed run is reported on its row and in the inspector, from the run itself.
                     run.then(undefined, () => undefined);
@@ -387,8 +404,8 @@ interface EssentialsProps {
 
 /**
  * One algorithm's short form: its options (the advanced ones behind a fold), the cost line and
- * Run, which reads "Update <name> row" when the algorithm already has a row (the element runs it
- * again in place).
+ * the button, which names what the run it reuses will do: "Run", "Update <name> layer" or "Add
+ * <name> layer" (see `runPlan`).
  * @param props - Component props
  * @param props.session - The element's session
  * @param props.descriptor - The algorithm
@@ -411,8 +428,7 @@ function Essentials({
     const words = wordsFor(descriptor);
     const params = paramsFor(session, descriptor, values);
     const estimate = session.estimate({ op: "algo.run", algorithm: descriptor.key, params });
-    const hasRow = session.runs.list().some((run) => run.algorithm === descriptor.key && run.status !== "removed");
-    const runLabel = hasRow ? `Update ${words.name} row` : "Run";
+    const runLabel = runPlan(session, descriptor.key, words.name).label;
 
     return (
         <form // NOSONAR(S6847): catches Esc bubbling from the form's own controls to step back

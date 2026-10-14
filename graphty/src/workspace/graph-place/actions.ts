@@ -124,6 +124,8 @@ export async function addLayer(session: GraphSession, store: WorkspaceStore, aft
  * @param row - the row.
  */
 export async function deleteRow(session: GraphSession, store: WorkspaceStore, row: StyleRow): Promise<void> {
+    // A run's layer goes; the run and its results stay, and Analyze offers to add the layer back.
+    const fromRun = layersOf(session, row).some((id) => session.styles.get(id)?.source.by === "run");
     await session.styles.deleteRow(row.id);
     const next = session.history.nextUndo;
     const step = next?.kind === "undo" ? next.step.id : undefined;
@@ -132,7 +134,7 @@ export async function deleteRow(session: GraphSession, store: WorkspaceStore, ro
         return step !== undefined && now?.kind === "undo" && now.step.id === step;
     };
     const notice: Notice = {
-        message: `Deleted ${row.name}.`,
+        message: fromRun ? `Deleted ${row.name} layer. Its results are kept.` : `Deleted ${row.name}.`,
         action: {
             label: "Undo",
             run: () => {

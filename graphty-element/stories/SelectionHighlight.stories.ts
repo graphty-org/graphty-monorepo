@@ -17,7 +17,7 @@ import type { GraphSelectionStyleInput } from "../src/config";
 // Importing the module is what defines the <graphty-element> custom element, so this line is
 // load-bearing even though only the type is named.
 import { assertGraphLoaded, type Drawn, drawn, holds, renderedElement } from "./assertions";
-import { eventWaitingDecorator, renderFn, setLayoutPreSteps, storySetup, waitForGraphSettled } from "./helpers";
+import { eventWaitingDecorator, setLayoutPreSteps, waitForGraphSettled } from "./helpers";
 
 /** Five nodes, far enough apart that a halo around one is a halo around one. */
 const NODES = [{ id: "alpha" }, { id: "beta" }, { id: "gamma" }, { id: "delta" }, { id: "epsilon" }];
@@ -40,6 +40,8 @@ const SETTLE_MS = 400;
 interface HighlightArgs {
     /** What a selected node should look like, or undefined to leave the element's own. */
     selectionStyle?: GraphSelectionStyleInput;
+    /** The shape every node is drawn in, or undefined for the element's own. */
+    shape?: "box";
 }
 
 /**
@@ -58,6 +60,16 @@ function render(args: HighlightArgs): Element {
 
     if (args.selectionStyle) {
         element.selectionStyle = args.selectionStyle;
+    }
+
+    if (args.shape) {
+        // Through a style layer, like any node appearance. Queued until the element is ready.
+        void element.session.styles.add({
+            name: `every node a ${args.shape}`,
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.shape": args.shape },
+        });
     }
 
     element.nodeData = NODES;
@@ -234,23 +246,11 @@ export const RestyledWhileSelected: Story = {
  * halo is the node's own shape scaled out, so a box's corners are ringed too (issue #2643).
  */
 export const Box: Story = {
-    render: (args, context) => {
-        const element = renderFn(args, context);
-        element.addEventListener("graph-settled", () => {
-            (element as HTMLElement & { selectNode: (id: string) => boolean }).selectNode(SELECTED);
-        });
-
-        return element;
-    },
-    args: {
-        setup: storySetup({ node: { "node.shape": "box" } }),
-        nodeData: NODES,
-        edgeData: EDGES,
-        layout: "ngraph",
-        layoutConfig: { seed: 42 },
-    } as HighlightArgs,
+    args: { shape: "box" },
     play: async ({ canvasElement }) => {
         const scene = await selected(canvasElement, "Box");
+
+        await holds(scene.graph.getNode(SELECTED)?.shapeType === "box", "Box: the selected node is drawn as a box");
 
         await assertHalo(scene, { color: "#FFD700", alpha: 0.4, clearance: 1.45 });
     },

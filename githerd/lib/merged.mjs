@@ -54,9 +54,9 @@ const KEYWORDS = new Set([
     "refs",
     "part of",
 ]);
-// ponytail: `owner/repo#n` is read as this repository's issue; check the repository if a merge
-// ever names another one's.
-const EXPLICIT = /\b([a-z]+(?:\s+of)?):?\s+(?:[\w.-]+\/[\w.-]+)?#(\d+)\b/gi;
+// ponytail: `explicitRefs` reads `owner/repo#n` as this repository's issue; pass the repository
+// to it as `closingRefs` takes one if a merge ever names another one's.
+const EXPLICIT = /\b([a-z]+(?:\s+of)?):?\s+(?:([\w.-]+\/[\w.-]+))?#(\d+)\b/gi;
 
 /**
  * The issues a text references explicitly (`KEYWORDS`): the one rule for pull request titles and
@@ -67,7 +67,7 @@ const EXPLICIT = /\b([a-z]+(?:\s+of)?):?\s+(?:[\w.-]+\/[\w.-]+)?#(\d+)\b/gi;
 export function explicitRefs(text) {
     const nums = [...text.matchAll(EXPLICIT)]
         .filter((m) => KEYWORDS.has(m[1].toLowerCase().replace(/\s+/, " ")))
-        .map((m) => Number(m[2]));
+        .map((m) => Number(m[3]));
     return [...new Set(nums)].sort((a, b) => a - b);
 }
 
@@ -75,12 +75,15 @@ export function explicitRefs(text) {
  * The issues a text closes with a closing keyword (`fixes #12`, `Closes: #12`), as GitHub reads a
  * pull request's description; `Refs #12` and `Part of #12` are left out.
  * @param {string} text the commit message, or a title and body
+ * @param {string} [repo] this repository, `owner/name`: an `other/repo#12` naming another one is
+ *   left out; without it every `owner/repo#12` counts
  * @returns {number[]} the issue numbers, ascending, without duplicates
  */
-export function closingRefs(text) {
+export function closingRefs(text, repo) {
     const nums = [...text.matchAll(EXPLICIT)]
         .filter((m) => /^(close[sd]?|fix(es|ed)?|resolve[sd]?)$/i.test(m[1]))
-        .map((m) => Number(m[2]));
+        .filter((m) => !repo || !m[2] || m[2].toLowerCase() === repo.toLowerCase())
+        .map((m) => Number(m[3]));
     return [...new Set(nums)].sort((a, b) => a - b);
 }
 

@@ -32,6 +32,7 @@
 
 import { type F32, type GraphSnapshot, maskTest, type NodeId, type NodeMask } from "@graphty/graph-format";
 
+import { detCos, detLog, detSin } from "../utils/det-math.js";
 import {
     FA2_COINCIDENT_SQ,
     FA2_DEFAULTS,
@@ -387,11 +388,11 @@ export function kickDir(i: number, j: number, dim: 2 | 3): readonly [number, num
     const phi = 6.283185307179586 * hashUnit(h);
     let d: [number, number, number];
     if (dim === 2) {
-        d = [Math.cos(phi), Math.sin(phi), 0];
+        d = [detCos(phi), detSin(phi), 0];
     } else {
         const z = 2 * hashUnit(lowbias32((h ^ 0x5bd1e995) >>> 0)) - 1;
         const rr = Math.sqrt(Math.max(0, 1 - z * z));
-        d = [rr * Math.cos(phi), rr * Math.sin(phi), z];
+        d = [rr * detCos(phi), rr * detSin(phi), z];
     }
     return i > j ? [-d[0], -d[1], -d[2]] : d;
 }
@@ -453,6 +454,29 @@ function estimateFactor(
     }
     const newSpeed = speed + Math.min(targetSpeed - speed, 0.5 * speed);
     return { speed: newSpeed, speedEfficiency: eff };
+}
+
+/**
+ * Whether some node below `n` is pinned in `previous` and not in `mask` (an unpin), comparing word by word.
+ * @param previous - the mask held so far
+ * @param mask - the new mask
+ * @param words - the words to compare
+ * @param n - the node count
+ * @returns true at the first unpinned node
+ */
+function unpinsAny(previous: NodeMask, mask: NodeMask, words: number, n: number): boolean {
+    for (let w = 0; w < words; w++) {
+        if (previous[w] === mask[w]) {
+            continue;
+        }
+        const last = Math.min(n, w * 32 + 32);
+        for (let i = w * 32; i < last; i++) {
+            if (maskTest(previous, i) && !maskTest(mask, i)) {
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 // ============================================================ the simulation
@@ -636,22 +660,8 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
                 `ForceAtlas2Simulation: setFixed: the mask has ${mask.length} words, ${words} needed for ${n} nodes`,
             );
         }
-        let unpinned = false;
         const previous = this.fixed;
-        if (previous !== null) {
-            for (let w = 0; w < words && !unpinned; w++) {
-                if (previous[w] === mask[w]) {
-                    continue;
-                }
-                const last = Math.min(n, w * 32 + 32);
-                for (let i = w * 32; i < last; i++) {
-                    if (maskTest(previous, i) && !maskTest(mask, i)) {
-                        unpinned = true;
-                        break;
-                    }
-                }
-            }
-        }
+        const unpinned = previous !== null && unpinsAny(previous, mask, words, n);
         const copy = new Uint32Array(words);
         copy.set(mask.subarray(0, words));
         this.fixed = copy;
@@ -836,7 +846,7 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
                 let mag = w;
                 if (linlog) {
                     const len = Math.max(len3(dx, dy, dz), FA2_DISTANCE_FLOOR);
-                    mag = (w * Math.log(1 + len)) / len; // |F| = w log(1 + d) (7.2 row "Attraction (linlog)")
+                    mag = (w * detLog(1 + len)) / len; // |F| = w log(1 + d) (7.2 row "Attraction (linlog)")
                 }
                 fx = fx + dx * mag;
                 fy = fy + dy * mag;

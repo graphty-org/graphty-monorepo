@@ -8,7 +8,40 @@ import { assert, describe, it } from "vitest";
 
 import type { Channel } from "../../src/catalog/types";
 import { createGraphSession, type GraphSession } from "../../src/session";
+import { createRunResult } from "../../src/session/results";
+import type { RunExecutionContext, RunOutcome } from "../../src/session/runs";
 import type { ElementSession } from "../../src/session/types";
+
+/**
+ * A run that puts each of the three nodes in its own group.
+ * @param context - The run being executed.
+ * @returns The outcome.
+ */
+async function groups(context: RunExecutionContext): Promise<RunOutcome> {
+    await Promise.resolve();
+    const ids = ["a", "b", "c"];
+
+    return {
+        result: createRunResult({
+            runId: context.runId,
+            shape: "community",
+            fields: [
+                {
+                    name: "group",
+                    plainName: "Group",
+                    technicalName: "community",
+                    kind: "node",
+                    type: "integer",
+                    path: `results.${context.runId}.group`,
+                },
+            ],
+            measured: { nodes: ids.length, edges: 0 },
+            nodes: ids.map((id, at) => ({ id, values: { group: at } })),
+            caveats: { exact: true, direction: "as-loaded", precision: "f64", method: "louvain", facts: [], notes: [] },
+            durationMs: 1,
+        }),
+    };
+}
 
 /**
  * A session with three nodes in a path.
@@ -121,6 +154,31 @@ describe("editableBase", () => {
 
         await session.styles.hideRow(everything(session), false);
         assert.isTrue((await painted(session, "node", "node.visible")).every((value) => value !== false));
+        session.dispose();
+    });
+
+    it("lets a run's layer paint over Everything under the default placement", async () => {
+        const session = createGraphSession({ runs: { execute: groups } });
+        await session.data.addNodes([{ id: "a" }, { id: "b" }, { id: "c" }]);
+        await session.config.set({ startingRows: true, editableBase: true });
+        const { runId } = await session.runs.start("louvain");
+        await session.styles.settled();
+        assert.strictEqual(session.config.runPlacement, "beneath");
+        assert.isAbove(session.runs.bindings(runId).length, 0, "the run painted a layer");
+        session.dispose();
+    });
+
+    it("keeps the base look out of the legend, as the base layers were", async () => {
+        const session = await triangle();
+        await session.config.set({ startingRows: true, editableBase: true });
+        await session.styles.settled();
+        const row = everything(session);
+        assert.deepEqual(
+            session.styles
+                .legend()
+                .filter((block) => (session.styles.get(block.layerId)?.row ?? block.layerId) === row),
+            [],
+        );
         session.dispose();
     });
 });

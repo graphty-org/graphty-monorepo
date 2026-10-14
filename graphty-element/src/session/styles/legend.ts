@@ -390,6 +390,16 @@ export interface LegendSources {
      * @returns The count per channel.
      */
     readonly painted?: (layerId: LayerId) => Readonly<Partial<Record<Channel, number>>>;
+    /**
+     * Whether a layer is the base look's home (the Everything row while `editableBase` is on):
+     * its plain values are what the picture looks like when nothing has been said about the data,
+     * as a base layer's are, so only what it reads from the data is listed.
+     *
+     * Absent, no layer is.
+     * @param layer - The layer.
+     * @returns True for the base look's home.
+     */
+    readonly holdsBase?: (layer: Layer) => boolean;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1070,7 +1080,8 @@ export function buildLegend(sources: LegendSources): readonly LegendBlock[] {
             continue;
         }
 
-        const prepared = sources.encoding(layer.id);
+        const all = sources.encoding(layer.id);
+        const prepared = sources.holdsBase?.(layer) === true ? all.filter((each) => each.path !== null) : all;
         // ponytail: one count per layer per read, a walk over that layer's elements; memoize by
         // the counts' revision if legend reads ever show up in a profile.
         const painted = prepared.length === 0 ? undefined : sources.painted?.(layer.id);

@@ -240,6 +240,26 @@ function authoredCovering(layers: readonly Layer[], channels: readonly Channel[]
 }
 
 /**
+ * The stack as run placement reads it: while the Everything starting row holds the element's base
+ * look (`editableBase`), its values are the floor, not a decision somebody made, so they neither
+ * hold a run back nor put it beneath them. Read as disabled, in place, so indices still match.
+ * @param layers - The stack, bottom first.
+ * @param editableBase - Whether the Everything row holds the base look.
+ * @returns The layers to place against.
+ */
+export function placementLayers(layers: readonly Layer[], editableBase: boolean): readonly Layer[] {
+    if (!editableBase) {
+        return layers;
+    }
+
+    return layers.map((layer) =>
+        layer.source.by === "template" && layer.source.templateId === "graphty:starting-everything"
+            ? { ...layer, enabled: false }
+            : layer,
+    );
+}
+
+/**
  * Where an auto-applied layer goes: immediately beneath the lowest authored layer that drives
  * one of its channels, so a decision somebody made about some elements stays on top of the run's
  * picture of all of them. The top of the stack when no authored layer drives them.

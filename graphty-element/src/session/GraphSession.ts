@@ -141,6 +141,7 @@ import {
     type PathDirectory,
     type SessionStylesApi,
 } from "./styles";
+import { placementLayers } from "./styles/autoApply";
 import { atStylePath, channelsFor } from "./styles/channels";
 import type { CompiledLayer } from "./styles/Layer";
 import {
@@ -2456,7 +2457,11 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         // the console, the panel, an agent's tool call and a bare `runs.start()` all end at this
         // one API, and a decision made at the doors is a decision made more than once.
         styling: createAutoApplyPolicy({
-            styles: () => stack ?? undefined,
+            // With the base look in the Everything row, Everything never holds a run back.
+            styles: () =>
+                stack === null
+                    ? undefined
+                    : { list: () => placementLayers(stack?.list() ?? [], readProject().editableBase) },
             placement: () => readProject().runPlacement,
             // WHERE A REFUSAL GOES WHEN NOBODY ASKED FOR THE LAYER. The element paints a run's
             // suggestion in the step that records the run, which nobody called for layer by

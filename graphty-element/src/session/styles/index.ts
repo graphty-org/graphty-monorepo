@@ -85,6 +85,7 @@ export type {
     StyleChange,
     StylesApi,
     StylesSources,
+    StyleUpdateOptions,
     TemplateOptions,
     TemplateReport,
 } from "./StylesApi";

@@ -126,7 +126,7 @@ import {
 import { sealedSet } from "../sealed";
 import type { CodedFact, CodedFactParam, ColumnRef } from "../shared";
 import type { HistoryCause } from "../types";
-import { beneathAuthored } from "./autoApply";
+import { beneathAuthored, placementLayers } from "./autoApply";
 import { channelDescriptor, isChannel, toColorValue } from "./channels";
 import { colorsOf, replaceColorPatch, type StyleColor } from "./colors";
 import {
@@ -294,6 +294,22 @@ export interface TemplateOptions extends RunOptions {
 }
 
 /**
+ * How `styles.update` runs: a signal and a progress handler, and whether the layer may be left
+ * writing nothing.
+ */
+export interface StyleUpdateOptions extends RunOptions {
+    /**
+     * Keep the layer when the patch takes its last value away: it stays in its place, painting
+     * nothing until something is written again, as a starting row that writes nothing does. A
+     * panel that removes properties one at a time sets it, so removing the last one does not
+     * remove the layer. Without it (the default), such an update is refused with `E_BAD_LAYER`,
+     * as `add` refuses a layer that writes nothing.
+     * @since 3.26.0
+     */
+    readonly keepEmpty?: boolean;
+}
+
+/**
  * The style stack, the verbs that change it, and the three questions a reader asks of it.
  *
  * Everything on this surface addresses a layer by its id. Nothing on it takes an index, and
@@ -355,12 +371,12 @@ export interface StylesApi {
      * so an update cannot leave a layer in a state `add` would have refused.
      * @param id - The layer to change.
      * @param patch - What to change about it.
-     * @param options - A signal to cancel with, and a progress handler.
+     * @param options - A signal to cancel with, a progress handler, and `keepEmpty`.
      * @returns A run that resolves with the layer as it now stands, and rejects with
      *     `E_PROTECTED` for an element-owned layer and `E_UNKNOWN_LAYER` for an id the stack
      *     does not hold.
      */
-    update(id: LayerId, patch: Partial<LayerSpec>, options?: RunOptions): Run<Layer>;
+    update(id: LayerId, patch: Partial<LayerSpec>, options?: StyleUpdateOptions): Run<Layer>;
     /**
      * Take a layer out of the stack.
      * @param id - The layer to remove.
@@ -1951,6 +1967,10 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     /** What a legend is read from. */
     const legendSources: LegendSources = {
         layers: () => painting(current()).map((entry) => entry.layer),
+        holdsBase: (layer) =>
+            editableBase() &&
+            layer.source.by === "template" &&
+            layer.source.templateId === "graphty:starting-everything",
         encoding: encodingOf,
         scales,
         ...(sources.field === undefined ? {} : { field: sources.field }),
@@ -2062,9 +2082,10 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         return encode === undefined ? spec : { ...spec, encode };
     };
 
-    const check = (given: LayerSpec, id: LayerId, admit = true): LayerCheck => {
+    const check = (given: LayerSpec, id: LayerId, admit = true, mayBeEmpty = false): LayerCheck => {
         const options: LayerCheckOptions = {
             id,
+            ...(mayBeEmpty ? { mayBeEmpty } : {}),
             elements: sources.elements,
             scales,
             ...(sources.paths === undefined ? {} : { paths: sources.paths }),
@@ -2369,6 +2390,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      * @param id - The layer to change.
      * @param patch - What to change about it.
      * @param base - The stack to change, when an edit changes several layers in one step.
+     * @param keepEmpty - Whether the layer may be left writing nothing.
      * @returns The plan.
      * @throws A `GraphtyError` with code `E_PROTECTED` for an element-owned layer, and whatever
      *     the check refuses the merged specification with.
@@ -2377,6 +2399,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         id: LayerId,
         patch: Partial<LayerSpec>,
         base: readonly CompiledLayer[] = current(),
+        keepEmpty = false,
     ): EditPlan<Layer> => {
         const existing = base.find((entry) => entry.layer.id === id) ?? require(id);
 
@@ -2399,7 +2422,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             throw protectedLayer(existing.layer, "given an element source");
         }
 
-        const checked = check(merged, id);
+        const checked = check(merged, id, true, keepEmpty);
 
         if (checked.layer === null) {
             throw refusedSpec(merged.name, checked.result);
@@ -2539,7 +2562,10 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         if (previous === undefined) {
             const at = beneath
                 ? beneathAuthored(
-                      stack.map((entry) => entry.layer),
+                      placementLayers(
+                          stack.map((entry) => entry.layer),
+                          editableBase(),
+                      ),
                       [spec.channel],
                   )
                 : stack.length;
@@ -2681,7 +2707,10 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         const kept = stack.filter((entry) => !removing.has(entry.layer.id));
         const at = beneath
             ? beneathAuthored(
-                  kept.map((entry) => entry.layer),
+                  placementLayers(
+                      kept.map((entry) => entry.layer),
+                      editableBase(),
+                  ),
                   added.flatMap((entry) => Object.keys(entry.layer.set ?? {}) as Channel[]),
               )
             : kept.length;
@@ -2882,9 +2911,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             if (parts.length > 0) {
                 // An Everything row that writes nothing takes the base look, so turning
                 // `editableBase` on never leaves the graph unpainted.
-                const empty = parts.every(
-                    (entry) => entry.layer.set === undefined && entry.layer.encode === undefined,
-                );
+                const empty = parts.every((entry) => entry.layer.set === undefined && entry.layer.encode === undefined);
                 if (base && starting.templateId === "graphty:starting-everything" && empty) {
                     for (const part of parts) {
                         ({ stack } = planUpdate(part.layer.id, { set: baseValues(part.layer.target) }, stack));
@@ -3268,7 +3295,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                     });
                 }
 
-                return planUpdate(command.id, command.patch);
+                return planUpdate(command.id, command.patch, current(), command.keepEmpty === true);
             case "addRow":
                 return planAddRow(command.spec, command.at);
             case "restoreStartingRows":
@@ -3523,12 +3550,13 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             );
         },
 
-        update(id: LayerId, patch: Partial<LayerSpec>, options: RunOptions = {}): Run<Layer> {
+        update(id: LayerId, patch: Partial<LayerSpec>, options: StyleUpdateOptions = {}): Run<Layer> {
+            const { keepEmpty, ...run } = options;
             return edit<Layer>(
                 "update",
                 `Update layer ${id}`,
-                { op: "style.patch", action: "update", id, patch },
-                options,
+                { op: "style.patch", action: "update", id, patch, ...(keepEmpty === true ? { keepEmpty } : {}) },
+                run,
             );
         },
 

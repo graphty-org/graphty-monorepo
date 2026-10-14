@@ -63,6 +63,8 @@ export type StylePatchCommand =
           readonly id: LayerId;
           /** Applied over the layer's specification one key deep; `undefined` clears a key. */
           readonly patch: Partial<LayerSpec>;
+          /** Keep the layer when the patch takes its last value away (`styles.update`'s `keepEmpty`). */
+          readonly keepEmpty?: boolean;
       }
     | { readonly op: "style.patch"; readonly action: "remove"; readonly id: LayerId }
     | {

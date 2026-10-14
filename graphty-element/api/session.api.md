@@ -3963,13 +3963,18 @@ export interface StylesApi {
     setValueHidden(id: LayerId, channel: Channel, value: string | number | boolean, hidden: boolean, options?: RunOptions): Run<Layer>;
     toDocument(): StyleDocument;
     tree(): readonly StyleRow[];
-    update(id: LayerId, patch: Partial<LayerSpec>, options?: RunOptions): Run<Layer>;
+    update(id: LayerId, patch: Partial<LayerSpec>, options?: StyleUpdateOptions): Run<Layer>;
     validate(spec: LayerSpec): ValidationResult;
     writeRow(id: LayerId, write: RowWrite, options?: RunOptions): Run<RowParts>;
 }
 
 // @public
 export type StyleSuggestion = EncodingSuggestion | HighlightSuggestion;
+
+// @public
+export interface StyleUpdateOptions extends RunOptions {
+    readonly keepEmpty?: boolean;
+}
 
 // @public
 export type SuggestionOutcome = {

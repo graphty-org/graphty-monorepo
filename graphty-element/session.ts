@@ -519,6 +519,7 @@ export type {
     StyleRowPlace,
     StylesApi,
     StyleSuggestion,
+    StyleUpdateOptions,
     TemplateOptions,
     TemplateReport,
     UnboundLayer,

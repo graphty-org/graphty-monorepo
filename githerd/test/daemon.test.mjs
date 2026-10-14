@@ -13,6 +13,7 @@ import { TOOL_PROTOCOL, TOOLS } from "../lib/mcp.mjs";
 const META = { githerd: { protocol: TOOL_PROTOCOL } };
 import { notifyCommandProblem, PROTOCOL, startDaemon } from "../lib/daemon.mjs";
 import { containerStart, identify } from "../lib/proc.mjs";
+import { masterRefs } from "../lib/queue.mjs";
 import { readHistory } from "../lib/stats.mjs";
 import { readLedger, repoIdentity, spoolEvent } from "../lib/store.mjs";
 import { statusData, statusText } from "../lib/tools.mjs";
@@ -1714,6 +1715,26 @@ describe("the poll loop", () => {
         );
         expect(dropped.map((e) => e.item)).toEqual(Array.from({ length: 30 }, (_, n) => `fault:r${n}`));
         expect(dropped.every((e) => e.record.question.length === 4000)).toBe(true);
+    });
+
+    it("drops a closed issue's merge record once it is in the ledger, and puts it back when the issue reopens", async () => {
+        const daemon = await start();
+        daemon.state.merged.refs = { 7: ["#70"] };
+        daemon.state.merged.closed = [7];
+        await poll(daemon);
+        expect(daemon.state.merged.refs).toEqual({});
+        expect(daemon.state.merged.closed).toEqual([]);
+        const dropped = (await readLedger(join(dir, ".githerd"))).filter((e) => e.kind === "merged-issue-dropped");
+        expect(dropped).toEqual([expect.objectContaining({ issue: 7, record: { refs: ["#70"], closed: true } })]);
+        // #7 reopens: the next poll reads it back, and its issue job will know #70 closed it.
+        scene.issues = [
+            { number: 7, state: "open", updated_at: "2026-10-02T12:01:00Z", title: "a", user: { login: "owner" } },
+        ];
+        clock = new Date("2026-10-02T12:03:00Z");
+        await poll(daemon);
+        expect(daemon.state.merged.refs).toEqual({ 7: ["#70"] });
+        expect(daemon.state.merged.closed).toEqual([7]);
+        expect(masterRefs(daemon.state, 7)).toEqual(["#70"]);
     });
 
     it("drops a page record nothing can send again once it is in the ledger, and keeps a fatal page's", async () => {

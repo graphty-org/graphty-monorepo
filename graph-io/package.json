@@ -76,6 +76,11 @@
             "types": "./dist/cys.d.ts",
             "import": "./dist/cys.js",
             "default": "./dist/cys.js"
+        },
+        "./positions": {
+            "types": "./dist/positions.d.ts",
+            "import": "./dist/positions.js",
+            "default": "./dist/positions.js"
         }
     },
     "sideEffects": false,

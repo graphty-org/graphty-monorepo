@@ -15,6 +15,7 @@ import { type ResolvedImportOptions } from "../../common/options.js";
 import { agree, plural } from "../../common/plural.js";
 import { type ImportReportBuilder, type IssueLocation } from "../../common/report.js";
 import { parseWeightText } from "../../common/weights.js";
+import { flipY } from "../../positions/convert.js";
 import { ColumnSet } from "./columns.js";
 import {
     CYTOSCAPE_ORIGIN_NAMESPACE,
@@ -1396,8 +1397,7 @@ class Positions {
             }
         }
         if (x !== null && y !== null) {
-            const flipped = y === 0 ? 0 : -y;
-            this.values.set(row.index, [x, flipped, this.zAs === "position" ? (z ?? 0) : 0]);
+            this.values.set(row.index, [x, flipY(y), this.zAs === "position" ? (z ?? 0) : 0]);
         }
     }
 

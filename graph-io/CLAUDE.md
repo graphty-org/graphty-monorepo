@@ -23,7 +23,7 @@ research note 07 (`tmp/graph-format-design/07-file-format-requirements.md`).
 
 ```
 graph-io/
-+-- package.json                  # @graphty/graph-io, ESM only, sideEffects false, "." + one subpath per format
++-- package.json                  # @graphty/graph-io, ESM only, sideEffects false, "." + one subpath per format + "./positions"
 +-- project.json                  # Nx project "graph-io"
 +-- tsconfig.json                 # lint/typecheck: src/ test/ benchmarks/ + ../graph-format/src (paths), noEmit, lib DOM
 +-- tsconfig.build.json           # emit: src/ only, rootDir ".", outDir dist (-> dist/src/), format resolved from its dist
@@ -58,6 +58,10 @@ graph-io/
 |   |   +-- xml.ts                # the streaming XML tokenizer (GEXF, GraphML), entity decoding, xmlIllegalTextNotes()
 |   |   +-- escape.ts  format.ts  writer.ts   # quoting per format, formatDecimal / formatGmlReal, encodeChunks / joinText
 |   |   +-- ontology.ts  ontology-export.ts   # the OBO column vocabulary (OBO and OBO Graphs), what the two ontology exporters share
+|   |   +-- notes.ts  units.ts    # the aggregated note collector, LengthUnit / GraphTool (shared by file positions and file styles)
+|   +-- positions/                # @graphty/graph-io/positions: extractPositions() (stored coordinates as center, y up, file
+|   |                             # units), toFilePositions(), POSITION_ISSUE; never imports a format module. A format says how
+|   |                             # its coordinates are spelled in the position column's meta.extra or an importer positions() hook
 |   +-- formats/<format>/         # gexf graphml gml dot pajek csv json neo4j
 |       +-- index.ts              # the subpath barrel: <fmt>Importer, <fmt>Exporter, option types, code tables
 |       +-- importer.ts           # GraphImporter<Opts>

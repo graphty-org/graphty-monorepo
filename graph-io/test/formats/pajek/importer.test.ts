@@ -95,7 +95,13 @@ describe("pajekImporter: the corpus", () => {
         const position = snapshot.nodes.requireTyped("position", "f64");
         expect(position.meta.role).toBe("position");
         expect(position.meta.components).toBe(3);
-        expect(position.meta.extra).toEqual({ sourceDims: 3, units: "file" });
+        expect(position.meta.extra).toEqual({
+            sourceDims: 3,
+            units: "file",
+            yAxis: "down",
+            zOrigin: 0.5,
+            zeroUnplaced: true,
+        });
         expect(Array.from(position.value(0) as ArrayLike<number>)).toEqual([0.1, 0.2, 0]);
         expect(Array.from(position.value(4) as ArrayLike<number>)).toEqual([0.9, 1, 0]);
         // 3 arcs, then 2 undirected edges expanded into pairs

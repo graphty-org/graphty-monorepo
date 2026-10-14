@@ -125,6 +125,7 @@ import {
     SUFFIX,
 } from "./dialect.js";
 import { importObographs } from "./obographs.js";
+import { jsonPositions } from "./positions.js";
 
 /**
  * The format-specific options of the JSON importer. `graphIndex` / `graphName` choose one graph of
@@ -3757,6 +3758,7 @@ export const jsonImporter: GraphImporter<JsonImportOptions> = Object.freeze({
         "typedefs",
     ]),
     extensions: Object.freeze([".json"]),
+    positions: jsonPositions,
     mimeTypes: Object.freeze(["application/json"]),
 
     /**

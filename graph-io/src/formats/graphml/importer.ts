@@ -86,7 +86,7 @@ import {
     XSI_NAMESPACE,
 } from "./constants.js";
 import { XmlTreeBuilder } from "./tree.js";
-import { graphicsDecl, graphicsValues } from "./yfiles.js";
+import { graphicsDecl, graphicsValues, yfilesPositions } from "./yfiles.js";
 
 /** The XML attributes the importer reads on each element; any other is reported (once per element and name). */
 const GRAPH_ATTRIBUTES: ReadonlySet<string> = new Set(["id", "edgedefault", "parse.nodes", "parse.edges"]);
@@ -2696,6 +2696,7 @@ export const graphmlImporter: GraphImporter<GraphmlImportOptions> = Object.freez
     extensions: EXTENSIONS,
     mimeTypes: MIME_TYPES,
     sniff: sniffGraphml,
+    positions: yfilesPositions,
     import: importGraphml,
 });
 

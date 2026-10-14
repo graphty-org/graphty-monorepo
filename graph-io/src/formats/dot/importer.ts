@@ -100,6 +100,7 @@ import {
     SOURCE_PORT_COLUMN,
     TARGET_PORT_COLUMN,
 } from "./names.js";
+import { dotPositions } from "./positions.js";
 import { DotSyntaxError, type DotToken, DotTokenizer } from "./tokenizer.js";
 
 /**
@@ -326,6 +327,7 @@ export const dotImporter: GraphImporter<DotImportOptions> = Object.freeze({
     options: Object.freeze(["mismatchedEdgeOperator", "positions"]),
     extensions: EXTENSIONS,
     mimeTypes: MIME_TYPES,
+    positions: dotPositions,
 
     /**
      * Confidence that the head of an input is DOT: the `[strict] graph | digraph` header after

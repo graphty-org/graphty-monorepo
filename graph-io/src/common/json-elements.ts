@@ -1707,16 +1707,9 @@ export function headText(head: Uint8Array): string {
     return new TextDecoder(encoding).decode(head).replace(/^\uFEFF/, "");
 }
 
-/**
- * Cytoscape's screen y (growing downward) as graph-io's y (growing upward), and back: a negation
- * that never yields -0.
- * @param y - the coordinate
- * @returns the flipped coordinate
- * @category Plugin helpers
- */
-export function flipY(y: number): number {
-    return y === 0 ? 0 : -y;
-}
+// Cytoscape's screen y (growing downward) as graph-io's y (growing upward), and back: the one
+// shared flip lives with the other position conversions.
+export { flipY } from "../positions/convert.js";
 
 // ============================================================ stream structure shared by CX1 and CX2
 

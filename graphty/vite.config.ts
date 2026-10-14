@@ -44,6 +44,22 @@ export default defineConfig(({ mode }) => {
         build: {
             outDir: "dist",
             sourcemap: true,
+            rollupOptions: {
+                output: {
+                    // Babylon.js and graphty-element (bundled from source, see vite.aliases.ts) in
+                    // chunks of their own. In one entry chunk with the app they made an 11 MB chunk
+                    // whose 44 MB sourcemap took the build past Node's default heap (#2563).
+                    manualChunks(id) {
+                        if (id.includes("/node_modules/@babylonjs/")) {
+                            return "babylon";
+                        }
+                        if (id.includes("/graphty-element/") && !id.includes("/node_modules/")) {
+                            return "graphty-element";
+                        }
+                        return undefined;
+                    },
+                },
+            },
         },
     };
 

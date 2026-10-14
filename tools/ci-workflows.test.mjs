@@ -393,6 +393,19 @@ describe("the pre-push gate matches CI", () => {
         assert.doesNotMatch(prepush, /GRAPHTY_GPU_REQUIRE=any npm run test:run/);
     });
 
+    it("checks the large-graph GPU screenshots on the local NVIDIA GPU when cytoscape-extensions is affected, skipping without a card", () => {
+        const prepush = code(tool("prepush.sh"));
+        const tests = prepush.indexOf("prepush-tests.mjs' '$PROJECTS'");
+        const shots = prepush.indexOf("node scripts/gpu-screenshots.mjs --check");
+        assert.ok(tests > 0 && shots > tests, "after the Tests step");
+        assert.match(
+            prepush,
+            /\nif affected cytoscape-extensions; then\n\s+if ! nvidia-smi -L [^\n]*\n\s+echo -e "[^"]*\[SKIP\] Large-graph GPU screenshots[\s\S]*?nx run cytoscape-extensions:build-storybook[\s\S]*?GRAPHTY_EGL_LIB_DIR='\$EGL_LIB_DIR'[^\n]*node scripts\/gpu-screenshots\.mjs --check\)"\n\s+fi\nfi/,
+        );
+        // --update writes the owner-approved references; the gate only compares
+        assert.doesNotMatch(prepush, /gpu-screenshots\.mjs --update/);
+    });
+
     it("bounds the screenshot capture and stops it, unpromoted, when the gate stops early", () => {
         const prepush = code(tool("prepush.sh"));
         assert.match(
@@ -1600,6 +1613,27 @@ describe("gpu.yml", () => {
             /- uses: actions\/checkout@v4\n {14}with: \{ ref: "\$\{\{ inputs.ref \}\}" \}/,
         );
         assert.doesNotMatch(gpu, /gpu-lane-needed|T4 GPU gate/);
+    });
+
+    it("checks the large-graph GPU screenshots, uploads them, and fails the job naming the stories that differ", () => {
+        const t4 = job(gpu, "test-gpu");
+        assert.match(
+            t4,
+            /git lfs pull --include "visual-fonts\/\*\*,cytoscape-extensions\/test\/gpu-screenshots\/\*\*"/,
+        );
+        assert.match(
+            t4,
+            /id: shots\n\s+continue-on-error: true\n[\s\S]*?run: node scripts\/gpu-screenshots\.mjs --check\n/,
+        );
+        assert.match(t4, /name: "gpu-screenshots-\$\{\{ github\.run_id \}\}"/);
+        assert.match(
+            t4,
+            /if: \$\{\{ !cancelled\(\) && steps\.shots\.outcome == 'failure' \}\}[\s\S]*?::error::[\s\S]*?exit 1\n/,
+        );
+        // never cached: a dispatch of any branch could save a cache the release train restores (CodeQL cache poisoning)
+        assert.doesNotMatch(t4, /path: \.git\/lfs\/objects/);
+        // --update writes references; only a person on a GPU machine runs it
+        assert.doesNotMatch(gpu, /gpu-screenshots\.mjs --update/);
     });
 
     it("runs on an on-demand T4 by default, the release train included, with spot and hosted as dispatch options", () => {

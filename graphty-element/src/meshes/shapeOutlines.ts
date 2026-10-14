@@ -204,7 +204,7 @@ export function convexHull(points: readonly Point2[]): Point2[] {
         const chain: Point2[] = [];
 
         for (const point of list) {
-            while (chain.length >= 2 && cross(chain[chain.length - 2], chain[chain.length - 1], point) <= 0) {
+            while (chain.length >= 2 && cross(chain.at(-2) ?? point, chain.at(-1) ?? point, point) <= 0) {
                 chain.pop();
             }
 
@@ -310,7 +310,7 @@ export function borderRing(outline: readonly Point2[], width: number, style: str
  */
 function cutIntoDashes(inner: readonly Point2[], outer: readonly Point2[], dash: number, gap: number): RingPiece[] {
     const lengths = cumulativeLengths(inner);
-    const perimeter = lengths[lengths.length - 1];
+    const perimeter = lengths.at(-1) ?? 0;
     const periods = Math.max(1, Math.round(perimeter / (dash + gap)));
     const period = perimeter / periods;
     const dashLength = period * (dash / (dash + gap));

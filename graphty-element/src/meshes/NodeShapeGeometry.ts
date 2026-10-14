@@ -129,7 +129,7 @@ function addRingPiece(slab: SlabBuilder, piece: RingPiece): void {
 
     if (!closed) {
         slab.wall(inner[0], outer[0]);
-        slab.wall(outer[outer.length - 1], inner[inner.length - 1]);
+        slab.wall(outer.at(-1) ?? outer[0], inner.at(-1) ?? inner[0]);
     }
 }
 

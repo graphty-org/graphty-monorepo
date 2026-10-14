@@ -436,6 +436,23 @@ export class Node {
     }
 
     /**
+     * Send every edge on this node back to find its surface, and wake a layout that keeps nodes
+     * apart by their drawn size (`nodeGap`): called when the node's geometry has changed.
+     */
+    private reattachEdges(): void {
+        const engine = this.context.getLayoutManager().layoutEngine;
+        if (engine instanceof NGraphEngine) {
+            engine.wakeForResize();
+        }
+
+        for (const edge of this.context.getDataManager().edges.values()) {
+            if (edge.srcNode === this || edge.dstNode === this) {
+                edge.invalidatePositionCache();
+            }
+        }
+    }
+
+    /**
      * Build this node's border from its style, as a child of its mesh so it moves, hides and is
      * disposed with the node. Called after every new mesh: the old border went with the old mesh.
      * @param meshKey - The source mesh key the node is drawn under.
@@ -799,19 +816,7 @@ export class Node {
         // that changes every node's shape ever hitches, the answer is a per-node edge index, not
         // removing the guard.
         if (geometryChanged) {
-            // A layout that keeps nodes apart by their drawn size (`nodeGap`) has to look again;
-            // the frame loop steps it while it is not settled.
-            const engine = this.context.getLayoutManager().layoutEngine;
-            if (engine instanceof NGraphEngine) {
-                engine.wakeForResize();
-            }
-
-            const dataManager = this.context.getDataManager();
-            for (const edge of dataManager.edges.values()) {
-                if (edge.srcNode === this || edge.dstNode === this) {
-                    edge.invalidatePositionCache();
-                }
-            }
+            this.reattachEdges();
         }
 
         this.mesh = NodeMesh.create(

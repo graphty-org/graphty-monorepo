@@ -5,7 +5,7 @@
  */
 
 import { effectiveMode } from "./config.mjs";
-import { TERMINAL } from "./board.mjs";
+import { sessionName, TERMINAL } from "./board.mjs";
 import { flakeData, flakeLines } from "./flakes.mjs";
 import { prHolder, prOf } from "./queue.mjs";
 import { sharedLines } from "./shared.mjs";
@@ -190,7 +190,7 @@ const RENDER = {
             `INCIDENTS (${open.length}):`,
             ...open.map((j) => {
                 const how = [j.facts?.class && `class ${j.facts.class}`, j.facts?.step && `step ${j.facts.step}`];
-                return `  ${j.target} -- ${[...how, jobState(j, now)].filter(Boolean).join("; ")}`;
+                return `  ${j.target} -- ${[...how, jobState(v.state, j, now)].filter(Boolean).join("; ")}`;
             }),
         ];
     },
@@ -278,7 +278,7 @@ const RENDER = {
         return [
             `JOBS (${jobs.length}):`,
             ...jobs.flatMap((j) => [
-                `  ${j.id} ${jobState(j, now, waits.get(j.id))} -- ${j.reason || "no reason recorded"}`,
+                `  ${j.id} ${jobState(v.state, j, now, waits.get(j.id))} -- ${j.reason || "no reason recorded"}`,
                 // The holder's last answer to githerd's status question (asks.mjs statusStep).
                 ...(j.status ? [`    status ${when(j.status.at)}: ${j.status.text}`] : []),
             ]),
@@ -376,12 +376,13 @@ function openJobs(state) {
 
 /**
  * A job's state, age, deadline and holder.
+ * @param {any} state the daemon state, for the holder's name
  * @param {import("./board.mjs").Job} j the job
  * @param {Date} now the current time
  * @param {"push" | "ci" | "owner" | "merge"} [wait] what the job is only waiting on (waits.mjs), shown in place of its state
  * @returns {string} the words
  */
-function jobState(j, now, wait) {
+function jobState(state, j, now, wait) {
     const merge = j.state === "waiting" && j.waitingFor?.merge;
     const label = merge
         ? `waiting for ${mergeWhat(merge)} to merge`
@@ -394,7 +395,10 @@ function jobState(j, now, wait) {
     const parts = [`${label} ${span(now.getTime() - Date.parse(j.stateSince))}`];
     if (j.pausedBy?.length) parts.push(`clock paused by ${j.pausedBy.join(", ")}`);
     else if (j.deadline) parts.push(`${j.deadlineAction} in ${span(Date.parse(j.deadline) - now.getTime())}`);
-    if (j.holder?.session) parts.push(`held by ${j.holder.window ?? j.holder.session}`);
+    if (j.holder?.session) {
+        // The owner's board falls back on the worker's tmux window, which he can attach to.
+        parts.push(`held by ${sessionName(state, j.holder.session, j.holder.window ?? null)}`);
+    }
     return parts.join(", ");
 }
 
@@ -499,7 +503,7 @@ export function whyText(item, state, ledger, now) {
     for (const r of [...jobs, ...items]) names.add(r.id);
     const lines = ledger.filter((e) => concerns(e, names));
     if (!jobs.length && !items.length && !lines.length) return null;
-    const out = jobs.flatMap((j) => jobWhy(j, now));
+    const out = jobs.flatMap((j) => jobWhy(state, j, now));
     for (const i of items) {
         const status = i.endedAt ? `ended ${when(i.endedAt)}` : "open";
         out.push(`owner item ${i.id} [${i.kind}], ${status}: ${i.question}`);
@@ -510,13 +514,14 @@ export function whyText(item, state, ledger, now) {
 
 /**
  * A job's part of `githerd why`: its state, reason, wait, attempts and facts.
+ * @param {any} state the daemon state
  * @param {import("./board.mjs").Job} j the job
  * @param {Date} now the current time
  * @returns {string[]} the lines
  */
-function jobWhy(j, now) {
+function jobWhy(state, j, now) {
     const out = [
-        `job ${j.id} (${j.kind}, ${j.target}): ${jobState(j, now)}`,
+        `job ${j.id} (${j.kind}, ${j.target}): ${jobState(state, j, now)}`,
         `  reason: ${j.reason || "none recorded"}`,
     ];
     if (j.waitingFor) out.push(`  waiting for: ${JSON.stringify(j.waitingFor)}`);

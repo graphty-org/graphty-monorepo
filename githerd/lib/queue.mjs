@@ -16,7 +16,7 @@
  * Only the owner's issues and pull requests are in it. Nothing here changes the state.
  */
 
-import { byOwner, TERMINAL } from "./board.mjs";
+import { byOwner, holderName, TERMINAL } from "./board.mjs";
 import { DEFAULTS } from "./config.mjs";
 import { staleRevert } from "./master-fix.mjs";
 import { orderPosition } from "./owner.mjs";
@@ -73,7 +73,11 @@ export function missingLabelKinds(labels, config) {
 
 /**
  * The open PR that is already working on an issue: it closes it, names it in its title, is its
- * githerd branch, or carries its fix (`state.merged.carried`, done.mjs).
+ * githerd branch, or carries its fix (`state.merged.carried`, done.mjs). A carrier stacked on another
+ * pull request still works on it once merged into that one's branch, until the stack lands
+ * (`state.merged.stacked`, merged.mjs).
+ * ponytail: a carrier merged into a parent that then closes unmerged hides its issue for good; drop
+ * the link when its parent closes if that ever happens.
  * @param {any} state the daemon state
  * @param {number} number the issue
  * @returns {number | null} the PR number, or null
@@ -87,7 +91,8 @@ function openPrFor(state, number) {
     );
     if (hit) return Number(hit[0]);
     const carrier = state.merged?.carried?.[number]?.pr;
-    return carrier && state.prs?.[carrier] ? carrier : null;
+    const waiting = state.merged?.stacked?.some((/** @type {any} */ p) => p.number === carrier);
+    return carrier && (state.prs?.[carrier] || waiting) ? carrier : null;
 }
 
 /**
@@ -464,7 +469,7 @@ export function jobOnPr(state, n, { except = null, review = false, session: call
         const session = j.holder?.session;
         if (!session) return `in flight as ${j.id}`;
         if (session === caller) return `yours: you claimed ${j.id}`;
-        return `claimed by session ${j.holder.name ?? state.sessions?.[session]?.name ?? session}`;
+        return `claimed by session ${holderName(state, j.holder)}`;
     }
     return null;
 }
@@ -548,7 +553,7 @@ export function prHolder(state, n) {
     const job = Object.values(state.jobs ?? {}).find(
         (j) => String(prOf(j)) === k && j.holder?.session && j.state !== "queued" && !TERMINAL.includes(j.state),
     );
-    if (job) return { name: job.holder.name ?? job.holder.session, since: job.claim?.at ?? job.stateSince ?? null };
+    if (job) return { name: holderName(state, job.holder), since: job.claim?.at ?? job.stateSince ?? null };
     const owned = state.prOwners?.[k];
     if (owned) return { name: owned.name, since: owned.at };
     const inferred = state.prInferred?.[k];
@@ -641,7 +646,7 @@ function jobOnIssue(state, job, caller) {
         const session = j.holder?.session;
         if (!session) return `#${n} is in flight in ${j.id}`;
         if (session === caller) return `yours: you claimed ${j.id}, which covers #${n}`;
-        return `#${n} is in ${j.id}, claimed by session ${j.holder.name ?? state.sessions?.[session]?.name ?? session}`;
+        return `#${n} is in ${j.id}, claimed by session ${holderName(state, j.holder)}`;
     }
     return null;
 }

@@ -118,7 +118,7 @@ function check(dir, packed, workspaceVersions) {
     for (const file of files) {
         // The top-level src/ is shipped for source maps; it is what dist was built FROM, not what runs.
         if (file.startsWith("src/")) continue;
-        if (!/\.(c|m)?js$|\.d\.(c|m)?ts$/.test(file)) continue;
+        if (!/\.[cm]?js$|\.d\.[cm]?ts$/.test(file)) continue;
         const text = fs.readFileSync(path.join(packed, file), "utf8");
         for (const re of IMPORT_PATTERNS) {
             for (const m of text.matchAll(re)) {

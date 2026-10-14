@@ -357,6 +357,18 @@ export default tseslint.config(
         plugins: { local: { rules: { "no-test-timing": noTestTiming } } },
         rules: { "local/no-test-timing": "error" },
     },
+    // Tests that still wait a counted number of animation frames, exempt from that one check until
+    // each is rewritten to wait on what it needs (#2535). graphty-element's are in its own config.
+    // Remove a file once it is fixed; never add one.
+    {
+        files: [
+            "compact-mantine/tests/figma/inputs.browser.test.tsx",
+            "compact-mantine/tests/figma/overlays.browser.test.tsx",
+            "compact-mantine/tests/figma/shell.browser.test.tsx",
+            "compact-mantine/tests/theme/combobox-props.browser.test.tsx",
+        ],
+        rules: { "local/no-test-timing": ["error", { frameWaits: false }] },
+    },
 
     // ============================================
     // RELAXED JSDOC FOR STORIES

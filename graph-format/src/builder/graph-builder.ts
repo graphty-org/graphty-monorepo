@@ -1554,7 +1554,7 @@ export class GraphBuilder implements GraphBuilderContract {
             }
             const explicit = staging.weightExplicit(e);
             const weight = explicit && staging.weight !== null ? staging.weight.get(e) : undefined;
-            const mirror = staging.pushEdge(v, u, weight);
+            const mirror = staging.pushEdge(v, u, weight); // NOSONAR(S2234): the mirror arc runs the other way on purpose
             directedColumn.write(mirror, false);
             pairColumn.write(e, mirror);
             pairColumn.write(mirror, e);

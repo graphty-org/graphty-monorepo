@@ -1,3 +1,13 @@
+## 3.25.7 (2026-10-14)
+
+### 🩹 Fixes
+
+- **graphty-element:** time the repaint's slices on the session's clock ([#2411](https://github.com/graphty-org/graphty-monorepo/issues/2411))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.25.6 (2026-10-13)
 
 ### 🩹 Fixes

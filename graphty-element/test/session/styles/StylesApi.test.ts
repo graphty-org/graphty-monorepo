@@ -854,12 +854,28 @@ describe("checking a layer before it is committed", () => {
         assert.include(result.errors[0]?.candidates ?? [], "linear");
     });
 
-    it("refuses a run-bound encoding on a layer that paints everything", () => {
+    it("accepts a run-bound encoding on a layer that paints everything, which paints only measured elements", () => {
+        const { styles } = makeStyles();
+        for (const [channel, by] of [
+            ["node.opacity", "results.degree.value"],
+            ["node.color", "results.louvain.group"],
+        ] as const) {
+            const result = styles.validate({
+                name: "Everything",
+                selector: { match: "everything" },
+                encode: { [channel]: { by } },
+            });
+
+            assert.deepStrictEqual(codesOf(result), [], channel);
+        }
+    });
+
+    it("refuses a run-bound encoding that paints missing results on a layer that paints everything", () => {
         const { styles } = makeStyles();
         const result = styles.validate({
             name: "Unscoped",
             selector: { match: "everything" },
-            encode: { "node.color": { by: "results.louvain.group", scale: "ordinal" } },
+            encode: { "node.color": { by: "results.louvain.group", scale: "ordinal", missing: { value: "#888888" } } },
         });
 
         assert.deepStrictEqual(codesOf(result), ["E_UNSCOPED_RUN_ENCODING"]);

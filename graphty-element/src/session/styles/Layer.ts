@@ -993,13 +993,17 @@ function checkBinding(
         });
     }
 
-    if (universal && binding.by.startsWith(RUN_PATH_PREFIX)) {
+    // Only a binding that paints a MISSING value reaches an element the run never measured: an
+    // element with no value is otherwise not painted at all (encoding.ts), so a layer matching
+    // everything already paints just the measured ones, and refusing it only turned a fitting
+    // field into a failed edit.
+    if (universal && binding.by.startsWith(RUN_PATH_PREFIX) && typeof binding.missing === "object") {
         report(log, {
             code: "E_UNSCOPED_RUN_ENCODING",
             message:
-                `This layer paints every ${descriptor.target} and encodes ${descriptor.channel} from "${binding.by}", ` +
-                "which would paint elements the run never measured. Scope it to the elements that carry the result " +
-                `with { match: "has", path: "${binding.by}" }.`,
+                `This layer paints every ${descriptor.target} and encodes ${descriptor.channel} from "${binding.by}" ` +
+                "with a value for a missing result, which would paint elements the run never measured. Scope it to " +
+                `the elements that carry the result with { match: "has", path: "${binding.by}" }, or drop missing.`,
             path: "selector",
         });
     }

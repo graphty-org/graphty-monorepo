@@ -69,7 +69,7 @@ def keyed(tokens, keys):
 def scene(path):
     colors = Colors()
     sec, nodes, edges, ordinal = None, [], [], {}
-    pos = {}
+    pos, placed = {}, False
     for raw in open(path, encoding="utf-8", errors="replace"):
         line = raw.strip()
         if not line or line.startswith("%"):
@@ -88,6 +88,7 @@ def scene(path):
             shape = rest.pop(0).lower() if rest and rest[0].lower() in SHAPES else "ellipse"
             k = keyed(rest, VERTEX_KEYS)
             x, y = (coords + [0.0, 0.0])[:2]
+            placed = placed or bool(coords)
             size = float(k.get("s_size", 1))
             w, h = BASE * size * float(k.get("x_fact", 1)), BASE * size * float(k.get("y_fact", 1))
             fill, border = colors(k.get("ic")), colors(k.get("bc", "Black"))
@@ -115,6 +116,8 @@ def scene(path):
                           "label": k.get("l")})
         # ponytail: *Arcslist, *Edgeslist and *Matrix sections are not read; add them when a sample uses them
     gaps = []
+    if not placed:
+        gaps.append({"property": "position", "reason": "the file stores no coordinates; Pajek lays it out when it draws"})
     if colors.unknown:
         gaps.append({"property": "fill", "reason": "Pajek color names with no published RGB (not in dvipsnam.def): "
                      + ", ".join(sorted(colors.unknown)) + "; those nodes have no fill here"})

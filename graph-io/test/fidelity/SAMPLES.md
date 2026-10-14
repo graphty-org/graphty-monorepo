@@ -1,7 +1,9 @@
 # Style fidelity samples
 
 One real styled file per format (two for Cytoscape.js JSON), each with reference scenes from the
-program that wrote it or from an independent reading of it. `samples.ts` is the same list for the
+program that wrote it or from an independent reading of it. Each is a typical file of its format:
+what people make and share in that tool, a readable network of tens to a few hundred nodes with
+its own colors, sizes, labels and edge styles, not a test case or a stress graph. `samples.ts` is the same list for the
 tests. A scene is `scenes/<sample>/<route>.ref.json`; `regenerate.sh` rebuilds them, and `routes.ts`
 holds each route's deficiency ledger (what it cannot carry, and why).
 
@@ -14,19 +16,19 @@ Where a route matches elements by something other than the file's own id, the co
 - `gephi-noscale`, `sigma`, `yed-file`, `pajek-file`, `graphviz-*`: the file's ids; edges without an
   id in the file are `<source>-><target>`.
 
-| Sample                   | File (under `graph-io/test/`)                                           | License                        | Routes, best first                    |
-| ------------------------ | ----------------------------------------------------------------------- | ------------------------------ | ------------------------------------- |
-| `dot-profile`            | `corpus/styles/dot/graphviz-gallery-directed-profile.gv`                | EPL-2.0                        | `graphviz-json`                       |
-| `gexf-miserables`        | `corpus/styles/gexf/gexfjs-miserables.gexf`                             | MIT                            | `gephi-noscale`, `sigma`              |
-| `graphml-yed-voctomix`   | `corpus/styles/graphml/yed-shapenode/voc__voctomix__schema.graphml`     | MIT                            | `yed-file`, `drawio`                  |
-| `gml-yed-need4stacks`    | `corpus/styles/gml/spupyrev_bob__need4stacks261.gml`                    | MIT                            | `yed-file`, `cytoscape-gml`, `gml2gv` |
-| `pajek-b`                | `corpus/styles/pajek/graphstream_gs-core__B.net`                        | LGPL-3.0-or-later OR CECILL-C  | `pajek-file`, `graphviz-n2`           |
-| `xgmml-basicdataviz`     | `corpus/styles/xgmml/BasicDataVizDemo.xgmml.gz`                         | CC0-1.0                        | `cytoscape-desktop`, `cyjs-hop`       |
-| `cx-ndex-90f78bcd`       | `corpus/styles/cx/ndex-90f78bcd-1dd0-11ef-9621-005056ae23aa.cx`         | CC-BY-4.0                      | `cytoscape-desktop`, `cyjs-hop`       |
-| `cx2-ndex-90f78bcd`      | `corpus/styles/cx2/ndex-90f78bcd-1dd0-11ef-9621-005056ae23aa.cx2`       | CC-BY-4.0                      | `cytoscape-desktop`, `cyjs-hop`       |
-| `cys-annotation-example` | `corpus/styles/cys/cytoscape-tutorials-AnnotationExample.cys`           | CC0-1.0                        | `cytoscape-desktop`, `cyjs-hop`       |
-| `cyjs-scsweb`            | `corpus/styles/json/scsweb2020_graph-maker__aggregate-cy-graph.json.gz` | MIT                            | `cyjs-computed`                       |
-| `cyjs-handmade`          | `fidelity/samples/cyjs-handmade.json`                                   | MIT (written for this project) | `cyjs-computed`                       |
+| Sample                   | File (under `graph-io/test/`)                                            | License   | Routes, best first                    |
+| ------------------------ | ------------------------------------------------------------------------ | --------- | ------------------------------------- |
+| `dot-profile`            | `corpus/styles/dot/graphviz-gallery-directed-profile.gv`                 | EPL-2.0   | `graphviz-json`                       |
+| `gexf-miserables`        | `corpus/styles/gexf/gexfjs-miserables.gexf`                              | MIT       | `gephi-noscale`, `sigma`              |
+| `graphml-yed-voctomix`   | `corpus/styles/graphml/yed-shapenode/voc__voctomix__schema.graphml`      | MIT       | `yed-file`, `drawio`                  |
+| `gml-yed-pmodel`         | `corpus/styles/gml/ImperialCollegeLondon_pyrealm__pmodel.gml`            | MIT       | `yed-file`, `cytoscape-gml`, `gml2gv` |
+| `pajek-iliad`            | `corpus/styles/pajek/kjhealy_kjhnet__iliad_killedby.net`                 | MIT       | `pajek-file`                          |
+| `xgmml-basicdataviz`     | `corpus/styles/xgmml/BasicDataVizDemo.xgmml.gz`                          | CC0-1.0   | `cytoscape-desktop`, `cyjs-hop`       |
+| `cx-ndex-90f78bcd`       | `corpus/styles/cx/ndex-90f78bcd-1dd0-11ef-9621-005056ae23aa.cx`          | CC-BY-4.0 | `cytoscape-desktop`, `cyjs-hop`       |
+| `cx2-ndex-90f78bcd`      | `corpus/styles/cx2/ndex-90f78bcd-1dd0-11ef-9621-005056ae23aa.cx2`        | CC-BY-4.0 | `cytoscape-desktop`, `cyjs-hop`       |
+| `cys-annotation-example` | `corpus/styles/cys/cytoscape-tutorials-AnnotationExample.cys`            | CC0-1.0   | `cytoscape-desktop`, `cyjs-hop`       |
+| `cyjs-genemania`         | `fidelity/samples/cyjs-genemania.json`                                   | MIT       | `cyjs-computed`                       |
+| `cyjs-glycolysis`        | `corpus/styles/json/iVis-at-Bilkent_cytoscape.js-cosep__glycolysis.json` | MIT       | `cyjs-computed`                       |
 
 ## What each sample's references can judge
 
@@ -44,17 +46,19 @@ reference: 39 nodes, 4 group boxes, 48 edges with bends, dashes and arrows. draw
 read independently, agrees with it on every node, edge and group of this file (position, size,
 shape, fill, border, labels, edge ends and bends).
 
-**yEd GML, `gml-yed-need4stacks`.** The file's own geometry through networkx: 261 ellipses in 4
-fills and 2 sizes, 777 edges, 13 with bends. Cytoscape's GML reader agrees on every position, size,
-fill and shape, and shows exactly its ledger's losses: border width 0 where yEd draws 1, implicit
-edge width 2.0 where yEd draws 1. gml2gv mirrors y, grows nodes to fit labels, writes fills as
-outlines and turns `directed 1` into arrowheads on every edge.
+**yEd GML, `gml-yed-pmodel`.** The P Model's data flow from the pyrealm documentation, drawn in yEd
+2.17 with its flowchart palette. The file's own geometry through networkx: 34 data parallelograms
+and 2 process boxes in two fills, with labels inside, 57 edges with arrowheads, 19 of them routed
+through bends and drawn smooth, the rest straight. Cytoscape's GML reader agrees on every position,
+size and fill, and shows its ledger's losses: every node a round rectangle (it ignores yEd's
+flowchart shapes), the bends dropped, its own default border and edge widths. gml2gv mirrors y,
+grows nodes to fit labels, writes fills as outlines and draws every edge with an arrowhead.
 
-**Pajek, `pajek-b`.** The file's own keys: 111 vertices at stored coordinates in three shapes, size
-factors, label sizes, border widths, 193 arcs. Pajek itself did not run (no Wine). 98 vertices use
-Pajek color names with no published RGB (LightCyan, LightGreen, ...), so their fill is a gap; Pajek's
-base vertex size, label offsets and default font size are viewer settings, so size is a ratio and
-label position is a gap. `graphviz-n2` pins the same positions in Graphviz for geometry only.
+**Pajek, `pajek-iliad`.** Who killed whom in the Iliad (Rossman 2017, "Glory and Gore"), as shared
+in Pajek's format: 311 named warriors, Greeks blue and Trojans red, 292 arcs from each slain warrior to the one who killed him.
+Like most Pajek files people share, it stores no coordinates: Pajek lays the network out when it
+draws, so position is a gap and only what the file states is judged (fills, labels, arrows). The
+reference is the file's own keys; Pajek itself did not run (no Wine).
 
 **XGMML, CX, CX2, sessions.** Cytoscape desktop's resolved visual properties per node and edge.
 CX and CX2 are the same network, and Cytoscape draws them identically. The session reference
@@ -64,9 +68,11 @@ center, clipped at each node's ellipse or box (within about 20 units of what Cyt
 node of the XGMML and CX files, and on the session it shows its ledger's losses (every size a flat
 50, font sizes not carried).
 
-**Cytoscape.js, `cyjs-scsweb` and `cyjs-handmade`.** Cytoscape.js itself draws the document. The
-scsweb file was saved from a running graph, so its node width, height and font size are the string
-`"fn"` and Cytoscape.js falls back to its defaults; graphty-element sees the same input. The
-hand-made document is the one the File Styles story uses; it stores no positions, so position is a
-gap (Cytoscape.js lays it out on a grid). Edges with no `curve-style` are Cytoscape.js's default
-haystack, drawn center to center.
+**Cytoscape.js, `cyjs-genemania` and `cyjs-glycolysis`.** Cytoscape.js itself draws the document.
+`cyjs-genemania` is the GeneMANIA demo of Cytoscape.js (`documentation/demos/genemania-export`,
+MIT), written as one document: the demo's `data.json` elements at their stored positions with the
+stylesheet its `code.js` builds, as JSON (its concentric layout left out). 31 genes sized by score,
+the query genes darker, labels inside, 255 haystack edges colored by interaction type at a third
+opacity, their width mapped from weight. `cyjs-glycolysis` is a saved `cy.json()` from the
+cytoscape.js-cosep demo: 44 SBGN glyphs at stored positions, white boxes, rounded boxes and
+ellipses by class, blue edges ending in triangles or circles.

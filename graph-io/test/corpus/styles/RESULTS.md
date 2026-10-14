@@ -7,7 +7,7 @@ values are those that differ from their property's most common value; opaque one
 copies values (an unexplained passthrough or the exceptions), exception ones from the exceptions rule alone.
 Tool values are elements drawn with the writing program's default.
 
-368 inputs, 365 with styles; at most 15 node and 15 edge rules.
+370 inputs, 367 with styles; at most 15 node and 15 edge rules.
 
 | Input | Import | Nodes | Edges | Node rules | Edge rules | Varying | Opaque | Exceptions | Approximated | Tool values | Declared selecting nothing | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -163,6 +163,7 @@ Tool values are elements drawn with the writing program's default.
 | gexf/sigma-moroccan-ediaspora.gexf.gz | ok | 156 | 397 | 3 | 4 | 356 | 0% | 0% | 0 | 1744 | 0 |  |
 | gexf/sigma-standard_graph.gexf | ok | 17 | 35 | 3 | 3 | 26 | 100% | 0% | 0 | 157 | 0 |  |
 | gexf/sigma-website-diseasome.gexf.gz | ok | 1419 | 3926 | 3 | 3 | 2208 | 0% | 0% | 0 | 13197 | 0 |  |
+| gml/ImperialCollegeLondon_pyrealm__pmodel.gml | ok | 36 | 57 | 5 | 4 | 16 | 13% | 13% | 0 | 465 | 0 |  |
 | gml/TwelveYC_network-vi__metabolicpos.gml | ok | 453 | 2040 | 2 | 4 | 0 | - | - | 0 | 8613 | 0 |  |
 | gml/di-unipi-socc_dgLBF__germany50.gml | ok | 50 | 88 | 2 | 1 | 0 | - | - | 0 | 0 | 0 | W_STYLE_UNKNOWN_VALUE |
 | gml/generated/cytoscape-interactions.gml | ok | 30 | 45 | 4 | 3 | 87 | 0% | 0% | 0 | 690 | 0 |  |
@@ -333,6 +334,7 @@ Tool values are elements drawn with the writing program's default.
 | pajek/generated/tamper-native-edited.net | ok | 6 | 7 | 3 | 3 | 22 | 95% | 0% | 0 | 20 | 0 | W_STYLE_UNKNOWN_VALUE |
 | pajek/generated/tamper-node-added.net | ok | 7 | 7 | 2 | 3 | 15 | 100% | 0% | 0 | 35 | 0 | W_STYLE_BLOCK_IGNORED, W_STYLE_UNKNOWN_VALUE |
 | pajek/graphstream_gs-core__B.net | ok | 111 | 193 | 4 | 3 | 62 | 0% | 0% | 0 | 1076 | 0 | W_STYLE_BAD_VALUE |
+| pajek/kjhealy_kjhnet__iliad_killedby.net | ok | 311 | 292 | 3 | 2 | 75 | 76% | 76% | 0 | 2082 | 0 |  |
 | roles/by-group-0 | ok | 0 | 0 | 0 | 0 | 0 | - | - | 0 | 0 | 0 |  |
 | roles/by-group-1 | ok | 1 | 0 | 1 | 0 | 0 | - | - | 0 | 0 | 0 |  |
 | roles/by-group-300 | ok | 300 | 600 | 3 | 3 | 1642 | 7% | 7% | 0 | 0 | 0 |  |

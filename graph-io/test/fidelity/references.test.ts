@@ -164,7 +164,7 @@ describe("shared extractor logic", () => {
 
     it("rejects a scene the schema forbids, and edges naming missing nodes", async () => {
         const { sceneErrors } = await load<Common>("common.mjs");
-        const good = JSON.parse(readFileSync(`${here}scenes/cyjs-handmade/cyjs-computed.ref.json`, "utf8")) as Scene;
+        const good = JSON.parse(readFileSync(`${here}scenes/cyjs-genemania/cyjs-computed.ref.json`, "utf8")) as Scene;
         expect(sceneErrors(good)).toEqual([]);
         const bad = structuredClone(good);
         bad.nodes[0].fill = "red";

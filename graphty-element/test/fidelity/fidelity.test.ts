@@ -224,7 +224,7 @@ const FAULTS: readonly Fault[] = [
 ];
 
 /** The sample the self-check plants its faults in: filled, visible, un-outlined nodes. */
-const SELF_CHECK_SAMPLE = "cyjs-handmade";
+const SELF_CHECK_SAMPLE = "cyjs-genemania";
 
 describe("style fidelity: graphty-element's drawing of each sample", () => {
     // Runs first: each scorer must catch a fault planted in the RENDERER (so the requested style

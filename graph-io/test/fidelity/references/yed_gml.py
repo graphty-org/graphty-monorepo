@@ -16,6 +16,11 @@ import networkx as nx
 
 from refcommon import clip_path, emit, hex_color, node, provenance
 
+# yEd's flowchart palette stores a node's shape as a configuration, not a `type`
+FLOWCHART = {"com.yworks.flowchart.data": "parallelogram", "com.yworks.flowchart.process": "rectangle",
+             "com.yworks.flowchart.decision": "diamond", "com.yworks.flowchart.terminator": "roundrectangle",
+             "com.yworks.flowchart.start1": "ellipse", "com.yworks.flowchart.start2": "ellipse"}
+
 
 def scene(path):
     g = nx.read_gml(path, label="id")
@@ -23,7 +28,7 @@ def scene(path):
     for i, (n, d) in enumerate(g.nodes(data=True)):
         gr, lg = d.get("graphics", {}), d.get("LabelGraphics", {})
         x, y, w, h = (float(gr.get(k, 0)) for k in ("x", "y", "w", "h"))
-        shape = gr.get("type", "rectangle")
+        shape = gr.get("type") or FLOWCHART.get(gr.get("customconfiguration"), "rectangle")
         geo[n] = (x, y, w, h, "ellipse" if shape in ("ellipse", "circle", "oval") else "rect")
         fill = hex_color(gr.get("fill"))
         outline = hex_color(gr.get("outline"))
@@ -43,13 +48,14 @@ def scene(path):
         gr = d.get("graphics", {})
         pts = gr.get("Line", {}).get("point", [])
         pts = [[float(p["x"]), float(p["y"])] for p in (pts if isinstance(pts, list) else [pts])]
+        bent = len(pts) > 2
         if len(pts) < 2:
             pts = [list(geo[s][:2]), list(geo[t][:2])]
         k = ordinal.get((s, t), 0)
         ordinal[(s, t)] = k + 1
         color = hex_color(gr.get("fill", "#000000")) or ("#000000", 1.0)
         edges.append({"id": f"{s}->{t}" + (f"#{k}" if k else ""), "source": str(s), "target": str(t),
-                      "points": clip_path(pts, geo[s], geo[t]), "curved": gr.get("smoothBends") == 1,
+                      "points": clip_path(pts, geo[s], geo[t]), "curved": bent and gr.get("smoothBends") == 1,
                       "color": color[0], "opacity": color[1], "width": float(gr.get("width", 1)),
                       "style": gr.get("style", "line"),
                       "arrow": {"source": gr.get("sourceArrow", "none"), "target": gr.get("targetArrow", "none")},

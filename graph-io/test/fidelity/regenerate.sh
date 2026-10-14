@@ -13,14 +13,14 @@
 # conda-graphviz/ (Graphviz 14.1.2 CLI), npm-graphviz/ (@hpcc-js/wasm-graphviz 1.29.2), sigma/
 # (graphology-gexf, sigma), py/ (networkx 3.7), drawio/ (draw.io 32.4.1 source). Cytoscape desktop
 # must already run under servherd with CyREST on $CYREST_PORT. Browser steps run under
-# $WITH_BROWSER (default <main checkout>/design/ui/studio/tool/with-browser.sh), the machine's
+# $WITH_BROWSER (default <main checkout>/tmp/with-browser.sh), the machine's
 # shared browser slots.
 set -euo pipefail
 
 here=$(cd "$(dirname "$0")" && pwd)
 main=$(dirname "$(git -C "$here" rev-parse --path-format=absolute --git-common-dir)")
 TOOLS=${STYLE_FIDELITY_TOOLS:-$main/tmp/style-fidelity/tools}
-WITH_BROWSER=${WITH_BROWSER:-$main/design/ui/studio/tool/with-browser.sh}
+WITH_BROWSER=${WITH_BROWSER:-$main/tmp/with-browser.sh}
 C=$here/../corpus/styles
 R=$here/references
 mode=${1:-all}
@@ -54,13 +54,13 @@ if want dot-profile ci; then
 fi
 
 # Cytoscape.js JSON: Cytoscape.js itself (the package's devDependency, so CI can rebuild it)
-if want cyjs-scsweb ci; then
-    browser node "$R/cyjs.mjs" "$C/json/scsweb2020_graph-maker__aggregate-cy-graph.json.gz" \
-        "$C/json/scsweb2020_graph-maker__aggregate-cy-graph.json.gz" cyjs-computed "$S/cyjs-scsweb/cyjs-computed.ref.json"
+if want cyjs-genemania ci; then
+    browser node "$R/cyjs.mjs" "$here/samples/cyjs-genemania.json" "$here/samples/cyjs-genemania.json" cyjs-computed \
+        "$S/cyjs-genemania/cyjs-computed.ref.json"
 fi
-if want cyjs-handmade ci; then
-    browser node "$R/cyjs.mjs" "$here/samples/cyjs-handmade.json" "$here/samples/cyjs-handmade.json" cyjs-computed \
-        "$S/cyjs-handmade/cyjs-computed.ref.json"
+if want cyjs-glycolysis ci; then
+    f=$C/json/iVis-at-Bilkent_cytoscape.js-cosep__glycolysis.json
+    browser node "$R/cyjs.mjs" "$f" "$f" cyjs-computed "$S/cyjs-glycolysis/cyjs-computed.ref.json"
 fi
 [[ "$mode" == "ci" ]] && { echo "ci scenes in $S"; exit 0; }
 
@@ -79,24 +79,19 @@ if want graphml-yed-voctomix; then
 fi
 
 # yEd GML: the file's own drawing (networkx), Cytoscape's GML reader, and gml2gv
-if want gml-yed-need4stacks; then
-    f=$C/gml/spupyrev_bob__need4stacks261.gml
-    py "$R/yed_gml.py" "$f" | finish "$S/gml-yed-need4stacks/yed-file.ref.json"
-    cyrest "$f" "$f" cytoscape-gml "$S/gml-yed-need4stacks/cytoscape-gml.ref.json"
-    "$G/gml2gv" "$f" > "$work/n4s.dot"
-    "$G/neato" -n2 -Tjson "$work/n4s.dot" > "$work/n4s.json"
-    node "$R/graphviz.mjs" --json "$work/n4s.json" gml2gv "$f" "Graphviz gml2gv, neato -n2" "$(gv_version)" \
-        "gml2gv <file> | neato -n2 -Tjson" "$S/gml-yed-need4stacks/gml2gv.ref.json"
+if want gml-yed-pmodel; then
+    f=$C/gml/ImperialCollegeLondon_pyrealm__pmodel.gml
+    py "$R/yed_gml.py" "$f" | finish "$S/gml-yed-pmodel/yed-file.ref.json"
+    cyrest "$f" "$f" cytoscape-gml "$S/gml-yed-pmodel/cytoscape-gml.ref.json"
+    "$G/gml2gv" "$f" > "$work/pmodel.dot"
+    "$G/neato" -n2 -Tjson "$work/pmodel.dot" > "$work/pmodel.json"
+    node "$R/graphviz.mjs" --json "$work/pmodel.json" gml2gv "$f" "Graphviz gml2gv, neato -n2" "$(gv_version)" \
+        "gml2gv <file> | neato -n2 -Tjson" "$S/gml-yed-pmodel/gml2gv.ref.json"
 fi
 
-# Pajek: the file's own values, and its geometry pinned through neato -n2
-if want pajek-b; then
-    f=$C/pajek/graphstream_gs-core__B.net
-    python3 "$R/pajek_file.py" "$f" | finish "$S/pajek-b/pajek-file.ref.json"
-    node "$R/graphviz.mjs" --pin "$S/pajek-b/pajek-file.ref.json" > "$work/b.dot"
-    "$G/neato" -n2 -Tjson "$work/b.dot" > "$work/b.json"
-    node "$R/graphviz.mjs" --json "$work/b.json" graphviz-n2 "$f" "Graphviz neato -n2" "$(gv_version)" \
-        "graphviz.mjs --pin pajek-file.ref.json | neato -n2 -Tjson" "$S/pajek-b/graphviz-n2.ref.json"
+# Pajek: the file's own values (it stores no coordinates, so nothing to pin in Graphviz)
+if want pajek-iliad; then
+    python3 "$R/pajek_file.py" "$C/pajek/kjhealy_kjhnet__iliad_killedby.net" | finish "$S/pajek-iliad/pajek-file.ref.json"
 fi
 
 # XGMML, CX, CX2, sessions: Cytoscape desktop, and its Cytoscape.js export drawn by Cytoscape.js

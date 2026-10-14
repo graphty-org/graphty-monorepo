@@ -106,7 +106,10 @@ const ROUTES: Record<RouteId, RouteLedger> = {
         deficits: {
             edgePath: no("Cytoscape's GML reader drops Line points (bends)"),
             borderWidth: altered("an implicit border width is drawn 0 by Cytoscape, 1 by yEd"),
-            edgeWidth: altered("an implicit edge width becomes Cytoscape's default 2.0"),
+            edgeWidth: altered("an implicit edge width becomes Cytoscape's default width"),
+            shape: altered(
+                "a node with no `type` (yEd's flowchart shapes) becomes Cytoscape's default round rectangle",
+            ),
             fontSize: altered("unproven: yEd's value equals Cytoscape's default, so a loss cannot be seen"),
         },
     },
@@ -119,7 +122,7 @@ const ROUTES: Record<RouteId, RouteLedger> = {
             edgePath: no("bends are drawn straight or as Bezier control points"),
             size: altered("Graphviz grows a node to fit its label"),
             arrows: altered(
-                "gml2gv writes a digraph for `directed 1`, so Graphviz draws an arrowhead on every edge where yEd draws none",
+                "gml2gv writes a digraph for `directed 1`, so Graphviz draws an arrowhead on every edge, where yEd draws one only where targetArrow names it",
             ),
         },
     },

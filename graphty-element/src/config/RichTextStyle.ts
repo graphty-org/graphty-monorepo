@@ -176,3 +176,23 @@ export type RichTextStyleType = z.infer<typeof RichTextStyle>;
  * Parsed from the Zod schema to ensure defaults stay in sync.
  */
 export const defaultRichTextLabelStyle: RichTextStyleType = RichTextStyle.parse({});
+
+/**
+ * The smallest font size that draws any text. A size under it (0, or a negative number, which
+ * the schema accepts) draws no text at all, and a layer that writes one is told so with
+ * `W_TEXT_TOO_SMALL`.
+ */
+export const MIN_DRAWN_FONT_SIZE = 1;
+
+/**
+ * Whether a resolved text block draws: switched on, and at a size that draws text.
+ * @param block - The resolved label, tooltip or caption block.
+ * @returns The block when it draws, else undefined.
+ */
+export function drawnText<T extends Pick<RichTextStyleType, "enabled" | "fontSize">>(
+    block: T | undefined,
+): T | undefined {
+    return block?.enabled === true && (block.fontSize === undefined || block.fontSize >= MIN_DRAWN_FONT_SIZE)
+        ? block
+        : undefined;
+}

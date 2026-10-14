@@ -11,6 +11,7 @@ import {
     type GraphSelectionStyleConfig,
     type RichTextStyleType,
 } from "./config";
+import { drawnText } from "./config/RichTextStyle";
 import { EDGE_CONSTANTS } from "./constants/meshConstants";
 import { edgeIdOf } from "./data/edgeIdentity";
 import type { Graph } from "./Graph";
@@ -86,7 +87,7 @@ const HALO_DEPTH_OFFSET = 2;
  * @returns The block when a caption should be drawn from it, and undefined otherwise.
  */
 function captionWanted(block: RichTextStyleType | undefined, cap: ArrowCap | null): RichTextStyleType | undefined {
-    return cap !== null && block?.enabled === true ? block : undefined;
+    return cap === null ? undefined : drawnText(block);
 }
 
 /**
@@ -1071,7 +1072,7 @@ export class Edge {
     private syncContent(style: EdgeStyleConfig, rebuild: boolean): void {
         let rebuilt = false;
 
-        const wantedLabel = style.label?.enabled === true ? style.label : undefined;
+        const wantedLabel = drawnText(style.label);
         const labelText = wantedLabel === undefined ? undefined : this.extractLabelText(wantedLabel);
 
         if (rebuild || labelText !== this.drawnLabelText || !isEqual(wantedLabel, this.drawnLabelStyle)) {

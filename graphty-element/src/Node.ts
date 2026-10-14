@@ -15,6 +15,7 @@ import isEqual from "lodash/isEqual.js";
 
 import type { Rgba } from "./catalog/types";
 import { AdHocData, DEFAULT_SELECTION_STYLE, type GraphSelectionStyleConfig, NodeStyleConfig } from "./config";
+import { drawnText } from "./config/RichTextStyle";
 import { writableLane } from "./data/lane";
 import type { ElementPositions } from "./data/positions";
 import type { Graph } from "./Graph";
@@ -1441,7 +1442,7 @@ export class Node {
      *     label asking for exactly what was drawn a moment ago must still be built again.
      */
     private syncLabel(o: NodeStyleConfig, rebuild: boolean): void {
-        const wanted = o.label?.enabled === true ? o.label : undefined;
+        const wanted = drawnText(o.label);
         const text = wanted === undefined ? undefined : this.extractLabelText(wanted);
 
         if (!rebuild && text === this.drawnLabelText && isEqual(wanted, this.drawnLabelStyle)) {
@@ -1473,7 +1474,7 @@ export class Node {
      * @param o - The resolved style.
      */
     private syncTooltip(o: NodeStyleConfig): void {
-        const wanted = o.tooltip?.enabled === true ? o.tooltip : undefined;
+        const wanted = drawnText(o.tooltip);
 
         if (isEqual(wanted, this.wantedTooltip)) {
             return;

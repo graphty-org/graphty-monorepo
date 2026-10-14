@@ -109,4 +109,28 @@ export default tseslint.config(
             ],
         },
     },
+
+    // Tests that still wait a counted number of animation frames, exempt from that one check of
+    // local/no-test-timing until each is rewritten to wait on what it needs (#2535). Remove a file
+    // once it is fixed; never add one.
+    {
+        files: [
+            "test/browser/extensions/camera-extension.test.ts",
+            "test/browser/extensions/layout-extension.test.ts",
+            "test/browser/history-arrangement.test.ts",
+            "test/browser/history-layout.test.ts",
+            "test/browser/history-round-trip.test.ts",
+            "test/browser/label-animations-start.test.ts",
+            "test/browser/layout-independent-of-write-timing.test.ts",
+            "test/browser/screenshot/screenshot-queue-integration.test.ts",
+            "test/browser/screenshot/screenshot-timing.test.ts",
+            "test/browser/seeded-layout-write-timing-2d-3d.test.ts",
+            "test/browser/seeded-node-count.test.ts",
+            "test/browser/webgpu-renderer.test.ts",
+            "test/interactions/edge-cases/xr-input-switching.test.ts",
+            "test/interactions/real-input.test.ts",
+            "test/interactions/render-on-demand.test.ts",
+        ],
+        rules: { "local/no-test-timing": ["error", { frameWaits: false }] },
+    },
 );

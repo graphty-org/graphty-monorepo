@@ -3,7 +3,8 @@
 // on a line the push adds or changes. Run by tools/prepush.sh ("SonarQube (changed lines)").
 // Design: design/sonarqube/design.md, section 1.
 //
-// 1. The changed files: `git diff -M --name-status --diff-filter=AMR <merge-base> HEAD`, kept to the
+// 1. The changed files: `git diff -M --name-status --diff-filter=AMR <merge-base> HEAD` (the merge base
+//    with the branch the push merges into, tools/push-base.mjs), kept to the
 //    extensions SonarQube analyzes. A file with uncommitted changes is left out with a warning (the
 //    scanner reads the working tree; the push sends HEAD). Nothing left: pass, no server contact.
 // 2. The server and the setup. Unreachable, or not the pinned server: pass with a boxed warning and
@@ -19,9 +20,15 @@
 //    analysis in `<key>` already has it, in the same file (following renames), one master finding
 //    per finding: the same rule and line hash (a moved or reformatted line), or the same rule
 //    pointing at the same code on the line an edit in place made of master's line (issue #2166; not
-//    for a vulnerability); for S3776, S107 and S5843 the same rule in the same hunk with a score
-//    that did not rise. Master's issue counts when open, confirmed, accepted or a false positive;
+//    for a vulnerability). Master's issue counts when open, confirmed, accepted or a false positive;
 //    its hotspot when to review or reviewed SAFE.
+//    Cognitive complexity (S3776), regex complexity (S5843) and too many parameters (S107) are
+//    reported on a function's name or a regex, which an edit inside the body leaves alone, so they
+//    are judged by their whole span (the finding through its last secondary location; for S107 the
+//    parameter list) and against the merge base, not master's analysis: when such a finding's span
+//    overlaps a hunk, the merge base's copies of those files are scanned too (a second scan, into
+//    the same scratch project). The finding blocks when the merge base has none there, when its
+//    score rose, or -- "touch it, fix it" -- when it is S3776 scoring 16 to 20.
 //    An issue on an UNCHANGED line whose rule and message master lacks for that file is a warning.
 // 5. `// NOSONAR(<rule>): <reason of 10+ chars>` is the only accepted NOSONAR form on a changed line,
 //    and it may not name a vulnerability rule. A `Sonar-Bypass: <reason>` trailer on HEAD passes a
@@ -34,9 +41,20 @@
 // Exit 0: passed, skipped or bypassed. Exit 1: blocked. Never prints the token.
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { accessSync, appendFileSync, constants, existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
+import {
+    accessSync,
+    appendFileSync,
+    constants,
+    existsSync,
+    mkdirSync,
+    readFileSync,
+    rmSync,
+    writeFileSync,
+} from "node:fs";
 import { basename, delimiter, dirname, extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+
+import { pushBase } from "./push-base.mjs";
 
 import {
     ApiError,
@@ -53,6 +71,8 @@ const TOOLS_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const EXTENSIONS = new Set([".ts", ".tsx", ".js", ".mjs", ".cjs", ".html", ".css", ".py"]);
 const REPO_OF = { ".ts": "typescript", ".tsx": "typescript", ".js": "javascript", ".mjs": "javascript" };
 const SCORE_RULES = /:(S3776|S107|S5843)$/;
+// "Touch it, fix it": an edited function scoring this much must come down to 15 or below.
+const TOUCH_FIX = { rule: /:S3776$/, min: 16, max: 20 };
 const NOSONAR_FORM = /NOSONAR\((S\d+)\): .{10,}/;
 const SETUP_FIX = "run `node tools/sonar-baseline.mjs --setup` once (the owner, with the admin token)";
 const TOKEN_FIX = "put a valid SonarQube user token in .env as SONAR_TOKEN (My Account > Security > Generate token)";
@@ -157,8 +177,12 @@ function readProperty(text, key) {
     return line ? line.slice(key.length + 1).trim() : "";
 }
 
-// The first number in an S3776 / S107 / S5843 message: the complexity score, or the parameter count.
-const scoreOf = (message) => Number(message.match(/\d+/)?.[0] ?? Number.NaN);
+// The score in an S3776 / S5843 message ("from 23 to the 15 allowed") or the parameter count in an
+// S107 one ("too many parameters (8)"); a function's own name may hold digits.
+const scoreOf = (message) => {
+    const m = message.match(/from (\d+)|\((\d+)\)/);
+    return m ? Number(m[1] ?? m[2]) : Number.NaN;
+};
 
 const isVulnerability = (issue) =>
     issue.type === "VULNERABILITY" || (issue.impacts ?? []).some((i) => i.softwareQuality === "SECURITY");
@@ -197,16 +221,69 @@ function checkNosonar(files) {
     return { malformed, named };
 }
 
-// Is a master S3776 / S107 / S5843 issue the same one as this changed-line issue? These are reported
-// on the signature or on the regex itself, which the edit usually changes: match by place, and let
-// it through only when the score did not rise.
-function sameScoredIssue(issue, f, masterIssues) {
-    const prior = masterIssues.find((m) => {
+// The merge base's S3776 / S107 / S5843 finding that is this one: the same rule, on the line the
+// hunks shift it to, or inside the hunk that rewrote its line.
+function priorScored(issue, f, baseIssues) {
+    return baseIssues.find((m) => {
         if (m.rule !== issue.rule || !m.line) return false;
         const where = mapOldLine(f.hunks, m.line);
         return where.hunk ? onChangedLine([where.hunk], issue.line) : where.line === issue.line;
     });
-    return Boolean(prior) && scoreOf(issue.message) <= scoreOf(prior.message);
+}
+
+// The last line of the parameter list that opens on `start` (where the brackets balance again).
+function paramListEnd(lines, start) {
+    let depth = 0;
+    let opened = false;
+    for (let i = start - 1; i < Math.min(lines.length, start + 50); i++) {
+        for (const ch of lines[i]) {
+            if (ch === "(") {
+                depth++;
+                opened = true;
+            } else if (ch === ")") {
+                depth--;
+            }
+            if (opened && depth === 0) return i + 1;
+        }
+    }
+    return start;
+}
+
+/**
+ * The lines an S3776 / S5843 / S107 finding covers: from its own range to its last secondary
+ * location (each complexity increment is one), and for S107, which has none, through the parameter
+ * list. A function's lines after its last increment are not in it.
+ * @param issue - The finding, with `textRange` and `flows` as the issues API reports them.
+ * @param lines - The file's lines.
+ * @returns `{ start, end }`, 1-based and inclusive.
+ */
+export function scoredSpan(issue, lines) {
+    const start = issue.textRange?.startLine ?? issue.line;
+    const ends = (issue.flows ?? []).flatMap((fl) => fl.locations.map((l) => l.textRange?.endLine ?? 0));
+    let end = Math.max(issue.textRange?.endLine ?? start, ...ends);
+    if (/:S107$/.test(issue.rule)) end = Math.max(end, paramListEnd(lines, start));
+    return { start, end };
+}
+
+// Does a hunk add, change or delete a line inside `span`? A deletion sits after new line newStart.
+const touches = (hunks, { start, end }) =>
+    hunks.some((h) =>
+        h.newCount > 0 ? h.newStart <= end && h.newStart + h.newCount > start : h.newStart >= start && h.newStart < end,
+    );
+
+// Is this scored finding one the push edits?
+const scoredTouched = (issue, f) => SCORE_RULES.test(issue.rule) && touches(f.hunks, scoredSpan(issue, f.lines));
+
+// Why an edited S3776 / S107 / S5843 finding blocks, or null when it does not.
+function scoredVerdict(issue, prior) {
+    const score = scoreOf(issue.message);
+    if (!prior) return issue.message;
+    const was = scoreOf(prior.message);
+    if (score > was) return `${issue.message} (was ${was} at the merge base)`;
+    if (TOUCH_FIX.rule.test(issue.rule) && score >= TOUCH_FIX.min && score <= TOUCH_FIX.max) {
+        return `${issue.message} This push edits the function: bring it to 15 or below (touch it, fix it).`;
+    }
+    return null;
 }
 
 /**
@@ -282,17 +359,19 @@ export function vouchedFor(found, prior, f) {
  *   `lineAt(oldPath, line)` (master's text of that line, or null), from <key>.
  * @param input.files - Map from each scanned path to `{ oldPath, hunks, lines, baseLines }` (HEAD's
  *   lines and the merge base's lines of `oldPath`).
+ * @param input.base - `issuesByFile(oldPath)`: the S3776 / S107 / S5843 findings of the merge base's
+ *   copy of each file whose such findings the push edits (the second scan); omitted, none.
  * @returns `{ blocking, existing, warnings, named }`: findings as `{ path, line, rule, message, kind }`,
  *   and the rule each well-formed NOSONAR names, by `path:line`.
  */
-export function decide({ local, master, files }) {
+export function decide({ local, master, files, base = { issuesByFile: () => [] } }) {
     const { malformed, named } = checkNosonar(files);
     const out = { blocking: [...malformed], existing: [], warnings: [] };
     for (const [path, f] of files) {
         judgeIssues(
             local.issues.filter((x) => x.path === path && x.line),
             f,
-            master.issuesByFile(f.oldPath),
+            { master: master.issuesByFile(f.oldPath), base: base.issuesByFile(f.oldPath) },
             out,
         );
         const hotspots = local.hotspots.filter(
@@ -305,8 +384,9 @@ export function decide({ local, master, files }) {
 
 // Sort a file's issues into blocking, existing (on a changed line, master has it) or warnings.
 // Master's issue counts when open, confirmed, accepted or marked a false positive. A vulnerability
-// is master's only by its line hash: an edit in place may change what it exposes.
-function judgeIssues(issues, f, masterIssues, out) {
+// is master's only by its line hash: an edit in place may change what it exposes. An S3776 / S107 /
+// S5843 finding whose span the push edits is judged against the merge base instead.
+function judgeIssues(issues, f, prior, out) {
     const plain = (x) => !SCORE_RULES.test(x.rule);
     const asFound = (x, lines) => ({
         ref: x,
@@ -317,17 +397,23 @@ function judgeIssues(issues, f, masterIssues, out) {
         inPlace: !isVulnerability(x),
     });
     const found = issues.filter(plain).map((x) => asFound(x, f.lines));
-    const prior = masterIssues.filter((m) => plain(m) && m.line).map((m) => asFound(m, f.baseLines));
-    const vouched = new Set([...vouchedFor(found, prior, f)].map((e) => e.ref));
-    for (const issue of issues) {
-        const kind = isVulnerability(issue) ? "vulnerability" : "issue";
-        const entry = { path: issue.path, line: issue.line, rule: issue.rule, message: issue.message, kind };
-        if (onChangedLine(f.hunks, issue.line)) {
-            const has = plain(issue) ? vouched.has(issue) : sameScoredIssue(issue, f, masterIssues);
-            (has ? out.existing : out.blocking).push(entry);
-        } else if (!masterIssues.some((m) => m.rule === issue.rule && m.message === issue.message)) {
-            out.warnings.push(entry);
-        }
+    const masterPlain = prior.master.filter((m) => plain(m) && m.line).map((m) => asFound(m, f.baseLines));
+    const vouched = new Set([...vouchedFor(found, masterPlain, f)].map((e) => e.ref));
+    for (const issue of issues) placeIssue(issue, f, prior, vouched, out);
+}
+
+// One issue of judgeIssues: blocking, existing, a warning, or nothing.
+function placeIssue(issue, f, prior, vouched, out) {
+    const kind = isVulnerability(issue) ? "vulnerability" : "issue";
+    const entry = { path: issue.path, line: issue.line, rule: issue.rule, message: issue.message, kind };
+    if (scoredTouched(issue, f)) {
+        const why = scoredVerdict(issue, priorScored(issue, f, prior.base));
+        if (why) out.blocking.push({ ...entry, message: why });
+        else out.existing.push(entry);
+    } else if (!SCORE_RULES.test(issue.rule) && onChangedLine(f.hunks, issue.line)) {
+        (vouched.has(issue) ? out.existing : out.blocking).push(entry);
+    } else if (!prior.master.some((m) => m.rule === issue.rule && m.message === issue.message)) {
+        out.warnings.push(entry);
     }
 }
 
@@ -478,7 +564,7 @@ function box(lines) {
 
 // Phase 1: the analyzable files the push changes, minus those with uncommitted changes.
 function changedFiles(run) {
-    run.base = git(["merge-base", "origin/master", "HEAD"]).trim();
+    run.base = pushBase({ env: envWithoutToken() });
     const changed = parseNameStatus(git(["diff", "-M", "--name-status", "--diff-filter=AMR", run.base, "HEAD"]));
     const analyzable = changed.filter((c) => EXTENSIONS.has(extname(c.path)));
     const dirty = new Set(git(["diff", "--name-only", "HEAD"]).split("\n").filter(Boolean));
@@ -541,18 +627,14 @@ async function checkSetup(run) {
     return { cfg, api, java, localKey };
 }
 
-// Phase 3: scan the files into <key>-local and read back its open issues and hotspots.
-async function scan(run, setup, scanList) {
+// Run the scanner on `paths` (relative to `baseDir`) into <key>-local and wait for the server to
+// process the report. `extra` are further scanner properties.
+async function runScan(run, setup, { baseDir, paths, workDir, extra }) {
     const { cfg, api, java, localKey } = setup;
     const props = readFileSync(join(run.top, "sonar-project.properties"), "utf8");
     const testGlobs = readProperty(props, "sonar.test.inclusions").split(",").filter(Boolean).map(globToRegExp);
     const isTest = (p) => testGlobs.some((re) => re.test(p));
-    const sources = scanList.filter((c) => !isTest(c.path)).map((c) => c.path);
-    const tests = scanList.filter((c) => isTest(c.path)).map((c) => c.path);
-    const workDir = join(run.sonarDir, basename(run.top));
     rmSync(workDir, { recursive: true, force: true });
-
-    console.log(`SonarQube: scanning ${scanList.length} changed file(s) into ${localKey}...`);
     let output = "";
     const scanner = startScanner(
         run.top,
@@ -562,12 +644,13 @@ async function scan(run, setup, scanList) {
             // The files themselves, not `.` narrowed by inclusions: given a directory the scanner
             // walks the whole tree and stats every entry before any exclusion applies, so a file a
             // test shard deletes mid-walk (browser-results.json) fails the scan (issue #1297).
-            `-Dsonar.sources=${sources.join(",")}`,
-            `-Dsonar.tests=${tests.join(",")}`,
+            `-Dsonar.sources=${paths.filter((p) => !isTest(p)).join(",")}`,
+            `-Dsonar.tests=${paths.filter(isTest).join(",")}`,
             `-Dsonar.working.directory=${workDir}`,
             "-Dsonar.javascript.lcov.reportPaths=",
             "-Dsonar.qualitygate.wait=false",
-            `-Dsonar.scm.revision=${run.head}`,
+            ...(baseDir === run.top ? [] : [`-Dsonar.projectBaseDir=${baseDir}`]),
+            ...extra,
         ],
         {
             token: cfg.token,
@@ -597,14 +680,41 @@ async function scan(run, setup, scanList) {
         const why = `the server could not process the scan (${task.status}: ${task.errorMessage ?? ""})`;
         throw run.blockSetup(why, "see the project's background tasks on the server");
     }
+}
 
-    const withPath = (x) => ({ ...x, path: x.component.slice(x.component.indexOf(":") + 1) });
-    const query = { components: localKey, issueStatuses: "OPEN,CONFIRMED" };
-    const issues = (await api.all("api/issues/search", query, "issues")).map(withPath);
-    const hotspots = (await api.all("api/hotspots/search", { project: localKey, status: "TO_REVIEW" }, "hotspots")).map(
-        withPath,
-    );
+const withPath = (x) => ({ ...x, path: x.component.slice(x.component.indexOf(":") + 1) });
+const openIssues = (setup) =>
+    setup.api.all("api/issues/search", { components: setup.localKey, issueStatuses: "OPEN,CONFIRMED" }, "issues");
+
+// Phase 3: scan the files into <key>-local and read back its open issues and hotspots.
+async function scan(run, setup, scanList) {
+    console.log(`SonarQube: scanning ${scanList.length} changed file(s) into ${setup.localKey}...`);
+    const workDir = join(run.sonarDir, basename(run.top));
+    const paths = scanList.map((c) => c.path);
+    await runScan(run, setup, { baseDir: run.top, paths, workDir, extra: [`-Dsonar.scm.revision=${run.head}`] });
+    const issues = (await openIssues(setup)).map(withPath);
+    const query = { project: setup.localKey, status: "TO_REVIEW" };
+    const hotspots = (await setup.api.all("api/hotspots/search", query, "hotspots")).map(withPath);
     return { issues, hotspots };
+}
+
+// Phase 3b: the merge base's copies of `oldPaths`, scanned into <key>-local from a directory of
+// their own; their S3776 / S107 / S5843 findings by path.
+async function scanBase(run, setup, oldPaths) {
+    console.log(`SonarQube: scanning the merge base's copy of ${oldPaths.length} file(s) to compare complexity...`);
+    const baseDir = join(run.sonarDir, `base-${basename(run.top)}`);
+    rmSync(baseDir, { recursive: true, force: true });
+    mkdirSync(baseDir, { recursive: true });
+    // The same settings (exclusions, test globs, path decisions) as the scan of HEAD.
+    writeFileSync(join(baseDir, "sonar-project.properties"), readFileSync(join(run.top, "sonar-project.properties")));
+    for (const p of oldPaths) {
+        mkdirSync(dirname(join(baseDir, p)), { recursive: true });
+        writeFileSync(join(baseDir, p), git(["show", `${run.base}:${p}`]));
+    }
+    const workDir = join(run.sonarDir, `base-work-${basename(run.top)}`);
+    await runScan(run, setup, { baseDir, paths: oldPaths, workDir, extra: ["-Dsonar.scm.disabled=true"] });
+    const found = (await openIssues(setup)).map(withPath).filter((x) => SCORE_RULES.test(x.rule));
+    return { issuesByFile: (p) => found.filter((x) => x.path === p) };
 }
 
 // Phase 4: master's findings for the files that have any, from <key>.
@@ -726,15 +836,6 @@ async function check(run) {
     run.bypass = git(["log", "-1", "--format=%(trailers:key=Sonar-Bypass,valueonly,separator=%x20)", "HEAD"]).trim();
     const setup = await checkSetup(run);
 
-    const release = await acquireLock(join(run.sonarDir, "sonar-local.lock"), run.left() / 1000);
-    if (!release) throw skip("deadline", "Another scan held the lock until the deadline.");
-    let local;
-    try {
-        local = await scan(run, setup, scanList);
-    } finally {
-        release();
-    }
-
     const paths = scanList.flatMap((c) => [c.path, c.oldPath]);
     const hunks = parseHunks(git(["diff", "-M", "-U0", run.base, "HEAD", "--", ...new Set(paths)]));
     const files = new Map(
@@ -748,10 +849,25 @@ async function check(run) {
             },
         ]),
     );
+
+    const release = await acquireLock(join(run.sonarDir, "sonar-local.lock"), run.left() / 1000);
+    if (!release) throw skip("deadline", "Another scan held the lock until the deadline.");
+    let local;
+    let base;
+    try {
+        local = await scan(run, setup, scanList);
+        // The merge base's copies of the files whose complexity findings the push edits.
+        const edited = local.issues.filter((x) => files.has(x.path) && scoredTouched(x, files.get(x.path)));
+        const atBase = [...new Set(edited.map((x) => files.get(x.path)))].filter((f) => f.baseLines.length);
+        if (atBase.length) base = await scanBase(run, setup, [...new Set(atBase.map((f) => f.oldPath))]);
+    } finally {
+        release();
+    }
+
     const withFindings = new Set([...local.issues, ...local.hotspots].map((x) => files.get(x.path)?.oldPath));
     withFindings.delete(undefined);
     const master = await masterFindings(setup.api, setup.cfg.projectKey, withFindings);
-    const verdict = decide({ local, master, files });
+    const verdict = decide({ local, master, files, base });
     verdict.blocking.push(...(await vulnerabilityNosonar(setup.api, verdict.named)));
     return verdictOutcome(verdict, setup.cfg.host, run.bypass);
 }

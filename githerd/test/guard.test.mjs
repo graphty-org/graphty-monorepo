@@ -1,6 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -8,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { countBrowserTrees, launchesBrowser, withoutVersion } from "../bin/githerd-guard.mjs";
 import { splitCommands } from "../lib/shellwords.mjs";
+import { tempDir } from "./helpers/temp-dir.mjs";
 
 const GUARD = fileURLToPath(new URL("../bin/githerd-guard.mjs", import.meta.url));
 const REPO = "graphty-org/graphty-monorepo";
@@ -82,7 +82,7 @@ function lines(target, name) {
 }
 
 beforeAll(() => {
-    base = mkdtempSync(join(tmpdir(), "githerd-guard-"));
+    base = tempDir("githerd-guard-");
     job = makeJob("plain");
     writeFileSync(join(job.root, "msg-attributed.txt"), "fix: x\n\nCo-Authored-By: Someone <a@b.c>\n");
     writeFileSync(join(job.root, "msg-clean.txt"), "fix: x\n");

@@ -1007,7 +1007,7 @@ export function throwIfAborted(signal: AbortSignal | null | undefined): void {
         throw abortError();
     }
     // the platform contract: the reason itself, whatever its type
-    throw reason as Error;
+    throw reason as Error; // NOSONAR(S3696): rethrows the abort signal's reason, as the platform does
 }
 
 /**

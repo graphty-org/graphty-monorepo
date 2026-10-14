@@ -1,7 +1,7 @@
 // Tests of tools/test-slots.mjs, the machine-wide limit on concurrent test runs: a slot is taken and
 // given back, waiters start in arrival order, a dead holder's slot is reclaimed, a nested run takes
 // no second slot, --gpu takes the one GPU slot instead of a test slot, the GPU browser runner queues before its time limit starts, and every package's
-// vitest config takes a slot and caps its Node workers at its share of the cores.
+// vitest config takes a slot, caps its Node workers at its share of the cores and adds ciReporters().
 //
 //   node --test tools/test-slots.test.mjs
 import assert from "node:assert/strict";
@@ -129,7 +129,16 @@ describe("test-slots", () => {
         const r = spawnSync(
             process.execPath,
             [SCRIPT, process.execPath, "-e", `console.log(process.env.${HELD}); process.exit(3)`],
-            { encoding: "utf8", env: { ...process.env, GRAPHTY_TEST_SLOTS_DIR: dir, GITHUB_ACTIONS: "" } },
+            {
+                encoding: "utf8",
+                env: {
+                    ...process.env,
+                    GRAPHTY_TEST_SLOTS_DIR: dir,
+                    GRAPHTY_TEST_SLOTS: "1",
+                    GITHUB_ACTIONS: "",
+                    [HELD]: "",
+                },
+            },
         );
         assert.equal(r.status, 3);
         assert.match(r.stdout, /^\d+\n$/);
@@ -233,7 +242,7 @@ describe("test-slots", () => {
         assert.deepEqual(readdirSync(dir), [], "the runner gave its slot back");
     });
 
-    it("is listed as a globalSetup, and caps the Node workers, in every package's vitest config", () => {
+    it("is listed as a globalSetup, caps the Node workers and adds ciReporters(), in every package's vitest config", () => {
         const configs = readdirSync(ROOT, { withFileTypes: true })
             .filter((d) => d.isDirectory() && !d.name.startsWith("."))
             .flatMap((d) =>
@@ -248,5 +257,8 @@ describe("test-slots", () => {
             (f) => !/maxWorkers: workerShare\(\)|workerShare\(\) \?\?/.test(readFileSync(join(ROOT, f), "utf8")),
         );
         assert.deepEqual(uncapped, [], "these vitest configs do not cap their Node workers at workerShare()");
+        // The CI JUnit report and the time-budget check (tools/vitest-time-budget.mjs) come from ciReporters().
+        const unreported = configs.filter((f) => !/\.\.\.ciReporters\(/.test(readFileSync(join(ROOT, f), "utf8")));
+        assert.deepEqual(unreported, [], "these vitest configs do not add ciReporters() to their reporters");
     });
 });

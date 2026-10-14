@@ -144,7 +144,7 @@ export function describeValue(value: unknown): string {
     if (typeof value === "number" || typeof value === "boolean" || typeof value === "string") {
         return String(value);
     }
-    if (typeof value === "undefined") {
+    if (value === undefined) {
         return "undefined";
     }
     if (typeof value === "object" && "length" in value && typeof value.length === "number") {

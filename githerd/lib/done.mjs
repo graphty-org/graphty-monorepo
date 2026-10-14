@@ -12,7 +12,8 @@
  * `state.deferred`, and offers the issue again only once that revision changes. `split` needs the filed children, `not-needed`
  * goes through the propose, confirm and grace path of proposals.mjs, and `done` is checked per kind:
  *
- * - `pr` and `issue`: the pull request is based on master, not a draft, and its head on GitHub (the
+ * - `pr` and `issue`: the pull request is based on master (or stacked on another open pull request:
+ *   based on its branch, where a failure the parent has too is the parent's), not a draft, and its head on GitHub (the
  *   polled record, confirmed with `git ls-remote`) contains the pushed commit (the ancestor rule:
  *   merges from master by the daemon, Mergify or the review tool, and other sessions' commits on a
  *   shared branch, all land on top of it without undoing it; a rewritten branch does not contain it). Its required checks are green, or the only failing one is
@@ -22,7 +23,9 @@
  *   into) names that pull request and the fix commits instead: the pull request, open or merged
  *   into master, must contain each of them, whatever its description says. The link (issue, pull
  *   request, commits) is kept in `state.merged.carried`, so the merge of that pull request becomes a
- *   reference of the issue (merged.mjs) and an issue job verifies and closes it (`masterRefs`).
+ *   reference of the issue (merged.mjs) and an issue job verifies and closes it (`masterRefs`). A
+ *   stacked fix keeps the same link: the issue is not offered while the fix is open or merged into
+ *   its parent's branch, and when the stack lands on master an issue job verifies and closes it.
  * - `incident`: a verdict job needs Claude's verdict on its key recorded; master and low-priority
  *   scopes need the lane's newest master run green at a commit
  *   containing the fix; a shared key also needs one canary pull request green on a head containing
@@ -67,9 +70,11 @@ const NOT_NEEDED_KINDS = new Set(["issue", "pr"]);
 const BOOT = randomUUID();
 
 /**
- * @typedef {{holds: true, merged?: boolean} | {ciPending: string} | {missing: string[], fixable?: true} | null}
+ * @typedef {{holds: true, merged?: boolean, stacked?: true} | {ciPending: string} | {missing: string[], fixable?: true} | null}
  *   Answer what a check found: the done-condition holds (`merged` when a carried fix's pull request
- *   already merged), only CI on that sha is pending, what is missing, or undecided. A `fixable`
+ *   already merged into the default branch, `stacked` when the pull request is based on another open
+ *   pull request's branch, so the fix reaches the default branch only with that stack), only CI on
+ *   that sha is pending, what is missing, or undecided. A `fixable`
  *   refusal names only gaps in the report itself that the session can close (a commit or pull
  *   request to name, a push to make): it does not count toward ending the attempt.
  * @typedef {object} DoneIo what verification reads, outside the state
@@ -182,29 +187,48 @@ async function headIsPushed(rec, pushed, io) {
 
 /**
  * The done-condition of a pull request githerd does not poll as open: it merged into the default
- * branch, and an issue job's names the issue. A pull request that merged before githerd saw it
+ * branch, and it names each issue it must (`mustName`). A pull request that merged before githerd saw it
  * open is the job done, not a missing one. One opened since the last poll is CI pending, not a
  * refusal: the poll (newest-updated first) picks it up and the claim is decided from its record.
  * @param {number} number the pull request
  * @param {View} view what the check reads
- * @param {number | null} issue the issue it must reference
+ * @param {number[]} issues the issues it must reference
  * @returns {Promise<Answer>} the answer
  */
-async function mergedAnswer(number, view, issue) {
+async function mergedAnswer(number, view, issues) {
     const pull = await view.io.pull(number);
     const branch = view.state.master?.branch ?? "master";
     const ownRepo = pull?.head?.repo?.full_name === pull?.base?.repo?.full_name;
     if (pull?.state === "open" && pull.head?.sha && ownRepo) return { ciPending: pull.head.sha };
-    if (!pull?.merged || pull.base?.ref !== branch) {
-        return { missing: [`#${number} is not an open pull request of this repository, nor merged into ${branch}`] };
-    }
-    if (issue !== null && !new RegExp(String.raw`#${issue}(?!\d)`).test(pull.body ?? "")) {
+    const stacked = pull?.merged && pull.base?.ref !== branch && openPrOnBranch(view.state, pull.base?.ref);
+    if (!pull?.merged || (pull.base?.ref !== branch && !stacked)) {
         return {
-            missing: [`#${number} merged but does not name #${issue} in its description: ${COMMITS_HINT}`],
+            missing: [
+                `#${number} is not an open pull request of this repository, nor merged into ${branch} or an open pull request's branch`,
+            ],
+        };
+    }
+    const unnamed = issues.filter((n) => !new RegExp(String.raw`#${n}(?!\d)`).test(pull.body ?? ""));
+    if (unnamed.length) {
+        return {
+            missing: unnamed.map(
+                (n) => `#${number} merged but does not name #${n} in its description: ${COMMITS_HINT}`,
+            ),
             fixable: true,
         };
     }
-    return { holds: true };
+    return stacked ? { holds: true, stacked: true } : { holds: true };
+}
+
+/**
+ * The open pull request whose head is branch `ref`, from the last poll: the parent of a pull request
+ * based on that branch (the same rule as `stackedOn`, prs.mjs), for one the poll no longer lists.
+ * @param {any} state the daemon state
+ * @param {string | undefined} ref the branch
+ * @returns {boolean} true when an open pull request has it as its head
+ */
+function openPrOnBranch(state, ref) {
+    return Object.values(state.prs ?? {}).some((/** @type {any} */ p) => p.headRef === ref);
 }
 
 /** How a session names a fix that rides in a pull request it did not push. */
@@ -227,9 +251,17 @@ async function carriedAnswer(number, commits, view) {
     if (!pull)
         return { missing: [`#${number} is not a pull request: name the one that carries the fix`], fixable: true };
     const ownRepo = pull.head?.repo?.full_name === pull.base?.repo?.full_name;
-    if (pull.base?.ref !== branch || !ownRepo || (pull.state !== "open" && !pull.merged)) {
+    // A carrier based on another open pull request's branch reaches the default branch with that stack.
+    const stacked =
+        pull.base?.ref !== branch &&
+        (pull.state === "open"
+            ? Boolean(view.state.prs?.[String(number)]?.stackedOn)
+            : openPrOnBranch(view.state, pull.base?.ref));
+    if ((pull.base?.ref !== branch && !stacked) || !ownRepo || (pull.state !== "open" && !pull.merged)) {
         return {
-            missing: [`#${number} is not an open pull request of this repository into ${branch}, nor merged into it`],
+            missing: [
+                `#${number} is not an open pull request of this repository into ${branch} or an open pull request's branch, nor merged into one`,
+            ],
         };
     }
     const head = pull.head?.sha;
@@ -244,7 +276,8 @@ async function carriedAnswer(number, commits, view) {
         }
     }
     if (gaps.length) return { missing: gaps, fixable: true };
-    return { holds: true, merged: Boolean(pull.merged) };
+    const merged = Boolean(pull.merged) && !stacked;
+    return stacked ? { holds: true, merged, stacked: true } : { holds: true, merged };
 }
 
 /**
@@ -275,17 +308,27 @@ export function namesIssue(rec, body, issue) {
 
 /**
  * What the pull request's own state lacks: its base, draft, failing checks, the owner's rejects and
- * a `githerd/merge` line a worker can fix.
+ * a `githerd/merge` line a worker can fix. A pull request stacked on another open one (`stackedOn`,
+ * prs.mjs) may be based on that one's branch, and a failure its parent has too, by every key
+ * (`failureKeys`), is the parent's.
  * @param {any} rec the polled pull request record
  * @param {number} number the pull request
- * @param {string} branch the default branch
+ * @param {any} state the daemon state
  * @returns {string[]} the gaps
  */
-function stateGaps(rec, number, branch) {
+function stateGaps(rec, number, state) {
+    const branch = state.master?.branch ?? "master";
+    const parent = rec.baseRef !== branch && rec.stackedOn ? state.prs?.[String(rec.stackedOn)] : null;
     const gaps = [];
-    if (rec.baseRef !== branch) gaps.push(`#${number} is based on ${rec.baseRef}, not ${branch}`);
+    if (rec.baseRef !== branch && !parent) {
+        gaps.push(`#${number} is based on ${rec.baseRef}, neither ${branch} nor an open pull request's branch`);
+    }
     if (rec.draft) gaps.push(`#${number} is a draft`);
-    const failing = failingRequired(rec);
+    const fromParent =
+        parent &&
+        rec.failureKeys?.length &&
+        rec.failureKeys.every((/** @type {string} */ k) => parent.failureKeys?.includes(k));
+    const failing = fromParent ? [] : failingRequired(rec);
     if (rec.ownerRejected) gaps.push("the owner rejected images: fix the captures the owner named");
     else if (failing.length) gaps.push(`required checks failing: ${failing.join(", ")}`);
     const gate = rec.mergeStatus;
@@ -299,30 +342,31 @@ function stateGaps(rec, number, branch) {
  * @param {number} number the pull request
  * @param {string | null} pushed the commit the worker pushed
  * @param {View} view what the check reads
- * @param {number | null} [issue] the issue it must reference
+ * @param {number[]} [issues] the issues it must reference (`mustName`)
  * @returns {Promise<Answer>} the answer
  */
-async function prAnswer(number, pushed, view, issue = null) {
+async function prAnswer(number, pushed, view, issues = []) {
     const rec = view.state.prs?.[String(number)];
-    if (!rec) return mergedAnswer(number, view, issue);
-    const gaps = stateGaps(rec, number, view.state.master?.branch ?? "master");
+    if (!rec) return mergedAnswer(number, view, issues);
+    const gaps = stateGaps(rec, number, view.state);
     // Gaps in the report or the push, which the session closes without new work: they do not count.
     const fix = [];
-    if (issue !== null && !(await mentions(rec, number, issue, view))) {
+    for (const issue of issues) {
+        if (await mentions(rec, number, issue, view)) continue;
         fix.push(
             `#${number} does not reference #${issue}: add "Fixes #${issue}" to its description, or "Refs #${issue}" when it does part of the issue and the issue stays open; or, ${COMMITS_HINT}`,
         );
     }
     const head = await headIsPushed(rec, pushed, view.io);
     if (head === null) return null;
-    if (head !== true) fix.push(issue === null ? head : `${head}; or, ${COMMITS_HINT}`);
+    if (head !== true) fix.push(issues.length ? `${head}; or, ${COMMITS_HINT}` : head);
     const required = Object.entries(rec.required ?? {});
     if (gaps.length) return { missing: [...fix, ...gaps] };
     if (fix.length) return { missing: fix, fixable: true };
     // A cancelled check is no result yet: githerd re-runs it, or someone pushes again.
     if (required.some(([, s]) => s === "PENDING" || s === "MISSING" || s === "CANCELLED"))
         return { ciPending: rec.headSha };
-    return { holds: true };
+    return rec.baseRef !== (view.state.master?.branch ?? "master") ? { holds: true, stacked: true } : { holds: true };
 }
 
 /**
@@ -638,6 +682,23 @@ function deferredAnswer(job, report) {
 }
 
 /**
+ * The issues whose jobs joined this one (`job.joinedIssues`, board.mjs joinJob): their jobs were
+ * cancelled for it, so its fix is theirs too, and its pull request must name each (issue #2499).
+ * @param {any} job the job
+ * @returns {number[]} the issue numbers
+ */
+const joinedIssues = (job) => job.joinedIssues ?? [];
+
+/**
+ * The issues an issue job's pull request must name: its own and each joined into it.
+ * @param {any} job the issue job
+ * @returns {number[]} the issue numbers
+ */
+function mustName(job) {
+    return [...new Set([numberOf(job.target), ...joinedIssues(job)])];
+}
+
+/**
  * Checks a report against GitHub: the defects, then the outcome's done-condition. `failed` needs
  * only the defects.
  * @param {any} job the job
@@ -655,7 +716,7 @@ export async function verifyClaim(job, report, view) {
     const pushed = report.pushedHead ?? job.pushedHead ?? null;
     switch (job.kind) {
         case "pr":
-            return prAnswer(job.pr ?? numberOf(job.target), pushed, view);
+            return prAnswer(job.pr ?? numberOf(job.target), pushed, view, joinedIssues(job));
         case "issue": {
             const pr = report.pr ?? job.pr;
             if (!pr) return { missing: ["pr: the pull request that fixes the issue"], fixable: true };
@@ -664,7 +725,7 @@ export async function verifyClaim(job, report, view) {
                 if (siblings.length) return { missing: siblings, fixable: true };
             }
             if (report.commits?.length) return carriedAnswer(pr, report.commits, view);
-            return prAnswer(pr, pushed, view, numberOf(job.target));
+            return prAnswer(pr, pushed, view, mustName(job));
         }
         case "incident":
             return incidentAnswer(job, report, view);
@@ -952,7 +1013,9 @@ function applyDone(job, report, view, now, answer) {
     if (report.children) job.children = report.children;
     if (report.siblings) job.siblings = report.siblings;
     if (job.kind === "issue" && job.facts?.batch?.length) recordLeftOut(job, report, view.state);
-    if (job.kind === "issue" && report.commits?.length) recordCarried(job, report, view.state, now, answer);
+    const stacked = answer && "stacked" in answer;
+    if (job.kind === "issue" && (report.commits?.length || stacked))
+        recordCarried(job, report, view.state, now, answer);
     if (job.facts?.scope === "release" && report.pr && report.commits?.length) {
         const state = view.state;
         state.releaseFixes ??= {};
@@ -967,9 +1030,11 @@ function applyDone(job, report, view, now, answer) {
 }
 
 /**
- * Records that a pull request the session did not push carries an issue job's fix. While it is
- * open, `state.merged.carried` holds the link, and its merge becomes a reference of the issue
- * (`accumulateMerged`); one that already merged is a reference at once. Either way, an issue
+ * Records that a pull request the session did not push, or one stacked on another open pull
+ * request, carries an issue job's fix. While it is open, or merged into its parent's branch and not
+ * yet on the default branch, `state.merged.carried` holds the link, and its landing becomes a
+ * reference of the issue (`accumulateMerged`, `landStacked`); one that already merged into the
+ * default branch is a reference at once. Either way, an issue
  * GitHub left open is then verified and closed by an issue job (`masterRefs`, job-text.mjs).
  * @param {any} job the issue job, now done
  * @param {any} report the report
@@ -978,17 +1043,20 @@ function applyDone(job, report, view, now, answer) {
  * @param {Answer} answer the answer that accepted it
  */
 function recordCarried(job, report, state, now, answer) {
-    const issue = String(numberOf(job.target));
     const pr = Number(report.pr ?? job.pr);
     const merged = (state.merged ??= {});
-    if (answer && "merged" in answer && answer.merged) {
-        merged.refs ??= {};
-        merged.refs[issue] ??= [];
-        if (!merged.refs[issue].includes(`#${pr}`)) merged.refs[issue].push(`#${pr}`);
-        return;
+    // An issue joined into the job rides in the same fix (issue #2499).
+    for (const n of mustName(job)) {
+        const issue = String(n);
+        if (answer && "merged" in answer && answer.merged) {
+            merged.refs ??= {};
+            merged.refs[issue] ??= [];
+            if (!merged.refs[issue].includes(`#${pr}`)) merged.refs[issue].push(`#${pr}`);
+            continue;
+        }
+        merged.carried ??= {};
+        merged.carried[issue] = { pr, commits: report.commits ?? [], job: job.id, at: now.toISOString() };
     }
-    merged.carried ??= {};
-    merged.carried[issue] = { pr, commits: report.commits, job: job.id, at: now.toISOString() };
 }
 
 /**

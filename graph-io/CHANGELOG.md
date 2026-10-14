@@ -1,3 +1,17 @@
+## 0.3.39 (2026-10-14)
+
+### 🚀 Features
+
+- **graph-io:** keepPositionSource option for the GML and DOT importers ([af7f18f57](https://github.com/graphty-org/graphty-monorepo/commit/af7f18f57))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.3.38 (2026-10-13)
 
 ### 🩹 Fixes

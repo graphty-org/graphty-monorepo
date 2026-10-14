@@ -554,8 +554,7 @@ export class Edge {
 
         this.meshKey = paint.meshKey;
 
-        // create ngraph link
-        // TODO: Edge is added to layout engine by DataManager, not here
+        // The layout engine gets this edge from DataManager, not from here.
 
         // create mesh
         const { style } = paint;
@@ -630,10 +629,11 @@ export class Edge {
      */
     update(): void {
         // A DELIBERATELY disposed edge must never rebuild itself. UpdateManager iterates the
-        // LAYOUT ENGINE's edge list every frame, and DataManager.clear() does not notify the
-        // layout engine (its own standing TODO), so this method keeps being called on edges whose
-        // dataset was dropped. Without this guard the style branch below would take a brand new
-        // slot (or build a patterned line) for an edge nobody owns.
+        // LAYOUT ENGINE's edge list every frame. DataManager.clear() takes a dropped dataset's
+        // edges out of the engine before disposing them (#121), but DataManager.dispose() does
+        // not, so this method can still be called on an edge whose dataset is gone. Without this
+        // guard the style branch below would take a brand new slot (or build a patterned line)
+        // for an edge nobody owns.
         if (this.disposed) {
             return;
         }

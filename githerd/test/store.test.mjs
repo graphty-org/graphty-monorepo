@@ -2,15 +2,15 @@ import { spawn } from "node:child_process";
 import { once } from "node:events";
 import {
     existsSync,
+    linkSync,
     mkdirSync,
-    mkdtempSync,
     readdirSync,
     readFileSync,
     rmSync,
+    statSync,
     utimesSync,
     writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -37,6 +37,7 @@ import {
     writeFatal,
     writeProgress,
 } from "../lib/store.mjs";
+import { tempDir } from "./helpers/temp-dir.mjs";
 
 const STORE = pathToFileURL(fileURLToPath(new URL("../lib/store.mjs", import.meta.url))).href;
 
@@ -45,7 +46,7 @@ const now = () => NOW;
 
 let dir;
 beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "githerd-store-"));
+    dir = tempDir("githerd-store-");
 });
 afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
@@ -74,6 +75,26 @@ describe("state", () => {
         await saveState(dir, { schema: STATE_SCHEMA, n: 1 });
         await saveState(dir, { schema: STATE_SCHEMA, n: 2 });
         expect(JSON.parse(read("state.json.bak")).n).toBe(1);
+        expect(readdirSync(dir).sort()).toEqual(["state.json", "state.json.bak"]);
+    });
+
+    it("writes compact JSON and makes the previous file the backup without copying it", async () => {
+        await saveState(dir, { schema: STATE_SCHEMA, n: 1, nested: { a: [1, 2] } });
+        expect(read("state.json")).toBe('{"schema":1,"n":1,"nested":{"a":[1,2]}}\n');
+        const previous = statSync(join(dir, "state.json")).ino;
+        await saveState(dir, { schema: STATE_SCHEMA, n: 2 });
+        expect(statSync(join(dir, "state.json.bak")).ino).toBe(previous);
+        expect(statSync(join(dir, "state.json")).ino).not.toBe(previous);
+    });
+
+    it("saves over a backup that is the same file as state.json, as a save killed between its renames leaves it", async () => {
+        await saveState(dir, { schema: STATE_SCHEMA, n: 0 });
+        await saveState(dir, { schema: STATE_SCHEMA, n: 1 });
+        rmSync(join(dir, "state.json.bak"));
+        linkSync(join(dir, "state.json"), join(dir, "state.json.bak"));
+        await saveState(dir, { schema: STATE_SCHEMA, n: 2 });
+        expect(JSON.parse(read("state.json.bak")).n).toBe(1);
+        expect(JSON.parse(read("state.json")).n).toBe(2);
         expect(readdirSync(dir).sort()).toEqual(["state.json", "state.json.bak"]);
     });
 
@@ -320,11 +341,11 @@ describe("the lock", () => {
     it("lets exactly one of several starters take one stale lock", async () => {
         const script = `import { takeLock } from ${JSON.stringify(STORE)};
 import { identify } from ${JSON.stringify(STORE.replace(/store\.mjs$/, "proc.mjs"))};
-const go = Date.now() + 300;
-while (Date.now() < go);
-const r = takeLock(${JSON.stringify(dir)}, identify(process.pid));
-process.stdout.write(JSON.stringify({ ok: r.ok }) + "\\n");
-process.stdin.resume();
+process.stdout.write("ready\\n");
+process.stdin.once("data", () => {
+    const r = takeLock(${JSON.stringify(dir)}, identify(process.pid));
+    process.stdout.write(JSON.stringify({ ok: r.ok }) + "\\n");
+});
 `;
         for (let round = 0; round < 6; round++) {
             writeFileSync(join(dir, "lock"), JSON.stringify({ pid: process.pid, startTime: "1", bootId: self.bootId }));
@@ -335,19 +356,29 @@ process.stdin.resume();
                 }),
             );
             try {
-                const answers = await Promise.all(
-                    children.map(
-                        (c) =>
-                            new Promise((resolve, reject) => {
-                                let out = "";
-                                c.stdout.on("data", (d) => {
-                                    out += d;
-                                    if (out.endsWith("\n")) resolve(JSON.parse(out));
-                                });
-                                c.once("exit", (code) => reject(new Error(`starter exited with ${code}`)));
-                            }),
-                    ),
-                );
+                // Each starter loads its modules, says ready, and races for the lock only once every
+                // starter is ready, so they all race at the same moment.
+                const lines = children.map((c) => {
+                    /** @type {((line: string) => void)[]} */
+                    const waiting = [];
+                    let out = "";
+                    c.stdout.on("data", (d) => {
+                        out += d;
+                        for (let at = out.indexOf("\n"); at >= 0; at = out.indexOf("\n")) {
+                            waiting.shift()?.(out.slice(0, at));
+                            out = out.slice(at + 1);
+                        }
+                    });
+                    const exited = new Promise((_, reject) =>
+                        c.once("exit", (code) => reject(new Error(`starter exited with ${code}`))),
+                    );
+                    return () => Promise.race([new Promise((resolve) => waiting.push(resolve)), exited]);
+                });
+                const ready = lines.map((next) => next());
+                const answered = lines.map((next) => next());
+                await Promise.all(ready);
+                for (const c of children) c.stdin.write("go\n");
+                const answers = (await Promise.all(answered)).map((line) => JSON.parse(String(line)));
                 expect(answers.filter((a) => a.ok)).toHaveLength(1);
             } finally {
                 for (const c of children) {
@@ -480,6 +511,10 @@ for (let n = 0; ; n++) {
         expect(r.source).toBe("state");
         expect(r.state.n).toBeGreaterThanOrEqual(20);
         expect(r.state.pad).toHaveLength(65536);
+        // The backup is a whole earlier state too, never a partial copy.
+        const bak = JSON.parse(read("state.json.bak"));
+        expect(bak.n).toBeGreaterThanOrEqual(r.state.n - 1);
+        expect(bak.pad).toHaveLength(65536);
         expect(readdirSync(dir).filter((f) => f.endsWith(".tmp"))).toEqual([]);
         const ns = (await readLedger(dir)).map((e) => e.n);
         expect(ns).toEqual(ns.map((_, i) => i));

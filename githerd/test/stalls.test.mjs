@@ -1,14 +1,14 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
 import { statusStep } from "../lib/asks.mjs";
 import { move, newJob } from "../lib/board.mjs";
-import { planPages } from "../lib/notify.mjs";
+import { droppableItems, endItem, planPages } from "../lib/notify.mjs";
 import { scanTranscripts } from "../lib/owners.mjs";
 import { stallStep, usageLimitStep } from "../lib/stalls.mjs";
+import { tempDir } from "./helpers/temp-dir.mjs";
 
 // The real stall of graphty-monorepo-2d (githerd's ledger, 2026-10-12): it claimed issue-2071 at
 // 00:52 and issue-467 at 01:08, heard the status question about both at 02:45:21, never answered,
@@ -163,7 +163,7 @@ describe("the usage limit", () => {
      * @returns {Promise<any>} the transcripts as the daemon keeps them
      */
     async function scanned(quota = { status: "rejected", resetsAt: 1791849600, rateLimitType: "seven_day" }) {
-        const projects = mkdtempSync(join(tmpdir(), "githerd-stalls-"));
+        const projects = tempDir("githerd-stalls-");
         dirs.push(projects);
         const cwd = "/home/u/repo";
         mkdirSync(join(projects, "-home-u-repo"));
@@ -209,6 +209,18 @@ describe("the usage limit", () => {
         expect(usageLimitStep(state, new Date("2026-10-13T00:01:00Z"))).toEqual([
             { kind: "usage-limit-reset", resets: "2026-10-13T00:00:00.000Z" },
         ]);
+    });
+
+    it("keeps a limit the owner answered until it resets, so it is not raised again, then lets it go", async () => {
+        const state = { transcripts: await scanned() };
+        usageLimitStep(state, new Date("2026-10-10T08:35:00Z"));
+        const id = "usage-limit:2026-10-13T00:00:00.000Z";
+        endItem(state, id, "record", new Date("2026-10-10T09:00:00Z"));
+        expect(droppableItems(state)).toEqual([]);
+        expect(usageLimitStep(state, new Date("2026-10-10T12:00:00Z"))).toEqual([]);
+        expect(state.ownerItems[id].endedBy).toBe("record");
+        expect(usageLimitStep(state, new Date("2026-10-13T00:01:00Z"))).toEqual([]);
+        expect(droppableItems(state).map((i) => i.id)).toEqual([id]);
     });
 
     it("reads the reset from the message when the API gave none", async () => {

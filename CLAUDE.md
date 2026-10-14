@@ -346,6 +346,7 @@ The `tools/` directory contains build scripts:
 | `validate-outputs.cjs` | Validates build outputs (ES modules, UMD, types, sourcemaps) |
 | `prepush.sh` | The pre-push gate: build, lint, knip and the fast tests. Run by `.husky/pre-push` from the hook's own copy, which is `.worktrees/gate-live` for a push through the queue (see "Where a change takes effect"); `pnpm run prepush:fast` runs it by hand. Lint never rebuilds what the Build step built or restored from nx's cache (shared by every worktree) |
 | `push-queue.sh` | How every push on this machine is made: `tools/push-queue.sh git push origin HEAD:<branch>` (run it from any worktree). Runs the gate's source-only checks first, then waits for one of three gate slots, first come first served, `PUSH_QUEUE_PRIORITY=critical` ahead of every waiting push; a push that affects no package skips the wait. The queue and the gate both run from the live copy `.worktrees/gate-live` (see "Where a change takes effect"), whichever copy of the script is called; the untracked `tmp/push-queue.sh` only calls it. A commit whose gate already failed its build, lint, tests or another check of its own is refused before the wait while the commit, the checkout's files and the gate are unchanged; the refusal names the failed step and its log, and `PUSH_QUEUE_RETRY=1` pushes it anyway when the failure was the machine's. Tickets, the push log githerd reads (`tmp/push-log.jsonl`) and the gate logs (`tmp/push-gate-logs/`) are in the main checkout |
+| `push-base.mjs` | The branch a push merges into, which every gate step measures "this push's changes" from (the SonarQube changed lines, the affected packages and shards, the secret scan, the push queue's fast lane and push log): `PUSH_BASE_REF` once asked, else `branch.<name>.prBase` (`worktree-new.sh` writes it for a branch started from another branch) or a differently named upstream, else one `gh pr view` of the pull request's base, else origin/master. So a branch stacked on another pull request's branch is judged only on its own commits |
 | `prepush-source-checks.sh` | The gate's source-only checks (formatting, offline links, the CI workflow tests, the config and tool checks, the SonarQube changed-lines scan), about two minutes. `push-queue.sh` runs them before a push waits for a slot; `prepush.sh` skips them when the checkout's fingerprint (HEAD and every file git does not ignore) is the one they passed on |
 | `shard-verdict.mjs` | Whether a test shard passed: exit 0 AND a vitest run summary for each run its command makes AND the reports it asks for, written by this run. `run-tests.sh` and `prepush-tests.mjs` apply it, because a global pnpm older than 10.29.1 reports a `pnpm exec` killed by a signal as exit 0 (`prepush.sh` warns about one) |
 | `prepush-inputs.mjs` | Content hashes for the gate: the checkout's fingerprint, and each test shard's input key (its package and the packages it depends on or reads by relative path, their build outputs, the root files, the Node version). `prepush-tests.mjs` skips a shard that already passed on this branch with the same key and prints `[SKIP]` with when and where; `PREPUSH_RERUN_ALL=1` runs every shard |
@@ -361,7 +362,7 @@ The `tools/` directory contains build scripts:
 | `live.sh` | `<tool> <branch-or-commit>`: merges a branch into a local tool's live worktree, tests it, restarts its servers (`live-tools.json`). See "Where a change takes effect" |
 | `worktree-new.sh` | `<branch> [base]`: a worktree in `.worktrees/` with the main checkout's `.env` linked in and `pnpm install --frozen-lockfile` done |
 | `sonar-gate.mjs` | The pre-push "SonarQube (changed lines)" step: scans the files a push changes into the scratch project `graphty-monorepo-local` and fails on a new issue or security hotspot on a changed line. See "SonarQube" below |
-| `sonar-baseline.mjs` | `--setup` (owner, admin token, once) configures the server and pins its id; `--watch` (under servherd) keeps project `graphty-monorepo` a current analysis of origin/master and posts the weekly burn-down numbers. `tools/sonar/api.mjs` is the only code that handles the token |
+| `sonar-baseline.mjs` | `--setup` (owner, admin token, once) configures the server and pins its id; `--watch` (under servherd) keeps project `graphty-monorepo` a current analysis of origin/master and posts the weekly burn-down numbers with the change per package since last week, filing a `priority:high` issue when the open count rose. `tools/sonar/api.mjs` is the only code that handles the token |
 | `worktree-prune.sh` | Lists worktrees whose branch is merged or deleted upstream, with size, uncommitted files and live processes, and removes each on confirmation. `--dry-run` removes nothing |
 | `release-scheduler/` | A Cloudflare Worker that dispatches `release.yml` at 00:00, 06:00, 12:00 and 18:00 UTC as a GitHub App, and opens an issue when it cannot. Setup and operation: its `README.md` |
 
@@ -392,7 +393,13 @@ when a merge or pull changed the lockfile. Either way, run `pnpm install`.
 The pre-push gate runs "SonarQube (changed lines)" (`tools/sonar-gate.mjs`) on the owner's
 SonarQube server, which is reachable only on the owner's network, so it is never part of CI. It
 fails a push on a NEW issue or security hotspot on a line the push adds or changes; what master
-already has never blocks, even on a touched line. It is one of the source-only checks
+already has never blocks, even on a touched line. Complexity is judged by the whole function, not
+its first line: cognitive complexity (S3776), regex complexity (S5843) and too many parameters
+(S107) block when the push edits the function or regex (anywhere from its first line to its last
+complexity increment) and the finding is new or its score rose compared with the merge base,
+which the step scans too. "Touch it, fix it": a function the push edits that scores 16 to 20 must
+come down to 15 or below in the same push. `// NOSONAR(S3776): <reason>` on the reported line is
+still the escape hatch. It is one of the source-only checks
 (`tools/prepush-source-checks.sh`), so it runs before the push waits for a gate slot and before the build.
 The settings (`SONAR_HOST_URL`, `SONAR_PROJECT_KEY`, `SONAR_TOKEN`, `SONAR_SCANNER_JAVA_EXE_PATH`)
 come from the environment or `.env`; never print the token or put it on a command line. Design and

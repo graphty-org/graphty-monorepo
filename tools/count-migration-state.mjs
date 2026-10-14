@@ -138,9 +138,12 @@ function runCallbackCalls(text) {
         ts.forEachChild(n, collect);
     };
     collect(file);
-    const fns = callbacks.flatMap((a) =>
-        isFn(a) ? [a] : a !== undefined && ts.isIdentifier(a) ? (named.get(a.text) ?? []) : [],
-    );
+    const fns = callbacks.flatMap((a) => {
+        if (isFn(a)) {
+            return [a];
+        }
+        return a !== undefined && ts.isIdentifier(a) ? (named.get(a.text) ?? []) : [];
+    });
     let dispatcher = false;
     const portCalls = [];
     for (const fn of fns) {

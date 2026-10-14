@@ -7,7 +7,7 @@
 import { installRemoteLog } from "./remote-log.js";
 import { requestGpuContext } from "../src/browser/index.js";
 import { composeWgsl, type WgslModuleSpec } from "../src/kernel/wgsl.js";
-import { type KernelId, KERNELS, kernelSpec } from "../src/kernels.js";
+import { kernelSpec } from "../src/kernels.js";
 import { OVERRIDE_MATRIX } from "../test/helpers/override-matrix.js";
 
 const out = document.getElementById("out") as HTMLDivElement;

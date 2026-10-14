@@ -376,7 +376,7 @@ export function updatePrs(saved, nodes, master, config, now = new Date().toISOSt
  * @param {string | undefined} repo this repository, `owner/name`
  * @returns {number[]} the issue numbers
  */
-export function referencesOf(node, branch, repo) {
+function referencesOf(node, branch, repo) {
     const closing = (node.closingIssuesReferences?.nodes ?? []).map((/** @type {any} */ i) => i.number);
     if (!branch || node.baseRefName === branch) return closing;
     return [...new Set([...closing, ...closingRefs(`${node.title ?? ""}\n${node.body ?? ""}`, repo)])];

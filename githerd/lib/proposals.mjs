@@ -487,3 +487,34 @@ async function objected(state, p, ctx, fresh) {
     veto(state, p.target, { by: "owner", reason: `the owner commented on ${p.target}`, at: objection.created_at });
     return true;
 }
+
+/** The job states after which a job never reports again. */
+const FINISHED_JOB = new Set(["done", "cancelled"]);
+
+/**
+ * The ended proposals nothing reads any more (issue #2552), by target, which the daemon drops from
+ * the state once their whole record is in the ledger (a `proposal-dropped` line). A new verdict, a
+ * veto and `closedTargets` only look at open proposals, and the stats read a closed one's record
+ * from that line (`githerdClosedIssues`). An ended proposal is still read while a job on its target
+ * has not finished (a `not-needed` report holds on a proposal that closed or ended, done.mjs), and a
+ * closed one while `watchReopen` still watches it (until the watch ends, `watched: false`).
+ * Entries in an older shape are not this module's and stay.
+ * @param {any} state the daemon state
+ * @returns {string[]} the targets to drop
+ */
+export function droppableProposals(state) {
+    const working = new Set(
+        Object.values(state.jobs ?? {})
+            .filter((/** @type {any} */ j) => (j.kind === "issue" || j.kind === "pr") && !FINISHED_JOB.has(j.state))
+            .map((/** @type {any} */ j) => `${j.kind}:${/^#(\d+)$/.exec(String(j.target ?? ""))?.[1]}`),
+    );
+    return Object.entries(state.proposals ?? {})
+        .filter(
+            ([target, /** @type {any} */ p]) =>
+                p.kind in KINDS &&
+                TERMINAL.has(p.status) &&
+                !working.has(target) &&
+                !(p.status === "closed" && !p.dryRun && p.watched !== false && p.closedAt),
+        )
+        .map(([target]) => target);
+}

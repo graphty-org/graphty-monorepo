@@ -4,11 +4,13 @@ import { createGitHub } from "../lib/github.mjs";
 import {
     advanceProposals,
     closedTargets,
+    droppableProposals,
     GRACE_DAYS,
     proposalComment,
     recordVerdict,
     veto,
 } from "../lib/proposals.mjs";
+import { githerdClosedIssues } from "../lib/stats.mjs";
 import { createFakeGh, httpOutput } from "./helpers/fake-gh.mjs";
 
 const REPO = "graphty-org/graphty-monorepo";
@@ -487,5 +489,67 @@ describe("advanceProposals: dry-run to acting, crashes and reopens", () => {
         ]);
         expect(recordVerdict(state, dup("s3")).refused).toBe("issue:5 is vetoed");
         expect(state.proposals["issue:6"].watched).toBe(false);
+    });
+});
+
+describe("droppableProposals: an ended proposal leaves the state once nothing reads it", () => {
+    /**
+     * Drops what `droppableProposals` names the way the daemon does: its whole record to the
+     * ledger first, then out of the state.
+     * @param {any} state the state
+     * @param {any[]} ledger the ledger, appended to
+     * @returns {string[]} the targets dropped
+     */
+    const drop = (state, ledger) => {
+        const targets = droppableProposals(state);
+        for (const t of targets) {
+            ledger.push({ kind: "proposal-dropped", proposal: t, record: structuredClone(state.proposals[t]) });
+            delete state.proposals[t];
+        }
+        return targets;
+    };
+
+    it("drops ended ones, keeps open ones, and a new verdict on the target is answered the same", () => {
+        const state = {};
+        recordVerdict(state, dup("s1"));
+        recordVerdict(state, { ...dup("s2"), of: 4 });
+        recordVerdict(state, { verdict: "obsolete", number: 6, evidence: "gone", session: "s1", at });
+        const kept = structuredClone(state);
+        const ledger = [];
+        expect(drop(state, ledger)).toEqual(["issue:5"]);
+        expect(ledger.map((e) => e.record.status)).toEqual(["dropped"]);
+        expect(Object.keys(state.proposals)).toEqual(["issue:6"]);
+        expect(drop(state, ledger)).toEqual([]);
+        expect(recordVerdict(state, dup("s3"))).toEqual(recordVerdict(kept, dup("s3")));
+    });
+
+    it("keeps a closed one while githerd watches it for a reopen, and the stats read it from the ledger", () => {
+        const closed = { target: "issue:7", kind: "fixed", status: "closed", closedAt: at, evidence: "x" };
+        const state = { proposals: { "issue:7": { ...closed, id: "issue:7" } } };
+        const ledger = [];
+        const before = [...githerdClosedIssues(state)];
+        expect(drop(state, ledger)).toEqual([]);
+        // watchReopen ends the watch: the record is read by nothing in the state any more.
+        state.proposals["issue:7"].watched = false;
+        expect(drop(state, ledger)).toEqual(["issue:7"]);
+        expect(state.proposals).toEqual({});
+        expect([...githerdClosedIssues(state, ledger)]).toEqual(before);
+        expect(before).toEqual([7]);
+    });
+
+    it("keeps an ended one while a job on its target has not finished, for its not-needed report", () => {
+        const state = {
+            proposals: { "issue:8": { id: "issue:8", target: "issue:8", kind: "not-needed", status: "ended" } },
+            jobs: { "issue-8": { id: "issue-8", kind: "issue", target: "#8", state: "working" } },
+        };
+        const ledger = [];
+        expect(drop(state, ledger)).toEqual([]);
+        state.jobs["issue-8"].state = "done";
+        expect(drop(state, ledger)).toEqual(["issue:8"]);
+    });
+
+    it("leaves an entry in an older shape alone", () => {
+        const state = { proposals: { "prop-1": { id: "prop-1", kind: "revert", status: "ended" } } };
+        expect(droppableProposals(state)).toEqual([]);
     });
 });

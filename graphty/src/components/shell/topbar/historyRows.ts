@@ -103,8 +103,8 @@ function entryOf(step: HistoryStep, titles: Readonly<Record<PrimaryActivityId, s
     const activityLabel = titles[activity];
     const { via, xr } = step.provenance;
     const mode = xr?.split(":")[0].toUpperCase();
-    const inMode = mode === undefined ? "" : `, in ${mode}`;
-    const provenance = via === undefined ? undefined : `by ${via}${inMode}`;
+    const modeSuffix = mode === undefined ? "" : `, in ${mode}`;
+    const provenance = via === undefined ? undefined : `by ${via}${modeSuffix}`;
     const title = historyTitle(step.fact);
 
     return {

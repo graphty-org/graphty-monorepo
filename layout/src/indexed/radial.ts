@@ -1,8 +1,15 @@
-import { type F64, type GraphSnapshot, type NodeRef, resolveNode } from "@graphty/graph-format";
+import {
+    detAcos,
+    detCos,
+    detSin,
+    type F64,
+    type GraphSnapshot,
+    type NodeRef,
+    resolveNode,
+} from "@graphty/graph-format";
 
 import type { LayoutResult } from "../positions.js";
 import { toLayoutSnapshot } from "../simulation/snapshot.js";
-import { detAcos, detCos, detSin } from "../utils/det-math.js";
 import { type CommonLayoutOptions, planar, refusal, resolve, result } from "./common.js";
 import { type ShellRotate, shellRows } from "./shell.js";
 

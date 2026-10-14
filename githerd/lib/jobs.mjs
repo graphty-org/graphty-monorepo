@@ -56,7 +56,7 @@
  * (`statusStep` in asks.mjs).
  */
 
-import { byOwner, move, newJob, TERMINAL } from "./board.mjs";
+import { byOwner, move, newJob, sessionName, TERMINAL } from "./board.mjs";
 import { orderPosition } from "./owner.mjs";
 import {
     issueRule,
@@ -188,7 +188,7 @@ function lapseOwnerClaims(state, gone, now, out) {
         const session = job.holder?.session;
         if (job.holder?.startedBy !== "owner" || job.kept || !session || TERMINAL.includes(job.state)) continue;
         if (!gone(session)) continue;
-        releaseOwnerJob(job, `claim lapsed: session ${session} ended`, now);
+        releaseOwnerJob(job, `claim lapsed: session ${sessionName(state, session)} ended`, now);
         out.lapsed.push({ job: job.id, session });
     }
 }

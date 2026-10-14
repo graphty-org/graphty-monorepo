@@ -37,6 +37,9 @@ if git -C "$MAIN" show-ref --verify --quiet "refs/heads/$BRANCH" \
 else
     # --no-track: the new branch's upstream is set by its first `git push -u`, not to the base
     git -C "$MAIN" worktree add --no-track -b "$BRANCH" "$DIR" "$BASE"
+    # A branch started from another branch is stacked on it: record that, so the pre-push gate
+    # measures this branch's changes from that branch, not origin/master (tools/push-base.mjs).
+    case "$BASE" in origin/master) ;; origin/*) git -C "$MAIN" config "branch.$BRANCH.prBase" "${BASE#origin/}" ;; esac
 fi
 
 if [ -f "$MAIN/.env" ]; then

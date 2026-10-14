@@ -398,4 +398,13 @@ describe("whyText", () => {
             whyText("issue-7", {}, ledger, NOW),
         );
     });
+
+    it("shows an owner item the daemon dropped from the state from its last ledger record", () => {
+        const record = { id: "c", kind: "fault", question: "late", endedAt: "2026-10-03T12:00:00.000Z" };
+        const ledger = [
+            { kind: "owner-item", item: "c", event: "dropped", record: { ...record, question: "early" } },
+            { kind: "owner-item", item: "c", event: "dropped", record },
+        ];
+        expect(whyText("c", state, ledger, NOW)?.split("\n")[0]).toBe("owner item c [fault], ended 10-03 12:00: late");
+    });
 });

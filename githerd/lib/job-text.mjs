@@ -100,7 +100,7 @@ const DONE = /** @type {Record<string, string>} */ ({
         "every required check is green on the pull request's current head, its base is master and it is not a draft; " +
         "or all that is left waits only on the owner (a visual review or an open owner item).",
     issue:
-        "a pull request that references the issue, based on master and not a draft, whose head on GitHub is the commit you pushed, " +
+        "a pull request that references the issue and each issue whose job joined this one, based on master and not a draft, whose head on GitHub is the commit you pushed, " +
         "has every required check green (or waits only on the owner), and githerd/merge is not pending for a reason you can fix. " +
         "Or the issue needs no change (outcome not-needed, with evidence; it is closed only after the owner had a chance to object), " +
         "or it is split into new issues you filed (outcome split, with their numbers), " +

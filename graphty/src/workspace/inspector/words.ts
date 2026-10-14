@@ -37,6 +37,7 @@ export const KIND_WORDS: Readonly<Record<InspectedKindId, string>> = {
 const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.color": "Color",
     "node.size": "Size",
+    "node.sizeMode": "Size mode",
     "node.shape": "Shape",
     "node.label": "Label",
     "node.labelStyle": "Label",

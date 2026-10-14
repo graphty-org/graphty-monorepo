@@ -1,5 +1,5 @@
 import { astar } from "@graphty/algorithms";
-import { type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
+import { detHypot, type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 import { z } from "zod/v4";
 
 import type { EdgeId } from "../catalog/types";
@@ -71,7 +71,7 @@ function layoutDistance(graph: GraphSnapshot, searched: GraphSnapshot): (node: n
     return (node, target) => {
         const a = rowOf(node) * 3;
         const b = rowOf(target) * 3;
-        const d = Math.hypot(xyz[a] - xyz[b], xyz[a + 1] - xyz[b + 1], xyz[a + 2] - xyz[b + 2]);
+        const d = detHypot(xyz[a] - xyz[b], xyz[a + 1] - xyz[b + 1], xyz[a + 2] - xyz[b + 2]);
         return Number.isFinite(d) ? d : 0;
     };
 }

@@ -295,6 +295,35 @@ describe("scene comparison", () => {
         });
     });
 
+    it("judges an edge's route from center to center, wherever each side cuts it at the node outlines", () => {
+        // the reference reads the line's ends at the node centers; graphty stops it at each node's
+        // outline, 10 px from the center on each side
+        const clipped = {
+            ...sub,
+            edges: sub.edges.map((e) => ({
+                ...e,
+                points: [
+                    [410, 300],
+                    [440, 300],
+                ] as [number, number][],
+            })),
+        };
+        expect(compareScenes(ref, clipped).properties.edgePath.status).toBe("pass");
+        // a route that leaves its node somewhere else still fails
+        const detour = {
+            ...sub,
+            edges: sub.edges.map((e) => ({
+                ...e,
+                points: [
+                    [410, 300],
+                    [425, 330],
+                    [440, 300],
+                ] as [number, number][],
+            })),
+        };
+        expect(compareScenes(ref, detour).properties.edgePath.status).toBe("fail");
+    });
+
     it("scores each property after the fit", () => {
         const c = compareScenes(ref, sub);
         expect(c.transform?.scale).toBeCloseTo(2, 9);

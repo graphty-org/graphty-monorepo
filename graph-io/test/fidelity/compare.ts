@@ -584,6 +584,21 @@ const normText = (s: string | null | undefined): string | null => (s ? s.replace
 interface Ctx {
     t: Omit<Transform, "rms"> | null;
     diag: number;
+    /** Each scene's node centers by id, which an edge path is judged from and to. */
+    centers?: { ref: ReadonlyMap<string, Pt>; subject: ReadonlyMap<string, Pt> };
+}
+
+/**
+ * An edge's path from its source node's center to its target node's center: where a tool cuts the
+ * line at a node's outline (or a reference reads the line's ends at the centers) is not its route.
+ * @param e - the edge
+ * @param centers - the scene's node centers
+ * @returns the path
+ */
+function centerToCenter(e: SceneEdge, centers: ReadonlyMap<string, Pt> | undefined): Pt[] {
+    const from = centers?.get(e.source);
+    const to = centers?.get(e.target);
+    return [...(from ? [from] : []), ...e.points, ...(to ? [to] : [])];
 }
 
 type NodeJudge = (r: SceneNode, s: SceneNode, ctx: Ctx & { t: Omit<Transform, "rms"> }) => Verdict | null;
@@ -673,13 +688,14 @@ const EDGE_JUDGES: Partial<Record<Property, EdgeJudge>> = {
         const pass = r.arrow.source === got.source && r.arrow.target === got.target;
         return { value: pass ? "equal" : `${got.source}/${got.target}`, bad: pass ? 0 : 1, pass, ref: r.arrow, got };
     },
-    edgePath: (r, s, reversed, { t, diag }) => {
+    edgePath: (r, s, reversed, { t, diag, centers }) => {
         if (r.points.length < 2 || s.points.length < 2) {
             return null;
         }
-        const mapped = s.points.map((p) => apply(t, p));
+        const mapped = centerToCenter(s, centers?.subject).map((p) => apply(t, p));
         const got = reversed ? mapped.reverse() : mapped;
-        const d = frechet(resample(r.points, THRESHOLDS.pathSamples), resample(got, THRESHOLDS.pathSamples)) / diag;
+        const want = centerToCenter(r, centers?.ref);
+        const d = frechet(resample(want, THRESHOLDS.pathSamples), resample(got, THRESHOLDS.pathSamples)) / diag;
         // a bow too shallow to move the path past the threshold is still a curve where the tool draws a line
         const sameKind = r.curved === s.curved;
         const kind = (e: SceneEdge): string => `${e.points.length} points${e.curved ? ", curved" : ""}`;
@@ -775,7 +791,8 @@ export function compareScenes(ref: Scene, subject: Scene, options: CompareOption
                   ty: fit.ty,
                   rms: Math.sqrt(fit.sse / m.nodes.length) / diag,
               };
-    const ctx = { t: transform, diag };
+    const centersOf = (scene: Scene): Map<string, Pt> => new Map(scene.nodes.map((n) => [n.id, [n.x, n.y] as Pt]));
+    const ctx = { t: transform, diag, centers: { ref: centersOf(ref), subject: centersOf(subject) } };
 
     const properties = {} as Record<Property, PropertyResult>;
     for (const p of PROPERTIES) {
@@ -835,7 +852,7 @@ export function compareScenes(ref: Scene, subject: Scene, options: CompareOption
                   };
             continue;
         }
-        properties[p] = judge(p, ref, subject, m, { t: ctx.t, diag }, options.idMap);
+        properties[p] = judge(p, ref, subject, m, ctx, options.idMap);
     }
     return { transform, counts: m.counts, properties };
 }
@@ -859,7 +876,7 @@ function judge(
     idMap?: ReadonlyMap<string, string>,
 ): PropertyResult {
     const t = ctx.t ?? { scale: 1, rotation: 0, reflect: false, tx: 0, ty: 0 };
-    const full = { t, diag: ctx.diag };
+    const full = { t, diag: ctx.diag, centers: ctx.centers };
     const nodeJudge = NODE_JUDGES[p];
     if (nodeJudge) {
         return summarize(

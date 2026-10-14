@@ -1,6 +1,7 @@
 import type { F64, GraphSnapshot } from "@graphty/graph-format";
 
 import { type LayoutResult, rescaleInPlace } from "../positions.js";
+import { detCos, detSin } from "../utils/det-math.js";
 import { type CommonLayoutOptions, planar, resolve, result } from "./common.js";
 
 /** Options of the index-based spiral layout. */
@@ -36,13 +37,13 @@ function spiralRows(
         for (let i = 0; i < n; i++) {
             const r = step * theta;
             theta += chord / r;
-            rows[2 * i] = Math.cos(theta) * r;
-            rows[2 * i + 1] = Math.sin(theta) * r;
+            rows[2 * i] = detCos(theta) * r;
+            rows[2 * i + 1] = detSin(theta) * r;
         }
     } else {
         for (let i = 0; i < n; i++) {
-            rows[2 * i] = Math.cos(resolution * i) * i;
-            rows[2 * i + 1] = Math.sin(resolution * i) * i;
+            rows[2 * i] = detCos(resolution * i) * i;
+            rows[2 * i + 1] = detSin(resolution * i) * i;
         }
     }
     return rescaleInPlace(rows, 2, scale, center);

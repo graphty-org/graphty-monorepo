@@ -115,7 +115,9 @@ describe.each(["scripts/build-hosted.mjs", "scripts/pack-datasets.mjs"])("%s", (
     it("writes snapshots with graph-format's tsc output, which stamps no commit", async () => {
         expect(formatImports).toEqual(["graph-format/dist/src/index.js"]);
         const tscOutput = path.resolve(packageRoot, "../graph-format/dist/src/index.js");
-        const { fromEdgeArrays } = (await import(pathToFileURL(tscOutput).href)) as typeof import("@graphty/graph-format");
+        const { fromEdgeArrays } = (await import(
+            pathToFileURL(tscOutput).href
+        )) as typeof import("@graphty/graph-format");
         const bytes = fromEdgeArrays({
             directed: false,
             nodeCount: 2,

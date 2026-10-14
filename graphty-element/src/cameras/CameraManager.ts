@@ -11,14 +11,20 @@ const GLIDE = 0.2;
  * unit, so a pivot that has arrived stops changing and a frame drawn on demand can rest.
  * @param from - The point, moved in place.
  * @param to - The target.
+ * @returns Whether the point moved.
  */
-export function glideTowards(from: Vector3, to: Vector3): void {
-    if (Vector3.DistanceSquared(from, to) < 1e-6) {
-        from.copyFrom(to);
-        return;
+export function glideTowards(from: Vector3, to: Vector3): boolean {
+    if (from.equals(to)) {
+        return false;
     }
 
-    Vector3.LerpToRef(from, to, GLIDE, from);
+    if (Vector3.DistanceSquared(from, to) < 1e-6) {
+        from.copyFrom(to);
+    } else {
+        Vector3.LerpToRef(from, to, GLIDE, from);
+    }
+
+    return true;
 }
 
 export interface CameraController {
@@ -33,7 +39,7 @@ export interface CameraController {
      * Called each frame with the point the camera should pivot on, while there is one: the
      * controller glides its pivot there.
      */
-    followPoint?(point: Vector3): void;
+    followPoint?(point: Vector3): boolean;
 }
 
 interface InputHandler {
@@ -131,15 +137,16 @@ export class CameraManager {
      * reader's turns and zooms happen about it and nothing moves; otherwise the active camera
      * glides its pivot to it.
      * @param point - The point, in world space.
+     * @returns Whether the camera moved, so the picture is not final yet.
      */
-    public followPoint(point: Vector3): void {
+    public followPoint(point: Vector3): boolean {
         const xr = this.scene.metadata?.xrCameraController as XRPivotCameraController | null | undefined;
         if (xr) {
             xr.pivotController.center = point;
-            return;
+            return false;
         }
 
-        this.activeCameraController?.followPoint?.(point);
+        return this.activeCameraController?.followPoint?.(point) ?? false;
     }
 
     /**

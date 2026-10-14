@@ -106,9 +106,10 @@ export class TwoDCameraController {
     /**
      * Glide the view's center to a point, which is then what the view zooms about.
      * @param point - The point; only its x and y are used.
+     * @returns Whether the view moved.
      */
-    public followPoint(point: Vector3): void {
-        glideTowards(this.camera.position, new Vector3(point.x, point.y, this.camera.position.z));
+    public followPoint(point: Vector3): boolean {
+        return glideTowards(this.camera.position, new Vector3(point.x, point.y, this.camera.position.z));
     }
 
     /**

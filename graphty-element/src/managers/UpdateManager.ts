@@ -211,6 +211,8 @@ interface UpdateManagerConfig {
  */
 export class UpdateManager implements Manager {
     private needsZoomToFit = false;
+    /** Whether this pass moved the camera towards the selection; see `followSelection`. */
+    private followingSelection = false;
     private hasZoomedToFit = false;
 
     /**
@@ -784,6 +786,10 @@ export class UpdateManager implements Manager {
             return "a filter or a selection has not been drawn yet";
         }
 
+        if (this.followingSelection) {
+            return "the camera is still moving to the selection";
+        }
+
         if (!this.everyDrawnMeshIsReady()) {
             return "a mesh is still waiting for its shader";
         }
@@ -833,7 +839,7 @@ export class UpdateManager implements Manager {
         }
 
         // A filter or a selection the meshes have not been handed yet; see `viewMasksPending`.
-        if (this.viewMasksPending()) {
+        if (this.viewMasksPending() || this.followingSelection) {
             return false;
         }
 
@@ -978,6 +984,7 @@ export class UpdateManager implements Manager {
      * the pointer would carry the drag along with it.
      */
     private followSelection(): void {
+        this.followingSelection = false;
         if (!this.graphContext.getStyles().config.behavior.camera.pivotOnSelection || this.willZoomToFit()) {
             return;
         }
@@ -992,7 +999,8 @@ export class UpdateManager implements Manager {
             center.addInPlace(node.mesh.position);
         }
 
-        this.camera.followPoint(center.scaleInPlace(1 / nodes.length));
+        // A camera still gliding to the selection is a picture that is not final yet.
+        this.followingSelection = this.camera.followPoint(center.scaleInPlace(1 / nodes.length));
     }
 
     /**

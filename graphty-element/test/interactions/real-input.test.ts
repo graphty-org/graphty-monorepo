@@ -568,7 +568,8 @@ describe("the selection as the camera's pivot", () => {
         element.layoutBehavior = { camera: { pivotOnSelection: true } };
 
         await click(element, at(element, "c"));
-        await cameraAtRest(element);
+        // The picture is not final until the camera has arrived, so a stable frame is the arrival
+        await element.waitForStableFrame();
 
         const { target } = element.getCameraState();
         const c = meanOf(element, ["c"]);

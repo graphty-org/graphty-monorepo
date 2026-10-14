@@ -154,9 +154,9 @@ export function usageLimitStep(state, now) {
     const out = [];
     for (const item of Object.values(state.ownerItems ?? {})) {
         const i = /** @type {any} */ (item);
-        if (i.kind !== "usage-limit" || i.endedAt || Date.parse(i.resets) > now.getTime()) continue;
-        endItem(state, i.id, "cleared", now);
-        out.push({ kind: "usage-limit-reset", resets: i.resets });
+        if (i.kind !== "usage-limit" || i.clearedAt || Date.parse(i.resets) > now.getTime()) continue;
+        // An item the owner answered is cleared too, so the daemon can drop it (droppableItems).
+        if (endItem(state, i.id, "cleared", now)) out.push({ kind: "usage-limit-reset", resets: i.resets });
     }
     for (const scan of Object.values(state.transcripts ?? {})) {
         const limit = /** @type {any} */ (scan).limit;

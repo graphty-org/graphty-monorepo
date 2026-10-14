@@ -43,7 +43,7 @@ graph-format/
 |   +-- snapshot/                 # graph-snapshot.ts views.ts queries.ts derived.ts validate.ts hash.ts
 |   +-- populate/                 # from-edge-arrays.ts from-csr.ts from-records.ts
 |   +-- wire/                     # to-wire.ts from-wire.ts bytes.ts (GSNP container)
-|   +-- util/                     # typed-array.ts mask.ts shared-buffers.ts (the 9.1 owner count)
+|   +-- util/                     # typed-array.ts mask.ts shared-buffers.ts (the 9.1 owner count), det-math.ts (engine-independent log, exp, sin, cos, acos, hypot, pow)
 |   +-- lib-resizable-array-buffer.d.ts   # local declaration for resizable / resize / maxByteLength
 +-- test/
 |   +-- helpers/                  # parts.ts (naive CSR + SnapshotParts), invariants.ts (I1-I18 checks), model-graph.ts, random-ops.ts

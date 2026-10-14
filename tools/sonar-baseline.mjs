@@ -393,8 +393,78 @@ function gateRuns(since) {
     return { total: recent.length, skipped: recent.filter((l) => l.includes(" skipped:")).length };
 }
 
-// The weekly numbers, as a Markdown comment for the "SonarQube burn-down" issue.
-async function weeklyReport(api, key) {
+/**
+ * The open issues per package this week against last week's.
+ * @param prev - Last week's `{ week, total, packages: { name: count } }`, or null on the first week.
+ * @param now - This week's, the same shape.
+ * @returns `{ lines, rose }`: Markdown list lines (total first, then each package, largest first,
+ *   with its change), and whether the total rose.
+ */
+export function weekOverWeek(prev, now) {
+    const sign = (d) => (d > 0 ? `+${d}` : String(d));
+    const change = (was, is) => (was === undefined ? "new" : sign(is - was));
+    if (!prev) {
+        return {
+            lines: ["- Open issues by package (no earlier week recorded):", ...packageLines(now, () => "")],
+            rose: false,
+        };
+    }
+    const lines = [
+        `- Change since ${prev.week}: ${sign(now.total - prev.total)} (${prev.total} to ${now.total})`,
+        ...packageLines(now, (name, count) => ` (${change(prev.packages[name], count)})`),
+    ];
+    for (const name of Object.keys(prev.packages)
+        .filter((n) => !(n in now.packages))
+        .sort()) {
+        lines.push(`  - ${name}: 0 (${sign(-prev.packages[name])})`);
+    }
+    return { lines, rose: now.total > prev.total };
+}
+
+const packageLines = (now, suffix) =>
+    Object.entries(now.packages)
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+        .map(([name, count]) => `  - ${name}: ${count}${suffix(name, count)}`);
+
+// Open issues per top-level directory (each package; files at the root together), in one call.
+async function openByPackage(api, key) {
+    const tree = await api.call("api/measures/component_tree", {
+        component: key,
+        metricKeys: "violations",
+        strategy: "children",
+        ps: 500,
+    });
+    const packages = {};
+    for (const c of tree.components ?? []) {
+        const count = Number(c.measures?.find((m) => m.metric === "violations")?.value ?? 0);
+        const name = c.qualifier === "DIR" ? c.path : "(files at the root)";
+        if (count) packages[name] = (packages[name] ?? 0) + count;
+    }
+    const total = Number(tree.baseComponent?.measures?.find((m) => m.metric === "violations")?.value ?? 0);
+    return { week: isoWeek(), total, packages };
+}
+
+const RISE_TITLE = (week) => `SonarQube: open issues rose in ${week}`;
+const RISE_LABELS = "infrastructure,sonarqube,priority:high,effort:medium";
+
+// One issue for a week whose open count rose, naming the packages that rose.
+function fileRise(week, counts, lines) {
+    const body = [
+        `The weekly SonarQube numbers for project \`graphty-monorepo\` rose in ${week}. The burn-down`,
+        "only works while the open count falls: find what added the issues below and fix them, or record",
+        'a decision for them in design/sonarqube/design.md ("Rule decisions").',
+        "",
+        ...lines,
+        "",
+        `Open issues now: ${counts.total}. Part of #1183. Filed by \`tools/sonar-baseline.mjs\`.`,
+    ].join("\n");
+    const args = ["issue", "create", "--title", RISE_TITLE(week), "--label", RISE_LABELS, "--body", body];
+    if (sh("gh", args, ROOT)) log(`open issues rose in ${week}; filed an issue`);
+}
+
+// The weekly numbers, as a Markdown comment for the "SonarQube burn-down" issue. `trend` is
+// weekOverWeek's lines.
+async function weeklyReport(api, key, trend) {
     const since = new Date(Date.now() - 7 * 86400000);
     const sinceDay = since.toISOString().slice(0, 10);
     const open = { components: key, issueStatuses: "OPEN,CONFIRMED" };
@@ -427,6 +497,7 @@ async function weeklyReport(api, key) {
         `## Week ${isoWeek()}: the owner's local SonarQube server, project \`${key}\``,
         "",
         `- Open issues: ${facet.paging?.total ?? 0} (by quality: ${qualities}; by severity: ${severities})`,
+        ...trend,
         `- Security hotspots to review: ${hotspots.paging?.total ?? 0}`,
         `- Ratings: ${ratings}`,
         `- Duplication ${m.duplicated_lines_density ?? "?"}%, coverage ${m.coverage ?? "not imported"}%`,
@@ -456,9 +527,21 @@ async function postWeekly(api, key) {
         log('no open "SonarQube burn-down" issue; weekly comment skipped');
         return;
     }
-    if (sh("gh", ["issue", "comment", String(issue.number), "--body", await weeklyReport(api, key)], ROOT)) {
+    // Last week's per-package counts, kept beside the stamp; a rise files its own issue.
+    const countsFile = join(sonarDir(), "weekly-counts.json");
+    let prev = null;
+    try {
+        prev = JSON.parse(readFileSync(countsFile, "utf8"));
+    } catch {
+        // the first week recorded
+    }
+    const counts = await openByPackage(api, key);
+    const { lines, rose } = weekOverWeek(prev, counts);
+    if (sh("gh", ["issue", "comment", String(issue.number), "--body", await weeklyReport(api, key, lines)], ROOT)) {
         writeFileSync(stamp, `${week}\n`);
+        writeFileSync(countsFile, `${JSON.stringify(counts)}\n`);
         log(`weekly numbers posted on #${issue.number}`);
+        if (rose) fileRise(week, counts, lines);
     }
 }
 

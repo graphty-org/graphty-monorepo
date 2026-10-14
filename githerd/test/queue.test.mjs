@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { move, newJob } from "../lib/board.mjs";
-import { jobInUse, jobOrder } from "../lib/queue.mjs";
+import { move, nameSessions, newJob } from "../lib/board.mjs";
+import { jobInUse, jobOrder, prHolder } from "../lib/queue.mjs";
 
 const NOW = new Date("2026-10-02T12:00:00Z");
 
@@ -251,6 +251,18 @@ describe("pull requests in use (owner decisions 2026-10-04 and 2026-10-05)", () 
         expect(order(state).inUse).toEqual([{ job: "review-9", reason: "claimed by session w1" }]);
     });
 
+    it("names another session's claim by its registry name, and by its id only when the registry has none", () => {
+        const maker = Object.assign(newJob({ kind: "issue", target: "#3", id: "issue-3" }, NOW), { pr: 9 });
+        move(maker, "starting", NOW, { holder: { session: "cd86bb1c", startedBy: "owner" } });
+        const review = newJob({ kind: "review", target: "#9", id: "review-9", facts: { pr: 9 } }, NOW);
+        const state = /** @type {any} */ ({ jobs: { "issue-3": maker, "review-9": review }, prs: {}, sessions: {} });
+        state.sessions.cd86bb1c = { cwd: null };
+        expect(order(state).inUse).toEqual([{ job: "review-9", reason: "claimed by session cd86bb1c" }]);
+        nameSessions(state, [{ sessionId: "cd86bb1c", name: "graphty-monorepo-fc" }]);
+        expect(order(state).inUse).toEqual([{ job: "review-9", reason: "claimed by session graphty-monorepo-fc" }]);
+        expect(prHolder(state, 9)?.name).toBe("graphty-monorepo-fc");
+    });
+
     it("never offers a review to a session that wrote its pull request, and offers it to another", () => {
         const maker = Object.assign(newJob({ kind: "issue", target: "#3", id: "issue-3" }, NOW), {
             pr: 9,
@@ -308,7 +320,10 @@ describe("pull requests in use (owner decisions 2026-10-04 and 2026-10-05)", () 
             jobOrder(state.jobs, { inUse: (j) => jobInUse(state, j, { now: NOW, session }) });
         // Queued, the triage job covers nothing.
         expect(asking("s2").inUse).toEqual([]);
-        move(triage, "starting", NOW, { holder: { session: "s1", name: "graphty-7", startedBy: "githerd" } });
+        move(triage, "starting", NOW, {
+            holder: { session: "s1", name: "githerd-triage-types-11", startedBy: "githerd" },
+        });
+        state.sessions = { s1: { name: "graphty-7" } };
         expect(asking("s2").inUse).toEqual([
             { job: "issue-504", reason: "#504 is in triage-types-11, claimed by session graphty-7" },
         ]);

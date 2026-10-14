@@ -1,3 +1,14 @@
+## 0.1.5 (2026-10-14)
+
+### 🩹 Fixes
+
+- **githerd:** let a killed push's gate run its exit trap before the push is reported ([#2481](https://github.com/graphty-org/graphty-monorepo/issues/2481))
+- **githerd:** accept done for a fix stacked on another open pull request ([#2467](https://github.com/graphty-org/graphty-monorepo/issues/2467))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.1.4 (2026-10-13)
 
 ### 🩹 Fixes

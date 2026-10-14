@@ -184,7 +184,7 @@ A channel is one visual property with one name. These are all of them:
 | `node.glow`         | a colour                                                           |
 | `node.glowStrength` | 0 or more, scaling `node.glow`; 0 or on its own it draws no glow   |
 | `node.wireframe`    | true or false                                                      |
-| `node.flat`         | true or false                                                      |
+| `node.flat`         | true or false: one normal per face, so a sphere looks faceted (3D) |
 
 | Edge channel              | Takes                                                                      |
 | ------------------------- | -------------------------------------------------------------------------- |

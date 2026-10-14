@@ -426,6 +426,27 @@ export function createReplay() {
         },
 
         /**
+         * The minutes a minute-by-minute poller of one path would poll with a reason: each minute
+         * whose answer differs from the minute before (the first minute included), and the minute
+         * after it, which answers the same again and so checks that an unchanged answer is no news.
+         * Every other minute repeats the previous answer, a 304, so a test whose own work at a
+         * minute depends only on the answer can poll these alone.
+         * @param {string} path the REST path
+         * @param {number | string} from the first minute
+         * @param {number | string} to the end, exclusive
+         * @returns {Set<number>} the minutes
+         */
+        changedMinutes(path, from, to) {
+            const out = new Set();
+            for (const a of this.sequence(path, from, to)) {
+                if (a.status === 304) continue;
+                out.add(a.at);
+                out.add(a.at + MINUTE);
+            }
+            return out;
+        },
+
+        /**
          * The minute-by-minute answers one poller would get for one path: a 200 when the answer
          * changed since the previous minute, else a 304 with no body.
          * @param {string} path the REST path

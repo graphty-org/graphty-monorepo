@@ -39,5 +39,6 @@
         }
     },
     "references": [{ "path": "./tsconfig.node.json" }],
-    "include": ["src", ".storybook"]
+    // graphty-element is type-checked from source, so its declarations for untyped packages come too.
+    "include": ["src", ".storybook", "../graphty-element/src/types/modules.d.ts"]
 }

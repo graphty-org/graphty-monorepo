@@ -1,13 +1,17 @@
 import { Camera, Color4, Scalar, Scene, type TransformNode, UniversalCamera, Vector3 } from "@babylonjs/core";
 
+import { glideTowards } from "./CameraManager";
 import { PivotController } from "./PivotController";
 
 export interface OrbitConfig {
     trackballRotationSpeed: number;
     keyboardRotationSpeed: number;
+    /**
+     * The fraction of the camera's distance that W or S moves the camera each frame it is held,
+     * so a held key zooms by the same factor per frame however far out the camera is.
+     */
     keyboardZoomSpeed: number;
     keyboardYawSpeed: number;
-    pinchZoomSensitivity: number;
     twistYawSensitivity: number;
     minZoomDistance: number;
     maxZoomDistance: number;
@@ -108,6 +112,14 @@ export class OrbitCameraController {
     }
 
     /**
+     * Zoom by a factor of the current distance, within the same limits as `zoom`.
+     * @param factor - The distance multiplier (< 1 zooms in, > 1 zooms out)
+     */
+    public zoomBy(factor: number): void {
+        this.zoom(this.cameraDistance * (factor - 1));
+    }
+
+    /**
      * The distance rule every programmatic writer of `cameraDistance` follows: floored at
      * `minZoomDistance`, never capped. The ceiling is a zoom-out limit for a reader, not a
      * framing limit -- a saved state for a large graph can sit beyond it, and `zoom` accepts that
@@ -117,6 +129,19 @@ export class OrbitCameraController {
      */
     public clampDistance(distance: number): number {
         return Math.max(distance, this.config.minZoomDistance);
+    }
+
+    /**
+     * Glide the pivot to a point, turning about that point meanwhile, so the camera ends up
+     * looking at it and orbits, spins and zooms about it.
+     * @param point - The point, in world space.
+     * @returns Whether the pivot moved.
+     */
+    public followPoint(point: Vector3): boolean {
+        this.pivotController.center = point;
+        const moved = glideTowards(this.pivot.position, point);
+        this.updateCameraPosition();
+        return moved;
     }
 
     /**

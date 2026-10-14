@@ -3,7 +3,6 @@ import jmespath from "jmespath";
 import { z } from "zod/v4";
 import * as z4 from "zod/v4/core";
 
-// import {JSONParser} from "@streamparser/json";
 import type { AdHocData } from "../config/common";
 import { GraphtyError } from "../errors";
 import { BaseDataSourceConfig, DataSource, DataSourceChunk } from "./DataSource";

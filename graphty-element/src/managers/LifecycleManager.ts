@@ -249,8 +249,7 @@ export class LifecycleManager implements Manager {
     }
 
     /**
-     * Add a new manager to the lifecycle
-     * TODO: This should only be done before init() is called
+     * Add a new manager to the lifecycle. Only before init() starts: it throws after.
      * @param name - Unique name for the manager
      * @param manager - Manager instance to add
      * @param position - Optional position in initialization order (defaults to end)

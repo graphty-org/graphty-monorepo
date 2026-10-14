@@ -1,4 +1,5 @@
 import { type DatasetMeta } from "../build.js";
+import { PACKED } from "../packed.js";
 
 /** What the politicalBooks dataset is, where it came from and under which terms. */
 export const politicalBooksMeta: DatasetMeta = {
@@ -20,4 +21,6 @@ export const politicalBooksMeta: DatasetMeta = {
         "two- and three-way community detection against the political lean",
         "force-directed layouts colored by lean",
     ],
+    hosting: "remote",
+    ...PACKED["political-books"],
 };

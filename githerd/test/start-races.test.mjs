@@ -1,7 +1,6 @@
 // The worker start wiring (start.mjs and its callers) under races and odd exits. Each test states the
 // behavior the design asks for.
-import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -10,6 +9,7 @@ import { tickJobs } from "../lib/advance.mjs";
 import { claimJob, move, newJob } from "../lib/board.mjs";
 import { normalizeConfig } from "../lib/config.mjs";
 import { fillSlots, tidyEndedJobs } from "../lib/start.mjs";
+import { tempDir } from "./helpers/temp-dir.mjs";
 
 const T0 = new Date("2026-10-04T12:00:00Z");
 const GREEN = "g".repeat(40);
@@ -23,7 +23,7 @@ let clock;
 let calls;
 
 beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "githerd-start-races-"));
+    dir = tempDir("githerd-start-races-");
     clock = T0;
     calls = [];
 });

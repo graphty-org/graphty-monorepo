@@ -150,10 +150,8 @@ class SpmvPullPlannerImpl implements SpmvPullPlanner {
             if (rows <= 0) {
                 continue;
             }
-            const plan =
-                tier === 0
-                    ? planGridStride(rows, wg, this.scope.caps)
-                    : plan1d(rows, tier === 2 ? 1 : wg / MID_TIER_LANES, this.scope.caps);
+            const tierWg = tier === 2 ? 1 : wg / MID_TIER_LANES;
+            const plan = tier === 0 ? planGridStride(rows, wg, this.scope.caps) : plan1d(rows, tierWg, this.scope.caps);
             if (plan.x === 0) {
                 continue;
             }

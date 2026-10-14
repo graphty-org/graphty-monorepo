@@ -893,10 +893,12 @@ function registrant(run: (layout: LayoutThis) => void, withStop: boolean): unkno
         this.looping = false;
         RUN_BODIES.set(this, run);
     }
-    GraphtyLayout.prototype.run = runLayout;
+    const methods: { run: typeof runLayout; stop?: typeof stopLayout } = { run: runLayout };
     if (withStop) {
-        GraphtyLayout.prototype.stop = stopLayout;
+        methods.stop = stopLayout;
     }
+    // A function's prototype is typed any; assigning through Object.assign keeps the methods typed.
+    Object.assign(GraphtyLayout.prototype, methods);
     return GraphtyLayout;
 }
 

@@ -55,7 +55,8 @@ async function withSe<T>(
         throw new Error("createSpringElectrical did not return a ForceSimulation");
     }
     try {
-        return await fn(sim);
+        // instanceof drops the type arguments; createSpringElectrical builds exactly this one.
+        return await fn(sim as SeSim);
     } finally {
         sim.dispose();
     }

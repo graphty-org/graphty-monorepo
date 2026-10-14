@@ -97,6 +97,7 @@ import {
     PARENT_COLUMN,
     PIN_ATTRIBUTE,
     POS_ATTRIBUTE,
+    POSITION_COLUMN,
     SOURCE_PORT_COLUMN,
     TARGET_PORT_COLUMN,
 } from "./names.js";
@@ -122,6 +123,12 @@ export interface DotImportOptions extends GraphChoiceOptions, CommonImportOption
      * @defaultValue true
      */
     positions?: boolean | undefined;
+    /**
+     * With `positions`, also keep `pos` as the text the file wrote; the position column is then
+     * named `graphty.position`, so a reader gets both.
+     * @defaultValue false
+     */
+    keepPositionSource?: boolean | undefined;
 }
 
 /**
@@ -323,7 +330,7 @@ interface Scope {
  */
 export const dotImporter: GraphImporter<DotImportOptions> = Object.freeze({
     format: DOT_FORMAT,
-    options: Object.freeze(["mismatchedEdgeOperator", "positions"]),
+    options: Object.freeze(["keepPositionSource", "mismatchedEdgeOperator", "positions"]),
     extensions: EXTENSIONS,
     mimeTypes: MIME_TYPES,
 
@@ -376,7 +383,15 @@ export const dotImporter: GraphImporter<DotImportOptions> = Object.freeze({
         const reports = { current: report };
         const lexer = dotLexer(text, reports);
         const first = guard(report, () => lexer.next());
-        const parser = new DotParser(lexer, sink, report, resolved, mismatch, options?.positions !== false);
+        const parser = new DotParser(
+            lexer,
+            sink,
+            report,
+            resolved,
+            mismatch,
+            options?.positions !== false,
+            options?.keepPositionSource === true,
+        );
         parser.headCharset = head.charset;
         const trailing = parseGraph(parser, report, first);
         if (trailing.kind !== "eof") {
@@ -429,7 +444,15 @@ export const dotImporter: GraphImporter<DotImportOptions> = Object.freeze({
             reports.current = report;
             const sink = sinkFor(done.length);
             reportSinkOptions(sink, options, report);
-            const parser = new DotParser(lexer, sink, report, resolved, mismatch, options?.positions !== false);
+            const parser = new DotParser(
+                lexer,
+                sink,
+                report,
+                resolved,
+                mismatch,
+                options?.positions !== false,
+                options?.keepPositionSource === true,
+            );
             parser.headCharset = head.charset;
             token = parseGraph(parser, report, token);
             throwIfAborted(resolved.signal);
@@ -686,6 +709,8 @@ class DotParser {
     private readonly mismatch: "operator" | "header" | "error";
     private readonly positions: boolean;
 
+    private readonly keepPositionSource: boolean;
+
     private readonly ids: IdCoercer;
 
     private readonly resolver: DirectionResolver;
@@ -758,6 +783,7 @@ class DotParser {
      * @param options - the resolved common options
      * @param mismatch - the resolved mismatchedEdgeOperator option
      * @param positions - whether `pos` goes to the position column
+     * @param keepPositionSource - whether `pos` also stays as text
      */
     constructor(
         lexer: DotTokenizer,
@@ -766,6 +792,7 @@ class DotParser {
         options: ResolvedImportOptions,
         mismatch: "operator" | "header" | "error",
         positions: boolean,
+        keepPositionSource: boolean,
     ) {
         this.lexer = lexer;
         this.sink = sink;
@@ -773,6 +800,7 @@ class DotParser {
         this.options = options;
         this.mismatch = mismatch;
         this.positions = positions;
+        this.keepPositionSource = keepPositionSource;
         this.ids = new IdCoercer(options.ids);
         this.resolver = new DirectionResolver(sink, report, options.onMixedDirection);
     }
@@ -1586,6 +1614,9 @@ class DotParser {
                 this.sink.setNodeValue(this.nodeLabel(), index, value);
             } else if (name === POS_ATTRIBUTE && this.positions) {
                 this.setPosition(index, value, line, element);
+                if (this.keepPositionSource) {
+                    this.textWriter("node", name).write(index, value);
+                }
             } else {
                 this.textWriter("node", name).write(index, value);
             }
@@ -1766,7 +1797,7 @@ class DotParser {
     private positionColumn(dims: 2 | 3): ColumnHandle {
         if (this.positionHandle === INVALID_INDEX) {
             this.positionHandle = this.declare("node", {
-                name: POS_ATTRIBUTE,
+                name: this.keepPositionSource ? POSITION_COLUMN : POS_ATTRIBUTE,
                 dtype: "f64",
                 components: 3,
                 nullable: true,

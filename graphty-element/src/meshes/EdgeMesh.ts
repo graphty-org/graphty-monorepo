@@ -893,9 +893,12 @@ void main() {
         // Calculate automatic control points if not provided
         const controls = controlPoints ?? this.calculateControlPoints(srcPoint, dstPoint);
 
-        // Determine point density based on curve length
+        // Determine point density based on curve length, up to a ceiling: see BEZIER_MAX_SEGMENTS.
         const estimatedLength = Vector3.Distance(srcPoint, dstPoint) * 1.5; // Curve is ~1.5x longer
-        const numPoints = Math.max(10, Math.ceil(estimatedLength * EDGE_CONSTANTS.BEZIER_POINT_DENSITY));
+        const numPoints = Math.min(
+            EDGE_CONSTANTS.BEZIER_MAX_SEGMENTS,
+            Math.max(10, Math.ceil(estimatedLength * EDGE_CONSTANTS.BEZIER_POINT_DENSITY)),
+        );
 
         const points: number[] = [];
 

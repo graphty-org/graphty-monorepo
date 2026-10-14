@@ -209,7 +209,7 @@ export class GmlTokens {
             // a line break inside a string is part of it, as LF whatever the file's line ends
             text = text.replaceAll(/\r\n?/g, "\n");
         }
-        if (text.indexOf("&") < 0) {
+        if (!text.includes("&")) {
             return text;
         }
         const report = this.onUnknownEntity;

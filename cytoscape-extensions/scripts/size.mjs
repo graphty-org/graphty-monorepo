@@ -6,12 +6,13 @@
  * Builds small pages with Vite (minified, as an application's production build would be) against dist/, the files a
  * consumer installs, and measures each part minified and gzipped (level 9):
  *   - the main entry: what `import graphtyCytoscape from "@graphty/cytoscape-extensions"` downloads up front,
- *   - each part it loads on first use: the WebGPU code, the generators, each bundled dataset, the file formats,
+ *   - each part it loads on first use: the WebGPU code, the generators, the file formats,
  *   - everything together, and the script-tag bundle (dist/cytoscape-extensions.bundle.js), which leaves out the
- *     file formats and the datasets and loads them from dist/cdn/ on first use,
+ *     file formats and loads them from dist/cdn/ on first use,
  *   - for comparison, one layout and one algorithm imported straight from @graphty/layout and @graphty/algorithms
  *     (the least a package holding only that layout or algorithm could weigh), and each graph-io format alone.
- * Cytoscape itself is left out: the page already has it.
+ * Cytoscape itself is left out: the page already has it. No dataset is measured: no dataset's data is in the
+ * package; graphtyDataset downloads it from graphty.app.
  *
  * Usage (build the package first):
  *   node scripts/size.mjs            check every part against size-budgets.json; exit 1 when one is over its
@@ -110,8 +111,7 @@ function lazyPartName(chunk) {
     if (/cytoscape-extensions\/dist\/io\.js$/.test(id)) {
         return "file formats, all of them (on the first graphtyImport or graphtyExport)";
     }
-    const dataset = /datasets\/([^/.]+)/.exec(id);
-    return dataset ? `dataset ${dataset[1]}` : `other lazy chunk ${chunk.fileName}`;
+    return `other lazy chunk ${chunk.fileName}`;
 }
 
 /**
@@ -144,8 +144,7 @@ async function measurePackage(compare) {
                 const target = byName.get(f);
                 const name = lazyPartName(target);
                 if (!lazy.has(name)) {
-                    // what is loaded when c imports it: the page and c with its static imports (a dataset loads
-                    // after the generators chunk that imports it)
+                    // what is loaded when c imports it: the page and c with its static imports
                     const loaded = new Set(initial);
                     closure(c, loaded, initial);
                     const group = new Set();
@@ -158,8 +157,9 @@ async function measurePackage(compare) {
             parts[name] = sizeOf([...group].map((c) => c.code));
         }
         parts["everything (every chunk of the build)"] = sizeOf(chunks.map((c) => c.code));
-        parts["script-tag bundle (dist/cytoscape-extensions.bundle.js, without the file formats and the datasets)"] =
-            sizeOf([readFileSync(join(pkg, "dist/cytoscape-extensions.bundle.js"), "utf8")]);
+        parts["script-tag bundle (dist/cytoscape-extensions.bundle.js, without the file formats)"] = sizeOf([
+            readFileSync(join(pkg, "dist/cytoscape-extensions.bundle.js"), "utf8"),
+        ]);
         if (!compare) {
             return parts;
         }

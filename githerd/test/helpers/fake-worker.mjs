@@ -2,8 +2,7 @@
  * Starts fake workers (`fake-screen-claude.mjs`) in windows on a private tmux server, through the
  * real worker command line, and removes everything afterwards.
  */
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { chmodSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { setTimeout as delay } from "node:timers/promises";
@@ -14,6 +13,7 @@ import { capturePane, killServer, running, startWorker } from "../../lib/tmux.mj
 
 export { killServer };
 import { workerArgv } from "../../lib/worker-settings.mjs";
+import { tempDir } from "./temp-dir.mjs";
 
 const FAKE = fileURLToPath(new URL("fake-screen-claude.mjs", import.meta.url));
 
@@ -34,7 +34,7 @@ export const sleep = (ms) => delay(Math.min(ms, 50));
  *   fake received, and the cleanup that kills the server and checks no fake is left
  */
 export function fakeWorkers({ socket = `githerd-test-${process.pid}-${Date.now()}` } = {}) {
-    const dir = mkdtempSync(join(tmpdir(), "githerd-tmux-"));
+    const dir = tempDir("githerd-tmux-");
     const sessionsDir = join(dir, "sessions");
     const bin = join(dir, "bin");
     mkdirSync(sessionsDir);

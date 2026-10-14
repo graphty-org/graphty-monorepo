@@ -54,6 +54,24 @@ The three rows are deleted like any other row, with `styles.deleteRow`. `styles.
 adds back whichever of them are missing, in their places, as one undo step, and returns the rows it
 added.
 
+## Keeping the base look in Everything
+
+By default the element draws its base look (the node color, size and shape, the edge color and
+width, and the rest) from two layers of its own that sit below every row and cannot be edited.
+Turn on `editableBase` with `startingRows` and the Everything row holds that look instead, as
+ordinary values you can change or remove like any other row's:
+
+```ts
+await session.config.set({ startingRows: true, editableBase: true });
+const everything = session.styles.tree().find((row) => row.name === "Everything")!;
+await session.styles.writeRow(everything.id, { set: { "node.color": "#2266cc" } });
+```
+
+With it on, an element that no shown row paints is not drawn. Hiding Everything then hides the
+whole graph, except the elements another shown row paints, which stay drawn in that row's look.
+Turning it on fills an Everything row that writes nothing, and `restoreStartingRows()` brings
+Everything back holding the base look.
+
 ## Where a run's layer lands
 
 A finished run that paints a suggested layer puts it beneath your own layers by default. Set

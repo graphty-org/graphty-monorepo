@@ -92,6 +92,8 @@ export const CONFIG_KEYS: ReadonlyMap<string, ConfigKey> = new Map<string, Confi
     ["background", { group: "background", schema: GraphStyle.shape.background }],
     ["selectionStyle", { group: "selectionStyle", schema: unwrap(GraphStyle.shape.selection).prefault({}) }],
     ["startingRows", { group: "startingRows", schema: z.boolean().default(false) }],
+    // The base look's home goes with the starting rows: one round-trip fixture covers both.
+    ["editableBase", { group: "startingRows", schema: z.boolean().default(false) }],
     ["runPlacement", { group: "runPlacement", schema: z.enum(["beneath", "top"]).default("beneath") }],
     ...(["preSteps", "stepMultiplier", "minDelta"] as const).map((name): [string, ConfigKey] => [
         `layoutBehavior.${name}`,
@@ -229,6 +231,7 @@ const configSet: UndoableDefinition<ConfigSetCommand> = {
     },
     execute: (command, ctx) => {
         const effective = ctx.services.config?.();
+        let restore = false;
         for (const [path, value] of configLeaves(command.values)) {
             if (effective !== undefined && value !== undefined && !ctx.state.config.has(path)) {
                 // An unset key already reads as its default: writing that default changes nothing.
@@ -246,10 +249,13 @@ const configSet: UndoableDefinition<ConfigSetCommand> = {
                 ctx.draft.config.set(path, value);
             }
 
-            // The starting rows arrive with the setting, in its step: undo takes both back.
-            if (path === "startingRows" && value === true) {
-                ctx.services.styles?.execute({ op: "style.patch", action: "restoreStartingRows" }, ctx.draft);
-            }
+            restore ||= (path === "startingRows" || path === "editableBase") && value === true;
+        }
+
+        // The starting rows arrive with the setting, in its step: undo takes both back. Added once
+        // every key is written, so an Everything row added with `editableBase` holds the base look.
+        if (restore && ctx.state.config.get("startingRows") === true) {
+            ctx.services.styles?.execute({ op: "style.patch", action: "restoreStartingRows" }, ctx.draft);
         }
     },
 };
@@ -285,6 +291,7 @@ export function readProjectConfig(slice: ReadonlyMap<string, unknown>, base: Ses
         background: read("background") as GraphBackgroundConfig,
         selectionStyle: read("selectionStyle") as GraphSelectionStyleConfig,
         startingRows: read("startingRows") as boolean,
+        editableBase: read("editableBase") as boolean,
         runPlacement: read("runPlacement") as RunPlacement,
         layoutBehavior: Object.freeze({
             preSteps: read("layoutBehavior.preSteps") as number,

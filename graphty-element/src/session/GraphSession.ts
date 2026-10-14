@@ -1242,6 +1242,9 @@ function configOf(
         get startingRows() {
             return read().startingRows;
         },
+        get editableBase() {
+            return read().editableBase;
+        },
         get runPlacement() {
             return read().runPlacement;
         },
@@ -2691,6 +2694,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             // the elements one run measured walks that run's 300 rows, not the graph's 50,000.
             measured: elements.measured,
             scales,
+            // With the base look in the Everything row, what no shown layer paints is not drawn.
+            hideUnpainted: () => dispatcher.state.config.get("editableBase") === true,
         }),
         snapshot,
     );

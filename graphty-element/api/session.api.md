@@ -2283,6 +2283,7 @@ export interface ProjectConfig {
     readonly background: GraphBackgroundConfig;
     // (undocumented)
     readonly data: SessionDataConfig;
+    readonly editableBase: boolean;
     readonly layoutBehavior: {
         readonly preSteps: number;
         readonly stepMultiplier: number;
@@ -2306,6 +2307,7 @@ export interface ProjectConfigPatch {
         readonly directed?: SessionDataConfig["directed"];
         readonly knownFields?: Partial<SessionDataConfig["knownFields"]>;
     };
+    readonly editableBase?: boolean;
     // (undocumented)
     readonly layoutBehavior?: Partial<ProjectConfig["layoutBehavior"]>;
     readonly name?: string | null;

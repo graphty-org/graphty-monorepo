@@ -148,6 +148,13 @@ export interface RepaintSources {
     readonly measured?: (path: Path, target: SelectorTarget) => ArrayLike<number> | undefined;
     /** The scales a binding may name. Absent builds a registry holding the built-ins. */
     readonly scales?: ScaleRegistry;
+    /**
+     * Whether an element no enabled layer paints anything on is drawn hidden (`visible: false`),
+     * read at the start of every pass. The project setting `editableBase` turns it on, so hiding
+     * the row that holds the base look hides what no other layer paints. Absent is off.
+     * @returns True to hide what nothing paints.
+     */
+    readonly hideUnpainted?: () => boolean;
 }
 
 /**
@@ -1481,6 +1488,8 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
      * @param layer - Its prepared form.
      * @param context - The signal to stop on and the progress channel.
      * @param deadline - When this slice runs out.
+     * @param reached - Marks each element the layer paints something on, when the pass hides
+     *     what nothing paints; null otherwise.
      * @returns The next slice's deadline.
      */
     const paintLayer = async (
@@ -1489,6 +1498,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         layer: PreparedLayer,
         context: RepaintContext,
         deadline: number,
+        reached: Uint8Array | null,
     ): Promise<number> => {
         const { test } = entry.selector;
         const narrowed = iterationFor(entry);
@@ -1536,6 +1546,10 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
                     // painting the elements it never measured.
                     if (painted === undefined) {
                         continue;
+                    }
+
+                    if (reached !== null) {
+                        reached[index] = 1;
                     }
 
                     const { column, combine } = channel;
@@ -1682,7 +1696,10 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
             return { painted: 0, deadline };
         }
 
-        const from = skipBelow !== null && everyDirtyPainted(store) ? skipBelow : 0;
+        // Hiding what nothing paints needs every layer over each dirty element, so it never skips.
+        const hide = sources.hideUnpainted?.() === true;
+        const reached = hide ? new Uint8Array(store.capacity) : null;
+        const from = !hide && skipBelow !== null && everyDirtyPainted(store) ? skipBelow : 0;
 
         // Clearing is what makes a removal and an update correct, and it is exactly what the
         // add-on-top path does not have to do: nothing below the new layer changed, so what those
@@ -1720,7 +1737,19 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
             }
 
             store.meshWritten = store.meshWritten || layer.touchesMesh;
-            slice = await paintLayer(store, entry, layer, context, slice);
+            slice = await paintLayer(store, entry, layer, context, slice, reached);
+        }
+
+        if (reached !== null) {
+            const channel: Channel = `${store.target}.visible`;
+            const column = columnFor(store, channel);
+            store.meshWritten = store.meshWritten || meshChannelsFor(store.target).includes(channel);
+            for (let at = 0; at < store.dirtyCount; at++) {
+                const index = store.dirty[at];
+                if (reached[index] === 0) {
+                    writeColumn(column, index, false, false);
+                }
+            }
         }
 
         // Interning is skipped entirely while no layer has ever painted a channel that keys a

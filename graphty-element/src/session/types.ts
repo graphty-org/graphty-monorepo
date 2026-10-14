@@ -1528,6 +1528,17 @@ export interface ProjectConfig {
      */
     readonly startingRows: boolean;
     /**
+     * Whether the element's base look (every node and edge value it draws before any layer says
+     * otherwise) is held by the Everything starting row as ordinary values a reader can edit or
+     * remove, instead of by the element's two locked base layers. False by default. With it on, the
+     * locked base layers paint nothing, the Everything row is added (or restored) holding the base
+     * values when {@link ProjectConfig.startingRows} is on, and an element that no shown layer
+     * paints is not drawn: hiding the Everything row hides every element no other shown layer
+     * paints, and an element a shown layer paints stays drawn in that layer's look.
+     * @since 3.26.0
+     */
+    readonly editableBase: boolean;
+    /**
      * Where the layer a finished run paints lands: `"beneath"` (the default), under the lowest
      * layer somebody wrote that drives the same property, and not at all when such a layer covers
      * every element; or `"top"`, on top of the unpinned rows, never held back by a layer somebody
@@ -1576,6 +1587,8 @@ export interface ProjectConfigPatch {
     readonly selectionStyle?: GraphSelectionStyleInput;
     /** See {@link ProjectConfig.startingRows}. */
     readonly startingRows?: boolean;
+    /** See {@link ProjectConfig.editableBase}. */
+    readonly editableBase?: boolean;
     /** See {@link ProjectConfig.runPlacement}. */
     readonly runPlacement?: RunPlacement;
     readonly layoutBehavior?: Partial<ProjectConfig["layoutBehavior"]>;

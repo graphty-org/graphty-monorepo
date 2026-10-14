@@ -1761,6 +1761,52 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     const current = (): readonly CompiledLayer[] => dispatcher.state.styles;
 
     /**
+     * Whether the project holds the base look in the Everything row (`editableBase`), read from
+     * live state so a step that sets it and adds the row sees it at once.
+     * @returns True when the element's own base layers paint nothing.
+     */
+    const editableBase = (): boolean => dispatcher.state.config.get("editableBase") === true;
+
+    /** One disabled stand-in per element base layer, so a repaint sees the same object each time. */
+    const baseStandIns = new WeakMap<CompiledLayer, CompiledLayer>();
+
+    /**
+     * The stack as it paints: a hidden row's layers read as disabled, and so do the element's own
+     * base layers while the Everything row holds the base look.
+     * @param stack - The stack.
+     * @returns The stack the repaint and every reading of it use.
+     */
+    const painting = (stack: readonly CompiledLayer[]): readonly CompiledLayer[] => {
+        const painted = paintedStack(stack);
+        if (!editableBase() || !painted.some((entry) => entry.layer.kind === "base" && entry.layer.enabled)) {
+            return painted;
+        }
+
+        return painted.map((entry) => {
+            if (entry.layer.kind !== "base" || !entry.layer.enabled) {
+                return entry;
+            }
+
+            let standIn = baseStandIns.get(entry);
+            if (standIn === undefined) {
+                standIn = Object.freeze({ ...entry, layer: Object.freeze({ ...entry.layer, enabled: false }) });
+                baseStandIns.set(entry, standIn);
+            }
+
+            return standIn;
+        });
+    };
+
+    /**
+     * The base look the element's own layers write for one kind, which the Everything row holds
+     * while `editableBase` is on.
+     * @param target - Nodes or edges.
+     * @returns The values, by channel.
+     */
+    const baseValues = (target: "node" | "edge"): StaticStyle =>
+        Object.assign({}, ...(sources.base ?? []).filter((spec) => spec.target === target).map((spec) => spec.set));
+
+    /**
      * The layers of the stack by id, cached until the stack changes.
      * @returns The index.
      */
@@ -1816,7 +1862,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
 
     /** What an explanation, an unbound report and a resolved rule are read from. */
     const explainSources: ExplainSources = {
-        stack: () => paintedStack(current()),
+        stack: () => painting(current()),
         encoding: encodingOf,
         elements: sources.elements,
         nodeIndex: sources.nodeIndex ?? NO_INDEX,
@@ -1896,7 +1942,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             });
         walk(rows);
 
-        const painted = paintedStack(current());
+        const painted = painting(current());
         const cut = painted.findIndex((entry) => !entry.layer.locked && !beneath.has(rowKeyOf(entry)));
 
         return cut === -1 ? painted : painted.slice(0, cut);
@@ -1904,7 +1950,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
 
     /** What a legend is read from. */
     const legendSources: LegendSources = {
-        layers: () => paintedStack(current()).map((entry) => entry.layer),
+        layers: () => painting(current()).map((entry) => entry.layer),
         encoding: encodingOf,
         scales,
         ...(sources.field === undefined ? {} : { field: sources.field }),
@@ -2829,8 +2875,24 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         const layers: LayerId[] = [];
         const pins: [LayerId, "top" | "bottom"][] = [];
 
+        const base = editableBase();
+
         for (const starting of startingRows(look)) {
-            if (stack.some((entry) => startingRowOf(entry) === starting.templateId)) {
+            const parts = stack.filter((entry) => startingRowOf(entry) === starting.templateId);
+            if (parts.length > 0) {
+                // An Everything row that writes nothing takes the base look, so turning
+                // `editableBase` on never leaves the graph unpainted.
+                const empty = parts.every(
+                    (entry) => entry.layer.set === undefined && entry.layer.encode === undefined,
+                );
+                if (base && starting.templateId === "graphty:starting-everything" && empty) {
+                    for (const part of parts) {
+                        ({ stack } = planUpdate(part.layer.id, { set: baseValues(part.layer.target) }, stack));
+                        layers.push(part.layer.id);
+                    }
+                    rows = reconcile(rows, stack);
+                }
+
                 continue;
             }
 
@@ -2839,7 +2901,11 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             // Everything at the very bottom of the reader's rows; Selected just below Hovered.
             const below = starting.pin === "bottom" ? firstOwn : hovered;
             const index = below === -1 ? stack.length : below;
-            const plan = planAddRow(starting.spec, undefined, { stack, index });
+            const spec =
+                base && starting.templateId === "graphty:starting-everything"
+                    ? { ...starting.spec, set: { ...baseValues("node"), ...baseValues("edge") } }
+                    : starting.spec;
+            const plan = planAddRow(spec, undefined, { stack, index });
             ({ stack } = plan);
             rows = reconcile(rows, stack);
             pins.push([plan.result.id, starting.pin]);
@@ -3287,7 +3353,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     dispatcher.lane.register("styles", async (rendered, target) => {
         const told = announcements.splice(0);
         // A hidden row's layers repaint as disabled, keeping their places.
-        const request = stackChange(paintedStack(rendered.styles), paintedStack(target.styles));
+        const request = stackChange(painting(rendered.styles), painting(target.styles));
         let painted: RepaintReport | null = null;
         let failure: unknown = null;
 
@@ -3364,7 +3430,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
 
         compiled(): readonly CompiledLayer[] {
             // As it paints: a hidden row's layers read as disabled.
-            return paintedStack(current());
+            return painting(current());
         },
 
         tree(): readonly StyleRow[] {

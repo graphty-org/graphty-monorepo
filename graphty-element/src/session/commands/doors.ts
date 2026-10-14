@@ -2003,6 +2003,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             background: READ,
             selectionStyle: READ,
             startingRows: READ,
+            editableBase: READ,
             runPlacement: READ,
             layoutBehavior: READ,
             author: READ,

@@ -64,6 +64,21 @@ describe.skipIf(!MACOS)("real Safari", () => {
         }
     }
 
+    /**
+     * Wait until the fixture page's module has run and its graph is ready. WebDriver's navigation can
+     * return before Safari has run the page's module (a fresh Safari process, on its first page), so
+     * `window.fixture` may not exist yet; a page error ends the wait with that error.
+     * @param safari - The session.
+     */
+    async function ready(safari: Safari): Promise<void> {
+        await safari.execute(`
+            await new Promise((resolve, reject) => {
+                const check = () => window.fixture ? resolve() : window.__pageError ? reject(new Error(window.__pageError)) : setTimeout(check, 50);
+                check();
+            });
+            return fixture.ready();`);
+    }
+
     it("probe: whether IndexedDB survives from one safaridriver session to the next (recorded)", async () => {
         const marker = `m${Date.now()}`;
         const store = `
@@ -97,7 +112,7 @@ describe.skipIf(!MACOS)("real Safari", () => {
         await inSession(async (safari) => {
             // Writes held back, so only the hide writes the edit.
             await safari.navigate(fx.url({ key, tab, delay: 600_000 }));
-            await safari.execute("return fixture.ready()");
+            await ready(safari);
             const edit = await safari.execute<number>("return fixture.next()");
             assert.strictEqual((await safari.execute<{ state: string }>("return fixture.status()")).state, "pending");
 
@@ -117,7 +132,7 @@ describe.skipIf(!MACOS)("real Safari", () => {
         const tab = key;
         await inSession(async (safari) => {
             await safari.navigate(fx.url({ key, tab }));
-            await safari.execute("return fixture.ready()");
+            await ready(safari);
             const first = await safari.execute<number>("return fixture.next()");
             await fx.waitFor((e) => e.tab === tab && e.type === "saved" && (e.revision as number) >= first);
 
@@ -135,7 +150,7 @@ describe.skipIf(!MACOS)("real Safari", () => {
         const key = "safari-persist";
         await inSession(async (safari) => {
             await safari.navigate(fx.url({ key, tab: key }));
-            await safari.execute("return fixture.ready()");
+            await ready(safari);
             const result = await safari.execute<{ granted: boolean; status: boolean | null; browser: boolean }>(`
                 const granted = await fixture.el.autosaver.requestPersistence();
                 return { granted, status: fixture.status().persisted, browser: await navigator.storage.persisted() };`);

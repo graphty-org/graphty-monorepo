@@ -77,6 +77,17 @@ const PAGE = String.raw`<!doctype html>
 <style>html,body{margin:0;height:100%} graphty-element{display:block;width:100%;height:100%}</style>
 </head><body>
 <script>
+// An error before or while the module below runs (the bundle failing to load or to evaluate) leaves no
+// window.fixture: report it, and keep the first one in window.__pageError for a test that waits.
+window.__pageError = null;
+const pageError = (message) => {
+    window.__pageError ??= message;
+    const tab = new URLSearchParams(location.search).get("tab") ?? "t";
+    try { fetch("/log", { method: "POST", body: JSON.stringify({ tab, type: "page-error", message }), keepalive: true }); } catch {}
+};
+window.addEventListener("error", (e) => pageError(String(e.error ?? e.message)));
+window.addEventListener("unhandledrejection", (e) => pageError("unhandled rejection: " + String(e.reason)));
+document.addEventListener("error", (e) => { if (e.target instanceof HTMLScriptElement) pageError("script failed to load: " + (e.target.src || "inline module")); }, true);
 // Before the bundle: count the timers that fire while the page is hidden, for the hidden-run test.
 window.__timers = { firedHidden: 0 };
 const nativeSetTimeout = window.setTimeout.bind(window);

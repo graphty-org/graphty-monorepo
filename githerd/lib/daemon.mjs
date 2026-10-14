@@ -2922,6 +2922,13 @@ export async function startDaemon({
                 outcome: ended.reason,
             });
         }
+        // Every line that names a session gives the name sessions address each other by (#2486).
+        board.nameSessions(
+            state,
+            (peers.registered ?? registeredSessions)({
+                sessionsDir: join(env.HOME ?? homedir(), ".claude", "sessions"),
+            }),
+        );
         const ctx = {
             master: view,
             config,

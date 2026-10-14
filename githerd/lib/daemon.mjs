@@ -148,7 +148,7 @@ import {
     presentDays,
     raiseItem,
 } from "./notify.mjs";
-import { stallStep, usageLimitStep } from "./stalls.mjs";
+import { stallStep, usageBackStep, usageLimitStep } from "./stalls.mjs";
 import {
     activePolicies,
     CONTROL_OPS,
@@ -2320,7 +2320,16 @@ export async function startDaemon({
             sessions: messageable(),
             lines,
         });
-        for (const line of [...lines, ...stalls]) void ledger(line);
+        // Usage back before a limit's reset: the limited sessions are told to carry on (stalls.mjs).
+        const back = await usageBackStep(state, {
+            now: t,
+            minutes: config.workers.statusMinutes,
+            sessions: messageable(),
+            transport: peers.transport ?? socketTransport(),
+            acting: writeMode("workers") === "acting",
+            probe: platform.usageProbe,
+        });
+        for (const line of [...lines, ...stalls, ...back]) void ledger(line);
     }
 
     /**

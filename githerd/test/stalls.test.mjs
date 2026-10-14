@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { statusStep } from "../lib/asks.mjs";
 import { move, newJob } from "../lib/board.mjs";
-import { planPages } from "../lib/notify.mjs";
+import { droppableItems, endItem, planPages } from "../lib/notify.mjs";
 import { scanTranscripts } from "../lib/owners.mjs";
 import { stallStep, usageLimitStep } from "../lib/stalls.mjs";
 import { tempDir } from "./helpers/temp-dir.mjs";
@@ -209,6 +209,18 @@ describe("the usage limit", () => {
         expect(usageLimitStep(state, new Date("2026-10-13T00:01:00Z"))).toEqual([
             { kind: "usage-limit-reset", resets: "2026-10-13T00:00:00.000Z" },
         ]);
+    });
+
+    it("keeps a limit the owner answered until it resets, so it is not raised again, then lets it go", async () => {
+        const state = { transcripts: await scanned() };
+        usageLimitStep(state, new Date("2026-10-10T08:35:00Z"));
+        const id = "usage-limit:2026-10-13T00:00:00.000Z";
+        endItem(state, id, "record", new Date("2026-10-10T09:00:00Z"));
+        expect(droppableItems(state)).toEqual([]);
+        expect(usageLimitStep(state, new Date("2026-10-10T12:00:00Z"))).toEqual([]);
+        expect(state.ownerItems[id].endedBy).toBe("record");
+        expect(usageLimitStep(state, new Date("2026-10-13T00:01:00Z"))).toEqual([]);
+        expect(droppableItems(state).map((i) => i.id)).toEqual([id]);
     });
 
     it("reads the reset from the message when the API gave none", async () => {

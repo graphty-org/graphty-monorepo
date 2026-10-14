@@ -128,7 +128,7 @@ export type { EncodingSuggestion, HighlightSuggestion, StyleSuggestion } from ".
 export type { CodedFact, CodedFactParam, ColumnRef, ProgressChange, ResultRef } from "./src/session/shared";
 // How many node labels the element draws, and why the rest are not (element.nodeLabelCounts), and
 // one node's label as drawn (element.labelOf)
-export type { NodeLabel, NodeLabelCounts } from "./src/managers/LabelDeclutter";
+export type { EdgeLabelCounts, NodeLabel, NodeLabelCounts } from "./src/managers/LabelDeclutter";
 
 // What a find box lists without selecting: `element.session.find(text)`
 export type {

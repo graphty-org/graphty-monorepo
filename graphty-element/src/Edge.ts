@@ -16,6 +16,7 @@ import { EDGE_CONSTANTS } from "./constants/meshConstants";
 import { edgeIdOf } from "./data/edgeIdentity";
 import type { Graph } from "./Graph";
 import type { GraphContext } from "./managers/GraphContext";
+import { LabelDeclutter } from "./managers/LabelDeclutter";
 import { bootstrapEdgePaint, type EdgePaint } from "./managers/StylePainter";
 import type { ArrowCap } from "./meshes/ArrowCapBatch";
 import type { EdgeLineBatch } from "./meshes/EdgeLineBatch";
@@ -1130,6 +1131,10 @@ export class Edge {
 
         if (rebuilt) {
             this.invalidatePositionCache();
+            // Overlapping texts are thinned out with node labels when `labels.declutter` is on.
+            if (this.label ?? this.arrowHeadText ?? this.arrowTailText) {
+                LabelDeclutter.trackEdge(this.context.getScene(), this.context, this);
+            }
         }
     }
 

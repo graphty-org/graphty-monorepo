@@ -156,7 +156,14 @@ import {
     type ViewMasks,
 } from "./managers";
 import { animatesEveryFrame } from "./managers/everyFrameAnimations";
-import { LabelDeclutter, NO_NODE_LABELS, type NodeLabel, type NodeLabelCounts } from "./managers/LabelDeclutter";
+import {
+    type EdgeLabelCounts,
+    LabelDeclutter,
+    NO_EDGE_LABELS,
+    NO_NODE_LABELS,
+    type NodeLabel,
+    type NodeLabelCounts,
+} from "./managers/LabelDeclutter";
 import { layoutManagerInternals } from "./managers/LayoutManager";
 import {
     openWebGPUEngine,
@@ -1896,6 +1903,16 @@ export class Graph implements GraphContext {
     get nodeLabelCounts(): NodeLabelCounts {
         const declutter: unknown = this.scene.metadata?.labelDeclutter;
         return declutter instanceof LabelDeclutter ? declutter.counts : NO_NODE_LABELS;
+    }
+
+    /**
+     * How many edge texts (labels and end captions) this graph is drawing, and why the rest are
+     * not, as of the last frame that decided it. All zeros before one is drawn.
+     * @returns The counts.
+     */
+    get edgeLabelCounts(): EdgeLabelCounts {
+        const declutter: unknown = this.scene.metadata?.labelDeclutter;
+        return declutter instanceof LabelDeclutter ? declutter.edgeCounts : NO_EDGE_LABELS;
     }
 
     /**

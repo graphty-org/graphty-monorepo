@@ -1,6 +1,16 @@
-import { type Camera, Matrix, type Mesh, type Observer, type Scene, Vector3, Viewport } from "@babylonjs/core";
+import {
+    AbstractMesh,
+    type Camera,
+    Matrix,
+    type Mesh,
+    type Observer,
+    type Scene,
+    Vector3,
+    Viewport,
+} from "@babylonjs/core";
 
 import type { Edge } from "../Edge";
+import type { RichTextLabel } from "../meshes/RichTextLabel";
 import type { Node } from "../Node";
 import { animatesEveryFrame } from "./everyFrameAnimations";
 import type { GraphContext } from "./GraphContext";
@@ -8,8 +18,8 @@ import type { GraphContext } from "./GraphContext";
 /**
  * How many node labels the element is drawing, and why the rest are not.
  *
- * A node counts once however many label lines it has. Edge labels are not counted: the element
- * never hides an edge label to avoid overlap.
+ * A node counts once however many label lines it has. Edge labels are counted apart, in
+ * {@link EdgeLabelCounts}.
  *
  * `nodeHidden` and `hiddenByOverlap` are separate parts of `labeled`: a label is counted under one
  * of them at most. `labeled - nodeHidden - hiddenByOverlap` is the number of labels the element
@@ -55,6 +65,41 @@ export interface NodeLabel {
 
 /** The counts before any label is drawn. */
 export const NO_NODE_LABELS: NodeLabelCounts = Object.freeze({ labeled: 0, nodeHidden: 0, hiddenByOverlap: 0 });
+
+/**
+ * How many edge texts the element is drawing, and why the rest are not. An edge's label and each
+ * of its end captions count as one text each.
+ *
+ * `edgeHidden` and `hiddenByOverlap` are separate parts of `labeled`, as in
+ * {@link NodeLabelCounts}. With `layoutBehavior.labels.declutter` on, node labels are kept first,
+ * and an edge text is drawn only where it overlaps no node label or edge text already kept.
+ * @since 3.26.0
+ */
+export interface EdgeLabelCounts {
+    /** Edge texts that have words to draw. */
+    readonly labeled: number;
+    /** Texts not drawn because their edge is not drawn (a filter or the time window hides it). */
+    readonly edgeHidden: number;
+    /**
+     * Texts not drawn because, inside the current view, `layoutBehavior.labels.declutter` hid
+     * them: they would overlap a label it kept. Always 0 while declutter is off.
+     */
+    readonly hiddenByOverlap: number;
+}
+
+/** The edge counts before any edge text is drawn. */
+export const NO_EDGE_LABELS: EdgeLabelCounts = Object.freeze({ labeled: 0, edgeHidden: 0, hiddenByOverlap: 0 });
+
+/** A rectangle on screen, in pixels. */
+interface Box {
+    left: number;
+    right: number;
+    top: number;
+    bottom: number;
+}
+
+/** The cell size of the grid when no node label is in view to size it from. */
+const EMPTY_CELL = 64;
 
 /**
  * How many frames the labels must stay put before their counts are published, so a camera
@@ -176,13 +221,23 @@ export class LabelDeclutter {
     passes = 0;
     /** What the last pass saw. Read by `element.nodeLabelCounts`. */
     counts: NodeLabelCounts = NO_NODE_LABELS;
+    /** What the last pass saw of edge texts. Read by `element.edgeLabelCounts`. */
+    edgeCounts: EdgeLabelCounts = NO_EDGE_LABELS;
 
     private readonly observer: Observer<Scene>;
     private readonly entries = new Map<Node, Entry>();
     /** Reused every pass: the candidates in priority order. */
     private readonly order: Entry[] = [];
     /** Reused every pass: kept labels by grid cell. Emptied, not rebuilt. */
-    private readonly grid = new Map<number, Entry[]>();
+    private readonly grid = new Map<number, Box[]>();
+    /** The grid's cell size in pixels, this pass. */
+    private cellSize = EMPTY_CELL;
+    /** Edges drawing a label or an end caption. */
+    private readonly edges = new Set<Edge>();
+    /** A sum over every edge text's position, plane and visibility: what the last pass saw. */
+    private edgeTextsSeen = 0;
+    /** Reused every pass: one edge text's rectangle. */
+    private readonly box: Box = { left: 0, right: 0, top: 0, bottom: 0 };
     private columns = 1;
     private rows = 1;
     private dirty = true;
@@ -249,12 +304,7 @@ export class LabelDeclutter {
      * @param node - The node drawing a label.
      */
     static track(scene: Scene, context: GraphContext, node: Node): void {
-        scene.metadata = scene.metadata ?? {};
-        if (!(scene.metadata.labelDeclutter instanceof LabelDeclutter)) {
-            scene.metadata.labelDeclutter = new LabelDeclutter(scene, context);
-        }
-
-        const declutter = scene.metadata.labelDeclutter as LabelDeclutter;
+        const declutter = LabelDeclutter.of(scene, context);
         declutter.dirty = true;
         if (!declutter.entries.has(node)) {
             declutter.entries.set(node, {
@@ -286,6 +336,34 @@ export class LabelDeclutter {
                 slot: -1,
             });
         }
+    }
+
+    /**
+     * Make sure the scene has a declutter pass, and add an edge that is drawing a label or an end
+     * caption to it.
+     * @param scene - The scene the labels are drawn in.
+     * @param context - The graph.
+     * @param edge - The edge drawing text.
+     */
+    static trackEdge(scene: Scene, context: GraphContext, edge: Edge): void {
+        const declutter = LabelDeclutter.of(scene, context);
+        declutter.dirty = true;
+        declutter.edges.add(edge);
+    }
+
+    /**
+     * The scene's declutter pass, made on first use.
+     * @param scene - The scene.
+     * @param context - The graph.
+     * @returns The pass.
+     */
+    private static of(scene: Scene, context: GraphContext): LabelDeclutter {
+        scene.metadata = scene.metadata ?? {};
+        if (!(scene.metadata.labelDeclutter instanceof LabelDeclutter)) {
+            scene.metadata.labelDeclutter = new LabelDeclutter(scene, context);
+        }
+
+        return scene.metadata.labelDeclutter as LabelDeclutter;
     }
 
     /** Stop running before frames. */
@@ -399,6 +477,7 @@ export class LabelDeclutter {
         }
 
         this.setCounts(labeled, nodeHidden, 0);
+        this.placeEdges(false);
     }
 
     private setCounts(labeled: number, nodeHidden: number, hiddenByOverlap: number): void {
@@ -413,10 +492,19 @@ export class LabelDeclutter {
     }
 
     /**
-     * One full pass: decide which labels are drawn.
+     * One full pass: decide which labels are drawn, node labels first and then edge texts.
      * @param camera - The camera the frame is drawn from.
      */
     place(camera: Camera): void {
+        this.placeNodes(camera);
+        this.placeEdges(this.context.getStyles().config.behavior.labels.declutter);
+    }
+
+    /**
+     * Decide which node labels are drawn, and size and fill the grid edge texts are tested in.
+     * @param camera - The camera the frame is drawn from.
+     */
+    private placeNodes(camera: Camera): void {
         const { declutter, avoidNodesAndEdges: avoiding } = this.context.getStyles().config.behavior.labels;
         this.passes++;
         this.dirty = false;
@@ -534,21 +622,22 @@ export class LabelDeclutter {
             order.push(entry);
         }
 
+        // A cell about the size of an average label keeps each label in a handful of cells and
+        // each cell down to a handful of labels.
+        const size = order.length === 0 ? EMPTY_CELL : Math.max(MIN_CELL, Math.max(widthSum, heightSum) / order.length);
+        this.cellSize = size;
+        this.columns = Math.max(1, Math.ceil(viewport.width / size));
+        this.rows = Math.max(1, Math.ceil(viewport.height / size));
+        for (const bucket of this.grid.values()) {
+            bucket.length = 0;
+        }
+
         if (order.length === 0) {
             this.setCounts(labeled, nodeHidden, 0);
             return;
         }
 
         order.sort(byPriority);
-
-        // A cell about the size of an average label keeps each label in a handful of cells and
-        // each cell down to a handful of labels.
-        const size = Math.max(MIN_CELL, Math.max(widthSum, heightSum) / order.length);
-        this.columns = Math.max(1, Math.ceil(viewport.width / size));
-        this.rows = Math.max(1, Math.ceil(viewport.height / size));
-        for (const bucket of this.grid.values()) {
-            bucket.length = 0;
-        }
 
         if (avoiding) {
             this.setCounts(labeled, nodeHidden, this.placeAround(size, declutter));
@@ -573,6 +662,125 @@ export class LabelDeclutter {
     }
 
     /**
+     * Count the edge texts and, with declutter on, hide each one that would overlap a label kept
+     * before it: every node label first, then edge texts in the order their edges were labelled.
+     * Runs after {@link LabelDeclutter.placeNodes}, whose grid and projection it uses.
+     * @param declutter - Whether to hide overlapping texts. Off, every text is shown and counted.
+     */
+    private placeEdges(declutter: boolean): void {
+        let labeled = 0;
+        let edgeHidden = 0;
+        let hiddenByOverlap = 0;
+        for (const edge of this.edges) {
+            const texts = edgeTexts(edge);
+            if (texts.length === 0) {
+                // Its texts, or the edge, are gone. A new text adds it back.
+                this.edges.delete(edge);
+            }
+
+            for (const text of texts) {
+                const mesh = text.labelMesh as Mesh;
+                labeled++;
+                mesh.isVisible = true;
+                if (!mesh.isEnabled()) {
+                    edgeHidden++;
+                } else if (declutter && this.measure(text, mesh)) {
+                    if (this.isClear(this.box, this.cellSize)) {
+                        this.keep({ ...this.box }, this.cellSize);
+                    } else {
+                        mesh.isVisible = false;
+                        hiddenByOverlap++;
+                    }
+                }
+            }
+        }
+
+        const counts = this.edgeCounts;
+        if (
+            counts.labeled !== labeled ||
+            counts.edgeHidden !== edgeHidden ||
+            counts.hiddenByOverlap !== hiddenByOverlap
+        ) {
+            this.edgeCounts = Object.freeze({ labeled, edgeHidden, hiddenByOverlap });
+        }
+    }
+
+    /**
+     * Put one edge text's words on screen, in {@link LabelDeclutter.box}.
+     * @param text - The text.
+     * @param mesh - Its plane.
+     * @returns False when it is behind the camera or outside the view, so it hides nothing.
+     */
+    private measure(text: RichTextLabel, mesh: Mesh): boolean {
+        const { camera } = this;
+        if (!camera) {
+            return false;
+        }
+
+        // An edge text hangs from a point, not a mesh, so its own position is in the world; a text
+        // that does have a parent is placed through the parent's world matrix.
+        const { parent } = mesh;
+        const anchored = parent instanceof AbstractMesh ? parent : null;
+        const centre = anchored
+            ? Vector3.TransformCoordinatesToRef(mesh.position, anchored.computeWorldMatrix(), this.centre)
+            : this.centre.copyFrom(mesh.position);
+        const { view } = this;
+        const depth = centre.x * view[2] + centre.y * view[6] + centre.z * view[10] + view[14];
+        if (depth < camera.minZ || (camera.maxZ > 0 && depth > camera.maxZ)) {
+            return false;
+        }
+
+        const extent = mesh.getBoundingInfo().boundingBox.extendSize;
+        const scaleX = Math.abs((anchored?.absoluteScaling.x ?? 1) * mesh.scaling.x);
+        const scaleY = Math.abs((anchored?.absoluteScaling.y ?? 1) * mesh.scaling.y);
+        const corner = this.corner.copyFrom(centre);
+        this.right.scaleAndAddToRef(extent.x * scaleX, corner);
+        this.up.scaleAndAddToRef(extent.y * scaleY, corner);
+        const c = Vector3.TransformCoordinatesToRef(centre, this.worldToPixels, this.centreOnScreen);
+        const k = Vector3.TransformCoordinatesToRef(corner, this.worldToPixels, this.cornerOnScreen);
+        const across = Math.abs(k.x - c.x);
+        const down = Math.abs(k.y - c.y);
+        const words = text.textBounds;
+        const { box, viewport } = this;
+        box.left = c.x + (2 * words.left - 1) * across;
+        box.right = c.x + (2 * words.right - 1) * across;
+        box.top = c.y + (2 * words.top - 1) * down;
+        box.bottom = c.y + (2 * words.bottom - 1) * down;
+
+        return !(
+            box.right < viewport.x ||
+            box.left > viewport.x + viewport.width ||
+            box.bottom < viewport.y ||
+            box.top > viewport.y + viewport.height
+        );
+    }
+
+    /**
+     * Whether any edge text moved, was rebuilt or was shown or hidden since the last pass.
+     * @returns True when one did.
+     */
+    private edgeTextsChanged(): boolean {
+        let seen = 0;
+        for (const edge of this.edges) {
+            for (const text of edgeTexts(edge)) {
+                const mesh = text.labelMesh as Mesh;
+                const { position } = mesh;
+                seen += position.x * 1.31 + position.y * 2.71 + position.z * 3.17 + mesh.uniqueId * 0.001 + 0.7;
+                if (mesh.isEnabled()) {
+                    seen += 0.5;
+                }
+            }
+        }
+
+        if (seen === this.edgeTextsSeen) {
+            return false;
+        }
+
+        this.edgeTextsSeen = seen;
+        return true;
+    }
+
+    /**
      * Whether anything that decides placement differs from what the last pass saw.
      * @param camera - The camera the frame is drawn from.
      * @param on - Whether the setting is on. Off, only the labels themselves can change the counts.
@@ -589,6 +797,11 @@ export class LabelDeclutter {
         }
 
         if (avoiding && this.nodesChanged()) {
+            return true;
+        }
+
+        // Asked whatever the setting, as `labelsChanged` is: the counts follow texts off too.
+        if (this.edgeTextsChanged()) {
             return true;
         }
 
@@ -706,7 +919,7 @@ export class LabelDeclutter {
         this.projection.set(camera.getProjectionMatrix().m);
     }
 
-    private isClear(entry: Entry, size: number): boolean {
+    private isClear(entry: Box, size: number): boolean {
         const { x: originX, y: originY } = this.viewport;
         const x1 = cell(entry.right - originX, size, this.columns);
         const y1 = cell(entry.bottom - originY, size, this.rows);
@@ -733,7 +946,7 @@ export class LabelDeclutter {
         return true;
     }
 
-    private keep(entry: Entry, size: number): void {
+    private keep(entry: Box, size: number): void {
         const { x: originX, y: originY } = this.viewport;
         const x1 = cell(entry.right - originX, size, this.columns);
         const y1 = cell(entry.bottom - originY, size, this.rows);
@@ -759,6 +972,12 @@ export class LabelDeclutter {
             const mesh = entry.node.label?.labelMesh;
             if (mesh && !mesh.isDisposed()) {
                 mesh.isVisible = true;
+            }
+        }
+
+        for (const edge of this.edges) {
+            for (const text of edgeTexts(edge)) {
+                (text.labelMesh as Mesh).isVisible = true;
             }
         }
     }
@@ -1208,6 +1427,23 @@ function byPriority(a: Entry, b: Entry): number {
  */
 function cell(at: number, size: number, count: number): number {
     return Math.min(count - 1, Math.max(0, Math.floor(at / size)));
+}
+
+/**
+ * The texts an edge is drawing: its label and its end captions, each with a live plane.
+ * @param edge - The edge.
+ * @returns The texts, in that order.
+ */
+function edgeTexts(edge: Edge): RichTextLabel[] {
+    const texts: RichTextLabel[] = [];
+    for (const text of [edge.label, edge.arrowHeadText, edge.arrowTailText]) {
+        const mesh = text?.labelMesh;
+        if (text && mesh && !mesh.isDisposed()) {
+            texts.push(text);
+        }
+    }
+
+    return texts;
 }
 
 /**

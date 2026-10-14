@@ -24,7 +24,7 @@ import {
     nodeEventDetail,
 } from "./events";
 import { Graph, loadSourcePair, type NodeScreenPosition, operationQueueOf } from "./Graph";
-import type { NodeLabel, NodeLabelCounts } from "./managers/LabelDeclutter";
+import type { EdgeLabelCounts, NodeLabel, NodeLabelCounts } from "./managers/LabelDeclutter";
 import type { RendererRequest, RendererStatus } from "./managers/RenderManager";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import type { GraphSession } from "./session";
@@ -1778,6 +1778,25 @@ export class Graphty extends LitElement {
      */
     get nodeLabelCounts(): NodeLabelCounts {
         return this.#graph.nodeLabelCounts;
+    }
+
+    /**
+     * How many edge texts the element is drawing -- an edge's label and each end caption count
+     * once -- and why the rest are not, as of the last drawn frame. With
+     * `layoutBehavior.labels.declutter` on, node labels are kept first and an edge text that would
+     * overlap a kept label is hidden and counted in `hiddenByOverlap`. Reading it never forces a
+     * frame, so wait for {@link Graphty.waitForStableFrame} first.
+     * @since 3.26.0
+     * @example
+     * ```typescript
+     * element.layoutBehavior = { labels: { declutter: true } };
+     * await element.waitForStableFrame();
+     * const { labeled, hiddenByOverlap } = element.edgeLabelCounts;
+     * ```
+     * @returns The counts.
+     */
+    get edgeLabelCounts(): EdgeLabelCounts {
+        return this.#graph.edgeLabelCounts;
     }
 
     /**

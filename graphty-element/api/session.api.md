@@ -1003,8 +1003,10 @@ export type GraphtyErrorCode =
 */
 | "E_SELECTOR_EMPTY"
 /**
-* A universal selector is combined with an encoding bound to a run, which would ask the
-* element to paint elements the run never measured. The caller scopes the layer to the
+* A universal selector is combined with an encoding bound to a run that paints a value for a
+* missing result (`missing: { value }`), which would ask the element to paint elements the run
+* never measured. Without `missing`, such a layer is accepted: an element with no result is
+* not painted. The caller scopes the layer to the
 * elements that carry the run's result.
 */
 | "E_UNSCOPED_RUN_ENCODING"
@@ -3862,6 +3864,7 @@ export interface StyleCounts {
     readonly paintedBy: readonly LayerId[];
     readonly reads: readonly Path[];
     readonly revision: string;
+    readonly undrawn: readonly CodedFact<UndrawnCode>[];
 }
 
 // @public
@@ -4113,6 +4116,9 @@ export interface UnboundLayer {
 
 // @public
 export type UnboundLayerCode = "layer.detached" | "layer.unanswered";
+
+// @public
+export type UndrawnCode = "caption.noArrow";
 
 // @public
 export interface ValidationResult {

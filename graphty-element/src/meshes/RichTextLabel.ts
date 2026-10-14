@@ -153,8 +153,11 @@ const POINTER_AWAY_FROM: Partial<Record<AttachPosition, PointerDirection>> = {
     right: "left",
 };
 
+/** Which side of a target's bounds, on one axis: before it, centered on it, or after it. */
+type Side = -1 | 0 | 1;
+
 /** How far to the side (x) and up (y) of its target's bounds a label sits, per position. */
-const SIDES: Record<AttachPosition, { x: -1 | 0 | 1; y: -1 | 0 | 1 }> = {
+const SIDES: Record<AttachPosition, { x: Side; y: Side }> = {
     "top-left": { x: -1, y: 1 },
     top: { x: 0, y: 1 },
     "top-right": { x: 1, y: 1 },
@@ -204,7 +207,7 @@ function placeBeside(
  * @param gap - How far past the edge the label's centre sits.
  * @returns The coordinate.
  */
-function along(side: -1 | 0 | 1, min: number, max: number, gap: number): number {
+function along(side: Side, min: number, max: number, gap: number): number {
     if (side === 0) {
         return (min + max) / 2;
     }
@@ -1060,7 +1063,8 @@ export class RichTextLabel {
         }
 
         const inFront = position === "center" && !(target instanceof Vector3);
-        const newPos = target instanceof Vector3 ? target.clone() : this.parentTo(target, inFront ? bounds : null);
+        const frontBounds = inFront ? bounds : null;
+        const newPos = target instanceof Vector3 ? target.clone() : this.parentTo(target, frontBounds);
         if (inFront) {
             // In front of the node, toward the camera: see `parentTo`.
             newPos.z = -Vector3.Distance(bounds.min, bounds.max) / 2;

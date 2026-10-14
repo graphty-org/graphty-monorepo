@@ -16,7 +16,7 @@ export type LengthUnit = "px" | "file";
  * kept as its lowercase name.
  * @category Positions
  */
-export type GraphTool = "yed" | "cytoscape" | "gephi" | "graphviz" | "pajek" | "networkx" | "tulip" | (string & {});
+export type GraphTool = "yed" | "cytoscape" | "gephi" | "graphviz" | "pajek" | "networkx" | "tulip" | (string & {}); // NOSONAR(S4335): the open union keeps the known names in editor completion
 
 /** Creator texts that name a known tool, first match wins. */
 const TOOLS: readonly (readonly [RegExp, GraphTool])[] = [

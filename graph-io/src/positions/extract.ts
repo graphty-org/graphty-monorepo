@@ -126,7 +126,7 @@ export function extractPositions(
  */
 function spellingOf(importer: GraphImporter, snapshot: GraphSnapshot, signal: AbortSignal | null): Spelling | null {
     const hook = importer.positions?.(snapshot, { signal }) ?? null;
-    if (hook !== null && hook.x !== undefined && hook.y !== undefined) {
+    if (hook?.x !== undefined && hook.y !== undefined) {
         return plainSpelling(snapshot, hook);
     }
     const column = hook?.column === undefined ? snapshot.nodes.byRole("position") : snapshot.nodes.get(hook.column);

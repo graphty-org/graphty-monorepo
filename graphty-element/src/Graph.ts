@@ -342,6 +342,20 @@ export interface NodeScreenPosition {
 }
 
 /**
+ * The entries of an options object that hold a value: a key set to null or undefined is left out,
+ * so it never reaches a load as a declared-and-empty override.
+ * @param options - the options
+ * @returns the options without their empty entries
+ */
+function presentOnly<T extends Record<string, unknown>>(options: T): Partial<{ [K in keyof T]: NonNullable<T[K]> }> {
+    return Object.fromEntries(
+        Object.entries(options).filter(([, value]) => value !== null && value !== undefined),
+    ) as Partial<{
+        [K in keyof T]: NonNullable<T[K]>;
+    }>;
+}
+
+/**
  * Main orchestrator class for graph visualization and interaction.
  * Integrates Babylon.js scene management, coordinates nodes, edges, layouts, and styling.
  */
@@ -2149,11 +2163,13 @@ export class Graph implements GraphContext {
         const edgeTarget = options?.edgeTarget ?? configured.edgeDstIdPath;
         const mergedOptions = {
             nodeIdPath: options?.nodeIdPath ?? configured.nodeIdPath,
-            ...(edgeSource === null ? {} : { edgeSource }),
-            ...(edgeTarget === null ? {} : { edgeTarget }),
-            ...(options?.graphIndex === undefined ? {} : { graphIndex: options.graphIndex }),
-            ...(options?.graphName === undefined ? {} : { graphName: options.graphName }),
-            ...(options?.layout === undefined ? {} : { layout: options.layout }),
+            ...presentOnly({
+                edgeSource,
+                edgeTarget,
+                graphIndex: options?.graphIndex,
+                graphName: options?.graphName,
+                layout: options?.layout,
+            }),
         };
 
         // If we already fetched content for detection, pass it as data to avoid double-fetch

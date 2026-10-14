@@ -87,6 +87,12 @@ const box = changed
           coversFrac: +(((maxX - minX + 1) * (maxY - minY + 1)) / total).toFixed(3),
       }
     : null;
+let reading = "local: a specific element changed";
+if (!box) {
+    reading = "identical above threshold";
+} else if (box.coversFrac > 0.5) {
+    reading = "spread across the frame: a camera move or global shading";
+}
 console.log(
     JSON.stringify(
         {
@@ -102,11 +108,7 @@ console.log(
                 ? { r: +(sumR / changed).toFixed(1), g: +(sumG / changed).toFixed(1), b: +(sumB / changed).toFixed(1) }
                 : null,
             boundingBox: box,
-            reading: !box
-                ? "identical above threshold"
-                : box.coversFrac > 0.5
-                  ? "spread across the frame: a camera move or global shading"
-                  : "local: a specific element changed",
+            reading,
         },
         null,
         2,

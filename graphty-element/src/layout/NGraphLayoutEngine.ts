@@ -350,10 +350,10 @@ export class NGraphEngine extends LayoutEngine {
             // A round node is a sphere; anything else (a box, a tall cylinder, a torus) is kept
             // apart by its bounding box, which one radius over- or under-states (#2668).
             round[i] = node.roundRadius === null ? 0 : 1;
-            const half = node.drawnHalfExtents;
-            reaches[3 * i] = half.x + gap / 2;
-            reaches[3 * i + 1] = half.y + gap / 2;
-            reaches[3 * i + 2] = half.z + gap / 2;
+            const half = round[i] === 1 ? null : node.drawnHalfExtents;
+            reaches[3 * i] = (half?.x ?? node.drawnRadius) + gap / 2;
+            reaches[3 * i + 1] = (half?.y ?? node.drawnRadius) + gap / 2;
+            reaches[3 * i + 2] = (half?.z ?? node.drawnRadius) + gap / 2;
             movable[i] = this.ngraphLayout.isNodePinned(ngraphNode) ? 0 : 1;
             largest = Math.max(largest, radii[i], reaches[3 * i], reaches[3 * i + 1], reaches[3 * i + 2]);
             const at = [b.x, b.y, b.z ?? 0];

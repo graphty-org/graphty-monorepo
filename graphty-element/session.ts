@@ -524,6 +524,7 @@ export type {
     TemplateReport,
     UnboundLayer,
     UnboundLayerCode,
+    UndrawnCode,
     ValidationResult,
     ValueCategory,
 } from "./src/session/styles";

@@ -47,6 +47,7 @@ export type {
     StyleExplanation,
     UnboundLayer,
     UnboundLayerCode,
+    UndrawnCode,
 } from "./explain";
 export type {
     CompiledLayer,

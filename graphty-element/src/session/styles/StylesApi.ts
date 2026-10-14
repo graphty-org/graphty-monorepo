@@ -1885,6 +1885,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         nodeIndex: sources.nodeIndex ?? NO_INDEX,
         edgeIndex: sources.edgeIndex ?? NO_INDEX,
         ...(sources.paths === undefined ? {} : { paths: sources.paths }),
+        ...(sources.directed === undefined ? {} : { directed: sources.directed }),
     };
 
     /**

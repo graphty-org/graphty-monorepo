@@ -219,11 +219,32 @@ export interface StyleCounts {
      */
     readonly paintedBy: readonly LayerId[];
     /**
+     * Channels the layer wins on some elements where the canvas draws nothing for them, one fact
+     * per channel with how many elements: today an end caption (`edge.arrowHeadText`,
+     * `edge.arrowTailText`) on an edge whose end draws no arrow, since a caption hangs from its
+     * arrow. Empty when everything the layer wins is drawn. See {@link UndrawnCode}.
+     * @since 3.26.0
+     */
+    readonly undrawn: readonly CodedFact<UndrawnCode>[];
+    /**
      * Changes whenever these counts may have changed: on every `style:changed`, and on every change
      * to the data or the run results the layers read. Equal revisions mean equal counts.
      */
     readonly revision: string;
 }
+
+/**
+ * Why a channel a layer wins draws nothing, as the `code` of a {@link StyleCounts.undrawn} fact.
+ * The application words it. Each code's `params`:
+ *
+ * | Code | Params |
+ * | --- | --- |
+ * | `caption.noArrow` | `channel`: the caption channel; `arrow`: the arrow channel at that end (`edge.arrowHead`, `edge.arrowTail`), which is `"none"` on those edges -- an undirected graph draws no head until a layer sets one; `count`: how many edges |
+ *
+ * New codes may be added in a minor release: word an unknown one generically.
+ * @since 3.26.0
+ */
+export type UndrawnCode = "caption.noArrow";
 
 /** The elements an agreement is read over, as dense indices. */
 export interface AgreementElements {
@@ -312,6 +333,11 @@ export interface ExplainSources {
      * into a warning.
      */
     readonly paths?: PathDirectory;
+    /**
+     * Whether the graph is directed now, which decides the head an edge draws when no layer sets
+     * one. Absent reads as directed, as the painter does.
+     */
+    readonly directed?: () => boolean;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -769,6 +795,7 @@ function readValues(
  * @param layerId - The layer.
  * @param painted - The tally to add to.
  * @param others - The tally of the other layers that won a channel it writes.
+ * @param undrawn - Told each channel the layer wins, with everything painted on the element.
  */
 function countWins(
     stack: readonly StackEntry[],
@@ -777,18 +804,63 @@ function countWins(
     layerId: LayerId,
     painted: Partial<Record<Channel, number>>,
     others: Map<LayerId, number>,
+    undrawn?: (channel: Channel, values: Partial<Record<Channel, unknown>>) => void,
 ): void {
     const winners = new Map<Channel, LayerId>();
-    paintOne(stack, at, columns, (winner, prepared) => {
+    const values: Partial<Record<Channel, unknown>> = {};
+    paintOne(stack, at, columns, (winner, prepared, result) => {
         winners.set(prepared.channel, winner.id);
+        values[prepared.channel] = result;
     });
     for (const [channel, winner] of winners) {
         if (winner === layerId) {
             painted[channel] = (painted[channel] ?? 0) + 1;
+            undrawn?.(channel, values);
         } else if (channel in painted) {
             others.set(winner, (others.get(winner) ?? 0) + 1);
         }
     }
+}
+
+/** The arrow channel each end caption hangs from (`Edge.update` places a caption against its cap). */
+const CAPTION_ARROW: Partial<Record<Channel, Channel>> = {
+    "edge.arrowHeadText": "edge.arrowHead",
+    "edge.arrowTailText": "edge.arrowTail",
+};
+
+/**
+ * A tally of the end captions a layer wins on edges whose end draws no arrow.
+ * @param directed - Whether the graph is directed, which gives an edge a head no layer chose.
+ * @returns The tally, and a function to read it out as facts.
+ */
+function captionTally(directed: boolean): {
+    readonly add: (channel: Channel, values: Partial<Record<Channel, unknown>>) => void;
+    readonly facts: () => readonly CodedFact<UndrawnCode>[];
+} {
+    const counts = new Map<Channel, number>();
+
+    return {
+        add(channel, values): void {
+            const arrow = CAPTION_ARROW[channel];
+            if (arrow === undefined) {
+                return;
+            }
+
+            // The same default the painter draws (StylePainter.edgePaintOf): a head no layer chose
+            // only on a directed graph, never a tail.
+            const type = values[arrow] ?? (arrow === "edge.arrowHead" && directed ? "normal" : "none");
+            if (type === "none") {
+                counts.set(channel, (counts.get(channel) ?? 0) + 1);
+            }
+        },
+        facts: () =>
+            Object.freeze(
+                [...counts].map(([channel, count]) => ({
+                    code: "caption.noArrow" as const,
+                    params: { channel, arrow: CAPTION_ARROW[channel] ?? null, count },
+                })),
+            ),
+    };
 }
 
 /**
@@ -819,6 +891,7 @@ export function styleCounts(
     let noValue = 0;
     let outsideScale = 0;
     const others = new Map<LayerId, number>();
+    const captions = captionTally(sources.directed?.() ?? true);
 
     for (const index of layer.target === "node" ? elements.nodes : elements.edges) {
         if (selector.test !== null && !selector.test(index)) {
@@ -831,13 +904,22 @@ export function styleCounts(
         outsideScale += outside ? 1 : 0;
 
         if (layer.enabled) {
-            countWins(stack, { target: layer.target, index }, columns, layerId, painted, others);
+            countWins(stack, { target: layer.target, index }, columns, layerId, painted, others, captions.add);
         }
     }
 
     const paintedBy = Object.freeze([...others].sort((a, b) => b[1] - a[1]).map(([id]) => id));
 
-    return { matched, painted: Object.freeze(painted), noValue, outsideScale, reads, paintedBy, revision };
+    return {
+        matched,
+        painted: Object.freeze(painted),
+        noValue,
+        outsideScale,
+        reads,
+        paintedBy,
+        undrawn: captions.facts(),
+        revision,
+    };
 }
 
 /**

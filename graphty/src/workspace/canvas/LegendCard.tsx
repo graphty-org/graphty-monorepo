@@ -5,7 +5,7 @@ import React, { useLayoutEffect, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
-import { isSizeBlock, keyNames, keySections, overflowLine, paintWords, swatchName, swatchText } from "./legendWords";
+import { isSizeBlock, keyNames, keySections, overflowLine, swatchName, swatchText, swatchValue } from "./legendWords";
 
 /** Props for LegendCard. */
 interface LegendCardProps {
@@ -58,7 +58,7 @@ function List({ block, entry }: Readonly<{ block: LegendBlock; entry: string }>)
                 <DataRow
                     key={`${String(index)}-${swatchText(block, swatch, entry)}`}
                     name={swatchName(block, swatch, entry)}
-                    value={paintWords(swatch) ?? swatch.count}
+                    value={swatchValue(block, swatch, entry)}
                     icon={
                         swatch.color === undefined ? undefined : (
                             <ColorSwatch className="ws-legend-chit" color={swatch.color} size={12} />

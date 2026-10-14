@@ -23,6 +23,7 @@ import type {
 import { highlightEntry } from "../analyze/words";
 import { count } from "../inspector/words";
 import { runName } from "../runWords";
+import { channelWord } from "../style/words";
 
 /** The property word each channel a legend shows goes by ("Color: PageRank"). */
 const PROPERTY_WORDS: Partial<Record<Channel, string>> = {
@@ -74,6 +75,7 @@ const NUMBER_CHANNELS: ReadonlySet<Channel> = new Set<Channel>([
     "edge.arrowHeadTextSize",
     "edge.arrowTailTextSize",
     "edge.animationSpeed",
+    "edge.patternCount",
 ]);
 
 /**
@@ -152,15 +154,26 @@ export function isSizeBlock(block: LegendBlock): boolean {
 }
 
 /**
- * The section title: "<Property>: <row>", or the row's name alone for a channel the app has no
- * word for, so a reader never sees a channel id.
+ * The section title: "<Property>: <row>". A channel with no key word of its own goes by the Style
+ * tab's word for it ("Edge head: Flow"), so a title never reads as the row's name alone and a
+ * reader never sees a channel id.
  * @param block - the block.
  * @param rowName - the name of the row that paints it (the run's name, or the layer's).
  * @returns the title.
  */
 export function sectionTitle(block: LegendBlock, rowName: string): string {
-    const word = PROPERTY_WORDS[block.channel];
-    return word === undefined ? rowName : `${word}: ${rowName}`;
+    const word = PROPERTY_WORDS[block.channel] ?? propertyWord(block.channel);
+    return `${word}: ${rowName}`;
+}
+
+/**
+ * The Style tab's word for a channel, with "Edge" in front of an edge's ("Edge pattern count").
+ * @param channel - the channel.
+ * @returns the word.
+ */
+function propertyWord(channel: Channel): string {
+    const word = channelWord(channel);
+    return channel.startsWith("edge.") ? `Edge ${word.charAt(0).toLowerCase()}${word.slice(1)}` : word;
 }
 
 /**
@@ -201,6 +214,13 @@ export function swatchText(block: LegendBlock, swatch: LegendSwatch, entry?: str
     if (swatch.extent !== undefined) {
         const { min, max } = swatch.extent;
         return min === max ? legendNumber(min) : `${legendNumber(min)} - ${legendNumber(max)}`;
+    }
+    if (block.kind === "literal" && swatch.color === undefined) {
+        // A fixed pattern or shape names what it paints ("Solid"): the title already names the row.
+        const paint = paintWords(swatch);
+        if (paint !== null) {
+            return paint;
+        }
     }
     if (block.kind === "literal" || block.kind === "highlight") {
         return entry ?? String(value);
@@ -261,6 +281,20 @@ export function paintWords(swatch: LegendSwatch): string | null {
         return words.charAt(0).toUpperCase() + words.slice(1);
     }
     return swatch.size === undefined ? null : String(Number(swatch.size.toPrecision(3)));
+}
+
+/**
+ * What a list row prints beside its name: what it paints when that is not a color, else how many
+ * elements carry it. A row already named by what it paints ("Solid") prints its count instead of
+ * the same word twice.
+ * @param block - the block the row belongs to.
+ * @param swatch - the row.
+ * @param entry - the entry of a fixed-value row (`KeyNames.entry`).
+ * @returns the words or the count, or undefined for neither.
+ */
+export function swatchValue(block: LegendBlock, swatch: LegendSwatch, entry?: string): string | number | undefined {
+    const paint = paintWords(swatch);
+    return paint === null || paint === swatchText(block, swatch, entry) ? swatch.count : paint;
 }
 
 /**
@@ -358,7 +392,8 @@ export function imageLegend(blocks: readonly LegendBlock[], names: KeyNames): Sc
             return { title, ramp: isSizeBlock(block) ? ramp : { ...ramp, colors } };
         }
         const rows = block.swatches.map((swatch) => {
-            const value = paintWords(swatch) ?? swatch.count?.toLocaleString();
+            const shown = swatchValue(block, swatch, entry);
+            const value = typeof shown === "number" ? shown.toLocaleString() : shown;
             return {
                 label: swatchName(block, swatch, entry),
                 ...(swatch.color === undefined ? {} : { color: swatch.color }),

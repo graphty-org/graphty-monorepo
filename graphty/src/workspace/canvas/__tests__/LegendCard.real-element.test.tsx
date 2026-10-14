@@ -165,6 +165,26 @@ describe("the canvas key on the real element", () => {
         await page.screenshot({ path: `${SHOTS}/key-1440x900-dark.png` });
     });
 
+    it("keys a hand-made edge layer's fixed pattern by what it paints, and its pattern count not at all", async () => {
+        const { session } = await scene(1440, 900);
+        await session.styles.add({
+            name: "Bob",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.style": "solid", "edge.patternCount": 2 },
+        });
+        await session.styles.settled();
+        const legend = await screen.findByRole("region", { name: "Legend" }, { timeout: TIMEOUT_MS });
+        const line = await within(legend).findByRole("group", { name: "Edge line: Bob" }, { timeout: TIMEOUT_MS });
+        const titles = within(legend)
+            .getAllByRole("group")
+            .map((group) => group.getAttribute("aria-label") ?? "");
+        assert.notInclude(titles, "Bob", "no section is titled by the layer's name alone");
+        const names = [...line.querySelectorAll(".cm-data-row-name")].map((name) => name.textContent ?? "");
+        assert.deepEqual(names, ["Solid"], "the row names the pattern, not the layer again");
+        assert.notInclude(line.textContent, "SolidSolid", "the pattern is not printed twice");
+    });
+
     it("keys what encodes the data, never the Selected row's glow or halo, with a node selected", async () => {
         const { session } = await scene(1440, 900);
         const legend = await screen.findByRole("region", { name: "Legend" }, { timeout: TIMEOUT_MS });

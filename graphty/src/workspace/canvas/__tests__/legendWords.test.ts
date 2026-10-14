@@ -12,6 +12,7 @@ import {
     sectionTitle,
     swatchName,
     swatchText,
+    swatchValue,
 } from "../legendWords";
 
 /**
@@ -42,8 +43,19 @@ describe("the legend card's words", () => {
         assert.equal(sectionTitle(block({ channel: "edge.width" }), "Weight"), "Edge width: Weight");
     });
 
-    it("titles a channel the app has no word for by the row alone, never by the channel id", () => {
-        assert.equal(sectionTitle(block({ channel: "edge.arrowHead" }), "Flow"), "Flow");
+    it("titles a channel with no key word by the Style tab's word, never by the row alone or the channel id", () => {
+        assert.equal(sectionTitle(block({ channel: "edge.arrowHead" }), "Flow"), "Edge head: Flow");
+        assert.equal(sectionTitle(block({ channel: "node.wireframe" }), "Bob"), "Wireframe: Bob");
+    });
+
+    it("names a fixed pattern's row by what it paints, not by the layer the title already names", () => {
+        const line = block({ channel: "edge.style", kind: "literal" });
+        const solid = swatch({ value: "solid", paints: "solid", count: 254 });
+        assert.equal(sectionTitle(line, "Bob"), "Edge line: Bob");
+        assert.equal(swatchName(line, solid, "Bob"), "Solid");
+        assert.equal(swatchValue(line, solid, "Bob"), 254, "the count, not 'Solid' twice");
+        // A fixed color keeps its chit and the layer's name.
+        assert.equal(swatchName(block({ kind: "literal" }), swatch({ color: "#ff0000" }), "Bob"), "Bob");
     });
 
     it("names the Other row Other, without counting what it holds", () => {
@@ -163,6 +175,8 @@ describe("the legend card's words", () => {
             block({ layerId: "band", channel: "edge.bandOpacity", kind: "literal" }),
             // A motion's speed would print "On the path 2".
             block({ layerId: "band", channel: "edge.animationSpeed", kind: "literal" }),
+            // A pattern count would print "Bob 2".
+            block({ layerId: "line", channel: "edge.patternCount", kind: "literal", swatches: [swatch({ value: 2 })] }),
             halo,
         ];
         assert.deepEqual(keyBlocks(blocks), [halo]);

@@ -213,7 +213,7 @@ const css = `
 
 /* Lock / eye / pin: 24 x 24 hit targets side by side, never overlapping (WCAG 2.5.8), ending 8
    from the panel edge. Hidden until the row is hovered or focused; a toggle that is on stays
-   visible. */
+   visible, and so does an action marked data-at-rest (an eye an app shows on every row). */
 .cm-tree-actions {
     flex: none;
     display: flex;
@@ -249,6 +249,7 @@ const css = `
 .cm-tree-actions > [aria-pressed="true"],
 .cm-tree-actions > [aria-checked="true"],
 .cm-tree-actions > [data-pinned],
+.cm-tree-actions > [data-at-rest],
 .cm-tree-actions > :has([aria-pressed="true"], [aria-checked="true"], :checked) { opacity: 1; }
 /* A touch screen has no hover to reveal them, so the toggles stay visible (as ActionRow's do). */
 @media (hover: none) {

@@ -35,7 +35,7 @@ export interface TreeNodeData {
     /**
      * The row's trailing toggles (lock, eye): the caller's own controls. They stay hidden until
      * the row is hovered or focused; a control with `aria-pressed="true"`, `aria-checked="true"`
-     * or `data-pinned` stays visible. A click on passive text here (nothing focusable) counts as a
+     * or `data-pinned` or `data-at-rest` stays visible. A click on passive text here (nothing focusable) counts as a
      * click on the row.
      */
     actions?: React.ReactNode;

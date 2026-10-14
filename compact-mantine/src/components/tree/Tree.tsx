@@ -85,7 +85,8 @@ export interface TreeItemProps extends Omit<React.HTMLAttributes<HTMLDivElement>
     strong?: boolean;
     /**
      * The trailing toggles, revealed on hover or focus. They are kept out of the Tab order (the
-     * row is the Tab stop); give each a row key and a row-menu item for the keyboard.
+     * row is the Tab stop); give each a row key and a row-menu item for the keyboard. A toggle
+     * marked `data-at-rest` is drawn on every row at rest too (a layers panel's eye).
      */
     actions?: React.ReactNode;
     /** 1-based position among its siblings, for assistive technology. */

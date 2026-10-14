@@ -26,8 +26,8 @@ import { Color3, InstancedMesh, Mesh, StandardMaterial } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, test } from "vitest";
 import type { z } from "zod/v4";
 
-import { NodeShapes } from "../../src/config/NodeStyle";
-import { NodeMesh } from "../../src/meshes/NodeMesh";
+import { FLAT_NODE_SHAPES, NodeShapes } from "../../src/config/NodeStyle";
+import { NODE_EXTENT_PER_SIZE, NodeMesh } from "../../src/meshes/NodeMesh";
 import { createMeshScene, type MeshTestScene } from "./real-mesh-harness";
 
 type ShapeName = z.infer<typeof NodeShapes>;
@@ -68,6 +68,8 @@ const EXPECTED_SOURCE_NAME: Record<string, string> = {
     goldberg: "goldberg",
     icosphere: "icosphere",
     geodesic: "geodesic",
+    // A flat shape's slab is named after the shape it draws.
+    ...Object.fromEntries(FLAT_NODE_SHAPES.map((name) => [name, name])),
 };
 
 /**
@@ -204,7 +206,8 @@ describe("Node Golden Masters", () => {
             assert.equal(result.mesh.scaling.x, 1);
             assert.equal(result.mesh.scaling.y, 1);
             assert.equal(result.mesh.scaling.z, 1);
-            assert.closeTo(boundingExtent("sphere", 5), 5, 1e-6);
+            // Every shape at size 1 is NODE_EXTENT_PER_SIZE across (#2495).
+            assert.closeTo(boundingExtent("sphere", 5), 5 * NODE_EXTENT_PER_SIZE, 1e-6);
         });
     });
 

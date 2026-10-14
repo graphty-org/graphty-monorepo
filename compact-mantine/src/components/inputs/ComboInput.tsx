@@ -342,8 +342,8 @@ export const ComboInput = forwardRef<HTMLInputElement, ComboInputProps>(function
                     rightSectionPointerEvents="all"
                 />
             </Combobox.Target>
-            <Combobox.Dropdown className="cm-menu-surface cm-menu cm-listbox">
-                <Combobox.Options id={listId} aria-label={label}>
+            <Combobox.Dropdown className="cm-menu-surface cm-listbox">
+                <Combobox.Options id={listId} aria-label={label} className="cm-listbox-options cm-menu">
                     {options.map((item, index) =>
                         isSeparator(item) ? (
                             <div key={`separator-${String(index)}`} role="separator" className="cm-listbox-separator" />

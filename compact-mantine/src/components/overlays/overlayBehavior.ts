@@ -15,7 +15,8 @@
  *   with it ("v" -> View).
  * - A menu clamped to the viewport shows Figma's 24px chevron rows at the ends it can still
  *   scroll towards (`data-cm-scroll-up` / `data-cm-scroll-down`, drawn by the CSS); hovering
- *   one scrolls the menu.
+ *   one scrolls the menu. A `cm-menu` is whatever element scrolls: a Menu's dropdown, or the
+ *   `role="listbox"` inside a field's dropdown.
  *
  * Tooltip and menu mounts are seen through the `cm-tooltip-mount` and `cm-overlay-mount`
  * animations the CSS gives them, whose `animationstart` bubbles to the document: no

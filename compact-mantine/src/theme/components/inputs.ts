@@ -113,12 +113,15 @@ function fieldClassNames(fallback: "filled" | "outlined", extra = "") {
 }
 
 /**
- * The dark listbox's classNames (spec 6.5). The dropdown is also a `cm-menu`: it scrolls itself
- * (no ScrollArea) and takes the menus' 24px scroll chevron rows (overlayBehavior.ts).
+ * The dark listbox's classNames (spec 6.5). The dropdown is the surface; the `role="listbox"`
+ * inside it is a `cm-menu`: it scrolls itself (no ScrollArea) and takes the menus' 24px scroll
+ * chevron rows (overlayBehavior.ts). The listbox, not the dropdown, scrolls, so assistive
+ * technology sees a scrolling popup the combobox controls (axe scrollable-region-focusable exempts
+ * exactly that: focus stays on the combobox and the arrows move through the options).
  */
 const LISTBOX_CLASS_NAMES = {
-    dropdown: "cm-menu-surface cm-menu cm-listbox",
-    options: "cm-listbox-options",
+    dropdown: "cm-menu-surface cm-listbox",
+    options: "cm-listbox-options cm-menu",
     option: "cm-menu-row cm-listbox-option",
     group: "cm-listbox-group",
     groupLabel: "cm-listbox-group-label",
@@ -130,7 +133,7 @@ const LISTBOX_CLASS_NAMES = {
  * several options are checked but only the pointer's or the keyboard's row is ever filled.
  */
 const PILL_CLASS_NAMES = {
-    dropdown: "cm-menu-surface cm-menu cm-listbox cm-listbox-multi",
+    dropdown: "cm-menu-surface cm-listbox cm-listbox-multi",
     pill: "cm-input-pill",
     pillsList: "cm-input-pills",
     inputField: "cm-input-pills-field",
@@ -157,7 +160,7 @@ const CARET = createElement(FieldCaret);
 
 /**
  * A single-choice list: opens over its trigger, the selected option on top of it. No ScrollArea:
- * the dropdown itself scrolls, clamped by the stylesheet to the viewport less 6px each side.
+ * the listbox itself scrolls, clamped by the stylesheet to the viewport less 6px each side.
  */
 const SINGLE_LIST_DEFAULTS = {
     comboboxProps: overTriggerComboboxProps(),

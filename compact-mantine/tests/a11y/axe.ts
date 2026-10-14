@@ -40,7 +40,4 @@ export const OFF_BY_DESIGN: Record<string, string[]> = {
  * Known violations not fixed yet, by story id, each with its tracking issue. Shrink-only: remove a
  * line when its cause is fixed, never add one to pass a new story.
  */
-export const AXE_EXCEPTIONS: Record<string, { rules: string[]; issue: number }> = {
-    "components-inputs-select--groups-and-long-lists": { rules: ["scrollable-region-focusable"], issue: 1913 },
-    "components-panels-and-rows-controlsubgroup--states": { rules: ["landmark-unique"], issue: 1913 },
-};
+export const AXE_EXCEPTIONS: Record<string, { rules: string[]; issue: number }> = {};

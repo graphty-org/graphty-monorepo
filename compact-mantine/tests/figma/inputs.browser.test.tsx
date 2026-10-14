@@ -612,7 +612,12 @@ describe.skipIf(!available)("6.5 dark listbox", () => {
         await drive(part(container, "input"), "open");
         const dropdown = await listbox();
         expectMeasured(dropdown, figmaSpec(surface, ["backgroundColor", "borderRadius"]));
-        expectMeasured(dropdown, figmaSpec(list, ["paddingTop", "paddingBottom", "paddingLeft", "paddingRight"]));
+        // The padding is on the role="listbox", which scrolls; the surface around it has none.
+        expectMeasured(
+            part(dropdown, '[role="listbox"]'),
+            figmaSpec(list, ["paddingTop", "paddingBottom", "paddingLeft", "paddingRight"]),
+        );
+        expect(computed(dropdown).padding).toBe("0px");
         if (scheme === "light") {
             expect(shadowSet(computed(dropdown).boxShadow)).toEqual(figmaShadow(surface));
         }
@@ -849,20 +854,26 @@ describe.skipIf(!available)("6.5 dark listbox", () => {
         await drive(part(container, "input"), "open");
         const dropdown = await listbox();
         expect(dropdown.getBoundingClientRect().bottom).toBeLessThanOrEqual(300 - 6 + 0.5);
-        expect(dropdown.scrollHeight).toBeGreaterThan(dropdown.clientHeight);
-        expect(dropdown.hasAttribute("data-cm-scroll-down")).toBe(true);
-        expect(dropdown.hasAttribute("data-cm-scroll-up")).toBe(false);
-        expectMeasured(dropdown, { backgroundColor: "#1e1e1e" }, { pseudo: "::after" });
-        expect(computed(dropdown, "::after").height).toBe("24px");
-        const box = dropdown.getBoundingClientRect();
-        await userEvent.hover(dropdown, { position: { x: box.width / 2, y: box.height - 8 } });
+        // The role="listbox" scrolls, not the dropdown around it, and the combobox controls it.
+        const list = part(dropdown, '[role="listbox"]');
+        expect(part(container, "input").getAttribute("aria-controls")).toBe(list.id);
+        expect(dropdown.scrollHeight).toBe(dropdown.clientHeight);
+        // The listbox fills the dropdown: the surface adds no padding of its own around it.
+        expect(list.getBoundingClientRect().height).toBe(dropdown.getBoundingClientRect().height);
+        expect(list.scrollHeight).toBeGreaterThan(list.clientHeight);
+        expect(list.hasAttribute("data-cm-scroll-down")).toBe(true);
+        expect(list.hasAttribute("data-cm-scroll-up")).toBe(false);
+        expectMeasured(list, { backgroundColor: "#1e1e1e" }, { pseudo: "::after" });
+        expect(computed(list, "::after").height).toBe("24px");
+        const box = list.getBoundingClientRect();
+        await userEvent.hover(list, { position: { x: box.width / 2, y: box.height - 8 } });
         await vi.waitFor(() => {
-            expect(dropdown.scrollTop).toBeGreaterThan(0);
+            expect(list.scrollTop).toBeGreaterThan(0);
         });
         await vi.waitFor(() => {
-            expect(dropdown.hasAttribute("data-cm-scroll-up")).toBe(true);
+            expect(list.hasAttribute("data-cm-scroll-up")).toBe(true);
         });
-        expect(computed(dropdown).scrollbarWidth).toBe("none");
+        expect(computed(list).scrollbarWidth).toBe("none");
     });
 
     it("group labels, disabled options and the empty message", async () => {

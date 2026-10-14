@@ -72,6 +72,8 @@ function overTriggerOffset(state: ListState): { mainAxis: number; alignmentAxis:
         return { mainAxis: LISTBOX_BELOW_GAP, alignmentAxis: 0 };
     }
     const { anchor, reference } = boxes;
+    // The listbox inside the dropdown is what scrolls; the dropdown is clamped around it.
+    const scroller = floating.querySelector<HTMLElement>('[role="listbox"]') ?? floating;
     // floating-ui mirrors the alignment offset of a -start placement under rtl.
     const align = (edge: number): number =>
         rtl ? reference.right - anchor.right - edge : anchor.left - edge - reference.left;
@@ -81,16 +83,16 @@ function overTriggerOffset(state: ListState): { mainAxis: number; alignmentAxis:
     }
     // Where the list's content would start, unscrolled, for the selected option to sit on the field.
     const contentTop =
-        anchor.top - (selected.getBoundingClientRect().top - floating.getBoundingClientRect().top + floating.scrollTop);
+        anchor.top - (selected.getBoundingClientRect().top - floating.getBoundingClientRect().top + scroller.scrollTop);
     // The list is the part of that content inside the viewport less the margin. A field outside
     // that band cannot have its option both on it and inside it: the list opens unscrolled and
     // shift pulls it in.
     const viewportBottom = floating.ownerDocument.documentElement.clientHeight - VIEWPORT_MARGIN;
     const inside = anchor.top >= VIEWPORT_MARGIN && anchor.bottom <= viewportBottom;
     const top = inside ? Math.max(contentTop, VIEWPORT_MARGIN) : contentTop;
-    const bottom = Math.min(contentTop + floating.scrollHeight, viewportBottom);
+    const bottom = Math.min(contentTop + scroller.scrollHeight, viewportBottom);
     floating.style.maxHeight = inside ? `${String(bottom - top)}px` : "";
-    floating.scrollTop = top - contentTop;
+    scroller.scrollTop = top - contentTop;
     return { mainAxis: top - reference.bottom, alignmentAxis: align(LISTBOX_EDGE) };
 }
 
@@ -369,10 +371,9 @@ export function ensureListboxKeyboard(): void {
                 return;
             }
             // The walk may scroll a row into view; the list was placed around its scroll position.
-            const scroller = list.closest<HTMLElement>(".cm-listbox") ?? list;
-            const top = scroller.scrollTop;
+            const top = list.scrollTop;
             walkHighlight(input, list, checked);
-            scroller.scrollTop = top;
+            list.scrollTop = top;
         }, 0);
     };
     document.addEventListener("keydown", noteClosed, true);

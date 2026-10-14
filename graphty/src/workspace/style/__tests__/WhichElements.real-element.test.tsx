@@ -171,7 +171,7 @@ describe("Which elements", () => {
         assert.include(screen.getByTestId("which-elements").textContent, "5 of 100 nodes, 5 of 99 edges");
     });
 
-    it("a Top 10 a tie stops short says why instead of a bare 0 of 100", async () => {
+    it("a Top 10 takes a tie at the cut whole and says so, and Take fewer says why it took none", async () => {
         const { session, store } = await openWithGraph();
         // 20 nodes share the biggest size, so a top 10 cannot take part of them.
         await session.data.updateNodes(NODES.map((n) => ({ id: n.id, values: { size: n.id < 20 ? 2 : 1 } })));
@@ -187,6 +187,14 @@ describe("Which elements", () => {
         await userEvent.click(screen.getByRole("combobox", { name: "By" }));
         await userEvent.click(await screen.findByRole("option", { name: /size/i }));
 
+        // The app takes all tied: the reader asked for the largest.
+        await waitFor(() => {
+            assert.strictEqual(session.styles.counts(layer.id).matched, 20);
+            const status = within(screen.getByTestId("which-elements")).getByRole("status").textContent ?? "";
+            assert.include(status, "20 nodes: you asked for 10; 10 more tie at 2.");
+        });
+        const ties = screen.getByRole("radiogroup", { name: "If values tie at the cut" });
+        await userEvent.click(within(ties).getByText("Take fewer"));
         await waitFor(() => {
             assert.strictEqual(session.styles.counts(layer.id).matched, 0);
             const status = within(screen.getByTestId("which-elements")).getByRole("status").textContent ?? "";

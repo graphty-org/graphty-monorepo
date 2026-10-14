@@ -10,6 +10,8 @@ import {
     type Layer,
     type RuleTree,
     selectorRule,
+    type TopFactCode,
+    type TopTies,
 } from "@graphty/graphty-element/session";
 
 import {
@@ -43,6 +45,8 @@ export interface Form {
     /** Top N by: what it ranks by (`<kind>:<path>`) and N. */
     readonly topReads: string;
     readonly topN: number | string;
+    /** Top N by: what a tie at the cut does. */
+    readonly topTies: TopTies;
     readonly named: readonly string[];
     readonly set: string;
     readonly expression: string;
@@ -56,6 +60,8 @@ export const BLANK_FORM: Form = {
     conditions: [],
     topReads: "",
     topN: 10,
+    // The app's choice for a new top: a tie at the cut is taken whole. The element's default is "fewer".
+    topTies: "all",
     named: [],
     set: "",
     expression: "",
@@ -84,27 +90,48 @@ export function countWords(n: number, kind: "node" | "edge"): string {
     return `${String(n)} ${kind}${n === 1 ? "" : "s"}`;
 }
 
+/** How much larger than asked a top's result must be before its line warns. */
+const FAR_MORE = 2;
+
 /**
- * Why a layer's "top N" took fewer than N, from graphty-element's `styles.counts(id).leftOut`
- * facts: "Top 10 by Community size took none: 13 nodes tie at 13".
- * @param facts - the counts' left-out facts.
+ * What a layer's "top N" took, from graphty-element's `styles.counts(id).tops` facts: "17 nodes:
+ * you asked for 10; 7 more tie at 17", "Top 10 by Community size took none: 13 nodes tie at 13".
+ * Nothing for a top that took exactly N.
+ * @param facts - the counts' top facts.
  * @param kind - what the layer paints.
  * @param attributes - the readable fields, for the value's name.
- * @returns one sentence per fact.
+ * @returns one sentence per fact worth saying.
  */
-export function leftOutWords(
-    facts: readonly CodedFact[],
+export function topWords(
+    facts: readonly CodedFact<TopFactCode>[],
     kind: "node" | "edge",
     attributes: readonly Field[],
 ): string[] {
-    return facts.map(({ code, params }) => {
+    return facts.flatMap(({ code, params }) => {
         const { path, n, taken, value, count } = params;
-        if (code !== "top.tie") {
-            return "Some elements were left out of the top.";
-        }
         const name = attributes.find((a) => a.path === path)?.plainName ?? String(path);
-        const took = taken === 0 ? "none" : `only ${String(taken)}`;
-        return `Top ${String(n)} by ${name} took ${took}: ${countWords(Number(count), kind)} tie at ${String(value)}.`;
+        const asked = Number(n);
+        const took = Number(taken);
+        switch (code) {
+            case "top.exact":
+                return [];
+            case "top.tiesTaken": {
+                const far = took > asked * FAR_MORE ? " That is far more than you asked for." : "";
+                return [
+                    `${countWords(took, kind)}: you asked for ${String(asked)}; ${String(took - asked)} more tie at ${String(value)}.${far}`,
+                ];
+            }
+            case "top.tiesLeftOut": {
+                const tookWords = took === 0 ? "none" : `only ${String(took)}`;
+                return [
+                    `Top ${String(asked)} by ${name} took ${tookWords}: ${countWords(Number(count), kind)} tie at ${String(value)}.`,
+                ];
+            }
+            case "top.fewerMeasured":
+                return [`Only ${countWords(took, kind)} have ${name}; all of them are taken.`];
+            default:
+                return ["The top took a different number than asked."];
+        }
     });
 }
 
@@ -178,7 +205,13 @@ function ruleForm(rule: RuleTree, attributes: readonly Field[], prefer: Selector
     if (rule.kind === "threshold" && rule.top !== undefined && rule.above === undefined) {
         const kinds = attributes.filter((a) => a.path === rule.path).map((a) => a.kind);
         const kind = kinds.includes(prefer) ? prefer : (kinds[0] ?? prefer);
-        return { ...BLANK_FORM, mode: "top", topReads: `${kind}:${rule.path}`, topN: rule.top };
+        return {
+            ...BLANK_FORM,
+            mode: "top",
+            topReads: `${kind}:${rule.path}`,
+            topN: rule.top,
+            topTies: rule.ties ?? "fewer",
+        };
     }
     if (rule.kind === "expression") {
         return { ...BLANK_FORM, mode: "expression", expression: rule.where };
@@ -218,7 +251,7 @@ export function selectorOf(form: Form, attributes: readonly Field[], nodes: bool
             const path = pathOf(form.topReads, attributes);
             return path === undefined || typeof form.topN !== "number" || form.topN < 1
                 ? null
-                : { match: "rule", where: { kind: "threshold", path, top: form.topN }, ...edges };
+                : { match: "rule", where: { kind: "threshold", path, top: form.topN, ties: form.topTies }, ...edges };
         }
         case "where": {
             const rules = form.conditions.map((c) => conditionRule(c, attributes));

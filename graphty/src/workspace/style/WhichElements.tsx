@@ -30,7 +30,6 @@ import {
     type Form,
     formOf,
     type Kind,
-    leftOutWords,
     MODES,
     readsNodes,
     ruleName,
@@ -38,6 +37,7 @@ import {
     selectorOf,
     type SelectorTarget,
     sentenceOf,
+    topWords,
 } from "./whichRule";
 
 /** One offer of the find field: a live rule, or the fixed list of what it holds now. */
@@ -270,6 +270,24 @@ export function RuleEditor(props: Readonly<RuleEditorProps>): React.JSX.Element 
                     />
                 </Group>
             )}
+            {form.mode === "top" && (
+                <Stack gap={2}>
+                    <Text size="xs">If values tie at the cut</Text>
+                    <SegmentedControl
+                        size="xs"
+                        fullWidth
+                        aria-label="If values tie at the cut"
+                        value={form.topTies}
+                        data={[
+                            { value: "all", label: "Take all tied" },
+                            { value: "fewer", label: "Take fewer" },
+                        ]}
+                        onChange={(ties) => {
+                            onForm({ ...form, topTies: ties === "fewer" ? "fewer" : "all" });
+                        }}
+                    />
+                </Stack>
+            )}
             {form.mode === "named" && (
                 <TagsInput
                     size="xs"
@@ -416,7 +434,7 @@ export function WhichElements({
             })
             .join(", "),
         // A top that a tie stopped short says so, or "0 of 77 nodes" reads as a broken rule.
-        ...layers.flatMap((l) => leftOutWords(session.styles.counts(l.id).leftOut, l.target, attributes)),
+        ...layers.flatMap((l) => topWords(session.styles.counts(l.id).tops, l.target, attributes)),
     ].join(". ");
     const resting = formOf(selector, attributes, prefer);
     // At rest the sentence reads the layer as it is; open, the rule being edited.

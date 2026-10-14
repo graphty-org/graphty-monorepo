@@ -225,7 +225,7 @@ describe("the Graph place on the real element", () => {
         assert.equal(values.getAttribute("aria-selected"), "true");
     });
 
-    it("leaves the camera alone for a pick already on screen, and turns it to one off screen", async () => {
+    it("does not zoom to a pick already on screen, and turns the camera to one off screen", async () => {
         const { session } = await openGraph();
         const element = document.querySelector("graphty-element");
         assert.isNotNull(element);
@@ -257,9 +257,14 @@ describe("the Graph place on the real element", () => {
             await new Promise((resolve) => setTimeout(resolve, 300));
         };
 
-        const before = JSON.stringify(element.getCameraState());
+        // The app pivots the camera on the selection (camera.pivotOnSelection), so the camera turns
+        // to look at the pick; what a pick on screen must not do is zoom to it.
+        const before = element.getCameraState().cameraDistance;
         await pick("Eve", 7);
-        assert.equal(JSON.stringify(element.getCameraState()), before, "a pick on screen moves nothing");
+        await waitFor(() => {
+            assert.isTrue(element.nodeScreenPosition(7)?.visible);
+        });
+        assert.equal(element.getCameraState().cameraDistance, before, "a pick on screen does not zoom");
 
         // Turned away from the graph, a pick brings the node back into view.
         const away = element.getCameraState();

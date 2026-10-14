@@ -405,8 +405,9 @@ export function FindBox(): React.JSX.Element {
         await session.selection.apply(hit.target);
         // The inspector shows what is selected once no row is open.
         store.set({ inspected: null });
-        // The camera turns only to bring a pick that is off screen into view: turning to every pick
-        // swings the rest of the drawing out of the canvas, and it stays out.
+        // The camera zooms only to bring a pick that is off screen into view: zooming to every pick
+        // swings the rest of the drawing out of the canvas, and it stays out. (The element still
+        // pivots on the pick, camera.pivotOnSelection, which keeps the distance.)
         const ids = hit.kind === "edge" ? [hit.ends.source.id, hit.ends.target.id] : [hit.id];
         if (!ids.every((id) => element?.nodeScreenPosition(id)?.visible === true)) {
             await element?.zoomToSelection();

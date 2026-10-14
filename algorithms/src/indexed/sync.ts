@@ -243,15 +243,17 @@ export function syncClustering(s: GraphSnapshot, options: SyncClusteringOptions)
         let reconstruction = 0;
         let regularization = 0;
         for (let u = 0; u < n; u++) {
-            clustering += distance(emb, u, centres, labels[u], dim) ** 2;
+            const d = distance(emb, u, centres, labels[u], dim);
+            clustering += d * d;
         }
         for (let u = 0; u < n; u++) {
             for (let a = rowPtr[u]; a < rowPtr[u + 1]; a++) {
-                reconstruction += distance(emb, u, emb, colIdx[a], dim) ** 2;
+                const d = distance(emb, u, emb, colIdx[a], dim);
+                reconstruction += d * d;
             }
         }
         for (const value of emb) {
-            regularization += value ** 2;
+            regularization += value * value;
         }
         const current = clustering + lambda * reconstruction + lambda * regularization;
         if (iterations > 1) {

@@ -1589,21 +1589,10 @@ export class Graph implements GraphContext {
                 // Only process settlement events if there are nodes - an empty graph
                 // has nothing to settle, so we shouldn't emit events or log
                 if (this.dataManager.nodes.size > 0) {
-                    // A label built while the layout is at rest -- by the load, a style layer or
-                    // any later write -- has no settlement coming to start its animation, so the
-                    // first frame at rest does. See `oweLabelAnimations`.
-                    if (!this.layoutManager.running && !this.layoutManager.building && payLabelAnimations(this.scene)) {
-                        this.dataManager.startLabelAnimations();
-                    }
-
                     // Check if layout has settled
                     if (this.layoutManager.isSettled && this.layoutManager.running) {
                         this.eventManager.emitGraphSettled(this);
                         this.layoutManager.running = false;
-
-                        // Start label animations after layout has settled
-                        payLabelAnimations(this.scene);
-                        this.dataManager.startLabelAnimations();
 
                         // Only zoom to fit on FIRST settlement after data load.
                         // Subsequent settlements (e.g., after node selection/style change)
@@ -1623,31 +1612,60 @@ export class Graph implements GraphContext {
                         }
                     }
 
-                    // Report performance when transitioning from unsettled to settled
-                    if (this.layoutManager.isSettled && !this.wasSettled) {
-                        this.wasSettled = true;
-                        // End layout session tracking
-                        this.statsManager.endLayoutSession();
-                        const snapshot = this.statsManager.getSnapshot();
-                        graphLogger.debug("Layout settled", {
-                            updateCalls: snapshot.cpu.find((m) => m.label === "Graph.update")?.count ?? 0,
-                        });
-                        this.statsManager.reportDetailed();
-                        // Reset measurements after reporting so next settlement shows fresh data
-                        this.statsManager.resetMeasurements();
-                    } else if (!this.layoutManager.isSettled && this.wasSettled) {
-                        // Reset when layout becomes unsettled (so we can report next settlement)
-                        this.wasSettled = false;
-                        // Restart layout session tracking
-                        this.statsManager.startLayoutSession();
-                        graphLogger.debug("Layout became unsettled, will report on next settlement");
-                    }
+                    this.startOwedLabelAnimations();
+
+                    this.reportSettlementChange();
                 }
             });
         });
 
         // End frame profiling (correlates operations with inter-frame time)
         this.statsManager.endFrameProfiling();
+    }
+
+    /**
+     * Report performance when the layout goes from unsettled to settled, and start a new layout
+     * session when it goes back.
+     */
+    private reportSettlementChange(): void {
+        if (this.layoutManager.isSettled && !this.wasSettled) {
+            this.wasSettled = true;
+            // End layout session tracking
+            this.statsManager.endLayoutSession();
+            const snapshot = this.statsManager.getSnapshot();
+            graphLogger.debug("Layout settled", {
+                updateCalls: snapshot.cpu.find((m) => m.label === "Graph.update")?.count ?? 0,
+            });
+            this.statsManager.reportDetailed();
+            // Reset measurements after reporting so next settlement shows fresh data
+            this.statsManager.resetMeasurements();
+        } else if (!this.layoutManager.isSettled && this.wasSettled) {
+            // Reset when layout becomes unsettled (so we can report next settlement)
+            this.wasSettled = false;
+            // Restart layout session tracking
+            this.statsManager.startLayoutSession();
+            graphLogger.debug("Layout became unsettled, will report on next settlement");
+        }
+    }
+
+    /**
+     * Start the label animations the built labels owe, on the first frame that finds the layout at
+     * rest -- settled, or never running -- and no style paint still to draw. A load's labels are
+     * built from that paint, and a pass not drawn yet (a slow machine settles a `fixed` layout
+     * first) would leave some unbuilt, start the rest early, and then start them again. See
+     * `oweLabelAnimations`.
+     */
+    private startOwedLabelAnimations(): void {
+        const painter = this.getStylePainter();
+        if (
+            !this.layoutManager.running &&
+            !this.layoutManager.building &&
+            !painter.hasPending &&
+            !painter.isPainting &&
+            payLabelAnimations(this.scene)
+        ) {
+            this.dataManager.startLabelAnimations();
+        }
     }
 
     /**

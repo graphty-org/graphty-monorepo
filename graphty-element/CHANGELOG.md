@@ -1,3 +1,28 @@
+## 3.26.0 (2026-10-14)
+
+### 🚀 Features
+
+- **graphty-element:** count what each render loop tick did ([#2535](https://github.com/graphty-org/graphty-monorepo/issues/2535))
+
+### 🩹 Fixes
+
+- **graphty-element:** start a load's label animations once, after its labels are built ([#2577](https://github.com/graphty-org/graphty-monorepo/issues/2577))
+- **graphty-element:** classify RenderManager.ticks as a read in the door list ([#2535](https://github.com/graphty-org/graphty-monorepo/issues/2535))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.54
+- Updated @graphty/remote-logger to 2.0.18
+- Updated graph-samples to 0.1.32
+- Updated graph-format to 1.4.1
+- Updated algorithms to 3.4.7
+- Updated graph-io to 0.3.40
+- Updated layout to 2.5.3
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.25.8 (2026-10-14)
 
 ### 🩹 Fixes

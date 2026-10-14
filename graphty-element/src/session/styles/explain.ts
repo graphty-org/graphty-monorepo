@@ -36,6 +36,7 @@
 
 import type { Channel, ChannelValue, EdgeId, Encoding, LayerId, LayerSpec, NodeId, Path } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
+import { quoteEach } from "../../utils/quote-each";
 import type { CodedFact } from "../shared";
 import { CHANNELS, type ChannelValues, isChannel } from "./channels";
 import { type PreparedBinding, requireChannel } from "./encoding";
@@ -868,7 +869,7 @@ export function unboundLayers(sources: ExplainSources): readonly UnboundLayer[] 
             unbound.push({
                 layerId: layer.id,
                 reason:
-                    `"${layer.name}" reads ${needs.map((path) => `"${path}"`).join(", ")}, ` +
+                    `"${layer.name}" reads ${quoteEach(needs, ", ")}, ` +
                     "which nothing in this session answers, so it paints nothing.",
                 fact: { code: "layer.unanswered", params: { layerId: layer.id, name: layer.name, paths: needs } },
                 needs: Object.freeze(needs),

@@ -824,7 +824,8 @@ export function viewWarnings(view: GraphView): readonly string[] {
 
         const total = tally.target === "node" ? state.source.snapshot.nodeCount : state.source.snapshot.edgeCount;
         const text = tally.text.size;
-        const textPart = text === 0 ? "" : ` (${text} ${text === 1 ? "holds" : "hold"} text, e.g. ${sample})`;
+        const verb = text === 1 ? "holds" : "hold";
+        const textPart = text === 0 ? "" : ` (${text} ${verb} text, e.g. ${sample})`;
         warnings.push(
             `${id}: ${missing} of ${total} ${plural} ${missing === 1 ? "has" : "have"} no number at "${tally.path}"${textPart}; they were left out.`,
         );

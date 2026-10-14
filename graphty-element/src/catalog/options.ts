@@ -24,6 +24,7 @@
  */
 
 import { GraphtyError } from "../errors";
+import { quoteEach } from "../utils/quote-each";
 import type { OptionDescriptor } from "./types";
 
 /** Which extension point is being configured, which is what a failure message names. */
@@ -101,7 +102,7 @@ function checkValue(declared: OptionDescriptor, value: unknown, context: OptionC
         if (typeof value !== "string" || !allowed.includes(value)) {
             throw new GraphtyError({
                 code: "E_OPTION_RANGE",
-                message: `"${declared.name}" accepts ${allowed.map((name) => `"${name}"`).join(", ")}`,
+                message: `"${declared.name}" accepts ${quoteEach(allowed, ", ")}`,
                 source: "config",
                 details: { ...where, values: allowed },
             });

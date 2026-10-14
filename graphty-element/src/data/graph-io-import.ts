@@ -200,10 +200,11 @@ function parseFailed(importer: GraphImporter, error: ImportError): GraphtyError 
     }
 
     const line = error.report.issues.filter((issue) => issue.severity === "error").at(-1)?.line ?? null;
+    const where = line === null ? "" : ` at line ${line}`;
     return GraphtyError.wrap(error, {
         code: "E_PARSE_FAILED",
         source: "data",
-        message: `Failed to read the ${importer.format} file${line === null ? "" : ` at line ${line}`}: ${error.message}`,
+        message: `Failed to read the ${importer.format} file${where}: ${error.message}`,
         details: { format: importer.format, line, errors: error.report.errorCount },
     });
 }

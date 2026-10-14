@@ -11,6 +11,7 @@
 
 import { OPTION_TYPES, type OptionDescriptor, type OptionType } from "../catalog/types";
 import { GraphtyError, type GraphtyErrorSource } from "../errors";
+import { quoteEach } from "../utils/quote-each";
 import { badDefinition, describeValue, sentenceCase, type SimpleVerb } from "./definition";
 import type { GraphView, NodeId } from "./types";
 import { carriedList, quoteId, requireCarried } from "./view";
@@ -89,8 +90,7 @@ function expandOne(verb: SimpleVerb, id: string, name: string, entry: unknown): 
             verb,
             id,
             `${field}.type`,
-            `"${field}" needs a "type", one of ${AUTHORABLE_TYPES.map((item) => `"${item}"`).join(", ")}; ` +
-                `got ${describeValue(type)}.`,
+            `"${field}" needs a "type", one of ${quoteEach(AUTHORABLE_TYPES, ", ")}; ` + `got ${describeValue(type)}.`,
         );
     }
 

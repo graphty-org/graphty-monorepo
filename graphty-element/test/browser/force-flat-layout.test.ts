@@ -13,6 +13,7 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 import { Graph, operationQueueOf } from "../../src/Graph";
 import { laneOf } from "../../src/session/GraphSession";
 import type { GraphSession } from "../../src/session/types";
+import { drawnFrames } from "../helpers/drawn-frames";
 
 /** Per-test budget: each builds a real Babylon scene. */
 const TEST_TIMEOUT_MS = 30_000;
@@ -62,9 +63,7 @@ async function loadedGraph(): Promise<Graph> {
  */
 async function settle(graph: Graph): Promise<void> {
     await operationQueueOf(graph).waitForCompletion();
-    for (let frame = 0; frame < 30; frame++) {
-        await new Promise((resolve) => requestAnimationFrame(resolve));
-    }
+    await drawnFrames(graph.getScene(), 30);
 
     await graph.waitForSettled();
 }

@@ -224,16 +224,16 @@ describe("the mouse", () => {
 
             await click(element, at(element, "a"));
             await click(element, at(element, "b"), { shift: true });
-            await frames();
+            await applied(element);
             assert.sameMembers([...element.session.selection.nodes], ["a", "b"], "Shift-click added b to a");
 
             await click(element, at(element, "c"));
-            await frames();
+            await applied(element);
             assert.sameMembers([...element.session.selection.nodes], ["c"], "a plain click replaced the selection");
 
             await click(element, at(element, "a"), { shift: true });
             await click(element, at(element, "c"));
-            await frames();
+            await applied(element);
             assert.sameMembers(
                 [...element.session.selection.nodes],
                 ["c"],
@@ -243,7 +243,7 @@ describe("the mouse", () => {
             const from = at(element, "a");
             const to = { x: from.x + 50, y: from.y + 40 };
             await drag(element, from, to, 8, undefined, { shift: true });
-            await frames();
+            await applied(element);
             const now = at(element, "a");
             assert.closeTo(now.x, to.x, 3, "a drag with Shift held still moves the node");
             assert.closeTo(now.y, to.y, 3);
@@ -260,17 +260,17 @@ describe("the mouse", () => {
             cleanups.push(stop);
 
             await click(element, EMPTY);
-            await frames();
+            await applied(element);
             assert.strictEqual(heard, 1, "a click with nothing selected is heard");
             assert.closeTo(where.x, EMPTY.x, 1, "and says where it landed");
             assert.closeTo(where.y, EMPTY.y, 1);
 
             await click(element, at(element, "b"));
-            await frames();
+            await applied(element);
             assert.strictEqual(heard, 1, "a click on a node is not an empty click");
 
             await click(element, EMPTY);
-            await frames();
+            await applied(element);
             assert.strictEqual(heard, 2, "a click that clears a selection is heard too");
         });
 
@@ -292,7 +292,7 @@ describe("the mouse", () => {
             const element = await mounted(viewMode);
             const from = at(element, "b");
             await click(element, from);
-            await frames();
+            await applied(element);
             assert.strictEqual(element.getSelectedNode()?.id, "b");
 
             // Straight up, away from the edge a-b, so the old spot is bare canvas once b leaves.
@@ -300,7 +300,7 @@ describe("the mouse", () => {
             let atOld = Number.NaN;
             let atNew = Number.NaN;
             await drag(element, from, to, 8, async () => {
-                await frames(2);
+                await drawnFrames(element.graph.getScene(), 2);
                 const radius = element.nodeScreenPosition("b")?.radius ?? 0;
                 const pixels = await readCanvas(element);
                 atOld = gold(element, pixels, from, 2);

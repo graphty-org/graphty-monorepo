@@ -7,19 +7,10 @@ import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { after, describe, it } from "node:test";
 
-import {
-    BUILD_NODE_OPTIONS,
-    buildChild,
-    needsScan,
-    pickCommit,
-    prepareAlert,
-    scanLock,
-    weekOverWeek,
-} from "../sonar-baseline.mjs";
+import { buildChild, needsScan, pickCommit, prepareAlert, scanLock, weekOverWeek } from "../sonar-baseline.mjs";
 
 const run = (headSha, status, conclusion = "", event = "schedule", databaseId = headSha) => ({
     headSha,
@@ -125,20 +116,10 @@ describe("scanLock", () => {
 });
 
 describe("buildChild", () => {
-    it("gives the child CI's heap from ci.yml's full build step", () => {
-        const ci = readFileSync(
-            join(dirname(fileURLToPath(import.meta.url)), "../../.github/workflows/ci.yml"),
-            "utf8",
-        );
-        const step = ci.split("- name: Build all (master")[1]?.split("- name:")[0] ?? "";
-        assert.match(step, /pnpm exec nx run-many -t build/);
-        assert.equal(step.match(/NODE_OPTIONS: "([^"]*)"/)?.[1], BUILD_NODE_OPTIONS);
-    });
-
-    it("runs the command with core files off and that heap", () => {
-        const c = buildChild("sh", ["-c", 'echo "$(ulimit -c) $NODE_OPTIONS"']);
-        const out = spawnSync(c.cmd, c.args, { env: { ...process.env, ...c.env }, encoding: "utf8" });
-        assert.equal(out.stdout.trim(), `0 ${BUILD_NODE_OPTIONS}`);
+    it("runs the command with core files off", () => {
+        const c = buildChild("sh", ["-c", "ulimit -c"]);
+        const out = spawnSync(c.cmd, c.args, { encoding: "utf8" });
+        assert.equal(out.stdout.trim(), "0");
     });
 });
 

@@ -764,7 +764,8 @@ class GmlImport {
         }
         const positioned = x && y;
         entry.position ||= positioned;
-        entry.rest ||= positioned ? other : true;
+        // with keepPositionSource the whole record, x / y / z included, goes to the json column too
+        entry.rest ||= positioned ? other || this.keepPositionSource : true;
     }
 
     // ============================================================ pass 2: the push
@@ -890,10 +891,9 @@ class GmlImport {
                 list: false,
                 role: "position",
             };
-            const rest: ColumnPlan | null =
-                entry.rest || this.keepPositionSource
-                    ? { ...plan, dtype: "json", itemDtype: null, kind: "record", list: false }
-                    : null;
+            const rest: ColumnPlan | null = entry.rest
+                ? { ...plan, dtype: "json", itemDtype: null, kind: "record", list: false }
+                : null;
             return { ...plan, position, rest };
         }
         return plan;

@@ -408,6 +408,25 @@ function nodeTableNote(names: readonly string[], table: string, notes: LossNote[
 }
 
 /**
+ * The number of node ids whose text an earlier id already has (a number and a string).
+ * @param ids - the snapshot's ids
+ * @returns the collisions
+ */
+function idTextCollisions(ids: GraphSnapshot["ids"]): number {
+    const seen = new Set<string>();
+    let collisions = 0;
+    for (let i = 0; i < ids.size; i++) {
+        const text = String(ids.idOf(i));
+        if (seen.has(text)) {
+            collisions++;
+        } else {
+            seen.add(text);
+        }
+    }
+    return collisions;
+}
+
+/**
  * The id notes: text collisions are fatal (export() throws E_INVALID_ID); type changes under the
  * canonical re-read are reported.
  * @param snapshot - the snapshot
@@ -421,16 +440,7 @@ function idNotes(
 ): void {
     const { ids } = snapshot;
     if (ids.kind === "mixed") {
-        const seen = new Set<string>();
-        let collisions = 0;
-        for (let i = 0; i < ids.size; i++) {
-            const text = String(ids.idOf(i));
-            if (seen.has(text)) {
-                collisions++;
-            } else {
-                seen.add(text);
-            }
-        }
+        const collisions = idTextCollisions(ids);
         if (collisions > 0) {
             note(
                 CSV_LOSS.ID_TEXT_COLLISION,
@@ -699,38 +709,79 @@ function attributeColumns(
         if (role !== null && SKIPPED_ROLES.has(role)) {
             continue;
         }
-        const low = lower(name);
         const set = column.length - column.nullCount;
-        const isIdName = domain === "edge" ? findColumn([name], EDGE_ID_NAMES) >= 0 : false;
-        if (reserved.has(low) || isIdName || (idColumn !== null && lower(idColumn.meta.name) === low)) {
-            note?.(
-                CSV_LOSS.RESERVED_NAME,
-                `${domain} column "${name}" is not written: the name is reserved for the ${isIdName ? "edge id" : low} column`,
-                name,
-                set,
-            );
+        if (isReservedName(name, domain, reserved, idColumn, set, note)) {
             continue;
         }
-        if (findColumn([name], LABEL_NAMES) >= 0) {
-            if (labelColumn !== null) {
-                note?.(
-                    CSV_LOSS.RESERVED_NAME,
-                    `${domain} column "${name}" is not written: the name is reserved for the label column`,
-                    name,
-                    set,
-                );
-                continue;
-            }
-            note?.(
-                CSV_LOSS.ROLE_ASSUMED,
-                `${domain} column "${name}" reads back with the label role (string)`,
-                name,
-                set,
-            );
+        if (findColumn([name], LABEL_NAMES) >= 0 && !labelNameWritten(name, domain, labelColumn, set, note)) {
+            continue;
         }
         out.push({ column, header: name });
     }
     return out;
+}
+
+/**
+ * Whether an attribute column's name is reserved for a structural column (a dialect header, an
+ * edge id name, the id column's name), with its note.
+ * @param name - the column name
+ * @param domain - node or edge, for messages
+ * @param reserved - lower-case header names the dialect writes for structure
+ * @param idColumn - the table's id role column, or null
+ * @param set - the column's set cells
+ * @param note - the recorder, or null when this table's notes are not wanted
+ * @returns true when the column is not written
+ */
+function isReservedName(
+    name: string,
+    domain: "node" | "edge",
+    reserved: ReadonlySet<string>,
+    idColumn: Column | null,
+    set: number,
+    note: ((code: string, message: string, column?: string | null, count?: number | null) => void) | null,
+): boolean {
+    const low = lower(name);
+    const isIdName = domain === "edge" ? findColumn([name], EDGE_ID_NAMES) >= 0 : false;
+    if (reserved.has(low) || isIdName || (idColumn !== null && lower(idColumn.meta.name) === low)) {
+        note?.(
+            CSV_LOSS.RESERVED_NAME,
+            `${domain} column "${name}" is not written: the name is reserved for the ${isIdName ? "edge id" : low} column`,
+            name,
+            set,
+        );
+        return true;
+    }
+    return false;
+}
+
+/**
+ * Whether an attribute column with a label header name is written, with its note: not when the
+ * table has a label column (the name is reserved for it), else it reads back with the label role.
+ * @param name - the column name
+ * @param domain - node or edge, for messages
+ * @param labelColumn - the table's label role column, or null
+ * @param set - the column's set cells
+ * @param note - the recorder, or null when this table's notes are not wanted
+ * @returns true when the column is written
+ */
+function labelNameWritten(
+    name: string,
+    domain: "node" | "edge",
+    labelColumn: Column | null,
+    set: number,
+    note: ((code: string, message: string, column?: string | null, count?: number | null) => void) | null,
+): boolean {
+    if (labelColumn !== null) {
+        note?.(
+            CSV_LOSS.RESERVED_NAME,
+            `${domain} column "${name}" is not written: the name is reserved for the label column`,
+            name,
+            set,
+        );
+        return false;
+    }
+    note?.(CSV_LOSS.ROLE_ASSUMED, `${domain} column "${name}" reads back with the label role (string)`, name, set);
+    return true;
 }
 
 /**
@@ -913,6 +964,22 @@ function neighbourCell(id: string, weight: string | null): string {
 }
 
 /**
+ * The end of the run of consecutive edge rows that share the source of row `r`.
+ * @param src - the edge sources by edge index
+ * @param edgeRows - the edges in write order
+ * @param r - the run's first row
+ * @returns the index after the run's last row
+ */
+function sourceRunEnd(src: ArrayLike<number>, edgeRows: ArrayLike<number>, r: number): number {
+    const source = src[edgeRows[r]];
+    let end = r;
+    while (end < edgeRows.length && src[edgeRows[end]] === source) {
+        end++;
+    }
+    return end;
+}
+
+/**
  * The rows of the adjacency table (design section 8.5: the order survives the importer's first-
  * appearance numbering). Consecutive edges with one source share a row, so the edge order is kept;
  * a row that would introduce nodes out of index order is preceded by one-cell rows for every node
@@ -953,10 +1020,7 @@ function* adjacencyLines(snapshot: GraphSnapshot, plan: Plan): Generator<string,
     let r = 0;
     while (r < edgeRows.length) {
         const source = list.src[edgeRows[r]];
-        let end = r;
-        while (end < edgeRows.length && list.src[edgeRows[end]] === source) {
-            end++;
-        }
+        const end = sourceRunEnd(list.src, edgeRows, r);
         // the nodes this row introduces, in the order the importer meets them; in index order from
         // `next` they need nothing more
         const fresh: number[] = [];

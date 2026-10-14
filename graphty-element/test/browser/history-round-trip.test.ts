@@ -22,6 +22,7 @@ import { afterEach, assert, describe, it } from "vitest";
 
 import type { Edge } from "../../src/Edge";
 import { Graph, operationQueueOf } from "../../src/Graph";
+import { drawnFrames } from "../helpers/drawn-frames";
 import { nextFrame } from "../helpers/real-input";
 import { FIXTURES } from "../session/history/fixtures";
 import { roundTrip } from "../session/history/round-trip-harness";
@@ -46,9 +47,7 @@ async function atRest(graph: Graph): Promise<void> {
     }
 
     assert.isFalse(graph.getLayoutManager().running, "the layout came to rest");
-    for (let frame = 0; frame < 2; frame++) {
-        await new Promise((resolve) => requestAnimationFrame(resolve));
-    }
+    await drawnFrames(graph.getScene(), 2);
 }
 
 /**

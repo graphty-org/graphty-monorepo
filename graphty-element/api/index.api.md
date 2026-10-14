@@ -4098,6 +4098,11 @@ export class RenderManager implements Manager {
     scene: Scene;
     startRenderLoop(updateCallback: (frameMs: number) => void): void;
     stopRenderLoop(): void;
+    readonly ticks: {
+        drawn: number;
+        rested: number;
+        gpuBehind: number;
+    };
 }
 
 // @public

@@ -402,7 +402,8 @@ function Handle({
  * no value, and typed fields for the exact numbers.
  *
  * It computes nothing about the mapping: pass it the bins, paints, counts and steps of the thing
- * that will paint (graphty-element's `styles.preview`), and it reports the values the reader
+ * that will paint (graphty-element's `styles.preview` with `span: "data"`, so the axis stays the
+ * data's extent while the domain moves inside it), and it reports the values the reader
  * picks. A dragged or arrowed handle lands on an edge between two bins; Home and End reach the
  * data's ends.
  * @param props - Component props

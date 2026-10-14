@@ -120,7 +120,7 @@ function previewOf(
     bins?: number,
 ): Preview | null {
     try {
-        return session.styles.preview(binding, { channel, ...(bins === undefined ? {} : { bins }) });
+        return session.styles.preview(binding, { channel, span: "data", ...(bins === undefined ? {} : { bins }) });
     } catch {
         return null;
     }

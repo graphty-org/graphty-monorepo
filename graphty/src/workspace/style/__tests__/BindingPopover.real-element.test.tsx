@@ -239,6 +239,46 @@ async function editValue(
 }
 
 describe("the binding popover on the real element", () => {
+    it("a ramp end dragged in can be dragged back out: the axis stays the data's extent", async () => {
+        await page.viewport(1440, 900);
+        const { session, store } = await open();
+        const layer = await session.styles.add({
+            name: "Score",
+            target: "node",
+            selector: { match: "everything" },
+            encode: { "node.color": { by: "data.score" } },
+        });
+        await session.styles.settled();
+        const popover = await openBinding(store, layer);
+        const domainOf = (): number[] | undefined =>
+            (session.styles.get(layer.id)?.encode?.["node.color"] as { domain?: number[] }).domain;
+        const handle = within(popover).getByRole("slider", { name: "Ramp end" });
+        const track = within(popover).getByTestId("ramp-editor-track");
+        const { width } = track.getBoundingClientRect();
+
+        await userEvent.dragAndDrop(handle, track, { targetPosition: { x: width * 0.5, y: 8 } });
+        await waitFor(() => {
+            assert.isBelow(domainOf()?.[1] ?? Infinity, 20, "the drag narrows the ramp");
+        });
+        assert.equal(handle.getAttribute("aria-valuemax"), "20", "the end can still reach the data's end");
+        assert.equal(axisOf(popover)[0]?.split(" to ")[0], "1", "the axis still starts at the data's start");
+
+        await userEvent.dragAndDrop(handle, track, { targetPosition: { x: width - 1, y: 8 } });
+        await waitFor(() => {
+            assert.equal(domainOf()?.[1], 20, "dragged back out to the data's end");
+        });
+
+        await userEvent.dragAndDrop(handle, track, { targetPosition: { x: width * 0.5, y: 8 } });
+        await waitFor(() => {
+            assert.isBelow(domainOf()?.[1] ?? Infinity, 20);
+        });
+        handle.focus();
+        await userEvent.keyboard("{End}");
+        await waitFor(() => {
+            assert.equal(domainOf()?.[1], 20, "End reaches the data's end too");
+        });
+    });
+
     it("a dragged ramp start moves the domain and a node's color; Log redraws the axis; a clamp counts", async () => {
         await page.viewport(1440, 900);
         const { session, store } = await open();

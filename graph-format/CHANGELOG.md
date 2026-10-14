@@ -1,3 +1,17 @@
+## 1.4.0 (2026-10-14)
+
+### 🚀 Features
+
+- **graph-format:** export engine-independent log, exp, sin, cos, acos, hypot and pow ([#2440](https://github.com/graphty-org/graphty-monorepo/issues/2440))
+
+### 🩹 Fixes
+
+- **graph-format:** list the engine-independent math in design section 12.2 ([#2440](https://github.com/graphty-org/graphty-monorepo/issues/2440))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 1.3.15 (2026-10-13)
 
 This was a version bump only for graph-format to align it with other projects, there were no code changes.

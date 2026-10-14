@@ -1,0 +1,90 @@
+{
+  "version": 2,
+  "pr": 2614,
+  "subject": {
+    "builtMerge": "73fa7c4340d1cba647c8a9039c73b2a2fdef7389",
+    "head": "2f7ec1535a9c89d96d92732db3c6d451c347f3a8",
+    "runId": 38556847638,
+    "runAttempt": 1,
+    "environment": {
+      "chromium": "143.0.7499.4",
+      "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "gpu": false,
+      "cpu": "AMD EPYC 9V74 80-Core Processor",
+      "emojiFont": true,
+      "fonts": "018a3f813b3c58238736b0a956f43d73e3e3e2ff63ab6acb147ccd558132de12",
+      "tool": "73fa7c4340d1cba647c8a9039c73b2a2fdef7389"
+    },
+    "scale": 2
+  },
+  "items": [
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--node-data.dark.png",
+      "from": "740fd89f5c245280f2d2305c0562ce183640536e61cce723481bcf5cbd6e80f1",
+      "to": "21adeccd42faa1c9a3a02aa61755aa6f1100a59c666c22abcab73bd3029720c9",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--node-data.light.png",
+      "from": "17d503492448e0eab478866aa1d74e57f82653991a25720b498b6a4727da23ac",
+      "to": "b835e23bd9c509c38022d8e2f66fb2cb4dc21ecebe0041bf97d29559d362c604",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--node-why-this-look.dark.png",
+      "from": "9185f1f862badc72ebe833af28d2d132996b3f7f53f087843061d1f7b273b960",
+      "to": "71548ed66c50f4cea83d3603b5aafded0a2281d6a3f8c4b70e1d3ab9659d8963",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--node-why-this-look.light.png",
+      "from": "a62096c54585db2d2b4a32df616be957529d87af403a7103d85ae5fc3d610fab",
+      "to": "265bcc9bdc76b8f02f3011df4f1105abd13a918dfcbef0668af777bdc82dcc37",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--several-elements-neighborhood.dark.png",
+      "from": "53cb6d64e1137f3efb2a751bc35c918ec56c6a0f0839981ca6a45d31f38fb24c",
+      "to": "419b37d4813f6904255644aa00b9e2188a36fdfd094dfffe568cad20e35e7e8e",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--several-elements-neighborhood.light.png",
+      "from": "94b86cf01e9babb744836e4b665473f557dc8e51d2550478ff8de00f3220799a",
+      "to": "de8905de57e6b39715cbbd328a9cefc51af9f82385f77acf1d707da8eed2e52d",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--several-elements-summary.dark.png",
+      "from": "28f2848bc9e7f84262625053e05e09c5fc8412b8b76742e08b368d01ab3417a0",
+      "to": "6bf5ec54cd7bd24181686a619e025e65c412fbc77eed0f5edbc923aa87bfb419",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--several-elements-summary.light.png",
+      "from": "c9225bb4dcfc732868147fb439a2b64739e4a1999d59b05c17db64bcddeb9edf",
+      "to": "3e1534e1ed08d3ccc503fee898fd0f64ec292850f17d924c7867756aaaa9350d",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--selection-bar.dark.png",
+      "from": "0099b44b5ce4e99e053d78423d10ae7c6fc96752ed6c29210736975ae3ba2c36",
+      "to": "ea01b064116bb074ffd00449e176d3d4eebe61b70310b1ed54c57b505b182cd0",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--selection-bar.light.png",
+      "from": "a8270f1b1a57cda72f3d1b6d5a154ecc7ee1968404e70c690c6a5709b93011f3",
+      "to": "5ab32b6aef4141d50e28d761c855da75d55abbee3e5bbe32a358dc37cfd58e4a",
+      "reason": null
+    }
+  ],
+  "rejects": [],
+  "reviewedAt": "2026-10-14T19:12:16.827Z",
+  "approval": {
+    "credentialId": "738fFZY3-Pa709BzFejFYRRnYVXX9K-eYpqc4bd7JMdzkEG2UGoy1M-r9Qm0l913",
+    "authenticatorData": "eMXhA2qypKDHuqedyDb0Pl-uTkIvHZ2wKAgFSf4SSWAdAAAAAA",
+    "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiUjBBZ0h4djZsMThKZ1JJbkpsSmpZX1lMaDlPMmFKRVlpTXN2TXJ0bnNmQSIsIm9yaWdpbiI6Imh0dHBzOi8vZGV2LmF0by5tczo5MjA5IiwiY3Jvc3NPcmlnaW4iOmZhbHNlfQ",
+    "signature": "MEUCIAkdZSCa076gTn7KVG39_3z_tVdEBmhZI2gtLC3Sc0ufAiEAog_99K20ZgdRaQFrZ8U5L07d5fS4fh-BFsEGrPdl9KY"
+  }
+}

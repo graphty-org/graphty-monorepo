@@ -93,6 +93,7 @@ import type {
 import { EDGE_CONSTANTS } from "../../constants/meshConstants";
 import { GraphtyError } from "../../errors";
 import type { GraphtyWarningCode } from "../../errors/codes";
+import { quoteEach } from "../../utils/quote-each";
 import { resolveColumn } from "../columns";
 import {
     STYLE_DEFINITIONS,
@@ -1066,7 +1067,7 @@ function checkDocument(document: StyleDocument): void {
         throw new GraphtyError({
             code: "E_UNKNOWN_PALETTE",
             message:
-                `Nothing has registered the palette ${missing.map((id) => `"${id}"`).join(", ")}. ` +
+                `Nothing has registered the palette ${quoteEach(missing, ", ")}. ` +
                 "Register it with `registerPalette` before applying this document; applying it now would " +
                 "paint colours nobody chose.",
             source: "style",

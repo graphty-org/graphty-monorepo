@@ -194,27 +194,19 @@ async function setup(cfg) {
 const sh = (cmd, args, cwd, env = {}) =>
     spawnSync(cmd, args, { cwd, stdio: "inherit", env: { ...envWithoutToken(), ...env } }).status === 0;
 
-// The heap CI gives its builds (ci.yml's build steps, NODE_OPTIONS): graphty's vite build needs about
-// 4 GB, node's default limit. sonar-baseline.test.mjs fails when ci.yml's "Build all" step differs.
-export const BUILD_NODE_OPTIONS = "--max-old-space-size=8192";
-
 /**
- * How the baseline runs an install or build step: CI's heap, no token, and no core files (each
+ * How the baseline runs an install or build step: no token, and no core files (each
  * out-of-memory abort of the graphty build left a 4.2 GB core in the worktree, #2113).
  * @param cmd - The program.
  * @param args - Its arguments.
- * @returns `{ cmd, args, env }` for spawnSync.
+ * @returns `{ cmd, args }` for spawnSync.
  */
 export function buildChild(cmd, args) {
-    return {
-        cmd: "sh",
-        args: ["-c", 'ulimit -c 0 && exec "$@"', "sh", cmd, ...args],
-        env: { NODE_OPTIONS: BUILD_NODE_OPTIONS },
-    };
+    return { cmd: "sh", args: ["-c", 'ulimit -c 0 && exec "$@"', "sh", cmd, ...args] };
 }
 const build = (cmd, args, cwd) => {
     const c = buildChild(cmd, args);
-    return sh(c.cmd, c.args, cwd, c.env);
+    return sh(c.cmd, c.args, cwd);
 };
 
 /**

@@ -59,6 +59,57 @@ export class NodeEffects {
 
     private static readonly GLOW_LAYER_NAME = "graphty-node-glow";
 
+    /** The source meshes that write the stencil, each once: those an outline or a glow was put on. */
+    private static readonly stencilWriters = new WeakSet<Mesh>();
+
+    /**
+     * Lets only outlined and glowing nodes write the stencil an outline and a glow are masked by.
+     *
+     * WHAT WAS BROKEN: Babylon's highlight layer draws its ring wherever the stencil does not hold
+     * the node's mark, and every mesh drawn in the main pass writes the stencil -- so an edge (or a
+     * label, or an arrowhead) drawn in front of an outlined node overwrote the node's mark along
+     * its line, and the ring was drawn there too: streaks of outline color across the node. Now the
+     * main pass writes no stencil except while an outlined or glowing node draws, so the mark is
+     * the node's whole silhouette and the ring stays outside it.
+     * @param mesh - The source mesh just put on a highlight layer.
+     */
+    private static writeStencilOnlyFor(mesh: Mesh): void {
+        const scene = mesh.getScene();
+        const engine = scene.getEngine();
+        scene.metadata = scene.metadata ?? {};
+        // Only inside the main pass: a render target drawn before it (the layers' own glow maps)
+        // and the next frame's clear keep the full write mask.
+        let main = scene.metadata.stencilMainPass as { on: boolean } | undefined;
+        if (main === undefined) {
+            const state = { on: false };
+            main = state;
+            scene.metadata.stencilMainPass = state;
+            scene.onBeforeDrawPhaseObservable.add(() => {
+                state.on = true;
+                engine.setStencilMask(0x00);
+            });
+            scene.onAfterDrawPhaseObservable.add(() => {
+                state.on = false;
+                engine.setStencilMask(0xff);
+            });
+        }
+        if (this.stencilWriters.has(mesh)) {
+            return;
+        }
+        this.stencilWriters.add(mesh);
+        const pass = main;
+        mesh.onBeforeBindObservable.add(() => {
+            if (pass.on) {
+                engine.setStencilMask(0xff);
+            }
+        });
+        mesh.onAfterRenderObservable.add(() => {
+            if (pass.on) {
+                engine.setStencilMask(0x00);
+            }
+        });
+    }
+
     /**
      * Check if an effect layer has been disposed.
      * Neither HighlightLayer nor GlowLayer has an isDisposed property, so we check whether the
@@ -144,6 +195,7 @@ export class NodeEffects {
             const { rgb } = readColor(this.extractColorValue(effect.outline.color), DEFAULT_OUTLINE_COLOR);
 
             this.getOrCreateHighlightLayer(scene).addMesh(renderedMesh, rgb);
+            this.writeStencilOnlyFor(renderedMesh);
 
             return;
         }
@@ -282,6 +334,7 @@ export class NodeEffects {
             // a repaint.
             try {
                 glowLayer.addMesh(renderedMesh, color);
+                this.writeStencilOnlyFor(renderedMesh);
             } catch {
                 // Silently fail -- a node that does not glow is better than a broken repaint.
             }

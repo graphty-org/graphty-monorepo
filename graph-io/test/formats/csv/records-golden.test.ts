@@ -1,3 +1,5 @@
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
 
 import { ImportReportBuilder } from "../../../src/common/report.js";
@@ -76,7 +78,13 @@ describe("RecordReader golden outputs", () => {
                     }
                 }
             }
-            await expect(JSON.stringify(out, null, 1)).toMatchFileSnapshot(`__golden__/records-${name}.json`);
+            // compared as parsed JSON, so reformatting the golden file changes nothing; delete it to rewrite it
+            const file = new URL(`__golden__/records-${name}.json`, import.meta.url);
+            const actual: unknown = JSON.parse(JSON.stringify(out));
+            if (!existsSync(file)) {
+                writeFileSync(file, `${JSON.stringify(actual, null, 4)}\n`);
+            }
+            expect(actual).toEqual(JSON.parse(readFileSync(file, "utf8")));
         });
     }
 });

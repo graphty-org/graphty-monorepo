@@ -341,7 +341,7 @@ const PRS_QUERY = `query($owner: String!, $name: String!, $first: Int!, $after: 
 }`;
 
 /** Pull requests per page of PRS_QUERY. */
-export const PR_PAGE = 15;
+const PR_PAGE = 15;
 
 /**
  * Every open pull request and the default branch, a page of PRS_QUERY at a time. A page GitHub

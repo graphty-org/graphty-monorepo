@@ -287,6 +287,14 @@ describe("scene comparison", () => {
         [{ property: "zOrder", reason: "no read-back" }],
     );
 
+    it("fails an edge drawn curved where the reference draws it straight, however shallow the bow", () => {
+        const bowed = { ...sub, edges: sub.edges.map((e) => ({ ...e, curved: true })) };
+        expect(compareScenes(ref, bowed).properties.edgePath).toMatchObject({
+            status: "fail",
+            worst: [{ id: "e", ref: "2 points", got: "2 points, curved" }],
+        });
+    });
+
     it("scores each property after the fit", () => {
         const c = compareScenes(ref, sub);
         expect(c.transform?.scale).toBeCloseTo(2, 9);

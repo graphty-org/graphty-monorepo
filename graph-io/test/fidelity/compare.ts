@@ -680,7 +680,16 @@ const EDGE_JUDGES: Partial<Record<Property, EdgeJudge>> = {
         const mapped = s.points.map((p) => apply(t, p));
         const got = reversed ? mapped.reverse() : mapped;
         const d = frechet(resample(r.points, THRESHOLDS.pathSamples), resample(got, THRESHOLDS.pathSamples)) / diag;
-        return { value: d, bad: d, pass: d <= THRESHOLDS.edgePath, ref: r.points.length, got: s.points.length };
+        // a bow too shallow to move the path past the threshold is still a curve where the tool draws a line
+        const sameKind = r.curved === s.curved;
+        const kind = (e: SceneEdge): string => `${e.points.length} points${e.curved ? ", curved" : ""}`;
+        return {
+            value: d,
+            bad: sameKind ? d : d + 1,
+            pass: sameKind && d <= THRESHOLDS.edgePath,
+            ref: kind(r),
+            got: kind(s),
+        };
     },
     edgeLabel: (r, s) => equal(normText(r.label), normText(s.label)),
 };

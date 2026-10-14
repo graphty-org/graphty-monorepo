@@ -434,8 +434,19 @@ function readEdgeGraphics(g: Rec, writer: GmlWriter, put: Put, at: At): void {
         );
     }
     if (v === "yed" && g.smoothBends !== undefined) {
-        put("curved", Number(g.smoothBends) === 1);
+        put("curved", Number(g.smoothBends) === 1 && hasBends(g.Line));
     }
+}
+
+/**
+ * Whether a yEd `Line` record bends: its points run from the source through the bends to the target, so a line of
+ * two points (or none) is straight.
+ * @param line - the `Line` value
+ * @returns true when it has a point between its ends
+ */
+function hasBends(line: unknown): boolean {
+    const points = isRec(line) ? line.point : undefined;
+    return Array.isArray(points) && points.length > 2;
 }
 
 /**

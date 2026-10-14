@@ -10,7 +10,15 @@ import { canonicalFor } from "../plan/resolve.js";
 import type { ColumnRef, Mapping, StyleColumn, StyleRule, StyleTarget, StyleValue, StyleWorkBudget } from "../types.js";
 import { type CytoscapeValueParser, NODE_SIZE_VP, sizeParser } from "./lexicon.js";
 import type { CytoscapeMapping, CytoscapeStyle } from "./mappings.js";
-import { chooseVps, type CytoscapeElements, type ParsedMapping, parseMapping, vpUsage } from "./resolve.js";
+import {
+    bendParser,
+    chooseVps,
+    type CytoscapeElements,
+    EDGE_BEND_VP,
+    type ParsedMapping,
+    parseMapping,
+    vpUsage,
+} from "./resolve.js";
 
 /**
  * Options of `cytoscapeRules()`.
@@ -121,7 +129,7 @@ export function cytoscapeRules(
 
 /**
  * The defaults rule's values: each chosen visual property's default, a locked node size as the width and height
- * (50 when unset), an edge color as both arrow colors when they match the edge.
+ * (50 when unset), an edge color as both arrow colors when they match the edge, and `curved` only with default bends.
  * @param s - the target's style
  * @param chosen - the visual property and parser each neutral property is read from
  * @param site - where a value of a property is read
@@ -151,6 +159,10 @@ function defaultValues(
     if (deps.matched && set.color !== undefined) {
         set.sourceArrowColor = set.color;
         set.targetArrowColor = set.color;
+    }
+    // EDGE_CURVED only rounds bends: with no default bends, the default edge is straight
+    if (set.curved === true && bendParser(s.defaults.get(EDGE_BEND_VP), site("curved")) !== true) {
+        set.curved = false;
     }
     return set;
 }

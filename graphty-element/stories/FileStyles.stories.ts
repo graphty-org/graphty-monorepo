@@ -280,20 +280,6 @@ export const Cx2: Story = {
  */
 export const CytoscapeSession: Story = {
     args: fileArgs("cys", { url: absolute(annotationSessionUrl) }, true),
-    render: (args, context) => {
-        const element = renderFn(args, context) as Awaited<ReturnType<typeof renderedElement>>;
-        // TEMPORARY, graphty-element defect #2249: 359 curved edges take over 15 s to settle, so a
-        // layer on top draws them straight. Delete this render when #2249 is fixed.
-        element.addEventListener("data-loaded", () => {
-            element.session.styles.add({
-                name: "Straight edges (until #2249)",
-                target: "edge",
-                selector: { match: "everything" },
-                set: { "edge.curvature": false },
-            });
-        });
-        return element;
-    },
     play: async ({ canvasElement }) => {
         await drewFileStyles(
             canvasElement,

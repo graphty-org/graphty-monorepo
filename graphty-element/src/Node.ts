@@ -330,8 +330,7 @@ export class Node {
 
         this.meshKey = paint.meshKey;
 
-        // create graph node
-        // TODO: Node is added to layout engine by DataManager, not here
+        // The layout engine gets this node from DataManager, not from here.
 
         // create mesh
         const o = paint.style;
@@ -459,10 +458,10 @@ export class Node {
         // A DELIBERATELY disposed node must never be resurrected here. The recreate-on-disposed
         // branch below exists for the 2D/3D mode switch, which disposes meshes out from under
         // live nodes; it cannot tell that case apart from a node this graph has finished with.
-        // Both the layout engine (which DataManager.clear does not notify -- see its TODO) and
-        // SelectionManager.selectedNode keep hard references to Nodes after a dataset is dropped,
-        // and both of them call update(), so without this guard clearing a dataset would silently
-        // rebuild every node's mesh on the next frame or the next deselect.
+        // SelectionManager.selectedNode keeps a hard reference to a Node after its dataset is
+        // dropped, and the layout engine keeps them after DataManager.dispose() (clear() takes
+        // them out of it, #121); both call update(), so without this guard a dropped node's mesh
+        // would silently be rebuilt on the next frame or the next deselect.
         if (this.disposed) {
             return;
         }
@@ -839,12 +838,12 @@ export class Node {
      * instanced node the layer never held.
      *
      * A DISPOSED NODE STILL RECEIVES CALLS, which is why the private `disposed` flag exists rather than
-     * this method simply freeing things. `DataManager.clear()` does not notify the layout engine
-     * (its own standing TODO), so `UpdateManager` keeps iterating the engine's node and edge
-     * lists; and `SelectionManager.selectedNode` holds a Node across a dataset boundary and calls
-     * `updateStyle` + `update` on it when the selection is finally cleared. Both paths would have
-     * hit `update()`'s recreate-if-disposed branch and rebuilt the mesh of a node nobody owns.
-     * Calling this twice is safe.
+     * this method simply freeing things. `DataManager.dispose()` does not take nodes out of the
+     * layout engine (`clear()` does, #121), so `UpdateManager` can keep iterating the engine's
+     * node and edge lists; and `SelectionManager.selectedNode` holds a Node across a dataset
+     * boundary and calls `updateStyle` + `update` on it when the selection is finally cleared.
+     * Both paths would have hit `update()`'s recreate-if-disposed branch and rebuilt the mesh of a
+     * node nobody owns. Calling this twice is safe.
      */
     dispose(): void {
         if (this.disposed) {

@@ -2,6 +2,7 @@ import { type F64, type GraphSnapshot, type NodeRef, resolveNode } from "@grapht
 
 import type { LayoutResult } from "../positions.js";
 import { toLayoutSnapshot } from "../simulation/snapshot.js";
+import { detAcos, detCos, detSin } from "../utils/det-math.js";
 import { type CommonLayoutOptions, planar, refusal, resolve, result } from "./common.js";
 import { type ShellRotate, shellRows } from "./shell.js";
 
@@ -181,12 +182,12 @@ function sectorRows(
         start[rings[0][0]] = Math.PI / 4 - Math.PI;
     }
     const place = (u: number, radius: number, theta: number): void => {
-        rows[2 * u] = Math.cos(theta) * radius + center[0];
-        rows[2 * u + 1] = Math.sin(theta) * radius + center[1];
+        rows[2 * u] = detCos(theta) * radius + center[0];
+        rows[2 * u + 1] = detSin(theta) * radius + center[1];
     };
     place(rings[0][0], 0, 0);
     for (let k = 1; k < reachedRings; k++) {
-        const tangentWedge = 2 * Math.acos(k / (k + 1));
+        const tangentWedge = 2 * detAcos(k / (k + 1));
         for (const u of rings[k]) {
             const p = parent[u];
             const share = (width[p] * leaves[u]) / leaves[p];

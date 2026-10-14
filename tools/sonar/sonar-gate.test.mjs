@@ -24,6 +24,7 @@ import {
     nosonarComment,
     parseHunks,
     scannerFailure,
+    scoredSpan,
     spanText,
 } from "../sonar-gate.mjs";
 
@@ -42,12 +43,12 @@ const git = (cwd, ...args) => execFileSync("git", args, { cwd, env: gitEnv, enco
 const BASE = ["export function a() {", "    return 1;", "}", "export const b = 2;", ""].join("\n");
 
 // A repository whose origin/master has src/a.ts = BASE and whose HEAD changes it to `head`.
-function repo(head, { message = "change", extra = {} } = {}) {
+function repo(head, { message = "change", extra = {}, base = BASE } = {}) {
     const dir = mkdtempSync(join(scratch, "repo-"));
     git(dir, "init", "-q", "-b", "master");
     writeFileSync(join(dir, "sonar-project.properties"), "sonar.test.inclusions=**/*.test.ts\n");
     mkdirSync(join(dir, "src"));
-    writeFileSync(join(dir, "src/a.ts"), BASE);
+    writeFileSync(join(dir, "src/a.ts"), base);
     git(dir, "add", ".");
     git(dir, "commit", "-q", "-m", "base");
     git(dir, "update-ref", "refs/remotes/origin/master", "HEAD");
@@ -73,7 +74,8 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 const work = process.argv.find((a) => a.startsWith("-Dsonar.working.directory=")).split("=")[1];
 mkdirSync(work, { recursive: true });
-writeFileSync(work + "/report-task.txt", "ceTaskId=task-1\\n");
+const isBase = process.argv.some((a) => a.startsWith("-Dsonar.projectBaseDir="));
+writeFileSync(work + "/report-task.txt", isBase ? "ceTaskId=task-base\\n" : "ceTaskId=task-1\\n");
 writeFileSync(work + "/ps.txt", execFileSync("ps", ["-eo", "args"], { encoding: "utf8" }));
 writeFileSync(work + "/args.json", JSON.stringify({ args: process.argv.slice(2), hasToken: Boolean(process.env.SONAR_TOKEN) }));
 console.log("INFO: fake scan done");
@@ -98,8 +100,10 @@ chmodSync(failingScanner, 0o755);
 
 // A fake SonarQube. `local` are <key>-local's issues, `master` master's issues by file, `hotspots`
 // <key>-local's hotspots. Records every request with whether it carried the token.
-async function server({ local = [], master = {}, hotspots = [], admin = false, fail = {} } = {}) {
+// `base` are <key>-local's issues after a scan of the merge base's files (the gate's second scan).
+async function server({ local = [], base = [], master = {}, hotspots = [], admin = false, fail = {} } = {}) {
     const seen = [];
+    let scanned = "head";
     const json = (res, code, body) => {
         res.writeHead(code, { "Content-Type": "application/json" });
         res.end(JSON.stringify(body));
@@ -119,9 +123,10 @@ async function server({ local = [], master = {}, hotspots = [], admin = false, f
                 return json(res, 200, { isLoggedIn: true, permissions: { global: admin ? ["admin"] : ["scan"] } });
             case "/api/components/show":
             case "/api/ce/task":
+                if (q.id) scanned = q.id === "task-base" ? "base" : "head";
                 return json(res, 200, { task: { status: "SUCCESS" }, component: {} });
             case "/api/issues/search":
-                if (q.components === "proj-local") return page("issues", local);
+                if (q.components === "proj-local") return page("issues", scanned === "base" ? base : local);
                 return page("issues", master[q.components.slice("proj:".length)] ?? []);
             case "/api/hotspots/search":
                 return page("hotspots", q.project === "proj-local" ? hotspots : []);
@@ -133,7 +138,11 @@ async function server({ local = [], master = {}, hotspots = [], admin = false, f
     });
     await new Promise((r) => srv.listen(0, "127.0.0.1", r));
     after(() => srv.close());
-    return { url: `http://127.0.0.1:${srv.address().port}`, seen };
+    return {
+        url: `http://127.0.0.1:${srv.address().port}`,
+        seen,
+        scans: () => seen.filter((x) => x.path === "/api/ce/task"),
+    };
 }
 
 // Run the gate in `dir`. Resolves to { code, out, log }.
@@ -448,44 +457,6 @@ describe("sonar-gate: helpers", () => {
         assert.deepEqual(mapOldLine(hunks, 11), { line: 13 });
     });
 
-    it("blocks a cognitive complexity that rose, not one that held", () => {
-        const files = new Map([
-            ["f.ts", { oldPath: "f.ts", hunks: [{ oldStart: 5, oldCount: 1, newStart: 5, newCount: 1 }], lines: [] }],
-        ]);
-        const master = {
-            issuesByFile: () => [{ rule: "typescript:S3776", line: 5, message: "from 16 to the 15 allowed." }],
-            hotspotsByFile: () => [],
-            lineAt: () => null,
-        };
-        const at = (n) => ({
-            path: "f.ts",
-            line: 5,
-            rule: "typescript:S3776",
-            message: `from ${n} to the 15 allowed.`,
-        });
-        assert.equal(decide({ local: { issues: [at(16)], hotspots: [] }, master, files }).blocking.length, 0);
-        assert.equal(decide({ local: { issues: [at(17)], hotspots: [] }, master, files }).blocking.length, 1);
-    });
-
-    it("lets a regex complexity (S5843) through when an edit to the regex lowered it", () => {
-        const files = new Map([
-            ["f.ts", { oldPath: "f.ts", hunks: [{ oldStart: 5, oldCount: 1, newStart: 5, newCount: 1 }], lines: [] }],
-        ]);
-        const master = {
-            issuesByFile: () => [{ rule: "typescript:S5843", line: 5, message: "from 41 to the 20 allowed." }],
-            hotspotsByFile: () => [],
-            lineAt: () => null,
-        };
-        const at = (n) => ({
-            path: "f.ts",
-            line: 5,
-            rule: "typescript:S5843",
-            message: `from ${n} to the 20 allowed.`,
-        });
-        assert.equal(decide({ local: { issues: [at(29)], hotspots: [] }, master, files }).blocking.length, 0);
-        assert.equal(decide({ local: { issues: [at(42)], hotspots: [] }, master, files }).blocking.length, 1);
-    });
-
     it("reads the sonar-project.properties globs", () => {
         const re = globToRegExp("**/*.test.ts");
         assert.ok(re.test("a.test.ts") && re.test("x/y/a.test.ts") && !re.test("a.ts"));
@@ -676,5 +647,144 @@ describe("sonar-gate: findings on a line edited in place", () => {
         );
         assert.equal(v.blocking.length, 0, JSON.stringify(v.blocking));
         assert.equal(v.existing.length, 2);
+    });
+});
+
+// Cognitive complexity (S3776), regex complexity (S5843) and too many parameters (S107) are reported
+// on the function's name or the regex, which an edit inside the body leaves alone. The gate judges
+// them by the whole span the finding covers, against a scan of the merge base's files.
+describe("sonar-gate: complexity and parameter counts", () => {
+    const S3776 = "typescript:S3776";
+    const msg = (n) => `Refactor this function to reduce its Cognitive Complexity from ${n} to the 15 allowed.`;
+    // A finding at `line` whose increments (secondary locations) run to `to`.
+    const scored = (line, n, to = line + 10, rule = S3776, message = msg(n)) => ({
+        path: "f.ts",
+        line,
+        rule,
+        message,
+        textRange: { startLine: line, endLine: line, startOffset: 9, endOffset: 12 },
+        flows: [{ locations: [{ textRange: { startLine: to, endLine: to } }] }],
+    });
+    const noMaster = { issuesByFile: () => [], hotspotsByFile: () => [], lineAt: () => null };
+    const run = ({ issues, base = [], hunks, lines = [] }) =>
+        decide({
+            local: { issues, hotspots: [] },
+            master: noMaster,
+            base: { issuesByFile: () => base },
+            files: new Map([["f.ts", { oldPath: "f.ts", hunks, lines, baseLines: lines }]]),
+        });
+    // One line added at new line 8, inside a function that starts at line 5: its name line is unchanged.
+    const DEEP = [{ oldStart: 7, oldCount: 0, newStart: 8, newCount: 1 }];
+
+    it("blocks a branch added deep inside a function whose signature line did not change", () => {
+        const before = { ...scored(5, 21, 14), line: 5 };
+        const v = run({ issues: [scored(5, 23, 15)], base: [before], hunks: DEEP });
+        assert.equal(v.blocking.length, 1, JSON.stringify(v));
+        assert.match(v.blocking[0].message, /was 21 at the merge base/);
+    });
+
+    it("blocks a function that crossed the limit inside its body (no finding at the merge base)", () => {
+        const v = run({ issues: [scored(5, 16, 15)], hunks: DEEP });
+        assert.equal(v.blocking.length, 1);
+    });
+
+    it("lets through an edited function above 20 whose score held or fell", () => {
+        for (const n of [30, 28]) {
+            const v = run({ issues: [scored(5, n, 15)], base: [scored(5, 30, 14)], hunks: DEEP });
+            assert.equal(v.blocking.length, 0, `score ${n}`);
+            assert.equal(v.existing.length, 1);
+        }
+    });
+
+    it("touch it, fix it: blocks an edited function scoring 16 to 20 even when its score held", () => {
+        for (const n of [16, 20]) {
+            const v = run({ issues: [scored(5, n, 15)], base: [scored(5, n, 14)], hunks: DEEP });
+            assert.equal(v.blocking.length, 1, `score ${n}`);
+            assert.match(v.blocking[0].message, /bring it to 15 or below/);
+        }
+    });
+
+    it("leaves a function the push does not edit alone, whatever its score", () => {
+        const below = [{ oldStart: 30, oldCount: 1, newStart: 30, newCount: 1 }];
+        const v = run({ issues: [scored(5, 18, 15)], base: [scored(5, 18, 15)], hunks: below });
+        assert.equal(v.blocking.length, 0);
+    });
+
+    it("counts a deletion inside the body as an edit", () => {
+        const deleted = [{ oldStart: 9, oldCount: 2, newStart: 8, newCount: 0 }];
+        const v = run({ issues: [scored(5, 17, 15)], base: [scored(5, 19, 17)], hunks: deleted });
+        assert.equal(v.blocking.length, 1);
+        assert.match(v.blocking[0].message, /bring it to 15 or below/);
+    });
+
+    it("finds the merge base's finding through hunks above that moved the function", () => {
+        const above = [
+            { oldStart: 1, oldCount: 0, newStart: 2, newCount: 3 },
+            { oldStart: 7, oldCount: 0, newStart: 11, newCount: 1 },
+        ];
+        const v = run({ issues: [scored(8, 30, 18)], base: [scored(5, 30, 14)], hunks: above });
+        assert.equal(v.blocking.length, 0, JSON.stringify(v.blocking));
+    });
+
+    it("judges S5843 and S107 by their own scores, without the 16-to-20 rule", () => {
+        const regex = (n) => `Simplify this regular expression to reduce its complexity from ${n} to the 20 allowed.`;
+        const r = (n) => scored(5, 0, 5, "typescript:S5843", regex(n));
+        const edit = [{ oldStart: 5, oldCount: 1, newStart: 5, newCount: 1 }];
+        assert.equal(run({ issues: [r(22)], base: [r(23)], hunks: edit }).blocking.length, 0);
+        assert.equal(run({ issues: [r(24)], base: [r(23)], hunks: edit }).blocking.length, 1);
+        const params = (n) => `Function 'parse2D' has too many parameters (${n}). Maximum allowed is 7.`;
+        const p = (n) => ({ ...scored(5, 0, 5, "typescript:S107", params(n)), flows: [] });
+        assert.equal(run({ issues: [p(8)], base: [p(8)], hunks: edit }).blocking.length, 0);
+        assert.equal(run({ issues: [p(9)], base: [p(8)], hunks: edit }).blocking.length, 1);
+    });
+
+    it("takes S107's span through a parameter list that runs over several lines", () => {
+        const lines = ["export function f(", "    a: number,", "    b: number,", "): void {", "    return;", "}"];
+        const issue = { rule: "typescript:S107", line: 1, textRange: { startLine: 1, endLine: 1 }, flows: [] };
+        assert.deepEqual(scoredSpan(issue, lines), { start: 1, end: 4 });
+        // A parameter added on its own line (new line 3) inside that list is an edit of the function.
+        const added = [{ oldStart: 2, oldCount: 0, newStart: 3, newCount: 1 }];
+        const v = run({
+            issues: [{ ...issue, path: "f.ts", message: "has too many parameters (8)." }],
+            hunks: added,
+            lines,
+        });
+        assert.equal(v.blocking.length, 1);
+    });
+
+    it("blocks end to end: scans the merge base's copy of the file and compares", async () => {
+        const fn = (extra) =>
+            [
+                "export function a(x: number) {",
+                "    if (x > 1) {",
+                "        return 1;",
+                "    }",
+                ...extra,
+                "    return 2;",
+                "}",
+                "",
+            ].join("\n");
+        const base = fn([]);
+        const head = fn(["    if (x > 2) {", "        return 3;", "    }"]);
+        const at = (n, to) => ({ ...scored(1, n, to), component: "proj-local:src/a.ts", type: "CODE_SMELL" });
+        const s = await server({ local: [at(17, 6)], base: [at(16, 2)] });
+        const dir = repo(head, { base });
+        const r = await gate(dir, { SONAR_HOST_URL: s.url, SONAR_SCAN_TOKEN: TOKEN });
+        assert.equal(r.code, 1, r.out);
+        assert.equal(s.scans().length, 2, "a second scan, of the merge base");
+        assert.match(r.out, /src\/a\.ts:1 {2}typescript:S3776 .*was 16 at the merge base/);
+        const copy = join(dir, ".git/sonar", `base-${dir.split("/").pop()}`);
+        assert.equal(readFileSync(join(copy, "src/a.ts"), "utf8"), base);
+        const args = JSON.parse(
+            readFileSync(join(dir, ".git/sonar", `base-work-${dir.split("/").pop()}`, "args.json"), "utf8"),
+        ).args;
+        assert.ok(args.includes(`-Dsonar.projectBaseDir=${copy}`), args.join(" "));
+        assert.ok(args.includes("-Dsonar.sources=src/a.ts"));
+    });
+
+    it("scans only once when no complexity finding touches the push", async () => {
+        const s = await server({ local: [issue(2, "    return 1 + 1;")] });
+        await gate(repo(HEAD_NEW), { SONAR_HOST_URL: s.url, SONAR_SCAN_TOKEN: TOKEN });
+        assert.equal(s.scans().length, 1);
     });
 });

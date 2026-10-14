@@ -16,6 +16,7 @@ import { userEvent } from "vitest/browser";
 
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
+import type { RenderManager } from "../../src/managers/RenderManager";
 import {
     click,
     drag,
@@ -219,50 +220,26 @@ describe("the 2D view", () => {
 });
 
 /**
- * Count the camera input's per-frame updates while a key is held, between the press and the
- * release: the controller's own key listeners were added first, so these run after it saw each key.
- * @param element - The element.
- * @param name - The camera whose input to count: "orbit" (3D) or "2d".
- * @returns How many frames a key has been held so far.
+ * Wait until a count of updates reaches a number.
+ * @param count - The count.
+ * @param target - The number to wait for.
  */
-function countHeldFrames(element: Graphty, name: "orbit" | "2d"): () => number {
-    const { canvas } = element.graph;
-    const input = (element.graph.camera as unknown as { inputs: Map<string, { update(): void }> }).inputs.get(name);
-    assert.isDefined(input);
-    const update = input.update.bind(input);
-    let held = false;
-    let heldFrames = 0;
-    input.update = (): void => {
-        if (held) {
-            heldFrames++;
-        }
-
-        update();
-    };
-    const press = (): void => {
-        held = true;
-    };
-    const release = (): void => {
-        held = false;
-    };
-    canvas.addEventListener("keydown", press);
-    canvas.addEventListener("keyup", release);
-    cleanups.push(() => {
-        input.update = update;
-        canvas.removeEventListener("keydown", press);
-        canvas.removeEventListener("keyup", release);
-    });
-    return () => heldFrames;
+async function updatesReach(count: () => number, target: number): Promise<void> {
+    while (count() < target) {
+        await nextFrame();
+    }
 }
 
 /**
- * Wait until the camera has stopped moving: two frames in a row with the same camera state.
+ * Wait until the camera has stopped moving: two input updates in a row with the same camera state.
+ * Animation frames are not that count: a skipped render tick runs no input update.
  * @param element - The element.
+ * @param updates - The count of the camera input's updates.
  */
-async function settled(element: Graphty): Promise<void> {
+async function settled(element: Graphty, updates: () => number): Promise<void> {
     let last = camera(element);
     for (;;) {
-        await nextFrame();
+        await updatesReach(updates, updates() + 1);
         const now = camera(element);
         if (now === last) {
             return;
@@ -273,20 +250,59 @@ async function settled(element: Graphty): Promise<void> {
 }
 
 /**
- * Hold a key for a number of frames, then let the camera coast to a stop.
+ * Hold a key for exactly `count` of the camera input's per-frame updates, then let the camera
+ * coast to a stop.
+ *
+ * The frames are counted where the input runs, not as animation frames: the render loop skips a
+ * tick while the GPU is still drawing the last frame, so 30 animation frames can bring 29 updates.
+ * And the frames stop at the count: from the last one until the key-up arrives the render loop is
+ * held, so however long the browser takes to deliver the key-up, the key moves the camera exactly
+ * `count` times and never as far as a zoom limit. The key itself is real input; only the clock is
+ * stopped.
  * @param element - The element.
  * @param key - The key, as userEvent names it.
- * @param name - The camera whose input reads the key.
- * @returns How many frames the key was held.
+ * @param name - The camera whose input reads the key: "orbit" (3D) or "2d".
+ * @param count - How many frames to hold it for.
  */
-async function hold(element: Graphty, key: string, name: "orbit" | "2d"): Promise<number> {
-    const heldFrames = countHeldFrames(element, name);
+async function hold(element: Graphty, key: string, name: "orbit" | "2d", count: number): Promise<void> {
+    const { canvas } = element.graph;
+    const input = (element.graph.camera as unknown as { inputs: Map<string, { update(): void }> }).inputs.get(name);
+    assert.isDefined(input);
+    const { renderManager } = element.graph as unknown as { renderManager: RenderManager };
+    const update = input.update.bind(input);
+    let held = false;
+    let all = 0;
+    let heldFrames = 0;
+    let releaseFrames = (): void => undefined;
+    input.update = (): void => {
+        all++;
+        update();
+        if (held && ++heldFrames === count) {
+            releaseFrames = renderManager.holdFrames();
+        }
+    };
+    // The controller's own key listeners were added first, so these run after it saw each key
+    const press = (): void => {
+        held = true;
+    };
+    const release = (): void => {
+        held = false;
+        releaseFrames();
+    };
+    canvas.addEventListener("keydown", press);
+    canvas.addEventListener("keyup", release);
+    cleanups.push(() => {
+        releaseFrames();
+        input.update = update;
+        canvas.removeEventListener("keydown", press);
+        canvas.removeEventListener("keyup", release);
+    });
+
     await userEvent.keyboard(`{${key}>}`);
-    await frames(30);
+    await updatesReach(() => heldFrames, count);
     await userEvent.keyboard(`{/${key}}`);
-    await settled(element);
-    assert.isAtLeast(heldFrames(), 30, "the key was held for the frames waited");
-    return heldFrames();
+    await settled(element, () => all);
+    assert.strictEqual(heldFrames, count, "the key was held for the frames counted");
 }
 
 describe("the keyboard", () => {
@@ -325,10 +341,7 @@ describe("the keyboard", () => {
         await click(element, EMPTY);
         const before = camera(element);
 
-        await userEvent.keyboard("{ArrowLeft>}");
-        await frames(5);
-        await userEvent.keyboard("{/ArrowLeft}");
-        await frames();
+        await hold(element, "ArrowLeft", "orbit", 5);
 
         assert.notStrictEqual(camera(element), before, "the camera turned");
     });
@@ -349,7 +362,8 @@ describe("the keyboard", () => {
         await click(element, EMPTY);
         const before = element.getCameraState().pivotRotation?.[axis] ?? Number.NaN;
 
-        const heldFrames = await hold(element, key, "orbit");
+        const heldFrames = 30;
+        await hold(element, key, "orbit", heldFrames);
 
         const after = element.getCameraState().pivotRotation?.[axis] ?? Number.NaN;
         const perFrame = (sign * (after - before)) / heldFrames;
@@ -367,7 +381,8 @@ describe("the keyboard", () => {
         await click(element, EMPTY);
         const before = element.getCameraState().zoom ?? Number.NaN;
 
-        const heldFrames = await hold(element, key, "2d");
+        const heldFrames = 30;
+        await hold(element, key, "2d", heldFrames);
 
         const after = element.getCameraState().zoom ?? Number.NaN;
         assert.closeTo((sign * Math.log(after / before)) / heldFrames, 0.02, 0.0004, "log zoom per frame held");
@@ -388,18 +403,14 @@ describe("the keyboard", () => {
             await element.setCameraState({ cameraDistance: start });
             await click(element, EMPTY);
 
-            const heldFrames = countHeldFrames(element, "orbit");
             const before = element.getCameraState().cameraDistance ?? Number.NaN;
             assert.closeTo(before, start, 1e-6, "the camera starts at the distance set");
 
-            await userEvent.keyboard(`{${key.toLowerCase()}>}`);
-            await frames(10);
-            await userEvent.keyboard(`{/${key.toLowerCase()}}`);
-            await frames();
+            const heldFrames = 10;
+            await hold(element, key.toLowerCase(), "orbit", heldFrames);
 
             const after = element.getCameraState().cameraDistance ?? Number.NaN;
-            assert.isAtLeast(heldFrames(), 10, "the key was held for the frames waited");
-            assert.closeTo(after / before, perFrame ** heldFrames(), 1e-9, "one factor per frame held");
+            assert.closeTo(after / before, perFrame ** heldFrames, 1e-9, "one factor per frame held");
         });
     });
 });

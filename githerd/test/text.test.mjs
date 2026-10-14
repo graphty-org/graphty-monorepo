@@ -1,10 +1,11 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
 import { assertAscii, checkOutgoing, secretValues } from "../lib/text.mjs";
+import { tempDir } from "./helpers/temp-dir.mjs";
 
 describe("assertAscii", () => {
     it("accepts plain ASCII, including tabs and newlines", () => {
@@ -101,7 +102,7 @@ describe("checkOutgoing", () => {
 
 describe("secretValues", () => {
     it("takes the secret-named entries of the repository's .env and of the environment", () => {
-        const root = mkdtempSync(join(tmpdir(), "githerd-text-"));
+        const root = tempDir("githerd-text-");
         writeFileSync(
             join(root, ".env"),
             [

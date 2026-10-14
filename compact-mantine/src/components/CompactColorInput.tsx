@@ -1,5 +1,4 @@
 import { ActionIcon, Tooltip, VisuallyHidden } from "@mantine/core";
-import { useUncontrolled } from "@mantine/hooks";
 import React, { useEffect, useId, useState } from "react";
 
 import { SWATCH_COLORS_HEXA } from "../constants/colors";
@@ -234,6 +233,29 @@ export interface CompactColorInputProps {
 }
 
 /**
+ * One half of the field's value: the caller's when it passes one, else the last one set here.
+ *
+ * Not Mantine's `useUncontrolled`: that keeps its own copy only while the caller passes
+ * `undefined`, so a value typed at the default and then reset by a controlling caller came back
+ * from that stale copy once the caller returned to `undefined`, and the reset did nothing.
+ * Here every set updates the copy, so a reset leaves `undefined` behind.
+ * @param value - The caller's value, `undefined` when it has chosen none
+ * @param onChange - Told of each set
+ * @returns The value and its setter
+ */
+function useChosen<T>(
+    value: T | undefined,
+    onChange: ChangeHandler<T | undefined> | undefined,
+): [T | undefined, ChangeHandler<T | undefined>] {
+    const [own, setOwn] = useState<T | undefined>(undefined);
+    const set: ChangeHandler<T | undefined> = (next, event) => {
+        setOwn(next);
+        onChange?.(next, event);
+    };
+    return [value ?? own, set];
+}
+
+/**
  * A color in one paint field: the chit, the hex value and the opacity.
  *
  * Pressing the chit opens the color picker in a pop-out (one at a time, docked to the start
@@ -320,19 +342,8 @@ export function CompactColorInput({
             : undefined,
     );
 
-    const [chosenColor, setChosenColor] = useUncontrolled<string | undefined>({
-        value: color,
-        defaultValue: undefined,
-        finalValue: undefined,
-        onChange: usesOnChange ? undefined : onColorChange,
-    });
-
-    const [chosenOpacity, setChosenOpacity] = useUncontrolled<number | undefined>({
-        value: opacity,
-        defaultValue: undefined,
-        finalValue: undefined,
-        onChange: usesOnChange ? undefined : onOpacityChange,
-    });
+    const [chosenColor, setChosenColor] = useChosen(color, usesOnChange ? undefined : onColorChange);
+    const [chosenOpacity, setChosenOpacity] = useChosen(opacity, usesOnChange ? undefined : onOpacityChange);
 
     const isColorDefault = chosenColor === undefined;
     const isOpacityDefault = chosenOpacity === undefined;

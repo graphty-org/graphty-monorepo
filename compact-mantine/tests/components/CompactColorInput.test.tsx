@@ -113,6 +113,37 @@ describe("CompactColorInput", () => {
     });
 
     describe("event model", () => {
+        it("returns to the default on reset when a controlling caller types a color at the default", async () => {
+            const user = userEvent.setup();
+            function Controlled(): React.JSX.Element {
+                const [chosen, setChosen] = useState<string | undefined>(undefined);
+                return (
+                    <CompactColorInput
+                        label="Fill"
+                        color={chosen}
+                        defaultColor="#FF0000"
+                        showOpacity={false}
+                        onChangeEnd={(next) => {
+                            setChosen(next);
+                        }}
+                    />
+                );
+            }
+            render(
+                <TestWrapper>
+                    <Controlled />
+                </TestWrapper>,
+            );
+
+            const input = screen.getByRole("textbox");
+            await user.clear(input);
+            await user.type(input, "00FF00{Enter}");
+            await user.click(screen.getByRole("button", { name: "Reset Fill to default" }));
+
+            expect(input).toHaveValue("FF0000");
+            expect(screen.queryByRole("button", { name: "Reset Fill to default" })).not.toBeInTheDocument();
+        });
+
         it("calls onColorChange when hex input changes on blur", async () => {
             const user = userEvent.setup();
             const onColorChange = vi.fn();

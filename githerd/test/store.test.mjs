@@ -341,11 +341,11 @@ describe("the lock", () => {
     it("lets exactly one of several starters take one stale lock", async () => {
         const script = `import { takeLock } from ${JSON.stringify(STORE)};
 import { identify } from ${JSON.stringify(STORE.replace(/store\.mjs$/, "proc.mjs"))};
-const go = Date.now() + 300;
-while (Date.now() < go);
-const r = takeLock(${JSON.stringify(dir)}, identify(process.pid));
-process.stdout.write(JSON.stringify({ ok: r.ok }) + "\\n");
-process.stdin.resume();
+process.stdout.write("ready\\n");
+process.stdin.once("data", () => {
+    const r = takeLock(${JSON.stringify(dir)}, identify(process.pid));
+    process.stdout.write(JSON.stringify({ ok: r.ok }) + "\\n");
+});
 `;
         for (let round = 0; round < 6; round++) {
             writeFileSync(join(dir, "lock"), JSON.stringify({ pid: process.pid, startTime: "1", bootId: self.bootId }));
@@ -356,19 +356,29 @@ process.stdin.resume();
                 }),
             );
             try {
-                const answers = await Promise.all(
-                    children.map(
-                        (c) =>
-                            new Promise((resolve, reject) => {
-                                let out = "";
-                                c.stdout.on("data", (d) => {
-                                    out += d;
-                                    if (out.endsWith("\n")) resolve(JSON.parse(out));
-                                });
-                                c.once("exit", (code) => reject(new Error(`starter exited with ${code}`)));
-                            }),
-                    ),
-                );
+                // Each starter loads its modules, says ready, and races for the lock only once every
+                // starter is ready, so they all race at the same moment.
+                const lines = children.map((c) => {
+                    /** @type {((line: string) => void)[]} */
+                    const waiting = [];
+                    let out = "";
+                    c.stdout.on("data", (d) => {
+                        out += d;
+                        for (let at = out.indexOf("\n"); at >= 0; at = out.indexOf("\n")) {
+                            waiting.shift()?.(out.slice(0, at));
+                            out = out.slice(at + 1);
+                        }
+                    });
+                    const exited = new Promise((_, reject) =>
+                        c.once("exit", (code) => reject(new Error(`starter exited with ${code}`))),
+                    );
+                    return () => Promise.race([new Promise((resolve) => waiting.push(resolve)), exited]);
+                });
+                const ready = lines.map((next) => next());
+                const answered = lines.map((next) => next());
+                await Promise.all(ready);
+                for (const c of children) c.stdin.write("go\n");
+                const answers = (await Promise.all(answered)).map((line) => JSON.parse(String(line)));
                 expect(answers.filter((a) => a.ok)).toHaveLength(1);
             } finally {
                 for (const c of children) {

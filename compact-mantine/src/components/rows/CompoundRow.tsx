@@ -277,6 +277,7 @@ function CompoundSegmentBox({ segment, grow, index }: Readonly<CompoundSegmentBo
     // steps out of the way.
     const fullText = segmentFullText(segment);
     const fullTextReplacesDrawing = segment.fullValue !== undefined;
+    const seam = index > 0 ? HAIRLINE : 0;
 
     return (
         <Box
@@ -292,7 +293,7 @@ function CompoundSegmentBox({ segment, grow, index }: Readonly<CompoundSegmentBo
                 height: PANEL_GRID.CONTROL_HEIGHT,
                 paddingBlock: 0,
                 // The seam before a later segment is its first pixel of inset.
-                paddingInlineStart: slotContent === null ? SEGMENT_PADDING_X - (index > 0 ? HAIRLINE : 0) : 0,
+                paddingInlineStart: slotContent === null ? SEGMENT_PADDING_X - seam : 0,
                 paddingInlineEnd: SEGMENT_PADDING_X,
             }}
         >

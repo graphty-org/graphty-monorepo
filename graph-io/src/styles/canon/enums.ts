@@ -135,6 +135,7 @@ const POSITIONS: Aliases = {
     "top-right": ["top-right", "north-east", "northeast"],
     "bottom-left": ["bottom-left", "south-west", "southwest"],
     "bottom-right": ["bottom-right", "south-east", "southeast"],
+    "inside-top": ["inside-top"],
 };
 
 /** vis-network draws these spellings differently from the common reading. */

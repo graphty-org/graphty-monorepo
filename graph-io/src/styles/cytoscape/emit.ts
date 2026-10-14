@@ -220,6 +220,7 @@ const DESKTOP_POSITIONS = {
     "top-right": "NE,SW,c,0.00,0.00",
     "bottom-left": "SW,NE,c,0.00,0.00",
     "bottom-right": "SE,NW,c,0.00,0.00",
+    "inside-top": "N,N,c,0.00,0.00",
 };
 const CX2_ANCHORS: Readonly<Record<string, readonly [string, string]>> = {
     center: ["center", "center"],
@@ -370,11 +371,16 @@ const WRITERS: Readonly<Record<CytoscapeDialect, Readonly<Record<StyleTarget, Re
 };
 
 /**
- * CX2's label position object.
+ * CX2's label position object; `inside-top`, which CX2's anchors cannot tell from `top`, is written as `top`.
  * @param v - a canonical position
+ * @param approx - records the approximation
  * @returns the object
  */
-function cx2Position(v: StyleValue): unknown {
+function cx2Position(v: StyleValue, approx: () => void): unknown {
+    if (v === "inside-top") {
+        approx();
+        v = "top";
+    }
     const [h, vert] = Object.hasOwn(CX2_ANCHORS, String(v)) ? CX2_ANCHORS[String(v)] : ["center", "center"];
     return {
         HORIZONTAL_ALIGN: "center",

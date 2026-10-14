@@ -484,11 +484,7 @@ export function interpolate(a: StyleValue, b: StyleValue, t: number): StyleValue
  * @param step - when given, a number is rounded to the nearest multiple of it (a whole-number property)
  * @returns the value, or null for a missing or non-finite input
  */
-export function evalContinuous(
-    points: readonly ContinuousPoint[],
-    x: number | null,
-    step?: number,
-): StyleValue | null {
+export function evalContinuous(points: readonly ContinuousPoint[], x: number | null, step?: number): StyleValue | null {
     const v = evalPoints(points, x);
     return typeof v === "number" && step !== undefined && step > 0 ? num6(Math.round(v / step) * step) : v;
 }

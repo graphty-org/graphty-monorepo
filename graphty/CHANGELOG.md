@@ -1,3 +1,22 @@
+## 0.8.76 (2026-10-14)
+
+### 🩹 Fixes
+
+- **graphty:** split the entry chunk so the build fits the default heap ([#2563](https://github.com/graphty-org/graphty-monorepo/issues/2563))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.54
+- Updated compact-mantine to 0.9.23
+- Updated graphty-element to 3.26.0
+- Updated graph-samples to 0.1.32
+- Updated graph-format to 1.4.1
+- Updated graph-io to 0.3.40
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.8.75 (2026-10-14)
 
 ### 🧱 Updated Dependencies

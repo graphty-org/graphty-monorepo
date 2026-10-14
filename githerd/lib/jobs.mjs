@@ -1040,6 +1040,8 @@ export function tombstoneOf(j) {
         tombstone: true,
         ...(j.pr == null ? {} : { pr: j.pr }),
         ...(j.acknowledgedRevision ? { acknowledgedRevision: j.acknowledgedRevision } : {}),
+        // A split's children: proposals.mjs proposeSplitParents closes the parent once they close.
+        ...(j.children?.length ? { children: j.children } : {}),
         facts,
         sessions: j.sessions ?? [],
         claim: j.claim ? { session: j.claim.session, at: j.claim.at } : null,

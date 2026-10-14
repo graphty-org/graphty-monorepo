@@ -1,3 +1,18 @@
+## 0.1.7 (2026-10-14)
+
+### 🩹 Fixes
+
+- **githerd:** githerd pause also stops every message to the sessions ([3867a92a1](https://github.com/graphty-org/graphty-monorepo/commit/3867a92a1))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.54
+- Updated visual-review to 0.2.28
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.1.6 (2026-10-14)
 
 ### 🩹 Fixes

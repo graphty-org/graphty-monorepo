@@ -410,20 +410,28 @@ describe("a file's styles drawn as the translation predicts, over the corpus", (
     });
 });
 
-describe("a border the file draws zero wide", () => {
-    it("draws no outline there, and the outline where the border has a width", async () => {
+describe("a node border another program wrote", () => {
+    // node.outline is a screen-space glow of one pixel width, wider than a node framed to fit, so
+    // drawing another program's border on it hides the node's fill (issue #2252).
+    it("is not drawn as an outline, and the load says the border is not drawn", async () => {
         const doc = JSON.stringify({
-            elements: [{ data: { id: "thin" } }, { data: { id: "wide" }, classes: "wide" }],
+            elements: [{ data: { id: "a" } }, { data: { id: "b" } }],
             style: [
-                { selector: "node", style: { "border-color": "#ff0000", "border-width": 0 } },
-                { selector: ".wide", style: { "border-width": 3 } },
+                {
+                    selector: "node",
+                    style: { "background-color": "#00ff00", "border-color": "#000000", "border-width": 2 },
+                },
             ],
         });
         const session = createGraphSession();
         await session.data.import({ type: "json", config: { data: doc } }, { styles: "file" });
-        const outline = (id: string): unknown => norm(session.styles.explain({ node: id }).merged["node.outline"]);
-        assert.isNull(outline("thin"));
-        assert.strictEqual(outline("wide"), "#ff0000");
+        const { merged } = session.styles.explain({ node: "a" });
+        assert.strictEqual(norm(merged["node.color"]), "#00ff00");
+        assert.isNull(norm(merged["node.outline"]));
+        const notes = session.data.lastImport()?.styles?.notes ?? [];
+        assert.isTrue(
+            notes.some((note) => note.code === FILE_STYLE_ISSUE.NOT_DRAWN && note.params.property === "borderColor"),
+        );
         session.dispose();
     });
 });

@@ -24,6 +24,7 @@
  */
 
 import { GraphtyError } from "../errors";
+import { quoteEach } from "../utils/quote-each";
 import type { OptionDescriptor } from "./types";
 
 /** Which extension point is being configured, which is what a failure message names. */
@@ -86,6 +87,31 @@ function fixedBound(bound: OptionDescriptor["min"]): number | undefined {
 }
 
 /**
+ * Check a value against an enum option's declared choices.
+ * @param name - The option's name.
+ * @param values - Its declared choices.
+ * @param value - The value the caller passed.
+ * @param where - The error details naming the extension, the option and the value.
+ * @throws A `GraphtyError` with `E_OPTION_RANGE` when the value is not one of the choices.
+ */
+function checkChoice(
+    name: string,
+    values: NonNullable<OptionDescriptor["values"]>,
+    value: unknown,
+    where: Readonly<Record<string, unknown>>,
+): void {
+    const allowed = values.map((choice) => choice.value);
+    if (typeof value !== "string" || !allowed.includes(value)) {
+        throw new GraphtyError({
+            code: "E_OPTION_RANGE",
+            message: `"${name}" accepts ${quoteEach(allowed, ", ")}`,
+            source: "config",
+            details: { ...where, values: allowed },
+        });
+    }
+}
+
+/**
  * Check one value against one declaration.
  * @param declared - The option as its extension declares it.
  * @param value - The value the caller passed.
@@ -97,16 +123,7 @@ function checkValue(declared: OptionDescriptor, value: unknown, context: OptionC
     const where = { kind: context.kind, id: context.id, option: declared.name, value };
 
     if (declared.type === "enum" && declared.values !== undefined) {
-        const allowed = declared.values.map((choice) => choice.value);
-        if (typeof value !== "string" || !allowed.includes(value)) {
-            throw new GraphtyError({
-                code: "E_OPTION_RANGE",
-                message: `"${declared.name}" accepts ${allowed.map((name) => `"${name}"`).join(", ")}`,
-                source: "config",
-                details: { ...where, values: allowed },
-            });
-        }
-
+        checkChoice(declared.name, declared.values, value, where);
         return;
     }
 

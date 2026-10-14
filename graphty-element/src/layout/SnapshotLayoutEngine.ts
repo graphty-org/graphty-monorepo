@@ -267,10 +267,14 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
     #resultOf(positions: F32, graph: GraphSnapshot): LayoutResult {
         const expected = this.dimensions * graph.nodeCount;
         if (!(positions instanceof Float32Array) || positions.length !== expected) {
+            const answered =
+                positions instanceof Float32Array
+                    ? `${positions.length} numbers`
+                    : "something other than a Float32Array";
             throw new GraphtyError({
                 code: "E_INTERNAL",
                 message:
-                    `the layout "${this.type}" answered with ${positions instanceof Float32Array ? `${positions.length} numbers` : "something other than a Float32Array"}; ` +
+                    `the layout "${this.type}" answered with ${answered}; ` +
                     `it must answer with a Float32Array of ${expected} (${this.dimensions} per node)`,
                 source: "layout",
                 details: { layout: this.type, expected },

@@ -812,6 +812,21 @@ export function styleCounts(
 }
 
 /**
+ * The paths a layer reads: its selector's and every encoding's `by`.
+ * @param entry - The compiled layer.
+ * @returns The paths, without repeats.
+ */
+function readPaths(entry: CompiledLayer): Set<Path> {
+    const wanted = new Set<Path>(entry.selector.paths);
+    for (const binding of Object.values(entry.layer.encode ?? {})) {
+        if (binding !== undefined && "by" in binding) {
+            wanted.add(binding.by);
+        }
+    }
+    return wanted;
+}
+
+/**
  * The layers that paint nothing because this session answers none of what they read.
  *
  * NOT A FAILURE, and that is why it is reported rather than thrown: a layer naming a run that has
@@ -851,13 +866,7 @@ export function unboundLayers(sources: ExplainSources): readonly UnboundLayer[] 
             continue;
         }
 
-        const wanted = new Set<Path>(selector.paths);
-
-        for (const binding of Object.values(layer.encode ?? {})) {
-            if (binding !== undefined && "by" in binding) {
-                wanted.add(binding.by);
-            }
-        }
+        const wanted = readPaths(entry);
 
         if (wanted.size === 0) {
             continue;

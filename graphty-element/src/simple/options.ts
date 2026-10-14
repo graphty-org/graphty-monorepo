@@ -47,6 +47,35 @@ export function expandOptions(verb: SimpleVerb, id: string, options: unknown): O
 }
 
 /**
+ * Check a short-form option's "on": only an attribute or partition option takes one, and it names
+ * nodes or edges.
+ * @param verb - The call.
+ * @param id - The definition's id.
+ * @param field - The option's field path, `options.<name>`.
+ * @param type - The option's type.
+ * @param on - Its "on".
+ */
+function checkOn(verb: SimpleVerb, id: string, field: string, type: string, on: unknown): void {
+    if (!ATTRIBUTE_TYPES.has(type as OptionType)) {
+        throw badDefinition(
+            verb,
+            id,
+            `${field}.on`,
+            `"${field}" has "on", which only an "attribute" or "partition" option takes.`,
+        );
+    }
+
+    if (on !== "node" && on !== "edge") {
+        throw badDefinition(
+            verb,
+            id,
+            `${field}.on`,
+            `"${field}.on" must be "node" or "edge"; got ${describeValue(on)}.`,
+        );
+    }
+}
+
+/**
  * Expand one short-form option.
  * @param verb - The call.
  * @param id - The definition's id.
@@ -95,23 +124,7 @@ function expandOne(verb: SimpleVerb, id: string, name: string, entry: unknown): 
     }
 
     if (on !== undefined) {
-        if (!ATTRIBUTE_TYPES.has(type as OptionType)) {
-            throw badDefinition(
-                verb,
-                id,
-                `${field}.on`,
-                `"${field}" has "on", which only an "attribute" or "partition" option takes.`,
-            );
-        }
-
-        if (on !== "node" && on !== "edge") {
-            throw badDefinition(
-                verb,
-                id,
-                `${field}.on`,
-                `"${field}.on" must be "node" or "edge"; got ${describeValue(on)}.`,
-            );
-        }
+        checkOn(verb, id, field, type, on);
     }
 
     if (type === "enum" && !Array.isArray(rest.values)) {

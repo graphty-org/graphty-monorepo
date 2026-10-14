@@ -803,33 +803,36 @@ export function viewWeightPaths(view: GraphView): readonly string[] {
  */
 export function viewWarnings(view: GraphView): readonly string[] {
     const state = stateOf(view);
-    const { id } = state.options;
     const warnings: string[] = [];
     for (const tally of state.tallies.values()) {
-        const missing = tally.missing.size;
-        if (missing === 0) {
-            continue;
+        if (tally.missing.size > 0) {
+            warnings.push(tallyWarning(state, tally));
         }
-
-        const plural = `${tally.target}s`;
-        const sample = tally.sample === undefined ? "" : JSON.stringify(tally.sample);
-        if (tally.found.size === 0) {
-            warnings.push(
-                tally.text.size > 0
-                    ? `${id}: no ${tally.target} has a number at "${tally.path}": its values are text (e.g. ${sample}), so every read of it was left out.`
-                    : `${id}: no ${tally.target} has a number at "${tally.path}", so every read of it was left out.`,
-            );
-            continue;
-        }
-
-        const total = tally.target === "node" ? state.source.snapshot.nodeCount : state.source.snapshot.edgeCount;
-        const text = tally.text.size;
-        const verb = text === 1 ? "holds" : "hold";
-        const textPart = text === 0 ? "" : ` (${text} ${verb} text, e.g. ${sample})`;
-        warnings.push(
-            `${id}: ${missing} of ${total} ${plural} ${missing === 1 ? "has" : "have"} no number at "${tally.path}"${textPart}; they were left out.`,
-        );
     }
 
     return warnings;
+}
+
+/**
+ * The warning for one path at which some read found no number.
+ * @param state - The view's state.
+ * @param tally - The path's tally, with at least one missing read.
+ * @returns The sentence.
+ */
+function tallyWarning(state: ViewState, tally: Tally): string {
+    const { id } = state.options;
+    const missing = tally.missing.size;
+    const plural = `${tally.target}s`;
+    const sample = tally.sample === undefined ? "" : JSON.stringify(tally.sample);
+    if (tally.found.size === 0) {
+        return tally.text.size > 0
+            ? `${id}: no ${tally.target} has a number at "${tally.path}": its values are text (e.g. ${sample}), so every read of it was left out.`
+            : `${id}: no ${tally.target} has a number at "${tally.path}", so every read of it was left out.`;
+    }
+
+    const total = tally.target === "node" ? state.source.snapshot.nodeCount : state.source.snapshot.edgeCount;
+    const text = tally.text.size;
+    const verb = text === 1 ? "holds" : "hold";
+    const textPart = text === 0 ? "" : ` (${text} ${verb} text, e.g. ${sample})`;
+    return `${id}: ${missing} of ${total} ${plural} ${missing === 1 ? "has" : "have"} no number at "${tally.path}"${textPart}; they were left out.`;
 }

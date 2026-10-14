@@ -148,7 +148,7 @@ import {
     presentDays,
     raiseItem,
 } from "./notify.mjs";
-import { stallStep, usageLimitStep } from "./stalls.mjs";
+import { stallStep, usageBackStep, usageLimitStep } from "./stalls.mjs";
 import {
     activePolicies,
     CONTROL_OPS,
@@ -171,7 +171,7 @@ import {
 } from "./owners.mjs";
 import { attributeTickets, mergeTarget, mergeWhat, ticketCloses } from "./waits.mjs";
 import { liveSessions, registeredSessions, socketTransport } from "./peers.mjs";
-import { advanceProposals, closedTargets, veto } from "./proposals.mjs";
+import { advanceProposals, closedTargets, proposeSplitParents, veto } from "./proposals.mjs";
 import {
     needsReleaseDryRun,
     newestContexts,
@@ -2032,6 +2032,16 @@ export async function startDaemon({
         await run("waits", () => confirmClosedWaits(state, { gitHub: gh, repo: config.repo }));
         if (state.trust.login) {
             await run("proposals", async () => {
+                for (const p of proposeSplitParents(state, t.toISOString())) {
+                    void ledger({
+                        kind: "proposal",
+                        id: p.id,
+                        target: p.target,
+                        from: null,
+                        to: p.status,
+                        reason: "split: every child closed",
+                    });
+                }
                 const openPrs = new Set(nodes.map((/** @type {any} */ n) => n.number));
                 await advanceProposals(state, {
                     gitHub: gh,
@@ -2310,7 +2320,16 @@ export async function startDaemon({
             sessions: messageable(),
             lines,
         });
-        for (const line of [...lines, ...stalls]) void ledger(line);
+        // Usage back before a limit's reset: the limited sessions are told to carry on (stalls.mjs).
+        const back = await usageBackStep(state, {
+            now: t,
+            minutes: config.workers.statusMinutes,
+            sessions: messageable(),
+            transport: peers.transport ?? socketTransport(),
+            acting: writeMode("workers") === "acting",
+            probe: platform.usageProbe,
+        });
+        for (const line of [...lines, ...stalls, ...back]) void ledger(line);
     }
 
     /**

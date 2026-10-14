@@ -2456,6 +2456,35 @@ describe("every live session a worker unless excluded", () => {
     });
 });
 
+describe("githerd pause", () => {
+    it("sends the sessions nothing while paused: no onboarding, invitation or status check", async () => {
+        writeConfig({ requiredChecks: ["All Checks Pass"] });
+        const peers = {
+            sessions: () => [
+                { pid: 1, sessionId: "s1", name: "graphty-06", cwd: dir, socket: "/s1.sock", status: "idle" },
+            ],
+            transport: { send: async () => {} },
+        };
+        const daemon = await start({ peers });
+        daemon.state.settings = { ...daemon.state.settings, paused: true };
+        await poll(daemon);
+        scene.head = B;
+        scene.commits = [commit(B, A, "Merge pull request #2 from o/feat"), commit(A, null, "first")];
+        scene.ci = [run(101, B, "failure"), run(100, A, "success")];
+        for (const at of ["12:03", "12:06"]) {
+            clock = new Date(`2026-10-02T${at}:00Z`);
+            await poll(daemon);
+        }
+        const ledger = await readLedger(join(dir, ".githerd"));
+        // Worker starts are held in start.mjs (heldBy); this pins the messages to sessions.
+        const messages = ledger.filter(
+            (e) => e.kind === "would-do" && e.group === "workers" && !e.op.startsWith("start a worker"),
+        );
+        expect(messages).toEqual([]);
+        expect(ledger.filter((e) => e.kind === "sessions-invited")).toEqual([]);
+    });
+});
+
 describe("inviting idle sessions to pull work", () => {
     it("announces a queued job no worker took once, to idle sessions only, a would-do in dry-run", async () => {
         /** @type {string[]} */

@@ -1418,9 +1418,8 @@ function* writeNodeSubtree(
         }
         if (hasChildren(u)) {
             parts.splice(open, 0, ">");
-            parts.push(
-                `\n${pad}${step}<graph id="${escapeXmlAttribute(`${String(ids.idAt(u))}:`)}" edgedefault="${plan.edgedefault}">`,
-            );
+            const graphId = `${String(ids.idAt(u))}:`;
+            parts.push(`\n${pad}${step}<graph id="${escapeXmlAttribute(graphId)}" edgedefault="${plan.edgedefault}">`);
             return parts.join("");
         }
         if (parts.length === open) {

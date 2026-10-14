@@ -1089,7 +1089,7 @@ describe("dev", () => {
         expect(r.out).toBe(`githerd-dev stopped and removed from servherd; its state stays in ${devState}`);
         expect(servherdCalls().at(-1)?.argv).toEqual(["--json", "remove", "-f", "githerd-dev"]);
         expect(JSON.parse(readFileSync(join(fake, "registry.json"), "utf8"))).toEqual({});
-        expect(() => process.kill(pid, 0)).toThrow();
+        expect(alive(pid)).toBe(false); // a stopped daemon may still be a zombie, which signal 0 reaches
     });
 
     it("refuses without GITHERD_CONFIG", async () => {

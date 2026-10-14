@@ -1993,12 +1993,14 @@ export async function startDaemon({
         // No owner, no jobs: every job acts only on the owner's issues and pull requests.
         if (state.trust.login) {
             await run("jobs", () => jobsFromFacts(t));
-            await run("owners", () => askOwners(t));
+            // `githerd pause` also stops every message to the sessions: no invitations, status
+            // checks or "are you fixing it?" questions, so a pause spends none of Claude's usage.
+            if (!state.settings?.paused) await run("owners", () => askOwners(t));
             untrustedCriticals(state, t);
         }
         await run("reference", () => referenceWork());
         await workerPass();
-        if (state.trust.login) {
+        if (state.trust.login && !state.settings?.paused) {
             await run("invites", async () => {
                 state.pressure = await backPressure({ root, repo: config.repo, get: (path) => gh.get(path) });
                 await onboardWorkers(t);

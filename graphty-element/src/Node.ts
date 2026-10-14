@@ -25,7 +25,7 @@ import { LabelDeclutter } from "./managers/LabelDeclutter";
 import { bootstrapNodePaint, type NodePaint } from "./managers/StylePainter";
 import { oweLabelAnimations } from "./meshes/labelAnimationDebt";
 import { NodeEffects } from "./meshes/NodeEffects";
-import { NodeMesh } from "./meshes/NodeMesh";
+import { NODE_EXTENT_PER_SIZE, NodeMesh } from "./meshes/NodeMesh";
 import { readColor } from "./meshes/readColor";
 import { RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
 import { NodeBehavior, type NodeDragHandler } from "./NodeBehavior";
@@ -226,6 +226,9 @@ export class Node {
      */
     shapeType?: NonNullable<NodeStyleConfig["shape"]>["type"];
 
+    /** The node's border, a child of its mesh, or null when its style draws none. */
+    private border: AbstractMesh | null = null;
+
     /** The mesh {@link Node.roundRadius} was last measured from, so a reshape re-measures. */
     private roundRadiusMesh: AbstractMesh | null = null;
 
@@ -361,6 +364,8 @@ export class Node {
             nodeId: this.id,
         };
 
+        this.syncBorder(paint.meshKey, o);
+
         // create label
         this.syncLabel(o, true);
         this.syncTooltip(o);
@@ -396,6 +401,59 @@ export class Node {
         this.roundRadiusValue = this.measureRoundRadius();
 
         return this.roundRadiusValue;
+    }
+
+    /**
+     * How far this node's border reaches past its outline, in the units its position is laid out
+     * in: zero for a node with no border. An edge stops this much further out than the node's
+     * surface, so its line meets the border rather than running across it.
+     * @returns The border's width.
+     * @internal
+     */
+    get borderReach(): number {
+        return this.border === null ? 0 : (this.drawnStyle?.border?.width ?? 0) * NODE_EXTENT_PER_SIZE;
+    }
+
+    /**
+     * How far this node reaches along one axis, for framing the graph: its drawn half-extent and
+     * its border, in the units of `node.size` (half the size for a node of one size, as before).
+     *
+     * ponytail: in node-size units rather than world units, so every graph without a border or a
+     * width is framed exactly as it always was; framing by the true drawn extent would re-frame
+     * every graph a little looser.
+     * @param axis - The axis.
+     * @returns The half-extent.
+     * @internal
+     */
+    framingHalf(axis: "x" | "y" | "z"): number {
+        if (this.mesh.isDisposed()) {
+            return this.size / 2;
+        }
+
+        const extent = this.mesh.getBoundingInfo().boundingBox.extendSize[axis] * Math.abs(this.mesh.scaling[axis]);
+
+        return (extent + this.borderReach) / NODE_EXTENT_PER_SIZE;
+    }
+
+    /**
+     * Build this node's border from its style, as a child of its mesh so it moves, hides and is
+     * disposed with the node. Called after every new mesh: the old border went with the old mesh.
+     * @param meshKey - The source mesh key the node is drawn under.
+     * @param style - The resolved style.
+     */
+    private syncBorder(meshKey: string, style: NodeStyleConfig): void {
+        this.border = NodeMesh.createBorder(
+            this.context.getMeshCache(),
+            { styleId: meshKey, is2D: this.context.is2D(), size: this.size },
+            { shape: style.shape, border: style.border },
+            this.mesh,
+            this.context.getScene(),
+        );
+
+        if (this.border !== null) {
+            this.border.parent = this.mesh;
+            this.border.position.setAll(0);
+        }
     }
 
     /**
@@ -674,6 +732,11 @@ export class Node {
             return;
         }
 
+        // Width, height, depth, flatness and a border move a node's surface as surely as its size
+        // and shape do, so any of them sends the edges back to find it.
+        const geometryChanged =
+            !isEqual(this.drawnStyle?.shape, o.shape) || !isEqual(this.drawnStyle?.border, o.border);
+
         this.meshKey = meshKey;
         this.drawnStyle = o;
         this.drawnColor = color;
@@ -692,8 +755,6 @@ export class Node {
             this.mesh.dispose();
         }
 
-        const oldSize = this.size;
-        const oldShapeType = this.shapeType;
         this.size = o.shape?.size ?? 0;
         this.shapeType = o.shape?.type;
 
@@ -737,7 +798,7 @@ export class Node {
         // is unchanged for the size case and newly reachable for the shape case; if a repaint
         // that changes every node's shape ever hitches, the answer is a per-node edge index, not
         // removing the guard.
-        if (this.size !== oldSize || this.shapeType !== oldShapeType) {
+        if (geometryChanged) {
             // A layout that keeps nodes apart by their drawn size (`nodeGap`) has to look again;
             // the frame loop steps it while it is not settled.
             const engine = this.context.getLayoutManager().layoutEngine;
@@ -762,6 +823,7 @@ export class Node {
 
         // Restore the saved position to the new mesh
         this.setMeshPosition(savedPosition.x, savedPosition.y, savedPosition.z);
+        this.syncBorder(meshKey, o);
 
         // Parent to graph-root for XR gesture support
         const graphRoot = this.context.getScene().getTransformNodeByName("graph-root");
@@ -1117,7 +1179,9 @@ export class Node {
 
         // A mesh whose bounds have not been computed yet answers zero. Falling back to the
         // style's own size keeps the answer roughly right until the mesh is measured.
-        return this.drawnRadiusValue > 0 ? this.drawnRadiusValue : Math.max(this.size, MIN_OVERLAY_SIZE) / 2;
+        const radius = this.drawnRadiusValue > 0 ? this.drawnRadiusValue : Math.max(this.size, MIN_OVERLAY_SIZE) / 2;
+
+        return radius + this.borderReach;
     }
 
     /**

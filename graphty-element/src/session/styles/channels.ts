@@ -59,7 +59,7 @@
 import type { Channel, EdgeLinePattern, LabelStyle, Rgba } from "../../catalog/types";
 import { colorToHex } from "../../config/common";
 import { defaultEdgeStyle, EdgeArrowTypes, EdgeLineTypes, type EdgeStyleConfig } from "../../config/EdgeStyle";
-import { defaultNodeStyle, NodeShapes, type NodeStyleConfig } from "../../config/NodeStyle";
+import { defaultNodeStyle, NodeBorderStyles, NodeShapes, type NodeStyleConfig } from "../../config/NodeStyle";
 
 // ---------------------------------------------------------------------------------------------
 // Colour: one string parse, kept
@@ -226,6 +226,9 @@ export type EdgeLineValue = EdgeLinePattern;
 /** An arrow the edge renderer can draw at either end. */
 export type ArrowValue = NonNullable<NonNullable<EdgeStyleConfig["arrowHead"]>["type"]>;
 
+/** A line style a node border can be drawn in. */
+export type NodeBorderStyleValue = NonNullable<NonNullable<NodeStyleConfig["border"]>["style"]>;
+
 /** Every node shape, in schema order. */
 const NODE_SHAPE_VALUES: readonly NodeShapeValue[] = NodeShapes.options;
 
@@ -261,6 +264,13 @@ export interface ChannelValues {
     "node.wireframe": boolean;
     "node.flat": boolean;
     "node.marker": never;
+    "node.width": number;
+    "node.height": number;
+    "node.depth": number;
+    "node.planar": boolean;
+    "node.borderColor": ColorValue;
+    "node.borderWidth": number;
+    "node.borderStyle": NodeBorderStyleValue;
     "edge.color": ColorValue;
     "edge.width": number;
     "edge.opacity": number;
@@ -292,7 +302,13 @@ export interface ChannelValues {
  * to the table by {@link COLOR_CHANNELS} and asserted in the tests, so the two cannot drift.
  */
 export type ColorChannel =
-    "node.color" | "node.outline" | "node.glow" | "edge.color" | "edge.arrowHeadColor" | "edge.arrowTailColor";
+    | "node.color"
+    | "node.outline"
+    | "node.glow"
+    | "node.borderColor"
+    | "edge.color"
+    | "edge.arrowHeadColor"
+    | "edge.arrowTailColor";
 
 /** What a repaint reads for one channel. */
 export type PaintedValue<C extends Channel> = ChannelValues[C];
@@ -539,6 +555,45 @@ function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEn
 }
 
 /**
+ * What a node border is, written once and read by its three channels.
+ */
+const NODE_BORDER_CAVEAT =
+    "A border is a ring drawn OUTSIDE the node's outline, so it never covers the fill, and an edge " +
+    "stops at its outer edge. Its width is in the units of `node.size` and is drawn only when it is " +
+    "above 0. A flat shape's border follows its outline in every view; a solid's follows the " +
+    "outline it shows from the front and turns to face the camera in a 3D view. Unlike " +
+    "`node.outline`, which is a screen-space glow of one fixed width, a border scales with the node.";
+
+/** How a reader says a node measures along each axis. */
+const EXTENT_ADJECTIVE = { width: "wide", height: "tall", depth: "deep" } as const;
+
+/**
+ * One of the three channels that set a node's drawn extent along an axis.
+ * @param name - The channel's last word: width, height or depth.
+ * @param axis - The axis it measures along.
+ * @returns The descriptor.
+ */
+function extentChannel(name: "width" | "height" | "depth", axis: "x" | "y" | "z"): ChannelDescriptor {
+    const title = `${name[0].toUpperCase()}${name.slice(1)}`;
+
+    return {
+        channel: `node.${name}`,
+        target: "node",
+        plainName: `Node ${title}`,
+        shortName: title,
+        group: "shape",
+        accepts: "number",
+        min: 0,
+        stylePath: `shape.${name}`,
+        renderable: true,
+        caveat:
+            `The node's drawn extent along ${axis}, in the units of \`node.size\`: a node of ${name} 4 ` +
+            `is as ${EXTENT_ADJECTIVE[name]} as a node of size 4 is across. ` +
+            "Unset, the node keeps its shape's own proportions at its size.",
+    };
+}
+
+/**
  * Every channel as declared, before the defaults the element's default styles state are read in.
  *
  * The table is keyed by channel, so a channel added to the union without an entry here is a
@@ -705,6 +760,62 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         caveat:
             "The element draws no marker. texture.icon is in the node schema and no renderer " +
             "reads it, and the badge vocabulary belongs to a label rather than to a node.",
+    },
+    "node.width": extentChannel("width", "x"),
+    "node.height": extentChannel("height", "y"),
+    "node.depth": extentChannel("depth", "z"),
+    "node.planar": {
+        channel: "node.planar",
+        target: "node",
+        plainName: "Node Planar",
+        shortName: "Planar",
+        group: "shape",
+        default: false,
+        accepts: "boolean",
+        stylePath: "shape.planar",
+        renderable: true,
+        caveat:
+            "A planar node is drawn thin along z, as a flat shape facing a 2D camera, even in a 3D " +
+            "view. The flat shapes (rectangle, ellipse, diamond and the rest) are always drawn thin " +
+            "in a 2D view; in a 3D view they are as deep as they are wide unless this is set.",
+    },
+    "node.borderColor": {
+        channel: "node.borderColor",
+        target: "node",
+        plainName: "Node Border Color",
+        shortName: "Border color",
+        group: "shape",
+        default: "#000000",
+        accepts: "color",
+        stylePath: "border.color",
+        renderable: true,
+        caveat: NODE_BORDER_CAVEAT,
+    },
+    "node.borderWidth": {
+        channel: "node.borderWidth",
+        target: "node",
+        plainName: "Node Border Width",
+        shortName: "Border width",
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        min: 0,
+        stylePath: "border.width",
+        renderable: true,
+        caveat: NODE_BORDER_CAVEAT,
+    },
+    "node.borderStyle": {
+        channel: "node.borderStyle",
+        target: "node",
+        plainName: "Node Border Style",
+        shortName: "Border style",
+        group: "shape",
+        default: "solid",
+        accepts: "enum",
+        values: NodeBorderStyles.options,
+        stylePath: "border.style",
+        renderable: true,
+        caveat: NODE_BORDER_CAVEAT,
     },
     "edge.color": {
         channel: "edge.color",

@@ -4,10 +4,12 @@ import {
     DynamicTexture,
     type ICanvasGradient,
     type ICanvasRenderingContext,
+    type InstancedMesh,
     Mesh,
     MeshBuilder,
     Scene,
     StandardMaterial,
+    TransformNode,
 } from "@babylonjs/core";
 
 import { SharedImplementationMap } from "../catalog/pluginRegistry";
@@ -15,6 +17,8 @@ import type { NodeStyleConfig } from "../config";
 import { PolyhedronType, SHAPE_CONSTANTS } from "../constants/meshConstants";
 import { shadeInstanceColors } from "./InstanceColorShading";
 import type { MeshCache } from "./MeshCache";
+import { fitNodeMesh, type NodeExtents, outlineSlab, projectedVertices, ringSlab } from "./NodeShapeGeometry";
+import { borderRing, convexHull, flatShapeOutline, isFlatShape, type Point2 } from "./shapeOutlines";
 
 interface NodeMeshOptions {
     styleId: string;
@@ -26,7 +30,18 @@ interface NodeMeshCreateOptions {
     shape?: NodeStyleConfig["shape"];
     texture?: NodeStyleConfig["texture"];
     effect?: NodeStyleConfig["effect"];
+    border?: NodeStyleConfig["border"];
 }
+
+/**
+ * How far across the view a node of size 1 is drawn, whatever its shape: the default icosphere's
+ * diameter, so a graph drawn in the default shape looks exactly as it always has. Width, height,
+ * depth and a border's width are in the same units, so a node 4 wide is as wide as a node of size 4.
+ */
+export const NODE_EXTENT_PER_SIZE = 1.5;
+
+/** How deep a node drawn flat is, as a fraction of its smaller side: thin, but never zero. */
+const THIN_DEPTH_RATIO = 0.02;
 
 type ShapeCreator = (size: number, scene?: Scene) => Mesh;
 
@@ -246,6 +261,16 @@ export class NodeMesh {
             throw new TypeError("shape with type required to create mesh");
         }
 
+        if (isFlatShape(createOptions.shape.type)) {
+            const size = Math.max(createOptions.shape.size ?? options.size, MIN_NODE_SIZE);
+
+            return this.createFlatShape(
+                createOptions.shape.type,
+                this.extentsOf(createOptions.shape, size, options.is2D),
+                scene,
+            );
+        }
+
         const creator = this.shapeCreators.get(createOptions.shape.type);
         if (!creator) {
             throw new TypeError(`unknown shape: ${createOptions.shape.type}`);
@@ -255,7 +280,123 @@ export class NodeMesh {
         // of size 0 used to draw larger than a node of size 0.01. Flooring here keeps size 0 the
         // smallest visible node for every shape creator, built-in or registered (#117).
         const size = Math.max(createOptions.shape.size ?? options.size, MIN_NODE_SIZE);
-        return creator(size, scene);
+        const extents = this.extentsOf(createOptions.shape, size, options.is2D);
+        const mesh = creator(size, scene);
+        fitNodeMesh(mesh, extents);
+
+        return mesh;
+    }
+
+    /**
+     * How big a node is drawn along each axis, in world units.
+     * @param shape - The node's shape block.
+     * @param size - Its size, already floored.
+     * @param is2D - Whether the graph is drawn in 2D.
+     * @returns The extents to fit its mesh to.
+     */
+    static extentsOf(shape: NonNullable<NodeStyleConfig["shape"]>, size: number, is2D: boolean): NodeExtents {
+        const world = (value: number | undefined): number | undefined =>
+            value === undefined ? undefined : Math.max(value, MIN_NODE_SIZE) * NODE_EXTENT_PER_SIZE;
+        const across = size * NODE_EXTENT_PER_SIZE;
+        const x = world(shape.width);
+        const y = world(shape.height);
+        const thin = shape.planar === true || (is2D && isFlatShape(shape.type ?? ""));
+        const z = world(shape.depth) ?? (thin ? THIN_DEPTH_RATIO * Math.min(x ?? across, y ?? across) : undefined);
+
+        return { across, x, y, z };
+    }
+
+    /**
+     * Build a flat shape at its final width and height, so a rounded corner stays round however
+     * long and thin the node is.
+     * @param type - The flat shape.
+     * @param extents - The node's extents.
+     * @param scene - The scene.
+     * @returns The mesh.
+     */
+    private static createFlatShape(type: string, extents: NodeExtents, scene?: Scene): Mesh {
+        const width = extents.x ?? extents.across;
+        const height = extents.y ?? extents.across;
+
+        return outlineSlab(type, flatShapeOutline(type, width, height), extents.z ?? extents.across, scene);
+    }
+
+    /**
+     * Build a node's border and hand back an instance of it, or null when the node has none.
+     *
+     * The border is its own source mesh, cached beside the node's under the same style key, so
+     * every node of one style shares one border mesh and only a node that HAS a border pays for
+     * an instance. It is a ring OUTSIDE the node's outline, so it never covers the fill: the flat
+     * shape's own outline, or for a solid the outline it shows a camera looking along z, turned to
+     * face the camera in a 3D view.
+     * @param cache - The mesh cache the node's own mesh came from.
+     * @param options - The node's mesh options.
+     * @param createOptions - The node's shape and border.
+     * @param fill - The node's own mesh, whose outline a solid's border follows.
+     * @param scene - The scene.
+     * @returns The border instance, or null.
+     */
+    static createBorder(
+        cache: MeshCache,
+        options: NodeMeshOptions,
+        createOptions: NodeMeshCreateOptions,
+        fill: AbstractMesh,
+        scene?: Scene,
+    ): InstancedMesh | null {
+        const { border, shape } = createOptions;
+        const width = (border?.width ?? 0) * NODE_EXTENT_PER_SIZE;
+
+        if (width <= 0 || shape?.type === undefined) {
+            return null;
+        }
+
+        const flat = isFlatShape(shape.type);
+        const instance = cache.get(`node-border-${options.styleId}-${options.is2D ? "2d" : "3d"}`, () => {
+            const extents = this.extentsOf(shape, Math.max(shape.size ?? options.size, MIN_NODE_SIZE), options.is2D);
+            const outline = flat ? this.flatOutline(shape.type ?? "", extents) : this.solidOutline(fill);
+            const depth = flat ? (extents.z ?? extents.across) : THIN_DEPTH_RATIO * extents.across;
+            const mesh = ringSlab("node-border", borderRing(outline, width, border?.style ?? "solid"), depth, scene);
+            mesh.material = this.createBorderMaterial(border?.color ?? "#000000", scene);
+
+            return mesh;
+        });
+
+        instance.sourceMesh.isPickable = false;
+        instance.isPickable = false;
+
+        // A solid's outline is the one it shows from the front, so in a 3D view the ring turns
+        // with the camera to stay round the node; a flat shape's ring is part of its slab.
+        if (!flat && !options.is2D) {
+            instance.billboardMode = TransformNode.BILLBOARDMODE_ALL;
+        }
+
+        return instance;
+    }
+
+    private static flatOutline(type: string, extents: NodeExtents): Point2[] {
+        return flatShapeOutline(type, extents.x ?? extents.across, extents.y ?? extents.across);
+    }
+
+    private static solidOutline(fill: AbstractMesh): Point2[] {
+        const source = fill instanceof Mesh ? fill : (fill as InstancedMesh).sourceMesh;
+
+        return convexHull(projectedVertices(source));
+    }
+
+    /**
+     * The border's material: its colour, unlit, so a border reads as the colour a file gave it in
+     * 2D and 3D alike, the way an edge's line does.
+     * @param color - The border colour.
+     * @param scene - The scene.
+     * @returns The frozen material.
+     */
+    private static createBorderMaterial(color: string, scene?: Scene): StandardMaterial {
+        const mat = new StandardMaterial("node-border", scene);
+        mat.disableLighting = true;
+        mat.emissiveColor = Color3.FromHexString(color);
+        mat.freeze();
+
+        return mat;
     }
 
     /**

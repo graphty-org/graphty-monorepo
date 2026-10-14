@@ -59,7 +59,7 @@ export const BLUES_COLORS: readonly ["#f7fbff", "#deebf7", "#c6dbef", "#9ecae1",
 export const CARBON_COLORS: readonly ["#6929C4", "#1192E8", "#005D5D", "#9F1853", "#FA4D56"];
 
 // @public
-export type Channel = "node.color" | "node.size" | "node.shape" | "node.label" | "node.labelStyle" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.glow" | "node.glowStrength" | "node.wireframe" | "node.flat" | "node.marker" | "edge.color" | "edge.width" | "edge.opacity" | "edge.style" | "edge.patternCount" | "edge.curvature" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailColor" | "edge.arrowTailOpacity" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle";
+export type Channel = "node.color" | "node.size" | "node.shape" | "node.label" | "node.labelStyle" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.glow" | "node.glowStrength" | "node.wireframe" | "node.flat" | "node.marker" | "node.width" | "node.height" | "node.depth" | "node.planar" | "node.borderColor" | "node.borderWidth" | "node.borderStyle" | "edge.color" | "edge.width" | "edge.opacity" | "edge.style" | "edge.patternCount" | "edge.curvature" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailColor" | "edge.arrowTailOpacity" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle";
 
 // @public
 export type ChannelValue = string | number | boolean | LabelStyle | Rgba;
@@ -642,6 +642,9 @@ export type Filter = RuleTree;
 export type FilterDirection = SelectionDirection;
 
 // @public
+export const FLAT_NODE_SHAPES: readonly z.infer<typeof NodeShapes>[];
+
+// @public
 export const GraphBackground: z.ZodDiscriminatedUnion<[z.ZodObject<{
     backgroundType: z.ZodLiteral<"color">;
     color: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
@@ -810,12 +813,24 @@ export interface LayerSpec {
 export const MISSING_DATA_COLOR = "#ff00ff";
 
 // @public
+export const NodeBorderStyles: z.ZodEnum<{
+    solid: "solid";
+    double: "double";
+    dashed: "dashed";
+    dotted: "dotted";
+}>;
+
+// @public
 export type NodeId = string | number;
 
 // @public
 export const NodeShapes: z.ZodEnum<{
+    diamond: "diamond";
     box: "box";
+    vee: "vee";
+    star: "star";
     sphere: "sphere";
+    ellipse: "ellipse";
     cylinder: "cylinder";
     cone: "cone";
     capsule: "capsule";
@@ -839,6 +854,14 @@ export const NodeShapes: z.ZodEnum<{
     goldberg: "goldberg";
     icosphere: "icosphere";
     geodesic: "geodesic";
+    rectangle: "rectangle";
+    "round-rectangle": "round-rectangle";
+    triangle: "triangle";
+    pentagon: "pentagon";
+    hexagon: "hexagon";
+    octagon: "octagon";
+    parallelogram: "parallelogram";
+    trapezoid: "trapezoid";
 }>;
 
 // @public
@@ -846,8 +869,12 @@ export const NodeStyle: z.ZodObject<{
     shape: z.ZodOptional<z.ZodObject<{
         size: z.ZodOptional<z.ZodNumber>;
         type: z.ZodOptional<z.ZodEnum<{
+            diamond: "diamond";
             box: "box";
+            vee: "vee";
+            star: "star";
             sphere: "sphere";
+            ellipse: "ellipse";
             cylinder: "cylinder";
             cone: "cone";
             capsule: "capsule";
@@ -871,7 +898,19 @@ export const NodeStyle: z.ZodObject<{
             goldberg: "goldberg";
             icosphere: "icosphere";
             geodesic: "geodesic";
+            rectangle: "rectangle";
+            "round-rectangle": "round-rectangle";
+            triangle: "triangle";
+            pentagon: "pentagon";
+            hexagon: "hexagon";
+            octagon: "octagon";
+            parallelogram: "parallelogram";
+            trapezoid: "trapezoid";
         }>>;
+        width: z.ZodOptional<z.ZodNumber>;
+        height: z.ZodOptional<z.ZodNumber>;
+        depth: z.ZodOptional<z.ZodNumber>;
+        planar: z.ZodOptional<z.ZodBoolean>;
     }, z.core.$strict>>;
     texture: z.ZodOptional<z.ZodObject<{
         color: z.ZodOptional<z.ZodUnion<[z.ZodDiscriminatedUnion<[z.ZodObject<{
@@ -900,6 +939,16 @@ export const NodeStyle: z.ZodObject<{
         }, z.core.$strict>>;
         wireframe: z.ZodOptional<z.ZodBoolean>;
         flatShaded: z.ZodOptional<z.ZodBoolean>;
+    }, z.core.$strict>>;
+    border: z.ZodOptional<z.ZodObject<{
+        color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+        width: z.ZodOptional<z.ZodNumber>;
+        style: z.ZodOptional<z.ZodEnum<{
+            solid: "solid";
+            double: "double";
+            dashed: "dashed";
+            dotted: "dotted";
+        }>>;
     }, z.core.$strict>>;
     label: z.ZodOptional<z.ZodPrefault<z.ZodObject<{
         enabled: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;

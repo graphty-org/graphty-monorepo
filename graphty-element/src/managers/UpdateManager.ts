@@ -51,12 +51,12 @@ export function nodeFramingBox(nodes: Iterable<Node>): FramingBox | undefined {
         node.mesh.computeWorldMatrix(true);
 
         const pos = node.mesh.getAbsolutePosition();
-        const half = node.size / 2;
 
         min ??= pos.clone().setAll(Infinity);
         max ??= pos.clone().setAll(-Infinity);
 
         for (const axis of ["x", "y", "z"] as const) {
+            const half = node.framingHalf(axis);
             min[axis] = Math.min(min[axis], pos[axis] - half);
             max[axis] = Math.max(max[axis], pos[axis] + half);
         }

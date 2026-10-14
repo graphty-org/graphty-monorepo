@@ -35,16 +35,12 @@ import { RichTextStyle } from "./RichTextStyle";
  * compatible -- every previously valid style still parses. Layers already saved with
  * "torus-knot" keep rendering a torus-knot; only a fresh pick of Torus gets the new shape.
  *
- * WHY "plane" AND "disc" ARE NOT HERE, and must not be added casually: `MeshBuilder.CreatePlane`
- * produces a zero-thickness, single-sided quad. `NodeMesh.create` caches ONE mesh per style id
- * and instances it, so a plane would need explicit double-sided orientation or half the graph's
- * nodes would vanish depending on camera side, and edge-on it vanishes for every camera
- * regardless. Worse, edge attachment is bounding-sphere and ray-intersection based (see Edge.ts),
- * and a ray misses a near-zero-thickness quad for most incident angles, so every edge touching a
- * plane node would fall back to centre-to-centre attachment. A node you cannot see, wired by
- * edges that do not touch it, is a bigger defect than a missing dropdown entry. If flat,
- * camera-facing nodes are wanted, the right feature is a billboarded quad with its own answer
- * for edge attachment -- a specced piece of work, not an enum entry.
+ * WHY "plane" AND "disc" ARE NOT HERE: `MeshBuilder.CreatePlane` produces a zero-thickness,
+ * single-sided quad, which vanishes edge-on and which an edge's ray misses for most angles. Flat
+ * shapes are therefore the FLAT_NODE_SHAPES below: a closed outline extruded into a slab, so a ray
+ * always meets a wall and the shape is seen from both sides. In a 2D view, or with
+ * `shape.planar`, the slab is thin and reads as a flat 2D shape; in a 3D view it is as deep as it
+ * is wide.
  * @public
  */
 export const NodeShapes = z.enum([
@@ -73,7 +69,44 @@ export const NodeShapes = z.enum([
     "goldberg",
     "icosphere",
     "geodesic",
+    // The flat shapes of 2D tools (Cytoscape, yEd, Graphviz, Gephi). See FLAT_NODE_SHAPES.
+    "rectangle",
+    "round-rectangle",
+    "ellipse",
+    "diamond",
+    "triangle",
+    "pentagon",
+    "hexagon",
+    "octagon",
+    "parallelogram",
+    "trapezoid",
+    "star",
+    "vee",
 ]);
+
+/**
+ * The node shapes that are a 2D outline rather than a solid: the shapes graph files from 2D tools
+ * name. Each is an outline extruded into a slab. In a 2D view, or when `shape.planar` is set, the
+ * slab is thin and the node reads as the flat shape; otherwise it is as deep as it is wide.
+ * @public
+ */
+export const FLAT_NODE_SHAPES: readonly z.infer<typeof NodeShapes>[] = [
+    "rectangle",
+    "round-rectangle",
+    "ellipse",
+    "diamond",
+    "triangle",
+    "pentagon",
+    "hexagon",
+    "octagon",
+    "parallelogram",
+    "trapezoid",
+    "star",
+    "vee",
+];
+
+/** The line styles a node border is drawn in. @public */
+export const NodeBorderStyles = z.enum(["solid", "dashed", "dotted", "double"]);
 
 /**
  * Everything a style layer can say about how one node is drawn.
@@ -92,8 +125,17 @@ export const NodeStyle = z.strictObject({
     shape: z
         .strictObject({
             // 0 is legal and draws the smallest visible node; hide a node with `visible: false`.
+            // Every shape at one size covers the same extent across the view: the default
+            // icosphere's, 1.5 units per unit of size (NODE_EXTENT_PER_SIZE in NodeMesh).
             size: z.number().nonnegative().optional(),
             type: NodeShapes.optional(),
+            // The drawn extent along x, y and z, in the units of `size`. Each one left unset keeps
+            // the shape's own proportions at `size`.
+            width: z.number().nonnegative().optional(),
+            height: z.number().nonnegative().optional(),
+            depth: z.number().nonnegative().optional(),
+            // Draw the node thin along z, as a flat shape facing a 2D camera, even in a 3D view.
+            planar: z.boolean().optional(),
             // custom mesh https://doc.babylonjs.com/features/featuresDeepDive/mesh/creation/custom/custom
             // import mesh https://doc.babylonjs.com/typedoc/functions/BABYLON.ImportMeshAsync
         })
@@ -139,6 +181,15 @@ export const NodeStyle = z.strictObject({
                 .optional(),
             wireframe: z.boolean().optional(),
             flatShaded: z.boolean().optional(),
+        })
+        .optional(),
+    // A ring drawn around the node's outline, outside its fill. The width is in the units of
+    // `shape.size`, so it scales with the node and with zoom. No width (or 0) draws no border.
+    border: z
+        .strictObject({
+            color: ColorStyle.optional(),
+            width: z.number().nonnegative().optional(),
+            style: NodeBorderStyles.optional(),
         })
         .optional(),
     label: RichTextStyle.prefault({ location: "top", textColor: "#000000" }).optional(),

@@ -1511,6 +1511,7 @@ export class Edge {
         }
 
         if (srcPoint !== null && dstPoint !== null) {
+            this.pastBorders(srcPoint, dstPoint);
             newEndPoint = this.lineEndBefore(srcPoint, dstPoint);
         }
 
@@ -1519,6 +1520,33 @@ export class Edge {
             dstPoint,
             newEndPoint,
         };
+    }
+
+    /**
+     * Move the line's two ends out past the borders of the nodes they meet, so the line meets a
+     * border rather than running across it. Along the line, so at a slant it stops a little inside
+     * the border's outer edge, never outside it.
+     * @param srcPoint - Where the line leaves the source node's surface; moved in place.
+     * @param dstPoint - Where it meets the destination node's surface; moved in place.
+     */
+    private pastBorders(srcPoint: Vector3, dstPoint: Vector3): void {
+        const srcReach = this.srcNode.borderReach;
+        const dstReach = this.dstNode.borderReach;
+
+        if (srcReach === 0 && dstReach === 0) {
+            return;
+        }
+
+        const direction = dstPoint.subtract(srcPoint);
+        const span = direction.length();
+
+        if (span <= srcReach + dstReach) {
+            return;
+        }
+
+        direction.scaleInPlace(1 / span);
+        srcPoint.addInPlace(direction.scale(srcReach));
+        dstPoint.subtractInPlace(direction.scale(dstReach));
     }
 
     /**

@@ -27,11 +27,11 @@ export default meta;
 
 type Story = StoryObj<StoryArgs>;
 
-// Generate node data for all shapes in a 5x5 grid with 3D depth
+// Generate node data for all shapes in a grid with 3D depth
 const generateNodeData = (): { id: string; position: { x: number; y: number; z: number } }[] => {
     const nodes: { id: string; position: { x: number; y: number; z: number } }[] = [];
     const spacing = 4;
-    const cols = 5;
+    const cols = 7;
 
     nodeShapes.forEach((shape, index) => {
         const col = index % cols;
@@ -39,7 +39,7 @@ const generateNodeData = (): { id: string; position: { x: number; y: number; z: 
         nodes.push({
             id: shape,
             position: {
-                x: (col - 2) * spacing, // Center around origin (-8 to 8)
+                x: (col - (cols - 1) / 2) * spacing, // Center around origin
                 y: (2 - row) * spacing, // Top to bottom (8 to -8)
                 z: (2 - row) * 2, // Add depth for 3D effect
             },
@@ -72,9 +72,9 @@ const generateLayers = (): LayerSpec[] => {
 };
 
 /**
- * All Node Shapes - Comprehensive showcase of all 24 available node shapes.
+ * All Node Shapes - every node shape, the solids and the flat shapes, each at the same size.
  * Each node is labeled with its configuration name.
- * Arranged in a 5x5 grid for easy visual comparison.
+ * Arranged in a grid of seven columns for easy visual comparison.
  */
 export const AllNodeShapes: Story = {
     play: async ({ canvasElement }) => {

@@ -170,21 +170,28 @@ the layer is reported unbound rather than painting anything.
 
 A channel is one visual property with one name. These are all of them:
 
-| Node channel        | Takes                                                              |
-| ------------------- | ------------------------------------------------------------------ |
-| `node.color`        | any CSS colour                                                     |
-| `node.size`         | a number                                                           |
-| `node.shape`        | `sphere`, `box`, `cylinder`, `icosphere`, ...                      |
-| `node.label`        | the words to draw                                                  |
-| `node.labelStyle`   | `{font, sizePx, weight, color, background, outline, padding, ...}` |
-| `node.tooltip`      | the words to show on hover                                         |
-| `node.tooltipStyle` | as `node.labelStyle`, for the tooltip                              |
-| `node.opacity`      | 0 to 1                                                             |
-| `node.outline`      | a colour                                                           |
-| `node.glow`         | a colour                                                           |
-| `node.glowStrength` | 0 or more, scaling `node.glow`; 0 or on its own it draws no glow   |
-| `node.wireframe`    | true or false                                                      |
-| `node.flat`         | true or false: one normal per face, so a sphere looks faceted (3D) |
+| Node channel        | Takes                                                                    |
+| ------------------- | ------------------------------------------------------------------------ |
+| `node.color`        | any CSS colour                                                           |
+| `node.size`         | a number; every shape at one size is the same width across the view      |
+| `node.shape`        | `sphere`, `box`, `icosphere`, ..., or a flat `rectangle`, `ellipse`, ... |
+| `node.width`        | 0 or more: the width, in the units of `node.size`                        |
+| `node.height`       | 0 or more: the height, in the units of `node.size`                       |
+| `node.depth`        | 0 or more: the depth (3D), in the units of `node.size`                   |
+| `node.planar`       | true or false: draw the node thin, as a flat shape, even in 3D           |
+| `node.borderColor`  | a colour; black when unset                                               |
+| `node.borderWidth`  | 0 or more, in the units of `node.size`; 0 draws no border                |
+| `node.borderStyle`  | `solid`, `dashed`, `dotted` or `double`                                  |
+| `node.label`        | the words to draw                                                        |
+| `node.labelStyle`   | `{font, sizePx, weight, color, background, outline, padding, ...}`       |
+| `node.tooltip`      | the words to show on hover                                               |
+| `node.tooltipStyle` | as `node.labelStyle`, for the tooltip                                    |
+| `node.opacity`      | 0 to 1                                                                   |
+| `node.outline`      | a colour                                                                 |
+| `node.glow`         | a colour                                                                 |
+| `node.glowStrength` | 0 or more, scaling `node.glow`; 0 or on its own it draws no glow         |
+| `node.wireframe`    | true or false                                                            |
+| `node.flat`         | true or false: one normal per face, so a sphere looks faceted (3D)       |
 
 | Edge channel              | Takes                                                                      |
 | ------------------------- | -------------------------------------------------------------------------- |
@@ -234,6 +241,43 @@ await element.session.styles.add({
 The five `...Style` channels merge field by field across layers instead of replacing each other.
 A layer that writes `{ color: "#FF0000" }` over one that wrote `{ sizePx: 24 }` draws a red label
 at 24 px, and each field takes the value from the highest layer that set it.
+
+### Node shapes, sizes and borders
+
+`node.size` measures how wide a node is across the view: at size 1 every shape -- a sphere, a
+box, an octahedron, a diamond -- is drawn 1.5 units wide (the default icosphere's width), so a
+diamond and a sphere of one size look one size. `node.width`, `node.height` and `node.depth` set
+the extent along one axis in the same units, so a node of width 4 is as wide as a node of size 4;
+an axis left unset keeps the shape's own proportions at `node.size`.
+
+The flat shapes -- `rectangle`, `round-rectangle`, `ellipse`, `diamond`, `triangle`, `pentagon`,
+`hexagon`, `octagon`, `parallelogram`, `trapezoid`, `star` and `vee` (`FLAT_NODE_SHAPES` in
+`@graphty/graphty-element/schema`) -- are the shapes graph files from 2D tools name. In a 2D view
+they are drawn flat; in a 3D view they are as deep as they are wide, unless `node.planar` asks
+for a thin, flat card. Edges end at their outline.
+
+A border is a ring drawn outside the node's outline, so it never covers the fill, and an edge
+ends at its outer edge. Its width is in the units of `node.size`, so it scales with the node:
+
+```typescript
+await element.session.styles.add({
+    name: "Boxes",
+    target: "node",
+    selector: { match: "everything" },
+    set: {
+        "node.shape": "round-rectangle",
+        "node.width": 4,
+        "node.height": 1,
+        "node.borderWidth": 0.1,
+        "node.borderStyle": "dashed",
+        "node.borderColor": "#1A202C",
+    },
+});
+```
+
+A border is not `node.outline`: an outline is a screen-space glow of one fixed width, drawn for
+emphasis, while a border is part of the node's shape. Each distinct border is one more mesh,
+shared by every node drawn with it.
 
 Glowing nodes are drawn through one mesh per distinct `node.glow` and `node.glowStrength`
 pair. A handful of glow styles costs nothing; a strength encoded from data, with a different value
@@ -521,6 +565,9 @@ never lists of ids, so it stays small however many elements are selected.
 - [Edge Styles](https://graphty.app/storybook/graphty-element/?path=/story/styles-edge--default)
 - [Label Styles](https://graphty.app/storybook/graphty-element/?path=/story/styles-label--default)
 - [All Node Shapes](https://graphty.app/storybook/graphty-element/?path=/story/styles-node--all-node-shapes)
+- [Flat Shapes in 2D](https://graphty.app/storybook/graphty-element/?path=/story/styles-node--shapes-in-2-d)
+- [Node Borders](https://graphty.app/storybook/graphty-element/?path=/story/styles-node--border-widths-and-styles)
+- [Node Width and Height](https://graphty.app/storybook/graphty-element/?path=/story/styles-node--width-and-height)
 - [Bezier Edges](https://graphty.app/storybook/graphty-element/?path=/story/styles-edge--bezier)
 - [Bidirectional Arrows](https://graphty.app/storybook/graphty-element/?path=/story/styles-edge--bidirectional)
 - [Layered Styles](https://graphty.app/storybook/graphty-element/?path=/story/styles-layered--two-layer-node-colors)

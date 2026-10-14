@@ -222,8 +222,11 @@ describe("Node shape changes and connected edges", () => {
         assert.isDefined(sphereEndpoint);
 
         // Same declared size, different geometry. Before the fix this changed nothing about the
-        // edge, because the restyle path only invalidated on a SIZE change.
-        dstNode.applySessionPaint(nodePaintOf(nodeStyle({ shape: { type: "box", size: 1 } })));
+        // edge, because the restyle path only invalidated on a SIZE change. A cylinder rather than
+        // a box: every shape is now as wide across the view as the icosphere (#2495), so a box's
+        // side lies exactly where the sphere's surface does, while a cylinder is narrower than it
+        // is tall.
+        dstNode.applySessionPaint(nodePaintOf(nodeStyle({ shape: { type: "cylinder", size: 1 } })));
         edge.update();
 
         const boxEndpoint = edge.arrowCap?.position.clone();
@@ -231,7 +234,7 @@ describe("Node shape changes and connected edges", () => {
         assert.isAbove(
             Vector3.Distance(sphereEndpoint, boxEndpoint),
             0.05,
-            "the edge endpoint must move onto the box surface; unpatched it stays on the old sphere surface",
+            "the edge endpoint must move onto the cylinder surface; unpatched it stays on the old sphere surface",
         );
 
         // ... and switching back must reattach, not strand the edge on the box surface.

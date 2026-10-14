@@ -1448,3 +1448,40 @@ describe("finishedJobsToPrune (issue #2366)", () => {
         expect(prune(state).drop.sort()).toEqual(["incident-queue-1-2", "issue-promote-x", "issue-reland-718"]);
     });
 });
+
+describe("syncJobs: a done issue job whose pull request is no longer open (issue #2644)", () => {
+    it("offers the issue again once the pull request closed and the issue is still open", () => {
+        const state = base();
+        issue(state, 7, LABELED);
+        failingPr(state, 50);
+        sync(state);
+        finish(state.jobs["issue-7"]);
+        state.jobs["issue-7"].pr = 50;
+        // While the pull request is open, the done job keeps the issue out of the queue.
+        expect(sync(state).created).toEqual([]);
+        delete state.prs[50];
+        expect(sync(state).created).toEqual(["issue-7"]);
+        expect(state.jobs["issue-7"].state).toBe("queued");
+    });
+
+    it("waits for the old job's worktree to be removed, and never re-offers a done job with no pull request", () => {
+        const state = base();
+        issue(state, 7, LABELED);
+        sync(state);
+        finish(state.jobs["issue-7"]);
+        Object.assign(state.jobs["issue-7"], { pr: 50, worktree: "/w/7" });
+        // A split's parent: no pull request; proposals.mjs proposes its close.
+        issue(state, 8, LABELED);
+        state.jobs["issue-8"] = {
+            id: "issue-8",
+            kind: "issue",
+            target: "#8",
+            state: "done",
+            stateSince: "x",
+            children: [9],
+        };
+        expect(sync(state).created).toEqual([]);
+        delete state.jobs["issue-7"].worktree;
+        expect(sync(state).created).toEqual(["issue-7"]);
+    });
+});

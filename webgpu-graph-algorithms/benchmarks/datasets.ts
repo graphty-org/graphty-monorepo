@@ -68,8 +68,8 @@ export function rmatEdges(scale: number, edgeFactor: number, seed?: number | und
         let v = 0;
         for (let level = 0; level < scale; level++) {
             const r = random();
-            let bitU = 0;
-            let bitV = 0;
+            let bitU: number;
+            let bitV: number;
             if (r < 0.57) {
                 bitU = 0;
                 bitV = 0;

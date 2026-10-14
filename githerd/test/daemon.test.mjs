@@ -1,15 +1,5 @@
 import { spawn } from "node:child_process";
-import {
-    chmodSync,
-    existsSync,
-    mkdirSync,
-    mkdtempSync,
-    readdirSync,
-    readFileSync,
-    rmSync,
-    writeFileSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
+import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -27,6 +17,7 @@ import { readHistory } from "../lib/stats.mjs";
 import { readLedger, repoIdentity, spoolEvent } from "../lib/store.mjs";
 import { statusData, statusText } from "../lib/tools.mjs";
 import { createFakeGh, httpOutput } from "./helpers/fake-gh.mjs";
+import { tempDir } from "./helpers/temp-dir.mjs";
 
 const FAKE_NOTIFY = fileURLToPath(new URL("helpers/fake-notify.mjs", import.meta.url));
 const DAEMON_BIN = fileURLToPath(new URL("../bin/githerd-daemon.mjs", import.meta.url));
@@ -363,7 +354,7 @@ function sleeper() {
 beforeAll(() => isolateGit());
 
 beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "githerd-daemon-"));
+    dir = tempDir("githerd-daemon-");
     configFile = join(dir, "githerd.config.json");
     notifyLog = join(dir, "notify.log");
     clock = new Date("2026-10-02T12:00:00Z");
@@ -688,6 +679,19 @@ describe("HTTP endpoints", () => {
         await fetch(`${daemon.url}/heartbeat`, { method: "POST", body: JSON.stringify({ session: "wt-1" }) });
         await poll(daemon);
         expect(job).toMatchObject({ state: "queued", reason: "claim lapsed: session wt-1 ended" });
+    });
+
+    it("drops a finished job nothing reads after a poll, its whole record first written to the ledger", async () => {
+        const daemon = await start();
+        const job = newJob({ kind: "triage", target: "20 issues", id: "triage-full-4" }, clock);
+        move(job, "cancelled", clock, { reason: "superseded" });
+        daemon.state.jobs = { "triage-full-4": job };
+        await poll(daemon);
+        expect(saved().jobs["triage-full-4"]).toBeUndefined();
+        const lines = (await readLedger(join(dir, ".githerd"))).filter((e) => e.kind === "job-dropped");
+        expect(lines).toEqual([
+            expect.objectContaining({ job: "triage-full-4", record: JSON.parse(JSON.stringify(job)) }),
+        ]);
     });
 
     it("registers a heartbeat and refuses one without a session", async () => {

@@ -1,16 +1,5 @@
 import { spawnSync } from "node:child_process";
-import {
-    chmodSync,
-    cpSync,
-    existsSync,
-    mkdirSync,
-    mkdtempSync,
-    readFileSync,
-    rmSync,
-    symlinkSync,
-    writeFileSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
+import { chmodSync, cpSync, existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -30,6 +19,7 @@ import {
     writeSelfUpdate,
 } from "../lib/self-update.mjs";
 import { PACKAGE_DIR } from "../lib/version.mjs";
+import { tempDir } from "./helpers/temp-dir.mjs";
 
 const PROTOCOL_BIN = fileURLToPath(new URL("../bin/githerd-protocol-test.mjs", import.meta.url));
 
@@ -65,7 +55,7 @@ function commit() {
 }
 
 beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "githerd-self-update-"));
+    dir = tempDir("githerd-self-update-");
     root = join(dir, "main");
     stateDir = join(dir, "state");
     mkdirSync(stateDir);

@@ -175,6 +175,17 @@ describe.skipIf(!MACOS)("Safari in the iOS Simulator", () => {
     });
 
     /**
+     * Open a URL in Safari. Safari is launched first: `simctl openurl` gives up after about 20
+     * seconds, and right after Safari was terminated its cold launch in a busy Simulator took longer
+     * (33 s), while `simctl launch` returns once Safari is running.
+     * @param url - The page.
+     */
+    function openInSafari(url: string): void {
+        simctl("launch", udid, SAFARI);
+        simctl("openurl", udid, url);
+    }
+
+    /**
      * Open the self-driving page, let it save three edits and leave a fourth pending, do `between`
      * (the condition under test), open the page again, and assert the invariant on the restore.
      * @param key - The autosave key, and the tab label.
@@ -188,7 +199,7 @@ describe.skipIf(!MACOS)("Safari in the iOS Simulator", () => {
             diagnose(udid, tab);
         });
         const from = safariLog.lines.length;
-        simctl("openurl", udid, fx.url({ key, tab, auto: 3, tail: 1, delay: 600_000 }));
+        openInSafari(fx.url({ key, tab, auto: 3, tail: 1, delay: 600_000 }));
         const saved = await fx.waitFor((e) => e.tab === tab && e.type === "auto-saved");
         assert.strictEqual(saved.state, "saved", "the page saved its edits");
         const tail = await fx.waitFor((e) => e.tab === tab && e.type === "auto-tail");
@@ -198,7 +209,7 @@ describe.skipIf(!MACOS)("Safari in the iOS Simulator", () => {
         const mark = fx.log.length;
 
         // Opened again: Safari may also reload the tab it had, so the first page to report a restore counts.
-        simctl("openurl", udid, fx.url({ key, tab: `${tab}.reopened` }));
+        openInSafari(fx.url({ key, tab: `${tab}.reopened` }));
         const ready = await fx.waitFor(
             (e) =>
                 e.seq >= mark &&

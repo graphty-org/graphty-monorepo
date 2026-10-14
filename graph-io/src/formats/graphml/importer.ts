@@ -2462,9 +2462,10 @@ class GraphmlReader implements XmlHandler {
      */
     private expandStar(hyperedge: HyperedgeState, where: Where): void {
         this.hyperedgeCount++;
-        let hubId = hyperedge.id ?? `hyperedge${this.hyperedgeCount}`;
+        const baseId = hyperedge.id ?? `hyperedge${this.hyperedgeCount}`;
+        let hubId = baseId;
         for (let n = 2; this.sink.indexOf(hubId) !== INVALID_INDEX; n++) {
-            hubId = `${hyperedge.id ?? `hyperedge${this.hyperedgeCount}`}#${n}`;
+            hubId = `${baseId}#${n}`;
         }
         const hub = this.sink.addNode(hubId);
         this.declared.add(hub);

@@ -571,9 +571,10 @@ export interface StylesApi {
     highlightStyle(target: SelectorTarget): StaticStyle;
     /**
      * What the element draws for a channel when no layer writes it, on the graph as it is now:
-     * the channel's catalog default (`ChannelDescriptor.default`), except where the graph decides
-     * it. An edge's head is the one such channel today: a directed graph draws the catalog's
-     * default head, an undirected graph draws none (`"none"`).
+     * the channel's catalog default (`ChannelDescriptor.default`), else its off value
+     * (`ChannelDescriptor.off`: a label background with no color draws none, `"none"`), except
+     * where the graph decides it. An edge's head is the one such channel today: a directed graph
+     * draws the catalog's default head, an undirected graph draws none (`"none"`).
      *
      * A consumer that shows a reader what an unwritten field gives reads it here rather than from
      * the static catalog, which cannot know the graph.
@@ -582,7 +583,7 @@ export interface StylesApi {
      * session.styles.defaultValue("edge.arrowHead"); // "none" on an undirected graph
      * ```
      * @param channel - The channel.
-     * @returns The value, or undefined for a channel with no default.
+     * @returns The value, or undefined for a channel with neither a default nor an off value.
      */
     defaultValue(channel: Channel): ChannelValue | undefined;
     /**
@@ -3711,7 +3712,9 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             if (channel === "edge.arrowHead" && sources.directed?.() === false) {
                 return "none";
             }
-            return channelDescriptor(channel)?.default;
+            const descriptor = channelDescriptor(channel);
+            // A channel with no default draws its off value, if it has one (an unset text background).
+            return descriptor?.default ?? descriptor?.off;
         },
 
         highlight(spec: HighlightSpec, options: RunOptions = {}): Run<readonly Layer[]> {

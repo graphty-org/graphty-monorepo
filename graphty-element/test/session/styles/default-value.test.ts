@@ -23,4 +23,27 @@ describe("styles.defaultValue", () => {
             session.dispose();
         }
     });
+
+    it("draws no background behind text that has no background color, and a layer may say so", async () => {
+        const { session } = makeSession();
+        await session.data.addNodes([{ id: "a" }]);
+        for (const channel of [
+            "node.labelBackground",
+            "edge.labelBackground",
+            "edge.arrowHeadTextBackground",
+            "edge.arrowTailTextBackground",
+        ] as const) {
+            assert.strictEqual(session.styles.defaultValue(channel), "none", channel);
+            assert.strictEqual(channelDescriptor(channel)?.off, "none", channel);
+        }
+        assert.strictEqual(session.styles.defaultValue("node.tooltipBackground"), "#FFFFFF");
+        const layer = await session.styles.add({
+            name: "No backing",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.labelBackground": "none" },
+        });
+        assert.strictEqual(layer.set?.["node.labelBackground"], "none");
+        session.dispose();
+    });
 });

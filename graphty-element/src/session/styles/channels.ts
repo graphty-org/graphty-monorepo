@@ -416,7 +416,8 @@ export interface ChannelDescriptor {
     readonly unsupportedReason?: string;
     /**
      * The value that draws nothing, on an effect that is off until a layer switches it on: the
-     * outline's and the glow's `"none"`, the animation's 0. Written by a layer, it covers what the
+     * outline's and the glow's `"none"`, the animation's 0, and a text background's `"none"` where
+     * the text has no background color of its own. Written by a layer, it covers what the
      * layers beneath write for that channel, as `LabelStyle.enabled: false` does for a label.
      * Absent on a channel with no such value.
      * @since 3.26.0
@@ -715,7 +716,8 @@ function textLookChannels<Base extends string>(
             channel: `${base}Background` as Channel,
             plainName: `${plainName} Background`,
             shortName: `${shortName} background`,
-            ...(background === undefined ? {} : { default: background }),
+            // With no background color of its own, the text is drawn on nothing: "none" says so.
+            ...(background === undefined ? { off: EFFECT_OFF } : { default: background }),
             accepts: "color",
             stylePath: `${block}.backgroundColor`,
         },

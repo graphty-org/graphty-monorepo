@@ -210,6 +210,7 @@ export default defineConfig({
                         { text: "Saving graphs", link: "/graph-io/guide/saving" },
                         { text: "The import report and errors", link: "/graph-io/guide/report" },
                         { text: "Format detection", link: "/graph-io/guide/detection" },
+                        { text: "Reading stored positions", link: "/graph-io/guide/positions" },
                         { text: "Options reference", link: "/graph-io/guide/options" },
                     ],
                 },

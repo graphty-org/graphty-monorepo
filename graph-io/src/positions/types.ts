@@ -63,7 +63,16 @@ export interface ImporterGroupBox {
     /** The container node, by index. */
     readonly node: number;
     /** The box. */
-    readonly box: { readonly x: number; readonly y: number; readonly width: number; readonly height: number };
+    readonly box: {
+        /** The box's anchor, x. */
+        readonly x: number;
+        /** The box's anchor, y. */
+        readonly y: number;
+        /** The box's width. */
+        readonly width: number;
+        /** The box's height. */
+        readonly height: number;
+    };
 }
 
 /**
@@ -109,9 +118,19 @@ export interface PositionNote {
     /** The condition. */
     readonly code: PositionNoteCode;
     /** How many elements (or columns) it covers, and up to 8 examples. */
-    readonly params: { readonly count: number; readonly samples: readonly string[] };
+    readonly params: {
+        /** How many elements (or columns) it covers. */
+        readonly count: number;
+        /** Up to 8 of their ids (or column names). */
+        readonly samples: readonly string[];
+    };
     /** The node indexes it covers, or only their count when it is about the file as a whole. */
-    readonly elements: readonly number[] | { readonly count: number };
+    readonly elements:
+        | readonly number[]
+        | {
+              /** How many it covers. */
+              readonly count: number;
+          };
     /** graph-io's English; never shown to a reader by graphty-element. */
     readonly message: string;
 }
@@ -124,7 +143,16 @@ export interface FilePositionGroup {
     /** The container node, by index. */
     readonly node: number;
     /** The box: center, width and height in the file's unit. */
-    readonly box: { readonly x: number; readonly y: number; readonly width: number; readonly height: number };
+    readonly box: {
+        /** The box's center, x. */
+        readonly x: number;
+        /** The box's center, y. */
+        readonly y: number;
+        /** The box's width. */
+        readonly width: number;
+        /** The box's height. */
+        readonly height: number;
+    };
 }
 
 /**
@@ -136,7 +164,14 @@ export interface FilePositions {
     /** The shape version of this object. */
     readonly version: 1;
     /** Where the coordinates came from: the format, the tool that wrote the file, and the y direction it used. */
-    readonly source: { readonly format: string; readonly tool: GraphTool | null; readonly yAxis: YAxis };
+    readonly source: {
+        /** The format that read the file. */
+        readonly format: string;
+        /** The tool that wrote the file, or null when the file does not say. */
+        readonly tool: GraphTool | null;
+        /** Which way y grew in the file; every coordinate here has y up. */
+        readonly yAxis: YAxis;
+    };
     /** The unit of every coordinate and size. */
     readonly units: LengthUnit;
     /** The median node diameter, in `units`, when the file stores node sizes; else null. */
@@ -153,7 +188,9 @@ export interface FilePositions {
     readonly usable: boolean;
     /** The box around every placed node, or null when none is placed. */
     readonly bounds: {
+        /** The smallest x, y and z. */
         readonly min: readonly [number, number, number];
+        /** The largest x, y and z. */
         readonly max: readonly [number, number, number];
     } | null;
     /** Group containers with a box. */

@@ -95,12 +95,14 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# The affected projects, as nx names them. The base is where this branch left origin/master,
-# so commits other people landed on master since then do not count as this push's changes.
+# The affected projects, as nx names them. The base is where this branch left the branch it merges
+# into (tools/push-base.mjs: origin/master, or the parent branch of a stacked pull request), so
+# commits other people landed there since then do not count as this push's changes.
 if [ "${PREPUSH_ALL:-0}" = "1" ]; then
     PROJECTS=$(NX_DAEMON=false pnpm exec nx show projects --json 2>/dev/null)
 else
-    BASE=$(git merge-base origin/master HEAD)
+    PUSH_BASE_REF=${PUSH_BASE_REF:-$(node "$SCRIPT_DIR/push-base.mjs")} && export PUSH_BASE_REF
+    BASE=$(git merge-base "$PUSH_BASE_REF" HEAD)
     PROJECTS=$(NX_DAEMON=false pnpm exec nx show projects --affected --base="$BASE" --head=HEAD --json 2>/dev/null)
 fi
 # An empty answer is nx (or the pnpm in front of it) cut short, not "nothing affected", which is "[]".
@@ -143,9 +145,7 @@ for p in $(NX_DAEMON=false pnpm exec nx show projects --with-target build --json
     { affected "$p" || [ ! -d "${p#@graphty/}/dist" ]; } && BUILD_LIST="$BUILD_LIST,$p"
 done
 BUILD_LIST="${BUILD_LIST#,}"
-# The same 8 GB heap as CI's build steps: the graphty app's build, sourcemaps included, outgrows
-# Node's default heap since it bundles @mlc-ai/web-llm as a lazy chunk.
-[ -n "$BUILD_LIST" ] && run_step "Build" "NODE_OPTIONS=--max-old-space-size=8192 pnpm exec nx run-many -t build --projects=$BUILD_LIST --parallel=3"
+[ -n "$BUILD_LIST" ] && run_step "Build" "pnpm exec nx run-many -t build --projects=$BUILD_LIST --parallel=3"
 
 # webgpu-graph-algorithms: its lint runs the strict-consumer compile against the d.ts shims that only
 # build:bundle writes (tsc emits none; the package has no root entry file), so bundle it before Lint

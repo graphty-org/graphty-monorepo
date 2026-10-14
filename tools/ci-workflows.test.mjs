@@ -628,7 +628,9 @@ exec ${realGit} "$@"
             .map((l) => l.trim())
             .filter((l) => l && !l.startsWith("#!"));
         assert.equal(commands[0], 'GATE_DIR="$(cd "$(dirname "$0")/.." && pwd)"');
-        assert.equal(commands[1], '"$GATE_DIR/tools/lfs-pre-push.sh" "$@" || exit 1');
+        // git's ref lines are read once: the LFS upload gets them, and the remote sha is kept.
+        assert.equal(commands[1], "PUSH_REFS=$(cat)");
+        assert.equal(commands[2], `printf '%s\\n' "$PUSH_REFS" | "$GATE_DIR/tools/lfs-pre-push.sh" "$@" || exit 1`);
     });
 });
 

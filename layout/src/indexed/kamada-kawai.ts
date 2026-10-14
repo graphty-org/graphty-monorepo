@@ -1,4 +1,4 @@
-import { expandEdges, type F32, type GraphSnapshot, type NumericVector } from "@graphty/graph-format";
+import { detCos, detSin, expandEdges, type F32, type GraphSnapshot, type NumericVector } from "@graphty/graph-format";
 
 import { _kamadaKawaiSolve } from "../algorithms/optimization/index.js";
 import { type LayoutResult, rescaleInPlace } from "../positions.js";
@@ -6,7 +6,6 @@ import { resolveWeights } from "../simulation/inputs.js";
 import { seedPositions } from "../simulation/seed.js";
 import { toLayoutSnapshot } from "../simulation/snapshot.js";
 import type { CommonLayoutOptions } from "../simulation/types.js";
-import { detCos, detSin } from "../utils/det-math.js";
 import { np } from "../utils/numpy.js";
 import { refusal } from "./common.js";
 import { layoutDim } from "./start.js";

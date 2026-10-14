@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { createGitHub } from "../lib/github.mjs";
 import {
     BATCH_MS,
+    droppableItems,
     endItem,
     isPresent,
     itemText,
@@ -57,6 +58,55 @@ describe("owner item records", () => {
             "Q? Options: a (undo: a revert)",
         );
         expect(itemText({ question: "Q?" })).toBe("Q?");
+    });
+});
+
+describe("dropping ended owner items", () => {
+    const ids = (/** @type {any} */ state) => droppableItems(state).map((i) => i.id);
+
+    it("drops an ended item, never an open one", () => {
+        const state = {};
+        raiseItem(state, GPU, at(0));
+        raiseItem(state, { ...GPU, id: "other" }, at(0));
+        endItem(state, "other", "cleared", at(MIN));
+        expect(ids(state)).toEqual(["other"]);
+    });
+
+    it("keeps an ended item while a job is parked on it, so its answer reaches the job", () => {
+        const state = { jobs: { j: { id: "j", state: "parked", waitingFor: { owner: "ask-j" } } } };
+        raiseItem(state, { id: "ask-j", kind: "decision", question: "Q?" }, at(0));
+        endItem(state, "ask-j", "comment", at(MIN));
+        expect(ids(state)).toEqual([]);
+        state.jobs.j.state = "working";
+        expect(ids(state)).toEqual(["ask-j"]);
+    });
+
+    it("keeps an ended item until its needs-decision label is off, unless the owner removed it", () => {
+        const state = {};
+        raiseItem(state, VISUAL, at(0));
+        state.ownerItems["visual-412"].github = { text: "t", performed: true, at: "x", labeled: true };
+        endItem(state, "visual-412", "comment", at(MIN));
+        expect(ids(state)).toEqual([]);
+        state.ownerItems["visual-412"].github.unlabeled = true;
+        expect(ids(state)).toEqual(["visual-412"]);
+        state.ownerItems["visual-412"].github.unlabeled = false;
+        state.ownerItems["visual-412"].endedBy = "label-removed";
+        expect(ids(state)).toEqual(["visual-412"]);
+    });
+
+    it("keeps an answered parked-lane, balance or untrusted-critical item until its condition clears", () => {
+        const state = {};
+        for (const id of ["paid-capacity:gpu", "runner-balance:GPU / T4", "untrusted-critical:pr:9", "ask-x"]) {
+            raiseItem(state, { id, kind: "money", question: "Q?" }, at(0));
+            endItem(state, id, "record", at(MIN));
+        }
+        expect(ids(state)).toEqual(["ask-x"]);
+        expect(endItem(state, "paid-capacity:gpu", "cleared", at(2 * MIN))).toBe(false);
+        expect(state.ownerItems["paid-capacity:gpu"]).toMatchObject({
+            endedBy: "record",
+            clearedAt: at(2 * MIN).toISOString(),
+        });
+        expect(ids(state)).toEqual(["paid-capacity:gpu", "ask-x"]);
     });
 });
 

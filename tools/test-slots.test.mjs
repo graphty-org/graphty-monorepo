@@ -77,6 +77,47 @@ describe("test-slots", () => {
         assert.equal(await settled(second), true);
     });
 
+    it("waits out a full file table (ENFILE, EMFILE) while reading the tickets instead of crashing, and gives up after a bound", async () => {
+        const dir = fresh();
+        const full = (code) => Object.assign(new Error(code), { code });
+        let fails = 2;
+        const lines = [];
+        const flaky = (d) => {
+            if (fails-- > 0) {
+                throw full(fails ? "ENFILE" : "EMFILE");
+            }
+            return liveTickets(d);
+        };
+        const release = await acquire({
+            ...quiet,
+            dir,
+            slots: 1,
+            label: "run",
+            list: flaky,
+            log: (l) => lines.push(l),
+        });
+        assert.deepEqual(
+            liveTickets(dir).map((t) => t.label),
+            ["run"],
+            "the slot is taken once handles are free",
+        );
+        assert.equal(lines.length, 1, "one line says what it waits on");
+        assert.match(lines[0], /no free file handle \(ENFILE\)/);
+        release();
+        const never = () => {
+            throw full("ENFILE");
+        };
+        await assert.rejects(acquire({ ...quiet, dir: fresh(), slots: 1, label: "run", list: never }), {
+            code: "ENFILE",
+        });
+        const broken = () => {
+            throw full("EACCES");
+        };
+        await assert.rejects(acquire({ ...quiet, dir: fresh(), slots: 1, label: "run", list: broken }), {
+            code: "EACCES",
+        });
+    });
+
     it("reclaims the slot of a run that was killed without giving it back", async () => {
         const dir = fresh();
         const [doomed, waiter] = [sleeper(), sleeper()];

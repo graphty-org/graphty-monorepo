@@ -153,7 +153,7 @@ describe("label entries on the real element", () => {
             ["Label", "Tooltip"],
             "the Text menu lists both kinds of node text",
         );
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Label/ }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: /^Label(?! at )/ }));
         // Nothing is written before a source is picked.
         assert.isUndefined(writer(session, "node.label"));
         const list = await findValuePicker();
@@ -225,7 +225,7 @@ describe("label entries on the real element", () => {
         const { session, element } = await openWithGraph();
         await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
         await userEvent.click(within(textList()).getByRole("button", { name: "Add to node text" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Label/ }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: /^Label(?! at )/ }));
         await userEvent.click(within(await findValuePicker()).getByRole("option", { name: "name" }));
         await waitFor(
             () => {
@@ -278,7 +278,7 @@ describe("label entries on the real element", () => {
         await session.styles.settled();
         await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
         await userEvent.click(within(textList()).getByRole("button", { name: "Add to node text" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Label/ }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: /^Label(?! at )/ }));
         await userEvent.click(within(await findValuePicker()).getByRole("option", { name: "name" }));
         await waitFor(() => {
             assert.isDefined(writer(session, "node.label"));
@@ -348,7 +348,7 @@ describe("label entries on the real element", () => {
         const { session, element } = await openWithGraph();
         await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
         await userEvent.click(within(textList()).getByRole("button", { name: "Add to node text" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Label/ }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: /^Label(?! at )/ }));
         const list = await findValuePicker();
         await userEvent.click(within(list).getByRole("option", { name: "Fixed text" }));
         const field = await within(textList()).findByRole("textbox", { name: "Node label text" });
@@ -372,7 +372,7 @@ describe("label entries on the real element", () => {
         const { session } = await openWithGraph();
         await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
         await userEvent.click(within(edgeTextList()).getByRole("button", { name: "Add to edge text" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Label/ }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: /^Label(?! at )/ }));
         await userEvent.click(within(await findValuePicker()).getByRole("option", { name: "Fixed text" }));
         await within(edgeTextList()).findByRole("textbox", { name: "Edge label text" });
         await userEvent.keyboard("Bob{Enter}");
@@ -403,7 +403,7 @@ describe("label entries on the real element", () => {
         const { session, element } = await openWithGraph();
         await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
         await userEvent.click(within(textList()).getByRole("button", { name: "Add to node text" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Label/ }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: /^Label(?! at )/ }));
         await userEvent.click(within(await findValuePicker()).getByRole("option", { name: "score" }));
         await waitFor(
             () => {
@@ -423,7 +423,7 @@ describe("label entries on the real element", () => {
         await openWithGraph();
         await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
         await userEvent.click(within(textList()).getByRole("button", { name: "Add to node text" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Label/ }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: /^Label(?! at )/ }));
         await userEvent.click(within(await findValuePicker()).getByRole("option", { name: "name" }));
         const button = await within(textList()).findByRole(
             "button",

@@ -103,7 +103,7 @@ describe("labels from an attribute (task T10) on the real element", () => {
         }
         const text = within(nodes).getByRole("group", { name: "Node text" });
         await userEvent.click(within(text).getByRole("button", { name: "Add to node text" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Label/ }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: /^Label(?! at )/ }));
         const list = await findValuePicker();
         await userEvent.click(within(list).getByRole("option", { name: "name" }));
 

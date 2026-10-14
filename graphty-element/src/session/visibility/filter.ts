@@ -55,6 +55,7 @@ import type {
 } from "../../catalog/types";
 import { rowOfEitherSpelling } from "../../data/nodeIdSpelling";
 import { GraphtyError } from "../../errors";
+import { quoteEach } from "../../utils/quote-each";
 import { rankEntries, topOfRanking } from "../results/statistics";
 import { type ComponentLabels, edgeSpaceOf, type ElementMask } from "../scope/index";
 import {
@@ -324,7 +325,7 @@ function outOfRange(message: string, details: Readonly<Record<string, unknown>>)
  */
 function readsItself(through: readonly ChainStep[]): GraphtyError {
     return malformed(
-        `This filter reads ${through.map((step) => `"${step}"`).join(" through ")}, which is what the visibility ` +
+        `This filter reads ${quoteEach(through, " through ")}, which is what the visibility ` +
             "filter computes, so it would depend on itself. Create a set from the current members instead.",
         { reason: "cycle", through },
     );

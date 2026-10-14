@@ -3,6 +3,7 @@
  * @module ai/schema/SchemaFormatter
  */
 
+import { quoteEach } from "../../utils/quote-each";
 import type { PropertySummary, SchemaSummary } from "./types";
 
 /**
@@ -156,7 +157,7 @@ function formatEnumValues(values: string[]): string {
     const displayed = values.slice(0, MAX_ENUM_VALUES_DISPLAYED);
     const remaining = values.length - MAX_ENUM_VALUES_DISPLAYED;
 
-    return `${displayed.map((v) => `"${v}"`).join(", ")}, ... +${remaining} more`;
+    return `${quoteEach(displayed, ", ")}, ... +${remaining} more`;
 }
 
 /**

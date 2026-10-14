@@ -286,16 +286,18 @@ void main() {
         const lineType = style.line?.type ?? "solid";
         const key = `edge-style-${options.styleId}`;
         const staticLine = (): Mesh => this.createStaticLine(options, style, scene, cache);
+        const curve = style.line?.bezier === true;
 
-        if (style.line?.bezier) {
-            return cache.getBatch(key, staticLine, scene);
-        }
-
-        if (PATTERNED_TYPES.has(lineType)) {
+        if (!curve && PATTERNED_TYPES.has(lineType)) {
             return null;
         }
 
-        if (lineType === "solid" && this.is2DMode(scene)) {
+        // A 2D CURVE IS A RUN OF FLAT RECTANGLES, like a straight 2D line (#125). It used to be
+        // a run of slots in the 3D line batch, whose width is screen pixels -- `width * 20` -- so
+        // under the 2D camera a curve drew ten pixels per unit of `line.width` at every zoom,
+        // while the straight edge beside it drew `width / 40` world units: dense curved graphs
+        // turned into wide hatched bands next to hairline straight edges.
+        if ((curve || lineType === "solid") && this.is2DMode(scene)) {
             return cache.getBatch(
                 `${key}-2d`,
                 () =>
@@ -309,7 +311,7 @@ void main() {
             );
         }
 
-        if (style.line?.animationSpeed) {
+        if (!curve && style.line?.animationSpeed) {
             return cache.getBatch(key, () => this.createAnimatedLine(options, style, scene), scene);
         }
 

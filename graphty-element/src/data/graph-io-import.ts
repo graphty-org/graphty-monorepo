@@ -542,6 +542,22 @@ export function copyColumns(table: AttributeTable, row: number, record: Record<s
 }
 
 /**
+ * Write a node row's position (the column with role `position`) onto its record as
+ * `position: { x, y, z }`, the shape every data source hands the element and
+ * `readSeedPosition` reads. Call it before {@link copyColumns}, which then leaves the key alone.
+ * @param table - the node table
+ * @param row - the row
+ * @param record - receives the position
+ */
+export function copyPosition(table: AttributeTable, row: number, record: Record<string, unknown>): void {
+    const column = table.byRole("position");
+    if (column?.isSet(row) === true) {
+        const [x, y, z] = components(column, row);
+        record.position = { x, y, z };
+    }
+}
+
+/**
  * Rebuild the element's node and edge records from an imported graph.
  *
  * Only declared nodes become records, in declaration order. Each logical edge of the file becomes one record: when the importer expanded an edge into
@@ -594,13 +610,19 @@ export function toRecords(imported: ImportedGraph, mapping: RecordMapping): { no
 }
 
 /**
- * The mapping that keeps every attribute under its own name and adds nothing (see {@link copyColumns}).
+ * The mapping that keeps every attribute under its own name (see {@link copyColumns}).
  * @param snapshot - the imported graph
+ * @param positions - also give each node its position as `position: { x, y, z }` (see
+ *     {@link copyPosition}); otherwise nothing is added
  * @returns the mapping
  */
-export function columnsMapping(snapshot: GraphSnapshot): RecordMapping {
+export function columnsMapping(snapshot: GraphSnapshot, positions = false): RecordMapping {
     return {
         node: (row, record) => {
+            if (positions) {
+                copyPosition(snapshot.nodes, row, record);
+            }
+
             copyColumns(snapshot.nodes, row, record);
         },
         edge: (row, record) => {

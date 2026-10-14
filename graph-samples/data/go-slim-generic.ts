@@ -2,7 +2,7 @@
 // Source: https://release.geneontology.org/2026-08-05/ontology/subsets/goslim_generic.obo
 // sha256: a28d9dd0364e39a6dc926599bd628c524d3c389017b5398642c8cf2484d9f111
 
-import { type DatasetData } from "../build.js";
+import { type DatasetData } from "./build.js";
 
 export const DATA: DatasetData = {
     directed: true,

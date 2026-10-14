@@ -2,7 +2,7 @@
 // Source: https://www.ndexbio.org/v3/networks/72288e93-5c67-11ec-b3be-0ac135e8bacf
 // sha256: 0aa7058d667a6e4a8431f08990cc7b34acc442d8f3750cab9c9e14313d5c06fc
 
-import { type DatasetData } from "../build.js";
+import { type DatasetData } from "./build.js";
 
 export const DATA: DatasetData = {
     directed: true,

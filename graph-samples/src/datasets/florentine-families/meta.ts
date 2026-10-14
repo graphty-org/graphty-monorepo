@@ -1,4 +1,5 @@
 import { type DatasetMeta } from "../build.js";
+import { PACKED } from "../packed.js";
 
 /** What the florentineFamilies dataset is, where it came from and under which terms. */
 export const florentineFamiliesMeta: DatasetMeta = {
@@ -17,4 +18,6 @@ export const florentineFamiliesMeta: DatasetMeta = {
     attributes: {},
     groundTruth: null,
     showcases: ["betweenness and closeness centrality (the Medici)", "shortest paths", "circular and shell layouts"],
+    hosting: "remote",
+    ...PACKED["florentine-families"],
 };

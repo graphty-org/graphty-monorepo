@@ -1,0 +1,3162 @@
+{
+    "\"a,b\\na,b\"": {
+        "records": [
+            [1, ["a,b"], [false]],
+            [2, ["a,b"], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"a,b\\r\\na,b\"": {
+        "records": [
+            [1, ["a,b"], [false]],
+            [2, ["a,b"], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"a,b\\na;b c\"": {
+        "records": [
+            [1, ["a,b"], [false]],
+            [2, ["a", "b c"], [false, false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"a,b\\r\\na;b c\"": {
+        "records": [
+            [1, ["a,b"], [false]],
+            [2, ["a", "b c"], [false, false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"a,b\\n\\\"q,1\\\"\"": {
+        "records": [
+            [1, ["a,b"], [false]],
+            [2, ["q,1"], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"a,b\\r\\n\\\"q,1\\\"\"": {
+        "records": [
+            [1, ["a,b"], [false]],
+            [2, ["q,1"], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"a,b\\n\\\"a\\\"\\\"b\\\"\"": {
+        "records": [
+            [1, ["a,b"], [false]],
+            [2, ["a\"b"], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"a,b\\r\\n\\\"a\\\"\\\"b\\\"\"": {
+        "records": [
+            [1, ["a,b"], [false]],
+            [2, ["a\"b"], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"a,b\\n\\\"\\\"\"": {
+        "records": [
+            [1, ["a,b"], [false]],
+            [2, [""], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"a,b\\r\\n\\\"\\\"\"": {
+        "records": [
+            [1, ["a,b"], [false]],
+            [2, [""], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"a,b\\n\\\"x\\\"y\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 2,
+        "records": [[1, ["a,b"], [false]]]
+    },
+    "\"a,b\\r\\n\\\"x\\\"y\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 2,
+        "records": [[1, ["a,b"], [false]]]
+    },
+    "\"a,b\\na\\\"b\"": {
+        "records": [
+            [1, ["a,b"], [false]],
+            [2, ["a\"b"], [false]]
+        ],
+        "comments": [],
+        "stray": 2
+    },
+    "\"a,b\\r\\na\\\"b\"": {
+        "records": [
+            [1, ["a,b"], [false]],
+            [2, ["a\"b"], [false]]
+        ],
+        "comments": [],
+        "stray": 2
+    },
+    "\"a,b\\n  a \\t b \"": {
+        "records": [
+            [1, ["a,b"], [false]],
+            [2, ["  a \t b "], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"a,b\\r\\n  a \\t b \"": {
+        "records": [
+            [1, ["a,b"], [false]],
+            [2, ["  a \t b "], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"a,b\\n,,\"": {
+        "records": [
+            [1, ["a,b"], [false]],
+            [2, [",,"], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"a,b\\r\\n,,\"": {
+        "records": [
+            [1, ["a,b"], [false]],
+            [2, [",,"], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"a,b\\n#c\"": {
+        "records": [
+            [1, ["a,b"], [false]],
+            [2, ["#c"], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"a,b\\r\\n#c\"": {
+        "records": [
+            [1, ["a,b"], [false]],
+            [2, ["#c"], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"a,b\\n\\\"l\\r\\nm\\\"\"": {
+        "records": [
+            [1, ["a,b"], [false]],
+            [2, ["l\r\nm"], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"a,b\\r\\n\\\"l\\r\\nm\\\"\"": {
+        "records": [
+            [1, ["a,b"], [false]],
+            [2, ["l\r\nm"], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"a,b\\n\\n\"": {
+        "records": [[1, ["a,b"], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"a,b\\r\\n\\n\"": {
+        "records": [[1, ["a,b"], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"a,b\\n\\r\\n\"": {
+        "records": [[1, ["a,b"], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"a,b\\r\\n\\r\\n\"": {
+        "records": [[1, ["a,b"], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"a,b\\n\\r\"": {
+        "records": [[1, ["a,b"], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"a,b\\r\\n\\r\"": {
+        "records": [[1, ["a,b"], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"a,b\\n\\r\\r\\n\\n\"": {
+        "records": [[1, ["a,b"], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"a,b\\r\\n\\r\\r\\n\\n\"": {
+        "records": [[1, ["a,b"], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"a,b\\n\\\"open\"": {
+        "error": "E_CSV_UNCLOSED_QUOTE",
+        "line": 2,
+        "records": [[1, ["a,b"], [false]]]
+    },
+    "\"a,b\\r\\n\\\"open\"": {
+        "error": "E_CSV_UNCLOSED_QUOTE",
+        "line": 2,
+        "records": [[1, ["a,b"], [false]]]
+    },
+    "\"a;b c\\na,b\"": {
+        "records": [
+            [1, ["a", "b c"], [false, false]],
+            [2, ["a,b"], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"a;b c\\r\\na,b\"": {
+        "records": [
+            [1, ["a", "b c"], [false, false]],
+            [2, ["a,b"], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"a;b c\\na;b c\"": {
+        "records": [
+            [1, ["a", "b c"], [false, false]],
+            [2, ["a", "b c"], [false, false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"a;b c\\r\\na;b c\"": {
+        "records": [
+            [1, ["a", "b c"], [false, false]],
+            [2, ["a", "b c"], [false, false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"a;b c\\n\\\"q,1\\\"\"": {
+        "records": [
+            [1, ["a", "b c"], [false, false]],
+            [2, ["q,1"], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"a;b c\\r\\n\\\"q,1\\\"\"": {
+        "records": [
+            [1, ["a", "b c"], [false, false]],
+            [2, ["q,1"], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"a;b c\\n\\\"a\\\"\\\"b\\\"\"": {
+        "records": [
+            [1, ["a", "b c"], [false, false]],
+            [2, ["a\"b"], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"a;b c\\r\\n\\\"a\\\"\\\"b\\\"\"": {
+        "records": [
+            [1, ["a", "b c"], [false, false]],
+            [2, ["a\"b"], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"a;b c\\n\\\"\\\"\"": {
+        "records": [
+            [1, ["a", "b c"], [false, false]],
+            [2, [""], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"a;b c\\r\\n\\\"\\\"\"": {
+        "records": [
+            [1, ["a", "b c"], [false, false]],
+            [2, [""], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"a;b c\\n\\\"x\\\"y\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 2,
+        "records": [[1, ["a", "b c"], [false, false]]]
+    },
+    "\"a;b c\\r\\n\\\"x\\\"y\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 2,
+        "records": [[1, ["a", "b c"], [false, false]]]
+    },
+    "\"a;b c\\na\\\"b\"": {
+        "records": [
+            [1, ["a", "b c"], [false, false]],
+            [2, ["a\"b"], [false]]
+        ],
+        "comments": [],
+        "stray": 2
+    },
+    "\"a;b c\\r\\na\\\"b\"": {
+        "records": [
+            [1, ["a", "b c"], [false, false]],
+            [2, ["a\"b"], [false]]
+        ],
+        "comments": [],
+        "stray": 2
+    },
+    "\"a;b c\\n  a \\t b \"": {
+        "records": [
+            [1, ["a", "b c"], [false, false]],
+            [2, ["  a \t b "], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"a;b c\\r\\n  a \\t b \"": {
+        "records": [
+            [1, ["a", "b c"], [false, false]],
+            [2, ["  a \t b "], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"a;b c\\n,,\"": {
+        "records": [
+            [1, ["a", "b c"], [false, false]],
+            [2, [",,"], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"a;b c\\r\\n,,\"": {
+        "records": [
+            [1, ["a", "b c"], [false, false]],
+            [2, [",,"], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"a;b c\\n#c\"": {
+        "records": [
+            [1, ["a", "b c"], [false, false]],
+            [2, ["#c"], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"a;b c\\r\\n#c\"": {
+        "records": [
+            [1, ["a", "b c"], [false, false]],
+            [2, ["#c"], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"a;b c\\n\\\"l\\r\\nm\\\"\"": {
+        "records": [
+            [1, ["a", "b c"], [false, false]],
+            [2, ["l\r\nm"], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"a;b c\\r\\n\\\"l\\r\\nm\\\"\"": {
+        "records": [
+            [1, ["a", "b c"], [false, false]],
+            [2, ["l\r\nm"], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"a;b c\\n\\n\"": {
+        "records": [[1, ["a", "b c"], [false, false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"a;b c\\r\\n\\n\"": {
+        "records": [[1, ["a", "b c"], [false, false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"a;b c\\n\\r\\n\"": {
+        "records": [[1, ["a", "b c"], [false, false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"a;b c\\r\\n\\r\\n\"": {
+        "records": [[1, ["a", "b c"], [false, false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"a;b c\\n\\r\"": {
+        "records": [[1, ["a", "b c"], [false, false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"a;b c\\r\\n\\r\"": {
+        "records": [[1, ["a", "b c"], [false, false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"a;b c\\n\\r\\r\\n\\n\"": {
+        "records": [[1, ["a", "b c"], [false, false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"a;b c\\r\\n\\r\\r\\n\\n\"": {
+        "records": [[1, ["a", "b c"], [false, false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"a;b c\\n\\\"open\"": {
+        "error": "E_CSV_UNCLOSED_QUOTE",
+        "line": 2,
+        "records": [[1, ["a", "b c"], [false, false]]]
+    },
+    "\"a;b c\\r\\n\\\"open\"": {
+        "error": "E_CSV_UNCLOSED_QUOTE",
+        "line": 2,
+        "records": [[1, ["a", "b c"], [false, false]]]
+    },
+    "\"\\\"q,1\\\"\\na,b\"": {
+        "records": [
+            [1, ["q,1"], [true]],
+            [2, ["a,b"], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"q,1\\\"\\r\\na,b\"": {
+        "records": [
+            [1, ["q,1"], [true]],
+            [2, ["a,b"], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"q,1\\\"\\na;b c\"": {
+        "records": [
+            [1, ["q,1"], [true]],
+            [2, ["a", "b c"], [false, false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"q,1\\\"\\r\\na;b c\"": {
+        "records": [
+            [1, ["q,1"], [true]],
+            [2, ["a", "b c"], [false, false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"q,1\\\"\\n\\\"q,1\\\"\"": {
+        "records": [
+            [1, ["q,1"], [true]],
+            [2, ["q,1"], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"q,1\\\"\\r\\n\\\"q,1\\\"\"": {
+        "records": [
+            [1, ["q,1"], [true]],
+            [2, ["q,1"], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"q,1\\\"\\n\\\"a\\\"\\\"b\\\"\"": {
+        "records": [
+            [1, ["q,1"], [true]],
+            [2, ["a\"b"], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"q,1\\\"\\r\\n\\\"a\\\"\\\"b\\\"\"": {
+        "records": [
+            [1, ["q,1"], [true]],
+            [2, ["a\"b"], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"q,1\\\"\\n\\\"\\\"\"": {
+        "records": [
+            [1, ["q,1"], [true]],
+            [2, [""], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"q,1\\\"\\r\\n\\\"\\\"\"": {
+        "records": [
+            [1, ["q,1"], [true]],
+            [2, [""], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"q,1\\\"\\n\\\"x\\\"y\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 2,
+        "records": [[1, ["q,1"], [true]]]
+    },
+    "\"\\\"q,1\\\"\\r\\n\\\"x\\\"y\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 2,
+        "records": [[1, ["q,1"], [true]]]
+    },
+    "\"\\\"q,1\\\"\\na\\\"b\"": {
+        "records": [
+            [1, ["q,1"], [true]],
+            [2, ["a\"b"], [false]]
+        ],
+        "comments": [],
+        "stray": 2
+    },
+    "\"\\\"q,1\\\"\\r\\na\\\"b\"": {
+        "records": [
+            [1, ["q,1"], [true]],
+            [2, ["a\"b"], [false]]
+        ],
+        "comments": [],
+        "stray": 2
+    },
+    "\"\\\"q,1\\\"\\n  a \\t b \"": {
+        "records": [
+            [1, ["q,1"], [true]],
+            [2, ["  a \t b "], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"q,1\\\"\\r\\n  a \\t b \"": {
+        "records": [
+            [1, ["q,1"], [true]],
+            [2, ["  a \t b "], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"q,1\\\"\\n,,\"": {
+        "records": [
+            [1, ["q,1"], [true]],
+            [2, [",,"], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"q,1\\\"\\r\\n,,\"": {
+        "records": [
+            [1, ["q,1"], [true]],
+            [2, [",,"], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"q,1\\\"\\n#c\"": {
+        "records": [
+            [1, ["q,1"], [true]],
+            [2, ["#c"], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"q,1\\\"\\r\\n#c\"": {
+        "records": [
+            [1, ["q,1"], [true]],
+            [2, ["#c"], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"q,1\\\"\\n\\\"l\\r\\nm\\\"\"": {
+        "records": [
+            [1, ["q,1"], [true]],
+            [2, ["l\r\nm"], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"q,1\\\"\\r\\n\\\"l\\r\\nm\\\"\"": {
+        "records": [
+            [1, ["q,1"], [true]],
+            [2, ["l\r\nm"], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"q,1\\\"\\n\\n\"": {
+        "records": [[1, ["q,1"], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"q,1\\\"\\r\\n\\n\"": {
+        "records": [[1, ["q,1"], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"q,1\\\"\\n\\r\\n\"": {
+        "records": [[1, ["q,1"], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"q,1\\\"\\r\\n\\r\\n\"": {
+        "records": [[1, ["q,1"], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"q,1\\\"\\n\\r\"": {
+        "records": [[1, ["q,1"], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"q,1\\\"\\r\\n\\r\"": {
+        "records": [[1, ["q,1"], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"q,1\\\"\\n\\r\\r\\n\\n\"": {
+        "records": [[1, ["q,1"], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"q,1\\\"\\r\\n\\r\\r\\n\\n\"": {
+        "records": [[1, ["q,1"], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"q,1\\\"\\n\\\"open\"": {
+        "error": "E_CSV_UNCLOSED_QUOTE",
+        "line": 2,
+        "records": [[1, ["q,1"], [true]]]
+    },
+    "\"\\\"q,1\\\"\\r\\n\\\"open\"": {
+        "error": "E_CSV_UNCLOSED_QUOTE",
+        "line": 2,
+        "records": [[1, ["q,1"], [true]]]
+    },
+    "\"\\\"a\\\"\\\"b\\\"\\na,b\"": {
+        "records": [
+            [1, ["a\"b"], [true]],
+            [2, ["a,b"], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"a\\\"\\\"b\\\"\\r\\na,b\"": {
+        "records": [
+            [1, ["a\"b"], [true]],
+            [2, ["a,b"], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"a\\\"\\\"b\\\"\\na;b c\"": {
+        "records": [
+            [1, ["a\"b"], [true]],
+            [2, ["a", "b c"], [false, false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"a\\\"\\\"b\\\"\\r\\na;b c\"": {
+        "records": [
+            [1, ["a\"b"], [true]],
+            [2, ["a", "b c"], [false, false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"a\\\"\\\"b\\\"\\n\\\"q,1\\\"\"": {
+        "records": [
+            [1, ["a\"b"], [true]],
+            [2, ["q,1"], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"a\\\"\\\"b\\\"\\r\\n\\\"q,1\\\"\"": {
+        "records": [
+            [1, ["a\"b"], [true]],
+            [2, ["q,1"], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"a\\\"\\\"b\\\"\\n\\\"a\\\"\\\"b\\\"\"": {
+        "records": [
+            [1, ["a\"b"], [true]],
+            [2, ["a\"b"], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"a\\\"\\\"b\\\"\\r\\n\\\"a\\\"\\\"b\\\"\"": {
+        "records": [
+            [1, ["a\"b"], [true]],
+            [2, ["a\"b"], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"a\\\"\\\"b\\\"\\n\\\"\\\"\"": {
+        "records": [
+            [1, ["a\"b"], [true]],
+            [2, [""], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"a\\\"\\\"b\\\"\\r\\n\\\"\\\"\"": {
+        "records": [
+            [1, ["a\"b"], [true]],
+            [2, [""], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"a\\\"\\\"b\\\"\\n\\\"x\\\"y\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 2,
+        "records": [[1, ["a\"b"], [true]]]
+    },
+    "\"\\\"a\\\"\\\"b\\\"\\r\\n\\\"x\\\"y\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 2,
+        "records": [[1, ["a\"b"], [true]]]
+    },
+    "\"\\\"a\\\"\\\"b\\\"\\na\\\"b\"": {
+        "records": [
+            [1, ["a\"b"], [true]],
+            [2, ["a\"b"], [false]]
+        ],
+        "comments": [],
+        "stray": 2
+    },
+    "\"\\\"a\\\"\\\"b\\\"\\r\\na\\\"b\"": {
+        "records": [
+            [1, ["a\"b"], [true]],
+            [2, ["a\"b"], [false]]
+        ],
+        "comments": [],
+        "stray": 2
+    },
+    "\"\\\"a\\\"\\\"b\\\"\\n  a \\t b \"": {
+        "records": [
+            [1, ["a\"b"], [true]],
+            [2, ["  a \t b "], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"a\\\"\\\"b\\\"\\r\\n  a \\t b \"": {
+        "records": [
+            [1, ["a\"b"], [true]],
+            [2, ["  a \t b "], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"a\\\"\\\"b\\\"\\n,,\"": {
+        "records": [
+            [1, ["a\"b"], [true]],
+            [2, [",,"], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"a\\\"\\\"b\\\"\\r\\n,,\"": {
+        "records": [
+            [1, ["a\"b"], [true]],
+            [2, [",,"], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"a\\\"\\\"b\\\"\\n#c\"": {
+        "records": [
+            [1, ["a\"b"], [true]],
+            [2, ["#c"], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"a\\\"\\\"b\\\"\\r\\n#c\"": {
+        "records": [
+            [1, ["a\"b"], [true]],
+            [2, ["#c"], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"a\\\"\\\"b\\\"\\n\\\"l\\r\\nm\\\"\"": {
+        "records": [
+            [1, ["a\"b"], [true]],
+            [2, ["l\r\nm"], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"a\\\"\\\"b\\\"\\r\\n\\\"l\\r\\nm\\\"\"": {
+        "records": [
+            [1, ["a\"b"], [true]],
+            [2, ["l\r\nm"], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"a\\\"\\\"b\\\"\\n\\n\"": {
+        "records": [[1, ["a\"b"], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"a\\\"\\\"b\\\"\\r\\n\\n\"": {
+        "records": [[1, ["a\"b"], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"a\\\"\\\"b\\\"\\n\\r\\n\"": {
+        "records": [[1, ["a\"b"], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"a\\\"\\\"b\\\"\\r\\n\\r\\n\"": {
+        "records": [[1, ["a\"b"], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"a\\\"\\\"b\\\"\\n\\r\"": {
+        "records": [[1, ["a\"b"], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"a\\\"\\\"b\\\"\\r\\n\\r\"": {
+        "records": [[1, ["a\"b"], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"a\\\"\\\"b\\\"\\n\\r\\r\\n\\n\"": {
+        "records": [[1, ["a\"b"], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"a\\\"\\\"b\\\"\\r\\n\\r\\r\\n\\n\"": {
+        "records": [[1, ["a\"b"], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"a\\\"\\\"b\\\"\\n\\\"open\"": {
+        "error": "E_CSV_UNCLOSED_QUOTE",
+        "line": 2,
+        "records": [[1, ["a\"b"], [true]]]
+    },
+    "\"\\\"a\\\"\\\"b\\\"\\r\\n\\\"open\"": {
+        "error": "E_CSV_UNCLOSED_QUOTE",
+        "line": 2,
+        "records": [[1, ["a\"b"], [true]]]
+    },
+    "\"\\\"\\\"\\na,b\"": {
+        "records": [
+            [1, [""], [true]],
+            [2, ["a,b"], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"\\\"\\r\\na,b\"": {
+        "records": [
+            [1, [""], [true]],
+            [2, ["a,b"], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"\\\"\\na;b c\"": {
+        "records": [
+            [1, [""], [true]],
+            [2, ["a", "b c"], [false, false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"\\\"\\r\\na;b c\"": {
+        "records": [
+            [1, [""], [true]],
+            [2, ["a", "b c"], [false, false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"\\\"\\n\\\"q,1\\\"\"": {
+        "records": [
+            [1, [""], [true]],
+            [2, ["q,1"], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"\\\"\\r\\n\\\"q,1\\\"\"": {
+        "records": [
+            [1, [""], [true]],
+            [2, ["q,1"], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"\\\"\\n\\\"a\\\"\\\"b\\\"\"": {
+        "records": [
+            [1, [""], [true]],
+            [2, ["a\"b"], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"\\\"\\r\\n\\\"a\\\"\\\"b\\\"\"": {
+        "records": [
+            [1, [""], [true]],
+            [2, ["a\"b"], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"\\\"\\n\\\"\\\"\"": {
+        "records": [
+            [1, [""], [true]],
+            [2, [""], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"\\\"\\r\\n\\\"\\\"\"": {
+        "records": [
+            [1, [""], [true]],
+            [2, [""], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"\\\"\\n\\\"x\\\"y\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 2,
+        "records": [[1, [""], [true]]]
+    },
+    "\"\\\"\\\"\\r\\n\\\"x\\\"y\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 2,
+        "records": [[1, [""], [true]]]
+    },
+    "\"\\\"\\\"\\na\\\"b\"": {
+        "records": [
+            [1, [""], [true]],
+            [2, ["a\"b"], [false]]
+        ],
+        "comments": [],
+        "stray": 2
+    },
+    "\"\\\"\\\"\\r\\na\\\"b\"": {
+        "records": [
+            [1, [""], [true]],
+            [2, ["a\"b"], [false]]
+        ],
+        "comments": [],
+        "stray": 2
+    },
+    "\"\\\"\\\"\\n  a \\t b \"": {
+        "records": [
+            [1, [""], [true]],
+            [2, ["  a \t b "], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"\\\"\\r\\n  a \\t b \"": {
+        "records": [
+            [1, [""], [true]],
+            [2, ["  a \t b "], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"\\\"\\n,,\"": {
+        "records": [
+            [1, [""], [true]],
+            [2, [",,"], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"\\\"\\r\\n,,\"": {
+        "records": [
+            [1, [""], [true]],
+            [2, [",,"], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"\\\"\\n#c\"": {
+        "records": [
+            [1, [""], [true]],
+            [2, ["#c"], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"\\\"\\r\\n#c\"": {
+        "records": [
+            [1, [""], [true]],
+            [2, ["#c"], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"\\\"\\n\\\"l\\r\\nm\\\"\"": {
+        "records": [
+            [1, [""], [true]],
+            [2, ["l\r\nm"], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"\\\"\\r\\n\\\"l\\r\\nm\\\"\"": {
+        "records": [
+            [1, [""], [true]],
+            [2, ["l\r\nm"], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"\\\"\\n\\n\"": {
+        "records": [[1, [""], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"\\\"\\r\\n\\n\"": {
+        "records": [[1, [""], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"\\\"\\n\\r\\n\"": {
+        "records": [[1, [""], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"\\\"\\r\\n\\r\\n\"": {
+        "records": [[1, [""], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"\\\"\\n\\r\"": {
+        "records": [[1, [""], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"\\\"\\r\\n\\r\"": {
+        "records": [[1, [""], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"\\\"\\n\\r\\r\\n\\n\"": {
+        "records": [[1, [""], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"\\\"\\r\\n\\r\\r\\n\\n\"": {
+        "records": [[1, [""], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"\\\"\\n\\\"open\"": {
+        "error": "E_CSV_UNCLOSED_QUOTE",
+        "line": 2,
+        "records": [[1, [""], [true]]]
+    },
+    "\"\\\"\\\"\\r\\n\\\"open\"": {
+        "error": "E_CSV_UNCLOSED_QUOTE",
+        "line": 2,
+        "records": [[1, [""], [true]]]
+    },
+    "\"\\\"x\\\"y\\na,b\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"x\\\"y\\r\\na,b\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"x\\\"y\\na;b c\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"x\\\"y\\r\\na;b c\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"x\\\"y\\n\\\"q,1\\\"\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"x\\\"y\\r\\n\\\"q,1\\\"\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"x\\\"y\\n\\\"a\\\"\\\"b\\\"\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"x\\\"y\\r\\n\\\"a\\\"\\\"b\\\"\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"x\\\"y\\n\\\"\\\"\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"x\\\"y\\r\\n\\\"\\\"\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"x\\\"y\\n\\\"x\\\"y\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"x\\\"y\\r\\n\\\"x\\\"y\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"x\\\"y\\na\\\"b\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"x\\\"y\\r\\na\\\"b\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"x\\\"y\\n  a \\t b \"": {
+        "error": "E_CSV_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"x\\\"y\\r\\n  a \\t b \"": {
+        "error": "E_CSV_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"x\\\"y\\n,,\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"x\\\"y\\r\\n,,\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"x\\\"y\\n#c\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"x\\\"y\\r\\n#c\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"x\\\"y\\n\\\"l\\r\\nm\\\"\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"x\\\"y\\r\\n\\\"l\\r\\nm\\\"\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"x\\\"y\\n\\n\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"x\\\"y\\r\\n\\n\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"x\\\"y\\n\\r\\n\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"x\\\"y\\r\\n\\r\\n\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"x\\\"y\\n\\r\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"x\\\"y\\r\\n\\r\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"x\\\"y\\n\\r\\r\\n\\n\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"x\\\"y\\r\\n\\r\\r\\n\\n\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"x\\\"y\\n\\\"open\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"x\\\"y\\r\\n\\\"open\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"a\\\"b\\na,b\"": {
+        "records": [
+            [1, ["a\"b"], [false]],
+            [2, ["a,b"], [false]]
+        ],
+        "comments": [],
+        "stray": 1
+    },
+    "\"a\\\"b\\r\\na,b\"": {
+        "records": [
+            [1, ["a\"b"], [false]],
+            [2, ["a,b"], [false]]
+        ],
+        "comments": [],
+        "stray": 1
+    },
+    "\"a\\\"b\\na;b c\"": {
+        "records": [
+            [1, ["a\"b"], [false]],
+            [2, ["a", "b c"], [false, false]]
+        ],
+        "comments": [],
+        "stray": 1
+    },
+    "\"a\\\"b\\r\\na;b c\"": {
+        "records": [
+            [1, ["a\"b"], [false]],
+            [2, ["a", "b c"], [false, false]]
+        ],
+        "comments": [],
+        "stray": 1
+    },
+    "\"a\\\"b\\n\\\"q,1\\\"\"": {
+        "records": [
+            [1, ["a\"b"], [false]],
+            [2, ["q,1"], [true]]
+        ],
+        "comments": [],
+        "stray": 1
+    },
+    "\"a\\\"b\\r\\n\\\"q,1\\\"\"": {
+        "records": [
+            [1, ["a\"b"], [false]],
+            [2, ["q,1"], [true]]
+        ],
+        "comments": [],
+        "stray": 1
+    },
+    "\"a\\\"b\\n\\\"a\\\"\\\"b\\\"\"": {
+        "records": [
+            [1, ["a\"b"], [false]],
+            [2, ["a\"b"], [true]]
+        ],
+        "comments": [],
+        "stray": 1
+    },
+    "\"a\\\"b\\r\\n\\\"a\\\"\\\"b\\\"\"": {
+        "records": [
+            [1, ["a\"b"], [false]],
+            [2, ["a\"b"], [true]]
+        ],
+        "comments": [],
+        "stray": 1
+    },
+    "\"a\\\"b\\n\\\"\\\"\"": {
+        "records": [
+            [1, ["a\"b"], [false]],
+            [2, [""], [true]]
+        ],
+        "comments": [],
+        "stray": 1
+    },
+    "\"a\\\"b\\r\\n\\\"\\\"\"": {
+        "records": [
+            [1, ["a\"b"], [false]],
+            [2, [""], [true]]
+        ],
+        "comments": [],
+        "stray": 1
+    },
+    "\"a\\\"b\\n\\\"x\\\"y\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 2,
+        "records": [[1, ["a\"b"], [false]]]
+    },
+    "\"a\\\"b\\r\\n\\\"x\\\"y\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 2,
+        "records": [[1, ["a\"b"], [false]]]
+    },
+    "\"a\\\"b\\na\\\"b\"": {
+        "records": [
+            [1, ["a\"b"], [false]],
+            [2, ["a\"b"], [false]]
+        ],
+        "comments": [],
+        "stray": 1
+    },
+    "\"a\\\"b\\r\\na\\\"b\"": {
+        "records": [
+            [1, ["a\"b"], [false]],
+            [2, ["a\"b"], [false]]
+        ],
+        "comments": [],
+        "stray": 1
+    },
+    "\"a\\\"b\\n  a \\t b \"": {
+        "records": [
+            [1, ["a\"b"], [false]],
+            [2, ["  a \t b "], [false]]
+        ],
+        "comments": [],
+        "stray": 1
+    },
+    "\"a\\\"b\\r\\n  a \\t b \"": {
+        "records": [
+            [1, ["a\"b"], [false]],
+            [2, ["  a \t b "], [false]]
+        ],
+        "comments": [],
+        "stray": 1
+    },
+    "\"a\\\"b\\n,,\"": {
+        "records": [
+            [1, ["a\"b"], [false]],
+            [2, [",,"], [false]]
+        ],
+        "comments": [],
+        "stray": 1
+    },
+    "\"a\\\"b\\r\\n,,\"": {
+        "records": [
+            [1, ["a\"b"], [false]],
+            [2, [",,"], [false]]
+        ],
+        "comments": [],
+        "stray": 1
+    },
+    "\"a\\\"b\\n#c\"": {
+        "records": [
+            [1, ["a\"b"], [false]],
+            [2, ["#c"], [false]]
+        ],
+        "comments": [],
+        "stray": 1
+    },
+    "\"a\\\"b\\r\\n#c\"": {
+        "records": [
+            [1, ["a\"b"], [false]],
+            [2, ["#c"], [false]]
+        ],
+        "comments": [],
+        "stray": 1
+    },
+    "\"a\\\"b\\n\\\"l\\r\\nm\\\"\"": {
+        "records": [
+            [1, ["a\"b"], [false]],
+            [2, ["l\r\nm"], [true]]
+        ],
+        "comments": [],
+        "stray": 1
+    },
+    "\"a\\\"b\\r\\n\\\"l\\r\\nm\\\"\"": {
+        "records": [
+            [1, ["a\"b"], [false]],
+            [2, ["l\r\nm"], [true]]
+        ],
+        "comments": [],
+        "stray": 1
+    },
+    "\"a\\\"b\\n\\n\"": {
+        "records": [[1, ["a\"b"], [false]]],
+        "comments": [],
+        "stray": 1
+    },
+    "\"a\\\"b\\r\\n\\n\"": {
+        "records": [[1, ["a\"b"], [false]]],
+        "comments": [],
+        "stray": 1
+    },
+    "\"a\\\"b\\n\\r\\n\"": {
+        "records": [[1, ["a\"b"], [false]]],
+        "comments": [],
+        "stray": 1
+    },
+    "\"a\\\"b\\r\\n\\r\\n\"": {
+        "records": [[1, ["a\"b"], [false]]],
+        "comments": [],
+        "stray": 1
+    },
+    "\"a\\\"b\\n\\r\"": {
+        "records": [[1, ["a\"b"], [false]]],
+        "comments": [],
+        "stray": 1
+    },
+    "\"a\\\"b\\r\\n\\r\"": {
+        "records": [[1, ["a\"b"], [false]]],
+        "comments": [],
+        "stray": 1
+    },
+    "\"a\\\"b\\n\\r\\r\\n\\n\"": {
+        "records": [[1, ["a\"b"], [false]]],
+        "comments": [],
+        "stray": 1
+    },
+    "\"a\\\"b\\r\\n\\r\\r\\n\\n\"": {
+        "records": [[1, ["a\"b"], [false]]],
+        "comments": [],
+        "stray": 1
+    },
+    "\"a\\\"b\\n\\\"open\"": {
+        "error": "E_CSV_UNCLOSED_QUOTE",
+        "line": 2,
+        "records": [[1, ["a\"b"], [false]]]
+    },
+    "\"a\\\"b\\r\\n\\\"open\"": {
+        "error": "E_CSV_UNCLOSED_QUOTE",
+        "line": 2,
+        "records": [[1, ["a\"b"], [false]]]
+    },
+    "\"  a \\t b \\na,b\"": {
+        "records": [
+            [1, ["  a \t b "], [false]],
+            [2, ["a,b"], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"  a \\t b \\r\\na,b\"": {
+        "records": [
+            [1, ["  a \t b "], [false]],
+            [2, ["a,b"], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"  a \\t b \\na;b c\"": {
+        "records": [
+            [1, ["  a \t b "], [false]],
+            [2, ["a", "b c"], [false, false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"  a \\t b \\r\\na;b c\"": {
+        "records": [
+            [1, ["  a \t b "], [false]],
+            [2, ["a", "b c"], [false, false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"  a \\t b \\n\\\"q,1\\\"\"": {
+        "records": [
+            [1, ["  a \t b "], [false]],
+            [2, ["q,1"], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"  a \\t b \\r\\n\\\"q,1\\\"\"": {
+        "records": [
+            [1, ["  a \t b "], [false]],
+            [2, ["q,1"], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"  a \\t b \\n\\\"a\\\"\\\"b\\\"\"": {
+        "records": [
+            [1, ["  a \t b "], [false]],
+            [2, ["a\"b"], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"  a \\t b \\r\\n\\\"a\\\"\\\"b\\\"\"": {
+        "records": [
+            [1, ["  a \t b "], [false]],
+            [2, ["a\"b"], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"  a \\t b \\n\\\"\\\"\"": {
+        "records": [
+            [1, ["  a \t b "], [false]],
+            [2, [""], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"  a \\t b \\r\\n\\\"\\\"\"": {
+        "records": [
+            [1, ["  a \t b "], [false]],
+            [2, [""], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"  a \\t b \\n\\\"x\\\"y\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 2,
+        "records": [[1, ["  a \t b "], [false]]]
+    },
+    "\"  a \\t b \\r\\n\\\"x\\\"y\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 2,
+        "records": [[1, ["  a \t b "], [false]]]
+    },
+    "\"  a \\t b \\na\\\"b\"": {
+        "records": [
+            [1, ["  a \t b "], [false]],
+            [2, ["a\"b"], [false]]
+        ],
+        "comments": [],
+        "stray": 2
+    },
+    "\"  a \\t b \\r\\na\\\"b\"": {
+        "records": [
+            [1, ["  a \t b "], [false]],
+            [2, ["a\"b"], [false]]
+        ],
+        "comments": [],
+        "stray": 2
+    },
+    "\"  a \\t b \\n  a \\t b \"": {
+        "records": [
+            [1, ["  a \t b "], [false]],
+            [2, ["  a \t b "], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"  a \\t b \\r\\n  a \\t b \"": {
+        "records": [
+            [1, ["  a \t b "], [false]],
+            [2, ["  a \t b "], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"  a \\t b \\n,,\"": {
+        "records": [
+            [1, ["  a \t b "], [false]],
+            [2, [",,"], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"  a \\t b \\r\\n,,\"": {
+        "records": [
+            [1, ["  a \t b "], [false]],
+            [2, [",,"], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"  a \\t b \\n#c\"": {
+        "records": [
+            [1, ["  a \t b "], [false]],
+            [2, ["#c"], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"  a \\t b \\r\\n#c\"": {
+        "records": [
+            [1, ["  a \t b "], [false]],
+            [2, ["#c"], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"  a \\t b \\n\\\"l\\r\\nm\\\"\"": {
+        "records": [
+            [1, ["  a \t b "], [false]],
+            [2, ["l\r\nm"], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"  a \\t b \\r\\n\\\"l\\r\\nm\\\"\"": {
+        "records": [
+            [1, ["  a \t b "], [false]],
+            [2, ["l\r\nm"], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"  a \\t b \\n\\n\"": {
+        "records": [[1, ["  a \t b "], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"  a \\t b \\r\\n\\n\"": {
+        "records": [[1, ["  a \t b "], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"  a \\t b \\n\\r\\n\"": {
+        "records": [[1, ["  a \t b "], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"  a \\t b \\r\\n\\r\\n\"": {
+        "records": [[1, ["  a \t b "], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"  a \\t b \\n\\r\"": {
+        "records": [[1, ["  a \t b "], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"  a \\t b \\r\\n\\r\"": {
+        "records": [[1, ["  a \t b "], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"  a \\t b \\n\\r\\r\\n\\n\"": {
+        "records": [[1, ["  a \t b "], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"  a \\t b \\r\\n\\r\\r\\n\\n\"": {
+        "records": [[1, ["  a \t b "], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"  a \\t b \\n\\\"open\"": {
+        "error": "E_CSV_UNCLOSED_QUOTE",
+        "line": 2,
+        "records": [[1, ["  a \t b "], [false]]]
+    },
+    "\"  a \\t b \\r\\n\\\"open\"": {
+        "error": "E_CSV_UNCLOSED_QUOTE",
+        "line": 2,
+        "records": [[1, ["  a \t b "], [false]]]
+    },
+    "\",,\\na,b\"": {
+        "records": [
+            [1, [",,"], [false]],
+            [2, ["a,b"], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\",,\\r\\na,b\"": {
+        "records": [
+            [1, [",,"], [false]],
+            [2, ["a,b"], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\",,\\na;b c\"": {
+        "records": [
+            [1, [",,"], [false]],
+            [2, ["a", "b c"], [false, false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\",,\\r\\na;b c\"": {
+        "records": [
+            [1, [",,"], [false]],
+            [2, ["a", "b c"], [false, false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\",,\\n\\\"q,1\\\"\"": {
+        "records": [
+            [1, [",,"], [false]],
+            [2, ["q,1"], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\",,\\r\\n\\\"q,1\\\"\"": {
+        "records": [
+            [1, [",,"], [false]],
+            [2, ["q,1"], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\",,\\n\\\"a\\\"\\\"b\\\"\"": {
+        "records": [
+            [1, [",,"], [false]],
+            [2, ["a\"b"], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\",,\\r\\n\\\"a\\\"\\\"b\\\"\"": {
+        "records": [
+            [1, [",,"], [false]],
+            [2, ["a\"b"], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\",,\\n\\\"\\\"\"": {
+        "records": [
+            [1, [",,"], [false]],
+            [2, [""], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\",,\\r\\n\\\"\\\"\"": {
+        "records": [
+            [1, [",,"], [false]],
+            [2, [""], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\",,\\n\\\"x\\\"y\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 2,
+        "records": [[1, [",,"], [false]]]
+    },
+    "\",,\\r\\n\\\"x\\\"y\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 2,
+        "records": [[1, [",,"], [false]]]
+    },
+    "\",,\\na\\\"b\"": {
+        "records": [
+            [1, [",,"], [false]],
+            [2, ["a\"b"], [false]]
+        ],
+        "comments": [],
+        "stray": 2
+    },
+    "\",,\\r\\na\\\"b\"": {
+        "records": [
+            [1, [",,"], [false]],
+            [2, ["a\"b"], [false]]
+        ],
+        "comments": [],
+        "stray": 2
+    },
+    "\",,\\n  a \\t b \"": {
+        "records": [
+            [1, [",,"], [false]],
+            [2, ["  a \t b "], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\",,\\r\\n  a \\t b \"": {
+        "records": [
+            [1, [",,"], [false]],
+            [2, ["  a \t b "], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\",,\\n,,\"": {
+        "records": [
+            [1, [",,"], [false]],
+            [2, [",,"], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\",,\\r\\n,,\"": {
+        "records": [
+            [1, [",,"], [false]],
+            [2, [",,"], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\",,\\n#c\"": {
+        "records": [
+            [1, [",,"], [false]],
+            [2, ["#c"], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\",,\\r\\n#c\"": {
+        "records": [
+            [1, [",,"], [false]],
+            [2, ["#c"], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\",,\\n\\\"l\\r\\nm\\\"\"": {
+        "records": [
+            [1, [",,"], [false]],
+            [2, ["l\r\nm"], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\",,\\r\\n\\\"l\\r\\nm\\\"\"": {
+        "records": [
+            [1, [",,"], [false]],
+            [2, ["l\r\nm"], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\",,\\n\\n\"": {
+        "records": [[1, [",,"], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\",,\\r\\n\\n\"": {
+        "records": [[1, [",,"], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\",,\\n\\r\\n\"": {
+        "records": [[1, [",,"], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\",,\\r\\n\\r\\n\"": {
+        "records": [[1, [",,"], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\",,\\n\\r\"": {
+        "records": [[1, [",,"], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\",,\\r\\n\\r\"": {
+        "records": [[1, [",,"], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\",,\\n\\r\\r\\n\\n\"": {
+        "records": [[1, [",,"], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\",,\\r\\n\\r\\r\\n\\n\"": {
+        "records": [[1, [",,"], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\",,\\n\\\"open\"": {
+        "error": "E_CSV_UNCLOSED_QUOTE",
+        "line": 2,
+        "records": [[1, [",,"], [false]]]
+    },
+    "\",,\\r\\n\\\"open\"": {
+        "error": "E_CSV_UNCLOSED_QUOTE",
+        "line": 2,
+        "records": [[1, [",,"], [false]]]
+    },
+    "\"#c\\na,b\"": {
+        "records": [
+            [1, ["#c"], [false]],
+            [2, ["a,b"], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"#c\\r\\na,b\"": {
+        "records": [
+            [1, ["#c"], [false]],
+            [2, ["a,b"], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"#c\\na;b c\"": {
+        "records": [
+            [1, ["#c"], [false]],
+            [2, ["a", "b c"], [false, false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"#c\\r\\na;b c\"": {
+        "records": [
+            [1, ["#c"], [false]],
+            [2, ["a", "b c"], [false, false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"#c\\n\\\"q,1\\\"\"": {
+        "records": [
+            [1, ["#c"], [false]],
+            [2, ["q,1"], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"#c\\r\\n\\\"q,1\\\"\"": {
+        "records": [
+            [1, ["#c"], [false]],
+            [2, ["q,1"], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"#c\\n\\\"a\\\"\\\"b\\\"\"": {
+        "records": [
+            [1, ["#c"], [false]],
+            [2, ["a\"b"], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"#c\\r\\n\\\"a\\\"\\\"b\\\"\"": {
+        "records": [
+            [1, ["#c"], [false]],
+            [2, ["a\"b"], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"#c\\n\\\"\\\"\"": {
+        "records": [
+            [1, ["#c"], [false]],
+            [2, [""], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"#c\\r\\n\\\"\\\"\"": {
+        "records": [
+            [1, ["#c"], [false]],
+            [2, [""], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"#c\\n\\\"x\\\"y\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 2,
+        "records": [[1, ["#c"], [false]]]
+    },
+    "\"#c\\r\\n\\\"x\\\"y\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 2,
+        "records": [[1, ["#c"], [false]]]
+    },
+    "\"#c\\na\\\"b\"": {
+        "records": [
+            [1, ["#c"], [false]],
+            [2, ["a\"b"], [false]]
+        ],
+        "comments": [],
+        "stray": 2
+    },
+    "\"#c\\r\\na\\\"b\"": {
+        "records": [
+            [1, ["#c"], [false]],
+            [2, ["a\"b"], [false]]
+        ],
+        "comments": [],
+        "stray": 2
+    },
+    "\"#c\\n  a \\t b \"": {
+        "records": [
+            [1, ["#c"], [false]],
+            [2, ["  a \t b "], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"#c\\r\\n  a \\t b \"": {
+        "records": [
+            [1, ["#c"], [false]],
+            [2, ["  a \t b "], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"#c\\n,,\"": {
+        "records": [
+            [1, ["#c"], [false]],
+            [2, [",,"], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"#c\\r\\n,,\"": {
+        "records": [
+            [1, ["#c"], [false]],
+            [2, [",,"], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"#c\\n#c\"": {
+        "records": [
+            [1, ["#c"], [false]],
+            [2, ["#c"], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"#c\\r\\n#c\"": {
+        "records": [
+            [1, ["#c"], [false]],
+            [2, ["#c"], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"#c\\n\\\"l\\r\\nm\\\"\"": {
+        "records": [
+            [1, ["#c"], [false]],
+            [2, ["l\r\nm"], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"#c\\r\\n\\\"l\\r\\nm\\\"\"": {
+        "records": [
+            [1, ["#c"], [false]],
+            [2, ["l\r\nm"], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"#c\\n\\n\"": {
+        "records": [[1, ["#c"], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"#c\\r\\n\\n\"": {
+        "records": [[1, ["#c"], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"#c\\n\\r\\n\"": {
+        "records": [[1, ["#c"], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"#c\\r\\n\\r\\n\"": {
+        "records": [[1, ["#c"], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"#c\\n\\r\"": {
+        "records": [[1, ["#c"], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"#c\\r\\n\\r\"": {
+        "records": [[1, ["#c"], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"#c\\n\\r\\r\\n\\n\"": {
+        "records": [[1, ["#c"], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"#c\\r\\n\\r\\r\\n\\n\"": {
+        "records": [[1, ["#c"], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"#c\\n\\\"open\"": {
+        "error": "E_CSV_UNCLOSED_QUOTE",
+        "line": 2,
+        "records": [[1, ["#c"], [false]]]
+    },
+    "\"#c\\r\\n\\\"open\"": {
+        "error": "E_CSV_UNCLOSED_QUOTE",
+        "line": 2,
+        "records": [[1, ["#c"], [false]]]
+    },
+    "\"\\\"l\\r\\nm\\\"\\na,b\"": {
+        "records": [
+            [1, ["l\r\nm"], [true]],
+            [3, ["a,b"], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"l\\r\\nm\\\"\\r\\na,b\"": {
+        "records": [
+            [1, ["l\r\nm"], [true]],
+            [3, ["a,b"], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"l\\r\\nm\\\"\\na;b c\"": {
+        "records": [
+            [1, ["l\r\nm"], [true]],
+            [3, ["a", "b c"], [false, false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"l\\r\\nm\\\"\\r\\na;b c\"": {
+        "records": [
+            [1, ["l\r\nm"], [true]],
+            [3, ["a", "b c"], [false, false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"l\\r\\nm\\\"\\n\\\"q,1\\\"\"": {
+        "records": [
+            [1, ["l\r\nm"], [true]],
+            [3, ["q,1"], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"l\\r\\nm\\\"\\r\\n\\\"q,1\\\"\"": {
+        "records": [
+            [1, ["l\r\nm"], [true]],
+            [3, ["q,1"], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"l\\r\\nm\\\"\\n\\\"a\\\"\\\"b\\\"\"": {
+        "records": [
+            [1, ["l\r\nm"], [true]],
+            [3, ["a\"b"], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"l\\r\\nm\\\"\\r\\n\\\"a\\\"\\\"b\\\"\"": {
+        "records": [
+            [1, ["l\r\nm"], [true]],
+            [3, ["a\"b"], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"l\\r\\nm\\\"\\n\\\"\\\"\"": {
+        "records": [
+            [1, ["l\r\nm"], [true]],
+            [3, [""], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"l\\r\\nm\\\"\\r\\n\\\"\\\"\"": {
+        "records": [
+            [1, ["l\r\nm"], [true]],
+            [3, [""], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"l\\r\\nm\\\"\\n\\\"x\\\"y\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 3,
+        "records": [[1, ["l\r\nm"], [true]]]
+    },
+    "\"\\\"l\\r\\nm\\\"\\r\\n\\\"x\\\"y\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 3,
+        "records": [[1, ["l\r\nm"], [true]]]
+    },
+    "\"\\\"l\\r\\nm\\\"\\na\\\"b\"": {
+        "records": [
+            [1, ["l\r\nm"], [true]],
+            [3, ["a\"b"], [false]]
+        ],
+        "comments": [],
+        "stray": 3
+    },
+    "\"\\\"l\\r\\nm\\\"\\r\\na\\\"b\"": {
+        "records": [
+            [1, ["l\r\nm"], [true]],
+            [3, ["a\"b"], [false]]
+        ],
+        "comments": [],
+        "stray": 3
+    },
+    "\"\\\"l\\r\\nm\\\"\\n  a \\t b \"": {
+        "records": [
+            [1, ["l\r\nm"], [true]],
+            [3, ["  a \t b "], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"l\\r\\nm\\\"\\r\\n  a \\t b \"": {
+        "records": [
+            [1, ["l\r\nm"], [true]],
+            [3, ["  a \t b "], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"l\\r\\nm\\\"\\n,,\"": {
+        "records": [
+            [1, ["l\r\nm"], [true]],
+            [3, [",,"], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"l\\r\\nm\\\"\\r\\n,,\"": {
+        "records": [
+            [1, ["l\r\nm"], [true]],
+            [3, [",,"], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"l\\r\\nm\\\"\\n#c\"": {
+        "records": [
+            [1, ["l\r\nm"], [true]],
+            [3, ["#c"], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"l\\r\\nm\\\"\\r\\n#c\"": {
+        "records": [
+            [1, ["l\r\nm"], [true]],
+            [3, ["#c"], [false]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"l\\r\\nm\\\"\\n\\\"l\\r\\nm\\\"\"": {
+        "records": [
+            [1, ["l\r\nm"], [true]],
+            [3, ["l\r\nm"], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"l\\r\\nm\\\"\\r\\n\\\"l\\r\\nm\\\"\"": {
+        "records": [
+            [1, ["l\r\nm"], [true]],
+            [3, ["l\r\nm"], [true]]
+        ],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"l\\r\\nm\\\"\\n\\n\"": {
+        "records": [[1, ["l\r\nm"], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"l\\r\\nm\\\"\\r\\n\\n\"": {
+        "records": [[1, ["l\r\nm"], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"l\\r\\nm\\\"\\n\\r\\n\"": {
+        "records": [[1, ["l\r\nm"], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"l\\r\\nm\\\"\\r\\n\\r\\n\"": {
+        "records": [[1, ["l\r\nm"], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"l\\r\\nm\\\"\\n\\r\"": {
+        "records": [[1, ["l\r\nm"], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"l\\r\\nm\\\"\\r\\n\\r\"": {
+        "records": [[1, ["l\r\nm"], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"l\\r\\nm\\\"\\n\\r\\r\\n\\n\"": {
+        "records": [[1, ["l\r\nm"], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"l\\r\\nm\\\"\\r\\n\\r\\r\\n\\n\"": {
+        "records": [[1, ["l\r\nm"], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\\"l\\r\\nm\\\"\\n\\\"open\"": {
+        "error": "E_CSV_UNCLOSED_QUOTE",
+        "line": 3,
+        "records": [[1, ["l\r\nm"], [true]]]
+    },
+    "\"\\\"l\\r\\nm\\\"\\r\\n\\\"open\"": {
+        "error": "E_CSV_UNCLOSED_QUOTE",
+        "line": 3,
+        "records": [[1, ["l\r\nm"], [true]]]
+    },
+    "\"\\n\\na,b\"": {
+        "records": [[3, ["a,b"], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\n\\r\\na,b\"": {
+        "records": [[3, ["a,b"], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\n\\na;b c\"": {
+        "records": [[3, ["a", "b c"], [false, false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\n\\r\\na;b c\"": {
+        "records": [[3, ["a", "b c"], [false, false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\n\\n\\\"q,1\\\"\"": {
+        "records": [[3, ["q,1"], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\n\\r\\n\\\"q,1\\\"\"": {
+        "records": [[3, ["q,1"], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\n\\n\\\"a\\\"\\\"b\\\"\"": {
+        "records": [[3, ["a\"b"], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\n\\r\\n\\\"a\\\"\\\"b\\\"\"": {
+        "records": [[3, ["a\"b"], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\n\\n\\\"\\\"\"": {
+        "records": [[3, [""], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\n\\r\\n\\\"\\\"\"": {
+        "records": [[3, [""], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\n\\n\\\"x\\\"y\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 3,
+        "records": []
+    },
+    "\"\\n\\r\\n\\\"x\\\"y\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 3,
+        "records": []
+    },
+    "\"\\n\\na\\\"b\"": {
+        "records": [[3, ["a\"b"], [false]]],
+        "comments": [],
+        "stray": 3
+    },
+    "\"\\n\\r\\na\\\"b\"": {
+        "records": [[3, ["a\"b"], [false]]],
+        "comments": [],
+        "stray": 3
+    },
+    "\"\\n\\n  a \\t b \"": {
+        "records": [[3, ["  a \t b "], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\n\\r\\n  a \\t b \"": {
+        "records": [[3, ["  a \t b "], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\n\\n,,\"": {
+        "records": [[3, [",,"], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\n\\r\\n,,\"": {
+        "records": [[3, [",,"], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\n\\n#c\"": {
+        "records": [[3, ["#c"], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\n\\r\\n#c\"": {
+        "records": [[3, ["#c"], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\n\\n\\\"l\\r\\nm\\\"\"": {
+        "records": [[3, ["l\r\nm"], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\n\\r\\n\\\"l\\r\\nm\\\"\"": {
+        "records": [[3, ["l\r\nm"], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\n\\n\\n\"": {
+        "records": [],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\n\\r\\n\\n\"": {
+        "records": [],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\n\\n\\r\\n\"": {
+        "records": [],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\n\\r\\n\\r\\n\"": {
+        "records": [],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\n\\n\\r\"": {
+        "records": [],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\n\\r\\n\\r\"": {
+        "records": [],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\n\\n\\r\\r\\n\\n\"": {
+        "records": [],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\n\\r\\n\\r\\r\\n\\n\"": {
+        "records": [],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\n\\n\\\"open\"": {
+        "error": "E_CSV_UNCLOSED_QUOTE",
+        "line": 3,
+        "records": []
+    },
+    "\"\\n\\r\\n\\\"open\"": {
+        "error": "E_CSV_UNCLOSED_QUOTE",
+        "line": 3,
+        "records": []
+    },
+    "\"\\r\\n\\na,b\"": {
+        "records": [[3, ["a,b"], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\n\\r\\na,b\"": {
+        "records": [[3, ["a,b"], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\n\\na;b c\"": {
+        "records": [[3, ["a", "b c"], [false, false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\n\\r\\na;b c\"": {
+        "records": [[3, ["a", "b c"], [false, false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\n\\n\\\"q,1\\\"\"": {
+        "records": [[3, ["q,1"], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\n\\r\\n\\\"q,1\\\"\"": {
+        "records": [[3, ["q,1"], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\n\\n\\\"a\\\"\\\"b\\\"\"": {
+        "records": [[3, ["a\"b"], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\n\\r\\n\\\"a\\\"\\\"b\\\"\"": {
+        "records": [[3, ["a\"b"], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\n\\n\\\"\\\"\"": {
+        "records": [[3, [""], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\n\\r\\n\\\"\\\"\"": {
+        "records": [[3, [""], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\n\\n\\\"x\\\"y\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 3,
+        "records": []
+    },
+    "\"\\r\\n\\r\\n\\\"x\\\"y\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 3,
+        "records": []
+    },
+    "\"\\r\\n\\na\\\"b\"": {
+        "records": [[3, ["a\"b"], [false]]],
+        "comments": [],
+        "stray": 3
+    },
+    "\"\\r\\n\\r\\na\\\"b\"": {
+        "records": [[3, ["a\"b"], [false]]],
+        "comments": [],
+        "stray": 3
+    },
+    "\"\\r\\n\\n  a \\t b \"": {
+        "records": [[3, ["  a \t b "], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\n\\r\\n  a \\t b \"": {
+        "records": [[3, ["  a \t b "], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\n\\n,,\"": {
+        "records": [[3, [",,"], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\n\\r\\n,,\"": {
+        "records": [[3, [",,"], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\n\\n#c\"": {
+        "records": [[3, ["#c"], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\n\\r\\n#c\"": {
+        "records": [[3, ["#c"], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\n\\n\\\"l\\r\\nm\\\"\"": {
+        "records": [[3, ["l\r\nm"], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\n\\r\\n\\\"l\\r\\nm\\\"\"": {
+        "records": [[3, ["l\r\nm"], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\n\\n\\n\"": {
+        "records": [],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\n\\r\\n\\n\"": {
+        "records": [],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\n\\n\\r\\n\"": {
+        "records": [],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\n\\r\\n\\r\\n\"": {
+        "records": [],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\n\\n\\r\"": {
+        "records": [],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\n\\r\\n\\r\"": {
+        "records": [],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\n\\n\\r\\r\\n\\n\"": {
+        "records": [],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\n\\r\\n\\r\\r\\n\\n\"": {
+        "records": [],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\n\\n\\\"open\"": {
+        "error": "E_CSV_UNCLOSED_QUOTE",
+        "line": 3,
+        "records": []
+    },
+    "\"\\r\\n\\r\\n\\\"open\"": {
+        "error": "E_CSV_UNCLOSED_QUOTE",
+        "line": 3,
+        "records": []
+    },
+    "\"\\r\\na,b\"": {
+        "records": [[2, ["a,b"], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\r\\na,b\"": {
+        "records": [[3, ["a,b"], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\na;b c\"": {
+        "records": [[2, ["a", "b c"], [false, false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\r\\na;b c\"": {
+        "records": [[3, ["a", "b c"], [false, false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\n\\\"q,1\\\"\"": {
+        "records": [[2, ["q,1"], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\r\\n\\\"q,1\\\"\"": {
+        "records": [[3, ["q,1"], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\n\\\"a\\\"\\\"b\\\"\"": {
+        "records": [[2, ["a\"b"], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\r\\n\\\"a\\\"\\\"b\\\"\"": {
+        "records": [[3, ["a\"b"], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\n\\\"\\\"\"": {
+        "records": [[2, [""], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\r\\n\\\"\\\"\"": {
+        "records": [[3, [""], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\n\\\"x\\\"y\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 2,
+        "records": []
+    },
+    "\"\\r\\r\\n\\\"x\\\"y\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 3,
+        "records": []
+    },
+    "\"\\r\\na\\\"b\"": {
+        "records": [[2, ["a\"b"], [false]]],
+        "comments": [],
+        "stray": 2
+    },
+    "\"\\r\\r\\na\\\"b\"": {
+        "records": [[3, ["a\"b"], [false]]],
+        "comments": [],
+        "stray": 3
+    },
+    "\"\\r\\n  a \\t b \"": {
+        "records": [[2, ["  a \t b "], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\r\\n  a \\t b \"": {
+        "records": [[3, ["  a \t b "], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\n,,\"": {
+        "records": [[2, [",,"], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\r\\n,,\"": {
+        "records": [[3, [",,"], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\n#c\"": {
+        "records": [[2, ["#c"], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\r\\n#c\"": {
+        "records": [[3, ["#c"], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\n\\\"l\\r\\nm\\\"\"": {
+        "records": [[2, ["l\r\nm"], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\r\\n\\\"l\\r\\nm\\\"\"": {
+        "records": [[3, ["l\r\nm"], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\n\\n\"": {
+        "records": [],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\r\\n\\n\"": {
+        "records": [],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\n\\r\\n\"": {
+        "records": [],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\r\\n\\r\\n\"": {
+        "records": [],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\n\\r\"": {
+        "records": [],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\r\\n\\r\"": {
+        "records": [],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\n\\r\\r\\n\\n\"": {
+        "records": [],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\r\\n\\r\\r\\n\\n\"": {
+        "records": [],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\n\\\"open\"": {
+        "error": "E_CSV_UNCLOSED_QUOTE",
+        "line": 2,
+        "records": []
+    },
+    "\"\\r\\r\\n\\\"open\"": {
+        "error": "E_CSV_UNCLOSED_QUOTE",
+        "line": 3,
+        "records": []
+    },
+    "\"\\r\\r\\n\\n\\na,b\"": {
+        "records": [[5, ["a,b"], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\r\\n\\n\\r\\na,b\"": {
+        "records": [[5, ["a,b"], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\r\\n\\n\\na;b c\"": {
+        "records": [[5, ["a", "b c"], [false, false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\r\\n\\n\\r\\na;b c\"": {
+        "records": [[5, ["a", "b c"], [false, false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\r\\n\\n\\n\\\"q,1\\\"\"": {
+        "records": [[5, ["q,1"], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\r\\n\\n\\r\\n\\\"q,1\\\"\"": {
+        "records": [[5, ["q,1"], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\r\\n\\n\\n\\\"a\\\"\\\"b\\\"\"": {
+        "records": [[5, ["a\"b"], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\r\\n\\n\\r\\n\\\"a\\\"\\\"b\\\"\"": {
+        "records": [[5, ["a\"b"], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\r\\n\\n\\n\\\"\\\"\"": {
+        "records": [[5, [""], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\r\\n\\n\\r\\n\\\"\\\"\"": {
+        "records": [[5, [""], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\r\\n\\n\\n\\\"x\\\"y\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 5,
+        "records": []
+    },
+    "\"\\r\\r\\n\\n\\r\\n\\\"x\\\"y\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 5,
+        "records": []
+    },
+    "\"\\r\\r\\n\\n\\na\\\"b\"": {
+        "records": [[5, ["a\"b"], [false]]],
+        "comments": [],
+        "stray": 5
+    },
+    "\"\\r\\r\\n\\n\\r\\na\\\"b\"": {
+        "records": [[5, ["a\"b"], [false]]],
+        "comments": [],
+        "stray": 5
+    },
+    "\"\\r\\r\\n\\n\\n  a \\t b \"": {
+        "records": [[5, ["  a \t b "], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\r\\n\\n\\r\\n  a \\t b \"": {
+        "records": [[5, ["  a \t b "], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\r\\n\\n\\n,,\"": {
+        "records": [[5, [",,"], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\r\\n\\n\\r\\n,,\"": {
+        "records": [[5, [",,"], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\r\\n\\n\\n#c\"": {
+        "records": [[5, ["#c"], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\r\\n\\n\\r\\n#c\"": {
+        "records": [[5, ["#c"], [false]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\r\\n\\n\\n\\\"l\\r\\nm\\\"\"": {
+        "records": [[5, ["l\r\nm"], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\r\\n\\n\\r\\n\\\"l\\r\\nm\\\"\"": {
+        "records": [[5, ["l\r\nm"], [true]]],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\r\\n\\n\\n\\n\"": {
+        "records": [],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\r\\n\\n\\r\\n\\n\"": {
+        "records": [],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\r\\n\\n\\n\\r\\n\"": {
+        "records": [],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\r\\n\\n\\r\\n\\r\\n\"": {
+        "records": [],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\r\\n\\n\\n\\r\"": {
+        "records": [],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\r\\n\\n\\r\\n\\r\"": {
+        "records": [],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\r\\n\\n\\n\\r\\r\\n\\n\"": {
+        "records": [],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\r\\n\\n\\r\\n\\r\\r\\n\\n\"": {
+        "records": [],
+        "comments": [],
+        "stray": 0
+    },
+    "\"\\r\\r\\n\\n\\n\\\"open\"": {
+        "error": "E_CSV_UNCLOSED_QUOTE",
+        "line": 5,
+        "records": []
+    },
+    "\"\\r\\r\\n\\n\\r\\n\\\"open\"": {
+        "error": "E_CSV_UNCLOSED_QUOTE",
+        "line": 5,
+        "records": []
+    },
+    "\"\\\"open\\na,b\"": {
+        "error": "E_CSV_UNCLOSED_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"open\\r\\na,b\"": {
+        "error": "E_CSV_UNCLOSED_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"open\\na;b c\"": {
+        "error": "E_CSV_UNCLOSED_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"open\\r\\na;b c\"": {
+        "error": "E_CSV_UNCLOSED_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"open\\n\\\"q,1\\\"\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"open\\r\\n\\\"q,1\\\"\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"open\\n\\\"a\\\"\\\"b\\\"\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"open\\r\\n\\\"a\\\"\\\"b\\\"\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"open\\n\\\"\\\"\"": {
+        "error": "E_CSV_UNCLOSED_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"open\\r\\n\\\"\\\"\"": {
+        "error": "E_CSV_UNCLOSED_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"open\\n\\\"x\\\"y\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"open\\r\\n\\\"x\\\"y\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"open\\na\\\"b\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"open\\r\\na\\\"b\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"open\\n  a \\t b \"": {
+        "error": "E_CSV_UNCLOSED_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"open\\r\\n  a \\t b \"": {
+        "error": "E_CSV_UNCLOSED_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"open\\n,,\"": {
+        "error": "E_CSV_UNCLOSED_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"open\\r\\n,,\"": {
+        "error": "E_CSV_UNCLOSED_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"open\\n#c\"": {
+        "error": "E_CSV_UNCLOSED_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"open\\r\\n#c\"": {
+        "error": "E_CSV_UNCLOSED_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"open\\n\\\"l\\r\\nm\\\"\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"open\\r\\n\\\"l\\r\\nm\\\"\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"open\\n\\n\"": {
+        "error": "E_CSV_UNCLOSED_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"open\\r\\n\\n\"": {
+        "error": "E_CSV_UNCLOSED_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"open\\n\\r\\n\"": {
+        "error": "E_CSV_UNCLOSED_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"open\\r\\n\\r\\n\"": {
+        "error": "E_CSV_UNCLOSED_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"open\\n\\r\"": {
+        "error": "E_CSV_UNCLOSED_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"open\\r\\n\\r\"": {
+        "error": "E_CSV_UNCLOSED_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"open\\n\\r\\r\\n\\n\"": {
+        "error": "E_CSV_UNCLOSED_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"open\\r\\n\\r\\r\\n\\n\"": {
+        "error": "E_CSV_UNCLOSED_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"open\\n\\\"open\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 1,
+        "records": []
+    },
+    "\"\\\"open\\r\\n\\\"open\"": {
+        "error": "E_CSV_QUOTE",
+        "line": 1,
+        "records": []
+    }
+}

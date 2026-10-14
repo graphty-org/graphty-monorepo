@@ -10,10 +10,11 @@
  */
 
 import assert from "node:assert";
+import { execFile } from "node:child_process";
 import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
+import { promisify } from "node:util";
 
-import ts from "typescript";
 import { describe, it } from "vitest";
 
 const PKG = resolve(__dirname, "../..");
@@ -25,6 +26,8 @@ const DOCS = [
         .sort()
         .map((f) => `docs/guide/${f}`),
 ];
+const CHECKER = join(__dirname, "type-check-samples.mjs");
+const execFileAsync = promisify(execFile);
 const MARK = "<!-- doc-check -->";
 const SCRIPT = /^(?:ts|typescript|js|javascript|jsx|tsx|mts|cts|mjs|cjs)$/i;
 const LOG = /^(\s*)console\.log\((.*)\);\s*\/\/ ?(.*)$/;
@@ -211,35 +214,12 @@ describe("documentation code samples", () => {
         });
     }
 
-    it("type-checks every sample", () => {
+    // In a child process, which coverage does not instrument (see type-check-samples.mjs), as in algorithms'
+    // guide-samples.test.ts: in the coverage worker the instrumented compiler's time grew with machine load.
+    it("type-checks every sample", { timeout: 30_000 }, async () => {
         const files = docs.flatMap((d) => d.files);
-        const config = ts.getParsedCommandLineOfConfigFile(
-            join(PKG, "tsconfig.json"),
-            {},
-            {
-                ...ts.sys,
-                onUnRecoverableConfigFileDiagnostic: () => undefined,
-            },
-        );
-        assert.ok(config);
-        const program = ts.createProgram(files, {
-            ...config.options,
-            noEmit: true,
-            composite: false,
-            incremental: false,
-            // Without a list, every @types package in node_modules (three, semver, lodash...) is loaded and checked.
-            types: [],
-        });
-        // Only the samples' own diagnostics: checking all of src/ is the build's job and most of the time spent here.
-        const errors = [
-            ...program.getOptionsDiagnostics(),
-            ...program.getGlobalDiagnostics(),
-            ...files.flatMap((f) => {
-                const file = program.getSourceFile(f);
-                return [...program.getSyntacticDiagnostics(file), ...program.getSemanticDiagnostics(file)];
-            }),
-        ].map((d) => `${d.file?.fileName ?? "(options)"}: ${ts.flattenDiagnosticMessageText(d.messageText, "\n")}`);
-        assert.deepEqual(errors, []);
+        const { stdout } = await execFileAsync(process.execPath, [CHECKER, join(PKG, "tsconfig.json"), OUT, ...files]);
+        assert.deepEqual(JSON.parse(stdout), []);
     });
 
     for (const { path, all, files } of docs) {

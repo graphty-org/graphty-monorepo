@@ -136,3 +136,11 @@ jobs:
               # Booting a simulator and Safari's first launch take minutes: the step's limit bounds them (vitest's
               # lifecycle project allows them with GRAPHTY_LIFECYCLE_MACOS set).
               run: pnpm exec vitest run --project=lifecycle test/lifecycle/ios-simulator.test.ts
+            - name: Keep the Simulator's screen and Safari's log of a failed scenario
+              if: failure()
+              uses: actions/upload-artifact@v4
+              with:
+                  name: ios-diagnostics
+                  path: graphty-element/test-results/ios
+                  if-no-files-found: ignore
+                  retention-days: 7

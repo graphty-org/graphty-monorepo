@@ -131,9 +131,13 @@ import "/bundle.js";
 const params = new URLSearchParams(location.search);
 const tab = params.get("tab") ?? "t";
 const n = Number(params.get("n") ?? 30);
+const LIFECYCLE = new Set(["visibility", "pagehide", "freeze", "resume"]);
 const report = (type, fields = {}) => {
     const body = JSON.stringify({ tab, type, ...fields });
     try { fetch("/log", { method: "POST", body, keepalive: body.length < 60000 }); } catch {}
+    // A lifecycle report also goes as a beacon, which the browser delivers even when it suspends the
+    // page right after the event (Safari on iOS on an app switch); "via" says which one arrived.
+    if (LIFECYCLE.has(type)) try { navigator.sendBeacon?.("/log", JSON.stringify({ tab, type, via: "beacon", ...fields })); } catch {}
 };
 const nav = performance.getEntriesByType("navigation")[0];
 report("boot", { navigationType: nav?.type ?? null, wasDiscarded: document.wasDiscarded ?? null, visibility: document.visibilityState });

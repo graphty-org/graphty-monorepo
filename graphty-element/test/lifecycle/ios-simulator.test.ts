@@ -18,7 +18,8 @@
  */
 
 import { execFileSync } from "node:child_process";
-import { appendFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 
 import { afterAll, assert, beforeAll, describe, it, onTestFailed } from "vitest";
 
@@ -35,7 +36,7 @@ const SAFARI = "com.apple.mobilesafari";
  * @returns What it printed.
  */
 function simctl(...args: string[]): string {
-    return execFileSync("xcrun", ["simctl", ...args], { encoding: "utf8" });
+    return execFileSync("xcrun", ["simctl", ...args], { encoding: "utf8", maxBuffer: 256 << 20 });
 }
 
 /**
@@ -57,6 +58,29 @@ function pickDevice(): string {
     }
 
     return device.udid;
+}
+
+/**
+ * When a scenario fails, keep what the Simulator showed and what Safari and WebKit logged, in
+ * test-results/ios/<tab> (the workflow uploads it): whether the app switch happened and what became of
+ * the page's reports cannot be read from the page.
+ * @param udid - The Simulator.
+ * @param tab - The scenario.
+ */
+function diagnose(udid: string, tab: string): void {
+    const dir = join("test-results", "ios", tab);
+    mkdirSync(dir, { recursive: true });
+    try {
+        simctl("io", udid, "screenshot", join(dir, "screen.png"));
+        const predicate =
+            'process == "MobileSafari" OR process BEGINSWITH "com.apple.WebKit" OR process == "SpringBoard"';
+        writeFileSync(
+            join(dir, "log.txt"),
+            simctl("spawn", udid, "log", "show", "--last", "20m", "--style", "compact", "--predicate", predicate),
+        );
+    } catch (error) {
+        console.log(`[ios] ${tab}: could not save the diagnostics: ${String(error)}`);
+    }
 }
 
 describe.skipIf(!MACOS)("Safari in the iOS Simulator", () => {
@@ -96,6 +120,7 @@ describe.skipIf(!MACOS)("Safari in the iOS Simulator", () => {
         const tab = key;
         onTestFailed(() => {
             console.log(`[ios] reports: ${JSON.stringify(fx.log.filter((e) => e.tab.startsWith(tab)))}`);
+            diagnose(udid, tab);
         });
         simctl("openurl", udid, fx.url({ key, tab, auto: 3, tail: 1, delay: 600_000 }));
         const saved = await fx.waitFor((e) => e.tab === tab && e.type === "auto-saved");
@@ -119,6 +144,10 @@ describe.skipIf(!MACOS)("Safari in the iOS Simulator", () => {
         assert.isAtLeast(restored.revision, lastSaved, "the restored revision is at least the last one saved");
         assert.deepEqual(ready.probes, [restored.revision], "every node's probe equals the restored revision");
 
+        const hidden = fx.log.filter((e) => e.tab === tab && e.type === "visibility" && e.state === "hidden");
+        console.log(
+            `[ios] ${tab}: hidden reported by ${hidden.map((e) => `${(e.via as string | undefined) ?? "fetch"} at +${(e.at as number) - (tail.at as number)} ms`).join(", ") || "nothing"}`,
+        );
         const landed = restored.revision >= (tail.revision as number);
         const line = `iOS Simulator, ${what}: restored revision ${restored.revision}, last saved ${lastSaved}; the pending edit ${landed ? "was" : "was not"} kept`;
         console.log(`[ios] ${line}`);

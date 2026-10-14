@@ -5,7 +5,7 @@
     "type": "module",
     "description": "Graphty monorepo - modular graph visualization ecosystem",
     "scripts": {
-        "build": "pnpm exec nx run-many --target=build",
+        "build": "NODE_OPTIONS=--max-old-space-size=8192 pnpm exec nx run-many --target=build",
         "test": "pnpm exec nx run-many --target=test",
         "coverage": "pnpm -r run coverage && ./tools/merge-coverage.sh",
         "coverage:merge": "./tools/merge-coverage.sh",
@@ -27,7 +27,7 @@
         "typecheck": "pnpm exec nx run-many --target=typecheck",
         "format": "prettier --write .",
         "format:check": "prettier --check .",
-        "prepush": "NX_DAEMON=false pnpm exec nx affected -t build lint test --base=origin/master --head=HEAD --parallel=3",
+        "prepush": "NX_DAEMON=false NODE_OPTIONS=--max-old-space-size=8192 pnpm exec nx affected -t build lint test --base=origin/master --head=HEAD --parallel=3",
         "prepush:fast": "./tools/prepush.sh",
         "prepare": "husky",
         "dev:algorithms": "pnpm --filter @graphty/algorithms run dev",

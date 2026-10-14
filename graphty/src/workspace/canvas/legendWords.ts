@@ -208,6 +208,10 @@ export function swatchText(block: LegendBlock, swatch: LegendSwatch, entry?: str
         const groups = Array.isArray(value) ? value.length : 0;
         return `other: ${String(groups)} ${groups === 1 ? "group" : "groups"}`;
     }
+    // A name the reader gave the value, kept by the element with the data, wins everywhere.
+    if (swatch.name !== undefined) {
+        return swatch.name;
+    }
     if (swatch.rank !== undefined) {
         return `Group ${String(swatch.rank)}`;
     }

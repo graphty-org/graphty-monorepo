@@ -1,6 +1,7 @@
 import {
     ComboInput,
     CompactColorInput,
+    MenuShortcut,
     RampEditor,
     type RampEditorHandle,
     StyleNumberInput,
@@ -779,6 +780,24 @@ function Categories({ session, descriptor, layerId, binding, source, preview, pa
                             onNewLayer={(where) => {
                                 openLayerFor(session, store, layerId, channel, `${source} ${name}`, where, painted);
                             }}
+                            onRename={(label) => {
+                                if (label !== name) {
+                                    Promise.resolve(
+                                        session.data.setValueLabel(
+                                            binding.by,
+                                            category.value as string | number | boolean,
+                                            label === "" ? null : label,
+                                        ),
+                                    ).catch((error: unknown) => {
+                                        store.set({
+                                            notice: {
+                                                message: failureWords("The name", "changed", error),
+                                                error: true,
+                                            },
+                                        });
+                                    });
+                                }
+                            }}
                         />
                     );
                 })}
@@ -815,6 +834,8 @@ function Categories({ session, descriptor, layerId, binding, source, preview, pa
  * @param props.onClear - clears its entry, when it has one
  * @param props.where - the rule that matches its elements
  * @param props.onNewLayer - makes a layer of that rule
+ * @param props.onRename - names the value (F2 on the row, or Rename in its menu); a group's name
+ *     is the element's value label, shown wherever the value is
  * @returns The row
  */
 function ValueRow({
@@ -829,6 +850,7 @@ function ValueRow({
     onClear,
     where,
     onNewLayer,
+    onRename,
 }: Readonly<{
     session: GraphSession;
     target: ChannelDescriptor["target"];
@@ -841,8 +863,10 @@ function ValueRow({
     onClear?: () => void;
     where: RuleTree;
     onNewLayer: (where: RuleTree) => void;
+    onRename?: (name: string) => void;
 }>): React.JSX.Element {
     const full = `${source} ${name}`;
+    const [renaming, setRenaming] = useState(false);
     const counted = countOf(count, target);
     const select = (): void => {
         // An edge's value selects its edges with their end nodes, as the Values tab's rows do.
@@ -855,11 +879,47 @@ function ValueRow({
     return (
         // One line: the chip, the name, the count with its unit, then fixed 24 px columns (eye,
         // Clear, actions), so the columns line up row to row whether or not a row has its Clear.
-        <Group role="listitem" aria-label={`${name}, ${counted}`} gap={4} wrap="nowrap">
+        <Group
+            role="listitem"
+            aria-label={`${name}, ${counted}`}
+            gap={4}
+            wrap="nowrap"
+            onKeyDown={(event) => {
+                if (event.key === "F2" && onRename !== undefined && !renaming) {
+                    event.preventDefault();
+                    setRenaming(true);
+                }
+            }}
+        >
             {chit === undefined || chit === null ? null : <Box style={{ flex: "none", display: "flex" }}>{chit}</Box>}
-            <Text size="xs" truncate style={{ flex: 1, minWidth: 0 }}>
-                {name}
-            </Text>
+            {renaming && onRename !== undefined ? (
+                <TextInput
+                    size="xs"
+                    aria-label={`Name of ${full}`}
+                    defaultValue={name}
+                    autoFocus
+                    style={{ flex: 1, minWidth: 0 }}
+                    onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                            event.preventDefault();
+                            onRename(event.currentTarget.value.trim());
+                            setRenaming(false);
+                        } else if (event.key === "Escape") {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            setRenaming(false);
+                        }
+                    }}
+                    onBlur={(event) => {
+                        onRename(event.currentTarget.value.trim());
+                        setRenaming(false);
+                    }}
+                />
+            ) : (
+                <Text size="xs" truncate style={{ flex: 1, minWidth: 0 }}>
+                    {name}
+                </Text>
+            )}
             <Text size="xs" c="dimmed" style={{ flex: "none" }}>
                 {counted}
             </Text>
@@ -900,6 +960,16 @@ function ValueRow({
                             onNewLayer(where);
                         }}
                     >{`New layer for ${name}`}</Menu.Item>
+                    {onRename === undefined ? null : (
+                        <Menu.Item
+                            rightSection={<MenuShortcut>F2</MenuShortcut>}
+                            onClick={() => {
+                                setRenaming(true);
+                            }}
+                        >
+                            Rename
+                        </Menu.Item>
+                    )}
                 </Menu.Dropdown>
             </Menu>
         </Group>

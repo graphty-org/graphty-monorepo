@@ -432,4 +432,33 @@ describe("the binding popover on the real element", () => {
         await session.styles.settled();
         await editValue(session, store, layer, "police", "students");
     });
+
+    it("on Louvain: Rename names a group, kept by the element and shown in the popover and the key", async () => {
+        await page.viewport(1440, 900);
+        const { session, store } = await open();
+        const { runId } = await session.runs.start("louvain");
+        await session.styles.settled();
+        const layer = session.styles
+            .list()
+            .find((l) => l.source.by === "run" && l.encode?.["node.color"] !== undefined);
+        assert.isDefined(layer, "Louvain colors the nodes");
+        if (layer === undefined) {
+            return;
+        }
+        const value = String(session.styles.categories(layer.id, "node.color")[0]?.value);
+        const name = keyName(session, layer.id, value);
+        const popover = await openBinding(store, layer);
+        await userEvent.click(within(popover).getByRole("button", { name: new RegExp(` ${name} actions$`) }));
+        await userEvent.click(await within(popover).findByRole("menuitem", { name: /^Rename/ }));
+        const field = await within(popover).findByRole("textbox", { name: new RegExp(`^Name of .* ${name}$`) });
+        await userEvent.clear(field);
+        await userEvent.type(field, "Students{Enter}");
+        const path = session.results.path(runId);
+        await waitFor(() => {
+            assert.equal(session.data.valueLabels(path).get(value), "Students");
+        });
+        await within(popover).findByRole("listitem", { name: /^Students, / });
+        const legend = await screen.findByRole("region", { name: "Legend" });
+        await within(legend).findByText("Students");
+    });
 });

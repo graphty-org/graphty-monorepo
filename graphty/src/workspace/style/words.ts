@@ -408,14 +408,18 @@ export function groupRank(session: GraphSession, path: string, value: unknown): 
 }
 
 /**
- * What one value of a value is called, as the key calls it: a run's group by its rank ("Group 3"),
- * anything else as it is.
+ * What one value of a value is called, as the key calls it: the name the reader gave it (the
+ * element's value label), else a run's group by its rank ("Group 3"), else the value as it is.
  * @param session - the element's session.
  * @param path - the value's path.
  * @param value - one of its values.
  * @returns "Group 3", or the value in words.
  */
 export function valueName(session: GraphSession, path: string, value: unknown): string {
+    const named = session.data.valueLabels(path).get(String(value));
+    if (named !== undefined) {
+        return named;
+    }
     const rank = groupRank(session, path, value);
     return rank === undefined ? String(value) : `Group ${String(rank)}`;
 }

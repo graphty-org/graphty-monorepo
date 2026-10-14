@@ -95,12 +95,14 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# The affected projects, as nx names them. The base is where this branch left origin/master,
-# so commits other people landed on master since then do not count as this push's changes.
+# The affected projects, as nx names them. The base is where this branch left the branch it merges
+# into (tools/push-base.mjs: origin/master, or the parent branch of a stacked pull request), so
+# commits other people landed there since then do not count as this push's changes.
 if [ "${PREPUSH_ALL:-0}" = "1" ]; then
     PROJECTS=$(NX_DAEMON=false pnpm exec nx show projects --json 2>/dev/null)
 else
-    BASE=$(git merge-base origin/master HEAD)
+    PUSH_BASE_REF=${PUSH_BASE_REF:-$(node "$SCRIPT_DIR/push-base.mjs")} && export PUSH_BASE_REF
+    BASE=$(git merge-base "$PUSH_BASE_REF" HEAD)
     PROJECTS=$(NX_DAEMON=false pnpm exec nx show projects --affected --base="$BASE" --head=HEAD --json 2>/dev/null)
 fi
 # An empty answer is nx (or the pnpm in front of it) cut short, not "nothing affected", which is "[]".

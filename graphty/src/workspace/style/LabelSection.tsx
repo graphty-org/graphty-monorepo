@@ -6,7 +6,7 @@ import {
     LABEL_STYLE_DEFAULTS,
     labelLookChanges,
 } from "@graphty/graphty-element/catalog";
-import type { Channel, ChannelValue, LabelStyle } from "@graphty/graphty-element/schema";
+import type { Channel, LabelStyle } from "@graphty/graphty-element/schema";
 import type { GraphSession, Layer } from "@graphty/graphty-element/session";
 import { ActionIcon, Button, Checkbox, Group, Stack, Text, TextInput, Tooltip } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
@@ -60,13 +60,6 @@ const KIND_WORDS: Readonly<Record<string, string>> = {
     head: "At target",
     tail: "At source",
 };
-
-/**
- * The size a new label is drawn at, in pixels on screen: readable at any zoom, and small enough
- * that a graph of names is not a wall of text. The app's choice; the element's own default is a
- * size in the scene.
- */
-const NEW_LABEL_PX = 12;
 
 /** How a label bound to a number writes it: three significant digits, not fifteen decimals. */
 const NUMBER_FORMAT = { maximumSignificantDigits: 3 } as const;
@@ -191,11 +184,8 @@ export function LabelSection({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.
             next = { binding: formatted(session, proposal.binding) };
         }
         focusLineNext(kind.words);
-        // A new entry is sized on screen.
-        const also: Partial<Record<Channel, ChannelValue>> = hasEntry(kind)
-            ? {}
-            : { [kind.style]: { sizeUnit: "screen" }, [kind.size]: NEW_LABEL_PX };
-        writeIn(ctx, kind.words, next, also)
+        // Only the words: a size, a unit or a look is the reader's to add from "+".
+        writeIn(ctx, kind.words, next)
             .then(() => {
                 store.set({ announcement: `${kindWord} ${kind.name.toLowerCase()} added` });
             })

@@ -80,6 +80,18 @@ function textList(): HTMLElement {
 }
 
 /**
+ * The Text list of the Style tab's Edges group, looked up afresh: a write can redraw the tab.
+ * @returns the list.
+ */
+function edgeTextList(): HTMLElement {
+    const edges = screen.getByTestId("style-tab").querySelector<HTMLElement>('[data-group="edge"]');
+    if (edges === null) {
+        throw new Error("the Style tab draws no Edges group");
+    }
+    return within(edges).getByRole("group", { name: "Edge text" });
+}
+
+/**
  * The reader's layer that writes a node channel.
  * @param session - the element's session.
  * @param channel - the channel.
@@ -155,10 +167,10 @@ describe("label entries on the real element", () => {
             },
             { timeout: TIMEOUT_MS },
         );
-        // A new label is sized on screen at 12 px; its look stays what lies beneath, and the canvas
-        // key gains no row.
-        assert.deepEqual(labelStyle(session), { sizeUnit: "screen" }, "only the size unit is written");
-        assert.equal(writer(session, "node.labelSize")?.set?.["node.labelSize"], 12, "a new label is 12 px");
+        // Only the words are written: no size, unit or look comes with them, and the canvas key
+        // gains no row.
+        assert.isUndefined(writer(session, "node.labelStyle"), "no label style is written");
+        assert.isUndefined(writer(session, "node.labelSize"), "no label size is written");
         assert.isNull(within(textList()).queryByRole("combobox", { name: /^Node label look/ }), "Look is not set");
         assert.equal(document.querySelectorAll(".ws-legend-section").length, keyRows, "no key row is added");
         assert.isNotNull(
@@ -168,14 +180,14 @@ describe("label entries on the real element", () => {
         // The entry says what kind of text it is, and its controls carry the kind.
         const entry = textList().querySelector<HTMLElement>('[data-line="node.label"]');
         assert.include(entry?.querySelector(".ws-text-kind")?.textContent ?? "", "Label");
-        // Only what the entry sets is drawn: its size, not a look or a position it does not set.
+        // Only what the entry sets is drawn: no size, look or position it does not set.
         assert.isNull(within(textList()).queryByRole("combobox", { name: /^Node label position/ }));
-        assert.isNotNull(within(textList()).getByRole("button", { name: "Node label size by attribute" }));
-        // "+" now offers Tooltip and the label's look and position, never a second label.
+        assert.isNull(within(textList()).queryByRole("button", { name: "Node label size by attribute" }));
+        // "+" now offers Tooltip and the label's look, size and position, never a second label.
         await userEvent.click(within(textList()).getByRole("button", { name: "Add to node text" }));
         assert.deepEqual(
             (await screen.findAllByRole("menuitem")).map((item) => item.textContent),
-            ["Label look", "Label position", "Tooltip"],
+            ["Label look", "Label size", "Label position", "Tooltip"],
         );
         await userEvent.click(await screen.findByRole("menuitem", { name: "Label look" }));
         await within(textList()).findByRole("combobox", { name: /^Node label look/ });
@@ -271,8 +283,10 @@ describe("label entries on the real element", () => {
         await waitFor(() => {
             assert.isDefined(writer(session, "node.label"));
         });
+        await userEvent.click(within(textList()).getByRole("button", { name: "Add to node text" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Label size" }));
 
-        await userEvent.click(within(textList()).getByRole("button", { name: "Node label size by attribute" }));
+        await userEvent.click(await within(textList()).findByRole("button", { name: "Node label size by attribute" }));
         const list = await findValuePicker();
         await userEvent.click(within(list).getByRole("option", { name: "Degree" }));
         const path = session.results.path(runId);
@@ -350,7 +364,39 @@ describe("label entries on the real element", () => {
             },
             { timeout: TIMEOUT_MS },
         );
-        assert.deepEqual(labelStyle(session), { sizeUnit: "screen" }, "the words, sized on screen");
+        assert.isUndefined(writer(session, "node.labelStyle"), "the words alone: no style");
+        assert.isUndefined(writer(session, "node.labelSize"), "the words alone: no size");
+    });
+
+    it("an edge label of fixed text writes only its words, adds no Size line, and its kind reads whole", async () => {
+        const { session } = await openWithGraph();
+        await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+        await userEvent.click(within(edgeTextList()).getByRole("button", { name: "Add to edge text" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: /^Label/ }));
+        await userEvent.click(within(await findValuePicker()).getByRole("option", { name: "Fixed text" }));
+        await within(edgeTextList()).findByRole("textbox", { name: "Edge label text" });
+        await userEvent.keyboard("Bob{Enter}");
+        const mine = (): Layer[] => session.styles.list().filter((l) => l.source.by !== "element");
+        await waitFor(
+            () => {
+                assert.equal(mine().find((l) => l.set?.["edge.label"] !== undefined)?.set?.["edge.label"], "Bob");
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        for (const channel of ["edge.labelStyle", "edge.labelSize"] as const) {
+            assert.isUndefined(
+                mine().find((l) => l.set?.[channel] !== undefined || l.encode?.[channel] !== undefined),
+                `${channel} is not written with the words`,
+            );
+        }
+        // The entry's kind sits whole in the label column, not cut to "La...", and no Size line is drawn.
+        await waitFor(() => {
+            const list = edgeTextList();
+            const kind = list.querySelector<HTMLElement>('[data-line="edge.label"] .ws-text-kind .ws-field-name');
+            assert.equal(kind?.textContent, "Label");
+            assert.isAtMost(kind?.scrollWidth ?? 1, kind?.clientWidth ?? 0, "the word 'Label' is not cut");
+            assert.isNull(within(list).queryByRole("button", { name: "Edge label size by attribute" }), "no Size line");
+        });
     });
 
     it("a label bound to a number prints three significant digits", async () => {

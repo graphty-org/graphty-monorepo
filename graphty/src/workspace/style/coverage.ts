@@ -85,7 +85,7 @@ export const LABEL_FIELD_HOMES: Readonly<Record<keyof LabelStyle, Home>> = {
     look: at("Label entry, look"),
     enabled: at("Label entry, eye (off draws no label here)"),
     sizePx: at("Label entry, size (through the label size channel)"),
-    sizeUnit: at("Label settings, Type, Size in (a new label is sized in screen pixels)"),
+    sizeUnit: at("Label settings, Type, Size in"),
     location: at("Label entry, position"),
     color: at("Label settings, Text color"),
     background: at("Label settings, Background"),

@@ -79,13 +79,17 @@
 }
 
 /* A text entry's kind (its glyph and word) in the label column, so its source starts on the field
-   column. */
+   column. It is the column wide, with the field label's 4px end padding; the negative margin takes
+   back the row's 4px gap. The column is measured from it at max-content (useLabelColumn), so its
+   word fits whole: a basis of the column less the gap cut "Label" to "La...". */
 .ws-text-kind {
     display: flex;
-    flex: 0 0 calc(var(--ws-label, 80px) - 4px);
+    flex: 0 0 var(--ws-label, 80px);
     align-items: center;
     gap: 4px;
     min-width: 0;
+    padding-inline-end: 4px;
+    margin-inline-end: -4px;
     font-size: 11px;
     color: var(--cm-text-secondary);
 }

@@ -71,3 +71,18 @@ export const EDGE_CONSTANTS = {
     // from the true curve by about 1/30,000 of its length, under a pixel on any screen.
     BEZIER_MAX_SEGMENTS: 64,
 } as const;
+
+/**
+ * The Babylon rendering groups the graph is drawn in, in drawing order.
+ *
+ * A node outline is a highlight layer, a glow composited over the frame once the GRAPH group is
+ * drawn. Arrow caps (and the elements of patterned lines, which are caps too) are drawn after it
+ * in CAPS, with the depth buffer kept, so the glow never paints over a cap that touches an
+ * outlined node -- and a cap behind a node is still hidden by it (#2324). ON_TOP clears the depth
+ * buffer, so a label asked to be drawn on top covers everything.
+ */
+export const RENDERING_GROUPS = {
+    GRAPH: 0,
+    CAPS: 1,
+    ON_TOP: 2,
+} as const;

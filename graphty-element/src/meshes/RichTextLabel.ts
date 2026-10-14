@@ -13,13 +13,11 @@ import {
 
 import { BadgeStyleManager } from "../BadgeStyleManager";
 import { type RichTextStyleType } from "../config";
+import { RENDERING_GROUPS } from "../constants/meshConstants";
 import { type ContentArea as PointerContentArea, type PointerDirection, PointerRenderer } from "./PointerRenderer";
 import { RichTextAnimator } from "./RichTextAnimator";
 import { measureLine, RichTextParser } from "./RichTextParser";
 import { RichTextRenderer } from "./RichTextRenderer";
-
-/** The Babylon rendering group a label drawn on top uses: after nodes and edges (group 0). */
-const ON_TOP_RENDERING_GROUP = 1;
 
 /** The line height a label is drawn at when its style names none. */
 const DEFAULT_LINE_HEIGHT = 1.2;
@@ -936,10 +934,10 @@ export class RichTextLabel {
         this.mesh.material = this.material;
         this.mesh.billboardMode = this.options.billboardMode;
         // A label sorts by depth with the nodes and edges it belongs to. A tooltip asks to be
-        // drawn on top: group 1 is drawn after group 0 with the depth buffer cleared, so nothing
-        // in the graph can cover what the reader pointed at.
+        // drawn on top: its group is drawn last with the depth buffer cleared, so nothing in the
+        // graph can cover what the reader pointed at.
         if (this.options.onTop === true) {
-            this.mesh.renderingGroupId = ON_TOP_RENDERING_GROUP;
+            this.mesh.renderingGroupId = RENDERING_GROUPS.ON_TOP;
         }
     }
 

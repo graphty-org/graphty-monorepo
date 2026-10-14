@@ -4,6 +4,8 @@ import "@babylonjs/core/Meshes/thinInstanceMesh";
 
 import { BoundingBox, Color3, Matrix, type Mesh, Quaternion, type Scene, Vector3 } from "@babylonjs/core";
 
+import { RENDERING_GROUPS } from "../constants/meshConstants";
+
 /** Floats in one 4x4 world matrix, which is what every slot holds. */
 const FLOATS_PER_MATRIX = 16;
 
@@ -167,6 +169,13 @@ export class ArrowCapBatch {
         // wrong anyway: the shader builds the cap's geometry from the camera, not from the box.
         mesh.doNotSyncBoundingInfo = true;
         mesh.alwaysSelectAsActiveMesh = true;
+
+        // DRAWN AFTER THE NODE OUTLINES (#2324). An outline is a glow composited over the frame,
+        // and a cap's tip sits on the node's surface, inside that glow: a graph whose nodes are
+        // outlined -- most files with node borders -- drew every cap it asked for under it. The
+        // caps' group keeps the depth buffer, so a cap behind a node is still hidden by it.
+        mesh.renderingGroupId = RENDERING_GROUPS.CAPS;
+        scene.setRenderingAutoClearDepthStencil(RENDERING_GROUPS.CAPS, false, false, false);
 
         mesh.thinInstanceSetBuffer("matrix", this.matrices, FLOATS_PER_MATRIX, false);
         mesh.thinInstanceCount = 0;

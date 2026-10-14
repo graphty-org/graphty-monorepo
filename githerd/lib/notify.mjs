@@ -583,13 +583,17 @@ export function planPages(state, now, { digestHourUtc = 16 } = {}) {
             pageable.length === 1
                 ? pageLine(pageable[0])
                 : `${pageable.length} items wait on you: ${pageable.map(pageLine).join("; ")}`;
+        const key = `owner:${hash(texts.join("\n"))}`;
         pages.push({
-            key: `owner:${hash(texts.join("\n"))}`,
+            key,
             status: "waiting",
             message,
             bypass: pageable.some((i) => i.blocks),
         });
         for (const i of pageable) i.paged = { text: itemText(i), at, via: "page" };
+        // The items the page's key stands for: its record is kept while any of them is (notifiedToDrop).
+        const covers = (paging.covers ??= {});
+        covers[key] = [...new Set([...(covers[key] ?? []), ...pageable.map((i) => i.id)])];
         paging.lastPageAt = at;
     }
     const day = at.slice(0, 10);
@@ -605,6 +609,37 @@ export function planPages(state, now, { digestHourUtc = 16 } = {}) {
         paging.digestDay = day;
     }
     return pages;
+}
+
+/**
+ * The page keys whose delivery record (`state.notified`, or `state.notify.failed` for one given up)
+ * nothing reads any more (issue #2552), which the daemon drops once the record is in the ledger (a
+ * `notify-dropped` line). The record only stops `send` from queueing the same key again, so it
+ * stays while the key can come again: a fatal or other fixed key always, a digest's on its own day
+ * (`planPages` only makes today's), and an owner page's while any item it covered is still in the
+ * state, since only those items, with the same texts, give the same key. A key still queued stays.
+ * An owner page's key recorded before its items were (`paging.covers`) is given every item in the
+ * state now that was raised by the time it was delivered, a superset of its own.
+ * @param {any} state the daemon state, mutated (`paging.covers`)
+ * @param {Date} now the current time
+ * @returns {string[]} the keys to drop
+ */
+export function notifiedToDrop(state, now) {
+    const n = state.notify ?? {};
+    state.paging ??= { lastPageAt: null, digestDay: null };
+    const covers = (state.paging.covers ??= {});
+    const today = `digest:${now.toISOString().slice(0, 10)}`;
+    const keys = new Set([...Object.keys(state.notified ?? {}), ...Object.keys(n.failed ?? {})]);
+    return [...keys].filter((key) => {
+        if (n.pending?.[key]) return false;
+        if (key.startsWith("digest:")) return key !== today;
+        if (!key.startsWith("owner:")) return false;
+        const at = state.notified?.[key] ?? n.failed?.[key];
+        covers[key] ??= Object.values(state.ownerItems ?? {})
+            .filter((/** @type {any} */ i) => !at || i.raisedAt <= at)
+            .map((/** @type {any} */ i) => i.id);
+        return !covers[key].some((id) => state.ownerItems?.[id]);
+    });
 }
 
 /**

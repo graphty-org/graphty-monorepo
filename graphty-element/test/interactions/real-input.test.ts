@@ -17,6 +17,7 @@ import { userEvent } from "vitest/browser";
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
 import type { RenderManager } from "../../src/managers/RenderManager";
+import { drawnFrames } from "../helpers/drawn-frames";
 import {
     click,
     drag,
@@ -118,13 +119,15 @@ function camera(element: Graphty): string {
 }
 
 /**
- * Let a few frames run, so input the element reads once a frame has landed.
- * @param frames - How many.
+ * Wait until the element has applied the input just given and the picture has come to rest.
+ *
+ * The element reads pointer input in its next update, so a drawn frame first; then the stable
+ * frame, which also waits out a camera still coasting from it.
+ * @param element - The element.
  */
-async function frames(frames = 3): Promise<void> {
-    for (let i = 0; i < frames; i++) {
-        await nextFrame();
-    }
+async function applied(element: Graphty): Promise<void> {
+    await drawnFrames(element.graph.getScene(), 1);
+    await element.waitForStableFrame();
 }
 
 describe("the mouse", () => {
@@ -133,7 +136,7 @@ describe("the mouse", () => {
         const before = camera(element);
 
         await drag(element, EMPTY, { x: EMPTY.x + 120, y: EMPTY.y - 40 });
-        await frames();
+        await applied(element);
 
         assert.notStrictEqual(camera(element), before, "the camera turned");
         assert.isNull(element.getSelectedNode(), "a drag on empty canvas selects nothing");
@@ -144,7 +147,7 @@ describe("the mouse", () => {
         const start = at(element, "a");
 
         await drag(element, EMPTY, { x: EMPTY.x + 60, y: EMPTY.y - 30 });
-        await frames();
+        await applied(element);
 
         const end = at(element, "a");
         assert.closeTo(end.x - start.x, 60, 2, "the node moved right with the pointer");
@@ -156,7 +159,7 @@ describe("the mouse", () => {
         const gap = spread(element);
 
         await wheel(element, { x: WIDTH / 2, y: HEIGHT / 2 }, -200);
-        await frames();
+        await applied(element);
 
         assert.isAbove(spread(element), gap, "scrolling up zoomed in");
     });
@@ -166,13 +169,13 @@ describe("the mouse", () => {
             const element = await mounted(viewMode);
 
             await click(element, at(element, "b"));
-            await frames();
+            await applied(element);
 
             assert.strictEqual(element.getSelectedNode()?.id, "b", "the click selected the node under it");
             assert.isFalse(element.isPinned("b"), "a click is not a placement, so nothing is pinned");
 
             await click(element, EMPTY);
-            await frames();
+            await applied(element);
             assert.isNull(element.getSelectedNode(), "a click on empty canvas clears the selection");
         });
 
@@ -182,7 +185,7 @@ describe("the mouse", () => {
             const to = { x: from.x + 50, y: from.y + 40 };
 
             await drag(element, from, to);
-            await frames();
+            await applied(element);
 
             const now = at(element, "c");
             assert.closeTo(now.x, to.x, 3, "the node followed the pointer across");
@@ -198,9 +201,9 @@ describe("the mouse", () => {
             });
 
             await hover(element, EMPTY);
-            await frames(1);
+            await nextFrame();
             await hover(element, at(element, "a"));
-            await frames(1);
+            await nextFrame();
 
             assert.deepStrictEqual(hovered, ["a"], "one hover, for the node under the pointer");
         });
@@ -430,7 +433,7 @@ describe("touch", () => {
         const start = at(element, "a");
 
         await touchDrag(element, EMPTY, { x: EMPTY.x + 40, y: EMPTY.y - 80 });
-        await frames();
+        await applied(element);
 
         assert.strictEqual(window.scrollY, 0, "the page did not scroll");
         const end = at(element, "a");
@@ -443,7 +446,7 @@ describe("touch", () => {
         const gap = spread(element);
 
         await pinch(element, { x: WIDTH / 2, y: HEIGHT / 2 }, 60, 180);
-        await frames();
+        await applied(element);
 
         assert.isAbove(spread(element), gap * 1.5, "the drawing grew with the fingers");
     });
@@ -453,7 +456,7 @@ describe("touch", () => {
         const gap = spread(element);
 
         await pinch(element, { x: WIDTH / 2, y: HEIGHT / 2 }, 60, 180);
-        await frames();
+        await applied(element);
 
         assert.isAbove(spread(element), gap, "the drawing grew with the fingers");
     });
@@ -468,13 +471,13 @@ describe("a high-DPI screen", () => {
                 const element = await mounted(viewMode);
 
                 await click(element, at(element, "b"));
-                await frames();
+                await applied(element);
                 assert.strictEqual(element.getSelectedNode()?.id, "b", "the click selected the node drawn under it");
 
                 const from = at(element, "c");
                 const to = { x: from.x - 40, y: from.y + 30 };
                 await drag(element, from, to);
-                await frames();
+                await applied(element);
                 const now = at(element, "c");
                 assert.closeTo(now.x, to.x, 3, "the dragged node is under the pointer");
                 assert.closeTo(now.y, to.y, 3, "the dragged node is under the pointer");

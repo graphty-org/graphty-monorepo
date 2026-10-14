@@ -9,8 +9,8 @@ import { assert } from "chai";
 import { afterEach, beforeEach, describe, test, vi } from "vitest";
 
 import { Graph, operationQueueOf } from "../../../src/Graph";
+import { drawnFrames } from "../../helpers/drawn-frames";
 import { assertPlaced } from "../../helpers/placed-position";
-import { nextFrame } from "../../helpers/real-input";
 import { configureGraph } from "../../helpers/testSetup";
 
 const TEST_NODES = [
@@ -61,10 +61,8 @@ describe("XR Input Switching", () => {
             const initialPos = node1.mesh.position.clone();
             assertPlaced(initialPos, "node1");
 
-            // Verify node position is stable
-            for (let frame = 0; frame < 3; frame++) {
-                await nextFrame();
-            }
+            // Three more updates, any of which would have moved an unstable node
+            await drawnFrames(graph.getScene(), 3);
 
             const finalPos = node1.mesh.position;
             const positionStable =

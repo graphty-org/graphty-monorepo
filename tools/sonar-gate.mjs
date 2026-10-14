@@ -584,6 +584,14 @@ const skip = (reason, why) =>
 const serverFault = (why) => skip("server-fault", `The SonarQube server or the network failed: ${why}`);
 
 const git = (args) => execFileSync("git", args, { encoding: "utf8", env: envWithoutToken(), maxBuffer: 256 << 20 });
+// git for a question whose "no" is an error (a path missing at a revision): no stderr.
+const gitQuiet = (args) =>
+    execFileSync("git", args, {
+        encoding: "utf8",
+        env: envWithoutToken(),
+        stdio: ["ignore", "pipe", "ignore"],
+        maxBuffer: 256 << 20,
+    });
 
 function isExecutable(p) {
     try {
@@ -872,7 +880,7 @@ function verdictOutcome(verdict, host, bypass) {
 // A file's lines at a revision, or [] when it is not there (a file the push adds).
 function showOrEmpty(spec) {
     try {
-        return git(["show", spec]).split("\n");
+        return gitQuiet(["show", spec]).split("\n");
     } catch {
         return [];
     }
@@ -883,7 +891,7 @@ function showOrEmpty(spec) {
 function remoteHead(run) {
     const commit = (r) => {
         try {
-            return git(["rev-parse", "--verify", "-q", `${r}^{commit}`]).trim();
+            return gitQuiet(["rev-parse", "--verify", "-q", `${r}^{commit}`]).trim();
         } catch {
             return null;
         }
@@ -919,7 +927,7 @@ function previousVersion(run, files) {
 async function scanPrevious(run, setup, prior, paths, files) {
     const exists = (rev, p) => {
         try {
-            git(["cat-file", "-e", `${rev}:${p}`]);
+            gitQuiet(["cat-file", "-e", `${rev}:${p}`]);
             return true;
         } catch {
             return false;

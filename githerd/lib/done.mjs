@@ -211,7 +211,9 @@ async function mergedAnswer(number, view, issues) {
     const unnamed = issues.filter((n) => !new RegExp(String.raw`#${n}(?!\d)`).test(pull.body ?? ""));
     if (unnamed.length) {
         return {
-            missing: unnamed.map((n) => `#${number} merged but does not name #${n} in its description: ${COMMITS_HINT}`),
+            missing: unnamed.map(
+                (n) => `#${number} merged but does not name #${n} in its description: ${COMMITS_HINT}`,
+            ),
             fixable: true,
         };
     }

@@ -751,7 +751,7 @@ function joinJob(state, job, other, reason, now) {
     other.joined.push(job.target);
     // An issue's own job ends here, so only the other job's pull request can close the issue
     // (issue #2499); githerd_done requires it to name the issue (done.mjs mustName).
-    const issue = job.kind === "issue" && !job.facts?.scope ? Number(String(job.target).replace(/^#/, "")) : NaN;
+    const issue = job.kind === "issue" && !job.facts?.scope ? Number(String(job.target).replace(/^#/, "")) : Number.NaN;
     let name = "";
     if (Number.isInteger(issue) && issue > 0) {
         other.joinedIssues = [...(other.joinedIssues ?? []), issue];

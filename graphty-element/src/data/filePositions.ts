@@ -8,7 +8,7 @@
  * reader handles positions on its own.
  */
 
-import type { GraphSnapshot, NodeId } from "@graphty/graph-format";
+import type { GraphSnapshot } from "@graphty/graph-format";
 import type { GraphImporter, ImportReport } from "@graphty/graph-io";
 import {
     extractPositions,
@@ -37,22 +37,22 @@ export function filePositionsOf(imported: PositionSource): FilePositions | null 
  * Write each node's stored position onto its record as `position: { x, y, z }`, in file units
  * (the element applies `data.knownFields.positionScale`). A node the file gave no position keeps
  * whatever its record already holds; nothing is deleted.
- * @param records - the node records, each holding its `id`
+ * @param records - the node records
  * @param positions - the file's positions, or null
- * @param indexOf - a node id's row in the snapshot the positions were read from
+ * @param rowOf - a record's row in the snapshot the positions were read from (-1 for none)
  */
 export function applyFilePositions(
     records: readonly Record<string, unknown>[],
     positions: FilePositions | null,
-    indexOf: (id: NodeId) => number,
+    rowOf: (record: Record<string, unknown>, index: number) => number,
 ): void {
     if (positions?.usable !== true) {
         return;
     }
 
     const { coords } = positions;
-    for (const record of records) {
-        const row = indexOf(record.id as NodeId);
+    for (const [index, record] of records.entries()) {
+        const row = rowOf(record, index);
         const x = row < 0 ? Number.NaN : coords[3 * row];
         if (!Number.isNaN(x)) {
             record.position = { x, y: coords[3 * row + 1], z: coords[3 * row + 2] };

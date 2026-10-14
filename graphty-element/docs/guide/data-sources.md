@@ -361,12 +361,14 @@ saved it:
 | Pajek                             | the coordinates after a vertex's label        | the file's own (usually 0 to 1)                           | down; a z of 0.5 on every vertex is a flat drawing                         |
 | DOT                               | `pos`, and a cluster's `bb`                   | points with a root `bb` (Graphviz output), inches without | up                                                                         |
 | XGMML, CX, CX2, Cytoscape session | the network view's node positions             | pixels                                                    | down                                                                       |
+| Cytoscape.js JSON (`elements`)    | each element's `position`                     | pixels                                                    | down                                                                       |
+| Other JSON                        | each node record's `position`                 | the file's own                                            | up                                                                         |
 | CSV, Neo4j CSV, OBO               | not stored                                    |                                                           |                                                                            |
 
 With `layout: "recommended"`, a file with no stored positions gets a computed layout. A file where every node sits on one point
 is treated as having none. Plain `x` and `y` keys in a CSV or JSON file are ordinary values, not
-positions. A JSON node record's own `position` (`{ x, y, z }`, `[x, y]` or `[x, y, z]`) is taken
-as written: the node's center, y up.
+positions. A JSON node record's `position` may be `{ x, y, z }`, `[x, y]` or `[x, y, z]`; it is
+the node's center.
 
 The element multiplies each stored coordinate by `positionScale` (default 1). It frames the
 camera on the graph after every load, so a drawing in pixels and one in the 0 to 1 range both

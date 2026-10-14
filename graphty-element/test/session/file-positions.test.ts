@@ -127,3 +127,78 @@ describe("a file loaded and saved is drawn the same way when loaded again", () =
         });
     }
 });
+
+describe("JSON node positions take the same path as every other format's", () => {
+    /**
+     * Import a JSON document with `layout: "recommended"` and read every node's position.
+     * @param doc - the document
+     * @param config - the reader's other options
+     * @returns the layout chosen and the positions by id
+     */
+    async function json(doc: unknown, config: object = {}): Promise<{ layout: string; at: Map<string, number[]> }> {
+        const { session } = makeSession({
+            config: DataConfig.parse({ directed: "auto", knownFields: { positionScale: SCALE } }),
+        });
+        await session.data.import(
+            { type: "json", config: { data: JSON.stringify(doc), ...config } },
+            { layout: "recommended" },
+        );
+        await vi.waitFor(() => {
+            assert.lengthOf(session.history.pending, 0);
+        });
+        const snapshot = session.snapshot();
+        const read = { x: 0, y: 0, z: 0 };
+        const at = new Map<string, number[]>();
+        for (let row = 0; row < snapshot.nodeCount; row++) {
+            session.positions.read(row, read);
+            at.set(String(snapshot.ids.idOf(row)), [read.x, read.y, read.z]);
+        }
+
+        const layout = session.layout.id;
+        session.dispose();
+        return { layout, at };
+    }
+
+    it("reads a plain record's position as written: center, y up", async () => {
+        const { layout, at } = await json({
+            nodes: [
+                { id: "a", position: { x: 1, y: 2 } },
+                { id: "b", position: [3, -4, 5] },
+            ],
+            edges: [{ source: "a", target: "b" }],
+        });
+
+        assert.strictEqual(layout, "fixed");
+        assert.deepEqual(at.get("a"), [1 * SCALE, 2 * SCALE, 0]);
+        assert.deepEqual(at.get("b"), [3 * SCALE, -4 * SCALE, 5 * SCALE]);
+    });
+
+    it("flips a Cytoscape.js element's position, which is y down", async () => {
+        const { layout, at } = await json({
+            elements: {
+                nodes: [
+                    { data: { id: "a" }, position: { x: 10, y: 20 } },
+                    { data: { id: "b" }, position: { x: -5, y: 3 } },
+                ],
+                edges: [{ data: { source: "a", target: "b" } }],
+            },
+        });
+
+        assert.strictEqual(layout, "fixed");
+        assert.deepEqual(at.get("a"), [10 * SCALE, -20 * SCALE, 0]);
+        assert.deepEqual(at.get("b"), [-5 * SCALE, -3 * SCALE, 0]);
+    });
+
+    it("keeps no positions when every node is on one point", async () => {
+        const { layout } = await json({
+            nodes: [
+                { id: "a", position: { x: 1, y: 1 } },
+                { id: "b", position: { x: 1, y: 1 } },
+                { id: "c", position: { x: 1, y: 1 } },
+            ],
+            edges: [{ source: "a", target: "b" }],
+        });
+
+        assert.notStrictEqual(layout, "fixed", "stacked positions are unusable, so a layout is computed");
+    });
+});

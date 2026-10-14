@@ -571,7 +571,7 @@ export function toRecords(imported: ImportedGraph, mapping: RecordMapping): { no
         nodes.push(record);
     }
 
-    applyFilePositions(nodes, filePositionsOf(imported), (id) => ids.indexOf(id));
+    applyFilePositions(nodes, filePositionsOf(imported), (record) => ids.indexOf(record.id as NodeId));
 
     const pair = snapshot.edges.byRole("pair");
     const weight = snapshot.edges.byRole("weight");

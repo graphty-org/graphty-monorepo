@@ -205,8 +205,11 @@ record before the layout starts, while a style layer can be added or removed aft
   reader: GEXF, GraphML, GML, Pajek, DOT and the `fromImporter` readers (XGMML, CX, CX2, CYS, OBO).
 - `copyColumns()` skips the role-`position` column.
 - `JsonDataSource` sends a Cytoscape `elements` document through `importWhole` with dialect
-  `"cytoscape"` (which already flips y) instead of the raw-record path. A raw record's own
-  `position` is taken as written: center, y up, file units.
+  `"cytoscape"` (which already flips y) instead of the raw-record path. Any other
+  document's node records go to graph-io too: each record's own `position` is handed over as
+  plain `x` / `y` / `z` (y up, center, file units), read back by `extractPositions`, and written
+  onto the record by `applyFilePositions`, so a JSON file follows the same convention and the
+  same "no usable positions" rule as every other format.
 
 **Removed (the per-source code):**
 

@@ -34,8 +34,8 @@ function stableJson(value: unknown): string {
     if (typeof value === "object" && value !== null) {
         const record = value as Record<string, unknown>;
         const keys = Object.keys(record).sort();
-        const members = keys.map((key) => `${JSON.stringify(key)}:${stableJson(record[key])}`).join(",");
-        return `{${members}}`;
+        const entries = keys.map((key) => `${JSON.stringify(key)}:${stableJson(record[key])}`);
+        return `{${entries.join(",")}}`;
     }
     return JSON.stringify(value);
 }

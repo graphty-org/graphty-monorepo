@@ -72,8 +72,8 @@ async function main(): Promise<void> {
         const error = await tryPipeline(ctx, spec);
         const label = `${c.id} | ${JSON.stringify(c.overrides)}${c.snippets ? " | snippets" : ""}`;
         row(table, [label, error ?? "ok"], error === null);
-        const why = error === null ? "" : ` -- ${error}`;
-        log(`${error === null ? "OK  " : "FAIL"} ${label}${why}`);
+        const detail = error === null ? "" : ` -- ${error}`;
+        log(`${error === null ? "OK  " : "FAIL"} ${label}${detail}`);
         if (error !== null) {
             failures++;
         }
@@ -159,8 +159,8 @@ fn attraction(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_i
             error = `compose: ${e instanceof Error ? e.message : String(e)}`;
         }
         row(table2, [v.id, error ?? "ok"], error === null);
-        const why = error === null ? "" : ` -- ${error}`;
-        log(`${error === null ? "OK  " : "FAIL"} ${v.id}${why}`);
+        const detail = error === null ? "" : ` -- ${error}`;
+        log(`${error === null ? "OK  " : "FAIL"} ${v.id}${detail}`);
     }
 
     // 3. The composed source of the failing kernel, for the report.

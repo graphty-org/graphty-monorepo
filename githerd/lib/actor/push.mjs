@@ -16,7 +16,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { stripVTControlCharacters } from "node:util";
 
-import { move, TERMINAL } from "../board.mjs";
+import { move, sessionName, TERMINAL } from "../board.mjs";
 import { classify } from "../classify.mjs";
 import { isMasterFix } from "../master-fix.mjs";
 import { identify, pushQueueScript } from "../proc.mjs";
@@ -470,7 +470,7 @@ export function createPushQueue({
             const both = o.files.filter((f) => pushed.has(f)).sort((a, b) => a.localeCompare(b));
             if (!both.length) continue;
             const named = both.slice(0, 10).join(", ") + (both.length > 10 ? ` and ${both.length - 10} more` : "");
-            const name = o.job ? `job ${o.job}` : `session ${o.session}`;
+            const name = o.job ? `job ${o.job}` : `session ${sessionName(state, o.session)}`;
             job.related = [...new Set([...(job.related ?? []), o.job ?? `session:${o.session}`])];
             const text = (/** @type {string} */ who) =>
                 `overlap: ${who} changes files your work changes too: ${named}; recorded as related. ` +

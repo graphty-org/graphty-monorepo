@@ -275,9 +275,9 @@ function row(status, r, baseline, target) {
         baseline === null || typeof baseline.minMs !== "number" || baseline.minMs === 0 || typeof r.minMs !== "number"
             ? ""
             : `x${(r.minMs / baseline.minMs).toFixed(2)}`;
-    const name = `${r.group}/${r.name}`;
+    const label = `${r.group}/${r.name}`;
     const median = `${r.medianMs.toFixed(3)} ms`;
-    return `${status.padEnd(18)} ${name.padEnd(70)} ${median.padStart(14)} ${base.padStart(14)} ${ratio.padStart(8)} ${minRatio.padStart(10)} ${target}`.trimEnd();
+    return `${status.padEnd(18)} ${label.padEnd(70)} ${median.padStart(14)} ${base.padStart(14)} ${ratio.padStart(8)} ${minRatio.padStart(10)} ${target}`.trimEnd();
 }
 
 /**

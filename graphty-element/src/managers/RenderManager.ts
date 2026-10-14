@@ -5,6 +5,7 @@ import {
     EngineStore,
     HemisphericLight,
     Logger,
+    NullEngine,
     PhotoDome,
     Quaternion,
     Scene,
@@ -20,6 +21,7 @@ import { OrbitInputController } from "../cameras/OrbitInputController";
 import { TwoDCameraController } from "../cameras/TwoDCameraController";
 import { InputController } from "../cameras/TwoDInputController";
 import type { GraphBackgroundConfig } from "../config/GraphStyle";
+import { GraphtyLogger } from "../logging";
 import { reportCaught } from "../session/project/strict";
 import type { EventManager } from "./EventManager";
 import { everyFrameAnimationsOn } from "./everyFrameAnimations";
@@ -195,6 +197,39 @@ export async function openWebGPUEngine(canvas: HTMLCanvasElement): Promise<WebGP
 }
 
 /**
+ * A WebGL engine and its scene, or -- when the browser gives the page no working WebGL context (none
+ * at all, or one whose GPU process keeps crashing, as Safari on iOS ends up) -- Babylon's
+ * NullEngine, which draws nothing. Without it the element could not be built at all, so the graph's
+ * data, its session and the work autosave kept would not load either; with it only the picture is
+ * missing, which the log reports as E_NO_WEBGL.
+ * @param canvas - The element's canvas.
+ * @returns The engine and the scene.
+ */
+function openWebGL(canvas: HTMLCanvasElement): { engine: Engine; scene: Scene } {
+    let engine: Engine | undefined;
+    try {
+        engine = new Engine(canvas, true, {
+            preserveDrawingBuffer: true, // Required for screenshots
+        });
+        return { engine, scene: new Scene(engine) };
+    } catch (error) {
+        try {
+            engine?.dispose();
+        } catch {
+            // An engine whose context failed cannot always release what it never built.
+        }
+
+        GraphtyLogger.getLogger(["graphty", "render"]).error(
+            "E_NO_WEBGL: no WebGL context could be used, so nothing is drawn; the data and the session still work",
+            error instanceof Error ? error : undefined,
+            { code: "E_NO_WEBGL", reason: error instanceof Error ? error.message : String(error) },
+        );
+        const fallback = new NullEngine();
+        return { engine: fallback, scene: new Scene(fallback) };
+    }
+}
+
+/**
  * The name of the graph-root TransformNode used for XR gestures
  * Gestures (zoom, rotate, pan) manipulate this node to transform the entire graph
  */
@@ -353,15 +388,13 @@ export class RenderManager implements Manager {
         this.pictureIsFinal = this.config.pictureIsFinal ?? null;
         this.drawsOnDemand = this.config.drawsOnDemand ?? ((): boolean => false);
 
-        // Create engine
-        this.engine =
-            this.config.engine ??
-            new Engine(this.canvas, true, {
-                preserveDrawingBuffer: true, // Required for screenshots
-            });
+        if (this.config.engine === undefined) {
+            ({ engine: this.engine, scene: this.scene } = openWebGL(this.canvas));
+        } else {
+            this.engine = this.config.engine;
+            this.scene = new Scene(this.engine);
+        }
 
-        // Create scene
-        this.scene = new Scene(this.engine);
         this.scene.preventDefaultOnPointerDown = false;
         this.scene.preventDefaultOnPointerUp = false;
         this.canvas.addEventListener("pointerdown", this.focusOnPointer);

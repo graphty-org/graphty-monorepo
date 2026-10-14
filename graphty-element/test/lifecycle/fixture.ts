@@ -88,6 +88,14 @@ const pageError = (message) => {
 window.addEventListener("error", (e) => pageError(String(e.error ?? e.message)));
 window.addEventListener("unhandledrejection", (e) => pageError("unhandled rejection: " + String(e.reason)));
 document.addEventListener("error", (e) => { if (e.target instanceof HTMLScriptElement) pageError("script failed to load: " + (e.target.src || "inline module")); }, true);
+// webgl=off: a browser that gives the page no WebGL context (a GPU process that crashed too often,
+// a blocklisted driver): every WebGL getContext returns null, as the browser's would.
+if (new URLSearchParams(location.search).get("webgl") === "off") {
+    const nativeGetContext = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function (type, ...rest) {
+        return /webgl/i.test(type) ? null : nativeGetContext.call(this, type, ...rest);
+    };
+}
 // Before the bundle: count the timers that fire while the page is hidden, for the hidden-run test.
 window.__timers = { firedHidden: 0 };
 const nativeSetTimeout = window.setTimeout.bind(window);

@@ -379,3 +379,22 @@ describe("GPU context lost", () => {
         await saved(tab("a"), await next(page));
     });
 });
+
+describe("No WebGL", () => {
+    it("restores the saved work on a page that gets no WebGL context", async () => {
+        const key = "no-webgl";
+        const tab = (name: string): string => `${key}.${name}`;
+        const { context } = await start("chromium");
+        const page = await openFixture(context, { key, tab: tab("a") });
+        const edit = await next(page);
+        await saved(tab("a"), edit);
+        await closeAsReader(page, "chromium");
+
+        const again = await context.newPage();
+        await again.goto(fx.url({ key, tab: tab("b"), webgl: "off" }));
+        const restored = await again.evaluate<{ revision: number } | null>("fixture.ready()");
+        assert.isNotNull(restored, "the saved work was restored");
+        assert.strictEqual(restored?.revision, edit, "the restored revision is the last one saved");
+        assert.deepEqual((await check(again)).probes, [edit], "every node's probe is the saved edit");
+    });
+});

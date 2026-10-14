@@ -2310,9 +2310,67 @@ function importAdjacency(ctx: ImportContext, root: JsonRecord): void {
     ctx.setHeader(directed);
     // adjacency_data writes the graph dict as a list of [key, value] pairs
     ctx.writeGraphDict(isPairList(root.graph) ? Object.fromEntries(root.graph) : root.graph, "graph");
+    reportUnreadAdjacencyKeys(ctx, root);
+    const lists = adjacency ?? [];
+    ctx.sink.reserve(
+        nodes.length,
+        lists.reduce<number>((sum, list) => sum + (Array.isArray(list) ? list.length : 0), 0),
+    );
+    const idKey = ctx.json.nodeIdKey ?? "id";
+    ctx.reportNodeIdFrom("adjacency", `the ${JSON.stringify(idKey)} key`);
+    const owners = nodes.map((record, i) => pushAdjacencyNode(ctx, record, `nodes[${i}]`, idKey));
+    throwIfAborted(ctx.options.signal);
+    const reading: AdjacencyReading = {
+        owners,
+        nodeCount: nodes.length,
+        directed,
+        kind: ctx.uniformKind(),
+        idKey,
+        // undirected: entries read once whose mirror is still to come, by pair and key, with their attributes
+        pending: new Map<string, string[]>(),
+        disagreeing: 0,
+    };
+    for (let i = 0; i < lists.length; i++) {
+        readAdjacencyList(ctx, reading, i, lists[i]);
+    }
+    reportAdjacencyShape(
+        ctx,
+        nodes.length,
+        adjacency === null ? null : lists.length,
+        reading.disagreeing,
+        reading.pending,
+    );
+    ctx.setMeta({}, { declaredMultigraph: multigraph, ...ctx.weightOriginPatch() });
+}
+
+/** The top-level keys of an adjacency_data document that are read. */
+const ADJACENCY_DOCUMENT_KEYS: ReadonlySet<string> = new Set(["nodes", "adjacency", "directed", "multigraph", "graph"]);
+
+/** The state of an adjacency_data read, shared by its lists. */
+interface AdjacencyReading {
+    /** The id of each node record, or null when it was skipped. */
+    readonly owners: readonly (NodeId | null)[];
+    /** The number of node records. */
+    readonly nodeCount: number;
+    readonly directed: boolean;
+    readonly kind: EdgeKind;
+    /** The entries' id key. */
+    readonly idKey: string;
+    /** Undirected entries awaiting their mirror (mirroredEntry()). */
+    readonly pending: Map<string, string[]>;
+    /** The mirrors whose attributes differ. */
+    disagreeing: number;
+}
+
+/**
+ * Report the top-level keys of an adjacency_data document that are not read.
+ * @param ctx - the context
+ * @param root - the document
+ */
+function reportUnreadAdjacencyKeys(ctx: ImportContext, root: JsonRecord): void {
     for (const key of Object.keys(root)) {
-        if (key !== "nodes" && key !== "adjacency" && key !== "directed" && key !== "multigraph" && key !== "graph") {
-            report.warning(
+        if (!ADJACENCY_DOCUMENT_KEYS.has(key)) {
+            ctx.report.warning(
                 "unsupported",
                 JSON_ISSUE.UNREAD_KEY,
                 `top-level key ${key} (${describe(root[key])}) is not read; dropped`,
@@ -2322,98 +2380,117 @@ function importAdjacency(ctx: ImportContext, root: JsonRecord): void {
             );
         }
     }
-    const lists = adjacency ?? [];
-    ctx.sink.reserve(
-        nodes.length,
-        lists.reduce<number>((sum, list) => sum + (Array.isArray(list) ? list.length : 0), 0),
-    );
-    const idKey = ctx.json.nodeIdKey ?? "id";
-    ctx.reportNodeIdFrom("adjacency", `the ${JSON.stringify(idKey)} key`);
-    const owners: (NodeId | null)[] = [];
-    for (let i = 0; i < nodes.length; i++) {
-        const element = `nodes[${i}]`;
-        const record = nodes[i];
-        let pushed: NodeId | null = null;
-        if (!isJsonObject(record)) {
-            ctx.badElement("node", element);
-        } else {
-            const id = ctx.coerceId(hasKey(record, idKey) ? record[idKey] : undefined, element);
-            if (id === null) {
-                ctx.countSkipped("node");
-            } else {
-                const index = ctx.pushNode(id, element);
-                if (index >= 0) {
-                    pushed = id;
-                    writeFlat(ctx.nodes, index, record, id, (key) => key !== idKey);
-                }
-            }
-        }
-        owners.push(pushed);
+}
+
+/**
+ * Push one node record of an adjacency_data document.
+ * @param ctx - the context
+ * @param record - the node record
+ * @param element - the element name
+ * @param idKey - the key that holds the id
+ * @returns the node's id, or null when it was skipped
+ */
+function pushAdjacencyNode(ctx: ImportContext, record: unknown, element: string, idKey: string): NodeId | null {
+    if (!isJsonObject(record)) {
+        ctx.badElement("node", element);
+        return null;
     }
-    throwIfAborted(ctx.options.signal);
-    const kind = ctx.uniformKind();
-    const { weightFrom } = ctx.options;
-    // undirected: entries read once whose mirror is still to come, by pair and key, with their attributes
-    const pending = new Map<string, string[]>();
-    let disagreeing = 0;
-    for (let i = 0; i < lists.length; i++) {
-        const element = `adjacency[${i}]`;
-        const list = lists[i];
-        if (!Array.isArray(list)) {
-            report.error("validation-error", JSON_ISSUE.BAD_ELEMENT, `${element} is not an array`, { element });
-            continue;
-        }
-        const source = i < owners.length ? owners[i] : null;
-        if (source === null) {
-            const why = i < nodes.length ? `nodes[${i}] was skipped` : `there is no nodes[${i}]`;
-            report.error(
-                "missing-value",
-                JSON_ISSUE.BAD_INDEX,
-                `${element}: ${why}; its ${list.length} edge${plural(list.length)} ${agree(list.length, "is", "are")} skipped`,
-                {
-                    element,
-                },
-            );
-            report.counts.skippedEdges += list.length;
-            continue;
-        }
-        for (let j = 0; j < list.length; j++) {
-            const entry = `${element}[${j}]`;
-            const record = list[j];
-            if (!isJsonObject(record)) {
-                ctx.badElement("edge", entry);
-                continue;
-            }
-            if (!hasKey(record, idKey)) {
-                ctx.missingEndpoint(entry, idKey);
-                continue;
-            }
-            try {
-                const target = ctx.coerceId(record[idKey], `${entry}.${idKey}`);
-                if (target === null) {
-                    ctx.countSkipped("edge");
-                    continue;
-                }
-                if (!directed) {
-                    const mirror = mirroredEntry(pending, source, target, record, idKey);
-                    disagreeing += mirror === "disagrees" ? 1 : 0;
-                    if (mirror !== "new") {
-                        continue;
-                    }
-                }
-                const edge = ctx.pushEdge(source, target, kind, ctx.weightOf(record), entry);
-                for (const key of Object.keys(record)) {
-                    if (key !== idKey && key !== weightFrom) {
-                        ctx.edges.write(edge, key, record[key], SUFFIX.data, element);
-                    }
-                }
-            } catch (err) {
-                ctx.skip(err, "edge", entry);
-            }
-        }
+    const id = ctx.coerceId(hasKey(record, idKey) ? record[idKey] : undefined, element);
+    if (id === null) {
+        ctx.countSkipped("node");
+        return null;
     }
-    reportAdjacencyShape(ctx, nodes.length, adjacency === null ? null : lists.length, disagreeing, pending);
-    ctx.setMeta({}, { declaredMultigraph: multigraph, ...ctx.weightOriginPatch() });
+    const index = ctx.pushNode(id, element);
+    if (index < 0) {
+        return null;
+    }
+    writeFlat(ctx.nodes, index, record, id, (key) => key !== idKey);
+    return id;
+}
+
+/**
+ * Read one adjacency list: the edges of nodes[i]. A list whose owner was skipped is skipped whole.
+ * @param ctx - the context
+ * @param reading - the read's state
+ * @param i - the list's position
+ * @param list - the list
+ */
+function readAdjacencyList(ctx: ImportContext, reading: AdjacencyReading, i: number, list: unknown): void {
+    const { report } = ctx;
+    const element = `adjacency[${i}]`;
+    if (!Array.isArray(list)) {
+        report.error("validation-error", JSON_ISSUE.BAD_ELEMENT, `${element} is not an array`, { element });
+        return;
+    }
+    const source = i < reading.owners.length ? reading.owners[i] : null;
+    if (source === null) {
+        const why = i < reading.nodeCount ? `nodes[${i}] was skipped` : `there is no nodes[${i}]`;
+        report.error(
+            "missing-value",
+            JSON_ISSUE.BAD_INDEX,
+            `${element}: ${why}; its ${list.length} edge${plural(list.length)} ${agree(list.length, "is", "are")} skipped`,
+            {
+                element,
+            },
+        );
+        report.counts.skippedEdges += list.length;
+        return;
+    }
+    for (let j = 0; j < list.length; j++) {
+        readAdjacencyEntry(ctx, reading, source, list[j], element, `${element}[${j}]`);
+    }
+}
+
+/**
+ * Read one adjacency entry as an edge from the list's owner, unless it is the mirror of an
+ * undirected edge already read.
+ * @param ctx - the context
+ * @param reading - the read's state
+ * @param source - the list's owner
+ * @param record - the entry
+ * @param element - the list's element name (attribute issues name it)
+ * @param entry - the entry's element name
+ */
+function readAdjacencyEntry(
+    ctx: ImportContext,
+    reading: AdjacencyReading,
+    source: NodeId,
+    record: unknown,
+    element: string,
+    entry: string,
+): void {
+    const { idKey } = reading;
+    if (!isJsonObject(record)) {
+        ctx.badElement("edge", entry);
+        return;
+    }
+    if (!hasKey(record, idKey)) {
+        ctx.missingEndpoint(entry, idKey);
+        return;
+    }
+    try {
+        const target = ctx.coerceId(record[idKey], `${entry}.${idKey}`);
+        if (target === null) {
+            ctx.countSkipped("edge");
+            return;
+        }
+        if (!reading.directed) {
+            const mirror = mirroredEntry(reading.pending, source, target, record, idKey);
+            reading.disagreeing += mirror === "disagrees" ? 1 : 0;
+            if (mirror !== "new") {
+                return;
+            }
+        }
+        const edge = ctx.pushEdge(source, target, reading.kind, ctx.weightOf(record), entry);
+        const { weightFrom } = ctx.options;
+        for (const key of Object.keys(record)) {
+            if (key !== idKey && key !== weightFrom) {
+                ctx.edges.write(edge, key, record[key], SUFFIX.data, element);
+            }
+        }
+    } catch (err) {
+        ctx.skip(err, "edge", entry);
+    }
 }
 
 /**
@@ -2603,29 +2680,8 @@ function importGraphology(ctx: ImportContext, root: JsonRecord): void {
             element: "options",
         });
     }
-    let type: "directed" | "undirected" | "mixed";
-    if (options.type === "directed" || options.type === "undirected" || options.type === "mixed") {
-        ({ type } = options);
-    } else {
-        if (options.type !== undefined && options.type !== null) {
-            report.warning(
-                "validation-error",
-                JSON_ISSUE.BAD_FLAG,
-                `options.type ${describe(options.type)} is not directed, undirected or mixed; mixed assumed`,
-                { element: "options.type" },
-            );
-        }
-        type = "mixed";
-    }
-    let directed: boolean;
-    if (type === "mixed") {
-        const objects = edges.filter((edge) => isJsonObject(edge)) as JsonRecord[];
-        const undirectedEdges = objects.filter((edge) => edge.undirected === true).length;
-        directed = objects.length === 0 ? ctx.defaultDirected("graphology") : undirectedEdges < objects.length;
-    } else {
-        directed = type === "directed";
-    }
-    ctx.setHeader(directed);
+    const type = graphologyType(ctx, options);
+    ctx.setHeader(graphologyDirected(ctx, type, edges));
     const multi = hasKey(options, "multi") ? flagOf(options.multi, "options.multi", false, report) : null;
     const allowSelfLoops = hasKey(options, "allowSelfLoops")
         ? flagOf(options.allowSelfLoops, "options.allowSelfLoops", true, report)
@@ -2635,80 +2691,184 @@ function importGraphology(ctx: ImportContext, root: JsonRecord): void {
     ctx.sink.reserve(nodes.length, edges.length);
 
     for (let i = 0; i < nodes.length; i++) {
-        const element = `nodes[${i}]`;
-        const record = nodes[i];
-        if (!isJsonObject(record)) {
-            ctx.badElement("node", element);
-            continue;
-        }
-        const id = ctx.coerceId(hasKey(record, "key") ? record.key : undefined, element);
-        if (id === null) {
-            ctx.countSkipped("node");
-            continue;
-        }
-        pushNestedNode(ctx, id, record, "attributes", GRAPHOLOGY_NODE_KEYS, element);
+        pushGraphologyNode(ctx, nodes[i], `nodes[${i}]`);
     }
     throwIfAborted(ctx.options.signal);
 
-    const ids = ctx.declareEdgeIds(edges, (edge) => edge.key, "key", true);
-    // what the edges do against the declared options: graphology itself refuses such a document
-    const violations = { selfLoops: 0, parallels: 0, flags: 0 };
-    const pairs = multi === false ? new Set<string>() : null;
+    const reading: GraphologyReading = {
+        ids: ctx.declareEdgeIds(edges, (edge) => edge.key, "key", true),
+        type,
+        allowSelfLoops,
+        // what the edges do against the declared options: graphology itself refuses such a document
+        violations: { selfLoops: 0, parallels: 0, flags: 0 },
+        pairs: multi === false ? new Set<string>() : null,
+    };
     for (let i = 0; i < edges.length; i++) {
-        const element = `edges[${i}]`;
-        const record = edges[i];
-        if (!isJsonObject(record)) {
-            ctx.badElement("edge", element);
-            continue;
-        }
-        if (!present(record, "source") || !present(record, "target")) {
-            ctx.missingEndpoint(element, present(record, "source") ? "target" : "source");
-            continue;
-        }
-        try {
-            const u = ctx.coerceId(record.source, `${element}.source`);
-            const v = ctx.coerceId(record.target, `${element}.target`);
-            if (u === null || v === null) {
-                ctx.countSkipped("edge");
-                continue;
-            }
-            let kind: EdgeKind;
-            if (type === "mixed") {
-                kind = flagOf(record.undirected, `${element}.undirected`, false, report) ? "undirected" : "directed";
-            } else {
-                kind = type;
-                if (typeof record.undirected === "boolean" && record.undirected !== (type === "undirected")) {
-                    violations.flags++;
-                }
-            }
-            const { attributes: rawAttributes } = record;
-            if (rawAttributes !== undefined && rawAttributes !== null && !isJsonObject(rawAttributes)) {
-                report.error(
-                    "validation-error",
-                    JSON_ISSUE.BAD_VALUE,
-                    `${element}: attributes must be an object, found ${describe(rawAttributes)}`,
-                    { element },
-                );
-            }
-            const attributes = isJsonObject(rawAttributes) ? rawAttributes : {};
-            const idValue = ctx.edgeIdValue(ids, record.key);
-            const edge = ctx.pushEdge(u, v, kind, ctx.weightOf(attributes), element);
-            ctx.setEdgeId(ids, edge, idValue);
-            ctx.writeNested(ctx.edges, edge, record, attributes, GRAPHOLOGY_EDGE_KEYS, ctx.options.weightFrom, element);
-            if (allowSelfLoops === false && u === v) {
-                violations.selfLoops++;
-            }
-            if (pairs !== null) {
-                const pair = `${kind} ${pairKey(u, v, kind === "directed")}`;
-                violations.parallels += pairs.has(pair) ? 1 : 0;
-                pairs.add(pair);
-            }
-        } catch (err) {
-            ctx.skip(err, "edge", element);
-        }
+        readGraphologyEdge(ctx, reading, edges[i], `edges[${i}]`);
     }
-    reportGraphologyViolations(ctx, violations, type);
+    reportGraphologyViolations(ctx, reading.violations, type);
     ctx.setMeta({ dialect: "graphology", allowSelfLoops }, { declaredMultigraph: multi, ...ctx.weightOriginPatch() });
+}
+
+/** The graph types a graphology document declares in `options.type`. */
+type GraphologyType = "directed" | "undirected" | "mixed";
+
+/** The state of a graphology read, shared by its edges. */
+interface GraphologyReading {
+    /** The edge id column, from declareEdgeIds(). */
+    readonly ids: EdgeIdColumn | null;
+    readonly type: GraphologyType;
+    /** options.allowSelfLoops, or undefined when absent. */
+    readonly allowSelfLoops: boolean | undefined;
+    /** The edges that contradict the declared options (reportGraphologyViolations()). */
+    readonly violations: { selfLoops: number; parallels: number; flags: number };
+    /** The pairs seen so far under multi false, or null. */
+    readonly pairs: Set<string> | null;
+}
+
+/**
+ * A graphology document's `options.type`; anything else is reported and read as "mixed".
+ * @param ctx - the context
+ * @param options - the options object
+ * @returns the type
+ */
+function graphologyType(ctx: ImportContext, options: JsonRecord): GraphologyType {
+    if (options.type === "directed" || options.type === "undirected" || options.type === "mixed") {
+        return options.type;
+    }
+    if (options.type !== undefined && options.type !== null) {
+        ctx.report.warning(
+            "validation-error",
+            JSON_ISSUE.BAD_FLAG,
+            `options.type ${describe(options.type)} is not directed, undirected or mixed; mixed assumed`,
+            { element: "options.type" },
+        );
+    }
+    return "mixed";
+}
+
+/**
+ * The header direction of a graphology document: its type, or for "mixed" directed unless every
+ * edge object says undirected (the dialect default when there is none).
+ * @param ctx - the context
+ * @param type - options.type
+ * @param edges - the edge records
+ * @returns whether the header is directed
+ */
+function graphologyDirected(ctx: ImportContext, type: GraphologyType, edges: readonly unknown[]): boolean {
+    if (type !== "mixed") {
+        return type === "directed";
+    }
+    const objects = edges.filter((edge) => isJsonObject(edge)) as JsonRecord[];
+    const undirectedEdges = objects.filter((edge) => edge.undirected === true).length;
+    return objects.length === 0 ? ctx.defaultDirected("graphology") : undirectedEdges < objects.length;
+}
+
+/**
+ * Push one graphology node record: `key` the id, `attributes` the columns.
+ * @param ctx - the context
+ * @param record - the node record
+ * @param element - the element name
+ */
+function pushGraphologyNode(ctx: ImportContext, record: unknown, element: string): void {
+    if (!isJsonObject(record)) {
+        ctx.badElement("node", element);
+        return;
+    }
+    const id = ctx.coerceId(hasKey(record, "key") ? record.key : undefined, element);
+    if (id === null) {
+        ctx.countSkipped("node");
+        return;
+    }
+    pushNestedNode(ctx, id, record, "attributes", GRAPHOLOGY_NODE_KEYS, element);
+}
+
+/**
+ * Read one graphology edge record, counting what it does against the declared options.
+ * @param ctx - the context
+ * @param reading - the read's state
+ * @param record - the edge record
+ * @param element - the element name
+ */
+function readGraphologyEdge(ctx: ImportContext, reading: GraphologyReading, record: unknown, element: string): void {
+    if (!isJsonObject(record)) {
+        ctx.badElement("edge", element);
+        return;
+    }
+    if (!present(record, "source") || !present(record, "target")) {
+        ctx.missingEndpoint(element, present(record, "source") ? "target" : "source");
+        return;
+    }
+    try {
+        const u = ctx.coerceId(record.source, `${element}.source`);
+        const v = ctx.coerceId(record.target, `${element}.target`);
+        if (u === null || v === null) {
+            ctx.countSkipped("edge");
+            return;
+        }
+        const kind = graphologyEdgeKind(ctx, reading, record, element);
+        const attributes = graphologyEdgeAttributes(ctx, record, element);
+        const idValue = ctx.edgeIdValue(reading.ids, record.key);
+        const edge = ctx.pushEdge(u, v, kind, ctx.weightOf(attributes), element);
+        ctx.setEdgeId(reading.ids, edge, idValue);
+        ctx.writeNested(ctx.edges, edge, record, attributes, GRAPHOLOGY_EDGE_KEYS, ctx.options.weightFrom, element);
+        if (reading.allowSelfLoops === false && u === v) {
+            reading.violations.selfLoops++;
+        }
+        if (reading.pairs !== null) {
+            const pair = `${kind} ${pairKey(u, v, kind === "directed")}`;
+            reading.violations.parallels += reading.pairs.has(pair) ? 1 : 0;
+            reading.pairs.add(pair);
+        }
+    } catch (err) {
+        ctx.skip(err, "edge", element);
+    }
+}
+
+/**
+ * The direction of one graphology edge: its `undirected` flag under type "mixed", else the type
+ * (a contrary flag is counted as a violation).
+ * @param ctx - the context
+ * @param reading - the read's state
+ * @param record - the edge record
+ * @param element - the element name
+ * @returns the edge's kind
+ */
+function graphologyEdgeKind(
+    ctx: ImportContext,
+    reading: GraphologyReading,
+    record: JsonRecord,
+    element: string,
+): EdgeKind {
+    const { type } = reading;
+    if (type === "mixed") {
+        return flagOf(record.undirected, `${element}.undirected`, false, ctx.report) ? "undirected" : "directed";
+    }
+    if (typeof record.undirected === "boolean" && record.undirected !== (type === "undirected")) {
+        reading.violations.flags++;
+    }
+    return type;
+}
+
+/**
+ * The `attributes` object of a graphology edge; any other non-null value is reported and read as
+ * no attributes.
+ * @param ctx - the context
+ * @param record - the edge record
+ * @param element - the element name
+ * @returns the attributes
+ */
+function graphologyEdgeAttributes(ctx: ImportContext, record: JsonRecord, element: string): JsonRecord {
+    const { attributes } = record;
+    if (attributes !== undefined && attributes !== null && !isJsonObject(attributes)) {
+        ctx.report.error(
+            "validation-error",
+            JSON_ISSUE.BAD_VALUE,
+            `${element}: attributes must be an object, found ${describe(attributes)}`,
+            { element },
+        );
+    }
+    return isJsonObject(attributes) ? attributes : {};
 }
 
 /**
@@ -2812,24 +2972,7 @@ function importJgf(ctx: ImportContext, root: JsonRecord): void {
     }
     const nodeRecords: readonly unknown[] = Array.isArray(nodesRaw) ? nodesRaw : Object.values(nodesRaw ?? {});
 
-    let directed: boolean;
-    if (typeof graph.directed === "boolean") {
-        ({ directed } = graph);
-    } else if (ctx.explicitDefaultDirected) {
-        directed = ctx.options.defaultDirected;
-    } else {
-        if (graph.directed !== undefined && graph.directed !== null) {
-            report.warning(
-                "validation-error",
-                JSON_ISSUE.BAD_FLAG,
-                `graph.directed is ${describe(graph.directed)}, not a boolean`,
-                { element: "graph.directed" },
-            );
-        }
-        // the spec default is true; a file whose every edge says directed: false is read as undirected
-        const objects = edges.filter((edge) => isJsonObject(edge)) as JsonRecord[];
-        directed = objects.length === 0 || !objects.every((edge) => edge.directed === false);
-    }
+    const directed = jgfDirected(ctx, graph, edges);
     ctx.setHeader(directed);
     ctx.writeGraphDict(graph.metadata, "graph.metadata");
     const shape: JsonShapeMeta = {
@@ -2847,45 +2990,120 @@ function importJgf(ctx: ImportContext, root: JsonRecord): void {
     );
     if (isJsonObject(nodesRaw)) {
         for (const key of Object.keys(nodesRaw)) {
-            const element = `nodes[${JSON.stringify(key)}]`;
-            const record = nodesRaw[key];
-            if (record !== null && !isJsonObject(record)) {
-                ctx.badElement("node", element);
-                continue;
-            }
-            const id = ctx.coerceId(key, element);
-            if (id === null) {
-                ctx.countSkipped("node");
-                continue;
-            }
-            if (record !== null && hasKey(record, "id") && record.id !== key) {
-                report.warning(
-                    "validation-error",
-                    JSON_ISSUE.INCONSISTENT,
-                    `${element}: the inner id ${describe(record.id)} differs from the key; the key is the id, the inner one is kept as id${SUFFIX.element}`,
-                    { element },
-                );
-            }
-            pushJgfNode(ctx, id, record ?? {}, labelColumn, element);
+            pushJgfKeyedNode(ctx, key, nodesRaw[key], labelColumn);
         }
     } else {
         for (let i = 0; i < nodeRecords.length; i++) {
-            const element = `nodes[${i}]`;
-            const record = nodeRecords[i];
-            if (!isJsonObject(record)) {
-                ctx.badElement("node", element);
-                continue;
-            }
-            const id = ctx.coerceId(hasKey(record, "id") ? record.id : undefined, element);
-            if (id === null) {
-                ctx.countSkipped("node");
-                continue;
-            }
-            pushJgfNode(ctx, id, record, labelColumn, element);
+            pushJgfListedNode(ctx, nodeRecords[i], labelColumn, `nodes[${i}]`);
         }
     }
     throwIfAborted(ctx.options.signal);
 
+    const writeJgfEdge = jgfEdgeWriter(ctx, edges, hyperedges);
+    for (let i = 0; i < edges.length; i++) {
+        readJgfEdge(ctx, edges[i], `edges[${i}]`, directed, writeJgfEdge);
+    }
+
+    importHyperedges(ctx, hyperedges, directed, writeJgfEdge);
+    ctx.setMeta(shape, { name: label, ...ctx.weightOriginPatch() });
+}
+
+/** Push one JGF edge (or one edge of a hyperedge) with its id, relation, label and metadata. */
+type JgfEdgeWriter = (
+    record: JsonRecord,
+    u: NodeId,
+    v: NodeId,
+    kind: EdgeKind,
+    element: string,
+    structural?: ReadonlySet<string>,
+) => void;
+
+/**
+ * The header direction of a JGF graph: `directed`, else the defaultDirected option when given,
+ * else the spec default true unless every edge says directed: false.
+ * @param ctx - the context
+ * @param graph - the graph object
+ * @param edges - the edge records
+ * @returns whether the header is directed
+ */
+function jgfDirected(ctx: ImportContext, graph: JsonRecord, edges: readonly unknown[]): boolean {
+    if (typeof graph.directed === "boolean") {
+        return graph.directed;
+    }
+    if (ctx.explicitDefaultDirected) {
+        return ctx.options.defaultDirected;
+    }
+    if (graph.directed !== undefined && graph.directed !== null) {
+        ctx.report.warning(
+            "validation-error",
+            JSON_ISSUE.BAD_FLAG,
+            `graph.directed is ${describe(graph.directed)}, not a boolean`,
+            { element: "graph.directed" },
+        );
+    }
+    // the spec default is true; a file whose every edge says directed: false is read as undirected
+    const objects = edges.filter((edge) => isJsonObject(edge)) as JsonRecord[];
+    return objects.length === 0 || !objects.every((edge) => edge.directed === false);
+}
+
+/**
+ * Push one node of a JGF v2 `nodes` object, keyed by its id (a null record is a node with nothing).
+ * @param ctx - the context
+ * @param key - the node's key
+ * @param record - the node record
+ * @param labelColumn - the label column
+ */
+function pushJgfKeyedNode(ctx: ImportContext, key: string, record: unknown, labelColumn: ColumnHandle): void {
+    const element = `nodes[${JSON.stringify(key)}]`;
+    if (record !== null && !isJsonObject(record)) {
+        ctx.badElement("node", element);
+        return;
+    }
+    const id = ctx.coerceId(key, element);
+    if (id === null) {
+        ctx.countSkipped("node");
+        return;
+    }
+    if (record !== null && hasKey(record, "id") && record.id !== key) {
+        ctx.report.warning(
+            "validation-error",
+            JSON_ISSUE.INCONSISTENT,
+            `${element}: the inner id ${describe(record.id)} differs from the key; the key is the id, the inner one is kept as id${SUFFIX.element}`,
+            { element },
+        );
+    }
+    pushJgfNode(ctx, id, record ?? {}, labelColumn, element);
+}
+
+/**
+ * Push one node of a JGF v1 `nodes` array, with its `id`.
+ * @param ctx - the context
+ * @param record - the node record
+ * @param labelColumn - the label column
+ * @param element - the element name
+ */
+function pushJgfListedNode(ctx: ImportContext, record: unknown, labelColumn: ColumnHandle, element: string): void {
+    if (!isJsonObject(record)) {
+        ctx.badElement("node", element);
+        return;
+    }
+    const id = ctx.coerceId(hasKey(record, "id") ? record.id : undefined, element);
+    if (id === null) {
+        ctx.countSkipped("node");
+        return;
+    }
+    pushJgfNode(ctx, id, record, labelColumn, element);
+}
+
+/**
+ * The writer of JGF edges: declares the edge id, relation and label columns the edges and
+ * hyperedges need, and returns the function that pushes one edge into them.
+ * @param ctx - the context
+ * @param edges - the edge records
+ * @param hyperedges - the hyperedge records
+ * @returns the edge writer
+ */
+function jgfEdgeWriter(ctx: ImportContext, edges: readonly unknown[], hyperedges: readonly unknown[]): JgfEdgeWriter {
     const ids = ctx.declareEdgeIds([...edges, ...hyperedges], (edge) => edge.id, "id", false);
     const relationColumn = ctx.edges.declareIf(
         { name: "relation", dtype: "string", role: "kind", nullable: true },
@@ -2895,14 +3113,7 @@ function importJgf(ctx: ImportContext, root: JsonRecord): void {
         { name: "label", dtype: "string", role: "label", nullable: true },
         anyHas(edges, "label") || anyHas(hyperedges, "label"),
     );
-    const writeJgfEdge = (
-        record: JsonRecord,
-        u: NodeId,
-        v: NodeId,
-        kind: EdgeKind,
-        element: string,
-        structural: ReadonlySet<string> = JGF_EDGE_KEYS,
-    ): void => {
+    return (record, u, v, kind, element, structural = JGF_EDGE_KEYS): void => {
         const { metadata } = record;
         const dict = isJsonObject(metadata) ? metadata : {};
         const idValue = ctx.edgeIdValue(ids, record.id);
@@ -2911,40 +3122,49 @@ function importJgf(ctx: ImportContext, root: JsonRecord): void {
         ctx.writeStringField(ctx.edges, relationColumn, edge, record.relation, "relation", element);
         ctx.writeStringField(ctx.edges, edgeLabelColumn, edge, record.label, "label", element);
         if (metadata !== undefined && metadata !== null && !isJsonObject(metadata)) {
-            report.error("validation-error", JSON_ISSUE.BAD_VALUE, `${element}: metadata must be an object`, {
+            ctx.report.error("validation-error", JSON_ISSUE.BAD_VALUE, `${element}: metadata must be an object`, {
                 element,
             });
         }
         ctx.writeNested(ctx.edges, edge, record, dict, structural, ctx.options.weightFrom, element);
     };
+}
 
-    for (let i = 0; i < edges.length; i++) {
-        const element = `edges[${i}]`;
-        const record = edges[i];
-        if (!isJsonObject(record)) {
-            ctx.badElement("edge", element);
-            continue;
-        }
-        if (!present(record, "source") || !present(record, "target")) {
-            ctx.missingEndpoint(element, present(record, "source") ? "target" : "source");
-            continue;
-        }
-        try {
-            const u = ctx.coerceId(record.source, `${element}.source`);
-            const v = ctx.coerceId(record.target, `${element}.target`);
-            if (u === null || v === null) {
-                ctx.countSkipped("edge");
-                continue;
-            }
-            const edgeDirected = flagOf(record.directed, `${element}.directed`, directed, report);
-            writeJgfEdge(record, u, v, edgeDirected ? "directed" : "undirected", element);
-        } catch (err) {
-            ctx.skip(err, "edge", element);
-        }
+/**
+ * Read one JGF edge record: its ends and its own `directed` flag (the header's by default).
+ * @param ctx - the context
+ * @param record - the edge record
+ * @param element - the element name
+ * @param directed - the header direction
+ * @param writeJgfEdge - the edge writer
+ */
+function readJgfEdge(
+    ctx: ImportContext,
+    record: unknown,
+    element: string,
+    directed: boolean,
+    writeJgfEdge: JgfEdgeWriter,
+): void {
+    if (!isJsonObject(record)) {
+        ctx.badElement("edge", element);
+        return;
     }
-
-    importHyperedges(ctx, hyperedges, directed, writeJgfEdge);
-    ctx.setMeta(shape, { name: label, ...ctx.weightOriginPatch() });
+    if (!present(record, "source") || !present(record, "target")) {
+        ctx.missingEndpoint(element, present(record, "source") ? "target" : "source");
+        return;
+    }
+    try {
+        const u = ctx.coerceId(record.source, `${element}.source`);
+        const v = ctx.coerceId(record.target, `${element}.target`);
+        if (u === null || v === null) {
+            ctx.countSkipped("edge");
+            return;
+        }
+        const edgeDirected = flagOf(record.directed, `${element}.directed`, directed, ctx.report);
+        writeJgfEdge(record, u, v, edgeDirected ? "directed" : "undirected", element);
+    } catch (err) {
+        ctx.skip(err, "edge", element);
+    }
 }
 
 /**
@@ -3339,26 +3559,7 @@ function distinctMembers(ctx: ImportContext, members: readonly NodeId[], element
  * @param root - the document
  */
 function importCytoscape(ctx: ImportContext, root: unknown): void {
-    const { report } = ctx;
-    let elements: unknown;
-    let extra: Record<string, unknown> | undefined;
-    if (Array.isArray(root)) {
-        elements = root;
-    } else if (isJsonObject(root)) {
-        ({ elements } = root);
-        ctx.writeGraphDict(root.data, "data");
-        const rest: Record<string, unknown> = {};
-        for (const key of Object.keys(root)) {
-            if (key !== "elements" && key !== "data") {
-                rest[key] = root[key];
-            }
-        }
-        if (Object.keys(rest).length > 0) {
-            extra = rest;
-        }
-    } else {
-        report.fail(JSON_ISSUE.SHAPE, `a Cytoscape document must be an object or an array, found ${describe(root)}`);
-    }
+    const { elements, extra } = cytoscapeRoot(ctx, root);
     const { nodes, edges } = cytoscapeSections(ctx, elements);
     ctx.setHeader(ctx.defaultDirected("cytoscape"));
     ctx.reportNodeIdFrom("cytoscape", "data.id");
@@ -3366,24 +3567,28 @@ function importCytoscape(ctx: ImportContext, root: unknown): void {
 
     const dataHas = (items: readonly unknown[], key: string): boolean =>
         items.some((item) => isJsonObject(item) && isJsonObject(item.data) && item.data[key] !== undefined);
-    const positionColumn = ctx.nodes.declareIf(
-        {
-            name: POSITION_COLUMN,
-            dtype: "f64",
-            components: 3,
-            role: "position",
-            mutable: true,
-            nullable: true,
-            // 3D layouts written by Cytoscape-compatible tools carry a z
-            extra: { sourceDims: nodes.some(hasPositionZ) ? 3 : 2, units: "file" },
-            origin: { format: "json", namespace: "cytoscape" },
-        },
-        anyHas(nodes, "position"),
-    );
-    const classesColumn = ctx.nodes.declareIf(
-        { name: CLASSES_COLUMN, dtype: "list", itemDtype: "string", role: "classes", nullable: true },
-        anyHas(nodes, "classes"),
-    );
+    const reading: CytoscapeNodeReading = {
+        positionColumn: ctx.nodes.declareIf(
+            {
+                name: POSITION_COLUMN,
+                dtype: "f64",
+                components: 3,
+                role: "position",
+                mutable: true,
+                nullable: true,
+                // 3D layouts written by Cytoscape-compatible tools carry a z
+                extra: { sourceDims: nodes.some(hasPositionZ) ? 3 : 2, units: "file" },
+                origin: { format: "json", namespace: "cytoscape" },
+            },
+            anyHas(nodes, "position"),
+        ),
+        classesColumn: ctx.nodes.declareIf(
+            { name: CLASSES_COLUMN, dtype: "list", itemDtype: "string", role: "classes", nullable: true },
+            anyHas(nodes, "classes"),
+        ),
+        parents: [],
+        point: [0, 0, 0],
+    };
     const parentColumn = ctx.nodes.declareIf(
         { name: PARENT_COLUMN, dtype: "u32", role: "parent", refersTo: "node", nullable: true },
         dataHas(nodes, "parent"),
@@ -3392,80 +3597,165 @@ function importCytoscape(ctx: ImportContext, root: unknown): void {
         { name: CLASSES_COLUMN, dtype: "list", itemDtype: "string", role: "classes", nullable: true },
         anyHas(edges, "classes"),
     );
-    const parents: { index: number; parent: NodeId; element: string }[] = [];
-    const point: [number, number, number] = [0, 0, 0];
 
     for (let i = 0; i < nodes.length; i++) {
-        const element = `nodes[${i}]`;
-        const record = nodes[i];
-        if (!isJsonObject(record) || !isJsonObject(record.data)) {
-            ctx.badElement("node", element, "an element with a data object");
-            continue;
-        }
-        const { data } = record;
-        const id = ctx.coerceId(hasKey(data, "id") ? data.id : undefined, element);
-        if (id === null) {
-            ctx.countSkipped("node");
-            continue;
-        }
-        const index = ctx.pushNode(id, element);
-        if (index < 0) {
-            continue;
-        }
-        if (present(data, "source") && present(data, "target")) {
-            report.warning(
-                "validation-error",
-                JSON_ISSUE.INCONSISTENT,
-                `${element} has data.source and data.target, the shape of an edge, but its section or group says node; read as a node`,
-                { element },
-            );
-        }
-        try {
-            for (const key of Object.keys(data)) {
-                if (key === "id") {
-                    continue;
-                }
-                if (key === "parent") {
-                    const raw = data.parent;
-                    if (raw !== undefined && raw !== null) {
-                        const parent = ctx.coerceId(raw, `${element}.data.parent`);
-                        if (parent !== null) {
-                            parents.push({ index, parent, element });
-                        }
-                    }
-                    continue;
-                }
-                ctx.nodes.write(index, key, data[key], SUFFIX.data, element);
-            }
-            const { position } = record;
-            if (position !== undefined && position !== null) {
-                const z = isJsonObject(position) ? (position.z ?? 0) : 0;
-                if (isJsonObject(position) && isCoordinate(position.x) && isCoordinate(position.y) && isCoordinate(z)) {
-                    point[0] = position.x;
-                    // Cytoscape's y grows downward; positions are stored y-up (the exporter flips back)
-                    point[1] = flipY(position.y);
-                    point[2] = z;
-                    ctx.nodes.set(positionColumn, index, point);
-                } else {
-                    report.error(
-                        "validation-error",
-                        JSON_ISSUE.BAD_VALUE,
-                        `${element}: position must be an object with numeric x and y (and z) that are finite numbers`,
-                        { element },
-                    );
-                }
-            }
-            writeClasses(ctx, ctx.nodes, classesColumn, index, record.classes, element);
-            writeElementKeys(ctx.nodes, index, record, element);
-        } catch (err) {
-            report.recordError(err, { element: String(id) });
-        }
+        readCytoscapeNode(ctx, reading, nodes[i], `nodes[${i}]`);
     }
-    resolveCytoscapeParents(ctx, parents, parentColumn);
+    resolveCytoscapeParents(ctx, reading.parents, parentColumn);
     throwIfAborted(ctx.options.signal);
 
     importCytoscapeEdges(ctx, edges, edgeClassesColumn);
     ctx.setMeta({ dialect: "cytoscape", cytoscape: extra }, ctx.weightOriginPatch());
+}
+
+/** The state of a read of Cytoscape node elements. */
+interface CytoscapeNodeReading {
+    readonly positionColumn: ColumnHandle;
+    readonly classesColumn: ColumnHandle;
+    /** The parent links, resolved once every node is known. */
+    readonly parents: { index: number; parent: NodeId; element: string }[];
+    /** A scratch position. */
+    readonly point: [number, number, number];
+}
+
+/**
+ * The elements of a Cytoscape document (the document itself when it is an array) and, for an
+ * object, its graph `data` written and its other top-level keys kept.
+ * @param ctx - the context
+ * @param root - the document
+ * @returns the elements and the other top-level keys, if any
+ */
+function cytoscapeRoot(ctx: ImportContext, root: unknown): { elements: unknown; extra?: Record<string, unknown> } {
+    if (Array.isArray(root)) {
+        return { elements: root };
+    }
+    if (!isJsonObject(root)) {
+        ctx.report.fail(
+            JSON_ISSUE.SHAPE,
+            `a Cytoscape document must be an object or an array, found ${describe(root)}`,
+        );
+    }
+    ctx.writeGraphDict(root.data, "data");
+    const rest: Record<string, unknown> = {};
+    for (const key of Object.keys(root)) {
+        if (key !== "elements" && key !== "data") {
+            rest[key] = root[key];
+        }
+    }
+    return Object.keys(rest).length > 0 ? { elements: root.elements, extra: rest } : { elements: root.elements };
+}
+
+/**
+ * Read one Cytoscape node element: `data.id` the id, the other `data` keys attributes (`parent`
+ * kept for later), `position`, `classes` and the element-level keys.
+ * @param ctx - the context
+ * @param reading - the read's state
+ * @param record - the element
+ * @param element - the element name
+ */
+function readCytoscapeNode(ctx: ImportContext, reading: CytoscapeNodeReading, record: unknown, element: string): void {
+    const { report } = ctx;
+    if (!isJsonObject(record) || !isJsonObject(record.data)) {
+        ctx.badElement("node", element, "an element with a data object");
+        return;
+    }
+    const { data } = record;
+    const id = ctx.coerceId(hasKey(data, "id") ? data.id : undefined, element);
+    if (id === null) {
+        ctx.countSkipped("node");
+        return;
+    }
+    const index = ctx.pushNode(id, element);
+    if (index < 0) {
+        return;
+    }
+    if (present(data, "source") && present(data, "target")) {
+        report.warning(
+            "validation-error",
+            JSON_ISSUE.INCONSISTENT,
+            `${element} has data.source and data.target, the shape of an edge, but its section or group says node; read as a node`,
+            { element },
+        );
+    }
+    try {
+        writeCytoscapeData(ctx, reading, index, data, element);
+        writeCytoscapePosition(ctx, reading, index, record.position, element);
+        writeClasses(ctx, ctx.nodes, reading.classesColumn, index, record.classes, element);
+        writeElementKeys(ctx.nodes, index, record, element);
+    } catch (err) {
+        report.recordError(err, { element: String(id) });
+    }
+}
+
+/**
+ * Write a Cytoscape node's `data` keys as attributes; `parent` is kept as a link to resolve later.
+ * @param ctx - the context
+ * @param reading - the read's state
+ * @param index - the node index
+ * @param data - the element's data object
+ * @param element - the element name
+ */
+function writeCytoscapeData(
+    ctx: ImportContext,
+    reading: CytoscapeNodeReading,
+    index: number,
+    data: JsonRecord,
+    element: string,
+): void {
+    for (const key of Object.keys(data)) {
+        if (key === "id") {
+            continue;
+        }
+        if (key !== "parent") {
+            ctx.nodes.write(index, key, data[key], SUFFIX.data, element);
+            continue;
+        }
+        const raw = data.parent;
+        if (raw === undefined || raw === null) {
+            continue;
+        }
+        const parent = ctx.coerceId(raw, `${element}.data.parent`);
+        if (parent !== null) {
+            reading.parents.push({ index, parent, element });
+        }
+    }
+}
+
+/**
+ * Write a Cytoscape node's `position` ({ x, y, z? }, y flipped to grow upward); any other value is
+ * reported.
+ * @param ctx - the context
+ * @param reading - the read's state
+ * @param index - the node index
+ * @param position - the element's position
+ * @param element - the element name
+ */
+function writeCytoscapePosition(
+    ctx: ImportContext,
+    reading: CytoscapeNodeReading,
+    index: number,
+    position: unknown,
+    element: string,
+): void {
+    if (position === undefined || position === null) {
+        return;
+    }
+    const z = isJsonObject(position) ? (position.z ?? 0) : 0;
+    if (isJsonObject(position) && isCoordinate(position.x) && isCoordinate(position.y) && isCoordinate(z)) {
+        const { point } = reading;
+        point[0] = position.x;
+        // Cytoscape's y grows downward; positions are stored y-up (the exporter flips back)
+        point[1] = flipY(position.y);
+        point[2] = z;
+        ctx.nodes.set(reading.positionColumn, index, point);
+    } else {
+        ctx.report.error(
+            "validation-error",
+            JSON_ISSUE.BAD_VALUE,
+            `${element}: position must be an object with numeric x and y (and z) that are finite numbers`,
+            { element },
+        );
+    }
 }
 
 /** One Cytoscape parent link: the parent's index and id, its document order and element name. */

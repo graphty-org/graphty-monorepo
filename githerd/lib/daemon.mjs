@@ -304,13 +304,17 @@ const CRITICAL = "priority:critical";
 const OVERRIDES = new Set([NEXT, SKIP, CRITICAL]);
 
 /**
- * The open pull requests and the default branch's head (design section 6.1).
- * ponytail: first 50 PRs only; page with `after` when the open queue grows past 50
+ * The open pull requests and the default branch's head (design section 6.1), one page. GitHub gives
+ * a GraphQL query about 10 s: at 52 open pull requests, one page of 50 with their check contexts
+ * took longer and was answered 504 on nearly every poll (2026-10-14), and a page of 10 took 3 s.
+ * Pages run oldest first: an order by update time moves a pull request updated mid-walk to a page
+ * already read, and it would be missing from that poll.
  */
-const PRS_QUERY = `query($owner: String!, $name: String!) {
+const PRS_QUERY = `query($owner: String!, $name: String!, $first: Int!, $after: String) {
   repository(owner: $owner, name: $name) {
     defaultBranchRef { name target { oid } }
-    pullRequests(states: OPEN, first: 50, orderBy: {field: UPDATED_AT, direction: DESC}) {
+    pullRequests(states: OPEN, first: $first, after: $after, orderBy: {field: CREATED_AT, direction: ASC}) {
+      pageInfo { hasNextPage endCursor }
       nodes {
         id number title body isDraft isCrossRepository createdAt updatedAt headRefName headRefOid baseRefName
         mergeable mergeStateStatus
@@ -335,6 +339,44 @@ const PRS_QUERY = `query($owner: String!, $name: String!) {
     }
   }
 }`;
+
+/** Pull requests per page of PRS_QUERY. */
+export const PR_PAGE = 15;
+
+/**
+ * Every open pull request and the default branch, a page of PRS_QUERY at a time. A page GitHub
+ * could not answer in time (a 5xx, a timeout, or a 200 without data) is asked again at half the
+ * size, down to one pull request, before the poll fails.
+ * @param {{graphql: (query: string, vars: Record<string, unknown>, options: {purpose: "essential"}) => Promise<any>}} gh the client
+ * @param {string} owner the repository's owner
+ * @param {string} name the repository's name
+ * @param {number} [first] the page size to start with
+ * @returns {Promise<{defaultBranchRef: any, pullRequests: {nodes: any[]}}>} the repository, every page's nodes in one list
+ */
+export async function openPullRequests(gh, owner, name, first = PR_PAGE) {
+    const nodes = [];
+    let after = null;
+    let repo;
+    for (;;) {
+        let data;
+        try {
+            data = await gh.graphql(PRS_QUERY, { owner, name, first, after }, { purpose: "essential" });
+        } catch (err) {
+            const kind = /** @type {GitHubError} */ (err)?.kind;
+            if (first > 1 && ["server", "timeout", "graphql"].includes(kind ?? "")) {
+                first = Math.ceil(first / 2);
+                continue;
+            }
+            throw err;
+        }
+        repo = data.repository;
+        for (const n of repo.pullRequests.nodes) nodes.push(n);
+        const page = repo.pullRequests.pageInfo;
+        if (!page?.hasNextPage) break;
+        after = page.endCursor;
+    }
+    return { defaultBranchRef: repo.defaultBranchRef, pullRequests: { nodes } };
+}
 
 /**
  * @typedef {(args: string[], options: {cwd: string, env: Record<string, string | undefined>,
@@ -1951,7 +1993,7 @@ export async function startDaemon({
         await gh.confirm();
 
         // The pull request list is essential (design 3.2); its per-pull-request reads are not.
-        const prList = await gh.graphql(PRS_QUERY, { owner, name }, { purpose: "essential" });
+        const prList = { repository: await openPullRequests(gh, owner, name) };
         m.branch = prList.repository.defaultBranchRef.name;
         const branch = m.branch ?? "master";
         const nodes = prList.repository.pullRequests.nodes;

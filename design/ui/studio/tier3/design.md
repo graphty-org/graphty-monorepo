@@ -34,82 +34,73 @@ Three rules bind everything below:
 Each decision gives the choice, the reason, the options rejected, and what the owner should look at
 to judge it. The stories named under "Look at" are built in the last build unit (section 9).
 
-### 1.1 "+" and properties that hold one value
+### 1.1 Sections that list only what a layer sets
 
-**Decision.** "+" means "add another entry to a list", and nothing else. A property that holds at
-most one value per layer never has a "+".
+**Decision (the owner, 2026-10-13).** The Style tab is Figma's sections. It replaces the first
+version of this decision, "seven core properties always drawn, the value beneath in gray as a
+placeholder", which the owner reversed after the dry run.
 
-- **Seven core properties are always drawn, on four rows**, paired the way Figma pairs width
-  and height: Nodes `Shape | Size` and `Color`; Edges `Color | Width` and `Head | Tail`. An
-  empty field means "this layer does not set it", and the layers beneath decide. Typing or
-  picking writes a value; Clear takes it back (below).
-- **Rarer one-value properties live behind the settings button at the start of the row they
-  modify** (opacity behind Color; wireframe and show behind Shape; pattern, curve and show behind
-  the edge line; arrow size, color and opacity behind Ends). Once set, a rare property is drawn as
-  its own row under its parent row, with its minus, so nothing a layer does is ever hidden.
-- **Yes-or-no properties are two-word selects with an empty state**: "Solid / Wireframe",
-  "Shown / Hidden", "Straight / Curved". Empty means not set, exactly like every other field. One
-  rule for every yes-or-no property.
+- **Two kind groups, Nodes and Edges**, each shown only when the layer's rule can match that kind,
+  each with fixed sections in a fixed order. Nodes: Shape (shape, size), Visibility (show,
+  opacity), Text (labels, tooltip), Fill (color), Effects (outline, glow, glow strength, halo, halo
+  size, halo opacity), Rendering (wireframe). Edges: Visibility (show, opacity), Text (label, end
+  captions), Line (color, width, pattern, pattern count, curved), Ends (head and tail, each with
+  size, color and opacity), Effects (motion speed, band, band width, band opacity). Every property
+  sits under the kind graphty-element draws it on and the section it belongs to; nothing sits
+  behind a settings button.
+- **Each section header has a "+" at its right end**, named "Add to <section>". A section the
+  layer does not write is only its dimmed title and "+". A section it writes lists only the
+  properties this layer sets, each as a row with its value, the vary glyph, and a minus that
+  removes it so the layers beneath show through.
+- **"+" opens a menu of that section's properties not set yet.** Picking one adds the row with a
+  starting value and puts focus in it: the one plain value the layers beneath paint on the layer's
+  elements, so the canvas does not change; over values that vary (a binding beneath) it starts from
+  graphty-element's starting value for the channel, never a copy of the mapping. Text's "+" lists
+  the kinds of text not there yet (picking one opens its source list, and nothing is written until
+  a source is picked) and the look, size and position of each entry that does not set them.
+- **Nothing a layer does not set looks like a value.** No placeholders, gray text, italics or
+  swatches show the value from beneath in an empty or absent control, and no gray "from <layer>"
+  lines. An absent row is the only "not set".
+- **A covered row says so in words**: a row a higher visible layer paints over carries a caption,
+  "Covered by Degree on 77 of 77" (from `styles.agreement` with `over`).
+- **Several selected rows**: a property only some of them set reads "Set on 1 of 2", and one they
+  all set differently reads "Mixed", with no value borrowed from any of them; its minus removes it
+  from every row.
+- **Keyboard and screen reader**: every "+" is named "Add to <section>"; adding and removing are
+  announced ("Node size added", "Node size removed"); after an add focus is in the new row, and
+  after a remove or an Undo that takes a row away focus moves to its section's "+", never to the
+  page. Delete or Backspace on a closed select or color chit, or Enter in an emptied typed field,
+  removes a row as its minus does.
 
-**Setting and clearing a field.** Layers stack, and a layer covers the layers beneath it only where
-it sets a value. So "unset" means "stop covering": the field goes back to empty and the elements
-show what the layers beneath give them. That is a different act from turning something off. "None"
-arrowheads, Show "Hidden", or a label entry with its eye off are values: they cover the layers
-beneath with nothing, and they are cleared like any other value.
+**Everything holds the base look.** graphty-element's project setting `editableBase` (additive,
+off by default) puts the element's base values into the Everything starting row as ordinary values,
+and its two locked base layers then paint nothing. The app turns it on with `startingRows`, so
+Everything lists the base shape, size, color, edge color, width and pattern like any row's values,
+and they are edited and removed the same way. Everything cannot be deleted or moved. With
+`editableBase` on, an element no shown layer paints is not drawn, so hiding Everything with its eye
+hides the whole graph like any other eye; elements a visible higher layer writes stay drawn in that
+layer's look. Everything's base values are the floor, not a decision: a run's layer is never held back by
+them or placed beneath them, and the legend does not list them. Removing a layer's last property
+keeps the layer, every section dimmed (`styles.update` with `keepEmpty`).
 
-Every field is in one of three states, and each looks different at rest by two cues, never by color
-alone:
+**The tree's eyes** are drawn on every row at rest (compact-mantine's `data-at-rest` on a tree
+action), and a hidden row's eye is named "Show <layer>".
 
-| State          | At rest                                                                                        | Meaning                   |
-| -------------- | ---------------------------------------------------------------------------------------------- | ------------------------- |
-| Not set        | empty; the value beneath as gray placeholder text ("Mixed" when the elements differ); no minus | the layers beneath decide |
-| Set            | the value in normal text (a value pill when it varies), and a minus at the row's end           | this layer paints it      |
-| Set to nothing | "None", "Hidden", or an entry's eye off, in normal text, and a minus                           | this layer turns it off   |
+**Starting rows as they read.** Selected shows Nodes, Effects with its Halo and Glow rows (and
+Edges, Effects with its Band); Hovered writes nothing and shows only dimmed section titles.
 
-- **One command, Clear, on the minus.** Only set fields have a minus, and it is always drawn, not
-  only on hover, so the panel's right edge is a list of what this layer writes. It clears every
-  kind of field the same way: a number, a color, a glyph select, a two-word select, a varied value
-  (the whole binding goes) and a list entry (the entry goes). The minus is the next tab stop after
-  its field.
-- **Keyboard shortcuts for the same act.** In a text field (number, hex, typed words), empty it and
-  press Enter or Tab. On a focused, closed select, color chit or value pill, press Delete or
-  Backspace.
-- **Before clearing, the reader sees what comes back.** The minus's tooltip and accessible
-  description name the value and the layer it comes from: "Clear: back to Icosphere, from
-  Everything", or "Clear: back to mixed, from Degree and Louvain". graphty-element already answers
-  this: `styles.agreement(scope, channel, { below })` returns the value beneath and the layer that
-  paints it, or a breakdown by layer when they differ.
-- **After clearing,** the canvas and legend repaint at once, the field shows the value beneath as
-  its placeholder, focus moves to the field (its minus is gone), and one Undo, "Clear node color",
-  restores the old value. There is no confirmation.
-- **Screen readers hear the state in the field's name**: "Node color, set here, #D55E00" against
-  "Node color, not set, Degree gives #3388FF".
-- **Lists show what they inherit, like fields.** An empty Text or Effects list shows each entry a
-  layer beneath writes as one gray line ("Glow, from Selected") with an eye and no minus. Turning
-  that eye off adds an entry on this layer that draws nothing there; that entry is then set, with
-  its own minus. The "+" adds an entry of this layer's own.
+**Why.** At rest the panel answers "what does this layer do?" and nothing else: a layer that writes
+one effect is one row, not seven gray fields. A gray placeholder read as a value the layer sets,
+and the reader could not tell what the minus would change. Figma's sections are the pattern the
+studio participants already know.
 
-**Why.** A property row that must be "added" before it can be set costs a click and hides the
-property: in tier 1, 18 of 18 participants found Size behind Shape's "+" only by guessing. A switch
-cannot say "not set", and "not set" is the state that lets the layers beneath show through. The
-seven core properties are the ones nearly every layer writes; the rest are rare enough that one
-extra click is the right price for a shorter panel.
+**Rejected.** Every core property always drawn with the value beneath as a placeholder (the first
+version of this decision): it reads as values the layer does not set. A settings button for rare
+properties: the sections hold every property in one place. Two locked default layers beneath
+Everything: the base look could not be seen or edited where the reader looks for it.
 
-**Rejected.** "+" per section (the mock): a click per property and a promise of a second value that
-never exists. Every property always drawn: about 30 rows of gray placeholders. A switch per
-property, or a checkbox: no "not set" state. A row of toggle icons per kind that marks what the
-layer writes: a second control for the state the row's minus already sets. Adding yes-or-no
-properties already switched on: a row's presence becomes the only sign it is set, unlike every other
-field. For clearing: a minus shown only on hover (a mouse reader cannot see at rest what the layer
-writes); gray text as the only cue (fails WCAG 1.4.1); a "Not set" first option in every select (a
-second way to clear in the same row, listed next to "None", which means the opposite); an eye on
-each one-value field (a second way to let the beneath show through); "Clear all" on a layer (Delete
-or Undo already does it).
-
-**Look at.** The Selected layer and the route layer, at rest, in the style panel story. Judge
-whether the placeholders read as "not set here", whether the minuses read as "what this layer
-writes", and whether the Selected layer's seven gray fields are acceptable noise for a layer that
-writes one effect. Then hover a minus and clear a field.
+**Look at.** The Selected and Hovered rows, Key people (one Fill row), Everything with Degree above
+it (its Color row covered), and two selected rows.
 
 ### 1.2 What "+" opens where it stays
 
@@ -435,12 +426,12 @@ a row there or is added with the build.
 
 | Figma pattern                                                                                     | In the style panel                                                                                                          |
 | ------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| "Mixed" in a field whose values differ; typing over it writes one value                           | a not-set field whose beneath values differ, and a field shared by several selected rows                                    |
+| "Mixed" in a field whose values differ; typing over it writes one value                           | a field several selected rows set differently; "Set on 1 of 2" when only some set it                                        |
 | Several selected rows edited together                                                             | Shift- or Control-click rows in the tree; shared fields, "Mixed" where they differ, one undo step (decision 1.7)            |
 | "Click + to replace mixed content" on a list                                                      | Text and Effects lists under several selected rows                                                                          |
 | "+" on a list's title, "-" on each entry                                                          | Text, Effects, conditions and value-table entries (decision 1.2)                                                            |
 | Clicking an empty list's title adds an entry                                                      | empty Text and Effects titles open their "+" menu                                                                           |
-| An eye on each fill and effect entry                                                              | an eye on each Text and Effects entry, including the gray inherited lines (decision 1.1)                                    |
+| An eye on each fill and effect entry                                                              | an eye on each Text entry; effects are rows with a minus (decision 1.1)                                                     |
 | A settings button at the start of a row                                                           | the rare one-value properties (decision 1.1)                                                                                |
 | A bound field shows a pill; "Apply variable" sits at the field's end on hover and focus           | a varied value is a pill; the vary glyph sits where "Apply variable" does                                                   |
 | The variable picker: search, groups, only what fits                                               | the vary picker (decision 1.5)                                                                                              |
@@ -539,18 +530,24 @@ Style layers                                 [+]
 |  Nodes and edges where on path, Dijkstra        |
 |  5 nodes, 4 edges                               |
 +------------------------------------------------+
-| (o) Nodes                                       |  sticky heading
-|  [Icosphere v]  [1        ]   Shape | Size      |
-|  [set] [# D55E00     ] (=) (-)  Color           |
+| NODES                                           |  sticky heading
+|  Shape                                    [+]   |  dimmed
+|  Visibility                               [+]   |  dimmed
 |  Text                                     [+]   |
-|   [set] (step, route)            (-)            |
-|         Default  36 px  Above right             |
-|  Effects                                  [+]   |
-| (-) Edges                                       |  sticky heading
-|  [set] [# D55E00 ] [24     ] (-)  Color | Width |
-|  [set] [Normal v] [None v]       Head | Tail    |
-|  Text                                     [+]   |
-|  Effects                                  [+]   |
+|   [label] (step, route)       (set)(eye) (-)    |
+|  Fill                                     [+]   |
+|   Color  [# D55E00     ]            (=) (-)     |
+|  Effects                                  [+]   |  dimmed
+|  Rendering                                [+]   |  dimmed
+| EDGES                                           |  sticky heading
+|  Visibility                               [+]   |  dimmed
+|  Text                                     [+]   |  dimmed
+|  Line                                     [+]   |
+|   Color  [# D55E00     ]            (=) (-)     |
+|   Width  [24           ]            (=) (-)     |
+|  Ends                                     [+]   |
+|   Head   [Normal v     ]            (=) (-)     |
+|  Effects                                  [+]   |  dimmed
 +------------------------------------------------+
 ```
 
@@ -563,27 +560,13 @@ Those two lines state the row's state; they are not a second control for it.
 
 **Groups.** Nodes, then Edges, each shown only when the kind choice includes it (decision 1.4).
 
-**Rows per property.** Field widths follow compact-mantine's 240 px grid. Every row has its settings
-button at the start where it has rare settings, the value control, the vary glyph on hover and focus
-(always on touch), and a minus once set (decision 1.1).
+**Sections and rows** (decision 1.1). Each section is a compact-mantine `ControlSection` with its
+"+" in the header's actions; a written section lists one row per property the layer sets: the name,
+the value control (color `CompactColorInput`, number `ComboInput` in the element's unit, choice
+`StyleSelect` with a glyph grid for shapes, arrows and patterns, yes-or-no a two-word `StyleSelect`,
+text `TextInput`), the vary glyph, and the minus. A row a higher layer covers has its caption. A
+number written with a combine mode keeps its prefix ("x 2").
 
-| Group | Row            | Control                                                                     | Values per layer       | Settings button holds                                                                                        |
-| ----- | -------------- | --------------------------------------------------------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------ |
-| Nodes | Shape \| Size  | glyph-grid select (25 shapes) \| number field                               | 0 or 1 each            | Wireframe ("Solid / Wireframe"), Show ("Shown / Hidden")                                                     |
-| Nodes | Color          | `CompactColorInput` (opaque)                                                | 0 or 1                 | Opacity                                                                                                      |
-| Nodes | Text           | list of entries, "+" menu: Label, Tooltip                                   | one of each kind today | per entry: Label settings popover                                                                            |
-| Nodes | Effects        | list, "+" menu: Outline, Glow, Halo                                         | one of each kind today | Glow: strength. Halo: size, opacity                                                                          |
-| Edges | Color \| Width | `CompactColorInput` \| number field in the element's own unit               | 0 or 1 each            | Opacity, Pattern (glyph grid, 9), Pattern count (repeating patterns only), Curve ("Straight / Curved"), Show |
-| Edges | Head \| Tail   | glyph-grid select each (14 kinds; "None" is a value, empty is not set)      | 0 or 1 each            | per end: size, color (empty reads "Line color"), opacity                                                     |
-| Edges | Text           | list, "+" menu: Label, Caption at the target end, Caption at the source end | one of each kind today | per entry: settings popover                                                                                  |
-| Edges | Effects        | list, "+" menu: Band, Motion                                                | one of each kind today | Band: width multiple, opacity. Motion: none                                                                  |
-
-- A list kind that is already present is disabled in its "+" menu with the reason ("One label per
-  element"); when every kind is present, "+" is disabled with that reason.
-- A rare property that is set draws as its own row under its parent row, with a minus.
-- **Combine mode** is in the row menu of number properties (Replace, Multiply, Add) and shows only
-  when not Replace, as the field's prefix ("x 2", spoken "Edge width, multiplied by"). Mixing
-  colors and stacking rings are not built in this tier, so they are not offered.
 - **Derived rows** replace the value control with a value pill (the value's name, its run when it
   has one) and a second line: a ramp strip with its domain ends, a From / To pair for numbers, or
   up to 8 category chits and "+N". Notes for non-neutral settings print below as plain secondary
@@ -737,9 +720,9 @@ elements, and opens it on its first property.
 
 ## 5. Default rows
 
-- **Everything**, pinned to the bottom, on nodes and edges. It starts writing nothing; its
-  placeholders show the floor (graphty-element's defaults), and whatever the reader sets there is
-  the base look.
+- **Everything**, pinned to the bottom, on nodes and edges. It holds graphty-element's base look as
+  ordinary values (`editableBase`), which the reader edits or removes like any row's, and it is
+  neither deleted nor moved. Its eye hides every element no other shown row paints.
 - **Selected**, pinned to the top, on nodes and edges, reading is selected. It starts with
   graphty-element's selection look: the node halo and the edge band, at today's values, as ordinary
   effects any reader can change.
@@ -1285,3 +1268,9 @@ The owner approves the UI before any study runs.
       gains "Select what it paints"; an eye on every Text and Effects entry; clicking an empty list
       title opens its "+" menu; Selection colors on folders and on several rows; label looks clear
       per field with no Reset. New element unit `element-colors-and-off`.
+- **2026-10-13, the owner's chosen style panel.** Decision 1.1 is replaced: Figma's sections with
+  a "+" per section, rows only for what a layer sets, a starting value on add, no placeholders or
+  gray values from beneath, a "Covered by" caption, "Set on 1 of 2" for several rows, and
+  Everything holding the base look through graphty-element's new `editableBase` setting. This
+  reverses the "seven core properties always drawn" rule, the gray placeholder rule, the settings
+  buttons for rare properties, the eye on effect entries and the gray inherited list lines.

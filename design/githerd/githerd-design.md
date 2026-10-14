@@ -1572,6 +1572,11 @@ shows each limit with the measurement that applied at the last start.
   starts, and the rest only after it completes a turn. Nothing is typed into a pane showing the
   limit screen, so its menu is never answered by a doorbell. The daemon's own non-Claude work
   (re-runs, parent re-tests, statuses) continues, and so does Mergify.
+- **Usage back before the reset** (the owner raised the limit): while a usage-limit owner item is
+  open, githerd makes one minimal Claude call once per status cadence (no tools, no customizations,
+  a one-word reply: about 540 input tokens when it succeeds, nothing when the limit refuses it).
+  When it succeeds the item ends and every session whose transcript showed a limit that had not
+  reset is told to carry on and restart the subagents the limit killed.
 - **Extra usage**: never (owner's decision 1 in 12.3). githerd pauses at the limit and resumes at
   the reset. If the limit screen shows extra usage in use anyway, every worker session githerd
   runs ends at once (each job keeps its state and worktree and resumes later; a window the owner

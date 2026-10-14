@@ -32,7 +32,10 @@ export interface CytoscapeLiveInput {
     readonly format?: string;
     /** Whether Cytoscape.js's defaults fill what the stylesheet leaves unset; default true. */
     readonly toolDefaults?: boolean;
-    /** Where problems are noted. */
+    /**
+     * Where problems are noted. Engine-only: `StyleNotes` is not published, so only graph-io itself passes it.
+     * @internal
+     */
     readonly notes?: StyleNotes;
     /** The counted work budget. */
     readonly budget?: StyleWorkBudget;

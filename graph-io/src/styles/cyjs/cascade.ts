@@ -1319,6 +1319,9 @@ function evaluateTarget(
         forceLoopCurves(graph, cells.get("curve-style"));
     }
     const drawn = drawnValues(kind, els, cells, order, input.rendered, notes, spend);
+    if (kind === "edge" && drawn.curved !== undefined) {
+        bowBundledBeziers(graph, cells.get("curve-style"), order, input.rendered, drawn.curved);
+    }
     const built = buildRules(kind, applied, { els, order, coreToOut }, input, drawn, { matcher, notes, spend });
     return {
         n: order.length,
@@ -1601,6 +1604,64 @@ function forceLoopCurves(graph: CyjsGraph, col: (Cell | undefined)[] | undefined
             c.value !== "haystack"
         ) {
             col[e] = { kind: "word", value: "bezier", str: "bezier" };
+        }
+    }
+}
+
+/**
+ * Cytoscape.js's `bezier` bundles the edges between two nodes (either direction) and bows them apart: a lone edge,
+ * and the middle one of an odd bundle, is drawn straight; a loop and every other member of a bundle is drawn curved.
+ * The mapper reads `bezier` as straight; this marks the edges Cytoscape.js bows.
+ * @param graph - the core's elements
+ * @param col - the winning curve style per core edge, if any rule set one
+ * @param order - the core edge of each output index
+ * @param rendered - what a live core reports, which wins over the stylesheet
+ * @param curved - the `curved` values in output order, changed in place
+ */
+function bowBundledBeziers(
+    graph: CyjsGraph,
+    col: (Cell | undefined)[] | undefined,
+    order: Int32Array,
+    rendered: CyjsStyleInput["rendered"],
+    curved: (StyleValue | null)[],
+): void {
+    const isBezier = (e: number): boolean => {
+        const r = rendered?.get(graph.edges[e].json);
+        if (r !== undefined && Object.hasOwn(r, "curve-style")) {
+            return r["curve-style"] === "bezier";
+        }
+        const c = col?.[e];
+        return typeof c === "object" && c.kind === "word" && c.value === "bezier";
+    };
+    const bundles = new Map<string, number[]>();
+    const bowed = new Uint8Array(graph.edges.length);
+    for (let e = 0; e < graph.edges.length; e++) {
+        if (!isBezier(e)) {
+            continue;
+        }
+        const s = graph.source[e];
+        const t = graph.target[e];
+        if (s === t) {
+            bowed[e] = 1;
+            continue;
+        }
+        const key = s < t ? `${String(s)} ${String(t)}` : `${String(t)} ${String(s)}`;
+        const list = bundles.get(key);
+        if (list === undefined) {
+            bundles.set(key, [e]);
+        } else {
+            list.push(e);
+        }
+    }
+    for (const list of bundles.values()) {
+        const middle = list.length % 2 === 1 ? Math.floor(list.length / 2) : -1;
+        list.forEach((e, i) => {
+            bowed[e] = i === middle ? 0 : 1;
+        });
+    }
+    for (let k = 0; k < order.length; k++) {
+        if (order[k] >= 0 && bowed[order[k]] === 1 && curved[k] === false) {
+            curved[k] = true;
         }
     }
 }

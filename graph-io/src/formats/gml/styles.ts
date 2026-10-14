@@ -434,7 +434,10 @@ function readEdgeGraphics(g: Rec, writer: GmlWriter, put: Put, at: At): void {
         );
     }
     if (v === "yed" && g.smoothBends !== undefined) {
-        put("curved", Number(g.smoothBends) === 1);
+        // smoothBends rounds off bends only; yEd's Line lists the two end points and the bends between them
+        const line = g.Line;
+        const points = typeof line === "object" && line !== null ? (line as Rec).point : undefined;
+        put("curved", Number(g.smoothBends) === 1 && Array.isArray(points) && points.length > 2);
     }
 }
 

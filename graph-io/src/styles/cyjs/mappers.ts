@@ -117,7 +117,8 @@ const CURVES = [
     "round-segments",
     "round-taxi",
 ];
-const STRAIGHT: ReadonlySet<string> = new Set(["haystack", "straight", "straight-triangle"]);
+/** Curve styles that draw a lone edge straight; `bezier` bows only loops and parallel edges (see the cascade). */
+const STRAIGHT: ReadonlySet<string> = new Set(["bezier", "haystack", "straight", "straight-triangle"]);
 
 const LABEL: [string, CyjsPropertySpec][] = [
     ["label", { property: "label", type: "text" }],

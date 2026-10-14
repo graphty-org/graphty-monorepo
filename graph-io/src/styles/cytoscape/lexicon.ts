@@ -554,6 +554,7 @@ const IDENTIFIERS: Readonly<Record<StyleTarget, ReadonlyMap<string, string>>> = 
         ["edgetooltip", "EDGE_TOOLTIP"],
         ["curved", "EDGE_CURVED_LEGACY"],
         ["edgecurved", "EDGE_CURVED"],
+        ["edgebend", "EDGE_BEND"],
     ]),
 };
 
@@ -610,7 +611,8 @@ function normalizeObject(
         if (k === "lockedVisualProperties" || v === null || v === undefined) {
             continue;
         }
-        if (typeof v === "object" && !Array.isArray(v) && !/^[A-Z_0-9]+$/.test(k)) {
+        // a 2.x edgeBend of one handle is a record: kept whole, as its handles
+        if (typeof v === "object" && !Array.isArray(v) && !/^[A-Z_0-9]+$/.test(k) && k.toLowerCase() !== "edgebend") {
             if (depth + 1 > MAX_VP_DEPTH) {
                 deep++;
             } else {

@@ -44,7 +44,7 @@ describe("the legend card's words", () => {
     });
 
     it("titles a channel with no key word by the Style tab's word, never by the row alone or the channel id", () => {
-        assert.equal(sectionTitle(block({ channel: "edge.arrowHead" }), "Flow"), "Edge head: Flow");
+        assert.equal(sectionTitle(block({ channel: "edge.arrowHead" }), "Flow"), "Edge target end: Flow");
         assert.equal(sectionTitle(block({ channel: "node.wireframe" }), "Bob"), "Wireframe: Bob");
     });
 

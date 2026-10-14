@@ -21,7 +21,7 @@ import { useWorkspace } from "../state/WorkspaceContext";
 import { type DataBinding, type DataChoice, startingValue, topmostRow } from "./row";
 import { focusLineNext } from "./useFocusLine";
 import { ValuePicker } from "./ValuePicker";
-import { channelWord, enumWords, paletteWord, SCALE_WORDS } from "./words";
+import { channelWord, enumWords, failureWords, paletteWord, SCALE_WORDS } from "./words";
 
 /** What `toColorValue` reads. */
 type ColorInput = Parameters<typeof toColorValue>[0];
@@ -331,8 +331,8 @@ function openLayerFor(
             store.set({ inspected: { kind: "layer-row", id }, announcement: `Layer ${name} added on top` });
             focusLineNext(channel);
         })
-        .catch(() => {
-            store.set({ notice: { message: "The layer could not be added" } });
+        .catch((error: unknown) => {
+            store.set({ notice: { message: failureWords("The layer", "added", error), error: true } });
         });
 }
 
@@ -638,8 +638,8 @@ function Categories({ session, descriptor, layerId, binding, source, preview, pa
             String(c.value).toLowerCase().includes(needle) ||
             nameOf(c.value).toLowerCase().includes(needle),
     );
-    const fail = (): void => {
-        store.set({ notice: { message: `${channelWord(channel)} could not be changed` } });
+    const fail = (error: unknown): void => {
+        store.set({ notice: { message: failureWords(channelWord(channel), "changed", error), error: true } });
     };
     const entry = (value: Category["value"], next: string | number | undefined): void => {
         Promise.resolve(session.styles.setValueEntry(layerId, channel, value as string | number | boolean, next)).catch(

@@ -31,6 +31,12 @@ interface ValuePickerProps {
     onFixed?: () => void;
 }
 
+/** A run's fields that only reorder its main value. */
+const RANK_FIELDS: ReadonlySet<string> = new Set(["rank", "percentile"]);
+
+/** The text channels, which offer a run's rank and percentile; every other channel is a look. */
+const TEXT_CHANNEL = /\.(label|tooltip|arrowHeadText|arrowTailText)$/;
+
 /** The key of the `fixedLabel` row; entry keys are the values' paths. */
 const FIXED = "fixed";
 /** The key of the closing row that folds what the property cannot take. */
@@ -84,13 +90,15 @@ function factOf(value: ReadableValue): string | undefined {
 /**
  * Everything the picker offers, in the element's order (`data.readableValues`): the data's
  * columns, then each finished run's fields under the run's name, named as the rule editor names
- * them (`readableName`). The node id is left out: it drives no property.
+ * them (`readableName`). The node id is left out: it drives no property. Without `ranks`, a run's
+ * rank and percentile are left out too.
  * @param session - the element's session.
  * @param target - nodes or edges.
  * @param inUse - paths the caller counts as in use.
+ * @param ranks - whether to list a run's rank and percentile (text offers them; a look does not).
  * @returns the entries.
  */
-function entriesOf(session: GraphSession, target: Target, inUse: readonly string[]): Entry[] {
+function entriesOf(session: GraphSession, target: Target, inUse: readonly string[], ranks = true): Entry[] {
     const entries: Entry[] = [];
     for (const value of session.data.readableValues()) {
         // A node value read at an edge's end waits until the picker words it as the end's.
@@ -108,7 +116,9 @@ function entriesOf(session: GraphSession, target: Target, inUse: readonly string
                 field: value.path.slice(session.results.path(run.id, "").length),
             };
         }
-        if (choice === undefined) {
+        // A look lists each measure once: its rank and percentile only reorder it, which the Equal
+        // counts scale already does, and a rank runs backwards on a ramp.
+        if (choice === undefined || (!ranks && choice.kind === "result" && RANK_FIELDS.has(choice.field))) {
             continue;
         }
         const Glyph = value.kind === "number" ? GLYPHS.number : GLYPHS.category;
@@ -163,7 +173,7 @@ export function ValuePicker({
         return null;
     }
 
-    const entries = entriesOf(session, target, inUse);
+    const entries = entriesOf(session, target, inUse, channel === undefined || TEXT_CHANNEL.test(channel));
     const fits: QuickAction[] = [];
     const used: QuickAction[] = [];
     const refused: QuickAction[] = [];

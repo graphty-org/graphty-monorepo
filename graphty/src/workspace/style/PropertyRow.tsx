@@ -42,6 +42,7 @@ import {
     channelWord,
     COMBINE_WORDS,
     enumWords,
+    failureWords,
     fieldName,
     GLYPH_TABLES,
     hexOf,
@@ -201,8 +202,8 @@ export function Field({ ctx, descriptor, word }: Readonly<FieldProps>): React.JS
     const name = fieldName(channel);
     // A layer above covers this row's value on some of its elements (a shown row only).
     const over = own === undefined || !own.layer.enabled ? undefined : ctx.paintedOver?.(channel);
-    const fail = (): void => {
-        store.set({ notice: { message: `${channelWord(channel)} could not be changed` } });
+    const fail = (error: unknown): void => {
+        store.set({ notice: { message: failureWords(channelWord(channel), "changed", error), error: true } });
     };
     const write = (next: LiteralWrite | { binding: DataBinding }): void => {
         writeIn(ctx, channel, next).catch(fail);
@@ -465,8 +466,10 @@ export function VarySlot({
         if (!proposal.ok) {
             return;
         }
-        writeIn(ctx, descriptor.channel, { binding: proposal.binding }).catch(() => {
-            store.set({ notice: { message: `${channelWord(descriptor.channel)} could not be changed` } });
+        writeIn(ctx, descriptor.channel, { binding: proposal.binding }).catch((error: unknown) => {
+            store.set({
+                notice: { message: failureWords(channelWord(descriptor.channel), "changed", error), error: true },
+            });
         });
     };
     return (

@@ -247,11 +247,12 @@ describe("the binding popover's rows and readings", () => {
             await userEvent.click(fold);
         }
         const picked = optionNames(picker);
-        for (const name of ["Degree", "Rank of Degree", "Louvain"]) {
+        for (const name of ["Degree", "Louvain"]) {
             assert.include(picked, name, `the picker lists ${name}`);
         }
-        const degree = within(picker).getByRole("group", { name: "Degree" });
-        assert.include(optionNames(degree), "Rank of Degree", "grouped under the run's name");
+        // A look lists each measure once: no rank or percentile beside it.
+        assert.notInclude(picked, "Degree rank (1 = highest)");
+        assert.notInclude(picked, "Degree percentile");
         const numberGlyph = within(picker).getByRole("option", { name: "Degree" }).querySelector("svg")?.outerHTML;
         const categoryGlyph = within(picker).getByRole("option", { name: "Louvain" }).querySelector("svg")?.outerHTML;
         assert.notEqual(numberGlyph, categoryGlyph, "numbers and categories have different glyphs");
@@ -278,6 +279,8 @@ describe("the binding popover's rows and readings", () => {
         for (const name of picked.filter((n) => !/^\d+ values?$|^Fixed /.test(n))) {
             assert.include(ruled, name, `the rule editor names ${name} as the picker does`);
         }
+        // Rules still offer the rank, named the same way everywhere.
+        assert.include(ruled, "Degree rank (1 = highest)");
         await userEvent.keyboard("Louvain");
         await waitFor(() => {
             assert.include(optionNames(listbox), "Louvain", "typing Louvain finds it in the rule editor too");

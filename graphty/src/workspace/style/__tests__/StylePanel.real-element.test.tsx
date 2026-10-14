@@ -155,9 +155,9 @@ describe("the Style tab's fields on the real element", () => {
 
         const visibility = within(tab).getByRole("group", { name: "Node visibility" });
         await userEvent.click(within(visibility).getByRole("button", { name: "Add to node visibility" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Show" }));
-        await userEvent.click(await within(visibility).findByRole("combobox", { name: /^Node show/ }));
-        await userEvent.click(await screen.findByRole("option", { name: "Hidden" }));
+        // Hide and Show are two items, and Show is offered with no layer beneath hiding anything.
+        assert.isNotNull(await screen.findByRole("menuitem", { name: "Show elements a layer beneath hides" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Hide" }));
         await waitFor(() => {
             assert.isFalse(written(session, selected, "node.visible"));
         });

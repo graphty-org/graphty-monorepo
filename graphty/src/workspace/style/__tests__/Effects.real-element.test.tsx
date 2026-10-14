@@ -1,7 +1,7 @@
 /**
  * The Effects and Ends sections on the REAL graphty-element, driven by real input: "+" then Glow
  * adds a Glow row with focus in it, typing a hex writes the glow the element draws, the menu no
- * longer offers Glow, the minus takes it away; Head added from Ends and set to None writes `none`.
+ * longer offers Glow, the minus takes it away; Target end added from Arrowheads and set to None writes `none`.
  * Every assertion reads what the element reports: the layer stack and what `styles.explain` says
  * each element is painted.
  */
@@ -168,13 +168,13 @@ describe("effects and arrow ends on the real element", () => {
         });
     });
 
-    it("Head added from Ends and set to None writes none", async () => {
+    it("Target end added from Arrowheads and set to None writes none", async () => {
         const { session, element } = await mountElement();
         const [, edgeLayer] = await renderRow(session, element);
-        const ends = screen.getByRole("group", { name: "Edge ends" });
-        await userEvent.click(within(ends).getByRole("button", { name: "Add to edge ends" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Head" }));
-        const head = await within(ends).findByRole("combobox", { name: /^Edge head/ });
+        const ends = screen.getByRole("group", { name: "Edge arrowheads" });
+        await userEvent.click(within(ends).getByRole("button", { name: "Add to edge arrowheads" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Target end" }));
+        const head = await within(ends).findByRole("combobox", { name: /^Edge target end/ });
         await userEvent.click(head);
         await userEvent.click(await screen.findByRole("option", { name: "None" }));
         await waitFor(

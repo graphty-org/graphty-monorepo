@@ -244,7 +244,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
             .filter((value) => value.runId === closeness)
             .map((value) => readableName(session, value).name);
         assert.include(names, "Closeness");
-        assert.include(names, "Rank of Closeness");
+        assert.include(names, "Closeness rank (1 = highest)");
         assert.notInclude(names.join(), "Reach");
     });
 

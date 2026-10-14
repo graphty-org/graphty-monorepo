@@ -1,14 +1,15 @@
 import { ControlSection } from "@graphty/compact-mantine";
 import { type ChannelDescriptor, channelsFor } from "@graphty/graphty-element/catalog";
-import { ActionIcon, Menu, Tooltip } from "@mantine/core";
+import { ActionIcon, Menu, Text, Tooltip } from "@mantine/core";
 import React from "react";
 
 import { GLYPHS } from "../glyphs";
+import { arrowheadNote } from "../inspector/words";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { Field, type RowContext } from "./PropertyRow";
 import { lineIn, partlySet, startFor, writeIn } from "./row";
 import { focusLineNext } from "./useFocusLine";
-import { channelWord, fieldName, type SectionSpec } from "./words";
+import { channelWord, failureWords, fieldName, type SectionSpec } from "./words";
 
 /**
  * Whether the row sets a property: a line of its own (not the element's locked base), or, for
@@ -20,6 +21,40 @@ import { channelWord, fieldName, type SectionSpec } from "./words";
 function isSet(ctx: RowContext, descriptor: ChannelDescriptor): boolean {
     const line = lineIn(ctx, descriptor.channel);
     return (line !== undefined && !line.layer.locked) || partlySet(ctx, descriptor.channel) !== undefined;
+}
+
+/**
+ * What a section's "+" offers for a property. Visibility offers its two writes as two items, Hide
+ * and Show, and Show is always offered, so a layer can be written before the layer it overrides.
+ * @param descriptor - the property.
+ * @returns the menu items, keyed `<channel>` or `<channel>=<value>`.
+ */
+function optionsFor(descriptor: ChannelDescriptor): AddOption[] {
+    if (descriptor.channel === "node.visible" || descriptor.channel === "edge.visible") {
+        return [
+            { key: `${descriptor.channel}=false`, label: "Hide" },
+            { key: `${descriptor.channel}=true`, label: "Show elements a layer beneath hides" },
+        ];
+    }
+    return [{ key: descriptor.channel, label: channelWord(descriptor.channel) }];
+}
+
+/**
+ * A section's one help line, or null: on edges, Arrowheads says what arrowheads follow on a graph
+ * that is not directed; on nodes, Effects with an outline says where its width is set.
+ * @param ctx - the row and kind.
+ * @param spec - the section.
+ * @param set - the properties the row sets in it.
+ * @returns the words, or null.
+ */
+function sectionNote(ctx: RowContext, spec: SectionSpec, set: readonly ChannelDescriptor[]): string | null {
+    if (ctx.side === "edge" && spec.id === "ends") {
+        return arrowheadNote(ctx.session.data.statistics().directedness);
+    }
+    if (ctx.side === "node" && spec.id === "effects" && set.some((d) => d.channel === "node.outline")) {
+        return "Every outline is drawn at one width, set in Graph settings. For a ring this layer sizes, use Halo.";
+    }
+    return null;
 }
 
 /**
@@ -43,16 +78,19 @@ export function Section({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
         return null;
     }
     const set = descriptors.filter((d) => isSet(ctx, d));
+    const note = sectionNote(ctx, spec, set);
     const unset = descriptors.filter((d) => !set.includes(d));
-    const add = (descriptor: ChannelDescriptor): void => {
+    const add = (descriptor: ChannelDescriptor, value = startFor(ctx, descriptor)): void => {
         focusLineNext(descriptor.channel);
-        writeIn(ctx, descriptor.channel, { value: startFor(ctx, descriptor) })
+        writeIn(ctx, descriptor.channel, { value })
             .then(() => {
                 store.set({ announcement: `${fieldName(descriptor.channel)} added` });
             })
-            .catch(() => {
+            .catch((error: unknown) => {
                 focusLineNext(null);
-                store.set({ notice: { message: `${channelWord(descriptor.channel)} could not be added` } });
+                store.set({
+                    notice: { message: failureWords(channelWord(descriptor.channel), "added", error), error: true },
+                });
             });
     };
     return (
@@ -70,11 +108,12 @@ export function Section({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
                     <AddButton
                         kind={ctx.side}
                         title={spec.title}
-                        options={unset.map((d) => ({ key: d.channel, label: channelWord(d.channel) }))}
+                        options={unset.flatMap(optionsFor)}
                         onAdd={(key) => {
-                            const descriptor = unset.find((d) => d.channel === key);
+                            const [channel, pick] = key.split("=");
+                            const descriptor = unset.find((d) => d.channel === channel);
                             if (descriptor !== undefined) {
-                                add(descriptor);
+                                add(descriptor, ...(pick === undefined ? [] : [pick === "true"]));
                             }
                         }}
                     />
@@ -84,6 +123,12 @@ export function Section({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
                     <Field key={d.channel} ctx={ctx} descriptor={d} />
                 ))}
             </ControlSection>
+            {/* Outside the section's body, so it shows while the section sets nothing yet. */}
+            {note !== null && (
+                <Text size="xs" c="dimmed" px={16} pb={4} data-testid={`${ctx.side}-${spec.id}-note`}>
+                    {note}
+                </Text>
+            )}
         </div>
     );
 }

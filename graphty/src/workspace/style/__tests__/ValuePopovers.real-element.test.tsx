@@ -156,4 +156,31 @@ describe("value popovers", () => {
         assert.isNotNull(label);
         assert.isAtMost(label?.scrollWidth ?? 0, label?.clientWidth ?? 0, `"${label?.textContent ?? ""}" is cut`);
     });
+
+    it("varies opacity from 20% to 100%, the app's own range, when a number is picked for it", async () => {
+        await openScene(1440, 900);
+        const tab = await openStyle("Everything");
+        if (tab.querySelector('.ws-row[data-line="node.opacity"]') === null) {
+            await userEvent.click(within(tab).getByRole("button", { name: "Add to node visibility" }));
+            await userEvent.click(await screen.findByRole("menuitem", { name: "Opacity" }));
+        }
+        const row = await waitFor(() => {
+            const found = tab.querySelector<HTMLElement>('.ws-row[data-line="node.opacity"]');
+            assert.isNotNull(found, "an opacity row");
+            return found;
+        });
+        await userEvent.hover(row);
+        await userEvent.click(await within(row).findByRole("button", { name: "Node opacity by attribute" }));
+        // The vary picker names a measure by its method.
+        await userEvent.click(await screen.findByRole("option", { name: /^Degree/ }));
+        const session = document.querySelector("graphty-element")?.session;
+        await waitFor(() => {
+            const bound = session?.styles
+                .list()
+                .map((layer) => layer.encode?.["node.opacity"])
+                .find((binding) => binding !== undefined && "by" in binding);
+            assert.isDefined(bound);
+            assert.deepEqual(bound !== undefined && "range" in bound ? bound.range : undefined, [0.2, 1]);
+        });
+    });
 });

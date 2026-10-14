@@ -294,8 +294,10 @@ describe("the Style tab's sections", () => {
     it("starts an added arrowhead at what an undirected graph draws there: none", async () => {
         const { session } = await openScene();
         await openStyle("Everything");
-        await userEvent.click(within(section("edge", "ends")).getByRole("button", { name: "Add to edge ends" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Head" }));
+        // On an undirected graph the section says what arrowheads follow.
+        assert.include(within(section("edge", "ends")).getByTestId("edge-ends-note").textContent, "first-listed node");
+        await userEvent.click(within(section("edge", "ends")).getByRole("button", { name: "Add to edge arrowheads" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Target end" }));
         await waitFor(() => {
             assert.equal(written(session, "Everything", "edge.arrowHead"), "none");
         });

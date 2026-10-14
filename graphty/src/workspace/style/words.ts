@@ -16,7 +16,13 @@ import {
     toColorValue,
 } from "@graphty/graphty-element/catalog";
 import type { Channel, LabelStyle } from "@graphty/graphty-element/schema";
-import type { CodedFact, GraphSession, ReadableValue } from "@graphty/graphty-element/session";
+import {
+    type CodedFact,
+    type GraphSession,
+    GraphtyError,
+    type GraphtyErrorCode,
+    type ReadableValue,
+} from "@graphty/graphty-element/session";
 
 import { wordsFor } from "../analyze/words";
 import { runName } from "../runWords";
@@ -84,8 +90,8 @@ export const TEXT_KINDS: Readonly<Record<Kind, readonly TextKindSpec[]>> = {
     node: [textKind("label", "Label", "node.label"), textKind("tooltip", "Tooltip", "node.tooltip")],
     edge: [
         textKind("label", "Label", "edge.label"),
-        textKind("head", "Caption at the target end", "edge.arrowHeadText"),
-        textKind("tail", "Caption at the source end", "edge.arrowTailText"),
+        textKind("head", "Label at target end", "edge.arrowHeadText"),
+        textKind("tail", "Label at source end", "edge.arrowTailText"),
     ],
 };
 
@@ -132,7 +138,7 @@ export const SECTIONS: Readonly<Record<Kind, readonly SectionSpec[]>> = {
         },
         {
             id: "ends",
-            title: "Ends",
+            title: "Arrowheads",
             channels: [
                 "edge.arrowHead",
                 "edge.arrowHeadSize",
@@ -268,30 +274,30 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.style": "Pattern",
     "edge.patternCount": "Pattern count",
     "edge.curvature": "Curved",
-    "edge.arrowHead": "Head",
-    "edge.arrowHeadSize": "Head size",
-    "edge.arrowHeadColor": "Head color",
-    "edge.arrowHeadOpacity": "Head opacity",
-    "edge.arrowHeadText": "Caption at the target end",
-    "edge.arrowHeadTextStyle": "Caption at the target end style",
-    "edge.arrowTail": "Tail",
-    "edge.arrowTailSize": "Tail size",
-    "edge.arrowTailColor": "Tail color",
-    "edge.arrowTailOpacity": "Tail opacity",
-    "edge.arrowTailText": "Caption at the source end",
-    "edge.arrowTailTextStyle": "Caption at the source end style",
+    "edge.arrowHead": "Target end",
+    "edge.arrowHeadSize": "Target end size",
+    "edge.arrowHeadColor": "Target end color",
+    "edge.arrowHeadOpacity": "Target end opacity",
+    "edge.arrowHeadText": "Label at target end",
+    "edge.arrowHeadTextStyle": "Label at target end style",
+    "edge.arrowTail": "Source end",
+    "edge.arrowTailSize": "Source end size",
+    "edge.arrowTailColor": "Source end color",
+    "edge.arrowTailOpacity": "Source end opacity",
+    "edge.arrowTailText": "Label at source end",
+    "edge.arrowTailTextStyle": "Label at source end style",
     "edge.animationSpeed": "Motion",
     "edge.label": "Label",
     "edge.labelStyle": "Label style",
     "edge.labelSize": "Label size",
     "edge.labelColor": "Label color",
     "edge.labelBackground": "Label background",
-    "edge.arrowHeadTextSize": "Caption at the target end size",
-    "edge.arrowHeadTextColor": "Caption at the target end color",
-    "edge.arrowHeadTextBackground": "Caption at the target end background",
-    "edge.arrowTailTextSize": "Caption at the source end size",
-    "edge.arrowTailTextColor": "Caption at the source end color",
-    "edge.arrowTailTextBackground": "Caption at the source end background",
+    "edge.arrowHeadTextSize": "Label at target end size",
+    "edge.arrowHeadTextColor": "Label at target end color",
+    "edge.arrowHeadTextBackground": "Label at target end background",
+    "edge.arrowTailTextSize": "Label at source end size",
+    "edge.arrowTailTextColor": "Label at source end color",
+    "edge.arrowTailTextBackground": "Label at source end background",
 };
 
 /**
@@ -349,8 +355,8 @@ export function paletteWord(id: string): string {
  * rule editor: the catalog plainName, under "Data" for a column or under the run's name for a
  * run's field. A measurement's main value goes by the algorithm's name, as the reader picked it
  * ("Closeness", not the catalog's "Reach"). A run's field that does not say whose it is gets the
- * run's main value after it ("Rank of Closeness"); one that does ("Community size", "Incoming
- * connections") keeps its own name.
+ * run's main value after it; one that does ("Community size", "Incoming connections") keeps its
+ * own name. A rank reads "Closeness rank (1 = highest)" and a percentile "Closeness percentile".
  * @param session - the element's session.
  * @param value - the element's entry.
  * @returns the name and its heading.
@@ -376,6 +382,14 @@ export function readableName(session: GraphSession, value: ReadableValue): { nam
     // The main value, or the main value read at an edge's end, which carries the same catalog name.
     if (value.path === primary || value.plainName === field) {
         return { name: main ?? value.plainName, group };
+    }
+    // A rank and a percentile are named the same way everywhere they are offered.
+    const of = main ?? field ?? value.plainName;
+    if (value.path.endsWith(".rank")) {
+        return { name: `${of} rank (1 = highest)`, group };
+    }
+    if (value.path.endsWith(".percentile")) {
+        return { name: `${of} percentile`, group };
     }
     const own = main === undefined || field === undefined || value.plainName.includes(field);
     return { name: own ? value.plainName : `${value.plainName} of ${main}`, group };
@@ -665,3 +679,33 @@ export const SCALE_WORDS: Readonly<Record<string, string>> = {
     ordinal: "One color per value",
     passthrough: "As written",
 };
+
+/** The element's reasons for refusing a style edit, in the app's words, by error code. */
+const REFUSAL_WORDS: Partial<Readonly<Record<GraphtyErrorCode, string>>> = {
+    E_LOCKED: "its layer is locked",
+    E_PROTECTED: "that layer is drawn by graphty itself; add a layer above it instead",
+    E_OPTION_RANGE: "that value is outside what the property accepts",
+    E_BAD_LAYER: "a layer cannot hold that value",
+    E_UNKNOWN_CHANNEL: "this kind of element has no such property",
+    E_UNKNOWN_PALETTE: "that palette is not known",
+    E_UNKNOWN_SCALE: "that scale is not known",
+    E_UNKNOWN_ATTRIBUTE: "the value it reads is not in the data",
+    E_BAD_SELECTOR: "the layer's rule does not read right",
+    E_SELECTOR_EMPTY: "the layer's rule names nothing",
+    E_UNSCOPED_RUN_ENCODING: "the result covers only part of the graph; narrow the layer to what it measured",
+    E_UNKNOWN_LAYER: "the layer is gone",
+    E_HELD_BY_TRANSACTION: "another change is still being made; try again",
+};
+
+/**
+ * A failure notice that carries the element's reason: "Pattern could not be changed: its layer
+ * is locked." The reason is read from the GraphtyError's code, never from its English message.
+ * @param what - the thing, such as "Pattern" or "The text".
+ * @param verb - what failed, such as "changed" or "added".
+ * @param error - what the element threw.
+ * @returns the words.
+ */
+export function failureWords(what: string, verb: string, error: unknown): string {
+    const reason = error instanceof GraphtyError ? REFUSAL_WORDS[error.code] : undefined;
+    return reason === undefined ? `${what} could not be ${verb}.` : `${what} could not be ${verb}: ${reason}.`;
+}

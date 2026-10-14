@@ -531,10 +531,19 @@ export function propose(
     choice: DataChoice,
     channel: Channel,
 ): ReturnType<GraphSession["styles"]["proposeEncoding"]> {
+    // The app's own choice: an opacity that varies never fades below 20%, so the faintest element
+    // stays visible. The element's default range stays 0 to 1.
+    const range = OPACITY.test(channel) ? { range: [...OPACITY_RANGE] as [number, number] } : {};
     return choice.kind === "column"
-        ? session.styles.proposeEncoding({ column: choice.column, channel })
-        : session.styles.proposeEncoding({ run: choice.runId, field: choice.field, channel });
+        ? session.styles.proposeEncoding({ column: choice.column, channel, ...range })
+        : session.styles.proposeEncoding({ run: choice.runId, field: choice.field, channel, ...range });
 }
+
+/** The channels the app's opacity range applies to: every opacity. */
+const OPACITY = /opacity$/i;
+
+/** How faint to how solid a varying opacity draws: 20% to 100%. */
+const OPACITY_RANGE: readonly [number, number] = [0.2, 1];
 
 /**
  * Whether graphty-element answers the path a binding reads: its own check of the binding

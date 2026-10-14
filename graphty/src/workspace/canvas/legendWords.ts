@@ -155,7 +155,7 @@ export function isSizeBlock(block: LegendBlock): boolean {
 
 /**
  * The section title: "<Property>: <row>". A channel with no key word of its own goes by the Style
- * tab's word for it ("Edge head: Flow"), so a title never reads as the row's name alone and a
+ * tab's word for it ("Edge target end: Flow"), so a title never reads as the row's name alone and a
  * reader never sees a channel id.
  * @param block - the block.
  * @param rowName - the name of the row that paints it (the run's name, or the layer's).

@@ -32,7 +32,7 @@ import {
 import { AddButton, type AddOption } from "./Section";
 import { focusLineNext, focusSectionNext } from "./useFocusLine";
 import { ValuePicker } from "./ValuePicker";
-import { labelStatement, positionWord, TEXT_KINDS, type TextKindSpec } from "./words";
+import { failureWords, labelStatement, positionWord, TEXT_KINDS, type TextKindSpec } from "./words";
 
 /** The width of the entry's pop-outs: the source list as wide as the panel's rows, the settings wider. */
 const LIST_WIDTH = 248;
@@ -169,8 +169,8 @@ export function LabelSection({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.
     const kindWord = target === "node" ? "Node" : "Edge";
     const hasEntry = (kind: TextKindSpec): boolean =>
         lineIn(ctx, kind.words) !== undefined || lineIn(ctx, kind.style) !== undefined;
-    const fail = (): void => {
-        store.set({ notice: { message: "The text could not be changed" } });
+    const fail = (error: unknown): void => {
+        store.set({ notice: { message: failureWords("The text", "changed", error), error: true } });
     };
     const writeWords = (kind: TextKindSpec, write: { value: string } | { choice: DataChoice }): void => {
         let next: Parameters<typeof writeLine>[4];
@@ -189,9 +189,9 @@ export function LabelSection({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.
             .then(() => {
                 store.set({ announcement: `${kindWord} ${kind.name.toLowerCase()} added` });
             })
-            .catch(() => {
+            .catch((error: unknown) => {
                 focusLineNext(null);
-                fail();
+                fail(error);
             });
     };
     const options: AddOption[] = kinds.flatMap((kind) => {
@@ -492,7 +492,7 @@ interface TextEntryProps {
     kind: TextKindSpec;
     /** Writes the words: typed, or read from a value. */
     onWords: (kind: TextKindSpec, write: { value: string } | { choice: DataChoice }) => void;
-    onFail: () => void;
+    onFail: (error: unknown) => void;
 }
 
 /**

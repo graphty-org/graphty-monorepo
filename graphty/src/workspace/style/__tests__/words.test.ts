@@ -1,4 +1,5 @@
 import { channelsFor, PALETTE_DESCRIPTORS } from "@graphty/graphty-element/catalog";
+import { GraphtyError } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 
 import {
@@ -7,6 +8,7 @@ import {
     channelWord,
     colorName,
     enumWords,
+    failureWords,
     labelStatement,
     locationOfCell,
     matchesWordStart,
@@ -25,7 +27,7 @@ describe("the Style tab's words and arrangement", () => {
         );
         assert.deepEqual(
             SECTIONS.edge.map((section) => section.title),
-            ["Visibility", "Text", "Line", "Ends", "Effects"],
+            ["Visibility", "Text", "Line", "Arrowheads", "Effects"],
         );
     });
 
@@ -126,5 +128,17 @@ describe("the Style tab's words and arrangement", () => {
         }
         assert.equal(paletteWord("okabe-ito"), "Eight distinct colors");
         assert.equal(paletteWord("someone-elses"), "Someone elses");
+    });
+});
+
+describe("failure notices", () => {
+    it("word the element's reason from its code, never its English message", () => {
+        const locked = new GraphtyError({ code: "E_LOCKED", message: "Layer x is locked by row y", source: "style" });
+        assert.equal(failureWords("Pattern", "changed", locked), "Pattern could not be changed: its layer is locked.");
+        assert.notInclude(failureWords("Pattern", "changed", locked), "row y");
+    });
+
+    it("say only what failed when the reason is not one the app words", () => {
+        assert.equal(failureWords("The layer", "added", new Error("boom")), "The layer could not be added.");
     });
 });

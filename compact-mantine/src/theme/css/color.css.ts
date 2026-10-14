@@ -161,8 +161,8 @@ const css = `
 }
 .cm-paint-chip .cm-chit { width: 24px; height: 24px; border-radius: 5px; }
 .cm-paint-chip .cm-chit::after { border-radius: 10px; }
-.cm-paint-chip[data-mixed] { box-shadow: inset 0 0 0 1px var(--cm-border); }
-.cm-paint-chip[data-mixed]:focus-visible { box-shadow: inset 0 0 0 2px var(--cm-border-selected); }
+.cm-paint-chip:is([data-mixed], [data-empty]) { box-shadow: inset 0 0 0 1px var(--cm-border); }
+.cm-paint-chip:is([data-mixed], [data-empty]):focus-visible { box-shadow: inset 0 0 0 2px var(--cm-border-selected); }
 .cm-paint-chip:is(:disabled, [aria-disabled="true"] *) { color: var(--cm-text-disabled); }
 .cm-paint-input {
     box-sizing: border-box;

@@ -57,6 +57,9 @@ export interface CompactColorInputProps {
      * for a color whose default is another color rather than a value of its own -- "Line color"
      * for an arrowhead that takes its edge's color. The hex box is then empty, with these words
      * as its placeholder; the chit still shows `defaultColor`. As `StyleNumberInput`'s `emptyText`.
+     * In the chip form, which has no hex box, the chip is drawn empty instead -- no color is shown
+     * as if it were chosen -- and its name says "not set" with these words; pressing it opens the
+     * picker at `defaultColor`.
      */
     emptyText?: string;
     /**
@@ -456,6 +459,8 @@ export function CompactColorInput({
     if (variant === "chip") {
         // The chip: the swatch alone, a 24px target (WCAG 2.2, 2.5.8), named with its state and color.
         const chipName = `${name === undefined ? labels.colorSwatch : labels.colorValue(name)}, ${hexState}`;
+        // Nothing chosen, with words for it: an empty chip, since no color is in force here.
+        const emptyChip = !showsMixed && isColorDefault && emptyText !== undefined;
         return (
             <span className="cm-paint-chip-wrap" title={annotation.title} data-disabled={disabled || undefined}>
                 <Popout>
@@ -466,13 +471,13 @@ export function CompactColorInput({
                             data-testid="compact-color-input-chip"
                             data-is-default={isColorDefault ? "true" : "false"}
                             data-mixed={showsMixed || undefined}
+                            data-empty={emptyChip || undefined}
                             disabled={disabled}
                             aria-label={isColorDefault ? chipName : `${chipName}, ${displayColor.toUpperCase()}`}
                             aria-describedby={annotation.describedBy}
                         >
-                            {showsMixed ? (
-                                <UiGlyph name="dash" size={PANEL_GRID.CHEVRON} />
-                            ) : (
+                            {showsMixed && <UiGlyph name="dash" size={PANEL_GRID.CHEVRON} />}
+                            {!showsMixed && !emptyChip && (
                                 <Chit color={showOpacity ? hexaValue : displayColor} variant="field" />
                             )}
                         </button>

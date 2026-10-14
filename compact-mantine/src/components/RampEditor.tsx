@@ -139,6 +139,12 @@ export interface RampEditorProps {
     palettes?: RampEditorPalette[];
     /** Called with a picked palette, or undefined when the reader resets it. */
     onPaletteChange?: (palette: string | undefined) => void;
+    /**
+     * Words the scale and palette selects show while neither is set here. Given, an unset select
+     * is empty under these words instead of showing `defaultScale` or `defaultPalette` as if it
+     * were chosen, and it is offered even with no default; see `StyleSelect`'s `placeholder`.
+     */
+    unsetText?: string;
     /** Whether the palette runs high to low. Omit `onReverseChange` to hide the toggle. */
     reverse?: boolean;
     onReverseChange?: (reverse: boolean) => void;
@@ -420,6 +426,7 @@ function Handle({
  * @param props.defaultPalette - the palette in force when none is set
  * @param props.palettes - the palettes offered
  * @param props.onPaletteChange - called with a new palette
+ * @param props.unsetText - words an unset scale or palette select shows in place of its default
  * @param props.reverse - whether the palette runs high to low
  * @param props.onReverseChange - called with a new reverse
  * @param props.noValue - elements with no value
@@ -458,6 +465,7 @@ export function RampEditor({
     defaultPalette,
     palettes,
     onPaletteChange,
+    unsetText,
     reverse = false,
     onReverseChange,
     noValue,
@@ -714,23 +722,25 @@ export function RampEditor({
 
             {(scales !== undefined || palettes !== undefined) && (
                 <Box style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-end", gap: 8 }}>
-                    {scales !== undefined && shownScale !== undefined && (
+                    {scales !== undefined && (shownScale !== undefined || unsetText !== undefined) && (
                         <Box style={{ flex: "1 0 100%", minWidth: 0 }}>
                             <StyleSelect
                                 label={labels.scale}
                                 value={scale}
-                                defaultValue={shownScale}
+                                defaultValue={shownScale ?? ""}
+                                placeholder={unsetText}
                                 options={scales}
                                 onChange={(value) => onScaleChange?.(value)}
                             />
                         </Box>
                     )}
-                    {palettes !== undefined && shownPalette !== undefined && (
+                    {palettes !== undefined && (shownPalette !== undefined || unsetText !== undefined) && (
                         <Box style={{ flex: "1 1 0", minWidth: 0 }}>
                             <StyleSelect
                                 label={labels.palette}
                                 value={palette}
-                                defaultValue={shownPalette}
+                                defaultValue={shownPalette ?? ""}
+                                placeholder={unsetText}
                                 options={palettes.map((option) => ({
                                     value: option.value,
                                     label: option.label,

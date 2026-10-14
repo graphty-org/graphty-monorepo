@@ -304,8 +304,10 @@ const css = `
     align-items: center;
     justify-content: center;
 }
-.cm-style-select-glyph > svg,
-.cm-listbox .cm-listbox-glyph > svg {
+/* Any depth: a caller's glyph may wrap its svg (a catalog's markup in a span), and an svg left at
+   its own size spills over the value's words. */
+.cm-style-select-glyph svg,
+.cm-listbox .cm-listbox-glyph svg {
     width: 100%;
     height: 100%;
 }

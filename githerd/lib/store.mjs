@@ -359,7 +359,8 @@ export async function readLedger(dir, { since } = {}) {
     const entries = [];
     for (const name of names) {
         try {
-            entries.push(...parseLines(await readFile(join(dir, name), "utf8")));
+            // One push per entry: spreading a file's 160,000 lines as arguments overflowed the stack.
+            for (const e of parseLines(await readFile(join(dir, name), "utf8"))) entries.push(e);
         } catch (err) {
             if (err.code !== "ENOENT") throw err;
         }

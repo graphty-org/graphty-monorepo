@@ -1,3 +1,20 @@
+## 0.1.8 (2026-10-14)
+
+### 🚀 Features
+
+- **githerd:** resume sessions when usage comes back before the limit's reset ([#2596](https://github.com/graphty-org/graphty-monorepo/issues/2596))
+
+### 🩹 Fixes
+
+- **githerd:** read the newer usage-limit status line on a worker pane ([#2647](https://github.com/graphty-org/graphty-monorepo/issues/2647))
+- **githerd:** offer an issue again when its done job's pull request is gone ([#2644](https://github.com/graphty-org/graphty-monorepo/issues/2644))
+- **githerd:** count a daemon's forked child as no second daemon ([#2576](https://github.com/graphty-org/graphty-monorepo/issues/2576))
+- **githerd:** propose closing a split issue once every child issue closes ([#2557](https://github.com/graphty-org/graphty-monorepo/issues/2557))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.1.7 (2026-10-14)
 
 ### 🩹 Fixes

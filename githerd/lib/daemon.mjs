@@ -144,6 +144,7 @@ import {
     droppableItems,
     endItem,
     notePresence,
+    notifiedToDrop,
     ownerItemsPoll,
     presentDays,
     raiseItem,
@@ -171,7 +172,7 @@ import {
 } from "./owners.mjs";
 import { attributeTickets, mergeTarget, mergeWhat, ticketCloses } from "./waits.mjs";
 import { liveSessions, registeredSessions, socketTransport } from "./peers.mjs";
-import { advanceProposals, closedTargets, proposeSplitParents, veto } from "./proposals.mjs";
+import { advanceProposals, closedTargets, droppableProposals, proposeSplitParents, veto } from "./proposals.mjs";
 import {
     needsReleaseDryRun,
     newestContexts,
@@ -408,15 +409,29 @@ function readOverride(dir) {
 const firstLine = (text) => text.split("\n", 1)[0];
 
 /**
- * Today's next incident id.
+ * Today's next incident id, past every one in the state and the last one dropped from it, so an id
+ * is never given twice.
  * @param {Record<string, any>} incidents the incident records
  * @param {string} iso the current time
+ * @param {string | null | undefined} lastDropped the latest incident id dropped from the state
  * @returns {string} for example inc-20261002-1
  */
-function nextIncidentId(incidents, iso) {
+function nextIncidentId(incidents, iso, lastDropped) {
     const prefix = `inc-${iso.slice(0, 10).replaceAll("-", "")}-`;
-    const used = Object.keys(incidents).filter((id) => id.startsWith(prefix)).length;
-    return `${prefix}${used + 1}`;
+    const used = [...Object.keys(incidents), lastDropped ?? ""]
+        .filter((id) => id.startsWith(prefix))
+        .map((id) => Number(id.slice(prefix.length)));
+    return `${prefix}${Math.max(0, ...used) + 1}`;
+}
+
+/**
+ * An incident id's order: its day, then its number in the day.
+ * @param {string | null | undefined} id for example inc-20261002-1
+ * @returns {number} the rank, -1 for none
+ */
+function incidentRank(id) {
+    const m = /^inc-(\d{8})-(\d+)$/.exec(id ?? "");
+    return m ? Number(m[1]) * 1e6 + Number(m[2]) : -1;
 }
 
 /**
@@ -874,6 +889,7 @@ export async function startDaemon({
     async function save() {
         if (!mayWrite()) return;
         await dropEndedItems();
+        await dropFinished();
         for (const line of recordLines(state, recorded)) void ledger(line);
         await saveState(stateDir, state, { durable });
         writeChangedNews();
@@ -927,6 +943,68 @@ export async function startDaemon({
             } catch (err) {
                 say("error", `ledger: ${/** @type {Error} */ (err).message}; owner item ${item.id} kept`);
             }
+        }
+    }
+
+    /**
+     * Drops the finished records nothing reads any more (issue #2552), each only once its whole
+     * record is in the ledger: a resolved incident (only its open one is ever read; its owner item
+     * ended when it resolved, and `lastIncidentId` keeps its id from being given again), an ended
+     * proposal (`droppableProposals`), a resolved escalation (`droppableEscalations`) and a page's
+     * delivery record (`notifiedToDrop`). One whose line could not be written stays for the next save.
+     * @returns {Promise<void>}
+     */
+    async function dropFinished() {
+        const incidents = Object.keys(state.incidents ?? {}).filter((id) => state.incidents[id].status !== "open");
+        /** @type {[string, string[], string][]} */
+        const finished = [
+            ["incidents", incidents, "incident"],
+            ["proposals", droppableProposals(state), "proposal"],
+            ["escalations", board.droppableEscalations(state), "escalation"],
+        ];
+        for (const [collection, ids, kind] of finished) {
+            for (const id of ids) {
+                try {
+                    const record = state[collection][id];
+                    await appendLedger(stateDir, { kind: `${kind}-dropped`, [kind]: id, record }, { now });
+                    if (collection === "incidents" && incidentRank(id) > incidentRank(state.lastIncidentId))
+                        state.lastIncidentId = id;
+                    delete state[collection][id];
+                } catch (err) {
+                    say("error", `ledger: ${/** @type {Error} */ (err).message}; ${kind} ${id} kept`);
+                }
+            }
+        }
+        await dropPageRecords();
+    }
+
+    /**
+     * Drops the page records nothing reads any more (`notifiedToDrop`, issue #2552), each once its
+     * record is in the ledger (a `notify-dropped` line), with the items its key covered.
+     * @returns {Promise<void>}
+     */
+    async function dropPageRecords() {
+        const n = state.notify ?? {};
+        const keys = notifiedToDrop(state, now());
+        const covers = state.paging.covers;
+        for (const key of keys) {
+            try {
+                const record = { notified: state.notified?.[key] ?? null, failed: n.failed?.[key] ?? null };
+                await appendLedger(
+                    stateDir,
+                    { kind: "notify-dropped", key, record: { ...record, items: covers[key] ?? null } },
+                    { now },
+                );
+                delete state.notified?.[key];
+                delete n.failed?.[key];
+                delete covers[key];
+            } catch (err) {
+                say("error", `ledger: ${/** @type {Error} */ (err).message}; page record ${key} kept`);
+            }
+        }
+        // An owner page's items without a record of its key any more.
+        for (const key of Object.keys(covers)) {
+            if (!state.notified?.[key] && !n.failed?.[key] && !n.pending?.[key]) delete covers[key];
         }
     }
 
@@ -1817,7 +1895,7 @@ export async function startDaemon({
      * @returns {any} the incident
      */
     function openIncident(first, previousGreen, iso) {
-        const id = nextIncidentId(state.incidents, iso);
+        const id = nextIncidentId(state.incidents, iso, state.lastIncidentId);
         state.incidents[id] = {
             id,
             status: "open",
@@ -3253,7 +3331,7 @@ export async function startDaemon({
             config,
             stateDir,
             owner: state.trust.login,
-            githerdClosed: githerdClosedIssues(state),
+            githerdClosed: githerdClosedIssues(state, await readLedger(stateDir, { since: new Date(0) })),
             now: t,
             poll: true,
         });
@@ -4063,7 +4141,15 @@ export async function startDaemon({
                 "a Claude session records what he typed there with githerd_record";
             return [403, { ok: false, text }];
         }
-        const answer = owner(cmd, job ? String(job) : null);
+        let answer = owner(cmd, job ? String(job) : null);
+        const key = String(cmd?.key);
+        if (cmd?.op === "ack" && answer.status === 404 && !state.escalations?.[key]) {
+            // A resolved escalation dropped from the state (issue #2552) is answered as it was there.
+            const gone = (await readLedger(stateDir, { since: new Date(0) })).findLast(
+                (e) => e.kind === "escalation-dropped" && e.escalation === key,
+            );
+            if (gone) answer = { status: 404, text: `${key} was already resolved at ${gone.record.resolvedAt}` };
+        }
         if (answer.entry) {
             await save();
             await ledger(answer.entry);

@@ -492,6 +492,7 @@ export interface OptionDescriptor extends OptionDescriptorDomain {
 export type Channel =
     | "node.color"
     | "node.size"
+    | "node.sizeMode"
     | "node.shape"
     | "node.label"
     | "node.labelStyle"

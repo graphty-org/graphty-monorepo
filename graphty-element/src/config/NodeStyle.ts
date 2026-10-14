@@ -4,6 +4,12 @@ import { AdvancedColorStyle, ColorStyle } from "./common";
 import { RichTextStyle } from "./RichTextStyle";
 
 /**
+ * How a node's `shape.size` is read: as a multiplier of each shape's own geometry ("scale", the
+ * default) or as the drawn shape's largest extent, the same for every shape ("diameter").
+ */
+export const NodeSizeModes = z.enum(["scale", "diameter"]);
+
+/**
  * The single source of truth for the node shape vocabulary.
  *
  * WHY THIS IS EXPORTED, and what went wrong when it was not: this enum used to be an internal
@@ -92,7 +98,17 @@ export const NodeStyle = z.strictObject({
     shape: z
         .strictObject({
             // 0 is legal and draws the smallest visible node; hide a node with `visible: false`.
+            // What the number measures depends on `sizeMode` below.
             size: z.number().nonnegative().optional(),
+            // How `size` is read, in scene units. Leave it unset for "scale".
+            // - "scale" (the default): `size` multiplies the shape's own geometry, so each shape
+            //   is drawn at its own largest extent: 1x size for sphere, box and capsule, 1.25x
+            //   for torus-knot, 1.5x for icosphere, torus and goldberg, 1.6x for cylinder and cone,
+            //   1.7x for geodesic, and 1.5x to 2.8x for the polyhedra (the styling guide lists
+            //   every shape).
+            // - "diameter": `size` is the largest width, height or depth of the drawn shape, the
+            //   same for every shape, so a size-1 octahedron is as wide as a size-1 sphere.
+            sizeMode: NodeSizeModes.optional(),
             type: NodeShapes.optional(),
             // custom mesh https://doc.babylonjs.com/features/featuresDeepDive/mesh/creation/custom/custom
             // import mesh https://doc.babylonjs.com/typedoc/functions/BABYLON.ImportMeshAsync

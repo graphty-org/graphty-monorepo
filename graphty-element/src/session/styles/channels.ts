@@ -59,7 +59,7 @@
 import type { Channel, EdgeLinePattern, LabelStyle, Rgba } from "../../catalog/types";
 import { colorToHex } from "../../config/common";
 import { defaultEdgeStyle, EdgeArrowTypes, EdgeLineTypes, type EdgeStyleConfig } from "../../config/EdgeStyle";
-import { defaultNodeStyle, NodeShapes, type NodeStyleConfig } from "../../config/NodeStyle";
+import { defaultNodeStyle, NodeShapes, NodeSizeModes, type NodeStyleConfig } from "../../config/NodeStyle";
 
 // ---------------------------------------------------------------------------------------------
 // Colour: one string parse, kept
@@ -226,6 +226,12 @@ export type EdgeLineValue = EdgeLinePattern;
 /** An arrow the edge renderer can draw at either end. */
 export type ArrowValue = NonNullable<NonNullable<EdgeStyleConfig["arrowHead"]>["type"]>;
 
+/** How a node's size is read: a multiplier of the shape's geometry, or its drawn extent. */
+export type NodeSizeModeValue = NonNullable<NonNullable<NodeStyleConfig["shape"]>["sizeMode"]>;
+
+/** Every node size mode, in schema order. */
+const NODE_SIZE_MODE_VALUES: readonly NodeSizeModeValue[] = NodeSizeModes.options;
+
 /** Every node shape, in schema order. */
 const NODE_SHAPE_VALUES: readonly NodeShapeValue[] = NodeShapes.options;
 
@@ -249,6 +255,7 @@ const ARROW_VALUES: readonly ArrowValue[] = EdgeArrowTypes.options;
 export interface ChannelValues {
     "node.color": ColorValue;
     "node.size": number;
+    "node.sizeMode": NodeSizeModeValue;
     "node.shape": NodeShapeValue;
     "node.label": string;
     "node.labelStyle": LabelStyle;
@@ -564,6 +571,18 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         accepts: "number",
         min: 0,
         stylePath: "shape.size",
+        renderable: true,
+    },
+    "node.sizeMode": {
+        channel: "node.sizeMode",
+        target: "node",
+        plainName: "Node Size Mode",
+        shortName: "Size mode",
+        group: "shape",
+        default: "scale",
+        accepts: "enum",
+        values: NODE_SIZE_MODE_VALUES,
+        stylePath: "shape.sizeMode",
         renderable: true,
     },
     "node.shape": {

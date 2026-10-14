@@ -29,6 +29,45 @@ import { tabId, tabPanelId } from "./utils/tabs";
 // cm-popover-surface (--cm-bg, radius 13, --cm-elevation-400, no border) plus
 // cm-popout for the panel's own layout, both in src/theme/css/overlays.css.ts.
 
+/** Where a panel's top was last put, and the top of the row it was put beside. */
+interface Placed {
+    top: number;
+    rowTop: number;
+}
+
+/**
+ * Keeps a panel whole on screen, as Figma's popovers are. A panel beside its row that would pass
+ * the window's bottom opens upward -- its bottom on the row's bottom -- when the room above holds
+ * it; otherwise it moves up as far as it must, never above `boundaryTop`. Once placed beside a row
+ * whose top has not moved since, it keeps its top: its own content, or the row's (a note the
+ * change adds under it), growing or shrinking never re-places it.
+ * @param next - The computed position, adjusted in place (viewport pixels)
+ * @param size - The panel's rendered size
+ * @param size.width - Its width
+ * @param size.height - Its height
+ * @param row - The rectangle the panel is aligned along
+ * @param options - Whether the panel sits beside the row, the header boundary, and the last placement
+ * @param options.beside - Whether the panel sits left or right of the row (not above or below)
+ * @param options.boundaryTop - The highest the panel's top may sit
+ * @param options.placed - Where the panel was last put, or null when it has just opened
+ */
+function fitInWindow(
+    next: PopoutPosition,
+    size: { width: number; height: number },
+    row: DOMRect,
+    options: { beside: boolean; boundaryTop: number; placed: Placed | null },
+): void {
+    const { beside, boundaryTop, placed } = options;
+    const maxTop = window.innerHeight - size.height;
+    if (beside && placed?.rowTop === row.top) {
+        next.top = placed.top;
+    } else if (beside && next.top > maxTop && row.bottom - size.height >= boundaryTop) {
+        next.top = row.bottom - size.height;
+    }
+    next.top = Math.max(boundaryTop, Math.min(next.top, maxTop));
+    next.left = Math.max(0, Math.min(next.left, window.innerWidth - size.width));
+}
+
 /**
  * The floating panel that appears when the pop-out's trigger is activated.
  *
@@ -114,6 +153,10 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
     // An empty box at left 0, top 0 beside the panel: where it renders is the corner of the
     // frame the panel's left and top are measured in (see measureContainingBlock).
     const originRef = useRef<HTMLDivElement>(null);
+    // Where the panel's top was last put, in viewport pixels, and the top of the row it was put
+    // beside. While that top has not moved, a change in size (a switch that adds a row) keeps the
+    // panel's top where it is, so an open panel never jumps under the pointer as its content grows.
+    const placedRef = useRef<Placed | null>(null);
 
     // A press on the header raises the panel, whether or not it becomes a drag.
     const handlePress = useCallback(() => {
@@ -251,20 +294,14 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
             direction,
         });
 
-        // Kept whole on screen, as Figma's popovers are. A panel beside its row that would pass
-        // the window's bottom opens upward -- its bottom on the row's bottom -- when the room
-        // above holds it; otherwise it moves up as far as it must, never above `boundaryTop`.
         if (typeof window !== "undefined") {
-            const maxTop = window.innerHeight - renderedHeight;
-            const maxLeft = window.innerWidth - renderedWidth;
-            if (!isBlockPlacement && next.top > maxTop) {
-                const upward = crossAnchor.getBoundingClientRect().bottom - renderedHeight;
-                if (upward >= boundaryTop) {
-                    next.top = upward;
-                }
-            }
-            next.top = Math.max(boundaryTop, Math.min(next.top, maxTop));
-            next.left = Math.max(0, Math.min(next.left, maxLeft));
+            const row = crossAnchor.getBoundingClientRect();
+            fitInWindow(next, { width: renderedWidth, height: renderedHeight }, row, {
+                beside: !isBlockPlacement,
+                boundaryTop,
+                placed: placedRef.current,
+            });
+            placedRef.current = { top: next.top, rowTop: row.top };
         }
 
         // ponytail: the drag offset is still applied unscaled, so inside a scaled ancestor a
@@ -288,6 +325,7 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
     useIsomorphicEffect(() => {
         if (!isOpen) {
             setPosition(null);
+            placedRef.current = null;
             return;
         }
 

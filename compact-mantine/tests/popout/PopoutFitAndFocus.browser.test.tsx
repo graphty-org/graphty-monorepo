@@ -4,6 +4,7 @@ import { useState } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { CompactColorInput } from "../../src/components/CompactColorInput";
 import { Popout, PopoutAnchor, PopoutButton, PopoutManager } from "../../src/components/popout";
 import { compactTheme } from "../../src/theme";
 
@@ -146,6 +147,83 @@ describe("Popout fits the window, docks beside the panel, returns focus (browser
         const rect = panel.getBoundingClientRect();
         expect(Math.round(rect.top)).toBeGreaterThanOrEqual(100);
         expect(rect.bottom).toBeLessThanOrEqual(window.innerHeight + 0.5);
+    });
+
+    it("keeps its top where it opened when its content grows, instead of jumping", async () => {
+        // A panel that opened upward and then grew (a switch that adds a row) no longer fits
+        // upward; re-placing it from the row moved it hundreds of pixels under the pointer.
+        function Growing(): React.JSX.Element {
+            const [more, setMore] = useState(false);
+            return (
+                <PopoutAnchor>
+                    <div
+                        data-testid="right-panel"
+                        style={{ position: "fixed", top: 0, right: 0, width: 240, height: "100vh" }}
+                    >
+                        <div style={{ position: "absolute", top: 400, left: 0, right: 0, height: 32 }}>
+                            <Popout>
+                                <Popout.Trigger>
+                                    <button type="button">Open</button>
+                                </Popout.Trigger>
+                                <Popout.Panel width={240} header={{ variant: "title", title: "Settings" }}>
+                                    <Popout.Content>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setMore(true);
+                                            }}
+                                        >
+                                            More
+                                        </button>
+                                        {Array.from({ length: more ? 18 : 10 }, (_, i) => (
+                                            <input
+                                                key={i}
+                                                aria-label={`Field ${i + 1}`}
+                                                style={{ display: "block", height: 24 }}
+                                            />
+                                        ))}
+                                    </Popout.Content>
+                                </Popout.Panel>
+                            </Popout>
+                        </div>
+                    </div>
+                </PopoutAnchor>
+            );
+        }
+        await page.viewport(900, 700);
+        renderPopout(<Growing />);
+        const panel = await openPanel();
+        const before = panel.getBoundingClientRect();
+
+        await userEvent.click(screen.getByRole("button", { name: "More" }));
+        await screen.findByRole("textbox", { name: "Field 18" });
+        await waitFor(() => {
+            expect(panel.getBoundingClientRect().height).toBeGreaterThan(before.height);
+            expect(panel.hasAttribute("data-cm-repositioning")).toBe(false);
+        });
+
+        const after = panel.getBoundingClientRect();
+        expect(Math.round(after.top)).toBe(Math.round(before.top));
+        expect(after.bottom).toBeLessThanOrEqual(window.innerHeight + 0.5);
+    });
+
+    it("stays 240 wide holding a labeled color field that fills it", async () => {
+        // The hex box's default input width was its share of the field's min-content, so a field
+        // at "100%" widened the pop-out (240 to 307) the moment it appeared.
+        renderPopout(
+            <Popout>
+                <Popout.Trigger>
+                    <button type="button">Open</button>
+                </Popout.Trigger>
+                <Popout.Panel width={240} header={{ variant: "title", title: "Settings" }}>
+                    <Popout.Content>
+                        <CompactColorInput label="Value" width="100%" color="#1971C2" defaultColor="#868E96" />
+                    </Popout.Content>
+                </Popout.Panel>
+            </Popout>,
+        );
+        const panel = await openPanel();
+        expect(Math.round(panel.getBoundingClientRect().width)).toBe(240);
     });
 
     it("returns focus to the button on Escape when the trigger is wrapped in a Tooltip", async () => {

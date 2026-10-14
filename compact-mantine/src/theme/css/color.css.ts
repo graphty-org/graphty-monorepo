@@ -190,6 +190,9 @@ const css = `
 .cm-paint-input:is(:disabled, [aria-disabled="true"] *)::placeholder { color: var(--cm-text-disabled); }
 .cm-paint-hex {
     flex: 1 1 0;
+    /* No width of its own: an input's default (about 20 characters) was its share of the field's
+       min-content, so a field filling a pop-out ("100%") widened the pop-out past its width. */
+    width: 0;
     margin-inline-start: 5px;
 }
 .cm-paint-opacity {

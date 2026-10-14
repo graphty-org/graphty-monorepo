@@ -98,7 +98,8 @@ function printReport(file) {
         console.log(`no faulting thread recorded (${threads.length} threads)`);
     } else {
         const label = thread.name ?? thread.queue ?? "";
-        console.log(`faulting thread ${faulting}${label ? ` (${label})` : ""}, ${thread.frames?.length ?? 0} frames:`);
+        const labelText = label ? ` (${label})` : "";
+        console.log(`faulting thread ${faulting}${labelText}, ${thread.frames?.length ?? 0} frames:`);
         for (const [i, frame] of (thread.frames ?? []).slice(0, MAX_FRAMES).entries()) {
             console.log(`  #${String(i).padStart(2)} ${formatFrame(frame, images)}`);
         }

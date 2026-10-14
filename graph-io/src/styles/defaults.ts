@@ -150,7 +150,8 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     labelWeight: v("normal", `${CY} 439`),
                     labelItalic: v(false, `${CY} 439`),
                     labelSize: v(10, `${CY} 439`),
-                    curved: v(true, `${CY} 422`),
+                    // EDGE_CURVED defaults to true (line 422) but only smooths bends: a default edge has none
+                    curved: v(false, `${CY} 422`),
                 },
                 graph: { background: v("#ffffff", `${CY} 335`) },
                 derived: [{ kind: "labelFromColumn", column: "name", source: `${CY} 406-408` }],

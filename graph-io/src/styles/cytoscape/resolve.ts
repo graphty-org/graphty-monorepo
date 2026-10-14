@@ -362,9 +362,54 @@ export function resolveCytoscape(
         out.sourceArrowColor = out.color.slice();
         out.targetArrowColor = out.color.slice();
     }
+    if (target === "edge") {
+        const curved = curvedOnlyWithBends(out.curved, column(EDGE_BEND_VP, hasBends, "curved"));
+        if (curved !== undefined) {
+            out.curved = curved;
+        }
+    }
     noteUncarried(target, s, used, bypassed, notes);
     fillToolDefaults(target, out, n, options.defaults ?? null);
     return out;
+}
+
+/** The visual property holding an edge's bend handles. */
+export const EDGE_BEND_VP = "EDGE_BEND";
+
+/**
+ * Whether an `EDGE_BEND` value holds any handle: a non-empty handle list (3.x text, 2.x `edgeBend` handles).
+ * @param raw - the value
+ * @returns true when the edge has bends
+ */
+export const hasBends: CytoscapeValueParser = (raw) => {
+    if (typeof raw === "string") {
+        return raw.trim() !== "";
+    }
+    return Array.isArray(raw) ? raw.length > 0 : typeof raw === "object" && raw !== null;
+};
+
+/**
+ * `EDGE_CURVED` only smooths an edge's bends: Cytoscape draws an edge with no bend straight whatever it says. An edge
+ * with bends is curved unless `EDGE_CURVED` is false (Cytoscape's default is true); one without is straight, or null
+ * when nothing states `EDGE_CURVED`, so the tool's defaults decide.
+ * @param curved - `EDGE_CURVED` per edge, if the style mentions it
+ * @param bends - whether each edge has bends
+ * @returns per edge whether it is drawn curved, or undefined when nothing says
+ */
+function curvedOnlyWithBends(
+    curved: StyleColumn | undefined,
+    bends: readonly (StyleValue | null)[],
+): StyleColumn | undefined {
+    if (curved === undefined && !bends.includes(true)) {
+        return undefined;
+    }
+    return bends.map((bent, i) => {
+        const smooth = curved?.[i] ?? null;
+        if (bent !== true) {
+            return smooth === null ? null : false;
+        }
+        return smooth !== false;
+    });
 }
 
 /** Default values that mean "nothing drawn": a VP left at one of these is not worth a note. */

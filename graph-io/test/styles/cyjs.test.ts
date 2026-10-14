@@ -125,6 +125,36 @@ function expected(
     return { values, errors };
 }
 
+/**
+ * Cytoscape.js reports `curve-style: bezier` for every edge, but draws only a loop and the parallel edges of a bundle
+ * curved: a lone edge, and the middle one of an odd bundle, is straight. `ele.style()` cannot show it, so the drawn
+ * value is worked out here from the reported curve styles and the edges' ends.
+ * @param curved - the expected values, changed in place
+ * @param words - the reported curve style per edge
+ * @param ends - each edge's source and target
+ */
+function bowBundles(
+    curved: (StyleValue | null | undefined)[],
+    words: readonly string[],
+    ends: { readonly source: Int32Array; readonly target: Int32Array },
+): void {
+    const bundles = new Map<string, number[]>();
+    words.forEach((w, e) => {
+        if (w !== "bezier") {
+            return;
+        }
+        const [a, b] = [ends.source[e], ends.target[e]].sort((x, y) => x - y);
+        const key = `${String(a)} ${String(b)}`;
+        bundles.set(key, [...(bundles.get(key) ?? []), e]);
+    });
+    for (const list of bundles.values()) {
+        list.forEach((e, i) => {
+            const loop = ends.source[e] === ends.target[e];
+            curved[e] = loop || list.length % 2 === 0 || i !== Math.floor(list.length / 2);
+        });
+    }
+}
+
 /** What an unstyled element is drawn with, per neutral property. */
 function defaults(target: StyleTarget): Map<string, StyleValue | null | undefined> {
     const out = new Map<string, StyleValue | null | undefined>();
@@ -155,6 +185,11 @@ describe("the Cytoscape.js style engine against real Cytoscape.js", () => {
                 const n = target === "node" ? g.nodes : g.edges;
                 expect(t.n).toBe(n);
                 const { values, errors } = expected(target, g[target], n);
+                const words = g.edge["curve-style"];
+                const curved = values.get("curved");
+                if (target === "edge" && words !== undefined && curved !== undefined) {
+                    bowBundles(curved, expand(words), r.graph);
+                }
                 const base = defaults(target);
                 for (const [prop, want] of values) {
                     const got = t.values[prop];

@@ -70,7 +70,8 @@ describe("GML styles: who wrote the file", () => {
             expect(color[i]).toBe(kind(i) === "gene" ? "#0000ff" : "#000000");
         }
         expect(resolveStyles(styles, "edge", "sourceArrow", snapshot)[0]).toBe("diamond-open");
-        expect(resolveStyles(styles, "edge", "curved", snapshot)[0]).toBe(true);
+        // smoothBends 1 on an edge with no bends: yEd draws it straight
+        expect(resolveStyles(styles, "edge", "curved", snapshot)[0]).toBe(false);
         expect(resolveStyles(styles, "edge", "label", snapshot)[0]).toBe("inhibits");
         expect(styles.styles.notes.map((n) => n.code)).toContain("W_STYLE_EXTRA_LABELS");
     });

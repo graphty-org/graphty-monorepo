@@ -145,7 +145,8 @@ function toCyjs(target: StyleTarget, property: string, value: StyleValue): Writt
         case "labelItalic":
             return exact({ "font-style": value === true ? "italic" : "normal" });
         case "curved":
-            return exact({ "curve-style": value === true ? "bezier" : "straight" });
+            // `bezier` bows only parallel edges; `unbundled-bezier` bows every edge
+            return exact({ "curve-style": value === true ? "unbundled-bezier" : "straight" });
         case "labelPosition":
             return labelPositionToCyjs(String(value));
         case "shape":

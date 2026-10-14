@@ -10,7 +10,15 @@ import { canonicalFor } from "../plan/resolve.js";
 import type { ColumnRef, Mapping, StyleColumn, StyleRule, StyleTarget, StyleValue, StyleWorkBudget } from "../types.js";
 import { type CytoscapeValueParser, NODE_SIZE_VP, sizeParser } from "./lexicon.js";
 import type { CytoscapeMapping, CytoscapeStyle } from "./mappings.js";
-import { chooseVps, type CytoscapeElements, type ParsedMapping, parseMapping, vpUsage } from "./resolve.js";
+import {
+    chooseVps,
+    type CytoscapeElements,
+    EDGE_BEND_VP,
+    hasBends,
+    type ParsedMapping,
+    parseMapping,
+    vpUsage,
+} from "./resolve.js";
 
 /**
  * Options of `cytoscapeRules()`.
@@ -75,6 +83,10 @@ export function cytoscapeRules(
     const matched = target === "edge" && s.dependencies.get("arrowColorMatchesEdge") === true;
 
     const set = defaultValues(s, chosen, site, { locked, matched });
+    // EDGE_CURVED only smooths bends: a default edge without bend handles is straight
+    if (set.curved === true && hasBends(s.defaults.get(EDGE_BEND_VP), site("curved")) !== true) {
+        set.curved = false;
+    }
     const columns = new Map<string, StyleColumn>();
     const byColumn = new Map<string, MappingRule>();
     const reading: MappingRead = { target, refOf, elements, columns, notes, budget: options.budget };

@@ -451,11 +451,15 @@ function readEdge(real: Realizer, put: PutValue, at: SiteOf): void {
         put("sourceArrow", canonEnum("arrow", treeAttr(arrows, "source"), "yed", at("sourceArrow")));
         put("targetArrow", canonEnum("arrow", treeAttr(arrows, "target"), "yed", at("targetArrow")));
     }
-    if (real.type !== "PolyLineEdge") {
+    // yEd curves an edge through its bends (y:Path's y:Point): with none, every type but an arc is drawn straight
+    const bends = treeChildren(treeChild(r, "Path"), "Point").length > 0;
+    if (real.type === "ArcEdge") {
         put("curved", true);
+    } else if (real.type !== "PolyLineEdge") {
+        put("curved", bends);
     } else {
         const smoothed = treeAttr(treeChild(r, "BendStyle"), "smoothed");
-        put("curved", smoothed === undefined ? null : smoothed === "true");
+        put("curved", smoothed === undefined ? null : smoothed === "true" && bends);
     }
     readLabels(treeChildren(r, "EdgeLabel"), false, put, at);
 }

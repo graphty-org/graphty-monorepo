@@ -114,7 +114,7 @@ describe("GraphML styles: yEd", () => {
     it("reads the curve, line type and arrows of every edge realizer", async () => {
         const { snapshot, styles } = await load(
             `${YED_HEAD}<node id="a"/><node id="b"/>
-            <edge source="a" target="b"><data key="d10"><y:BezierEdge><y:LineStyle color="#FF0000" type="dashed" width="2.0"/><y:Arrows source="none" target="standard"/></y:BezierEdge></data></edge>
+            <edge source="a" target="b"><data key="d10"><y:BezierEdge><y:Path sx="0" sy="0" tx="0" ty="0"><y:Point x="5" y="5"/></y:Path><y:LineStyle color="#FF0000" type="dashed" width="2.0"/><y:Arrows source="none" target="standard"/></y:BezierEdge></data></edge>
             <edge source="b" target="a"><data key="d10"><y:PolyLineEdge><y:LineStyle color="#00FF0080" type="dotted" width="1.0"/><y:Arrows source="none" target="none"/><y:BendStyle smoothed="false"/></y:PolyLineEdge></data></edge>
             </graph></graphml>`,
         );

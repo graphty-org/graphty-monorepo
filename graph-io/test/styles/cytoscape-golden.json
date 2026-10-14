@@ -1,5 +1,5 @@
 {
-    "source": "tmp/style-import/spike/cytoscape.mjs (resolveCytoscape) through readers.mjs cx and cx2, run on 2026-10-11; each column run-length encoded as [value, count]; the labelFont of a CX2 font face naming its desktop font (FONT_NAME) is that font, as Cytoscape desktop reads it back",
+    "source": "tmp/style-import/spike/cytoscape.mjs (resolveCytoscape) through readers.mjs cx and cx2, run on 2026-10-11; each column run-length encoded as [value, count]; the labelFont of a CX2 font face naming its desktop font (FONT_NAME) is that font, as Cytoscape desktop reads it back; edge curved follows EDGE_CURVED only on edges with EDGE_BEND handles, as Cytoscape draws it (issue 2489)",
     "files": {
         "cx/ndex2-client/glypican2_no_cartesian_layout.cx": {
             "node": {
@@ -26,7 +26,7 @@
             },
             "edge": {
                 "color": [["#999999", 1]],
-                "curved": [[true, 1]],
+                "curved": [[false, 1]],
                 "labelColor": [["#000000", 1]],
                 "labelFont": [["sans-serif", 1]],
                 "labelItalic": [[false, 1]],
@@ -68,7 +68,7 @@
             },
             "edge": {
                 "color": [["#848484", 1]],
-                "curved": [[true, 1]],
+                "curved": [[false, 1]],
                 "labelColor": [["#000000", 1]],
                 "labelFont": [["sans-serif", 1]],
                 "labelItalic": [[false, 1]],
@@ -145,7 +145,11 @@
             },
             "edge": {
                 "color": [["#000000", 4]],
-                "curved": [[true, 4]],
+                "curved": [
+                    [false, 1],
+                    [true, 1],
+                    [false, 2]
+                ],
                 "labelColor": [["#000000", 4]],
                 "labelFont": [["sans-serif", 4]],
                 "labelItalic": [[false, 4]],
@@ -364,7 +368,7 @@
             },
             "edge": {
                 "color": [["#000000", 56]],
-                "curved": [[true, 56]],
+                "curved": [[false, 56]],
                 "labelColor": [["#000000", 56]],
                 "labelFont": [["sans-serif", 56]],
                 "labelItalic": [[false, 56]],
@@ -423,7 +427,7 @@
             },
             "edge": {
                 "color": [["#848484", 4]],
-                "curved": [[true, 4]],
+                "curved": [[false, 4]],
                 "labelColor": [["#000000", 4]],
                 "labelFont": [["sans-serif", 4]],
                 "labelItalic": [[false, 4]],
@@ -581,7 +585,11 @@
             },
             "edge": {
                 "color": [["#000000", 8]],
-                "curved": [[true, 8]],
+                "curved": [
+                    [false, 3],
+                    [true, 2],
+                    [false, 3]
+                ],
                 "labelColor": [["#000000", 8]],
                 "labelFont": [["sans-serif", 8]],
                 "labelItalic": [[false, 8]],
@@ -695,7 +703,7 @@
             },
             "edge": {
                 "color": [["#003399", 2]],
-                "curved": [[true, 2]],
+                "curved": [[false, 2]],
                 "labelColor": [["#000000", 2]],
                 "labelFont": [["sans-serif", 2]],
                 "labelItalic": [[false, 2]],
@@ -920,7 +928,7 @@
             },
             "edge": {
                 "color": [["#404040", 213]],
-                "curved": [[true, 213]],
+                "curved": [[false, 213]],
                 "labelColor": [["#000000", 213]],
                 "labelFont": [["sans-serif", 213]],
                 "labelItalic": [[false, 213]],
@@ -1179,7 +1187,15 @@
             },
             "edge": {
                 "color": [["#000000", 48]],
-                "curved": [[true, 48]],
+                "curved": [
+                    [false, 2],
+                    [true, 1],
+                    [false, 18],
+                    [true, 1],
+                    [false, 19],
+                    [true, 1],
+                    [false, 6]
+                ],
                 "labelColor": [["#000000", 48]],
                 "labelFont": [["sans-serif", 48]],
                 "labelItalic": [[false, 48]],
@@ -1736,7 +1752,7 @@
                     ["#404040", 2],
                     ["#ff7b00", 1]
                 ],
-                "curved": [[true, 247]],
+                "curved": [[false, 247]],
                 "labelColor": [["#000000", 247]],
                 "labelFont": [["sans-serif", 247]],
                 "labelItalic": [[false, 247]],
@@ -2418,7 +2434,7 @@
                     ["#990066", 1],
                     ["#0099ff", 1]
                 ],
-                "curved": [[true, 61]],
+                "curved": [[false, 61]],
                 "labelColor": [["#000000", 61]],
                 "labelFont": [["sans-serif", 61]],
                 "labelItalic": [[false, 61]],
@@ -2626,7 +2642,7 @@
                     ["#990066", 1],
                     ["#0099ff", 1]
                 ],
-                "curved": [[true, 35]],
+                "curved": [[false, 35]],
                 "labelColor": [["#000000", 35]],
                 "labelFont": [["sans-serif", 35]],
                 "labelItalic": [[false, 35]],
@@ -2763,7 +2779,7 @@
                 "fillOpacity": [[1, 47]],
                 "height": [[40, 47]],
                 "label": [
-                    ["(\u2212)-nicotine", 1],
+                    ["(−)-nicotine", 1],
                     ["Liver Injury", 1],
                     ["Binding of inhibitor, NADH-ubiquinone oxidoreductase (complex I)", 1],
                     ["Decreased, all-trans retinoic acid (atRA) concentration", 1],
@@ -2878,7 +2894,7 @@
                     ["#bcbcbc", 19],
                     ["#3030f0", 1]
                 ],
-                "curved": [[true, 49]],
+                "curved": [[false, 49]],
                 "labelColor": [["#000000", 49]],
                 "labelFont": [["sans-serif", 49]],
                 "labelItalic": [[false, 49]],
@@ -2934,7 +2950,7 @@
                 "shape": [["ellipse", 2]],
                 "width": [[35, 2]]
             },
-            "edge": { "width": [[2, 1]] },
+            "edge": { "width": [[2, 1]], "curved": [[true, 1]] },
             "background": "#ffffff"
         },
         "cx2/ndex2-client/demo.cx2": {
@@ -2986,11 +3002,7 @@
                     ["#cccccc", 1],
                     ["#666666", 3]
                 ],
-                "curved": [
-                    [false, 2],
-                    [true, 1],
-                    [false, 3]
-                ],
+                "curved": [[false, 6]],
                 "labelColor": [["#000000", 6]],
                 "labelFont": [["sans-serif", 6]],
                 "labelItalic": [[false, 6]],
@@ -3036,7 +3048,7 @@
             },
             "edge": {
                 "color": [["#999999", 1]],
-                "curved": [[true, 1]],
+                "curved": [[false, 1]],
                 "labelColor": [["#000000", 1]],
                 "labelFont": [["sans-serif", 1]],
                 "labelItalic": [[false, 1]],
@@ -3078,7 +3090,7 @@
             },
             "edge": {
                 "color": [["#848484", 1]],
-                "curved": [[true, 1]],
+                "curved": [[false, 1]],
                 "labelColor": [["#000000", 1]],
                 "labelFont": [["sans-serif", 1]],
                 "labelItalic": [[false, 1]],
@@ -4485,7 +4497,7 @@
             },
             "edge": {
                 "color": [["#999999", 359]],
-                "curved": [[true, 359]],
+                "curved": [[false, 359]],
                 "labelColor": [["#000000", 359]],
                 "labelFont": [["sans-serif", 359]],
                 "labelItalic": [[false, 359]],
@@ -4694,7 +4706,7 @@
             },
             "edge": {
                 "color": [["#000000", 30]],
-                "curved": [[true, 30]],
+                "curved": [[false, 30]],
                 "labelColor": [["#000000", 30]],
                 "labelFont": [["sans-serif", 30]],
                 "labelItalic": [[false, 30]],
@@ -4991,7 +5003,7 @@
             },
             "edge": {
                 "color": [["#cccccc", 87]],
-                "curved": [[true, 87]],
+                "curved": [[false, 87]],
                 "labelColor": [["#000000", 87]],
                 "labelFont": [["sans-serif", 87]],
                 "labelItalic": [[false, 87]],
@@ -5044,7 +5056,7 @@
                     ["#88419d", 1],
                     ["#e31a1c", 1]
                 ],
-                "curved": [[true, 10]],
+                "curved": [[false, 10]],
                 "labelColor": [["#000000", 10]],
                 "labelFont": [["sans-serif", 10]],
                 "labelItalic": [[false, 10]],
@@ -5533,7 +5545,7 @@
                     ["#009999", 1],
                     ["#000000", 7]
                 ],
-                "curved": [[true, 118]],
+                "curved": [[false, 118]],
                 "labelColor": [["#000000", 118]],
                 "labelFont": [["sans-serif", 118]],
                 "labelItalic": [[false, 118]],
@@ -6182,7 +6194,7 @@
                     ["#cccccc", 1],
                     ["#000000", 1]
                 ],
-                "curved": [[true, 319]],
+                "curved": [[false, 319]],
                 "labelColor": [["#000000", 319]],
                 "labelFont": [["sans-serif", 319]],
                 "labelItalic": [[false, 319]],
@@ -7110,7 +7122,7 @@
                     ["#cc0033", 1],
                     ["#009900", 1]
                 ],
-                "curved": [[true, 117]],
+                "curved": [[false, 117]],
                 "labelColor": [["#000000", 117]],
                 "labelFont": [["sans-serif", 117]],
                 "labelItalic": [[false, 117]],
@@ -7503,7 +7515,7 @@
                     ["#990000", 1],
                     ["#009900", 2]
                 ],
-                "curved": [[true, 59]],
+                "curved": [[false, 59]],
                 "labelColor": [["#000000", 59]],
                 "labelFont": [["sans-serif", 59]],
                 "labelItalic": [[false, 59]],

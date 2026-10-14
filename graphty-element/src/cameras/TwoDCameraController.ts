@@ -1,5 +1,7 @@
 import { Camera, Engine, FreeCamera, Scene, TransformNode, Vector3, WebGPUEngine } from "@babylonjs/core";
 
+import { glideTowards } from "./CameraManager";
+
 // === Configuration Object ===
 export interface TwoDCameraControlsConfigType {
     panAcceleration: number;
@@ -99,6 +101,14 @@ export class TwoDCameraController {
     public pan(dx: number, dy: number): void {
         this.camera.position.x += dx;
         this.camera.position.y += dy;
+    }
+
+    /**
+     * Glide the view's center to a point, which is then what the view zooms about.
+     * @param point - The point; only its x and y are used.
+     */
+    public followPoint(point: Vector3): void {
+        glideTowards(this.camera.position, new Vector3(point.x, point.y, this.camera.position.z));
     }
 
     /**

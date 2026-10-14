@@ -68,6 +68,9 @@ describe("Automatic Layout Updates", () => {
                 rendering: {
                     onDemand: false,
                 },
+                camera: {
+                    pivotOnSelection: false,
+                },
             },
             data: {
                 knownFields: {

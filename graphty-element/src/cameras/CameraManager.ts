@@ -1,6 +1,26 @@
 // CameraManager.ts
 import { Camera, Scene, Vector3 } from "@babylonjs/core";
 
+import type { XRPivotCameraController } from "./XRPivotCameraController";
+
+/** The share of the way to its target a gliding pivot covers each frame: most of it in 20 frames. */
+const GLIDE = 0.2;
+
+/**
+ * Move a point a share of the way to a target, and onto it once it is within a thousandth of a
+ * unit, so a pivot that has arrived stops changing and a frame drawn on demand can rest.
+ * @param from - The point, moved in place.
+ * @param to - The target.
+ */
+export function glideTowards(from: Vector3, to: Vector3): void {
+    if (Vector3.DistanceSquared(from, to) < 1e-6) {
+        from.copyFrom(to);
+        return;
+    }
+
+    Vector3.LerpToRef(from, to, GLIDE, from);
+}
+
 export interface CameraController {
     camera: Camera;
     zoomToBoundingBox(min: Vector3, max: Vector3): void;
@@ -9,6 +29,11 @@ export interface CameraController {
      * their projection to match the new aspect ratio.
      */
     onResize?(): void;
+    /**
+     * Called each frame with the point the camera should pivot on, while there is one: the
+     * controller glides its pivot there.
+     */
+    followPoint?(point: Vector3): void;
 }
 
 interface InputHandler {
@@ -99,6 +124,22 @@ export class CameraManager {
         if (this.activeCameraController) {
             this.activeCameraController.zoomToBoundingBox(min, max);
         }
+    }
+
+    /**
+     * Make a point the camera's pivot, called each frame while there is one. In VR and AR the
+     * reader's turns and zooms happen about it and nothing moves; otherwise the active camera
+     * glides its pivot to it.
+     * @param point - The point, in world space.
+     */
+    public followPoint(point: Vector3): void {
+        const xr = this.scene.metadata?.xrCameraController as XRPivotCameraController | null | undefined;
+        if (xr) {
+            xr.pivotController.center = point;
+            return;
+        }
+
+        this.activeCameraController?.followPoint?.(point);
     }
 
     /**

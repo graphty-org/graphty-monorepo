@@ -26,6 +26,13 @@ export class PivotController {
     private frameCount = 0;
 
     /**
+     * The world point that `rotate`, `rotateAroundAxis`, `spin` and `zoom` turn and scale about,
+     * or null for the pivot's own position. Setting it moves nothing: what is parented to the
+     * pivot stays where it is until the next turn or zoom, which then happens about this point.
+     */
+    center: Vector3 | null = null;
+
+    /**
      * Creates a new PivotController instance.
      * @param scene - The Babylon.js scene to create the pivot in
      */
@@ -52,6 +59,7 @@ export class PivotController {
             return;
         }
 
+        const onCenter = this.onCenter();
         // Track accumulated rotations for display purposes
         this.accumulatedYaw += yawDelta;
         this.accumulatedPitch += pitchDelta;
@@ -63,6 +71,8 @@ export class PivotController {
         if (hasPitch) {
             this.pivot.rotate(Axis.X, pitchDelta, Space.LOCAL);
         }
+
+        this.backOnCenter(onCenter);
 
         // Throttled trace logging
         if (this.frameCount % 30 === 0) {
@@ -86,10 +96,12 @@ export class PivotController {
             return;
         }
 
+        const onCenter = this.onCenter();
         const normalizedAxis = axis.normalize();
         const currentRotation = this.pivot.rotationQuaternion ?? Quaternion.Identity();
         const rotationQuat = Quaternion.RotationAxis(normalizedAxis, angle);
         this.pivot.rotationQuaternion = rotationQuat.multiply(currentRotation);
+        this.backOnCenter(onCenter);
 
         // Throttled trace logging
         if (this.frameCount % 30 === 0) {
@@ -106,7 +118,9 @@ export class PivotController {
      */
     spin(delta: number): void {
         if (Math.abs(delta) > 0.0001) {
+            const onCenter = this.onCenter();
             this.pivot.rotate(Axis.Z, delta, Space.LOCAL);
+            this.backOnCenter(onCenter);
         }
     }
 
@@ -116,6 +130,7 @@ export class PivotController {
      * @param factor - Scale factor (> 1 zooms out, < 1 zooms in)
      */
     zoom(factor: number): void {
+        const onCenter = this.onCenter();
         const clamped = Math.max(0.95, Math.min(1.05, factor));
         this.pivot.scaling.scaleInPlace(clamped);
 
@@ -127,6 +142,8 @@ export class PivotController {
         if (scale > 10) {
             this.pivot.scaling.setAll(10);
         }
+
+        this.backOnCenter(onCenter);
 
         // Throttled trace logging
         if (this.frameCount % 30 === 0 && Math.abs(clamped - 1) > 0.001) {
@@ -179,6 +196,31 @@ export class PivotController {
         const worldZ = right * sinYaw + forward * cosYaw;
 
         this.pan(new Vector3(worldX, 0, worldZ));
+    }
+
+    /**
+     * The point of the pivot's own frame that sits on {@link center}, read before a turn or zoom.
+     * @returns The point in the pivot's frame, or null when there is no center.
+     */
+    private onCenter(): Vector3 | null {
+        return (
+            this.center &&
+            Vector3.TransformCoordinates(this.center, this.pivot.computeWorldMatrix(true).clone().invert())
+        );
+    }
+
+    /**
+     * After a turn or zoom about the pivot's own position, move the pivot so the point that sat on
+     * {@link center} is back on it: the turn or zoom then happened about the center.
+     * @param onCenter - What {@link onCenter} returned before the change.
+     */
+    private backOnCenter(onCenter: Vector3 | null): void {
+        if (this.center === null || onCenter === null) {
+            return;
+        }
+
+        const moved = Vector3.TransformCoordinates(onCenter, this.pivot.computeWorldMatrix(true));
+        this.pivot.position.addInPlace(this.center.subtract(moved));
     }
 
     /**

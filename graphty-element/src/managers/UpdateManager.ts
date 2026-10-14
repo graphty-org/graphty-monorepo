@@ -970,6 +970,32 @@ export class UpdateManager implements Manager {
     }
 
     /**
+     * With `camera.pivotOnSelection` on, hands the camera the plain average of the selected
+     * nodes' positions to pivot on, every frame, so it follows them while they move.
+     *
+     * Not while the element is still framing the graph, which places the camera itself until it
+     * is done, and not while a selected node is being dragged: a camera following the node under
+     * the pointer would carry the drag along with it.
+     */
+    private followSelection(): void {
+        if (!this.graphContext.getStyles().config.behavior.camera.pivotOnSelection || this.willZoomToFit()) {
+            return;
+        }
+
+        const nodes = this.graphContext.getSelectionManager?.()?.getSelectedNodes() ?? [];
+        if (nodes.length === 0 || nodes.some((node) => node.dragging)) {
+            return;
+        }
+
+        const center = nodes[0].mesh.position.clone();
+        for (const node of nodes.slice(1)) {
+            center.addInPlace(node.mesh.position);
+        }
+
+        this.camera.followPoint(center.scaleInPlace(1 / nodes.length));
+    }
+
+    /**
      * One pass of the update loop: masks, styles, camera, layout, meshes and framing.
      * @param frameMs - How long the previous frame took; see {@link UpdateManager.update}.
      */
@@ -984,6 +1010,8 @@ export class UpdateManager implements Manager {
         // node's SIZE, and zooming to fit a graph whose sizes have just changed must frame what
         // is about to be drawn rather than what was drawn last frame.
         this.syncStyles();
+
+        this.followSelection();
 
         // Always update camera
         this.camera.update();

@@ -1699,7 +1699,9 @@ export class Graphty extends LitElement {
      * a reader drags stays where they put it. `labels.declutter` (off by default) hides a node
      * label whose words would be drawn over another label's, keeping a selected node's label
      * first and then the label of the node with more edges; it takes effect on the next frame.
-     * {@link Graphty.nodeLabelCounts} says how many it hid.
+     * {@link Graphty.nodeLabelCounts} says how many it hid. `camera.pivotOnSelection` (off by
+     * default) makes the selection the camera's pivot: one selected node, or the average position
+     * of several, is what the camera turns and zooms about, in 2D, 3D, VR and AR.
      *
      * Merged over what is already set, so naming one field leaves the others alone.
      * @since 2.0.0
@@ -1707,6 +1709,7 @@ export class Graphty extends LitElement {
      * ```typescript
      * element.layoutBehavior = { layout: { preSteps: 1000 } };
      * element.layoutBehavior = { labels: { declutter: true } };
+     * element.layoutBehavior = { camera: { pivotOnSelection: true } };
      * ```
      * @returns The view preferences set on this element, with the pacing settings saved in the
      *     project (`preSteps`, `stepMultiplier`, `minDelta`) as they are in effect

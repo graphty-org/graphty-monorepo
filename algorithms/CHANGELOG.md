@@ -1,3 +1,18 @@
+## 3.4.6 (2026-10-14)
+
+### 🩹 Fixes
+
+- **algorithms:** stop seeded and iterative algorithms calling engine-dependent Math ([#2440](https://github.com/graphty-org/graphty-monorepo/issues/2440))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.31
+- Updated graph-format to 1.4.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.4.5 (2026-10-13)
 
 ### 🧱 Updated Dependencies

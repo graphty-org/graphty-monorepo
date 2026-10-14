@@ -33,7 +33,8 @@ const CSR_HELPERS = new Set([
  * @param value - a list (printed as its length and its members) or a single value
  */
 function print(label, value) {
-    console.log(`${label}: ${Array.isArray(value) ? `${value.length} -- ${value.join(", ")}` : value}`);
+    const shown = Array.isArray(value) ? `${value.length} -- ${value.join(", ")}` : value;
+    console.log(`${label}: ${shown}`);
 }
 
 /**

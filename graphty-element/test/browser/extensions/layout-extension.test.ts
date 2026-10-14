@@ -81,6 +81,7 @@ import { Graph } from "../../../index.js";
 import { operationQueueOf } from "../../../src/Graph";
 // Not plugin code: the element's own deterministic stand-in for a device.
 import { createFakeAccelerator } from "../../../src/testing/fakeAccelerator";
+import { drawnFrames } from "../../helpers/drawn-frames";
 import { nextFrame } from "../../helpers/real-input";
 
 /** Five nodes, so a ring has five distinct angles and no two nodes sit opposite each other. */
@@ -762,16 +763,6 @@ function distanceFromSegment(point: Coords, from: Coords, to: Coords): number {
 }
 
 /**
- * Let the page draw some frames.
- * @param count - how many frames to wait
- */
-async function frames(count: number): Promise<void> {
-    for (let frame = 0; frame < count; frame++) {
-        await nextFrame();
-    }
-}
-
-/**
  * Poll until something becomes true, or give up loudly.
  * @param condition - what is being waited for
  * @param what - how to describe it if the wait fails
@@ -1035,7 +1026,8 @@ describe("a third party's layout engine", () => {
             assert.isAbove(settlements, 0, "the element told its consumer the graph had settled");
 
             const stepsWhenSettled = engine.stepCount;
-            await frames(6);
+            // Six more updates of the element, each of which would have stepped an unsettled engine.
+            await drawnFrames(graph.getScene(), 6);
 
             assert.strictEqual(engine.stepCount, stepsWhenSettled, "and the element stopped stepping it");
         });
@@ -1143,7 +1135,8 @@ describe("a third party's layout engine", () => {
             assert.closeTo(stored.x, grabbed.x + 60, 0.5, "and the array holds where the reader left it");
             assert.closeTo(stored.y, grabbed.y + 20, 0.5);
 
-            await frames(6);
+            // Six more updates, any of which would have pulled the node back if something did.
+            await drawnFrames(graph.getScene(), 6);
 
             assert.closeTo(dragged.getPosition().x, grabbed.x + 60, 0.01, "and nothing pulled it back afterwards");
             assert.closeTo(dragged.getPosition().y, grabbed.y + 20, 0.01);
@@ -1624,7 +1617,8 @@ describe("a single-pass layout registered on the snapshot contract", () => {
             compute: async (input) => {
                 snapshotInputs.push(input);
                 input.report({ fraction: 0.5, message: "half way" });
-                await frames(3);
+                // Answer on a later frame than the one that asked, as a layout doing real work would.
+                await nextFrame();
                 return line(input);
             },
         });
@@ -1787,7 +1781,8 @@ describe("a single-pass layout registered on the snapshot contract", () => {
         assert.isTrue(input.signal.aborted, "replacing the layout aborted the answer");
 
         late(new Float32Array(2 * NODES.length).fill(999));
-        await frames(5);
+        // Five more updates, any of which would have drawn the stale answer had it been published.
+        await drawnFrames(graph.getScene(), 5);
         for (const { id } of NODES) {
             assert.deepStrictEqual(at(id), circle[id], `node ${id} is still on the circle`);
         }

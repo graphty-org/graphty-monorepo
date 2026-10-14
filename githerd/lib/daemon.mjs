@@ -127,7 +127,15 @@ import { createIncidentActions, laneNotProgressing } from "./incident-actions.mj
 import { releaseFailedSummary, releaseHold } from "./release.mjs";
 import { failureKey, isSummaryJob, notePickups, queueAges } from "./lanes.mjs";
 import { createMcpServer, servedProtocols } from "./mcp.mjs";
-import { accumulateMerged, backfillRefs, commitRefs, landStacked, searchMerged } from "./merged.mjs";
+import {
+    accumulateMerged,
+    backfillRefs,
+    commitRefs,
+    droppableMergedIssues,
+    landStacked,
+    restoreMergedIssues,
+    searchMerged,
+} from "./merged.mjs";
 import { sessionWriteCheck } from "./session-writes.mjs";
 import {
     foldHead,
@@ -890,6 +898,7 @@ export async function startDaemon({
         if (!mayWrite()) return;
         await dropEndedItems();
         await dropFinished();
+        await dropMergedIssues();
         for (const line of recordLines(state, recorded)) void ledger(line);
         await saveState(stateDir, state, { durable });
         writeChangedNews();
@@ -1006,6 +1015,43 @@ export async function startDaemon({
         for (const key of Object.keys(covers)) {
             if (!state.notified?.[key] && !n.failed?.[key] && !n.pending?.[key]) delete covers[key];
         }
+    }
+
+    /**
+     * Drops the merge record (`state.merged.refs` and `closed`) of each issue no longer in the state
+     * (`droppableMergedIssues`, issue #2661), once its record is in the ledger (a
+     * `merged-issue-dropped` line). `droppedMax` is the highest such issue: a new issue is numbered
+     * above it, so only an issue at or below it can come back (`restoreReturned`).
+     * @returns {Promise<void>}
+     */
+    async function dropMergedIssues() {
+        const m = state.merged;
+        if (!m) return;
+        for (const n of droppableMergedIssues(state)) {
+            try {
+                const record = { refs: m.refs?.[n] ?? [], closed: (m.closed ?? []).includes(Number(n)) };
+                await appendLedger(stateDir, { kind: "merged-issue-dropped", issue: Number(n), record }, { now });
+                m.droppedMax = Math.max(m.droppedMax ?? 0, Number(n));
+                delete m.refs?.[n];
+                m.closed = (m.closed ?? []).filter((c) => c !== Number(n));
+            } catch (err) {
+                say("error", `ledger: ${/** @type {Error} */ (err).message}; merge record of #${n} kept`);
+            }
+        }
+    }
+
+    /**
+     * Puts back from the ledger the merge record of each issue that came back into the state this
+     * poll (a reopen, or a closed one a reference keeps) and was dropped before (issue #2661), so
+     * its issue job still knows which merged pull requests closed or named it.
+     * @param {Set<string>} known the issues in the state before this poll
+     * @returns {Promise<void>}
+     */
+    async function restoreReturned(known) {
+        const most = state.merged?.droppedMax ?? 0;
+        const back = Object.keys(state.issues.byNumber).filter((n) => !known.has(n) && Number(n) <= most);
+        if (!back.length) return;
+        restoreMergedIssues(state.merged, await readLedger(stateDir, { since: new Date(0) }), back);
     }
 
     /** @type {Map<string, string>} each job's news as last written to `jobs/<id>/news` */
@@ -3071,10 +3117,12 @@ export async function startDaemon({
         for (const line of carryGitherdMoves(state)) void ledger(line);
         await inheritedUpdates(branch);
 
+        const known = new Set(Object.keys(state.issues?.byNumber ?? {}));
         const issues = await pollIssues(gh, config.repo, state.issues);
         state.issues = { since: issues.since, byNumber: issues.byNumber };
         for (const line of pruneSettledFlakes(state)) void ledger(line);
         pruneClosedIssues(state);
+        await restoreReturned(known);
         await pruneFinishedJobs();
         await checkOverrides();
     }

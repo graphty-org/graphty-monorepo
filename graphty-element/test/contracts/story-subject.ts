@@ -179,6 +179,14 @@ function written(story: StoryDeclaration, fileChannels: readonly string[]): { wo
         found.add("color");
     }
 
+    // A label style's gradient fills the label's background, so it shows "background" the way a
+    // hex in its `background` field does. The word became a subject when the label background
+    // channels were published, and `Styles/Label::BackgroundGradient` paints one with no field
+    // of that name.
+    if (story.labelFields.some((field) => words(field).includes("gradient"))) {
+        found.add("background");
+    }
+
     return { words: found, paths };
 }
 

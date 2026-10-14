@@ -269,8 +269,9 @@ describe("optionsFromZod", () => {
                 options.map((o) => o.name),
                 // Every top-level field of NodeStyle, exactly. `enabled` was here until 2.0
                 // withdrew it: the session's visibility mask decides whether a node is drawn and
-                // nothing ever read the flag.
-                ["shape", "texture", "effect", "label", "tooltip"],
+                // nothing ever read the flag. `visible` is the `node.visible` channel's field:
+                // false stops drawing the node and nothing else.
+                ["shape", "texture", "effect", "label", "tooltip", "visible"],
             );
             for (const option of options) {
                 if (option.type === "unknown") {

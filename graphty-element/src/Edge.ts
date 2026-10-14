@@ -550,7 +550,10 @@ export class Edge {
 
         // The ray the intercept search aims and casts; its own vectors, never a mesh's, because
         // the search writes into them.
-        this.ray = new Ray(Vector3.Zero(), Vector3.Forward());
+        this.ray = new Ray(
+            this.srcNode.mesh.position.clone(),
+            this.dstNode.mesh.position.subtract(this.srcNode.mesh.position),
+        );
 
         this.meshKey = paint.meshKey;
 

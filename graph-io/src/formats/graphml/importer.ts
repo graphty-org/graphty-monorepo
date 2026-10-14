@@ -512,15 +512,13 @@ class GraphmlReader implements XmlHandler {
         const parent = this.ctx.at(-1) ?? null;
         switch (parent) {
             case Ctx.Capture:
+            case Ctx.Data:
+            case Ctx.Default:
                 this.captureStart(name, attrs);
                 return;
             case Ctx.Skip:
             case Ctx.Desc:
                 this.ctx.push(Ctx.Skip);
-                return;
-            case Ctx.Data:
-            case Ctx.Default:
-                this.captureStart(name, attrs);
                 return;
             case Ctx.Dropped:
                 this.dropStart(localName(name));
@@ -2464,9 +2462,10 @@ class GraphmlReader implements XmlHandler {
      */
     private expandStar(hyperedge: HyperedgeState, where: Where): void {
         this.hyperedgeCount++;
-        let hubId = hyperedge.id ?? `hyperedge${this.hyperedgeCount}`;
+        const baseId = hyperedge.id ?? `hyperedge${this.hyperedgeCount}`;
+        let hubId = baseId;
         for (let n = 2; this.sink.indexOf(hubId) !== INVALID_INDEX; n++) {
-            hubId = `${hyperedge.id ?? `hyperedge${this.hyperedgeCount}`}#${n}`;
+            hubId = `${baseId}#${n}`;
         }
         const hub = this.sink.addNode(hubId);
         this.declared.add(hub);

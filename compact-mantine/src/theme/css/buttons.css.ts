@@ -236,14 +236,12 @@ ${JOINED}${FOCUS} {
 .cm-toggle-icon[data-swap][aria-pressed="true"]${HOVER}${ENABLED} { background-color: var(--ai-hover); }
 .cm-toggle-icon[data-swap][aria-pressed="true"]${PRESSED}${ENABLED} { background-color: var(--cm-ai-pressed); }
 .cm-toggle-icon[data-swap][aria-pressed="true"]${DISABLED} { background: transparent; }
-/* Disabled: Figma draws it exactly like the enabled toggle, pointer states included
-   (bc/toggle-icon-off|on-disabled--*); only the press does nothing. */
-.cm-toggle-icon${DISABLED} { color: var(--ai-color); }
-.cm-toggle-icon[aria-pressed]${DISABLED}${HOVER} { background-color: var(--ai-hover); }
-.cm-toggle-icon[aria-pressed]${DISABLED}${PRESSED} { background-color: var(--cm-ai-pressed); }
-.cm-toggle-icon:not([data-swap])[aria-pressed="true"]${DISABLED} { color: var(--cm-icon-brand); }
-.cm-toggle-icon:not([data-swap])[aria-pressed="true"]${DISABLED}${HOVER} { background-color: var(--cm-bg-selected-secondary); }
-.cm-toggle-icon:not([data-swap])[aria-pressed="true"]${DISABLED}${PRESSED} { background-color: var(--cm-bg-selected); }
+/* Disabled (spec 4.4, "disabled off / on"): the glyph takes --cm-icon-disabled and an "on" toggle
+   sits on --cm-bg-disabled (the swap variant is never filled); the pointer states paint nothing.
+   Figma's capture (bc/toggle-icon-off|on-disabled--*) draws it like the enabled toggle, which left
+   a disabled toggle indistinguishable from an enabled one (issue #2102); the spec text wins. */
+.cm-toggle-icon${DISABLED} { color: var(--cm-icon-disabled); }
+.cm-toggle-icon:not([data-swap])[aria-pressed="true"]${DISABLED} { background: var(--cm-bg-disabled); }
 
 /* ---------- SplitButton (4.5) ---------- */
 .cm-split {

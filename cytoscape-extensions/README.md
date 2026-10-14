@@ -45,7 +45,8 @@ draw();
 ## Loading
 
 - With npm and a bundler (Vite, webpack, esbuild, Rollup), import the package as above. It is ES modules only; the
-  WebGPU code, the generators, each dataset and the file formats load on first use.
+  WebGPU code, the generators and the file formats load on first use, and every dataset downloads from graphty.app
+  when asked for.
 - With no build step, import the ES module build from a CDN:
   `https://cdn.jsdelivr.net/npm/@graphty/cytoscape-extensions/dist/cdn/cytoscape-extensions.js`.
 - With a classic `<script src>` tag, load `dist/cytoscape-extensions.bundle.js` after Cytoscape. It registers

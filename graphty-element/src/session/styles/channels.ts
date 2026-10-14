@@ -685,6 +685,12 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         accepts: "boolean",
         stylePath: "effect.flatShaded",
         renderable: true,
+        caveat:
+            "Flat shading gives every triangle one normal, so a curved shape (sphere, cylinder, " +
+            "cone, capsule, torus) is lit as visible facets; on a sphere they are a few pixels wide " +
+            "until a node is drawn large. A shape already drawn with flat faces " +
+            "(box, the polyhedra, icosphere, goldberg, geodesic) looks the same either way, and in " +
+            "2D nodes are drawn unlit, so it changes nothing there.",
     },
     "node.marker": {
         channel: "node.marker",

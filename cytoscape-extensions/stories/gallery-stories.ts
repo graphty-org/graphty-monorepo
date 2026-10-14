@@ -1,5 +1,5 @@
 /**
- * The gallery stories: every layout, algorithm, generator, bundled dataset and file format, one small Cytoscape per
+ * The gallery stories: every layout, algorithm, generator, small dataset and file format, one small Cytoscape per
  * tile. Each page of stories/catalog.ts's GALLERY_PAGES is a folder of stories (stories/gallery/, written by
  * test/demo-catalog.test.ts): an Overview with every tile of the page, and one story per tile showing it full size.
  *
@@ -32,7 +32,7 @@ import {
     presetWithSeed,
     SIMULATION_LAYOUTS,
 } from "./catalog.js";
-import { elementsOf, failureWords, GENERATE, markDirected, type Outcome, SIZES } from "./demo.js";
+import { datasetOptions, elementsOf, failureWords, GENERATE, markDirected, type Outcome, SIZES } from "./demo.js";
 import { EXAMPLES, spread } from "./examples.js";
 import { formatAbout, formatTile } from "./formats.js";
 import { renderGallery, type Tile } from "./gallery.js";
@@ -115,7 +115,7 @@ const ARG_TYPES: Record<keyof TileArgs, Record<string, unknown>> = {
         control: "select",
         options: ["none", ...FORMATS],
         description:
-            "After the run, write the graph with cy.graphtyExport in this format, read it back with cy.graphtyImport, and show the start of the file",
+            "After the run, write the graph with cy.graphtyExport in this format, read it back with cy.graphtyImport, and show the file",
     },
     directed: { control: "boolean", description: "Run the algorithm on the graph as directed" },
     iterations: { control: { type: "number", min: 0, step: 10 }, description: "0: until the layout settles" },
@@ -450,7 +450,7 @@ const generators: Page = {
     }),
 };
 
-/** Every bundled dataset, laid out and colored to show what it holds; a one-tile story names its source and license. */
+/** Every small dataset, laid out and colored to show what it holds; a one-tile story names its source and license. */
 const datasets: Page = {
     summary: `Every bundled dataset of \`cy.graphtyDataset(name)\`, laid out and colored to show what it holds. ${CONTROLS.replace("pick another network and size, the seed, the backend and more options", "change the seed of the layout")}`,
     about: (name) => {
@@ -473,7 +473,7 @@ const datasets: Page = {
     tile: (name, a) => ({
         title: name,
         load: async (cy) => {
-            const { directed } = await cy.graphtyDataset(name);
+            const { directed } = await cy.graphtyDataset(name, datasetOptions());
             markDirected(cy, directed);
         },
         run: async (cy) => ({ ran: "", detail: null, note: await showDataset(cy, name, a.seed) }),
@@ -488,8 +488,8 @@ const formats: Page = {
     controls: () => pick("roundTrip"),
     intro: (every) =>
         every
-            ? "cy.graphtyImport reading a file in each format it takes (the start of the file beside the graph), and cy.graphtyExport writing karate in each format."
-            : "The start of the file is beside the graph it became.",
+            ? "cy.graphtyImport reading a file in each format it takes (what was read and the whole file beside the graph), and cy.graphtyExport writing karate in each format."
+            : "Beside the graph: what the import read, and the whole file it read it from.",
     tile: formatTile,
 };
 
@@ -505,7 +505,7 @@ const PAGES: Record<GalleryPage, Page> = {
 };
 
 /**
- * After the tile's run, writes its graph in `a.roundTrip` and reads it back, showing the start of the file.
+ * After the tile's run, writes its graph in `a.roundTrip` and reads it back, showing the file.
  * @param t - the tile
  * @param a - the controls
  * @returns the tile
@@ -522,7 +522,7 @@ function withRoundTrip(t: Tile, a: TileArgs): Tile {
             const out = await t.run(cy);
             let file = "";
             const back = await roundTrip(cy, format, a.seed, (text) => {
-                file = text.split("\n").slice(0, 80).join("\n");
+                file = text;
             });
             return {
                 ...out,

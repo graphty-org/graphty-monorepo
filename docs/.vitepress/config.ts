@@ -68,7 +68,7 @@ export default defineConfig({
                 items: [
                     { text: "graphty-element", link: "/graphty-element/" },
                     { text: "algorithms", link: "/algorithms/" },
-                    { text: "layout", link: "/layout/api/generated/" },
+                    { text: "layout", link: "/layout/" },
                     { text: "cytoscape-extensions", link: "/cytoscape-extensions/" },
                     { text: "graph-io", link: "/graph-io/" },
                     { text: "visual-review", link: "/visual-review/" },
@@ -83,7 +83,7 @@ export default defineConfig({
                     items: [
                         { text: "graphty-element", link: "/graphty-element/" },
                         { text: "algorithms", link: "/algorithms/" },
-                        { text: "layout", link: "/layout/api/generated/" },
+                        { text: "layout", link: "/layout/" },
                         { text: "cytoscape-extensions", link: "/cytoscape-extensions/" },
                         { text: "graph-io", link: "/graph-io/" },
                         { text: "visual-review", link: "/visual-review/" },
@@ -234,12 +234,40 @@ export default defineConfig({
                     items: graphIoTypedoc,
                 },
             ],
-            // layout has no guide pages yet (there is no layout/docs/): its section is the
-            // generated TypeDoc reference alone.
             "/layout/": [
                 {
+                    text: "Introduction",
+                    items: [
+                        { text: "Overview", link: "/layout/" },
+                        { text: "Getting Started", link: "/layout/guide/getting-started" },
+                        { text: "Installation", link: "/layout/guide/installation" },
+                    ],
+                },
+                {
+                    text: "Core Concepts",
+                    items: [
+                        { text: "Results and Options", link: "/layout/guide/results" },
+                        { text: "2D and 3D", link: "/layout/guide/dimensions" },
+                    ],
+                },
+                {
+                    text: "Layouts",
+                    items: [
+                        { text: "Geometric", link: "/layout/guide/geometric" },
+                        { text: "Structural", link: "/layout/guide/structural" },
+                        { text: "Force-Directed and Spectral", link: "/layout/guide/force-directed" },
+                        { text: "Steppable Simulations", link: "/layout/guide/simulations" },
+                        { text: "Performance", link: "/layout/guide/performance" },
+                    ],
+                },
+                {
                     text: "API",
-                    items: [{ text: "Overview", link: "/layout/api/generated/" }, ...layoutTypedoc],
+                    items: [{ text: "Overview", link: "/layout/api/" }],
+                },
+                {
+                    text: "Generated TypeDoc",
+                    collapsed: true,
+                    items: layoutTypedoc,
                 },
             ],
             "/cytoscape-extensions/": [

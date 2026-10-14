@@ -228,13 +228,14 @@ export const FieldRow = forwardRef<HTMLDivElement, FieldRowProps>(function Field
     const showLabels = usePanelLabels();
     const fields = fieldsOf(children);
     const count = fields.length;
+    const noun = count === 1 ? "field" : "fields";
 
     // A development-only diagnostic, printed in a consumer's own devtools by
     // people who have never seen this project. Plain English, no in-house
     // shorthand, and it says what to do rather than only what is wrong.
     useDevWarning(
         count === 0 || count > MAX_FIELDS
-            ? `FieldRow was given ${String(count)} ${count === 1 ? "field" : "fields"}, and it holds one field, ` +
+            ? `FieldRow was given ${String(count)} ${noun}, and it holds one field, ` +
                   "or two side by side. A row with none is an empty 32px gap, and a third field has nowhere to " +
                   "go in the 240px panel the row is measured for. Put the extra fields on rows of their own."
             : undefined,

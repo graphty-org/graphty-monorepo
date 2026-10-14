@@ -100,7 +100,8 @@ export const Default: Story = {
 /**
  * Every state, light and dark side by side: the filled number
  * field at rest, hovered and focused (forced with `data-state`), disabled, Mixed, bound, pending,
- * with a unit, a text field, a placeholder, and the outlined select trigger.
+ * with a unit, a text field, a placeholder, an empty disabled field (its placeholder dims too) and the
+ * outlined select trigger.
  */
 export const States: Story = {
     parameters: BOTH_SCHEMES,
@@ -131,6 +132,10 @@ export const States: Story = {
                 {
                     state: "placeholder",
                     node: <PanelField label="Label attribute" glyph="attribute" placeholder="Choose" />,
+                },
+                {
+                    state: "disabled, empty",
+                    node: <PanelField label="Lowest" kind="number" value={null} placeholder="Auto" disabled />,
                 },
                 {
                     state: "select",

@@ -104,7 +104,9 @@ describe("JsonlWriter", () => {
 
         // Each line should be valid JSON
         for (const line of lines) {
-            expect(() => JSON.parse(line)).not.toThrow();
+            expect(() => {
+                JSON.parse(line);
+            }).not.toThrow();
         }
     });
 

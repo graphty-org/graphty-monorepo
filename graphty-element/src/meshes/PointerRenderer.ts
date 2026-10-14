@@ -36,20 +36,6 @@ export class PointerRenderer {
         const { width: pointerWidth, height: pointerHeight, offset: pointerOffset, direction, curved } = pointerOptions;
 
         switch (direction) {
-            case "bottom":
-                this.createBottomPointer(
-                    ctx,
-                    contentX,
-                    contentY,
-                    contentWidth,
-                    contentHeight,
-                    radius,
-                    pointerWidth,
-                    pointerHeight,
-                    pointerOffset,
-                    curved,
-                );
-                break;
             case "top":
                 this.createTopPointer(
                     ctx,
@@ -92,7 +78,7 @@ export class PointerRenderer {
                     curved,
                 );
                 break;
-            default:
+            default: // "bottom"
                 this.createBottomPointer(
                     ctx,
                     contentX,
@@ -125,20 +111,6 @@ export class PointerRenderer {
         const { width: pointerWidth, height: pointerHeight, offset: pointerOffset, direction, curved } = pointerOptions;
 
         switch (direction) {
-            case "bottom":
-                this.createBottomPointerCCW(
-                    ctx,
-                    contentX,
-                    contentY,
-                    contentWidth,
-                    contentHeight,
-                    radius,
-                    pointerWidth,
-                    pointerHeight,
-                    pointerOffset,
-                    curved,
-                );
-                break;
             case "top":
                 this.createTopPointerCCW(
                     ctx,
@@ -181,7 +153,7 @@ export class PointerRenderer {
                     curved,
                 );
                 break;
-            default:
+            default: // "bottom"
                 this.createBottomPointerCCW(
                     ctx,
                     contentX,

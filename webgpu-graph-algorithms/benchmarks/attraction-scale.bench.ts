@@ -83,7 +83,7 @@ const RUNG_OPTIONS: ForceAtlas2Options & GpuLayoutTuning = {
  */
 function attractionMs(sim: GpuLayoutSimulation<ForceAtlas2Options, ForceAtlas2Stats>): number {
     if (!(sim instanceof ForceSimulation)) {
-        throw new Error("createForceAtlas2 did not return a ForceSimulation");
+        throw new TypeError("createForceAtlas2 did not return a ForceSimulation");
     }
     const timings = sim.lastPassTimings;
     const pass = timings === null ? undefined : timings.find((t) => t.label === ATTRACTION_PASS);

@@ -323,7 +323,8 @@ interface SessionParts {
 
 /**
  * What the element's own tests hand a session besides its options: the clock of the coalescing
- * window and the queue queued commands take their turn on, so a random sequence can drive both.
+ * window and the repaint's slices, and the queue queued commands take their turn on, so a random
+ * sequence can drive both.
  */
 interface SessionInternals {
     readonly now?: () => number;
@@ -2461,6 +2462,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             // the elements one run measured walks that run's 300 rows, not the graph's 50,000.
             measured: elements.measured,
             scales,
+            ...(internals.now === undefined ? {} : { now: internals.now }),
         }),
         snapshot,
     );

@@ -517,23 +517,6 @@ describe("a high-DPI screen", () => {
 });
 
 /**
- * Let frames run until the camera has stopped moving: what the selection pivot glides with.
- * @param element - The element.
- */
-async function cameraAtRest(element: Graphty): Promise<void> {
-    let last = camera(element);
-    for (;;) {
-        await frames(2);
-        const now = camera(element);
-        if (now === last) {
-            return;
-        }
-
-        last = now;
-    }
-}
-
-/**
  * The plain average of nodes' positions.
  * @param element - The element.
  * @param ids - The nodes.
@@ -560,7 +543,7 @@ describe("the selection as the camera's pivot", () => {
         const before = element.getCameraState().target;
 
         await click(element, at(element, "c"));
-        await cameraAtRest(element);
+        await applied(element);
 
         assert.strictEqual(element.getSelectedNode()?.id, "c");
         assert.deepStrictEqual(element.getCameraState().target, before, "the pivot did not move");
@@ -572,7 +555,7 @@ describe("the selection as the camera's pivot", () => {
 
         await click(element, at(element, "c"));
         // The picture is not final until the camera has arrived, so a stable frame is the arrival
-        await element.waitForStableFrame();
+        await applied(element);
 
         const { target } = element.getCameraState();
         const c = meanOf(element, ["c"]);
@@ -584,7 +567,7 @@ describe("the selection as the camera's pivot", () => {
         const before = at(element, "c");
         const unturned = camera(element);
         await drag(element, EMPTY, { x: EMPTY.x + 120, y: EMPTY.y - 40 });
-        await cameraAtRest(element);
+        await applied(element);
 
         assert.notStrictEqual(camera(element), unturned, "the camera turned");
         const after = at(element, "c");
@@ -597,17 +580,17 @@ describe("the selection as the camera's pivot", () => {
         element.layoutBehavior = { camera: { pivotOnSelection: true } };
         // Far enough out that every node stays on screen wherever the pivot goes
         await element.setCameraState({ cameraDistance: 40 });
-        await cameraAtRest(element);
+        await applied(element);
 
         await click(element, at(element, "a"));
-        await cameraAtRest(element);
+        await applied(element);
         assert.deepStrictEqual(element.session.selection.nodes.map(String), ["a"], "the click selected a");
         await click(element, at(element, "b"), { shift: true });
-        await cameraAtRest(element);
+        await applied(element);
         assert.deepStrictEqual(element.session.selection.nodes.map(String), ["a", "b"], "the shift-click added b");
-        await cameraAtRest(element);
+        await applied(element);
         await click(element, at(element, "c"), { shift: true });
-        await cameraAtRest(element);
+        await applied(element);
 
         const selected = element.session.selection.nodes.map(String);
         assert.sameMembers(selected, ["a", "b", "c"], "shift-clicks added to the selection");
@@ -620,7 +603,7 @@ describe("the selection as the camera's pivot", () => {
 
         // A shift-click on a selected node takes it out, and the pivot follows.
         await click(element, at(element, "c"), { shift: true });
-        await cameraAtRest(element);
+        await applied(element);
         const pair = meanOf(element, ["a", "b"]);
         const moved = element.getCameraState().target;
         assert.isDefined(moved);
@@ -634,7 +617,7 @@ describe("the selection as the camera's pivot", () => {
         element.layoutBehavior = { camera: { pivotOnSelection: true } };
 
         await click(element, at(element, "a"));
-        await cameraAtRest(element);
+        await applied(element);
 
         const { pan } = element.getCameraState();
         const a = meanOf(element, ["a"]);

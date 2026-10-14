@@ -98,6 +98,12 @@ export interface GmlImportOptions extends GraphChoiceOptions, CommonImportOption
      */
     positions?: boolean | undefined;
     /**
+     * With `positions`, also keep the whole `graphics` record, x / y / z included, as the JSON
+     * attribute named `graphics`, so a reader gets both the position and the record as written.
+     * @defaultValue false
+     */
+    keepPositionSource?: boolean | undefined;
+    /**
      * Store a text attribute whose values repeat a lot (fewer distinct values than half the rows)
      * as a dictionary column, which uses less memory and reads the same. Such a column reports
      * `meta.dtype` "dict" instead of "string". A column with a role, such as the `label` column,
@@ -378,6 +384,8 @@ class GmlImport {
 
     private readonly positions: boolean;
 
+    private readonly keepPositionSource: boolean;
+
     private readonly dictionaries: boolean;
 
     private readonly coercer: IdCoercer;
@@ -470,6 +478,7 @@ class GmlImport {
         this.report = report;
         this.options = options;
         this.positions = format?.positions ?? true;
+        this.keepPositionSource = format?.keepPositionSource ?? false;
         this.dictionaries = format?.dictionaries ?? true;
         this.coercer = new IdCoercer(options.ids);
     }
@@ -755,7 +764,8 @@ class GmlImport {
         }
         const positioned = x && y;
         entry.position ||= positioned;
-        entry.rest ||= positioned ? other : true;
+        // with keepPositionSource the whole record, x / y / z included, goes to the json column too
+        entry.rest ||= positioned ? other || this.keepPositionSource : true;
     }
 
     // ============================================================ pass 2: the push
@@ -1541,7 +1551,8 @@ class GmlImport {
         const positionPlan = plan.position;
         let rest: unknown = first;
         if (isRecord(first) && positionPlan !== null) {
-            rest = this.writePosition(positionPlan, index, first, where);
+            const left = this.writePosition(positionPlan, index, this.keepPositionSource ? { ...first } : first, where);
+            rest = this.keepPositionSource ? first : left;
         } else if (!isRecord(first)) {
             this.graphicsWarning("scalar", `node ${where.element}'s graphics is not a record`, where);
         }
@@ -1924,7 +1935,7 @@ function sniffGml(head: Uint8Array): number {
  */
 export const gmlImporter: GraphImporter<GmlImportOptions> = Object.freeze({
     format: "gml",
-    options: Object.freeze(["dictionaries", "positions"]),
+    options: Object.freeze(["dictionaries", "keepPositionSource", "positions"]),
     extensions: Object.freeze([".gml"]),
     mimeTypes: Object.freeze(["text/x-gml", "text/plain"]),
     sniff: sniffGml,

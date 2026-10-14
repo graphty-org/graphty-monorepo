@@ -164,12 +164,12 @@ function degreeSum(name: string, degrees: ArrayLike<number>): number {
 /**
  * The option value of a keep / erase policy, checked.
  * @param name - the option name
- * @param value - the value (default "erase")
+ * @param value - the value (default "erase"), checked, since a JavaScript caller may pass any string
  * @returns true for keep
  */
-function keeps(name: string, value: EdgePolicy | undefined): boolean {
+function keeps(name: string, value: string | undefined): boolean {
     if (value !== undefined && value !== "keep" && value !== "erase") {
-        throw new RangeError(`${name} must be "keep" or "erase", got ${String(value)}`);
+        throw new RangeError(`${name} must be "keep" or "erase", got ${value}`);
     }
     return value === "keep";
 }

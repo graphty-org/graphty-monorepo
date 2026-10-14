@@ -1,6 +1,6 @@
 /**
- * The Formats gallery: one real file per format read by cy.graphtyImport, with the start of the file beside the
- * graph it became, one file read with no format named (sniffed), and karate written by cy.graphtyExport in every
+ * The Formats gallery: one real file per format read by cy.graphtyImport, with a summary of what was read and the
+ * whole file beside the graph it became, one file read with no format named (sniffed), and karate written by cy.graphtyExport in every
  * format with what each one leaves out.
  *
  * Every file is MIT or CC0 licensed and ships in this repository: graph-io's published samples, its test corpus,
@@ -24,7 +24,7 @@ import xgmml from "../../graph-io/test/conformance/fixtures/xgmml/efi-est/20920_
 import cx2 from "../../graph-io/test/corpus/cx2/emt-network.cx2?raw";
 import obo from "../../graph-io/test/corpus/obo/taxrank.obo?raw";
 import pajek from "../../graph-io/test/corpus/pajek/karate.net?raw";
-import type { ImportFormat, LossNote } from "../src/index.js";
+import type { ImportedGraph, ImportFormat, LossNote } from "../src/index.js";
 import { FORMATS } from "./catalog.js";
 import { PALETTE } from "./demo.js";
 import type { Tile } from "./gallery.js";
@@ -229,25 +229,76 @@ const AUTO: Sample = {
 };
 
 /**
- * The start of a file, for the panel beside the graph: a JSON file written on one line is indented first.
+ * The whole file, for the source panel beside the graph: a JSON file written on one line is indented first.
  * @param s - the sample
- * @param size - the file's size
  * @returns the text
  */
-function filePanel(s: Sample, size: number): string {
-    const head = `${s.file}, ${size.toLocaleString()} ${s.text === undefined ? "bytes" : "characters"}\n\n`;
+function fileSource(s: Sample): string {
     if (s.text === undefined) {
-        return `${head}(a zip archive: the networks as XGMML, their tables as CSV, the styles as XML)`;
+        return "(a zip archive, not text:\nthe networks as XGMML,\ntheir tables as CSV,\nthe styles as XML)";
     }
-    let text = s.text.slice(0, 20_000);
-    if (/^\s*[[{]/.test(text) && text.split("\n", 1)[0].length > 200) {
+    if (/^\s*[[{]/.test(s.text) && s.text.split("\n", 1)[0].length > 200) {
         try {
-            text = JSON.stringify(JSON.parse(s.text), null, 1);
+            return JSON.stringify(JSON.parse(s.text), null, 1);
         } catch {
             // not JSON after all: show it as it is
         }
     }
-    return head + text.split("\n").slice(0, 80).join("\n");
+    return s.text;
+}
+
+/**
+ * The data fields of a collection and the kinds of value each holds, as the core holds them after the import.
+ * @param eles - the nodes or the edges
+ * @returns "name (kind)" per field, in first-seen order; a field holding several kinds lists them all
+ */
+function fieldKinds(eles: { forEach(f: (e: { data(): Record<string, unknown> }) => void): unknown }): string[] {
+    const kinds = new Map<string, Set<string>>();
+    eles.forEach((e) => {
+        for (const [k, v] of Object.entries(e.data())) {
+            if (k === "id" || k === "source" || k === "target" || k === "parent" || v === null || v === undefined) {
+                continue;
+            }
+            const kind = Array.isArray(v) ? "list" : typeof v;
+            kinds.set(k, (kinds.get(k) ?? new Set()).add(kind));
+        }
+    });
+    return [...kinds].map(([k, v]) => `${k} (${[...v].join(" or ")})`);
+}
+
+/**
+ * The short summary of what an import read, shown above the file's source: the file, its size, the counts graph-io
+ * reports, every node and edge attribute with its kind, and the importer's issues and loss notes grouped by code.
+ * Call it right after cy.graphtyImport, before anything else writes data fields.
+ * @param file - the file name
+ * @param bytes - the file's size in bytes
+ * @param r - what graphtyImport returned
+ * @param cy - the core it imported into
+ * @returns the summary's lines
+ */
+export function parseSummary(file: string, bytes: number, r: ImportedGraph, cy: Core): string {
+    const { counts: c, issues, lossy } = r.report;
+    const skipped =
+        c.skippedNodes + c.skippedEdges > 0 ? ` (skipped ${c.skippedNodes} nodes, ${c.skippedEdges} edges)` : "";
+    const lines = [
+        `${file}, ${bytes.toLocaleString("en-US")} bytes`,
+        `read as ${r.format}: ${c.nodes.toLocaleString("en-US")} nodes, ${c.edges.toLocaleString("en-US")} edges${skipped}`,
+        `node attributes: ${fieldKinds(cy.nodes()).join(", ") || "none"}`,
+        `edge attributes: ${fieldKinds(cy.edges()).join(", ") || "none"}`,
+    ];
+    // one line per code, with how many times it came up and the first message
+    const byCode = new Map<string, { message: string; n: number }>();
+    for (const { code, message } of [...issues, ...lossy]) {
+        const seen = byCode.get(code);
+        byCode.set(code, { message: seen?.message ?? message, n: (seen?.n ?? 0) + 1 });
+    }
+    lines.push(byCode.size === 0 ? "import notes: none" : "import notes:");
+    for (const [code, { message, n }] of byCode) {
+        // a message can list dozens of names (a session's skipped entries): the start of it, marked as cut
+        const short = message.length > 160 ? `${message.slice(0, 157)}...` : message;
+        lines.push(`  ${code}${n > 1 ? ` (x${n})` : ""}: ${short}`);
+    }
+    return lines.join("\n");
 }
 
 /**
@@ -330,8 +381,10 @@ function importTile(format: ImportFormat, s: Sample): Tile {
         load: () => undefined,
         run: async (cy) => {
             const input = s.text ?? (await (await fetch(s.url ?? "")).arrayBuffer());
-            const size = typeof input === "string" ? input.length : input.byteLength;
+            const bytes = typeof input === "string" ? new TextEncoder().encode(input).length : input.byteLength;
             const r = await cy.graphtyImport(input, format);
+            // before the sample's colors are written into the data
+            const summary = parseSummary(s.file, bytes, r, cy);
             s.color?.(cy);
             const placed = cy.nodes().filter((n) => n.position().x !== 0 || n.position().y !== 0).length > 0;
             if (placed) {
@@ -351,7 +404,8 @@ function importTile(format: ImportFormat, s: Sample): Tile {
                 ran: "",
                 detail: null,
                 note: cy.width() < 400 ? read : `${read}\n${s.about}`,
-                file: filePanel(s, size),
+                summary,
+                file: fileSource(s),
             };
         },
     };

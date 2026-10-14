@@ -73,7 +73,8 @@ function canonical(value: unknown, path: WeakSet<object>): string {
         if (value instanceof Map) {
             const entries = [...value].map(([key, entry]) => `${canonical(key, path)}:${canonical(entry, path)}`);
 
-            return `Map{${entries.sort().join(",")}}`;
+            entries.sort((a, b) => (a < b ? -1 : Number(a > b)));
+            return `Map{${entries.join(",")}}`;
         }
 
         if (value instanceof Set) {

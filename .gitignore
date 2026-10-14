@@ -188,3 +188,9 @@ design/ui/figma/
 # The release scheduler Worker's local secrets (tools/release-scheduler/README.md)
 tools/release-scheduler/.dev.vars
 tools/release-scheduler/*.pem
+
+# Core dumps from crashed processes (core, or core.<pid>); prettier reads this file too, and refuses
+# a file over 2 GiB. A directory named core is still tracked.
+core
+!core/
+core.[0-9]*

@@ -1,7 +1,8 @@
 /**
- * @file The README's code samples compile, run and print what their comments say.
+ * @file The code samples of the README and the guide pages (docs/guide/) compile, run and print what their comments
+ * say.
  *
- * Every script block in README.md must be a plain ```typescript (or ```ts) fence at the start of a line, marked
+ * Every script block in those files must be a plain ```typescript (or ```ts) fence at the start of a line, marked
  * `<!-- doc-check -->` on the line before it (a blank line between them is allowed). Each block is written to
  * tmp/doc-samples/ with `@graphty/layout` pointed at src/, type-checked against the package's compiler options (an
  * unknown option name is otherwise silently ignored at run time) and then imported, so a sample that throws fails
@@ -9,14 +10,21 @@
  */
 
 import assert from "node:assert";
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { basename, join, resolve } from "node:path";
 
 import ts from "typescript";
 import { describe, it } from "vitest";
 
 const PKG = resolve(__dirname, "../..");
 const OUT = join(PKG, "tmp/doc-samples");
+const DOCS = [
+    "README.md",
+    ...readdirSync(join(PKG, "docs/guide"))
+        .filter((f) => f.endsWith(".md"))
+        .sort()
+        .map((f) => `docs/guide/${f}`),
+];
 const MARK = "<!-- doc-check -->";
 const SCRIPT = /^(?:ts|typescript|js|javascript|jsx|tsx|mts|cts|mjs|cjs)$/i;
 const LOG = /^(\s*)console\.log\((.*)\);\s*\/\/ ?(.*)$/;
@@ -176,29 +184,35 @@ describe("the sample checker", () => {
     });
 });
 
-describe("README.md code samples", () => {
-    const all = blocks(readFileSync(join(PKG, "README.md"), "utf8"));
-    rmSync(OUT, { recursive: true, force: true });
-    mkdirSync(OUT, { recursive: true });
+rmSync(OUT, { recursive: true, force: true });
+mkdirSync(OUT, { recursive: true });
+const docs = DOCS.map((path) => {
+    const all = blocks(readFileSync(join(PKG, path), "utf8"));
     const files = all.map((b) => {
-        const file = join(OUT, `readme-line-${String(b.line)}.ts`);
+        const file = join(OUT, `${basename(path, ".md")}-line-${String(b.line)}.ts`);
         writeFileSync(
             file,
             withLogChecks(b.code.replaceAll('"@graphty/layout"', JSON.stringify(join(PKG, "src/index.js")))),
         );
         return file;
     });
+    return { path, all, files };
+});
 
-    it("marks every script block as checked, in a plain typescript fence", () => {
-        assert.ok(all.length > 0);
-        assert.deepEqual(
-            all.flatMap((b) => (b.checked && b.plain ? [] : [b.line])),
-            [],
-            "unmarked or unusual fences (line numbers)",
-        );
-    });
+describe("documentation code samples", () => {
+    for (const { path, all } of docs) {
+        it(`${path} marks every script block as checked, in a plain typescript fence`, () => {
+            assert.ok(all.length > 0);
+            assert.deepEqual(
+                all.flatMap((b) => (b.checked && b.plain ? [] : [b.line])),
+                [],
+                "unmarked or unusual fences (line numbers)",
+            );
+        });
+    }
 
     it("type-checks every sample", () => {
+        const files = docs.flatMap((d) => d.files);
         const config = ts.getParsedCommandLineOfConfigFile(
             join(PKG, "tsconfig.json"),
             {},
@@ -228,11 +242,13 @@ describe("README.md code samples", () => {
         assert.deepEqual(errors, []);
     });
 
-    all.forEach((b, i) => {
-        it(`runs the sample at line ${String(b.line)} and prints what its comments say`, async () => {
-            mismatches.length = 0;
-            await import(files[i]);
-            assert.deepEqual(mismatches, []);
+    for (const { path, all, files } of docs) {
+        all.forEach((b, i) => {
+            it(`runs the ${path} sample at line ${String(b.line)} and prints what its comments say`, async () => {
+                mismatches.length = 0;
+                await import(files[i]);
+                assert.deepEqual(mismatches, []);
+            });
         });
-    });
+    }
 });

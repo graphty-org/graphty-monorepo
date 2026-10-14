@@ -2,10 +2,11 @@
  * The daemon's state directory, `~/.githerd/<owner>_<name>/` (design section 9.1): state.json, the
  * ledger, the liveness files, the lock, the start counter, the spool and FATAL.
  *
- * state.json is rewritten whole on every change: a uniquely named temporary file is written and
- * fsynced, the old file is copied to state.json.bak, and the temporary file is renamed over it. A
- * crash leaves the old or the new file, never a torn one. All saves to one directory run through
- * one promise chain, so two saves never interleave.
+ * state.json is rewritten whole on every change, as compact JSON: a uniquely named temporary file
+ * is written and fsynced, the old file is hard-linked to a second temporary name that is renamed
+ * over state.json.bak, and the temporary file is renamed over state.json. A crash leaves the old or
+ * the new state.json and a whole state.json.bak, never a torn one. All saves to one directory run
+ * through one promise chain, so two saves never interleave.
  *
  * ledger.jsonl is append-only, one JSON object per line. When the month changes, the file is
  * renamed to ledger-YYYY-MM.jsonl for the month it was last written in.
@@ -13,7 +14,7 @@
 
 import { createHash, randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
-import { appendFile, copyFile, mkdir, open, readdir, readFile, rename, stat, unlink } from "node:fs/promises";
+import { appendFile, copyFile, link, mkdir, open, readdir, readFile, rename, stat, unlink } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
 
@@ -225,10 +226,12 @@ export function saveState(dir, state, { durable = true } = {}) {
             new Error(`refusing to save state with schema ${state?.schema}; this code writes ${STATE_SCHEMA}`),
         );
     }
-    const text = `${JSON.stringify(state, null, 2)}\n`;
+    const text = `${JSON.stringify(state)}\n`;
     const file = join(dir, STATE);
     return serialize(file, async () => {
-        const tmp = join(dir, `${STATE}.${process.pid}.${randomBytes(6).toString("hex")}.tmp`);
+        const temp = () => join(dir, `${STATE}.${process.pid}.${randomBytes(6).toString("hex")}.tmp`);
+        const tmp = temp();
+        const bak = temp();
         try {
             const handle = await open(tmp, "wx");
             try {
@@ -237,8 +240,11 @@ export function saveState(dir, state, { durable = true } = {}) {
             } finally {
                 await handle.close();
             }
+            // The old file becomes the backup by a second name for the same data, put in place by
+            // a rename, so the backup is never a partial copy.
             try {
-                await copyFile(file, `${file}.bak`);
+                await link(file, bak);
+                await rename(bak, `${file}.bak`);
             } catch (err) {
                 if (err.code !== "ENOENT") throw err;
             }
@@ -246,6 +252,10 @@ export function saveState(dir, state, { durable = true } = {}) {
         } catch (err) {
             await unlink(tmp).catch(() => {});
             throw err;
+        } finally {
+            // Left only when the backup already was the same file (a save killed between its two
+            // renames), where the rename does nothing.
+            await unlink(bak).catch(() => {});
         }
     });
 }

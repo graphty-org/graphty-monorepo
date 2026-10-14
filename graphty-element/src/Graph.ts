@@ -76,6 +76,7 @@ import {
     type XRConfig,
 } from "./config";
 import { type AlgorithmOnLoad, DataConfig } from "./config/DataConfig";
+import { RenderSettingsOpts } from "./config/GraphBehavior";
 import { type PartialXRConfig, xrConfigSchema } from "./config/xr-config-schema";
 import { type ExportGraphOptions, type ExportResult, exportSession } from "./data/export";
 import { sampleOf } from "./data/source-bytes";
@@ -169,7 +170,6 @@ import { Styles } from "./Styles";
 import { XRUIManager } from "./ui/XRUIManager";
 import type { QueueableOptions, RunAlgorithmOptions, SetLayoutOptions } from "./utils/queue-migration";
 import { type XRSessionEndCause, XRSessionManager } from "./xr/XRSessionManager";
-// import {createXrButton} from "./xr-button";
 
 /**
  * A catalogue key the element can start as a run, and the parameters that go with it.
@@ -201,6 +201,43 @@ function isAbort(error: unknown): boolean {
 
 /** The three layout-behaviour settings a project file saves. The others are the view's. */
 const PROJECT_LAYOUT_KEYS: ReadonlySet<string> = new Set(["preSteps", "stepMultiplier", "minDelta"]);
+
+/**
+ * Check what `setRenderSettings` was handed, before anything is queued or changed.
+ * @param settings - The caller's settings.
+ * @returns The settings, checked.
+ * @throws A `GraphtyError`: `E_UNKNOWN_OPTION` for a field that is no render setting,
+ *     `E_OPTION_RANGE` for a value the setting does not take.
+ */
+function parseRenderSettings(settings: Record<string, unknown>): GraphBehaviorConfig["rendering"] {
+    const available = Object.keys(RenderSettingsOpts.shape);
+    const unknown = Object.keys(settings).filter((key) => !available.includes(key));
+    if (unknown.length > 0) {
+        throw new GraphtyError({
+            code: "E_UNKNOWN_OPTION",
+            message: `not a render setting: ${unknown.join(", ")}. The render settings are: ${available.join(", ")}`,
+            source: "view",
+            details: { unknown, available },
+        });
+    }
+
+    const parsed = RenderSettingsOpts.partial().safeParse(settings);
+    if (!parsed.success) {
+        const [issue] = parsed.error.issues;
+        const option = String(issue?.path[0]);
+        throw new GraphtyError({
+            code: "E_OPTION_RANGE",
+            message: `the render setting "${option}" was refused: ${issue?.message}`,
+            source: "view",
+            details: { option, value: settings[option] },
+            cause: parsed.error,
+        });
+    }
+
+    // The caller's own fields, not the parse's: a field left out is filled with its default there,
+    // which would reset a setting the caller did not name.
+    return settings;
+}
 
 /**
  * The settings of this view that a project file does not save (design/undo/undo-design.md section
@@ -1553,21 +1590,10 @@ export class Graph implements GraphContext {
                 // Only process settlement events if there are nodes - an empty graph
                 // has nothing to settle, so we shouldn't emit events or log
                 if (this.dataManager.nodes.size > 0) {
-                    // A label built while the layout is at rest -- by the load, a style layer or
-                    // any later write -- has no settlement coming to start its animation, so the
-                    // first frame at rest does. See `oweLabelAnimations`.
-                    if (!this.layoutManager.running && !this.layoutManager.building && payLabelAnimations(this.scene)) {
-                        this.dataManager.startLabelAnimations();
-                    }
-
                     // Check if layout has settled
                     if (this.layoutManager.isSettled && this.layoutManager.running) {
                         this.eventManager.emitGraphSettled(this);
                         this.layoutManager.running = false;
-
-                        // Start label animations after layout has settled
-                        payLabelAnimations(this.scene);
-                        this.dataManager.startLabelAnimations();
 
                         // Only zoom to fit on FIRST settlement after data load.
                         // Subsequent settlements (e.g., after node selection/style change)
@@ -1587,31 +1613,60 @@ export class Graph implements GraphContext {
                         }
                     }
 
-                    // Report performance when transitioning from unsettled to settled
-                    if (this.layoutManager.isSettled && !this.wasSettled) {
-                        this.wasSettled = true;
-                        // End layout session tracking
-                        this.statsManager.endLayoutSession();
-                        const snapshot = this.statsManager.getSnapshot();
-                        graphLogger.debug("Layout settled", {
-                            updateCalls: snapshot.cpu.find((m) => m.label === "Graph.update")?.count ?? 0,
-                        });
-                        this.statsManager.reportDetailed();
-                        // Reset measurements after reporting so next settlement shows fresh data
-                        this.statsManager.resetMeasurements();
-                    } else if (!this.layoutManager.isSettled && this.wasSettled) {
-                        // Reset when layout becomes unsettled (so we can report next settlement)
-                        this.wasSettled = false;
-                        // Restart layout session tracking
-                        this.statsManager.startLayoutSession();
-                        graphLogger.debug("Layout became unsettled, will report on next settlement");
-                    }
+                    this.startOwedLabelAnimations();
+
+                    this.reportSettlementChange();
                 }
             });
         });
 
         // End frame profiling (correlates operations with inter-frame time)
         this.statsManager.endFrameProfiling();
+    }
+
+    /**
+     * Report performance when the layout goes from unsettled to settled, and start a new layout
+     * session when it goes back.
+     */
+    private reportSettlementChange(): void {
+        if (this.layoutManager.isSettled && !this.wasSettled) {
+            this.wasSettled = true;
+            // End layout session tracking
+            this.statsManager.endLayoutSession();
+            const snapshot = this.statsManager.getSnapshot();
+            graphLogger.debug("Layout settled", {
+                updateCalls: snapshot.cpu.find((m) => m.label === "Graph.update")?.count ?? 0,
+            });
+            this.statsManager.reportDetailed();
+            // Reset measurements after reporting so next settlement shows fresh data
+            this.statsManager.resetMeasurements();
+        } else if (!this.layoutManager.isSettled && this.wasSettled) {
+            // Reset when layout becomes unsettled (so we can report next settlement)
+            this.wasSettled = false;
+            // Restart layout session tracking
+            this.statsManager.startLayoutSession();
+            graphLogger.debug("Layout became unsettled, will report on next settlement");
+        }
+    }
+
+    /**
+     * Start the label animations the built labels owe, on the first frame that finds the layout at
+     * rest -- settled, or never running -- and no style paint still to draw. A load's labels are
+     * built from that paint, and a pass not drawn yet (a slow machine settles a `fixed` layout
+     * first) would leave some unbuilt, start the rest early, and then start them again. See
+     * `oweLabelAnimations`.
+     */
+    private startOwedLabelAnimations(): void {
+        const painter = this.getStylePainter();
+        if (
+            !this.layoutManager.running &&
+            !this.layoutManager.building &&
+            !painter.hasPending &&
+            !painter.isPainting &&
+            payLabelAnimations(this.scene)
+        ) {
+            this.dataManager.startLabelAnimations();
+        }
     }
 
     /**
@@ -2992,14 +3047,27 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Update rendering settings for the graph visualization.
-     * @param _settings - Object containing rendering configuration options (reserved for future use)
-     * @param options - Queue options for operation ordering
+     * Update rendering settings for the graph visualization: the `layoutBehavior.rendering` group.
+     *
+     * `onDemand` is the one setting: whether a frame is drawn only when the picture can have
+     * changed, the same switch as the element's `renderOnDemand`. Merged, not replaced: a field
+     * left out keeps its value. A preference of this view, so it records no undo step and is not
+     * saved in a project file.
+     * @param settings - The fields to change, e.g. `{ onDemand: true }`.
+     * @param options - Queue options for operation ordering. With `skipQueue` the settings apply
+     *     before this returns; otherwise they apply when the queue reaches them.
+     * @throws A `GraphtyError` with `E_UNKNOWN_OPTION` for a field that is not a render setting
+     *     (`details.available` lists them), or `E_OPTION_RANGE` for a value the setting does not take.
+     *     Nothing is changed then.
      */
-    async setRenderSettings(_settings: Record<string, unknown>, options?: QueueableOptions): Promise<void> {
+    async setRenderSettings(settings: Record<string, unknown>, options?: QueueableOptions): Promise<void> {
+        const rendering = parseRenderSettings(settings);
+        const apply = (): void => {
+            this.setLayoutBehavior({ rendering });
+        };
+
         if (options?.skipQueue) {
-            // Apply render settings directly
-            // TODO: Add render settings support when available
+            apply();
             return;
         }
 
@@ -3010,7 +3078,7 @@ export class Graph implements GraphContext {
                     throw new Error("Operation cancelled");
                 }
 
-                // TODO: Add render settings support when available
+                apply();
             },
             {
                 description: "Updating render settings",

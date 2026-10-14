@@ -21,6 +21,8 @@ const config: KnipConfig = {
             entry: [
                 "vite.shared.config.ts",
                 "vitest.shared.config.ts",
+                // First setup file of the packages' browser test projects (named in their vitest configs)
+                "vitest.browser-coverage-setup.ts",
                 "docs/.vitepress/config.ts",
                 "tools/*.mjs",
                 "tools/changelog-renderer.cjs",

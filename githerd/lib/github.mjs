@@ -51,6 +51,37 @@ const PACED_RESOURCES = ["core", "graphql"];
 const WRITE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
 /**
+ * A success answer's body, read as Octokit reads it except that JSON goes through the native
+ * parser: Octokit's BigInt-safe parser took 11 times as long (0.9 ms against 0.08 ms for a page of
+ * 100 workflow runs, measured 2026-10-13), on every changed answer of every poll, and every number
+ * GitHub sends is an id or a count well inside a double.
+ * @param {Record<string, string | number | undefined>} headers the answer's headers
+ * @param {ReadableStream | null | undefined} stream its unread body; none for a 204
+ * @returns {Promise<any>} the parsed JSON, text, or an ArrayBuffer for any other type
+ */
+async function successBody(headers, stream) {
+    if (!stream) return stream;
+    const type = String(headers["content-type"] ?? "").toLowerCase();
+    const body = new Response(stream);
+    if (/^application\/(scim\+)?json\b/.test(type)) {
+        const text = await body.text();
+        try {
+            return JSON.parse(text);
+        } catch {
+            return text;
+        }
+    }
+    if (
+        !type ||
+        type.startsWith("text/") ||
+        (/charset=utf-8/.test(type) && !type.startsWith("application/octet-stream"))
+    ) {
+        return body.text();
+    }
+    return body.arrayBuffer();
+}
+
+/**
  * @typedef {{status: number, headers: Record<string, string>, body: any}} Response
  * @typedef {{method: string, path: string, headers?: Record<string, string>, body?: unknown}} Call one
  *   request: a path under the API root, with its query
@@ -379,8 +410,9 @@ export function createGitHub({
                 url: `/${req.path}`,
                 headers: req.headers ?? {},
                 ...(req.body === undefined ? {} : { data: req.body }),
-                request: { signal: AbortSignal.timeout(TIMEOUT_MS) },
+                request: { signal: AbortSignal.timeout(TIMEOUT_MS), parseSuccessResponseBody: false },
             });
+            answer.data = await successBody(answer.headers, answer.data);
         } catch (err) {
             const e = /** @type {any} */ (err);
             if (!e?.response) throw noResponse(e);

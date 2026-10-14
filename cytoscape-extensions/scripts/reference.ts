@@ -332,6 +332,12 @@ const OVERRIDES: Readonly<Record<string, Override>> = {
     "dot-import.positions": {
         doc: "Read a node's `pos` attribute as its position; `false` keeps `pos` as the text the file wrote.",
     },
+    "gml-import.keepPositionSource": {
+        doc: "With `positions`, also keep the whole `graphics` record, `x` and `y` included, as the data field `graphics`.",
+    },
+    "dot-import.keepPositionSource": {
+        doc: "With `positions`, also keep `pos` as the text the file wrote.",
+    },
     "gml-import.dictionaries": {
         doc: "Store repeated text values compactly while reading; the data you get is the same.",
     },

@@ -137,6 +137,7 @@ Every command has `--help`; `visual-review --help` lists them.
 | `commitPrefix`  | `test`              | The conventional-commit type and scope of the commits Finish makes, e.g. `test(ui)`                                 |
 | `issueLabels`   | `["bug"]`           | Labels of the issue Finish opens for rejects on the default branch; each must exist                                 |
 | `fontconfig`    | none (host fonts)   | A `fonts.conf` in the repository that every capture draws with, locally and in CI (see "Pinned fonts")              |
+| `updateCheck`   | none                | A shell command `update` runs on its merge before it pushes (see "Update from the default branch")                  |
 | `projects`      | (required)          | One entry per Storybook; the id names its baselines directory, CI job and artifact                                  |
 
 Per project:
@@ -241,7 +242,9 @@ PORT=4800 npx visual-review serve
 
 It prints the address to open, with a session token after `#token=`; open that exact URL. The
 token is kept in the work directory, so the URL stays valid across restarts; delete
-`<workDir>/state/token` to issue a new one. Without the token the page shows "No session token".
+`<workDir>/state/token` to issue a new one. The page remembers the token in that browser. When it
+has none, or the server refuses the one it has (a new token was issued), it asks for it: paste the
+token, or the whole URL `serve` printed, and it loads. The field hides what you paste.
 
 - Without a certificate it serves plain HTTP, and only on `localhost` (`HOST` defaults to it).
   To open the page from another device (an iPad, say), serve HTTPS: set `HOST` to the machine's
@@ -293,9 +296,11 @@ in its title), the group also shows "fold #B into #A" as a suggestion for whoeve
 branches; the page never folds anything. The groups are in `GET /api/inbox` as `groups`, and every
 group decision is logged to `<workDir>/state/groups.jsonl`.
 
-To keep it on an iPad's home screen, open the page with its token and use **Add to Home Screen**:
-the page has a web app manifest and opens full screen. The page also remembers the token in that
-browser, so an address without it (the notifier's) opens there too.
+To keep it on an iPad's home screen, use **Add to Home Screen** in Safari: the page has a web app
+manifest and opens full screen, always on this list. A home-screen app keeps its own storage, apart
+from Safari's, and its address never carries the token, so the first time it opens it asks for the
+token: paste the URL `serve` printed once and the app remembers it. The page also remembers the
+token in each browser, so an address without it (the notifier's) opens there too.
 
 `visual-review notify` runs beside `serve`, from the same checkout, and sends one message when
 pull requests become ready: the first at once, any more within ten minutes (`--gap <minutes>`)
@@ -724,7 +729,10 @@ Finish fails, your decisions not yet published are kept and the page shows git's
 message:
 
 - **capture is stale, wait for CI**: someone pushed to the branch after the capture. Wait for the
-  new CI run, then decide again what still differs.
+  new CI run, then decide again what still differs. A merge of the default branch alone does not
+  stop Finish: when everything the branch changed since the capture is the default branch's
+  contents, and none of it is a file you decided, Finish commits your decisions on top of the
+  merge. The message says what else changed.
 - **failed to write commit object** or a signing error: unlock or plug in the signing key, then
   Finish again.
 - **the accepts were pushed ..., but the comment with the rejects failed**: the accepts are done
@@ -835,6 +843,19 @@ made), and for every conflicting file under the baselines directory takes the de
 side. The commit names those files, and is signed as your git configuration signs. It pushes to
 the branch, and CI captures again. A conflict anywhere else refuses: it lists the files, and
 nothing is committed or pushed; merge that by hand.
+
+A merge with no conflict can still be broken: git merges two edits to the same code file without
+asking, and the result may not compile. `update` pushes with your hooks switched off, so set
+`updateCheck` to a shell command that checks the merge, such as your build or type check. When
+the merge changed any file outside the baselines directory, `update` runs it from the root of the
+merged checkout (a fresh git worktree, with no installed dependencies) before it pushes, with the
+branch's commit before the merge in `VISUAL_REVIEW_UPDATE_BASE`. If it exits with anything but 0,
+nothing is pushed, the branch stays where it was, and the message ends with the end of the
+command's output. A merge that changed only baselines is pushed without it. For example:
+
+```json
+"updateCheck": "npm ci && npm run build"
+```
 
 It accepts nothing and writes no review record. The default branch's baselines are already
 approved, and a file that ends up as it is on the default branch is no change for the gate, which
@@ -1030,6 +1051,12 @@ PNGs move: a settings file (`<old id>.json`) is not renamed; rename it in the sa
   fails, an old-format record, or one copied from another pull request counts for nothing, so
   the baselines it names are reported as unreviewed. Keys are read only from the base branch,
   never from the pull request, and a pull request that would leave no key fails.
+- **An approval survives a merge of the default branch.** A record names the images, not the
+  commit: after the default branch is merged into an approved pull request, the gate still counts
+  the record when every file it takes still starts from the base branch's contents, and the new
+  capture must still equal the approved baselines. A baseline the default branch changed under a
+  file you approved, an image the capture shows differently, a reject and a record for another
+  pull request all need a new review.
 - **It does not prove you looked at every image.** It proves your device approved the record,
   which lists every accepted and rejected image by hash. A page altered on your machine could ask
   you to approve something other than what it shows; read the counts in Finish's question.
@@ -1096,7 +1123,8 @@ PNGs move: a settings file (`<old id>.json`) is not renamed; rename it in the sa
 - **Every story is `new` on a pull request.** No reference capture of the default branch could be
   downloaded (none finished yet, or its artifacts expired after 30 days). Re-run the `visual` job
   once a run on the default branch has finished.
-- **Finish says "capture is stale, wait for CI".** Someone pushed to the branch after the capture.
+- **Finish says "capture is stale, wait for CI".** Someone pushed to the branch after the capture
+  (anything other than a merge of the default branch that leaves the files you decided alone).
   Wait for the new run, then decide again what still differs.
 - **Finish fails with "failed to write commit object"** or another signing error: unlock or plug
   in your signing key, then press Finish again. Your decisions are kept.

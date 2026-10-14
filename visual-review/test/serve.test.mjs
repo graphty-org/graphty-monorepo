@@ -1,15 +1,5 @@
-import {
-    chmodSync,
-    existsSync,
-    mkdirSync,
-    mkdtempSync,
-    readdirSync,
-    readFileSync,
-    rmSync,
-    writeFileSync,
-} from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer, request } from "node:http";
-import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
@@ -23,9 +13,9 @@ import { notifyOnce } from "../trusted/lib/inbox.mjs";
 import {
     capturedItems,
     copyFixture,
+    fakeGh,
     FIXTURE,
     FIXTURE_CONFIG,
-    fakeGh,
     git,
     isolateGit,
     job,
@@ -33,8 +23,9 @@ import {
     makeRepo,
     onePr,
     pushCommit,
-    until,
     seedTiles,
+    tempDir,
+    until,
     withMoved,
 } from "./helpers.mjs";
 import { approve, makeKey, passkeysJson, register } from "./passkey-vectors.mjs";
@@ -46,7 +37,9 @@ let app;
 // The app's tiles made in advance run on after the server closes: wait for them, or their reads of
 // a later-deleted download log into the next test's console.error spy.
 afterEach(async () => {
-    server?.close();
+    // Until every request has been answered: a list refresh still running would write its state
+    // into the repository after the test file removed it (tempDir).
+    await new Promise((resolve) => (server ? server.close(() => resolve()) : resolve()));
     await app?.idle();
     app = null;
 });
@@ -291,7 +284,7 @@ describe("serve: pull requests", () => {
         // blocked every request, and a git that stalled for seconds timed out the list (#1496).
         // On such a server the test cannot release it, so the hold ends by itself after 10 s and
         // the test fails on its timeout instead of hanging.
-        const bin = mkdtempSync(join(tmpdir(), "vr-git-"));
+        const bin = tempDir("vr-git-");
         const real = process.env.PATH.split(delimiter)
             .map((d) => join(d, "git"))
             .find((f) => existsSync(f));
@@ -825,6 +818,37 @@ describe("serve: decisions and Finish", () => {
             "slider--sizes.png": { decision: "reject", reason: "thumb moved", posted: true },
         });
         expect(await unpublished()).toBe(1);
+    });
+
+    it("treats a finished accept as unpublished when the branch's baseline no longer holds its image", async () => {
+        vi.spyOn(console, "log").mockImplementation(() => {});
+        onTestFinished(() => vi.restoreAllMocks());
+        const s = await start({ gh: onePr() });
+        await s.api("GET", "/api/prs");
+        await s.api("POST", "/api/decide", {
+            id: "123",
+            project: "compact-mantine",
+            file: "badge--default.light.png",
+            decision: "accept",
+        });
+        const { job } = await finishJob(s, "123");
+        expect(job.error).toBeNull();
+        await s.api("GET", "/api/prs");
+        expect((await s.api("GET", "/api/target/123")).body.unpublished).toBe(0);
+        // An update from the default branch takes its side of the baseline: the review record stays
+        // on the branch, but the file holds the old image again, so the gate sees the change unaccepted.
+        const clone = join(s.dir, "updater");
+        git(s.dir, "clone", "-q", "-b", "feature", s.remote, clone);
+        git(clone, "config", "user.name", "Other");
+        git(clone, "config", "user.email", "other@example.com");
+        git(clone, "rm", "-q", "visual-baselines/compact-mantine/badge--default.light.png");
+        git(clone, "commit", "-q", "-m", "take the default branch's baseline");
+        git(clone, "push", "-q", "origin", "feature");
+        await s.api("GET", "/api/prs");
+        expect((await s.api("GET", "/api/pr/123/compact-mantine")).body.decisions).toEqual({
+            "badge--default.light.png": { decision: "accept", reason: null },
+        });
+        expect((await s.api("GET", "/api/target/123")).body.unpublished).toBe(1);
     });
 
     it("runs Finish in the background, reports its step, and refuses a second one and new decisions", async () => {
@@ -1871,27 +1895,28 @@ describe("serve: loading without waiting", () => {
     it("says which gh call waits to retry, and why the list could not be read at all", async () => {
         const logged = vi.spyOn(console, "error").mockImplementation(() => {});
         onTestFinished(() => logged.mockRestore());
-        let fails = 1;
+        // The list fails on the network until the test has read the wait: each retry fails again
+        // in the same turn its wait ends, so the server is waiting whenever it is asked, with no
+        // window for the first ask to miss (#2422).
+        let offline = true;
         const before = Date.now();
         const s = await start({
             warm: true,
             gh: (r) => {
                 const inner = onePr()(r);
-                return withRetries(
-                    async (args, input) => {
-                        if ((args[1] ?? "").includes("/pulls?") && fails-- > 0) {
-                            throw new Error("Could not resolve host: api.github.com");
-                        }
-                        return inner(args, input);
-                    },
-                    [300],
-                );
+                return withRetries(async (args, input) => {
+                    if ((args[1] ?? "").includes("/pulls?") && offline) {
+                        throw new Error("Could not resolve host: api.github.com");
+                    }
+                    return inner(args, input);
+                }, Array(200).fill(300));
             },
         });
         const retry = await until(async () => (await s.api("GET", "/api/prs?cached=1")).body.network);
-        expect(retry).toMatchObject({ error: "Could not resolve host: api.github.com", attempt: 2, of: 2 });
+        expect(retry).toMatchObject({ error: "Could not resolve host: api.github.com", of: 201 });
         // The retry is due 300 ms after a failure that happened during this test.
         expect(retry.until).toBeGreaterThanOrEqual(before + 300);
+        offline = false;
         const loaded = await until(async () => {
             const b = (await s.api("GET", "/api/prs?cached=1")).body;
             return b.targets && b;

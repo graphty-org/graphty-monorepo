@@ -106,7 +106,7 @@ const ARG_TYPES: Record<keyof TileArgs, Record<string, unknown>> = {
         control: "select",
         options: ["none", ...FORMATS],
         description:
-            "After the run, write the graph with cy.graphtyExport in this format, read it back with cy.graphtyImport, and show the start of the file",
+            "After the run, write the graph with cy.graphtyExport in this format, read it back with cy.graphtyImport, and show the file",
     },
     directed: { control: "boolean", description: "Run the algorithm on the graph as directed" },
     iterations: { control: { type: "number", min: 0, step: 10 }, description: "0: until the layout settles" },
@@ -452,8 +452,8 @@ const formats: Page = {
     controls: () => pick("roundTrip"),
     intro: (every) =>
         every
-            ? "cy.graphtyImport reading a file in each format it takes (the start of the file beside the graph), and cy.graphtyExport writing karate in each format."
-            : "The start of the file is beside the graph it became.",
+            ? "cy.graphtyImport reading a file in each format it takes (what was read and the whole file beside the graph), and cy.graphtyExport writing karate in each format."
+            : "Beside the graph: what the import read, and the whole file it read it from.",
     tile: formatTile,
 };
 
@@ -469,7 +469,7 @@ const PAGES: Record<GalleryPage, Page> = {
 };
 
 /**
- * After the tile's run, writes its graph in `a.roundTrip` and reads it back, showing the start of the file.
+ * After the tile's run, writes its graph in `a.roundTrip` and reads it back, showing the file.
  * @param t - the tile
  * @param a - the controls
  * @returns the tile
@@ -486,7 +486,7 @@ function withRoundTrip(t: Tile, a: TileArgs): Tile {
             const out = await t.run(cy);
             let file = "";
             const back = await roundTrip(cy, format, a.seed, (text) => {
-                file = text.split("\n").slice(0, 80).join("\n");
+                file = text;
             });
             return {
                 ...out,

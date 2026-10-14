@@ -1,3 +1,101 @@
+## 0.1.7 (2026-10-14)
+
+### 🩹 Fixes
+
+- **githerd:** githerd pause also stops every message to the sessions ([3867a92a1](https://github.com/graphty-org/graphty-monorepo/commit/3867a92a1))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.54
+- Updated visual-review to 0.2.28
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.1.6 (2026-10-14)
+
+### 🩹 Fixes
+
+- **githerd:** require a job's pull request to name the issues joined into it ([#2262](https://github.com/graphty-org/graphty-monorepo/issues/2262), [#2261](https://github.com/graphty-org/graphty-monorepo/issues/2261), [#2499](https://github.com/graphty-org/graphty-monorepo/issues/2499))
+- **githerd:** name the holding session wherever a holder is shown ([#2486](https://github.com/graphty-org/graphty-monorepo/issues/2486))
+- **githerd:** cut the work of the tests that timed out in busy pre-push gates ([#2478](https://github.com/graphty-org/graphty-monorepo/issues/2478), [#2479](https://github.com/graphty-org/graphty-monorepo/issues/2479), [#2480](https://github.com/graphty-org/graphty-monorepo/issues/2480))
+- **githerd:** keep an issue off the queue while a stacked pull request fixes it ([#2470](https://github.com/graphty-org/graphty-monorepo/issues/2470))
+
+### 🔥 Performance
+
+- **githerd:** drop ended owner items from state and save state.json compactly ([#2352](https://github.com/graphty-org/graphty-monorepo/issues/2352), [#2270](https://github.com/graphty-org/graphty-monorepo/issues/2270))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.53
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.1.5 (2026-10-14)
+
+### 🩹 Fixes
+
+- **githerd:** let a killed push's gate run its exit trap before the push is reported ([#2481](https://github.com/graphty-org/graphty-monorepo/issues/2481))
+- **githerd:** accept done for a fix stacked on another open pull request ([#2467](https://github.com/graphty-org/graphty-monorepo/issues/2467))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.1.4 (2026-10-13)
+
+### 🩹 Fixes
+
+- **githerd:** offer work to idle sessions while shared resources are busy ([7de96768b](https://github.com/graphty-org/graphty-monorepo/commit/7de96768b))
+- **githerd:** drop settled tests from the flaky-test record ([#2368](https://github.com/graphty-org/graphty-monorepo/issues/2368))
+- **githerd:** drop finished jobs nothing reads from the state ([#2366](https://github.com/graphty-org/graphty-monorepo/issues/2366))
+- **githerd:** stop the push-log tests waiting on pnpm, and build no git for retargets ([#2373](https://github.com/graphty-org/graphty-monorepo/issues/2373))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.52
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.1.3 (2026-10-13)
+
+### 🩹 Fixes
+
+- **githerd:** drop closed issues nothing refers to from the state ([#2367](https://github.com/graphty-org/graphty-monorepo/issues/2367))
+- **githerd:** start the daemon when its process exits while a restarter waits for it ([#2348](https://github.com/graphty-org/graphty-monorepo/issues/2348))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.51
+- Updated visual-review to 0.2.27
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.1.2 (2026-10-13)
+
+### 🩹 Fixes
+
+- **githerd:** read the push queue's gate slots through its wrapper ([411c5e3e8](https://github.com/graphty-org/graphty-monorepo/commit/411c5e3e8))
+- **githerd:** make every live session a worker unless excluded ([#2276](https://github.com/graphty-org/graphty-monorepo/issues/2276))
+- **githerd:** let the project settings' hooks find the running daemon ([#2273](https://github.com/graphty-org/graphty-monorepo/issues/2273))
+- **githerd:** page the owner when a session stalls or the usage limit hits ([#2263](https://github.com/graphty-org/graphty-monorepo/issues/2263))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.50
+- Updated visual-review to 0.2.26
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.1.1 (2026-10-13)
 
 ### 🚀 Features

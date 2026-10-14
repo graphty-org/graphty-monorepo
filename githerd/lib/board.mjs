@@ -54,6 +54,44 @@ export function heartbeat(state, { session, cwd, branch }, now) {
 }
 
 /**
+ * Copies each live session's current name from Claude Code's registry (`/rename`, or the derived
+ * name) onto its session record, so every line that names a session gives the name sessions
+ * address each other by. Called every poll, after `expire`.
+ * @param {any} state the daemon state
+ * @param {{sessionId: string, name: string}[]} registered the registry's live sessions
+ */
+export function nameSessions(state, registered) {
+    ensure(state);
+    for (const s of registered) {
+        const record = state.sessions[s.sessionId];
+        if (record && s.name) record.name = s.name;
+    }
+}
+
+/**
+ * The name to show for a session: its registry name, else `fallback` (a name its record carries),
+ * else its id. Every place githerd shows a session or a job's holder to a session goes through it.
+ * @param {any} state the daemon state
+ * @param {string | null | undefined} session the session id
+ * @param {string | null} [fallback] a name known without the registry
+ * @returns {string} the name
+ */
+export function sessionName(state, session, fallback = null) {
+    return state?.sessions?.[session ?? ""]?.name ?? fallback ?? String(session);
+}
+
+/**
+ * The name to show for a job's holder: `sessionName` of its session. A worker's `holder.name` is
+ * its tmux window's (`githerd-<job>`), never a session's, so it is no fallback.
+ * @param {any} state the daemon state
+ * @param {{session?: string | null} | null | undefined} holder the holder
+ * @returns {string} the name
+ */
+export function holderName(state, holder) {
+    return sessionName(state, holder?.session);
+}
+
+/**
  * Ends every claim whose holder ended, and forgets sessions that ended. A session ends when Claude
  * Code's session registry no longer names it (design 8.2), never after a stretch of silence: one
  * idle on a long command keeps its claims, and one that quit loses them at once.
@@ -248,6 +286,8 @@ const VERIFY_POLLS = 2;
  * @property {{at: string, text: string, acked: boolean}[]} news what the holder has not seen yet
  * @property {string[]} sessions every session that held it
  * @property {string[]} joined targets other jobs joined into this one
+ * @property {number[]} [joinedIssues] the issues of the issue jobs joined into this one: its pull
+ *   request must name each (done.mjs)
  * @property {any} waitingFor the declared condition, or null
  * @property {string | null} steeredAt when the owner took over the session, or null
  * @property {boolean} fresh the next session starts fresh, not by resume
@@ -747,7 +787,15 @@ export function claimJob(state, args, caller, snapshot, now) {
  */
 function joinJob(state, job, other, reason, now) {
     other.joined.push(job.target);
-    addNews(other, `job ${job.id} joined yours: ${job.target} is now part of it (${reason})`, now);
+    // An issue's own job ends here, so only the other job's pull request can close the issue
+    // (issue #2499); githerd_done requires it to name the issue (done.mjs mustName).
+    const issue = job.kind === "issue" && !job.facts?.scope ? Number(String(job.target).replace(/^#/, "")) : Number.NaN;
+    let name = "";
+    if (Number.isInteger(issue) && issue > 0) {
+        other.joinedIssues = [...(other.joinedIssues ?? []), issue];
+        name = `; your pull request's description must name it too: "Fixes #${issue}", or "Refs #${issue}" if it stays open`;
+    }
+    addNews(other, `job ${job.id} joined yours: ${job.target} is now part of it (${reason})${name}`, now);
     const holder = job.holder;
     move(job, "cancelled", now, { cancelledBy: other.id, reason: `joined ${other.id}` });
     // Design 8.2: the joining session ends; a window githerd opened is ended by the daemon.
@@ -810,7 +858,7 @@ function issueToWaitOn(state, job, issue, decision, now) {
  */
 function claimRefusal(state, job, args, caller) {
     if (job.state === "starting" && job.holder?.session !== caller.session) {
-        return `${job.id} was started for session ${job.holder?.session}`;
+        return `${job.id} was started for session ${holderName(state, job.holder)}`;
     }
     if (job.state !== "starting" && job.state !== "queued") return `${job.id} is ${job.state}, not claimable`;
     const { decision, with: other } = args.overlap;

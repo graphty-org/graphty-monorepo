@@ -9,11 +9,11 @@ import cx2Url from "../../graph-io/test/conformance/fixtures/cx2/cytoscape-web/2
 import cysUrl from "../../graph-io/test/conformance/fixtures/cys/tutorials/STELZ.cys?url";
 import dotUrl from "../../graph-io/test/conformance/fixtures/dot/pydot/parsing_test.dot?url";
 import gexfUrl from "../../graph-io/test/conformance/fixtures/gexf/graphology/les_miserables.gexf?url";
-import gmlUrl from "../../graph-io/test/conformance/fixtures/gml/igraph/fuzzing_test_inputs_graph1.gml?url";
-import usAirUrl from "../../graph-io/test/conformance/fixtures/pajek/batagelj/USAir97.net?url";
-import a97Url from "../../graph-io/test/conformance/fixtures/pajek/bavla/A97.NET?url";
 import xgmmlUrl from "../../graph-io/test/conformance/fixtures/xgmml/ngscheckmate/test.out.xgmml?url";
 import yedUrl from "../../graph-io/test/corpus/graphml/yfiles-sample.graphml?url";
+import gmlUrl from "../../graph-io/test/positions/fixtures/germany50.gml?url";
+import pajekUrl from "../../graph-io/test/positions/fixtures/pajek-shapes.net?url";
+import pyramidUrl from "../../graph-io/test/positions/fixtures/pyramid-3d.net?url";
 import { assertGraphLoaded, assertLayoutPlaced, drawn, holds } from "./assertions";
 import { eventWaitingDecorator, renderFn, type StoryArgs, waitForGraphSettled } from "./helpers";
 
@@ -84,52 +84,56 @@ const atFilePositions = async (
     await holds(off.length === 0, `${story}: nodes not where the file put them -- ${off.join("; ")}`);
 };
 
-// GML from yFiles (y grows downward, pixels): igraph's fuzzing input graph1.gml (GPL-2.0-or-later)
+// GML (y grows downward, as the GML specification says): SNDlib's germany50 network from
+// di-unipi-socc/dgLBF (MIT). Flensburg is at y 0, so the north of Germany is drawn at the top.
 export const GML: Story = {
     args: {
         dataSource: "gml",
         dataSourceConfig: { url: gmlUrl, layout: "recommended" },
-        positionScale: 0.03,
+        positionScale: 0.01,
     },
     play: async ({ canvasElement }) => {
-        await atFilePositions(canvasElement, "GML", { nodes: 3, edges: 3 }, 0.03, {
-            // graphics [ x 15.0 y 125.48405928593465 ]
-            "0": [15, -125.48405928593465, 0],
-            "2": [104.94041508180403, -15, 0],
+        await atFilePositions(canvasElement, "GML", { nodes: 50, edges: 88 }, 0.01, {
+            // "Aachen" graphics [ x 0.0 y 1279.66 ]
+            "0": [0, -1279.66, 0],
+            // "Muenchen" graphics [ x 1066.83 y 2054.49 ]
+            "34": [1066.83, -2054.49, 0],
         });
     },
 };
 
-// Pajek: US air routes in 1997, by Vladimir Batagelj and Andrej Mrvar (CC BY-NC-SA 2.5). Pajek's
-// y grows downward, so Deadhorse, Alaska is drawn above Miami.
+// Pajek: shapes and lines written for this project (MIT). Pajek's y grows downward, and a z of 0.5
+// on every vertex is a flat drawing.
 export const Pajek: Story = {
     args: {
         dataSource: "pajek",
-        dataSourceConfig: { url: usAirUrl, layout: "recommended" },
-        positionScale: 40,
+        dataSourceConfig: { url: pajekUrl, layout: "recommended" },
+        positionScale: 10,
     },
     play: async ({ canvasElement }) => {
-        await atFilePositions(canvasElement, "Pajek", { nodes: 332, edges: 2126 }, 40, {
-            // 2 "Deadhorse" 0.4830 0.1014 0.5000
-            "2": [0.483, -0.1014, 0],
-            "332": [0.1473, -0.6288, 0],
+        await atFilePositions(canvasElement, "Pajek", { nodes: 6, edges: 5 }, 10, {
+            // 1 "ring" 0.10 0.20 0.5
+            "1": [0.1, -0.2, 0],
+            // 6 "hidden" 0.20 0.90 0.5
+            "6": [0.2, -0.9, 0],
         });
     },
 };
 
-// Pajek in 3D: A97.NET from Batagelj's Pajek examples (CC BY-NC-SA 2.5). z is centered on 0.5 and
+// Pajek in 3D: a pyramid with a tail, written for this project (MIT). z is centered on 0.5 and
 // turned with y, so the drawing is rotated, never mirrored.
 export const Pajek3D: Story = {
     args: {
         dataSource: "pajek",
-        dataSourceConfig: { url: a97Url, layout: "recommended" },
-        positionScale: 15,
+        dataSourceConfig: { url: pyramidUrl, layout: "recommended" },
+        positionScale: 10,
     },
     play: async ({ canvasElement }) => {
-        await atFilePositions(canvasElement, "Pajek3D", { nodes: 84, edges: 332 }, 15, {
-            // 1 "1" 0.8464 0.8341 0.1164
-            "1": [0.8464, -0.8341, 0.3836],
-            "2": [0.7463, -0.3394, -0.3077],
+        await atFilePositions(canvasElement, "Pajek3D", { nodes: 6, edges: 9 }, 10, {
+            // 1 "base-a" 0.20 0.80 0.20
+            "1": [0.2, -0.8, 0.3],
+            // 6 "tail" 0.95 0.10 0.95
+            "6": [0.95, -0.1, -0.45],
         });
     },
 };

@@ -98,6 +98,44 @@ describe("Graph settings", () => {
         });
     });
 
+    it("returns the background color and the highlight color to their defaults on Reset", async () => {
+        const element = await openGraphSettings();
+        const backgroundNow = (): string | undefined => {
+            const now = element.session.config.background;
+            return now.backgroundType === "color" ? now.color?.toLowerCase() : now.backgroundType;
+        };
+        const highlightNow = (): unknown => {
+            const color = element.session.styles.highlightStyle("node")["node.color"];
+            return typeof color === "string" ? color.toLowerCase() : color;
+        };
+        const backgroundDefault = backgroundNow();
+        const highlightDefault = highlightNow();
+
+        const background = screen.getByRole("textbox", { name: /^Background color(,|$)/ });
+        await userEvent.clear(background);
+        await userEvent.type(background, "ff0000{Enter}");
+        await waitFor(() => {
+            assert.strictEqual(backgroundNow(), "#ff0000");
+        });
+        await userEvent.click(screen.getByRole("button", { name: "Reset Background color to default" }));
+        await waitFor(() => {
+            assert.strictEqual(backgroundNow(), backgroundDefault);
+        });
+
+        const highlight = screen.getByRole("textbox", { name: /^Highlight color(,|$)/ });
+        await userEvent.clear(highlight);
+        await userEvent.type(highlight, "ff0000{Enter}");
+        await waitFor(() => {
+            assert.strictEqual(highlightNow(), "#ff0000");
+        });
+        await userEvent.click(screen.getByRole("button", { name: "Reset Highlight color to default" }));
+        await waitFor(() => {
+            assert.strictEqual(highlightNow(), highlightDefault);
+        });
+        // Back at its default, the highlight color offers no reset: there is nothing to undo.
+        assert.isNull(screen.queryByRole("button", { name: "Reset Highlight color to default" }));
+    });
+
     it("draws the view in 2D after a click on 2D", async () => {
         const element = await openGraphSettings();
         await userEvent.click(within(screen.getByRole("radiogroup", { name: "View" })).getByText("2D"));

@@ -3,6 +3,7 @@ import { type Lighting, LIGHTING_VALUES } from "@graphty/graphty-element/schema"
 import { Input, Select, Stack, Switch, TextInput } from "@mantine/core";
 import React, { useState } from "react";
 
+import { APP_HIGHLIGHT_COLOR } from "../../constants/highlight";
 import { useSizeBound } from "../frame/useSizeBound";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 
@@ -76,10 +77,12 @@ export function GraphSettings(): React.JSX.Element | null {
                             defaultColor="#ffffff"
                             showOpacity={false}
                             onChangeEnd={(next) => {
-                                if (next !== undefined) {
-                                    // Once per gesture, so a drag is one step.
-                                    void session.config.set({ background: { backgroundType: "color", color: next } });
-                                }
+                                // Once per gesture, so a drag is one step. The reset reports
+                                // undefined, which returns the background to the element's default.
+                                void session.config.set({
+                                    background:
+                                        next === undefined ? undefined : { backgroundType: "color", color: next },
+                                });
                             }}
                         />
                     )}
@@ -120,13 +123,11 @@ export function GraphSettings(): React.JSX.Element | null {
                     />
                     <CompactColorInput
                         label="Highlight color"
-                        color={highlightColor}
-                        defaultColor={highlightColor}
+                        color={highlightColor === APP_HIGHLIGHT_COLOR ? undefined : highlightColor}
+                        defaultColor={APP_HIGHLIGHT_COLOR}
                         showOpacity={false}
                         onChangeEnd={(next) => {
-                            if (next !== undefined) {
-                                store.set({ highlightColor: next });
-                            }
+                            store.set({ highlightColor: next ?? APP_HIGHLIGHT_COLOR });
                         }}
                     />
                 </Stack>

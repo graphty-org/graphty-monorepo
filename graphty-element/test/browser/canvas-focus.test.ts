@@ -31,10 +31,10 @@ describe("canvas focus", () => {
 
         graph = await createTestGraph();
         await graph.setViewMode("3d");
-        // Autofocus runs on a rendering opportunity after insertion, so let a few frames pass.
-        for (let i = 0; i < 3; i++) {
-            await new Promise((resolve) => requestAnimationFrame(resolve));
-        }
+        assert.isFalse(graph.canvas.hasAttribute("autofocus"), "the canvas carries an autofocus attribute");
+        // The browser flushes autofocus candidates in the rendering update before it runs animation
+        // frame callbacks, so by the time one frame has run, autofocus has had its chance.
+        await new Promise((resolve) => requestAnimationFrame(resolve));
 
         assert.notStrictEqual(document.activeElement, graph.canvas, "the canvas took focus on load");
     });

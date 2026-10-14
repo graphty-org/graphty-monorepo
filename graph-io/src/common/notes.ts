@@ -10,7 +10,7 @@ const MAX_SAMPLES = 8;
 const MAX_SAMPLE_LENGTH = 80;
 
 /** One occurrence (or `count` occurrences) of a condition. */
-export interface NoteReport {
+interface NoteReport {
     /** An example of the offending value. */
     readonly sample?: unknown;
     /** The element the report is about, by index. */
@@ -20,7 +20,7 @@ export interface NoteReport {
 }
 
 /** A collected note, before a module shapes it into its own note type. */
-export interface CollectedNote<C extends string> {
+interface CollectedNote<C extends string> {
     readonly code: C;
     readonly property: string | null;
     readonly count: number;

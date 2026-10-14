@@ -326,7 +326,7 @@ describe("the Style tab's sections", () => {
         assert.notInclude(color?.textContent ?? "", "Painted over", "one caption, not two");
     });
 
-    it("offers a popover's choices without showing an unset one as the value", async () => {
+    it("inside a binding, shows the palette and each group's color it paints now, though the layer set none", async () => {
         const { session } = await openScene();
         const { runId } = await session.runs.start("louvain");
         await session.styles.encode({ run: runId, channel: "node.color", name: "Groups" });
@@ -340,12 +340,13 @@ describe("the Style tab's sections", () => {
         );
         const dialog = await screen.findByRole("dialog");
         const palette = within(dialog).getByLabelText(/^Palette/);
-        assert.equal(palette.getAttribute("aria-label"), "Palette, not set");
-        assert.equal((palette as HTMLInputElement).value, "", "no palette shown as chosen");
+        // The palette the element filled in, named as the field's value and marked as not set.
+        assert.notEqual((palette as HTMLInputElement).value, "", "the palette in use is shown");
+        assert.match(palette.getAttribute("aria-label") ?? "", /^Palette, not set, /);
         const chips = within(dialog).getAllByRole("button", { name: / color, not set/ });
         assert.isAbove(chips.length, 0);
         for (const chip of chips) {
-            assert.notMatch(chip.getAttribute("aria-label") ?? "", /#[0-9A-F]{6}/i, "no color named as its value");
+            assert.match(chip.getAttribute("aria-label") ?? "", /#[0-9A-F]{6}/i, "each chip names the color it paints");
         }
     });
 

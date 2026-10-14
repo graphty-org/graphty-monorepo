@@ -22,6 +22,7 @@ import { ElementHost } from "./ElementHost";
 import { focusCurrentPlace, focusIsLost } from "./focus";
 import { Header } from "./Header";
 import { NoticeSlot } from "./NoticeSlot";
+import { PanelBoundary } from "./PanelBoundary";
 import { Rail } from "./Rail";
 
 /** What each rail place draws in the left panel. */
@@ -98,7 +99,11 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
             >
                 <Rail />
                 <aside className="ws-left" aria-label="Left panel" hidden={!panels}>
-                    <div className="ws-panel-body">{PLACES[place]}</div>
+                    <div className="ws-panel-body">
+                        <PanelBoundary key={place} name="Place">
+                            {PLACES[place]}
+                        </PanelBoundary>
+                    </div>
                     <ResizeHandle
                         edge="end"
                         label="Resize left panel"
@@ -146,7 +151,9 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                 <Popout.Anchor>
                     <aside className="ws-right" aria-label="Inspector" hidden={!panels}>
                         <div className="ws-panel-body">
-                            <Inspector />
+                            <PanelBoundary name="Inspector">
+                                <Inspector />
+                            </PanelBoundary>
                         </div>
                         <ResizeHandle
                             edge="start"

@@ -1,10 +1,10 @@
 /**
- * A new layer chooses its elements first, on the REAL graphty-element and the College football
- * sample: the draft shows the whole Which elements editor before anything is written, and the
- * first value paints only what the rule matched, named by its rule; the kind changes after the
- * layer is made; the rule editor reads every readable value, run results included; find says when
- * nothing matches; Escape on a draft discards it and gives focus back to the "+". Every count is
- * the element's, driven by real clicks and keys.
+ * A new layer chooses its elements, on the REAL graphty-element and the College football sample:
+ * "+" > Layer makes Layer 1, its rule is found and its first value paints only what the rule
+ * matched; the kind changes in place; the rule editor reads every readable value, run results
+ * included; find says when nothing matches; and cycling the rule's choices on a re-added Leiden
+ * layer leaves every layer's editor working. Every count is the element's, driven by real clicks
+ * and keys.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -242,5 +242,44 @@ describe("a new layer chooses its elements", () => {
             readableName(session, value).name,
         );
         assert.equal(row.getByRole<HTMLInputElement>("combobox", { name: "Is" }).value, "has a value");
+    });
+
+    it("cycling the rule's choices on a Leiden layer deleted and added back leaves every editor working", async () => {
+        const { session } = await openCollegeFootball();
+        const { runId } = await session.runs.start("leiden");
+        await session.styles.settled();
+        const leiden = session.styles.get(session.runs.bindings(runId)[0] ?? "");
+        assert.isDefined(leiden);
+        const { name } = leiden;
+        const tree = screen.getByRole("tree", { name: "Style layers" });
+        const escaped = name.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
+        await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${escaped}, `) }));
+        await userEvent.keyboard("{Delete}");
+        await waitFor(() => {
+            assert.lengthOf(session.runs.bindings(runId), 0);
+        });
+
+        // Added back through Analyze, as a reader does.
+        const toolbar = screen.getByRole("toolbar", { name: "Canvas tools" });
+        await userEvent.click(within(toolbar).getByRole("button", { name: "Analyze" }));
+        await userEvent.type(await screen.findByRole("combobox", { name: "Filter analyses" }), "Leiden");
+        await userEvent.click(await screen.findByRole("option", { name: /^Leiden/ }));
+        const form = await screen.findByRole("form", { name: "Leiden" });
+        await userEvent.click(within(form).getByRole("button", { name: "Add Leiden layer" }));
+        await waitFor(() => {
+            assert.isAbove(session.runs.bindings(runId).length, 0);
+        });
+        await session.styles.settled();
+
+        await openEditor(name);
+        for (const mode of ["Top N by", "Named", "Every one"]) {
+            await choose(screen.getByRole("combobox", { name: "Rule" }), mode);
+        }
+        await userEvent.keyboard("{Escape}");
+        await openEditor(name);
+        assert.isNull(screen.queryByText("This panel could not be shown"));
+        await openEditor("Everything");
+        assert.isNull(screen.queryByText("This panel could not be shown"));
+        assert.isNotNull(screen.getByRole("combobox", { name: "Rule" }));
     });
 });

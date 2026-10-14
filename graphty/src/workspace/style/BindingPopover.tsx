@@ -419,8 +419,7 @@ function Ramp({ session, descriptor, layerId, binding, source, preview, patch }:
                 labels={{ from: "Values from", to: "Values to" }}
                 scale={binding.scale}
                 defaultScale={preview.scale}
-                // Nothing the layer does not set is shown as its value: an unset select is empty.
-                unsetText=""
+                // Inside a binding every field shows what it paints now, a default included.
                 scales={scales}
                 onScaleChange={(next) => {
                     patch({ scale: next, palette: binding.palette });
@@ -428,7 +427,7 @@ function Ramp({ session, descriptor, layerId, binding, source, preview, patch }:
                 {...(isColor
                     ? {
                           palette: binding.palette,
-                          defaultPalette: shownPalette ?? palettes[0]?.id,
+                          defaultPalette: preview.palette ?? shownPalette ?? palettes[0]?.id,
                           palettes: palettes.map((p) => ({
                               value: p.id,
                               label: paletteWord(p.id),
@@ -675,9 +674,8 @@ function Categories({ session, descriptor, layerId, binding, source, preview, pa
                 <StyleSelect
                     label="Palette"
                     value={binding.palette}
-                    defaultValue={shownPalette ?? palettes[0]?.id ?? ""}
-                    // Offered, never shown as chosen until the layer sets one (the owner's rule).
-                    placeholder=""
+                    // What it paints now: the palette the element filled in, until the layer picks one.
+                    defaultValue={preview.palette ?? shownPalette ?? palettes[0]?.id ?? ""}
                     options={palettes.map((p) => ({
                         value: p.id,
                         label: paletteWord(p.id),
@@ -723,9 +721,8 @@ function Categories({ session, descriptor, layerId, binding, source, preview, pa
                                 variant="chip"
                                 aria-label={`${source} ${name} color`}
                                 color={typeof category.entry === "string" ? category.entry : undefined}
+                                // The color it paints now, the palette's until it has its own.
                                 defaultColor={cssOf(painted) ?? "#999999"}
-                                // Empty until this value has a color of its own.
-                                emptyText=""
                                 showOpacity={false}
                                 showReset={false}
                                 onChangeEnd={(next) => {
@@ -742,7 +739,6 @@ function Categories({ session, descriptor, layerId, binding, source, preview, pa
                                     label={`${source} ${name} ${channelWord(channel).toLowerCase()}`}
                                     value={typeof category.entry === "number" ? category.entry : undefined}
                                     defaultValue={typeof painted === "number" ? painted : 1}
-                                    emptyText=""
                                     min={descriptor.min}
                                     max={descriptor.max}
                                     onChange={(next) => {

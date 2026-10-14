@@ -762,6 +762,25 @@ function countNumericIds(snapshot: GraphSnapshot): number {
 }
 
 /**
+ * ` name="value"`, or nothing for a null value. The value is written as given, not escaped.
+ * @param name - the attribute name
+ * @param value - the attribute text, or null
+ * @returns the attribute with a leading space, or ""
+ */
+function optionalAttribute(name: string, value: string | null): string {
+    return value === null ? "" : ` ${name}="${value}"`;
+}
+
+/**
+ * ` k="v"` for each entry, each value as text and escaped for an XML attribute.
+ * @param entries - the attribute names and values
+ * @returns the attributes, each with a leading space
+ */
+function attributeList(entries: readonly (readonly [string, unknown])[]): string {
+    return entries.map(([k, v]) => ` ${k}="${escapeXmlAttribute(String(v))}"`).join("");
+}
+
+/**
  * The text of a scalar for an att value.
  * @param value - the value
  * @param dtype - its dtype
@@ -846,10 +865,10 @@ function* attsOf(
             continue;
         }
         const name = `${indent}<att name="${escapeXmlAttribute(w.name)}"`;
-        const types = `${w.type === null ? "" : ` type="${w.type}"`}${w.cyType === null ? "" : ` cy:type="${w.cyType}"`}`;
+        const types = optionalAttribute("type", w.type) + optionalAttribute("cy:type", w.cyType);
         const extra = `${column.meta.extra.hidden === true ? ' cy:hidden="1"' : ""}${column.meta.extra.equation === true ? ' cy:equation="1"' : ""}`;
         if (!isSet) {
-            yield `${name}${types}${w.elementType === null ? "" : ` cy:elementType="${w.elementType}"`}${extra}/>\n`;
+            yield `${name}${types}${optionalAttribute("cy:elementType", w.elementType)}${extra}/>\n`;
             continue;
         }
         if (column.dtype === "list") {
@@ -895,7 +914,7 @@ function* graphicsOf(
     if (attrs.length === 0 && nested.length === 0) {
         return;
     }
-    const head = `${indent}<graphics${attrs.map(([k, v]) => ` ${k}="${escapeXmlAttribute(v)}"`).join("")}`;
+    const head = `${indent}<graphics${attributeList(attrs)}`;
     if (nested.length === 0) {
         yield `${head}/>\n`;
         return;
@@ -907,7 +926,7 @@ function* graphicsOf(
             for (const point of value) {
                 const entries =
                     typeof point === "object" && point !== null ? Object.entries(point as Record<string, unknown>) : [];
-                yield `${indent}        <point${entries.map(([k, v]) => ` ${k}="${escapeXmlAttribute(String(v))}"`).join("")}/>\n`;
+                yield `${indent}        <point${attributeList(entries)}/>\n`;
             }
             yield `${indent}    </Line>\n`;
         } else {
@@ -942,7 +961,7 @@ function* jsonAtt(name: string | null, value: unknown, indent: string): Generato
             entries.length <= 3 &&
             entries.every(([k]) => /^[a-z]$/.test(k))
         ) {
-            yield `${indent}<att${nameAttr}${entries.map(([k, v]) => ` ${k}="${escapeXmlAttribute(v as string)}"`).join("")}/>\n`;
+            yield `${indent}<att${nameAttr}${attributeList(entries)}/>\n`;
             return;
         }
         yield `${indent}<att${nameAttr}>\n`;
@@ -1022,7 +1041,8 @@ function* nodeOf(
 ): Generator<string, void, undefined> {
     const labelCol = slot(plan.nodes, "label");
     const label = cellOf(labelCol, node);
-    yield `${indent}<node id="${escapeXmlAttribute(idText(snapshot.ids.idOf(node)))}"${label === null ? "" : ` label="${escapeXmlAttribute(scalarText(label))}"`}${xmlAttributesOf(plan.nodes, node)}>\n`;
+    const labelAttr = label === null ? "" : ` label="${escapeXmlAttribute(scalarText(label))}"`;
+    yield `${indent}<node id="${escapeXmlAttribute(idText(snapshot.ids.idOf(node)))}"${labelAttr}${xmlAttributesOf(plan.nodes, node)}>\n`;
     const inner = `${indent}    `;
     yield* attsOf(plan.nodes, node, node === 0, plan, inner);
     const children = plan.reachable[node] === 1 ? plan.hierarchy.childrenOf(node) : [];
@@ -1171,7 +1191,11 @@ function* edgesOf(snapshot: GraphSnapshot, plan: Plan): Generator<string, void, 
         const id = cellOf(plan.edgeId, e);
         const label = cellOf(labelCol, e);
         const weight = weights.text(e);
-        yield `    <edge${id === null ? "" : ` id="${escapeXmlAttribute(scalarText(id))}"`}${label === null ? "" : ` label="${escapeXmlAttribute(scalarText(label))}"`} source="${escapeXmlAttribute(idText(snapshot.ids.idOf(u)))}" target="${escapeXmlAttribute(idText(snapshot.ids.idOf(v)))}" cy:directed="${directed ? "1" : "0"}"${weight === null ? "" : ` weight="${weight}"`}${xmlAttributesOf(plan.edges, e)}>\n`;
+        const idAttr = id === null ? "" : ` id="${escapeXmlAttribute(scalarText(id))}"`;
+        const labelAttr = label === null ? "" : ` label="${escapeXmlAttribute(scalarText(label))}"`;
+        const source = escapeXmlAttribute(idText(snapshot.ids.idOf(u)));
+        const target = escapeXmlAttribute(idText(snapshot.ids.idOf(v)));
+        yield `    <edge${idAttr}${labelAttr} source="${source}" target="${target}" cy:directed="${directed ? "1" : "0"}"${optionalAttribute("weight", weight)}${xmlAttributesOf(plan.edges, e)}>\n`;
         yield* attsOf(plan.edges, e, first, plan, "        ");
         yield* graphicsOf(cellOf(graphicsCol, e) as Record<string, unknown> | null, [], "        ");
         yield "    </edge>\n";

@@ -208,6 +208,16 @@ function localRef(href: string): string | null {
 }
 
 /**
+ * The id a member names: its own id, else the id its local `#id` reference names.
+ * @param id - the member's id attribute, or null
+ * @param href - the member's xlink:href, or null
+ * @returns the id, or null when neither names one
+ */
+function memberRef(id: string | null, href: string | null): string | null {
+    return id ?? (href === null ? null : localRef(href));
+}
+
+/**
  * The nodes and edges a graph holds: its direct members, references resolved.
  * @param doc - the document
  * @param graph - the graph (a registered subnetwork), or null for the whole document
@@ -584,12 +594,16 @@ export class XgmmlEmitter {
         }
         const lower = t.toLowerCase();
         const readable = lower === "true" || lower === "yes" || lower === "false" || lower === "no";
+        let readAs: string;
+        if (readable) {
+            readAs = lower === "true" || lower === "yes" ? "1" : "0";
+        } else {
+            readAs = fallback ? "directed" : "undirected";
+        }
         this.report.warnOnce(
             "validation-error",
             XGMML_ISSUE.BAD_DIRECTED,
-            readable
-                ? `${this.prefix()}directed="${text}" is not 0 or 1; read as ${lower === "true" || lower === "yes" ? "1" : "0"}`
-                : `${this.prefix()}directed="${text}" is not 0 or 1; read as ${fallback ? "directed" : "undirected"}`,
+            `${this.prefix()}directed="${text}" is not 0 or 1; read as ${readAs}`,
             where,
             `${XGMML_ISSUE.BAD_DIRECTED}:${text}`,
         );
@@ -897,7 +911,7 @@ export class XgmmlEmitter {
         for (const graph of subgraphs) {
             const name = graph.id ?? graph.label ?? "";
             for (const m of graph.members) {
-                const id = m.kind === "node" ? (m.id ?? (m.href === null ? null : localRef(m.href))) : null;
+                const id = m.kind === "node" ? memberRef(m.id, m.href) : null;
                 const row = id === null ? undefined : this.rows.get(id);
                 if (row !== undefined && row.index >= 0) {
                     const list = member.get(row.index) ?? [];

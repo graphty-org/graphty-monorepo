@@ -698,9 +698,10 @@ async function readDocument(
 function readDescriptor(value: unknown, line: number, doc: Cx2Document, report: ImportReportBuilder): void {
     if (!isRecord(value) || !("CXVersion" in value)) {
         const keys = isRecord(value) ? Object.keys(value) : [];
+        const keyList = keys.length > 0 ? ` (keys: ${keys.join(", ")})` : "";
         report.fail(
             CX2_ISSUE.NO_DESCRIPTOR,
-            `the first member of the array is not a descriptor with CXVersion${keys.length > 0 ? ` (keys: ${keys.join(", ")})` : ""}`,
+            `the first member of the array is not a descriptor with CXVersion${keyList}`,
             { line },
         );
     }
@@ -779,10 +780,11 @@ function memberAspect(
         collect(keys[0], value[keys[0]]);
         return;
     }
+    const what = keys.length > 1 ? `an object with ${keys.length} keys (${keys.join(", ")})` : shown(value);
     report.error(
         "parse-error",
         BAD_ASPECT_BLOCK_CODE,
-        `a member of the document is ${keys.length > 1 ? `an object with ${keys.length} keys (${keys.join(", ")})` : shown(value)}, not a one-key aspect block; skipped`,
+        `a member of the document is ${what}, not a one-key aspect block; skipped`,
         { line, element: keys[0] ?? null },
     );
 }
@@ -1325,10 +1327,11 @@ class Cx2Reader {
             }
             const other = table.byName.get(alias) ?? table.byAlias.get(alias);
             if (other !== undefined) {
+                const clash = other.name === alias ? "an attribute's name" : `the alias of "${other.name}"`;
                 this.report.error(
                     "validation-error",
                     CX2_ISSUE.ALIAS_CONFLICT,
-                    `the alias "${alias}" of the ${domain} attribute "${decl.name}" is also ${other.name === alias ? "an attribute's name" : `the alias of "${other.name}"`}; the alias is ignored`,
+                    `the alias "${alias}" of the ${domain} attribute "${decl.name}" is also ${clash}; the alias is ignored`,
                     { element: decl.name },
                 );
                 decl.alias = null;
@@ -2266,10 +2269,11 @@ class Cx2Reader {
         } else if (!structure.statusWellFormed() || structure.counts.get("status") !== 1) {
             // the specification: exactly one status aspect holding exactly one element
             const count = structure.counts.get("status") ?? 0;
+            const found = count === 1 ? shown(structure.status) : `${count} elements`;
             report.error(
                 "validation-error",
                 CX2_ISSUE.NO_STATUS,
-                `the status is malformed (${count === 1 ? shown(structure.status) : `${count} elements`}): a document ends with one status block holding one object with a boolean success`,
+                `the status is malformed (${found}): a document ends with one status block holding one object with a boolean success`,
                 { element: "status" },
             );
         }

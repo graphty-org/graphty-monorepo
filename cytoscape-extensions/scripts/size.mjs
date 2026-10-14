@@ -264,10 +264,8 @@ if (updateAt !== -1) {
     }
     budgets.parts = rebaseline(budgets, parts, only);
     writeFileSync(budgetFile, `${JSON.stringify(budgets, null, 4)}\n`);
-    console.log(
-        `Rewrote ${only === undefined ? "every budget" : `the budgets of "${only}" and the total`} in ` +
-            `size-budgets.json with ${budgets.headroomPercent}% headroom.`,
-    );
+    const what = only === undefined ? "every budget" : 'the budgets of "' + only + '" and the total';
+    console.log(`Rewrote ${what} in size-budgets.json with ${budgets.headroomPercent}% headroom.`);
     process.exit(0);
 }
 

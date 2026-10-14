@@ -1,4 +1,4 @@
-import { GraphBuilder, GraphFormatError, INVALID_INDEX } from "@graphty/graph-format";
+import { GraphBuilder, GraphFormatError, type GraphSink, INVALID_INDEX } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -19,7 +19,6 @@ import {
     UNKNOWN_TYPE_CODE,
 } from "../../src/common/attributes.js";
 import { ImportReportBuilder } from "../../src/common/report.js";
-import type { GraphSink } from "../../src/types.js";
 
 describe("declareAttribute (design 5.1, 5.5, 5.6)", () => {
     it("names the column after the title and records the source id, type and namespace in origin", () => {
@@ -517,7 +516,7 @@ describe("declareResolved", () => {
     });
 
     it("rethrows a second clash, a role clash without a role, and errors that are not GraphFormatErrors", () => {
-        const throwing = (err: () => Error): GraphSink =>
+        const throwing = (err: () => Error) =>
             ({
                 declareNodeColumn: () => {
                     throw err();

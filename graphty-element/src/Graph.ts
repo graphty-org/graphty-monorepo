@@ -705,6 +705,12 @@ export class Graph implements GraphContext {
             // so a run of queued adds repaints once, not once per add. Everything else -- undo,
             // redo, a rollback, an edit, a session verb -- is painted here, in its own pass.
             const dispatcher = dispatcherOf(this.session);
+            // A change to graph values alone (the source's name, the import report) moves nothing
+            // a layer reads, so it repaints nothing unless an earlier write left the paint owed.
+            if (!dispatcher.paintOwed && dirty.size > 0 && [...dirty].every((key) => key.startsWith("v:"))) {
+                return;
+            }
+
             if (cause !== "command" || (this.#importsReading === 0 && !dispatcher.graphWritesWaiting)) {
                 dispatcher.paintOwed = false;
                 await this.repaintFromSession();

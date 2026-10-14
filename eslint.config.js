@@ -348,8 +348,6 @@ export default tseslint.config(
         files: [
             "compact-mantine/tests/figma/inputs.browser.test.tsx",
             "compact-mantine/tests/figma/overlays.browser.test.tsx",
-            "compact-mantine/tests/figma/shell.browser.test.tsx",
-            "compact-mantine/tests/theme/combobox-props.browser.test.tsx",
         ],
         rules: { "local/no-test-timing": ["error", { frameWaits: false }] },
     },

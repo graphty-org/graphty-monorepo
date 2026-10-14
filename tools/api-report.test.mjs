@@ -200,7 +200,10 @@ export interface AlgorithmDescriptor {
     describe("on a branch stacked on another pull request's branch", () => {
         const scratch = mkdtempSync(join(tmpdir(), "api-report-stacked-"));
         after(() => rmSync(scratch, { recursive: true, force: true }));
+        // without the base overrides CI's own environment sets (GITHUB_BASE_REF=master on a pull request)
         const env = isolatedGitEnv();
+        delete env.GITHUB_BASE_REF;
+        delete env.API_REPORT_BASE;
         const git = (...args) => execFileSync("git", args, { cwd: scratch, env, encoding: "utf8" }).trim();
         const commit = (text, branch) => {
             writeFileSync(join(scratch, "pkg", "api", "index.api.md"), text);

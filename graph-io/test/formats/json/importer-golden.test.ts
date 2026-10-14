@@ -33,7 +33,11 @@ function dump(s: GraphSnapshot): unknown {
     };
 }
 
-function replacer(_key: string, value: unknown): unknown {
+function replacer(key: string, value: unknown): unknown {
+    // the one field that is not the importer's output
+    if (key === "durationMs") {
+        return undefined;
+    }
     if (ArrayBuffer.isView(value)) {
         return Array.from(value as unknown as ArrayLike<number>);
     }

@@ -46,7 +46,6 @@ exports[`JSON importer golden output > adjacency: bad nodes and lists (defaultDi
       "skippedEdges": 6,
       "skippedNodes": 2,
     },
-    "durationMs": 0.32110400000010486,
     "errorCount": 9,
     "format": "json",
     "issues": [
@@ -220,7 +219,6 @@ exports[`JSON importer golden output > adjacency: bad nodes and lists (defaults)
       "skippedEdges": 7,
       "skippedNodes": 3,
     },
-    "durationMs": 0.6569930000000568,
     "errorCount": 12,
     "format": "json",
     "issues": [
@@ -418,7 +416,6 @@ exports[`JSON importer golden output > adjacency: bad nodes and lists (no missin
       "skippedEdges": 8,
       "skippedNodes": 3,
     },
-    "durationMs": 0.3648329999998623,
     "errorCount": 13,
     "format": "json",
     "issues": [
@@ -605,7 +602,6 @@ exports[`JSON importer golden output > adjacency: bad nodes and lists (nodeIdKey
       "skippedEdges": 10,
       "skippedNodes": 5,
     },
-    "durationMs": 0.19943800000010015,
     "errorCount": 13,
     "format": "json",
     "issues": [
@@ -766,7 +762,6 @@ exports[`JSON importer golden output > adjacency: bad nodes and lists (number id
       "skippedEdges": 10,
       "skippedNodes": 6,
     },
-    "durationMs": 0.19889800000009927,
     "errorCount": 14,
     "format": "json",
     "issues": [
@@ -933,7 +928,6 @@ exports[`JSON importer golden output > adjacency: directed multigraph with weigh
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.4231290000000172,
     "errorCount": 0,
     "format": "json",
     "issues": [],
@@ -1110,7 +1104,6 @@ exports[`JSON importer golden output > adjacency: directed multigraph with weigh
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.8691590000000815,
     "errorCount": 0,
     "format": "json",
     "issues": [],
@@ -1287,7 +1280,6 @@ exports[`JSON importer golden output > adjacency: directed multigraph with weigh
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.4319879999998193,
     "errorCount": 0,
     "format": "json",
     "issues": [],
@@ -1464,7 +1456,6 @@ exports[`JSON importer golden output > adjacency: directed multigraph with weigh
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.3918539999999666,
     "errorCount": 0,
     "format": "json",
     "issues": [],
@@ -1641,7 +1632,6 @@ exports[`JSON importer golden output > adjacency: directed multigraph with weigh
       "skippedEdges": 4,
       "skippedNodes": 2,
     },
-    "durationMs": 0.2929669999998623,
     "errorCount": 4,
     "format": "json",
     "issues": [
@@ -1752,7 +1742,6 @@ exports[`JSON importer golden output > adjacency: directed multigraph with weigh
       "skippedEdges": 4,
       "skippedNodes": 2,
     },
-    "durationMs": 0.4946460000001025,
     "errorCount": 4,
     "format": "json",
     "issues": [
@@ -1863,7 +1852,6 @@ exports[`JSON importer golden output > adjacency: no adjacency, no nodes, extra 
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.09929400000009991,
     "errorCount": 0,
     "format": "json",
     "issues": [
@@ -1958,7 +1946,6 @@ exports[`JSON importer golden output > adjacency: no adjacency, no nodes, extra 
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.21454900000003363,
     "errorCount": 0,
     "format": "json",
     "issues": [
@@ -2053,7 +2040,6 @@ exports[`JSON importer golden output > adjacency: no adjacency, no nodes, extra 
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.0925560000000587,
     "errorCount": 0,
     "format": "json",
     "issues": [
@@ -2148,7 +2134,6 @@ exports[`JSON importer golden output > adjacency: no adjacency, no nodes, extra 
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.1405330000000049,
     "errorCount": 0,
     "format": "json",
     "issues": [
@@ -2243,7 +2228,6 @@ exports[`JSON importer golden output > adjacency: no adjacency, no nodes, extra 
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.09520999999995183,
     "errorCount": 0,
     "format": "json",
     "issues": [
@@ -2338,7 +2322,6 @@ exports[`JSON importer golden output > adjacency: no adjacency, no nodes, extra 
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.08251899999982015,
     "errorCount": 0,
     "format": "json",
     "issues": [
@@ -2469,7 +2452,6 @@ exports[`JSON importer golden output > adjacency: refused ids (defaultDirected a
       "skippedEdges": 2,
       "skippedNodes": 1,
     },
-    "durationMs": 0.22985500000004322,
     "errorCount": 3,
     "format": "json",
     "issues": [
@@ -2573,7 +2555,6 @@ exports[`JSON importer golden output > adjacency: refused ids (defaults) 1`] = `
       "skippedEdges": 2,
       "skippedNodes": 1,
     },
-    "durationMs": 0.2782520000000659,
     "errorCount": 3,
     "format": "json",
     "issues": [
@@ -2683,7 +2664,6 @@ exports[`JSON importer golden output > adjacency: refused ids (no missing nodes 
       "skippedEdges": 3,
       "skippedNodes": 1,
     },
-    "durationMs": 0.29067699999995966,
     "errorCount": 4,
     "format": "json",
     "issues": [
@@ -2782,7 +2762,6 @@ exports[`JSON importer golden output > adjacency: refused ids (nodeIdKey name, w
       "skippedEdges": 5,
       "skippedNodes": 3,
     },
-    "durationMs": 0.2433859999998731,
     "errorCount": 6,
     "format": "json",
     "issues": [
@@ -2885,7 +2864,6 @@ exports[`JSON importer golden output > adjacency: refused ids (number ids) 1`] =
       "skippedEdges": 5,
       "skippedNodes": 3,
     },
-    "durationMs": 0.19881000000009408,
     "errorCount": 6,
     "format": "json",
     "issues": [
@@ -2988,7 +2966,6 @@ exports[`JSON importer golden output > adjacency: short adjacency (defaultDirect
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.14995999999996457,
     "errorCount": 0,
     "format": "json",
     "issues": [
@@ -3068,7 +3045,6 @@ exports[`JSON importer golden output > adjacency: short adjacency (defaults) 1`]
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.1709889999999632,
     "errorCount": 0,
     "format": "json",
     "issues": [
@@ -3148,7 +3124,6 @@ exports[`JSON importer golden output > adjacency: short adjacency (error limit 2
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.1263699999999517,
     "errorCount": 0,
     "format": "json",
     "issues": [
@@ -3228,7 +3203,6 @@ exports[`JSON importer golden output > adjacency: short adjacency (no missing no
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.1455599999999322,
     "errorCount": 0,
     "format": "json",
     "issues": [
@@ -3308,7 +3282,6 @@ exports[`JSON importer golden output > adjacency: short adjacency (nodeIdKey nam
       "skippedEdges": 1,
       "skippedNodes": 3,
     },
-    "durationMs": 0.0917660000000069,
     "errorCount": 4,
     "format": "json",
     "issues": [
@@ -3403,7 +3376,6 @@ exports[`JSON importer golden output > adjacency: short adjacency (number ids) 1
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.13932599999998274,
     "errorCount": 0,
     "format": "json",
     "issues": [
@@ -3483,7 +3455,6 @@ exports[`JSON importer golden output > adjacency: undirected mirrors (defaultDir
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.6657490000000053,
     "errorCount": 0,
     "format": "json",
     "issues": [
@@ -3634,7 +3605,6 @@ exports[`JSON importer golden output > adjacency: undirected mirrors (defaults) 
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 6.058252000000039,
     "errorCount": 0,
     "format": "json",
     "issues": [
@@ -3785,7 +3755,6 @@ exports[`JSON importer golden output > adjacency: undirected mirrors (error limi
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.39364400000022215,
     "errorCount": 0,
     "format": "json",
     "issues": [
@@ -3936,7 +3905,6 @@ exports[`JSON importer golden output > adjacency: undirected mirrors (no missing
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.5029879999999594,
     "errorCount": 0,
     "format": "json",
     "issues": [
@@ -4087,7 +4055,6 @@ exports[`JSON importer golden output > adjacency: undirected mirrors (nodeIdKey 
       "skippedEdges": 4,
       "skippedNodes": 3,
     },
-    "durationMs": 0.2438609999999244,
     "errorCount": 6,
     "format": "json",
     "issues": [
@@ -4214,7 +4181,6 @@ exports[`JSON importer golden output > adjacency: undirected mirrors (number ids
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.3402089999999589,
     "errorCount": 0,
     "format": "json",
     "issues": [
@@ -4365,7 +4331,6 @@ exports[`JSON importer golden output > cytoscape: bad positions (defaultDirected
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.20418799999993098,
     "errorCount": 3,
     "format": "json",
     "issues": [
@@ -4485,7 +4450,6 @@ exports[`JSON importer golden output > cytoscape: bad positions (defaults) 1`] =
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.23570200000017394,
     "errorCount": 3,
     "format": "json",
     "issues": [
@@ -4611,7 +4575,6 @@ exports[`JSON importer golden output > cytoscape: bad positions (no missing node
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.2163540000001376,
     "errorCount": 3,
     "format": "json",
     "issues": [
@@ -4731,7 +4694,6 @@ exports[`JSON importer golden output > cytoscape: bad positions (nodeIdKey name,
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.20105400000011286,
     "errorCount": 3,
     "format": "json",
     "issues": [
@@ -4851,7 +4813,6 @@ exports[`JSON importer golden output > cytoscape: bad positions (number ids) 1`]
       "skippedEdges": 0,
       "skippedNodes": 3,
     },
-    "durationMs": 0.22616299999981493,
     "errorCount": 3,
     "format": "json",
     "issues": [
@@ -4963,7 +4924,6 @@ exports[`JSON importer golden output > cytoscape: flat array (defaultDirected an
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.20684800000003634,
     "errorCount": 0,
     "format": "json",
     "issues": [],
@@ -5027,7 +4987,6 @@ exports[`JSON importer golden output > cytoscape: flat array (defaults) 1`] = `
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.4344189999999344,
     "errorCount": 0,
     "format": "json",
     "issues": [],
@@ -5091,7 +5050,6 @@ exports[`JSON importer golden output > cytoscape: flat array (error limit 2) 1`]
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.298001000000113,
     "errorCount": 0,
     "format": "json",
     "issues": [],
@@ -5155,7 +5113,6 @@ exports[`JSON importer golden output > cytoscape: flat array (no missing nodes a
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.30996700000014243,
     "errorCount": 0,
     "format": "json",
     "issues": [],
@@ -5219,7 +5176,6 @@ exports[`JSON importer golden output > cytoscape: flat array (nodeIdKey name, we
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.3288469999999961,
     "errorCount": 0,
     "format": "json",
     "issues": [],
@@ -5283,7 +5239,6 @@ exports[`JSON importer golden output > cytoscape: flat array (number ids) 1`] = 
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.3061439999999038,
     "errorCount": 0,
     "format": "json",
     "issues": [],
@@ -5383,7 +5338,6 @@ exports[`JSON importer golden output > cytoscape: object without elements (defau
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.14145899999994072,
     "errorCount": 0,
     "format": "json",
     "issues": [
@@ -5472,7 +5426,6 @@ exports[`JSON importer golden output > cytoscape: object without elements (defau
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.17746499999998377,
     "errorCount": 0,
     "format": "json",
     "issues": [
@@ -5561,7 +5514,6 @@ exports[`JSON importer golden output > cytoscape: object without elements (error
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.11748100000022532,
     "errorCount": 0,
     "format": "json",
     "issues": [
@@ -5650,7 +5602,6 @@ exports[`JSON importer golden output > cytoscape: object without elements (no mi
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.10989100000006147,
     "errorCount": 0,
     "format": "json",
     "issues": [
@@ -5739,7 +5690,6 @@ exports[`JSON importer golden output > cytoscape: object without elements (nodeI
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.15043800000012197,
     "errorCount": 0,
     "format": "json",
     "issues": [
@@ -5828,7 +5778,6 @@ exports[`JSON importer golden output > cytoscape: object without elements (numbe
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.12595699999997123,
     "errorCount": 0,
     "format": "json",
     "issues": [
@@ -5917,7 +5866,6 @@ exports[`JSON importer golden output > cytoscape: sections with everything (defa
       "skippedEdges": 0,
       "skippedNodes": 4,
     },
-    "durationMs": 0.94801799999982,
     "errorCount": 10,
     "format": "json",
     "issues": [
@@ -6441,7 +6389,6 @@ exports[`JSON importer golden output > cytoscape: sections with everything (defa
       "skippedEdges": 0,
       "skippedNodes": 4,
     },
-    "durationMs": 2.9356599999998707,
     "errorCount": 10,
     "format": "json",
     "issues": [
@@ -6971,7 +6918,6 @@ exports[`JSON importer golden output > cytoscape: sections with everything (no m
       "skippedEdges": 0,
       "skippedNodes": 4,
     },
-    "durationMs": 0.8474879999998848,
     "errorCount": 10,
     "format": "json",
     "issues": [
@@ -7495,7 +7441,6 @@ exports[`JSON importer golden output > cytoscape: sections with everything (node
       "skippedEdges": 0,
       "skippedNodes": 4,
     },
-    "durationMs": 0.948806999999988,
     "errorCount": 10,
     "format": "json",
     "issues": [
@@ -8042,7 +7987,6 @@ exports[`JSON importer golden output > cytoscape: sections with everything (numb
       "skippedEdges": 1,
       "skippedNodes": 14,
     },
-    "durationMs": 0.4685260000001108,
     "errorCount": 16,
     "format": "json",
     "issues": [
@@ -8371,7 +8315,6 @@ exports[`JSON importer golden output > graphology: bad options (defaultDirected 
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.14261099999998805,
     "errorCount": 0,
     "format": "json",
     "issues": [
@@ -8438,7 +8381,6 @@ exports[`JSON importer golden output > graphology: bad options (defaults) 1`] = 
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.16860299999984818,
     "errorCount": 0,
     "format": "json",
     "issues": [
@@ -8505,7 +8447,6 @@ exports[`JSON importer golden output > graphology: bad options (error limit 2) 1
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.13260999999988599,
     "errorCount": 0,
     "format": "json",
     "issues": [
@@ -8572,7 +8513,6 @@ exports[`JSON importer golden output > graphology: bad options (no missing nodes
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.1297309999999925,
     "errorCount": 0,
     "format": "json",
     "issues": [
@@ -8639,7 +8579,6 @@ exports[`JSON importer golden output > graphology: bad options (nodeIdKey name, 
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.24140600000009727,
     "errorCount": 0,
     "format": "json",
     "issues": [
@@ -8706,7 +8645,6 @@ exports[`JSON importer golden output > graphology: bad options (number ids) 1`] 
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.1416349999999511,
     "errorCount": 0,
     "format": "json",
     "issues": [
@@ -8773,7 +8711,6 @@ exports[`JSON importer golden output > graphology: bad type (defaultDirected and
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.1995560000000296,
     "errorCount": 0,
     "format": "json",
     "issues": [
@@ -8862,7 +8799,6 @@ exports[`JSON importer golden output > graphology: bad type (defaults) 1`] = `
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.21361499999989064,
     "errorCount": 0,
     "format": "json",
     "issues": [
@@ -8951,7 +8887,6 @@ exports[`JSON importer golden output > graphology: bad type (error limit 2) 1`] 
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.18093799999996918,
     "errorCount": 0,
     "format": "json",
     "issues": [
@@ -9040,7 +8975,6 @@ exports[`JSON importer golden output > graphology: bad type (no missing nodes ad
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.16426900000010392,
     "errorCount": 0,
     "format": "json",
     "issues": [
@@ -9129,7 +9063,6 @@ exports[`JSON importer golden output > graphology: bad type (nodeIdKey name, wei
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.19573300000001836,
     "errorCount": 0,
     "format": "json",
     "issues": [
@@ -9218,7 +9151,6 @@ exports[`JSON importer golden output > graphology: bad type (number ids) 1`] = `
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.17878799999994044,
     "errorCount": 0,
     "format": "json",
     "issues": [
@@ -9307,7 +9239,6 @@ exports[`JSON importer golden output > graphology: directed with contrary flags 
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.538234999999986,
     "errorCount": 0,
     "format": "json",
     "issues": [
@@ -9388,7 +9319,6 @@ exports[`JSON importer golden output > graphology: directed with contrary flags 
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.32510500000012144,
     "errorCount": 0,
     "format": "json",
     "issues": [
@@ -9469,7 +9399,6 @@ exports[`JSON importer golden output > graphology: directed with contrary flags 
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.25200500000005377,
     "errorCount": 0,
     "format": "json",
     "issues": [
@@ -9550,7 +9479,6 @@ exports[`JSON importer golden output > graphology: directed with contrary flags 
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.2363420000001497,
     "errorCount": 0,
     "format": "json",
     "issues": [
@@ -9631,7 +9559,6 @@ exports[`JSON importer golden output > graphology: directed with contrary flags 
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.32036199999993187,
     "errorCount": 0,
     "format": "json",
     "issues": [
@@ -9712,7 +9639,6 @@ exports[`JSON importer golden output > graphology: directed with contrary flags 
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.2745390000000043,
     "errorCount": 0,
     "format": "json",
     "issues": [
@@ -9793,7 +9719,6 @@ exports[`JSON importer golden output > graphology: mixed all undirected (default
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.16537700000003497,
     "errorCount": 0,
     "format": "json",
     "issues": [],
@@ -9857,7 +9782,6 @@ exports[`JSON importer golden output > graphology: mixed all undirected (default
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.16099000000008346,
     "errorCount": 0,
     "format": "json",
     "issues": [],
@@ -9921,7 +9845,6 @@ exports[`JSON importer golden output > graphology: mixed all undirected (error l
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.1872769999999946,
     "errorCount": 0,
     "format": "json",
     "issues": [],
@@ -9985,7 +9908,6 @@ exports[`JSON importer golden output > graphology: mixed all undirected (no miss
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.17714700000010453,
     "errorCount": 0,
     "format": "json",
     "issues": [],
@@ -10049,7 +9971,6 @@ exports[`JSON importer golden output > graphology: mixed all undirected (nodeIdK
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.17470300000013594,
     "errorCount": 0,
     "format": "json",
     "issues": [],
@@ -10113,7 +10034,6 @@ exports[`JSON importer golden output > graphology: mixed all undirected (number 
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.15696200000002136,
     "errorCount": 0,
     "format": "json",
     "issues": [],
@@ -10177,7 +10097,6 @@ exports[`JSON importer golden output > graphology: mixed no edges, no sections (
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.08469100000002072,
     "errorCount": 0,
     "format": "json",
     "issues": [
@@ -10242,7 +10161,6 @@ exports[`JSON importer golden output > graphology: mixed no edges, no sections (
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.11467900000002373,
     "errorCount": 0,
     "format": "json",
     "issues": [
@@ -10307,7 +10225,6 @@ exports[`JSON importer golden output > graphology: mixed no edges, no sections (
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.08065400000009504,
     "errorCount": 0,
     "format": "json",
     "issues": [
@@ -10372,7 +10289,6 @@ exports[`JSON importer golden output > graphology: mixed no edges, no sections (
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.07924500000012813,
     "errorCount": 0,
     "format": "json",
     "issues": [
@@ -10437,7 +10353,6 @@ exports[`JSON importer golden output > graphology: mixed no edges, no sections (
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.08815400000003137,
     "errorCount": 0,
     "format": "json",
     "issues": [
@@ -10502,7 +10417,6 @@ exports[`JSON importer golden output > graphology: mixed no edges, no sections (
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.083562000000029,
     "errorCount": 0,
     "format": "json",
     "issues": [
@@ -10567,7 +10481,6 @@ exports[`JSON importer golden output > graphology: mixed with flags (defaultDire
       "skippedEdges": 3,
       "skippedNodes": 2,
     },
-    "durationMs": 0.9421360000001187,
     "errorCount": 7,
     "format": "json",
     "issues": [
@@ -10944,7 +10857,6 @@ exports[`JSON importer golden output > graphology: mixed with flags (defaults) 1
       "skippedEdges": 4,
       "skippedNodes": 2,
     },
-    "durationMs": 3.181445000000167,
     "errorCount": 8,
     "format": "json",
     "issues": [
@@ -11324,7 +11236,6 @@ exports[`JSON importer golden output > graphology: mixed with flags (no missing 
       "skippedEdges": 5,
       "skippedNodes": 2,
     },
-    "durationMs": 0.9183179999999993,
     "errorCount": 9,
     "format": "json",
     "issues": [
@@ -11687,7 +11598,6 @@ exports[`JSON importer golden output > graphology: mixed with flags (nodeIdKey n
       "skippedEdges": 4,
       "skippedNodes": 2,
     },
-    "durationMs": 0.8588589999999385,
     "errorCount": 8,
     "format": "json",
     "issues": [
@@ -12061,7 +11971,6 @@ exports[`JSON importer golden output > graphology: mixed with flags (number ids)
       "skippedEdges": 8,
       "skippedNodes": 5,
     },
-    "durationMs": 0.5800830000000587,
     "errorCount": 18,
     "format": "json",
     "issues": [
@@ -12309,7 +12218,6 @@ exports[`JSON importer golden output > graphology: undirected no multi (defaultD
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.22530600000004597,
     "errorCount": 0,
     "format": "json",
     "issues": [
@@ -12395,7 +12303,6 @@ exports[`JSON importer golden output > graphology: undirected no multi (defaults
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.25317699999982324,
     "errorCount": 0,
     "format": "json",
     "issues": [
@@ -12481,7 +12388,6 @@ exports[`JSON importer golden output > graphology: undirected no multi (error li
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.26262100000008104,
     "errorCount": 0,
     "format": "json",
     "issues": [
@@ -12567,7 +12473,6 @@ exports[`JSON importer golden output > graphology: undirected no multi (no missi
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.23946900000009919,
     "errorCount": 0,
     "format": "json",
     "issues": [
@@ -12653,7 +12558,6 @@ exports[`JSON importer golden output > graphology: undirected no multi (nodeIdKe
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.24243700000010904,
     "errorCount": 0,
     "format": "json",
     "issues": [
@@ -12739,7 +12643,6 @@ exports[`JSON importer golden output > graphology: undirected no multi (number i
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.22131599999988794,
     "errorCount": 0,
     "format": "json",
     "issues": [
@@ -12825,7 +12728,6 @@ exports[`JSON importer golden output > jgf: all edges undirected (defaultDirecte
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.33334000000013475,
     "errorCount": 0,
     "format": "json",
     "issues": [],
@@ -12942,7 +12844,6 @@ exports[`JSON importer golden output > jgf: all edges undirected (defaults) 1`] 
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.24044400000002497,
     "errorCount": 0,
     "format": "json",
     "issues": [],
@@ -13006,7 +12907,6 @@ exports[`JSON importer golden output > jgf: all edges undirected (error limit 2)
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.23280500000009852,
     "errorCount": 0,
     "format": "json",
     "issues": [],
@@ -13070,7 +12970,6 @@ exports[`JSON importer golden output > jgf: all edges undirected (no missing nod
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.22395099999994272,
     "errorCount": 0,
     "format": "json",
     "issues": [],
@@ -13134,7 +13033,6 @@ exports[`JSON importer golden output > jgf: all edges undirected (nodeIdKey name
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.2210570000002008,
     "errorCount": 0,
     "format": "json",
     "issues": [],
@@ -13198,7 +13096,6 @@ exports[`JSON importer golden output > jgf: all edges undirected (number ids) 1`
       "skippedEdges": 1,
       "skippedNodes": 2,
     },
-    "durationMs": 0.1917919999998503,
     "errorCount": 4,
     "format": "json",
     "issues": [
@@ -13323,7 +13220,6 @@ exports[`JSON importer golden output > jgf: graphs array (defaultDirected and st
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.15910200000007535,
     "errorCount": 0,
     "format": "json",
     "issues": [
@@ -13391,7 +13287,6 @@ exports[`JSON importer golden output > jgf: graphs array (defaults) 1`] = `
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.6095890000001418,
     "errorCount": 0,
     "format": "json",
     "issues": [
@@ -13459,7 +13354,6 @@ exports[`JSON importer golden output > jgf: graphs array (error limit 2) 1`] = `
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.15992099999994025,
     "errorCount": 0,
     "format": "json",
     "issues": [
@@ -13527,7 +13421,6 @@ exports[`JSON importer golden output > jgf: graphs array (no missing nodes added
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.15695199999981924,
     "errorCount": 0,
     "format": "json",
     "issues": [
@@ -13595,7 +13488,6 @@ exports[`JSON importer golden output > jgf: graphs array (nodeIdKey name, weight
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.14737900000000081,
     "errorCount": 0,
     "format": "json",
     "issues": [
@@ -13663,7 +13555,6 @@ exports[`JSON importer golden output > jgf: graphs array (number ids) 1`] = `
       "skippedEdges": 0,
       "skippedNodes": 1,
     },
-    "durationMs": 0.14779399999997622,
     "errorCount": 1,
     "format": "json",
     "issues": [
@@ -13737,7 +13628,6 @@ exports[`JSON importer golden output > jgf: keyed nodes (defaultDirected and str
       "skippedEdges": 3,
       "skippedNodes": 1,
     },
-    "durationMs": 0.7645829999999023,
     "errorCount": 6,
     "format": "json",
     "issues": [
@@ -14175,7 +14065,6 @@ exports[`JSON importer golden output > jgf: keyed nodes (defaults) 1`] = `
       "skippedEdges": 4,
       "skippedNodes": 1,
     },
-    "durationMs": 2.1788890000000265,
     "errorCount": 7,
     "format": "json",
     "issues": [
@@ -14613,7 +14502,6 @@ exports[`JSON importer golden output > jgf: keyed nodes (no missing nodes added)
       "skippedEdges": 5,
       "skippedNodes": 1,
     },
-    "durationMs": 0.689017000000149,
     "errorCount": 8,
     "format": "json",
     "issues": [
@@ -15031,7 +14919,6 @@ exports[`JSON importer golden output > jgf: keyed nodes (nodeIdKey name, weightF
       "skippedEdges": 4,
       "skippedNodes": 1,
     },
-    "durationMs": 0.707157000000052,
     "errorCount": 7,
     "format": "json",
     "issues": [
@@ -15463,7 +15350,6 @@ exports[`JSON importer golden output > jgf: keyed nodes (number ids) 1`] = `
       "skippedEdges": 7,
       "skippedNodes": 5,
     },
-    "durationMs": 0.4390120000000479,
     "errorCount": 16,
     "format": "json",
     "issues": [
@@ -15775,7 +15661,6 @@ exports[`JSON importer golden output > jgf: no nodes (defaultDirected and string
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.2168699999999717,
     "errorCount": 0,
     "format": "json",
     "issues": [
@@ -15848,7 +15733,6 @@ exports[`JSON importer golden output > jgf: no nodes (defaults) 1`] = `
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.25426000000015847,
     "errorCount": 0,
     "format": "json",
     "issues": [
@@ -15921,7 +15805,6 @@ exports[`JSON importer golden output > jgf: no nodes (error limit 2) 1`] = `
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.18392399999993359,
     "errorCount": 0,
     "format": "json",
     "issues": [
@@ -15994,7 +15877,6 @@ exports[`JSON importer golden output > jgf: no nodes (no missing nodes added) 1`
       "skippedEdges": 1,
       "skippedNodes": 0,
     },
-    "durationMs": 0.14238000000000284,
     "errorCount": 1,
     "format": "json",
     "issues": [
@@ -16059,7 +15941,6 @@ exports[`JSON importer golden output > jgf: no nodes (nodeIdKey name, weightFrom
       "skippedEdges": 0,
       "skippedNodes": 0,
     },
-    "durationMs": 0.21680800000012823,
     "errorCount": 0,
     "format": "json",
     "issues": [
@@ -16132,7 +16013,6 @@ exports[`JSON importer golden output > jgf: no nodes (number ids) 1`] = `
       "skippedEdges": 1,
       "skippedNodes": 0,
     },
-    "durationMs": 0.1520700000000943,
     "errorCount": 2,
     "format": "json",
     "issues": [
@@ -16205,7 +16085,6 @@ exports[`JSON importer golden output > jgf: v1 array nodes (defaultDirected and 
       "skippedEdges": 0,
       "skippedNodes": 2,
     },
-    "durationMs": 0.5192110000000412,
     "errorCount": 2,
     "format": "json",
     "issues": [
@@ -16388,7 +16267,6 @@ exports[`JSON importer golden output > jgf: v1 array nodes (defaults) 1`] = `
       "skippedEdges": 0,
       "skippedNodes": 2,
     },
-    "durationMs": 0.4901709999999184,
     "errorCount": 2,
     "format": "json",
     "issues": [
@@ -16526,7 +16404,6 @@ exports[`JSON importer golden output > jgf: v1 array nodes (error limit 2) 1`] =
       "skippedEdges": 0,
       "skippedNodes": 2,
     },
-    "durationMs": 0.3156340000000455,
     "errorCount": 2,
     "format": "json",
     "issues": [
@@ -16664,7 +16541,6 @@ exports[`JSON importer golden output > jgf: v1 array nodes (no missing nodes add
       "skippedEdges": 0,
       "skippedNodes": 2,
     },
-    "durationMs": 0.30627099999992424,
     "errorCount": 2,
     "format": "json",
     "issues": [
@@ -16802,7 +16678,6 @@ exports[`JSON importer golden output > jgf: v1 array nodes (nodeIdKey name, weig
       "skippedEdges": 0,
       "skippedNodes": 2,
     },
-    "durationMs": 0.3171099999999569,
     "errorCount": 2,
     "format": "json",
     "issues": [
@@ -16940,7 +16815,6 @@ exports[`JSON importer golden output > jgf: v1 array nodes (number ids) 1`] = `
       "skippedEdges": 1,
       "skippedNodes": 4,
     },
-    "durationMs": 0.24939199999994344,
     "errorCount": 6,
     "format": "json",
     "issues": [

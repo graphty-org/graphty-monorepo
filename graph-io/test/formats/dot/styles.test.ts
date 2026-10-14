@@ -289,6 +289,12 @@ describe("DOT styles: Graphviz's rules", () => {
         const { styles } = await load("digraph { a -> b }", false);
         expect(styles.styles.rules.filter((r) => r.origin === "tool")).toEqual([]);
         expect(styles.styles.source.tool).toBeNull();
+        expect(styles.styles.graph.background).toBeUndefined();
+    });
+
+    it("paints a graph without bgcolor white, as Graphviz's renderers do, and keeps a bgcolor the file gives", async () => {
+        expect((await load("digraph { a -> b }")).styles.styles.graph.background).toBe("#ffffff");
+        expect((await load("digraph { bgcolor=red; a -> b }")).styles.styles.graph.background).toBe("#ff0000");
     });
 });
 

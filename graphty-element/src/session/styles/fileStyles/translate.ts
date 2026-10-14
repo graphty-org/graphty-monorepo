@@ -1784,6 +1784,7 @@ class KindTranslation {
      * A continuous mapping as a `stops` binding: the file's points, its values converted.
      * @param mapping - The mapping.
      * @param mapping.points - Its points.
+     * @param mapping.step - What a value is rounded to; a stops binding cannot round, so none is made.
      * @param plan - The channel.
      * @param path - Gives the column's path.
      * @returns The binding, or null when a value has no counterpart.
@@ -1794,7 +1795,8 @@ class KindTranslation {
         path: () => Path | null,
     ): { binding: Binding; worth: number; facts: Partial<FileStyleOrigin> } | null {
         const descriptor = channelDescriptor(plan.channel);
-        if (descriptor?.accepts !== "number" && descriptor?.accepts !== "color") {
+        // a stops binding interpolates without rounding, so a mapping the tool rounds (step) is kept per element
+        if ((descriptor?.accepts !== "number" && descriptor?.accepts !== "color") || mapping.step !== undefined) {
             return null;
         }
 

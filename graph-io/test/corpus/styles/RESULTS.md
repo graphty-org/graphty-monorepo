@@ -15,7 +15,7 @@ Tool values are elements drawn with the writing program's default.
 | cx/generated/graphty-written-block-truncated.cx | ok | 75 | 108 | 8 | 3 | 102 | 8% | 8% | 0 | 0 | 0 | W_STYLE_BLOCK_IGNORED |
 | cx/generated/graphty-written-native-edit.cx | ok | 75 | 108 | 7 | 3 | 103 | 9% | 9% | 0 | 0 | 0 |  |
 | cx/generated/graphty-written.cx | ok | 75 | 108 | 6 | 3 | 102 | 8% | 8% | 0 | 0 | 0 |  |
-| cx/ndex-821a7310-beb6-11ed-a79c-005056ae23aa.cx.gz | ok | 32 | 48 | 5 | 3 | 92 | 0% | 0% | 0 | 0 | 0 | W_STYLE_NOT_CARRIED |
+| cx/ndex-821a7310-beb6-11ed-a79c-005056ae23aa.cx.gz | ok | 32 | 48 | 5 | 3 | 91 | 0% | 0% | 0 | 0 | 0 | W_STYLE_NOT_CARRIED |
 | cx/ndex-90f78bcd-1dd0-11ef-9621-005056ae23aa.cx | ok | 75 | 108 | 6 | 3 | 102 | 8% | 8% | 0 | 0 | 0 | W_STYLE_NOT_CARRIED |
 | cx/ndex-da86cc1f-9544-11e5-b435-06603eb7f303.cx.gz | ok | 2207 | 2282 | 1 | 1 | 0 | - | - | 0 | 62846 | 0 |  |
 | cx/ndex-f5fd4274-a8c1-11e8-9520-0ac135e8bacf.cx.gz | ok | 599 | 739 | 5 | 2 | 580 | 83% | 83% | 0 | 0 | 0 | W_STYLE_NOT_CARRIED |

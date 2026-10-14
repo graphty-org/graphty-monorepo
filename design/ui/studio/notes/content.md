@@ -121,6 +121,8 @@ I read this file at the start of every session and update it as I decide and lea
 
 ## Decisions and reasons
 
+- **2026-10-14, round 6:** Round 6 words: "Layer N"; "Arrowheads" with "Target end" / "Source end" (head and tail in tooltips and search); one noun "Label" with "Label at target end"; "Caption" gone; "Degree rank (1 = highest)", "Degree percentile"; "Take all tied | Take fewer"; "Covers", "Where its look shows", "covered by"; "Draws nothing: ..."; failure notices always carry the element's reason.
+
 - 2026-09-26 Keep standard technical terms; friendly words only as search aliases. Reason: owner
   ("leave betweenness instead of using brokers"). Decided by the owner.
 - 2026-09-28 Reader messages published as `{ key, params, text }` with keys

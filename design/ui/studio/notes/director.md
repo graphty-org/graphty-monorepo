@@ -212,6 +212,8 @@ by the SonarQube gate, so no pull request yet).
 
 ## Decisions and reasons
 
+- **2026-10-14, round 6:** Round 6 (owner review of build 5), all six clusters: decided in `tier3/decisions-round-6.md`. No one-way door: every element change is additive, no new rule text syntax (kept to the existing query syntax to avoid publishing a format). Lesson: eight of the owner's notes were already fixed by the build before the studio met; check `git log` against the feedback first so proposals do not re-diagnose fixed defects (both value-from-data proposals disagreed only because an uncommitted fix sat in the tree).
+
 - 2026-09-26..10-08 (summarized; full text in git history of this file) -- Owner: Figma is the
   paved path for chrome; refined structure B; a run paints as soon as it finishes; tiers, tier 1
   first; build the real app and study it; element neutral about presentation. Me: real-app

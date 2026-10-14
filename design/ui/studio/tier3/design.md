@@ -44,8 +44,9 @@ placeholder", which the owner reversed after the dry run.
   each with fixed sections in a fixed order. Nodes: Shape (shape, size), Visibility (show,
   opacity), Text (labels, tooltip), Fill (color), Effects (outline, glow, glow strength, halo, halo
   size, halo opacity), Rendering (wireframe). Edges: Visibility (show, opacity), Text (label, end
-  captions), Line (color, width, pattern, pattern count, curved), Ends (head and tail, each with
-  size, color and opacity), Effects (motion speed, band, band width, band opacity). Every property
+  captions), Line (color, width, pattern, pattern count, curved), Arrowheads (target end and
+  source end, each with size, color and opacity), Effects (motion speed, band, band width, band
+  opacity). Every property
   sits under the kind graphty-element draws it on and the section it belongs to; nothing sits
   behind a settings button.
 - **Each section header has a "+" at its right end**, named "Add to <section>". A section the
@@ -88,6 +89,18 @@ action), and a hidden row's eye is named "Show <layer>".
 
 **Starting rows as they read.** Selected shows Nodes, Effects with its Halo and Glow rows (and
 Edges, Effects with its Band); Hovered writes nothing and shows only dimmed section titles.
+
+**One "+" item per thing drawn (2026-10-14, round 6).** "+" lists parts, never their sub-settings:
+Glow, Halo, Outline, Band, Motion, Pattern, and each arrowhead. Picking one adds its row with its
+main value (a color, or an arrowhead's shape) and opens its popover, which holds the rest (width,
+opacity, size, strength). The row shows its main value and, as secondary text in its accessible
+description, any other setting it makes ("Opacity 60%", "Opacity by Betweenness"). No sub-setting
+is required: a layer may set only a size, because a layer beneath may draw the part. When nothing on
+any layer draws the part for these elements, the row says "Draws nothing: no arrowhead on these 254
+edges" (one cause per row; never on Everything's base rows), from one batched element call per
+layer. Visibility's "+" offers Hide and Show; the row reads one word with its minus, and Show's
+menu line reads "Show elements a layer beneath hides". Number fields scrub by dragging the row's
+name (rate from the channel's step); Up and Down step, Shift by ten; no spinner arrows.
 
 **Why.** At rest the panel answers "what does this layer do?" and nothing else: a layer that writes
 one effect is one row, not seven gray fields. A gray placeholder read as a value the layer sets,
@@ -507,7 +520,13 @@ Style layers                                 [+]
   several rows.
 - **Eye and lock** on hover, focus, and always when on; **pin** from the row menu, shown as a mark.
   Lock is the reader's flag on any row.
-- **"+"** opens a menu: Add layer, Add folder. Add layer makes a draft at the top of the unpinned
+- **The kind glyph** has a tooltip ("Paints nodes and edges"), the kind is in the row's accessible
+  name, and the Style tab header writes it under the name. It never says where a layer came from.
+- **"+"** opens a menu (round 6): Layer, Folder, and "Analyze..." (Shift+A), which opens the
+  toolbar's Analyze popover. Layer makes a real layer at once, one undo step, named "Layer N" (the
+  lowest number no row uses), in rename, painting nodes and edges, every one, and writing nothing;
+  Escape or a click away keeps it; only Delete or Undo removes it. The draft below is superseded.
+- _(Superseded.)_ Add layer makes a draft at the top of the unpinned
   stack, selected, with Which elements open and focus on the kind choice. The draft is app state
   until its first value is set, then becomes a layer in one undo step. Add folder makes "New
   folder" in rename.
@@ -545,8 +564,8 @@ Style layers                                 [+]
 |  Line                                     [+]   |
 |   Color  [# D55E00     ]            (=) (-)     |
 |   Width  [24           ]            (=) (-)     |
-|  Ends                                     [+]   |
-|   Head   [Normal v     ]            (=) (-)     |
+|  Arrowheads                               [+]   |
+|   Target end [Normal v ]            (=) (-)     |
 |  Effects                                  [+]   |  dimmed
 +------------------------------------------------+
 ```
@@ -578,9 +597,24 @@ number written with a combine mode keeps its prefix ("x 2").
   share, each field holding the shared value or "Mixed", Selection colors last, and every write
   going to each selected row in one undo step. A row that is locked is left out of the write and
   named in a line under the header.
-- **The draft** shows Which elements open and no groups until a kind is chosen.
+- **A new layer** (round 6) shows both groups with their sections' "+" only. If its kind is
+  narrowed, settings for the other kind are kept and named under the kind choice ("Edges: 3
+  settings kept, not drawn", with Clear).
 
 ### 2.3 Labels
+
+**Round 6 (2026-10-14) replaces the two-line entry and the full popover below.** One noun, Label.
+An edge has three places: "Label" (on the line, above, below), "Label at target end", "Label at
+source end"; "Caption" is gone, and an edge never offers a node's compass points or a tooltip. End
+labels draw with or without an arrowhead (an element option, off by default, the app turns it on).
+A row is the look chit (opens settings), the words field with the vary glyph at its end, and the
+minus; the place shows as a second line only when set. The entry eye is gone: stopping a label
+written beneath is "No label" from Text's "+". The settings popover shows Look, Size, Position,
+Text color and Background; "More" adds any other field one at a time, and only set fields show. A
+look belongs to one entry; the look picker offers "Use on every label on this layer". New text
+writes only its words; Everything holds the base label size.
+
+The first version, kept for the record:
 
 ```
  Text                                           [+]
@@ -609,6 +643,12 @@ number written with a combine mode keeps its prefix ("x 2").
 
 ### 2.4 The Values tab
 
+**Round 6 (2026-10-14).** Every layer, Everything included, opens with the same three parts:
+Covers ("Nodes, every one, 77"), Where its look shows (one row per property the layer sets, "Node
+color: on 0 of 77 nodes", with the top 3 covering layers and "N more"; each row selects those
+elements), and Labels. The separate Everything Values view is deleted. A distribution is always a
+histogram plus Lowest, Median, Mean and Highest rows, never one line.
+
 Information, never styling, built the same way for every row from the values it reads:
 
 - Always: Matched (the rule's count) and Values read (each with its run's state, or "this view
@@ -628,13 +668,34 @@ A folder lists the values its layers read, each with the layers that read it.
 
 ### 2.5 Graph settings (no row selected)
 
-Background (color or image), View mode, Lighting (studio, headlight, matte, flat; studio is the
-default), Labels (hide overlapping labels; move labels off nodes and edges), Same size at any depth,
-Highlight color (the color a run paints its result in when no layer says otherwise).
+**Round 6 (2026-10-14):** Background (color or image), Lighting (studio, headlight, matte, flat;
+studio is the default), Same size at any depth, Labels (hide overlapping labels, node and edge;
+move labels off nodes and edges), Outline width (every outline). View mode and Layout live only in
+the toolbar; Highlight color is removed (it changed nothing already drawn and was not saved). A
+setting the element reports as not in effect (for example ignored in 2D) is hidden, and the graph's
+Values tab says how many apply only elsewhere. A color's minus appears only once it differs from
+the element's published default, and returns it there.
+
+The graph's Values tab: Nodes, Edges, Direction (with an (i) naming where the direction came from;
+undirected, directed, mixed or unknown), Density, Transitivity, Components, then a Degree section
+(histogram in element-chosen bins, Lowest, Median, Mean, Highest; All, In, Out on a directed
+graph).
 
 ---
 
 ## 3. Choosing which elements, generically
+
+**Round 6 (2026-10-14) replaces the in-place editor and the rule-kind list.** The section is the rule
+as a sentence and its count; clicking it opens a popover beside the panel (320 px). Inside: Nodes,
+Edges, Both; Find; "Match all / any"; condition rows that pick the attribute first (Specific
+elements..., Data, each run, State: is selected, is hovered; Saved sets only when sets exist), then
+the tests the element says that attribute takes (number: between, at least, at most, is, in the top
+or bottom N with a tie choice; category: is one of, is not one of, in the largest N groups; text:
+contains, is, starts with, ends with, matches pattern; yes or no). Edits are live, one undo step per
+popover; Done, a click outside or focus leaving keeps them, Escape restores. "Write a rule" opens
+the element's existing query syntax only. Every rule the element can hold reads as a sentence and
+opens here; one the controls cannot show opens read-only with "Replace with conditions". A new
+layer starts as Both, every node and edge. The text below is the first version.
 
 ### 3.1 The editor
 
@@ -706,6 +767,17 @@ elements, and opens it on its first property.
   one-click "gradient" or "scheme" button.
 - "Fix at <value>" in the binding popover turns a derived field back into one value, naming the
   value it keeps.
+- **Round 6 (2026-10-14).** Inside a binding every field shows what it paints now (the default
+  palette by name with a "Default" tag; a minus once something else is picked). A group opens its
+  detail in the popover: Name (a value label the element keeps across re-runs), one field per
+  property the layer varies by that category in that property's own kind, and "+ Set another
+  property for <group>"; other groups keep the layer's own value for it. Several groups edit
+  together. The list shows the largest 8, then "N more" with search, sort, fold into Other and the
+  selected node's group pinned. The histogram always spans the data; its arrows set where the end
+  colors start, and an Ends select (Fit the data, Values, Percentiles) replaces Clamp outliers.
+  A number on a property with fixed choices (pattern, shape, arrow kind) draws in ordered steps. For
+  look properties the picker lists each measure once (no "Rank of"). A pen edits a binding's
+  colors, and "Save as palette..." keeps them in the project.
 - The binding popover for categories holds the scheme (palettes by plain name, shape schemes,
   pattern and arrow lists that fit), the category rows, Other's share and the overflow choice,
   values not listed (Skip or Paint), elements with no value, and combine. A category row is its
@@ -1274,3 +1346,10 @@ The owner approves the UI before any study runs.
   Everything holding the base look through graphty-element's new `editableBase` setting. This
   reverses the "seven core properties always drawn" rule, the gray placeholder rule, the settings
   buttons for rare properties, the eye on effect entries and the gray inherited list lines.
+- **2026-10-14, the owner's review of the fifth build** (`tier3/decisions-round-6.md`). Add layer
+  makes a real "Layer N" (Both, every one) and "+" offers Analyze; per-group settings for every
+  property and group names; defaults shown inside a binding; the histogram over all the data with
+  an Ends select; Which elements as a popover with attribute-first conditions and a tie choice;
+  one "+" item per drawn part; "Arrowheads" with Target end and Source end; one Label noun with
+  three edge places; View, Layout and Highlight color leave the graph Style tab; one Values-tab
+  structure for every layer; degree as separate statistics.

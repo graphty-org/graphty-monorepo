@@ -153,6 +153,8 @@ Each with its reason. A screen that breaks one is a defect.
 
 ## Decisions and reasons
 
+- **2026-10-14, round 6:** Round 6: "+" holds Layer, Folder and Analyze... (one command, two doors); Analyze's button names the state (Run / Update Leiden layer / Add Leiden layer) and restores a deleted layer from the stored result without recomputing; Which elements is a popover, live edits, one undo step per popover, outside click keeps, Escape restores; group rows rename by F2, menu or the Name field, never double-click (single click opens the group).
+
 - 2026-09-13..10-03 (summarized; owner = decided by the owner) Panels stay open, no locks or
   autohide (owner). Algorithms layer styles and never mute the rest (owner). Every action undoable,
   history in graphty-element (owner). Shift+Arrow walks nodes (owner). Every undo and redo shows a

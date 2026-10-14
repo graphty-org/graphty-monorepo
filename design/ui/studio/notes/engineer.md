@@ -1047,6 +1047,8 @@ caseSensitive? }` on one matcher `textMatcher` (`session/text.ts`) that selectio
 
 ## Decisions and reasons
 
+- **2026-10-14, round 6:** Round 6 element additions (all additive): addRow accepts an empty row; run start `restoreLayer`; binding `otherwise` and per-category reads/writes over every channel; value labels (`data.setValueLabel`); preview reports palette and defaulted parts; proposeEncoding fits ranges to schema bounds (patternCount min 2) and steps numbers on choice channels for runs and columns alike; project palettes in the style document; ReadableValue tests; `ties` on top N with a coded fact; descriptor `modifies` and `step`; batched draws-nothing fact; endTextWithoutArrow option; outlineWidth option; config inEffect; coveredBy per channel; binned and in/out degree histograms. To reproduce first: Which elements breaking on every layer after cycling a Leiden layer.
+
 - (2026-10-12) **One list of readable values, `session.data.readableValues()`, built on two
   existing decisions instead of a third.** Run fields go through `describeRows` (the walk that
   describes data columns), overridden with the field's own measurement (`fieldMeasurement`), and

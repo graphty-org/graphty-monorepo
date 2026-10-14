@@ -162,6 +162,8 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
 
 ## Decisions and reasons
 
+- **2026-10-14, round 6:** Round 6, layers, value-from-data, which-elements, properties, graph clusters: kept the icon as kind only (Figma's rule), Add layer makes a real named layer, one "+" item per drawn part with sub-settings in the part's popover (Figma effects and strokes), number fields scrub on the name with no spinners, popovers keep the edge facing their anchor fixed. Rejected my own "Width (every outline)" inside a layer popover: a graph-wide write in a layer breaks every-layer-equal; it lives in Graph settings.
+
 - 2026-10-13 (me, iteration 3 walk) Rated the cut property names severity 3: it is on every layer
   at rest, it is the first thing the owner judges ("do one-line rows read as Figma's"), and
   Figma's rule is that a property name is never truncated. Rated the kind change that empties a

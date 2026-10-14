@@ -106,6 +106,8 @@ reasons, in short:
 
 ## Decisions and reasons
 
+- **2026-10-14, round 6:** Round 6 watch items for the next build: does anyone expect the layer icon to say where a layer came from; does an empty Layer 1 read as broken; do readers find per-group settings from the group list and still use New layer for; do readers find "+" > Analyze before the toolbar.
+
 - 2026-10-11 (researcher, round 5 skeptic verdicts) -- Rewrote `round-5/insights.md` for the b
   re-runs (the old file described the void first run). Rule: two drops = dropped, one = weakened
   unless answered with evidence. Verified the disputed claims myself first: the roster's Style-tab

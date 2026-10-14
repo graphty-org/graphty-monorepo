@@ -106,6 +106,8 @@ Last updated: 2026-10-13 (tier 3 paused for the owner's review after iteration 3
 
 ## Decisions (dated, with reasons)
 
+- **2026-10-14, round 6:** Round 6: per-group chits show the group's whole look (shape in its color); when a palette runs out, color and shape cycles are offset so no two groups share both; clamped histogram ranges hatched; degree histogram bins chosen by the element with a budget so large graphs never draw thousands of slivers.
+
 - 2026-10-13 (tier 3 pause): Backed iteration 4's plan to move every property's settings into one
   button per kind section instead of my single-row proposal (gear at the row's end): it frees the
   name column entirely and matches Figma's Type settings, at the cost of one more click for rare

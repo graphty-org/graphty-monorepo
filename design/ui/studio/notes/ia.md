@@ -185,6 +185,8 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
 
 ## Decisions and reasons
 
+- **2026-10-14, round 6:** Round 6, layers and which-elements and graph clusters: no provenance line in the header (critique was right: it is a second kind mark); attribute-first conditions with tests from the element, "is selected" and "is hovered" as State attributes so pinned rows stay ordinary layers; Specific elements replaces Named; View and Layout have one home, the toolbar; no Layout copy in Values.
+
 - 2026-09-28 to 2026-10-02 (owner and mock rounds 3-8, summarized 2026-10-09): structure from
   the ontology, Figma for controls only; a Data place for all data management; results live where
   they paint (refined B: every run a row in the paint tree, owner 2026-09-30); rail for places,

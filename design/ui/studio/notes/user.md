@@ -133,6 +133,8 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Decisions and reasons
 
+- **2026-10-14, round 6:** Round 6: the owner's confusions (empty palette, vanishing new layer, "Top 10" selecting nothing, "End" not drawn, Highlight read as Headlight) were each a screen that said nothing true. Decisions favor words that say what happened (count lines that explain ties, "Draws nothing", Add Leiden layer). Watch: does an empty Layer 1 read as broken?
+
 - 2026-10-13 (me, tier 3 pause) -- Agree with the iteration 4 plan. Additions I hold to: a layer
   shows only its own entries; nothing is lost by passing through a kind; focus never falls to the
   page; "one color per value" must give distinct colors. Reason: each is a screen that lies or a

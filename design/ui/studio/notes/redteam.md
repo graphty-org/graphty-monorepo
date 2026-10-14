@@ -119,6 +119,8 @@ served at `/?next`.
 
 ## Decisions and reasons
 
+- **2026-10-14, round 6:** Round 6 critiques adopted: repaint test must read what was painted, not explain(); restore a run layer without rerunning; no copy of the layer's fixed value into a binding (one `otherwise` value, edited from the property row); "draws nothing" resolved over the whole stack; no Alt+drag (Linux WM); proposals naming the same element call twice were consolidated in the decisions. Open: whether a reader's edit to a highlight layer survives the next run.
+
 - (2026-10-13) Agreed with iteration 3's review: no split parent (a third row kind costs every
   reader a new rule set for one dataset shape); unset and cover stay separate controls; Figma
   divergence only where Figma has no stacking (painted-over mark) or tier 1 evidence (vary glyph

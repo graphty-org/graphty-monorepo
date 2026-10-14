@@ -96,14 +96,6 @@ export type StylePatchCommand =
       }
     | {
           readonly op: "style.patch";
-          readonly action: "addRow";
-          readonly spec: RowSpec;
-          /** Which neighbour to sit next to; the top of the stack when absent. */
-          readonly at?: LayerPosition;
-      }
-    | { readonly op: "style.patch"; readonly action: "writeRow"; readonly id: LayerId; readonly write: RowWrite }
-    | {
-          readonly op: "style.patch";
           readonly action: "addFolder";
           readonly name: string;
           /** Where it goes; the top of the unpinned top-level rows when absent. */
@@ -116,7 +108,15 @@ export type StylePatchCommand =
     | { readonly op: "style.patch"; readonly action: "pinRow"; readonly id: StyleRowId; readonly pin: StyleRowPin }
     | { readonly op: "style.patch"; readonly action: "lockRow"; readonly id: StyleRowId; readonly locked: boolean }
     | { readonly op: "style.patch"; readonly action: "hideRow"; readonly id: StyleRowId; readonly hidden: boolean }
-    | { readonly op: "style.patch"; readonly action: "deleteRow"; readonly id: StyleRowId };
+    | { readonly op: "style.patch"; readonly action: "deleteRow"; readonly id: StyleRowId }
+    | {
+          readonly op: "style.patch";
+          readonly action: "addRow";
+          readonly spec: RowSpec;
+          /** Which neighbour to sit next to; the top of the stack when absent. */
+          readonly at?: LayerPosition;
+      }
+    | { readonly op: "style.patch"; readonly action: "writeRow"; readonly id: LayerId; readonly write: RowWrite };
 
 /** `style.encode`: paint a run's measurement onto a channel. */
 export interface StyleEncodeCommand {

@@ -1243,7 +1243,7 @@ interface EditPlan<T> {
     readonly reason: RepaintReason;
     /** The style tree the edit leaves, when it changes the tree itself; else worked out from the stack. */
     readonly rows?: Rows;
-    /** A layer the edit moved, whose tree row is placed again by its new neighbours. */
+    /** A layer the edit moved, whose tree row is placed again by its new neighbors. */
     readonly moved?: LayerId;
 }
 

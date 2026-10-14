@@ -164,6 +164,46 @@ describe("a style row that paints nodes and edges", () => {
         session.dispose();
     });
 
+    it("is one row of the style tree, which hides, locks and deletes both parts", async () => {
+        const session = await lesMis();
+        const { styles } = session;
+        const row = await styles.addRow({
+            name: "On route",
+            target: "both",
+            selector: ON_ROUTE,
+            set: { color: "#ff0000" },
+        });
+        const nodeId = row.node ?? "";
+        const edgeId = row.edge ?? "";
+
+        assert.deepStrictEqual(
+            styles.tree().map((entry) => entry.id),
+            [row.id],
+            "one tree row for the two parts",
+        );
+
+        await styles.hideRow(row.id, true);
+        assert.strictEqual(styles.counts(nodeId).painted["node.color"] ?? 0, 0);
+        assert.strictEqual(styles.counts(edgeId).painted["edge.color"] ?? 0, 0, "the eye reaches the edge part");
+        await styles.hideRow(row.id, false);
+
+        await styles.lockRow(row.id, true);
+        const locked = await styles.writeRow(row.id, { set: { width: 3 } }).then(
+            () => null,
+            (error: unknown) => error,
+        );
+        assert.isTrue(isGraphtyError(locked), "a locked row refuses a write to either part");
+        await styles.lockRow(row.id, false);
+
+        const steps = session.history.steps.length;
+        await styles.deleteRow(row.id);
+        assert.lengthOf(own(styles), 0);
+        assert.lengthOf(session.history.steps, steps + 1, "one step");
+        await session.undo();
+        assert.lengthOf(own(styles), 2);
+        session.dispose();
+    });
+
     it("refuses a layer that claims a row outside addRow", async () => {
         const session = await lesMis();
         const refused = await session.styles

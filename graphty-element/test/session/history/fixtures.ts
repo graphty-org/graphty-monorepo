@@ -306,6 +306,23 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         command: { op: "style.patch", action: "removeBySource", ids: ["fixture-a_1", "fixture-b_1"] },
     },
     {
+        name: "style.patch highlight",
+        variant: "highlight",
+        tags: BOTH,
+        before: (session) => runQuietly(session, "shortest-path", "route", { source: "n1", target: "n3" }),
+        command: { op: "style.patch", action: "highlight", spec: { run: "route" } },
+    },
+    {
+        name: "style.patch resolveToStatic",
+        variant: "resolveToStatic",
+        tags: BOTH,
+        before: async (session) => {
+            await runQuietly(session, "degree", "deg");
+            await session.styles.encode({ run: "deg", channel: "node.color", name: "Fixture encoding" });
+        },
+        command: { op: "style.patch", action: "resolveToStatic", id: "fixture-encoding_1", channel: "node.color" },
+    },
+    {
         name: "style.patch addRow",
         variant: "addRow",
         tags: BOTH,
@@ -329,23 +346,6 @@ export const FIXTURES: readonly RoundTripFixture[] = [
             });
         },
         command: { op: "style.patch", action: "writeRow", id: "fixture-row_2", write: { set: { width: 2 } } },
-    },
-    {
-        name: "style.patch highlight",
-        variant: "highlight",
-        tags: BOTH,
-        before: (session) => runQuietly(session, "shortest-path", "route", { source: "n1", target: "n3" }),
-        command: { op: "style.patch", action: "highlight", spec: { run: "route" } },
-    },
-    {
-        name: "style.patch resolveToStatic",
-        variant: "resolveToStatic",
-        tags: BOTH,
-        before: async (session) => {
-            await runQuietly(session, "degree", "deg");
-            await session.styles.encode({ run: "deg", channel: "node.color", name: "Fixture encoding" });
-        },
-        command: { op: "style.patch", action: "resolveToStatic", id: "fixture-encoding_1", channel: "node.color" },
     },
     {
         name: "style.patch addFolder",

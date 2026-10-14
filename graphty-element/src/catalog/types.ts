@@ -831,9 +831,7 @@ export type GroupMatchCode = "group.new" | "group.gone";
  */
 export interface LayerUnmatchedGroup {
     /** Whether the group is new after the re-run or gone from it. */
-    /** Whether the group is new after the re-run or gone from it. */
     readonly code: GroupMatchCode;
-    /** Which group, of which value. */
     /** Which group, of which value. */
     readonly params: {
         /** The value path the group is a value of, such as `results.louvain.group`. */

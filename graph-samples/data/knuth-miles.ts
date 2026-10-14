@@ -2,7 +2,7 @@
 // Source: https://mirrors.ctan.org/support/graphbase/miles.dat
 // sha256: 071a4a08ec88ec4ea6270de4888a5a9eb4ea1a258cbc9443695f7a7b0edfc453
 
-import { type DatasetData } from "../build.js";
+import { type DatasetData } from "./build.js";
 
 export const DATA: DatasetData = {
     directed: false,

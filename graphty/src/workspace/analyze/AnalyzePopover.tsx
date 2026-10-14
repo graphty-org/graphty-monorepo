@@ -31,6 +31,19 @@ const ROW_ICON: Readonly<Record<Heading["id"], React.ReactNode>> = {
 const RECENT = 3;
 
 /**
+ * Whether a run of this algorithm is kept but no row shows it any more (its layer was deleted).
+ * The element paints a run on its first completion only, so running it again would paint nothing;
+ * this asks for its suggested layers back.
+ * @param session - The element's session
+ * @param key - The algorithm
+ * @returns True when the run should bring its layers back
+ */
+function lostItsRow(session: GraphSession, key: string): boolean {
+    const runs = session.runs.list().filter((run) => run.algorithm === key && run.status !== "removed");
+    return runs.length > 0 && runs.every((run) => session.runs.bindings(run.id).length === 0);
+}
+
+/**
  * The icon of the row an algorithm adds.
  * @param descriptor - the algorithm.
  * @returns the icon.
@@ -180,7 +193,10 @@ export function AnalyzePopover({
                 onClose={onClose}
                 onRun={(params) => {
                     // Each From and To is its own run, so its own row.
-                    const run = session.runs.start(picked.key, params, { style: { name: wordsFor(picked).name } });
+                    const run = session.runs.start(picked.key, params, {
+                        style: { name: wordsFor(picked).name },
+                        applySuggestedStyles: lostItsRow(session, picked.key),
+                    });
                     run.then(undefined, () => undefined);
                     onStarted(wordsFor(picked).name);
                     onPathStarted?.(run);
@@ -204,6 +220,7 @@ export function AnalyzePopover({
                     // The layers it adds go by the algorithm's name as the reader picked it ("Closeness").
                     const run = session.runs.start(picked.key, paramsFor(session, picked, values), {
                         style: { name: wordsFor(picked).name },
+                        applySuggestedStyles: lostItsRow(session, picked.key),
                     });
                     // A failed run is reported on its row and in the inspector, from the run itself.
                     run.then(undefined, () => undefined);

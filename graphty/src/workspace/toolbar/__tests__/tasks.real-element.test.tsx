@@ -176,6 +176,39 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         });
     });
 
+    it("a run whose row was deleted gets its row back when Analyze runs it again", async () => {
+        const session = await openKarate();
+        await analyze("communities", "Louvain");
+        const louvain = await finished(session, "louvain");
+        await waitFor(() => {
+            assert.isAbove(session.runs.bindings(louvain).length, 0);
+        });
+        if (screen.queryByRole("tree", { name: "Style layers" }) === null) {
+            await userEvent.click(screen.getByRole("button", { name: "Graph" }));
+        }
+        const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
+        await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Louvain, layer/ }));
+        await userEvent.keyboard("{Delete}");
+        await waitFor(() => {
+            assert.isNull(within(tree).queryByRole("treeitem", { name: /^Louvain, layer/ }));
+            assert.lengthOf(session.runs.bindings(louvain), 0);
+        });
+
+        await userEvent.click(analyzeTool());
+        await userEvent.type(await screen.findByRole("combobox", { name: "Filter analyses" }), "communities");
+        await userEvent.click(await screen.findByRole("option", { name: /^Louvain/ }));
+        const form = await screen.findByRole("form", { name: "Louvain" });
+        await userEvent.click(within(form).getByRole("button", { name: /Louvain row|^Run$/ }));
+        // Nothing needs computing again, so the run settles once whatever Analyze asked of it has.
+        await session.runs.get(louvain)?.then(
+            () => undefined,
+            () => undefined,
+        );
+        await session.styles.settled();
+        assert.isAbove(session.runs.bindings(louvain).length, 0, "the run painted its layer again");
+        await within(tree).findByRole("treeitem", { name: /^Louvain, layer/ }, { timeout: TIMEOUT_MS });
+    });
+
     it("a run's layer, its key entry and its values go by the algorithm's name: Closeness, not Reach", async () => {
         const session = await openKarate();
         await analyze("Closeness", "Closeness");

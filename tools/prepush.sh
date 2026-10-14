@@ -97,17 +97,21 @@ trap cleanup EXIT
 
 # The affected projects, as nx names them. The base is where this branch left origin/master,
 # so commits other people landed on master since then do not count as this push's changes.
+NX_SHOW_ERR=$(mktemp)
 if [ "${PREPUSH_ALL:-0}" = "1" ]; then
-    PROJECTS=$(NX_DAEMON=false pnpm exec nx show projects --json 2>/dev/null)
+    PROJECTS=$(NX_DAEMON=false pnpm exec nx show projects --json 2>"$NX_SHOW_ERR")
 else
     BASE=$(git merge-base origin/master HEAD)
-    PROJECTS=$(NX_DAEMON=false pnpm exec nx show projects --affected --base="$BASE" --head=HEAD --json 2>/dev/null)
+    PROJECTS=$(NX_DAEMON=false pnpm exec nx show projects --affected --base="$BASE" --head=HEAD --json 2>"$NX_SHOW_ERR")
 fi
 # An empty answer is nx (or the pnpm in front of it) cut short, not "nothing affected", which is "[]".
 if [[ "$PROJECTS" != "["* ]]; then
-    echo "nx show projects printed no project list, so the affected packages are unknown; stopping" >&2
+    echo "nx show projects printed no project list, so the affected packages are unknown; stopping. Its errors:" >&2
+    tail -20 "$NX_SHOW_ERR" >&2
+    rm -f "$NX_SHOW_ERR"
     exit 1
 fi
+rm -f "$NX_SHOW_ERR"
 PROJECT_LIST=$(echo "$PROJECTS" | tr -d '[]" ')
 affected() { echo ",$PROJECT_LIST," | grep -q ",$1,"; }
 # The same packages as directories (nx names remote-logger by its package name).
@@ -139,7 +143,13 @@ echo ""
 # is left alone: nothing in this push changed it. Only projects with a build target are listed
 # (visual-review has none), so nx does not warn about the rest.
 BUILD_LIST=""
-for p in $(NX_DAEMON=false pnpm exec nx show projects --with-target build --json 2>/dev/null | tr -d "[]\"" | tr "," " "); do
+WITH_BUILD=$(NX_DAEMON=false pnpm exec nx show projects --with-target build --json 2>/dev/null)
+# Cut short, nx prints nothing, and an empty list would skip the build without a word.
+if [[ "$WITH_BUILD" != "["* ]]; then
+    echo "nx show projects --with-target build printed no project list; stopping" >&2
+    exit 1
+fi
+for p in $(echo "$WITH_BUILD" | tr -d "[]\"" | tr "," " "); do
     { affected "$p" || [ ! -d "${p#@graphty/}/dist" ]; } && BUILD_LIST="$BUILD_LIST,$p"
 done
 BUILD_LIST="${BUILD_LIST#,}"

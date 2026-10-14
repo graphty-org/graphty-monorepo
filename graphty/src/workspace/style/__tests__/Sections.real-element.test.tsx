@@ -353,7 +353,8 @@ describe("the Style tab's sections", () => {
         await session.styles.encode({ run: runId, channel: "node.color", name: "Groups" });
         await session.styles.settled();
         const layer = session.styles.list().find((each) => each.name === "Groups");
-        assert.isUndefined(layer?.encode?.["node.color"]?.palette, "the layer sets no palette");
+        const binding = layer?.encode?.["node.color"];
+        assert.isFalse(typeof binding === "object" && "palette" in binding, "the layer sets no palette");
         await openStyle("Groups");
         await userEvent.click(
             await waitFor(() => within(section("node", "fill")).getByRole("button", { name: /^Node color: / })),

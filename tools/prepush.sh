@@ -43,6 +43,10 @@ if [ -n "$PUSH_BRANCH" ] && ! node "$SCRIPT_DIR/queued-push-guard.mjs" "$PUSH_BR
     exit 1
 fi
 
+# A build or test that crashes must not leave a core dump (often gigabytes) in the checkout: every
+# step below runs in this shell's children, so this one limit covers them all.
+ulimit -c 0
+
 echo "========================================"
 echo "Pre-push validation"
 echo "========================================"

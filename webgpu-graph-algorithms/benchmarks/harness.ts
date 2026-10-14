@@ -232,6 +232,15 @@ function formatBytes(bytes: number): string {
 }
 
 /**
+ * Format a duration for the table.
+ * @param ms - milliseconds
+ * @returns "12.3 ms"-style text
+ */
+function formatMs(ms: number): string {
+    return `${ms.toFixed(3)} ms`;
+}
+
+/**
  * Format a rate for the table.
  * @param rate - items per second
  * @returns "1.23 M/s"-style text
@@ -261,8 +270,8 @@ export function printTable(results: readonly BenchResult[]): void {
     for (const r of results) {
         const rate = r.rate === null ? "" : `${formatRate(r.rate)} ${r.rateUnit ?? ""}`;
         console.log(
-            `${r.name.padEnd(nameWidth)}  ${`${r.medianMs.toFixed(3)} ms`.padStart(11)}  ` +
-                `${`${r.minMs.toFixed(3)} ms`.padStart(10)}  ${`${r.maxMs.toFixed(3)} ms`.padStart(10)}  ` +
+            `${r.name.padEnd(nameWidth)}  ${formatMs(r.medianMs).padStart(11)}  ` +
+                `${formatMs(r.minMs).padStart(10)}  ${formatMs(r.maxMs).padStart(10)}  ` +
                 `${formatBytes(r.memoryDeltaBytes).padStart(10)}  ${rate}`,
         );
     }

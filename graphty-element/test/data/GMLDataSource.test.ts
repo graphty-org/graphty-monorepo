@@ -139,12 +139,9 @@ describe("GMLDataSource", () => {
         }
 
         assert.equal(chunks[0].nodes.length, 1);
-        assert.deepEqual(chunks[0].nodes[0].graphics, {
-            x: 100.0,
-            y: 200.0,
-            w: 30.0,
-            h: 30.0,
-        });
+        // x and y are the node's position (GML is y down), and the rest of the block stays.
+        assert.deepEqual(chunks[0].nodes[0].graphics, { w: 30.0, h: 30.0 });
+        assert.deepEqual(chunks[0].nodes[0].position, { x: 100.0, y: -200.0, z: 0 });
     });
 
     test("handles string IDs", async () => {

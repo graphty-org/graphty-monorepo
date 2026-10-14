@@ -384,7 +384,10 @@ describe("GML, DOT and Pajek read through graph-io", () => {
             new PajekDataSource({ data: '*Vertices 2\n1 0.1 0.2\n1 "z" 0.9 0.9\n2\n*Edges\n1 2' }),
         );
 
-        assert.deepStrictEqual(nodes, [{ id: "1", label: "z", x: 0.1, y: 0.2 }, { id: "2" }]);
+        assert.deepStrictEqual(nodes, [
+            { id: "1", label: "z", x: 0.1, y: 0.2, position: { x: 0.1, y: -0.2, z: 0 } },
+            { id: "2" },
+        ]);
     });
 
     test("Pajek drops edges 2.x kept: an undeclared vertex, a word weight, ends named by label", async () => {
@@ -400,7 +403,8 @@ describe("GML, DOT and Pajek read through graph-io", () => {
 
         assert.deepStrictEqual(nodes, [
             { id: "1", label: "5" },
-            { id: "2", x: 0.123456789, y: 0.5 },
+            // x and y as written; the position is y up (Pajek is y down)
+            { id: "2", x: 0.123456789, y: 0.5, position: { x: 0.123456789, y: -0.5, z: 0 } },
         ]);
     });
 
@@ -465,10 +469,13 @@ describe("GML, DOT and Pajek read through graph-io", () => {
         );
     });
 
-    test("DOT keeps pos as the text the file wrote", async () => {
-        const { nodes } = await collect(new DOTDataSource({ data: 'graph { a [pos="1,2!"] }' }));
+    test("DOT reads pos as the node's position, and its ! as a pin", async () => {
+        const { nodes } = await collect(new DOTDataSource({ data: 'graph { a [pos="1,2!"]; b [pos="3,4"] }' }));
 
-        assert.deepStrictEqual(nodes, [{ id: "a", pos: "1,2!" }]);
+        assert.deepStrictEqual(nodes, [
+            { id: "a", pin: true, position: { x: 1, y: 2, z: 0 } },
+            { id: "b", position: { x: 3, y: 4, z: 0 } },
+        ]);
     });
 
     test("DOT reads a body with no keyword by its edge operators", async () => {

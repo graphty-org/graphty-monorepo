@@ -276,11 +276,6 @@ function gexfMapping(snapshot: GraphSnapshot, graphDirected: boolean): RecordMap
                 }
 
                 switch (column.meta.role) {
-                    case "position": {
-                        const [x, y, z] = components(column, row);
-                        record.position = { x, y, z };
-                        break;
-                    }
                     case "color": {
                         const [r, g, b, a] = components(column, row);
                         record.color = { r: Math.round(r * 255), g: Math.round(g * 255), b: Math.round(b * 255), a };

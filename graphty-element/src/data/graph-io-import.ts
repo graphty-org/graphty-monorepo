@@ -21,6 +21,7 @@ import {
 import type { AdHocData } from "../config/common.js";
 import { GraphtyError } from "../errors/index.js";
 import type { ErrorAggregator } from "./ErrorAggregator.js";
+import { applyFilePositions, filePositionsOf } from "./filePositions.js";
 
 /** How the scratch builder treats what the importer pushes, beyond what graph-format does itself. */
 interface ScratchPolicy {
@@ -113,6 +114,8 @@ class DeclaringBuilder extends GraphBuilder {
 export interface ImportedGraph {
     readonly snapshot: GraphSnapshot;
     readonly report: ImportReport;
+    /** The importer that read it, which says how the file spells its node positions. */
+    readonly importer: GraphImporter;
     /** The ids of the nodes the file declared, as opposed to those an edge created. */
     readonly declared: ReadonlySet<NodeId>;
 }
@@ -161,7 +164,7 @@ export async function importDocument<Opts>(
         ({ report } = error);
     }
 
-    return { snapshot: builder.freeze(), report, declared: builder.declared };
+    return { snapshot: builder.freeze(), report, importer: importer, declared: builder.declared };
 }
 
 /**
@@ -524,7 +527,8 @@ const RESERVED_PREFIX = "graphty.";
 /**
  * Copy every set cell of one row onto a record: each attribute column under its own name, a
  * multi-component cell as an array, an f32 cell widened as {@link cell} does. graph-format's
- * reserved `graphty.*` columns carry structure, not data, and are not copied; nor is a key the
+ * reserved `graphty.*` columns carry structure, not data, and are not copied; nor is the stored
+ * node position, which {@link toRecords} writes in one spelling for every format; nor is a key the
  * record already holds, so a column named `id`, `source` or `target` cannot take their place.
  * @param table - the node or edge table
  * @param row - the row
@@ -533,7 +537,8 @@ const RESERVED_PREFIX = "graphty.";
 export function copyColumns(table: AttributeTable, row: number, record: Record<string, unknown>): void {
     for (const column of table) {
         const { name } = column.meta;
-        if (name.startsWith(RESERVED_PREFIX) || Object.hasOwn(record, name) || !column.isSet(row)) {
+        const skipped = name.startsWith(RESERVED_PREFIX) || column.meta.role === "position";
+        if (skipped || Object.hasOwn(record, name) || !column.isSet(row)) {
             continue;
         }
 
@@ -547,7 +552,8 @@ export function copyColumns(table: AttributeTable, row: number, record: Record<s
  * Only declared nodes become records, in declaration order. Each logical edge of the file becomes one record: when the importer expanded an edge into
  * two halves to hold a mixed-direction file, the mirror half (the one whose `pair` points at a
  * lower row) is skipped. An edge carries `weight` only when the file gave it one, at the precision
- * the importer read it with.
+ * the importer read it with. A node the file placed carries `position: { x, y, z }`: its center, y up,
+ * in the file's own unit, read by graph-io's `extractPositions` whatever the format's spelling.
  * @param imported - the import
  * @param mapping - the format's mapping from rows to record keys
  * @returns the records, in file order
@@ -564,6 +570,8 @@ export function toRecords(imported: ImportedGraph, mapping: RecordMapping): { no
         mapping.node(ids.indexOf(id), record);
         nodes.push(record);
     }
+
+    applyFilePositions(nodes, filePositionsOf(imported), (id) => ids.indexOf(id));
 
     const pair = snapshot.edges.byRole("pair");
     const weight = snapshot.edges.byRole("weight");

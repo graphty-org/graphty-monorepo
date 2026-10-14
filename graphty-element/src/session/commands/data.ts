@@ -546,6 +546,27 @@ function importFact(command: DataImportCommand): CodedFact<"data.import"> {
     return { code: "data.import", params: { name: named ?? null, type: type ?? null } };
 }
 
+/**
+ * The import's `layout` choice: the command's own, else the one its source config names (a load
+ * call's options and `dataSourceConfig` carry it there, beside the reader's options).
+ * @param command - the import
+ * @returns `"recommended"` or `"keep"`
+ * @throws A `GraphtyError` with `E_BAD_COMMAND` when the config names any other value.
+ */
+function layoutChoiceOf(command: DataImportCommand): "recommended" | "keep" {
+    const layout = command.layout ?? command.source.config?.layout ?? "keep";
+    if (layout !== "recommended" && layout !== "keep") {
+        throw new GraphtyError({
+            code: "E_BAD_COMMAND",
+            message: `A load's layout is "recommended" or "keep", not ${JSON.stringify(layout)}.`,
+            source: "data",
+            details: { reason: "bad-layout-choice", layout: JSON.stringify(layout) },
+        });
+    }
+
+    return layout;
+}
+
 const dataImport: UndoableDefinition<DataImportCommand> = {
     op: "data.import",
     undo: { kind: "undoable", label: importLabel, fact: importFact },
@@ -562,7 +583,7 @@ const dataImport: UndoableDefinition<DataImportCommand> = {
     byReference: ["config", "held", "measure"],
     closesBaseline: true,
     execute: async (command, ctx) => {
-        if (command.layout === "recommended") {
+        if (layoutChoiceOf(command) === "recommended") {
             // Chosen for what was loaded, once it is loaded, and merged into the import's step.
             const advise = ctx.services.layoutAdvice;
             ctx.after("layout:recommended", (dispatch) => {

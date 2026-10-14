@@ -2898,6 +2898,9 @@ export class Graphty extends LitElement {
      * @param options.graphIndex - Which graph to read, by position, from a file that holds several
      *     (`listGraphs` from `@graphty/graphty-element/catalog` lists them); the first by default
      * @param options.graphName - Which graph to read, by name, from a file that holds several
+     * @param options.layout - `"recommended"` chooses a layout for what was loaded once it is loaded:
+     *     `fixed`, which draws each node where the file put it, when every node arrived with a position,
+     *     and a computed one otherwise. `"keep"` (the default) leaves the layout as it is
      * @returns Promise that resolves to `{ loadId }`, the id every event about this load carries
      * @since 1.5.0
      * @example
@@ -2915,6 +2918,7 @@ export class Graphty extends LitElement {
             replace?: boolean;
             graphIndex?: number;
             graphName?: string;
+            layout?: "recommended" | "keep";
         },
     ): Promise<{ loadId: number }> {
         return this.#graph.loadFromUrl(url, options);
@@ -2934,6 +2938,9 @@ export class Graphty extends LitElement {
      * @param options.graphIndex - Which graph to read, by position, from a file that holds several
      *     (`listGraphs` from `@graphty/graphty-element/catalog` lists them); the first by default
      * @param options.graphName - Which graph to read, by name, from a file that holds several
+     * @param options.layout - `"recommended"` chooses a layout for what was loaded once it is loaded:
+     *     `fixed`, which draws each node where the file put it, when every node arrived with a position,
+     *     and a computed one otherwise. `"keep"` (the default) leaves the layout as it is
      * @returns Promise that resolves to `{ loadId }`, the id every event about this load carries
      * @since 1.5.0
      * @example
@@ -2953,6 +2960,7 @@ export class Graphty extends LitElement {
             replace?: boolean;
             graphIndex?: number;
             graphName?: string;
+            layout?: "recommended" | "keep";
         },
     ): Promise<{ loadId: number }> {
         return this.#graph.loadFromFile(file, options);

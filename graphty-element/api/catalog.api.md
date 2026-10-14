@@ -1030,6 +1030,7 @@ export interface LabelStyle {
     shadowColor?: string;
     shadowOffsetX?: number;
     shadowOffsetY?: number;
+    size?: number;
     sizePx?: number;
     smartOverflow?: boolean;
     textAlign?: LabelTextAlign;

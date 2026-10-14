@@ -11,6 +11,7 @@ import { afterEach, assert, describe, it } from "vitest";
 
 import { Graph } from "../../src/Graph";
 import { dispatcherOf } from "../../src/session/GraphSession";
+import { drawnFrames } from "../helpers/drawn-frames";
 import { nextFrame } from "../helpers/real-input";
 
 /** Frames advanced after the undo, in which nothing may move. */
@@ -99,9 +100,8 @@ async function addSettleUndo(graph: Graph): Promise<void> {
     assert.deepEqual(restored, before, "undo restores where the layout had come to rest before the add");
 
     graph.getUpdateManager().stepFrames(FRAMES);
-    // The render loop draws a couple of frames of its own: still nothing may move.
-    await nextFrame();
-    await nextFrame();
+    // The render loop draws a couple of frames of its own, each updating the layout: still nothing may move.
+    await drawnFrames(graph.getScene(), 2);
     assert.isFalse(graph.getLayoutManager().running, "nothing reheated the layout");
     assert.deepEqual(lane(graph), restored, "and nothing moved");
     assert.strictEqual(

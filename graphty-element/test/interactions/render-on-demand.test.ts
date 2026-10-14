@@ -5,8 +5,8 @@
  * A still graph used to be drawn again on every animation frame. On a software GPU, which every
  * CI runner and headless browser has, each of those frames costs the page tens to hundreds of
  * milliseconds of its main thread, so a page holding a few still graphs answered a click slowly
- * (issue #1824). Frames are counted by the scene's own render id, and the
- * input is the browser's own (test/helpers/real-input.ts).
+ * (issue #1824). Frames are counted by the scene's own render id and by the render loop's own
+ * count of its ticks, and the input is the browser's own (test/helpers/real-input.ts).
  *
  * Every test ends on {@link restsOnTheCurrentPicture}: once the element has stopped drawing, the
  * canvas must hold exactly what a fresh frame would draw. That is the failure a frame skipped too
@@ -20,6 +20,7 @@ import { afterEach, assert, describe, it } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
+import type { RenderManager } from "../../src/managers/RenderManager";
 import { click, drag, nextFrame, type Point, wheel } from "../helpers/real-input";
 
 const WIDTH = 400;
@@ -34,21 +35,14 @@ const NODES = [
 /** A spot with no node under it. */
 const EMPTY: Point = { x: 30, y: HEIGHT - 30 };
 
-/** How many animation frames in a row must pass undrawn for the graph to count as resting. */
-const RESTING_FRAMES = 20;
+/** How many of the loop's chances to draw in a row must pass undrawn for the graph to count as resting. */
+const RESTING_TICKS = 20;
 
-/**
- * Draws across {@link RESTING_FRAMES} animation frames that count as drawing every frame: the
- * element's loop and the test's wait are separate animation-frame callbacks, so the first and
- * last frame may fall on either side of the count.
- */
-const EVERY_FRAME = RESTING_FRAMES - 2;
+/** The loop's chances to draw after which a still graph drawing on demand has come to rest. */
+const SETTLING_TICKS = 120;
 
-/** Animation frames after which a still graph drawing on demand has come to rest. */
-const SETTLING_FRAMES = 120;
-
-/** How many animation frames a wait for rest may take before it gives up. */
-const MAX_FRAMES = 1200;
+/** How many frames a wait for rest lets the element draw before it gives up. */
+const MAX_DRAWS = 1200;
 
 const cleanups: (() => void)[] = [];
 
@@ -102,39 +96,53 @@ function countDraws(element: Graphty): { readonly count: () => number } {
 }
 
 /**
- * Waits until the element has drawn nothing for {@link RESTING_FRAMES} animation frames in a row.
+ * What the element's render loop has done with its ticks: drawn a frame, or rested on the one
+ * shown. A tick that waited for the GPU is neither, because it had no chance to draw; counting
+ * the loop's chances rather than animation frames is what keeps these tests true on a machine
+ * that skips or adds frames.
  * @param element - The element.
- * @returns How many animation frames it took.
+ * @returns The loop's running counts.
  */
-async function untilResting(element: Graphty): Promise<number> {
-    const draws = countDraws(element);
-    let quietSince = 0;
-    for (let frame = 1; frame <= MAX_FRAMES; frame++) {
-        const before = draws.count();
-        await nextFrame();
-        if (draws.count() !== before) {
-            quietSince = frame;
-        } else if (frame - quietSince >= RESTING_FRAMES) {
-            return frame;
-        }
-    }
-
-    throw new Error(`the element was still drawing after ${String(MAX_FRAMES)} animation frames`);
+function loopTicks(element: Graphty): { readonly drawn: number; readonly rested: number } {
+    return (element.graph as unknown as { renderManager: RenderManager }).renderManager.ticks;
 }
 
 /**
- * Draws counted across some animation frames.
+ * Waits until the element has rested on {@link RESTING_TICKS} of its chances to draw in a row.
  * @param element - The element.
- * @param frames - How many animation frames.
- * @returns How many frames the element drew.
  */
-async function drawsAcross(element: Graphty, frames: number): Promise<number> {
-    const draws = countDraws(element);
-    for (let i = 0; i < frames; i++) {
+async function untilResting(element: Graphty): Promise<void> {
+    const ticks = loopTicks(element);
+    const firstDraw = ticks.drawn;
+    let lastDraw = ticks.drawn;
+    let restedSince = ticks.rested;
+    while (ticks.rested - restedSince < RESTING_TICKS) {
+        if (ticks.drawn - firstDraw > MAX_DRAWS) {
+            throw new Error(`the element was still drawing after ${String(MAX_DRAWS)} frames`);
+        }
+
+        await nextFrame();
+        if (ticks.drawn !== lastDraw) {
+            lastDraw = ticks.drawn;
+            restedSince = ticks.rested;
+        }
+    }
+}
+
+/**
+ * What the element did with some of its render loop's chances to draw.
+ * @param element - The element.
+ * @param chances - How many ticks that could draw to wait for.
+ * @returns How many of them drew a frame and how many rested.
+ */
+async function ticksAcross(element: Graphty, chances: number): Promise<{ drawn: number; rested: number }> {
+    const ticks = loopTicks(element);
+    const { drawn, rested } = ticks;
+    while (ticks.drawn - drawn + (ticks.rested - rested) < chances) {
         await nextFrame();
     }
 
-    return draws.count();
+    return { drawn: ticks.drawn - drawn, rested: ticks.rested - rested };
 }
 
 /**
@@ -169,8 +177,10 @@ describe("renderOnDemand", () => {
 
         assert.isFalse(element.renderOnDemand);
         // Long enough for the same graph drawing on demand to have come to rest.
-        await drawsAcross(element, SETTLING_FRAMES);
-        assert.isAtLeast(await drawsAcross(element, RESTING_FRAMES), EVERY_FRAME, "the still graph is drawn again");
+        await ticksAcross(element, SETTLING_TICKS);
+        const drawing = await ticksAcross(element, RESTING_TICKS);
+        assert.strictEqual(drawing.rested, 0, "the still graph is drawn again at every chance");
+        assert.isAtLeast(drawing.drawn, RESTING_TICKS, "it drew at every chance it had");
     });
 
     it("stops drawing a still graph", async () => {
@@ -178,7 +188,9 @@ describe("renderOnDemand", () => {
 
         assert.isTrue(element.renderOnDemand);
         await restsOnTheCurrentPicture(element);
-        assert.strictEqual(await drawsAcross(element, RESTING_FRAMES), 0, "a resting graph draws nothing");
+        const resting = await ticksAcross(element, RESTING_TICKS);
+        assert.strictEqual(resting.drawn, 0, "a resting graph draws nothing");
+        assert.isAtLeast(resting.rested, RESTING_TICKS, "at every chance it had to draw");
     });
 
     it("draws while the reader turns the camera, then rests again", async () => {
@@ -324,8 +336,10 @@ describe("renderOnDemand", () => {
                 set: animation.set,
             });
             // Past the frames any edit draws while it settles, only the animation is left asking.
-            await drawsAcross(element, SETTLING_FRAMES);
-            assert.isAtLeast(await drawsAcross(element, RESTING_FRAMES), EVERY_FRAME, "the animation is drawn");
+            await ticksAcross(element, SETTLING_TICKS);
+            const drawing = await ticksAcross(element, RESTING_TICKS);
+            assert.strictEqual(drawing.rested, 0, "the animation is drawn at every chance");
+            assert.isAtLeast(drawing.drawn, RESTING_TICKS, "it drew at every chance it had");
 
             await element.session.styles.remove(layer.id);
             await restsOnTheCurrentPicture(element);
@@ -360,6 +374,8 @@ describe("renderOnDemand", () => {
 
         element.renderOnDemand = false;
 
-        assert.isAtLeast(await drawsAcross(element, RESTING_FRAMES), EVERY_FRAME, "the still graph is drawn again");
+        const drawing = await ticksAcross(element, RESTING_TICKS);
+        assert.strictEqual(drawing.rested, 0, "the still graph is drawn again at every chance");
+        assert.isAtLeast(drawing.drawn, RESTING_TICKS, "it drew at every chance it had");
     });
 });

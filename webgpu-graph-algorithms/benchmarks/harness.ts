@@ -52,7 +52,7 @@ export interface BenchCase<T> {
     /** Build the input (not timed). Called once per run, the warm-up included. */
     readonly setup: () => T | Promise<T>;
     /** The timed body; its return value is kept alive until the timing ends so it cannot be optimised away. */
-    readonly run: (input: T) => Promise<unknown> | unknown;
+    readonly run: (input: T) => unknown;
     /** Runs after the timing of each run (release what the run uploaded); not timed. */
     readonly teardown?: ((input: T) => void | Promise<void>) | undefined;
 }

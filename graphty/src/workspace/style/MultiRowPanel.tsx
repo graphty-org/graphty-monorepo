@@ -80,6 +80,8 @@ function manyOf(session: GraphSession, all: readonly FoundRow[], side: Target): 
             const lines = linesOf(channel);
             return lines.every((line) => line !== undefined && key(line) === key(lines[0])) ? lines[0] : undefined;
         },
+        count: (channel) => linesOf(channel).filter((line) => line !== undefined).length,
+        of: rows.length,
         write: (channel, write) =>
             session.transaction(`Change ${channelWord(channel)}`, async (tx) => {
                 for (const layer of homes()) {
@@ -89,21 +91,16 @@ function manyOf(session: GraphSession, all: readonly FoundRow[], side: Target): 
         clear: (channel) =>
             session.transaction(`Clear ${channelWord(channel)}`, async (tx) => {
                 for (const layer of homes()) {
-                    await tx.styles.update(layer.id, {
-                        set: without(layer.set, channel),
-                        encode: without(layer.encode, channel),
-                    });
+                    await tx.styles.update(
+                        layer.id,
+                        { set: without(layer.set, channel), encode: without(layer.encode, channel) },
+                        { keepEmpty: true },
+                    );
                 }
             }),
     };
-    const beneath = (channel: Channel): BeneathValue => {
-        const lines = linesOf(channel);
-        if (lines.every((line) => line === undefined)) {
-            return below(channel);
-        }
-        // Some write it and they differ, or some leave it to what lies beneath: "Mixed".
-        return { words: { mixed: rows.filter((_, i) => lines[i] !== undefined).map((row) => row.row.name) } };
-    };
+    // What "+" starts a property from: what lies beneath the lowest of them.
+    const beneath = (channel: Channel): BeneathValue => below(channel);
     return { many, beneath };
 }
 

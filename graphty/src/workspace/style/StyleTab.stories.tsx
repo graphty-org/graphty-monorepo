@@ -73,8 +73,8 @@ const tab = (canvasElement: HTMLElement): ReturnType<typeof within> =>
 async function varyGlyph(canvasElement: HTMLElement, field: string): Promise<HTMLElement> {
     const box = within(canvasElement)
         .getByTestId("style-tab")
-        .querySelector<HTMLElement>(`[aria-label^="${field}, "]`)
-        ?.closest<HTMLElement>(".ws-field");
+        .querySelector<HTMLElement>(`[aria-label^="${field}"]`)
+        ?.closest<HTMLElement>(".ws-row");
     if (box === null || box === undefined) {
         throw new Error(`no ${field} field`);
     }
@@ -119,8 +119,10 @@ function styleStory(
         play: async ({ canvasElement }) => {
             store.set({ inspected: null });
             const element = await loadRing(canvasElement);
-            // The Everything row's Style tab, as Why this look opens it (the style tree lists the
-            // starting rows only while the project draws them).
+            // The app's choice for every project it opens: the starting rows, Everything holding
+            // the base look.
+            await element.session.config.set({ startingRows: true, editableBase: true });
+            // The Everything row's Style tab, as Why this look opens it.
             store.set({ inspected: { kind: "everything-row" } });
             await openStyleTab(canvasElement);
             await play?.(canvasElement, element, store);
@@ -128,7 +130,7 @@ function styleStory(
     };
 }
 
-/** The Everything row: the element's base style as lines (`#/inspector-selection-and-everything/everything`). */
+/** The Everything row: the element's base look as its own rows (`#/inspector-selection-and-everything/everything`). */
 export const Everything: Story = styleStory();
 
 /** A measure row, PageRank, its Color bound (`#/inspector-measure-row/style`). */
@@ -149,7 +151,7 @@ export const ColorPopover: Story = styleStory(async (canvasElement) => {
 
 /** The Shape grid: every shape the element draws, by its picture and name (`#/style-pickers/shape`). */
 export const ShapePopover: Story = styleStory(async (canvasElement) => {
-    await userEvent.click(tab(canvasElement).getByRole("combobox", { name: /^Node shape, / }));
+    await userEvent.click(tab(canvasElement).getByRole("combobox", { name: /^Node shape/ }));
 });
 
 /** The bind icon opens the From data list: attributes, a refused one last (`#/style-pickers/bind-prop`). */

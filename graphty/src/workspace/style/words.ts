@@ -28,66 +28,16 @@ type LabelLocation = NonNullable<LabelStyle["location"]>;
 type Kind = "node" | "edge";
 
 /**
- * One row of a group: its fields side by side (Figma pairs width and height the same way), and
- * the rarer one-value properties behind the settings button at its start.
+ * One section of a group (the owner's style panel design, 2026-10-13): its title, and the
+ * properties it holds in the order its "+" menu lists them. A section the layer does not write is
+ * its dimmed title and "+"; one it writes lists only the properties the layer sets.
  */
-export interface PropertyRowSpec {
+export interface SectionSpec {
     /** Stable id, used in test ids. */
-    readonly id: string;
-    /** The settings popover's title, and its button's name. */
-    readonly title: string;
-    /** The fields drawn on the row, always, set or not. */
-    readonly fields: readonly Channel[];
-    /** The rare properties: behind the settings button, drawn as rows of their own once set. */
-    readonly settings: readonly Channel[];
-}
-
-/**
- * The seven core properties in four groups, one line each, in the design's fixed order: Nodes
- * Shape, Size, Color; Edges Color, Width, Head, Tail (tier3 design, decision 1.1).
- */
-export const CORE_ROWS: Readonly<Record<Kind, readonly PropertyRowSpec[]>> = {
-    node: [
-        {
-            id: "shape",
-            title: "Shape",
-            fields: ["node.shape", "node.size"],
-            settings: ["node.wireframe", "node.visible"],
-        },
-        // Opacity sits behind Color's settings button: a color, a percent box and two columns do
-        // not fit beside a name in a 240 px panel with a scrollbar.
-        { id: "fill", title: "Color", fields: ["node.color"], settings: ["node.opacity"] },
-    ],
-    edge: [
-        {
-            id: "line",
-            title: "Line",
-            fields: ["edge.color", "edge.width"],
-            settings: ["edge.opacity", "edge.style", "edge.patternCount", "edge.curvature", "edge.visible"],
-        },
-        {
-            id: "ends",
-            title: "Ends",
-            fields: ["edge.arrowHead", "edge.arrowTail"],
-            settings: [
-                "edge.arrowHeadSize",
-                "edge.arrowHeadColor",
-                "edge.arrowHeadOpacity",
-                "edge.arrowTailSize",
-                "edge.arrowTailColor",
-                "edge.arrowTailOpacity",
-            ],
-        },
-    ],
-};
-
-/** A list of the Style tab: entries a layer adds with "+", each cleared by its own minus. */
-export interface ListSpec {
-    /** Stable id. */
     readonly id: string;
     /** The heading word. */
     readonly title: string;
-    /** The channels its entries cover. */
+    /** Its properties, in menu order. */
     readonly channels: readonly Channel[];
 }
 
@@ -148,10 +98,16 @@ function textChannels(kind: Kind): Channel[] {
     return TEXT_KINDS[kind].flatMap((t) => [t.words, t.style, t.size, t.color, t.background]);
 }
 
-/** The lists under each group's core rows: Text, then Effects. */
-export const LISTS: Readonly<Record<Kind, readonly ListSpec[]>> = {
+/**
+ * Each group's sections, in their fixed order. Every property sits under the kind graphty-element
+ * draws it on and the section it belongs to; the Text section's entries are label entries.
+ */
+export const SECTIONS: Readonly<Record<Kind, readonly SectionSpec[]>> = {
     node: [
+        { id: "shape", title: "Shape", channels: ["node.shape", "node.size"] },
+        { id: "visibility", title: "Visibility", channels: ["node.visible", "node.opacity"] },
         { id: "text", title: "Text", channels: textChannels("node") },
+        { id: "fill", title: "Fill", channels: ["node.color"] },
         {
             id: "effects",
             title: "Effects",
@@ -164,13 +120,34 @@ export const LISTS: Readonly<Record<Kind, readonly ListSpec[]>> = {
                 "node.haloOpacity",
             ],
         },
+        { id: "rendering", title: "Rendering", channels: ["node.wireframe"] },
     ],
     edge: [
+        { id: "visibility", title: "Visibility", channels: ["edge.visible", "edge.opacity"] },
         { id: "text", title: "Text", channels: textChannels("edge") },
+        {
+            id: "line",
+            title: "Line",
+            channels: ["edge.color", "edge.width", "edge.style", "edge.patternCount", "edge.curvature"],
+        },
+        {
+            id: "ends",
+            title: "Ends",
+            channels: [
+                "edge.arrowHead",
+                "edge.arrowHeadSize",
+                "edge.arrowHeadColor",
+                "edge.arrowHeadOpacity",
+                "edge.arrowTail",
+                "edge.arrowTailSize",
+                "edge.arrowTailColor",
+                "edge.arrowTailOpacity",
+            ],
+        },
         {
             id: "effects",
             title: "Effects",
-            channels: ["edge.bandColor", "edge.bandWidth", "edge.bandOpacity", "edge.animationSpeed"],
+            channels: ["edge.animationSpeed", "edge.bandColor", "edge.bandWidth", "edge.bandOpacity"],
         },
     ],
 };
@@ -209,80 +186,12 @@ export function fieldName(channel: Channel): string {
 }
 
 /**
- * What a field reads when the row does not set it, in words: one value and the layer it comes
- * from (undefined: graphty-element's default); "varies", the layers beneath giving the row's
- * elements different values; or "mixed", several selected rows that disagree.
- */
-export type Beneath =
-    | { readonly value: string; readonly from: string | undefined }
-    | { readonly varies: readonly string[] }
-    | { readonly mixed: readonly string[] };
-
-/**
- * A field's accessible name, stating its state: "Node size, set here, 2" or "Node size, not set,
- * Everything gives 1" (tier3 design, decision 1.1).
- * @param channel - the field's channel.
- * @param set - the value this layer writes, in words, or undefined when it writes none.
- * @param beneath - what the layers beneath give, when it writes none.
- * @returns the name.
- */
-export function fieldStateName(channel: Channel, set: string | undefined, beneath: Beneath | undefined): string {
-    const name = fieldName(channel);
-    if (set !== undefined) {
-        return `${name}, set here, ${set}`;
-    }
-    if (beneath === undefined) {
-        return `${name}, not set`;
-    }
-    if ("mixed" in beneath) {
-        return `${name}, mixed: ${listWords(beneath.mixed)}`;
-    }
-    if ("varies" in beneath) {
-        return `${name}, not set, varies beneath, from ${listWords(beneath.varies)}`;
-    }
-    return beneath.from === undefined
-        ? `${name}, not set, ${beneath.value} by default`
-        : `${name}, not set, ${beneath.from} gives ${beneath.value}`;
-}
-
-/**
- * What an unset field shows when nothing beneath sets it and the element draws it in another
- * channel's value (`ChannelDescriptor.follows`): an arrowhead's color reads "Line color".
- * @param follows - the channel it takes its value from.
- * @returns the words.
- */
-export function followsWords(follows: Channel): string {
-    return follows === "edge.color" ? "Line color" : fieldName(follows);
-}
-
-/**
  * Joins names as a reader lists them: "A", "A and B", "A, B and C".
  * @param names - the names.
  * @returns the words.
  */
 export function listWords(names: readonly string[]): string {
     return names.length <= 1 ? (names[0] ?? "") : `${names.slice(0, -1).join(", ")} and ${names.at(-1) ?? ""}`;
-}
-
-/**
- * What Clear says before it clears: the value that comes back and the layer it comes from.
- * @param beneath - what the layers beneath give.
- * @returns "Clear: back to Icosphere, from Everything", "Clear: back to values that vary, from
- *   Degree and Louvain", or "Clear: back to the default".
- */
-export function clearWords(beneath: Beneath | undefined): string {
-    if (beneath === undefined) {
-        return "Clear: back to the default";
-    }
-    if ("mixed" in beneath) {
-        return `Clear: back to what each layer has, ${listWords(beneath.mixed)}`;
-    }
-    if ("varies" in beneath) {
-        return `Clear: back to values that vary, from ${listWords(beneath.varies)}`;
-    }
-    return beneath.from === undefined
-        ? `Clear: back to ${beneath.value}, the default`
-        : `Clear: back to ${beneath.value}, from ${beneath.from}`;
 }
 
 /** How a number a layer writes meets what lies beneath: its field's prefix and its menu word. */
@@ -371,7 +280,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.arrowTailOpacity": "Tail opacity",
     "edge.arrowTailText": "Caption at the source end",
     "edge.arrowTailTextStyle": "Caption at the source end style",
-    "edge.animationSpeed": "Animation speed",
+    "edge.animationSpeed": "Motion",
     "edge.label": "Label",
     "edge.labelStyle": "Label style",
     "edge.labelSize": "Label size",

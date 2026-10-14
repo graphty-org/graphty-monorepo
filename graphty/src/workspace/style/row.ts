@@ -9,13 +9,13 @@
  * marked in the layer's `userData` so the row keeps finding it.
  */
 
-import { type ChannelDescriptor, channelsFor } from "@graphty/graphty-element/catalog";
+import type { ChannelDescriptor } from "@graphty/graphty-element/catalog";
 import type { Binding, Channel, ChannelValue, CombineMode, LabelStyle, LayerId } from "@graphty/graphty-element/schema";
 import type { ColumnRef, GraphSession, Layer } from "@graphty/graphty-element/session";
 
 import { findTreeRow } from "../graph-place/rows";
 import type { BeneathValue, RowContext } from "./PropertyRow";
-import { type Beneath, channelWord, readableName, valueWords } from "./words";
+import { channelWord, hexOf, readableName } from "./words";
 
 /** Which side of the Style tab: nodes or edges. */
 export type Target = "node" | "edge";
@@ -98,24 +98,6 @@ export function lineOf(layers: readonly Layer[], channel: Channel): Line | undef
         }
     }
     return undefined;
-}
-
-/**
- * Whether a layer below the row sets the channel (the Label section's Show checkbox appears only
- * then: tier1-design.md section 3, item 1).
- * @param session - the element's session.
- * @param ids - the row's layer ids.
- * @param channel - the channel.
- * @returns true when a lower layer of the same side sets or binds it.
- */
-export function setBeneath(session: GraphSession, ids: readonly LayerId[], channel: Channel): boolean {
-    const stack = session.styles.list();
-    const lowest = stack.findIndex((layer) => ids.includes(layer.id));
-    return stack
-        .slice(0, Math.max(0, lowest))
-        .some(
-            (layer) => layer.enabled && (layer.set?.[channel] !== undefined || layer.encode?.[channel] !== undefined),
-        );
 }
 
 /**
@@ -497,7 +479,8 @@ export async function removeLine(
         await session.styles.remove(layer.id);
         return;
     }
-    await session.styles.update(layer.id, { set, encode });
+    // The layer stays when this was its last value: the panel removes properties one at a time.
+    await session.styles.update(layer.id, { set, encode }, { keepEmpty: true });
 }
 
 /**
@@ -672,13 +655,6 @@ export async function writeGroupColor(
     });
 }
 
-/** What one layer beneath a row writes for a channel. */
-export interface BeneathShare {
-    readonly value: unknown;
-    /** The layer's name, "the default" for graphty-element's own base layers. */
-    readonly name: string;
-}
-
 /**
  * A layer as the reader knows it: its tree row's name, or undefined for graphty-element's own base
  * layers, which the tree never shows and the panel calls "the default".
@@ -723,38 +699,6 @@ function agreementBeneath(
 }
 
 /**
- * What the layers beneath a row write for one channel over the row's own elements, each with its
- * layer's name: graphty-element's own answer (`styles.agreement` with `below` and `over`).
- * @param session - the element's session.
- * @param layers - the row's layers on this side, bottom first.
- * @param channel - the channel.
- * @returns the shares, empty when nothing beneath writes it or the row has no layer yet.
- */
-export function sharesBeneath(session: GraphSession, layers: readonly Layer[], channel: Channel): BeneathShare[] {
-    const own = layers.find((layer) => !layer.locked);
-    if (own === undefined) {
-        return [];
-    }
-    const row = own.row ?? own.id;
-    let channels: ReturnType<GraphSession["styles"]["agreement"]>["channels"];
-    try {
-        ({ channels } = session.styles.agreement("graph", channel, { below: row, over: row }));
-    } catch {
-        return [];
-    }
-    return channels.flatMap((found) => {
-        if (found.state === "agree") {
-            return found.value === undefined
-                ? []
-                : [{ value: found.value, name: layerWords(session, [found.layerId])[0] }];
-        }
-        return found.breakdown
-            .filter((share) => share.value !== undefined)
-            .map((share) => ({ value: share.value, name: layerWords(session, [share.layerId])[0] }));
-    });
-}
-
-/**
  * Names for a list of layers: each once, "the default" for graphty-element's base layers.
  * @param session - the element's session.
  * @param ids - the layers, most elements first.
@@ -765,50 +709,20 @@ function layerWords(session: GraphSession, ids: readonly LayerId[]): string[] {
 }
 
 /**
- * What the layers beneath a row give each channel over the row's own elements, from
- * graphty-element's own answer: one value and the layer that paints it ("the default" for the
- * element's base layers), "Varies" with the layers when the elements get different values, or
- * the channel's default when nothing beneath paints it.
+ * What the layers beneath a row paint for each channel over the row's own elements, when they
+ * paint one value on all of them: graphty-element's own answer (`styles.agreement` with `below`
+ * and `over`). It is never shown; "+" starts a property from it, so adding a property over one
+ * plain value changes nothing on the canvas, and over values that vary (a binding beneath) starts
+ * from one plain value instead of copying a mapping.
  * @param session - the element's session.
  * @param row - the tree row the answer reads beneath and over, or undefined for the stack as it is.
  * @returns a reader by channel.
  */
 export function beneathOf(session: GraphSession, row: string | undefined): (channel: Channel) => BeneathValue {
     const agreement = agreementBeneath(session, row);
-    const descriptorOf = (channel: Channel): ChannelDescriptor | undefined =>
-        channelsFor(channel.startsWith("node.") ? "node" : "edge").find((d) => d.channel === channel);
     return (channel) => {
-        const descriptor = descriptorOf(channel);
         const entry = agreement.channels.find((c) => c.channel === channel);
-        if (descriptor === undefined) {
-            return {};
-        }
-        if (entry === undefined) {
-            // What the element draws for it on this graph: an undirected graph's edges draw no head.
-            const drawn = session.styles.defaultValue(channel);
-            return drawn === undefined
-                ? {}
-                : { value: drawn, words: { value: valueWords(descriptor, drawn), from: undefined } };
-        }
-        if (entry.state === "agree") {
-            return {
-                value: entry.value,
-                words: { value: valueWords(descriptor, entry.value), from: layerWord(session, entry.layerId) },
-            };
-        }
-        const values = new Set(entry.breakdown.map((share) => JSON.stringify(share.value)));
-        const layers = layerWords(
-            session,
-            entry.breakdown.map((share) => share.layerId),
-        );
-        const top = entry.breakdown[0].value;
-        // One value from several layers is still that value; only differing values "Vary".
-        const words: Beneath =
-            values.size === 1
-                ? { value: valueWords(descriptor, top), from: layers.join(" and ") }
-                : { varies: layers.slice(0, 3) };
-        // The value most of the elements get, for a color field's chit.
-        return { value: top, words };
+        return entry?.state === "agree" && entry.value !== undefined ? { value: entry.value } : {};
     };
 }
 
@@ -876,21 +790,63 @@ export function paintedOverOf(
 }
 
 /**
- * Which of several rows edited together write a channel while they do not write it alike, or
- * undefined when they agree, none writes it, or one row is edited.
+ * How many of several rows edited together write a channel, while they do not all write it alike:
+ * "Set on 1 of 2". Undefined when one row is edited, none of them writes it, or all write the
+ * same.
  * @param ctx - the rows.
  * @param channels - the channel, or each channel of one entry.
- * @returns the rows' names.
+ * @returns how many write it, of how many.
  */
-export function mixedRows(ctx: RowContext, ...channels: Channel[]): readonly string[] | undefined {
-    if (ctx.many === undefined) {
+export function partlySet(
+    ctx: Pick<RowContext, "many">,
+    ...channels: Channel[]
+): { readonly set: number; readonly of: number } | undefined {
+    const { many } = ctx;
+    if (many === undefined || channels.some((channel) => many.line(channel) !== undefined)) {
         return undefined;
     }
-    for (const channel of channels) {
-        const { words } = ctx.beneath(channel);
-        if (words !== undefined && "mixed" in words) {
-            return words.mixed;
+    const set = Math.max(...channels.map((channel) => many.count(channel)));
+    return set === 0 ? undefined : { set, of: many.of };
+}
+
+/**
+ * The value "+" starts a property with: what the layers beneath paint when they paint one plain
+ * value on the row's elements, else graphty-element's starting value for the channel.
+ * @param ctx - the row.
+ * @param descriptor - the property.
+ * @returns the value.
+ */
+export function startFor(
+    ctx: Pick<RowContext, "session" | "beneath" | "layers" | "fresh">,
+    descriptor: ChannelDescriptor,
+): ChannelValue {
+    const beneath = ctx.beneath(descriptor.channel).value;
+    if (beneath !== undefined) {
+        if (descriptor.accepts === "color") {
+            const hex = hexOf(beneath);
+            if (hex !== null) {
+                return hex;
+            }
+        } else if (typeof beneath === "number" || typeof beneath === "string" || typeof beneath === "boolean") {
+            return beneath;
         }
     }
-    return undefined;
+    const selector = ctx.layers.find((layer) => !layer.locked)?.selector ?? ctx.fresh?.selector;
+    return startingValue(descriptor, ctx.session, selector);
 }
+
+/**
+ * The starting Everything row: the tree row whose layers carry graphty-element's Everything
+ * template (`startingRows`).
+ * @param session - the element's session.
+ * @returns its id, or undefined when the tree has none.
+ */
+export function startingEverything(session: GraphSession): string | undefined {
+    const layer = session.styles
+        .list()
+        .find((each) => each.source.by === "template" && each.source.templateId === EVERYTHING_TEMPLATE);
+    return layer === undefined ? undefined : (layer.row ?? layer.id);
+}
+
+/** The template id graphty-element gives the Everything starting row's layers. */
+export const EVERYTHING_TEMPLATE = "graphty:starting-everything";

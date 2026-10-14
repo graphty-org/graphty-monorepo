@@ -5,69 +5,39 @@ import {
     bindLabel,
     cellOfLocation,
     channelWord,
-    clearWords,
     colorName,
-    CORE_ROWS,
     enumWords,
-    fieldStateName,
     labelStatement,
-    LISTS,
     locationOfCell,
     matchesWordStart,
     paletteWord,
     positionWord,
     refusalWords,
+    SECTIONS,
     takesBinding,
 } from "../words";
 
 describe("the Style tab's words and arrangement", () => {
-    it("draws the seven core properties on four paired rows", () => {
+    it("draws Nodes and Edges in their fixed sections", () => {
         assert.deepEqual(
-            CORE_ROWS.node.map((r) => r.fields),
-            [["node.shape", "node.size"], ["node.color"]],
+            SECTIONS.node.map((section) => section.title),
+            ["Shape", "Visibility", "Text", "Fill", "Effects", "Rendering"],
         );
         assert.deepEqual(
-            CORE_ROWS.edge.map((r) => r.fields),
-            [
-                ["edge.color", "edge.width"],
-                ["edge.arrowHead", "edge.arrowTail"],
-            ],
+            SECTIONS.edge.map((section) => section.title),
+            ["Visibility", "Text", "Line", "Ends", "Effects"],
         );
     });
 
     it("gives every channel it names a home the element publishes, and no channel two homes", () => {
         for (const target of ["node", "edge"] as const) {
             const published = new Set(channelsFor(target).map((d) => d.channel));
-            const homes = [
-                ...CORE_ROWS[target].flatMap((r) => [...r.fields, ...r.settings]),
-                ...LISTS[target].flatMap((l) => l.channels),
-            ];
+            const homes = SECTIONS[target].flatMap((section) => section.channels);
             for (const channel of homes) {
                 assert.isTrue(published.has(channel), channel);
             }
             assert.equal(new Set(homes).size, homes.length, `${target}: a channel with two homes`);
         }
-    });
-
-    it("states a field's state in its name, and what Clear brings back", () => {
-        assert.equal(fieldStateName("node.size", "2", undefined), "Node size, set here, 2");
-        assert.equal(
-            fieldStateName("node.color", undefined, { value: "#3388FF", from: "Degree" }),
-            "Node color, not set, Degree gives #3388FF",
-        );
-        assert.equal(
-            fieldStateName("node.color", undefined, { varies: ["Degree", "the default"] }),
-            "Node color, not set, varies beneath, from Degree and the default",
-        );
-        assert.equal(
-            clearWords({ value: "Icosphere", from: "Everything" }),
-            "Clear: back to Icosphere, from Everything",
-        );
-        assert.equal(
-            clearWords({ varies: ["Degree", "Louvain"] }),
-            "Clear: back to values that vary, from Degree and Louvain",
-        );
-        assert.equal(clearWords(undefined), "Clear: back to the default");
     });
 
     it("says a color by name", () => {

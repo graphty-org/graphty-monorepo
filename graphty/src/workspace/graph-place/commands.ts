@@ -1,10 +1,10 @@
-import type { StyleRow, StyleRowPin } from "@graphty/graphty-element/session";
+import type { GraphSession, StyleRow, StyleRowPin } from "@graphty/graphty-element/session";
 
 import { type Command, type CommandContext, defineRegistration } from "../commands/registry";
 import type { GLYPHS } from "../glyphs";
 import { deleteRow, duplicateRow, openDraft, orNotice, selectWhatItPaints, ungroup } from "./actions";
 import { FIND_BOX_ID } from "./FindBox";
-import { findTreeRow } from "./rows";
+import { findTreeRow, isBaseRow } from "./rows";
 
 /**
  * A command on one row of the style tree. Every door to it -- the row's context menu, the
@@ -25,10 +25,13 @@ export interface RowCommand {
     /** Whether the row has it at all. */
     readonly applies: (row: StyleRow) => boolean;
     /** Why it cannot run on the row now, or null. */
-    readonly disabled: (row: StyleRow) => string | null;
+    readonly disabled: (row: StyleRow, session: GraphSession | null) => string | null;
     /** Does it to the row. */
     readonly run: (ctx: CommandContext, row: StyleRow) => void | Promise<void>;
 }
+
+/** Why the Everything row holding the base look never moves or goes. */
+const BASE_STAYS = "Everything holds the base look and stays at the bottom";
 
 /** Longer than a closing menu takes to hand focus back to its opener. */
 const MENU_FOCUS_RETURN_MS = 50;
@@ -49,7 +52,10 @@ function pinCommand(pin: StyleRowPin, label: string, icon: keyof typeof GLYPHS):
         rowKeys: [],
         // Unpin only where there is a pin to take off.
         applies: (row) => pin !== "none" || row.pin !== "none",
-        disabled: (row) => {
+        disabled: (row, session) => {
+            if (isBaseRow(session, row.id)) {
+                return BASE_STAYS;
+            }
             if (row.pin !== pin) {
                 return null;
             }
@@ -175,7 +181,7 @@ export const ROW_COMMANDS: readonly RowCommand[] = [
         group: "remove",
         rowKeys: ["Delete", "Backspace"],
         applies: () => true,
-        disabled: () => null,
+        disabled: (row, session) => (isBaseRow(session, row.id) ? BASE_STAYS : null),
         run: async ({ session, workspace }, row) => {
             if (session !== null) {
                 await orNotice(workspace, `delete ${row.name}`, deleteRow(session, workspace, row));
@@ -217,7 +223,7 @@ function onInspectedRow(command: RowCommand): Command {
             if (row === undefined) {
                 return "Select a style layer first";
             }
-            return command.applies(row) ? command.disabled(row) : `Not available for ${row.name}`;
+            return command.applies(row) ? command.disabled(row, ctx.session) : `Not available for ${row.name}`;
         },
         run: async (ctx) => {
             const row = inspectedRow(ctx);

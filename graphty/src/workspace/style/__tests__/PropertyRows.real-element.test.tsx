@@ -1,10 +1,10 @@
 /**
- * The Style tab's property rows on the REAL graphty-element, driven by real input: a field keeps
- * its width when it is set, cleared or focused (reserved vary and Clear columns); a paired color
- * shows its whole hex; the vary glyph is drawn at rest on every field that can vary and "=" opens
- * it; every layer shows Which elements; one Clear look (no reset "x"); a locked layer's controls
- * stay in the Tab order, each aria-disabled with the reason; no two controls of a both-kinds layer
- * share a name; Undo after Clear names what it restores.
+ * The Style tab's property rows on the REAL graphty-element, driven by real input: a row keeps its
+ * width when it is focused and typed into (reserved vary and minus columns); a color shows its
+ * whole hex; the vary glyph is drawn at rest on every row that can vary and "=" opens it; every
+ * layer shows Which elements; one minus per row (no reset "x"); a locked layer's controls stay in
+ * the Tab order, each aria-disabled with the reason; no two controls of a both-kinds layer share a
+ * name; Undo after a removal names it.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -50,7 +50,7 @@ async function openScene(): Promise<Scene> {
         throw new Error("the element never came up");
     }
     await session.data.import({ type: "gml", name: "les-miserables.gml", config: { data: lesMiserables } });
-    await session.config.set({ startingRows: true });
+    await session.config.set({ startingRows: true, editableBase: true });
     const idOf = (name: string): string => String(session.data.nodes().find((n) => n.name === name)?.id);
     await session.styles.add({
         name: "Key people",
@@ -102,7 +102,7 @@ async function openStyle(name: string): Promise<HTMLElement> {
  * @returns the field.
  */
 function field(tab: HTMLElement, channel: string): HTMLElement {
-    const found = tab.querySelector<HTMLElement>(`.ws-field[data-line="${channel}"]`);
+    const found = tab.querySelector<HTMLElement>(`.ws-row[data-line="${channel}"]`);
     if (found === null) {
         throw new Error(`no ${channel} field`);
     }
@@ -120,43 +120,60 @@ function box(element: Element): string {
 }
 
 describe("the Style tab's property rows", () => {
-    it("keeps Size's width when it is set, cleared and focused, and Undo names the clear", async () => {
+    /**
+     * Adds a property to the open Style tab from its section's "+".
+     * @param tab - the Style tab.
+     * @param section - the "+"'s name.
+     * @param item - the property's name in the menu.
+     */
+    async function add(tab: HTMLElement, section: string, item: string): Promise<void> {
+        await userEvent.click(within(tab).getByRole("button", { name: section }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: item }));
+    }
+
+    it("keeps Size's width when it is focused and typed into, and Undo names the removal", async () => {
         const { session } = await openScene();
         const tab = await openStyle("Key people");
+        await add(tab, "Add to node shape", "Size");
+        await waitFor(() => {
+            field(tab, "node.size");
+        });
         const sizeBox = (): string => box(field(tab, "node.size").querySelector(".ws-field-control") ?? tab);
         const rest = sizeBox();
-
         const size = within(field(tab, "node.size")).getByRole("combobox");
         await userEvent.click(size);
         assert.equal(sizeBox(), rest, "focus does not move the field");
         await userEvent.keyboard("3{Enter}");
-        const clear = await within(tab).findByRole("button", { name: "Clear Node size" });
-        assert.equal(sizeBox(), rest, "set: the minus has its own column");
-        await userEvent.click(clear);
-        await waitFor(() => {
-            assert.isNull(within(tab).queryByRole("button", { name: "Clear Node size" }));
-        });
-        assert.equal(sizeBox(), rest, "cleared: the same width");
+        assert.equal(sizeBox(), rest, "typed: the same width");
 
-        assert.equal(historyTip(session, true), "Undo clearing node size on Key people");
+        await userEvent.click(within(tab).getByRole("button", { name: "Remove node size" }));
+        await waitFor(() => {
+            assert.isNull(tab.querySelector('.ws-row[data-line="node.size"]'));
+        });
+        assert.equal(historyTip(session, true), "Undo removing node size from Key people");
     });
 
-    it("draws the vary glyph at rest on Shape, Color, Size, Width, Head and Glow color, and '=' in Size opens it", async () => {
+    it("draws the vary glyph at rest on Shape, Color, Size, Width and Glow, and '=' in Size opens it", async () => {
         const { runs } = await openScene();
         let tab = await openStyle("Key people");
-        await userEvent.click(within(tab).getByRole("button", { name: "Add to node effects" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Glow/ }));
-        // The glow's color, with its vary glyph, is in the glow's settings.
-        const glow = await screen.findByRole("dialog", { name: "Glow settings" });
-        await within(glow).findByRole("textbox", { name: /^Node glow/ });
-        await userEvent.keyboard("FF00AA{Enter}");
+        await add(tab, "Add to node effects", "Glow");
+        await add(tab, "Add to node shape", "Shape");
+        await add(tab, "Add to node shape", "Size");
+        await waitFor(() => {
+            field(tab, "node.glow");
+            field(tab, "node.shape");
+            field(tab, "node.size");
+        });
         const atRest = (scope: HTMLElement, name: string): void => {
             const button = within(scope).getByRole("button", { name });
             assert.isTrue(button.checkVisibility({ visibilityProperty: true }), `${name} is drawn at rest`);
         };
-        atRest(glow, "Node glow by attribute");
-        await userEvent.keyboard("{Escape}");
-        for (const name of ["Node shape by attribute", "Node color by attribute", "Node size by attribute"]) {
+        for (const name of [
+            "Node glow by attribute",
+            "Node shape by attribute",
+            "Node color by attribute",
+            "Node size by attribute",
+        ]) {
             atRest(tab, name);
         }
 
@@ -166,20 +183,20 @@ describe("the Style tab's property rows", () => {
         await userEvent.keyboard("{Escape}");
 
         tab = await openStyle(runs["shortest-path"]);
-        atRest(tab, "Edge head by attribute");
         atRest(tab, "Edge width by attribute");
         atRest(tab, "Edge color by attribute");
     });
 
-    it("shows what the element draws: an undirected graph's edges have no head, so Head reads None", async () => {
+    it("holds the element's base look in Everything, and no head on an undirected graph's edges", async () => {
         await openScene();
         const tab = await openStyle("Everything");
-        const head = within(field(tab, "edge.arrowHead")).getByRole<HTMLInputElement>("combobox");
-        assert.equal(head.placeholder, "None");
-        assert.include(head.getAttribute("aria-label") ?? "", "None by default");
+        field(tab, "node.color");
+        field(tab, "edge.color");
+        field(tab, "edge.width");
+        assert.isNull(tab.querySelector('.ws-row[data-line="edge.arrowHead"]'), "no head is set");
     });
 
-    it("draws every property's whole name beside its settings button", async () => {
+    it("draws every property's whole name", async () => {
         const { runs } = await openScene();
         for (const name of ["Everything", "Key people", runs["shortest-path"]]) {
             const tab = await openStyle(name);
@@ -223,7 +240,7 @@ describe("the Style tab's property rows", () => {
                 await within(tab).findByRole("button", { name: /^Node (color|size): \w/ });
             }
             assert.lengthOf(
-                tab.querySelectorAll('.ws-property-row [data-testid$="-reset"]'),
+                tab.querySelectorAll('.ws-row [data-testid$="-reset"]'),
                 0,
                 `${name}: Clear is the row-end minus only`,
             );

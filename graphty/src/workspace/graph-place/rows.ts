@@ -57,6 +57,18 @@ export function findTreeRow(
 }
 
 /**
+ * Whether a row is the Everything row while it holds the base look (`editableBase`): the app keeps
+ * it at the bottom and never deletes it, since without it nothing draws what no other row paints.
+ * @param session - the element's session, or null before it comes up.
+ * @param id - the row.
+ * @returns true for that row.
+ */
+export function isBaseRow(session: GraphSession | null, id: string): boolean {
+    const source = session?.config.editableBase === true ? session.styles.get(id)?.source : undefined;
+    return source?.by === "template" && source.templateId === "graphty:starting-everything";
+}
+
+/**
  * Whether a row paints nothing because it, or a folder holding it, is hidden.
  * @param found - the row.
  * @returns true when hidden.

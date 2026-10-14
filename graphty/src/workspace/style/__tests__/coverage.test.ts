@@ -10,7 +10,10 @@ import {
     NO_VARY,
     publishedGraphSettings,
 } from "../coverage";
-import { CORE_ROWS, isPercent, LISTS, takesBinding } from "../words";
+import { isPercent, SECTIONS, takesBinding } from "../words";
+
+/** Every channel a section of the Style tab draws. */
+const DRAWN = new Set<string>([...SECTIONS.node, ...SECTIONS.edge].flatMap((section) => section.channels));
 
 describe("every style has a home", () => {
     it("gives every channel graphty-element publishes a control or a reason", () => {
@@ -32,13 +35,8 @@ describe("every style has a home", () => {
     });
 
     it("places exactly the channels the Style tab draws, and gives the rest a reason", () => {
-        const fields = [
-            ...[...CORE_ROWS.node, ...CORE_ROWS.edge].flatMap((row) => [...row.fields, ...row.settings]),
-            ...[...LISTS.node, ...LISTS.edge].flatMap((list) => list.channels),
-        ];
-        const drawn = new Set<string>(fields);
         for (const channel of CHANNELS) {
-            assert.strictEqual("place" in CHANNEL_HOMES[channel], drawn.has(channel), channel);
+            assert.strictEqual("place" in CHANNEL_HOMES[channel], DRAWN.has(channel), channel);
         }
     });
 
@@ -51,11 +49,7 @@ describe("every style has a home", () => {
     });
 
     it("records why a drawn property has no vary glyph: yes-or-no properties and label looks, by decision", () => {
-        const drawn = new Set<string>([
-            ...[...CORE_ROWS.node, ...CORE_ROWS.edge].flatMap((row) => [...row.fields, ...row.settings]),
-            ...[...LISTS.node, ...LISTS.edge].flatMap((list) => list.channels),
-        ]);
-        const descriptors = [...channelsFor("node"), ...channelsFor("edge")].filter((d) => drawn.has(d.channel));
+        const descriptors = [...channelsFor("node"), ...channelsFor("edge")].filter((d) => DRAWN.has(d.channel));
         const neither = descriptors.filter((d) => !takesBinding(d) && NO_VARY[d.channel] === undefined);
         assert.deepEqual(
             neither.map((d) => d.channel),
@@ -71,16 +65,11 @@ describe("every style has a home", () => {
         }
     });
 
-    it("varies every opacity from a settings pop-out, as a percent", () => {
-        const settings = new Set<string>([
-            ...[...CORE_ROWS.node, ...CORE_ROWS.edge].flatMap((row) => row.settings),
-            "node.haloOpacity",
-            "edge.bandOpacity",
-        ]);
+    it("draws every opacity as a percent that varies by a value", () => {
         const opacities = [...channelsFor("node"), ...channelsFor("edge")].filter((d) => d.channel.endsWith("pacity"));
         assert.isAbove(opacities.length, 0);
         for (const d of opacities) {
-            assert.isTrue(settings.has(d.channel), `${d.channel} is in a settings pop-out`);
+            assert.isTrue(DRAWN.has(d.channel), `${d.channel} is in a section`);
             assert.isTrue(takesBinding(d), `${d.channel} varies by a value`);
             assert.isTrue(isPercent(d), `${d.channel} reads as a percent`);
         }

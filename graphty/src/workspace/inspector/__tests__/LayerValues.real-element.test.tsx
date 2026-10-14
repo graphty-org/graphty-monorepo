@@ -202,7 +202,7 @@ describe("a layer row's Values tab on the real element", () => {
 
     it("Selected lists the node a real click on the canvas selected", async () => {
         const { session, element, store } = await open();
-        await session.config.set({ startingRows: true });
+        await session.config.set({ startingRows: true, editableBase: true });
         await session.styles.settled();
         await element.waitForStableFrame();
         const id = session.data.nodes()[11]?.id;

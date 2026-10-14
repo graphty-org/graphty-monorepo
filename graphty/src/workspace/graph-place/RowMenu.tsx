@@ -6,6 +6,7 @@ import { CommandMenuItem } from "../frame/menus";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { ROW_COMMANDS, type RowCommand } from "./commands";
+import { isBaseRow } from "./rows";
 
 /** The row menu's groups, top to bottom; a divider falls between two that draw something. */
 const GROUPS: readonly RowCommand["group"][] = ["edit", "pin", "view", "remove"];
@@ -45,7 +46,7 @@ export function RowMenuItems({
                         label={command.rowLabel?.(row) ?? command.label}
                         icon={<Glyph size={14} aria-hidden />}
                         shortcut={command.rowKeys[0]}
-                        reason={command.disabled(row)}
+                        reason={command.disabled(row, workspace.session)}
                         onRun={() => {
                             void command.run(workspace, row); // NOSONAR(S3735): a deliberately unawaited promise, marked as no-floating-promises asks
                         }}
@@ -53,7 +54,7 @@ export function RowMenuItems({
                 );
             },
         );
-        if (group === "edit") {
+        if (group === "edit" && !isBaseRow(workspace.session, row.id)) {
             // Move to folder follows Duplicate, as in Figma's layer menu.
             items.push(<MoveToFolder key="row.move" tree={tree} row={row} parent={parent} onMoveTo={onMoveTo} />);
         }

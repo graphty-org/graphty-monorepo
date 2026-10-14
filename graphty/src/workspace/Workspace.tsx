@@ -68,13 +68,14 @@ export function Workspace({
             return;
         }
         // The app's choice for every project it opens (graphty-element's defaults stay neutral):
-        // the style tree starts with Everything, Selected and Hovered, and a finished run's layer
-        // lands on top, where the reader sees it. Set before anything loads, so the rows are there
-        // from the first frame.
+        // the style tree starts with Everything, Selected and Hovered, Everything holds the base
+        // look as values a reader edits, and a finished run's layer lands on top, where the reader
+        // sees it. Set before anything loads, so the rows are there from the first frame.
         const defaults =
-            project?.id === startProjectId || (session.config.startingRows && session.config.runPlacement === "top")
+            project?.id === startProjectId ||
+            (session.config.startingRows && session.config.editableBase && session.config.runPlacement === "top")
                 ? Promise.resolve()
-                : session.config.set({ startingRows: true, runPlacement: "top" });
+                : session.config.set({ startingRows: true, editableBase: true, runPlacement: "top" });
         if (opening === null) {
             void defaults.catch(() => undefined);
             return;

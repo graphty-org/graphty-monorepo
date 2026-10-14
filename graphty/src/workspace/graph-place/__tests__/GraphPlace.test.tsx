@@ -136,7 +136,7 @@ describe("the Graph place", () => {
 
     it("lists the element's style tree top first, each row named with its kind and what it paints", async () => {
         const session = await sessionWithGraph();
-        await session.config.set({ startingRows: true });
+        await session.config.set({ startingRows: true, editableBase: true });
         await session.styles.addFolder("Annotations");
         renderPlace(session);
         const rows = within(screen.getByRole("tree", { name: "Style layers" })).getAllByRole("treeitem");

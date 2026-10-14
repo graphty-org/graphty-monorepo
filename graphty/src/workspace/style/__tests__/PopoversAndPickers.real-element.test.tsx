@@ -232,11 +232,13 @@ describe("the binding popover's rows and readings", () => {
         const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
 
         // The vary picker on Node size, every value unfolded.
-        const control = tab.querySelector<HTMLElement>('[aria-label^="Node size, "]');
-        const field = control?.closest<HTMLElement>(".ws-field");
-        if (field === null || field === undefined) {
-            throw new Error("no Node size field");
-        }
+        await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Size" }));
+        const field = await waitFor(() => {
+            const found = screen.getByTestId("style-tab").querySelector<HTMLElement>('.ws-row[data-line="node.size"]');
+            assert.isNotNull(found, "a Size row");
+            return found;
+        });
         await userEvent.hover(field);
         await userEvent.click(await within(field).findByRole("button", { name: "Node size by attribute" }));
         const picker = await findValuePicker();

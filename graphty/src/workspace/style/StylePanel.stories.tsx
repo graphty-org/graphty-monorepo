@@ -52,6 +52,7 @@ async function loadScene(canvasElement: HTMLElement): Promise<Scene> {
         { timeout: 10_000 },
     );
     expect(session.config.startingRows).toBe(true);
+    expect(session.config.editableBase).toBe(true);
     await session.layout.setDimension("2d");
     await session.layout.set("circular");
     const idOf = (name: string): string => {
@@ -223,39 +224,34 @@ export const KeyPeopleAtRest: Story = sceneStory(async () => {
     await openStyle("Key people");
 });
 
-/**
- * Key people's size typed over, then the minus hovered: its tooltip says what Clear gives back
- * and from which layer, before the reader clears it.
- */
-export const ClearTooltip: Story = sceneStory(async () => {
-    const tab = await openStyle("Key people");
-    const size = await within(tab).findByRole("combobox", { name: /^Node size, set here, / });
-    await userEvent.tripleClick(size);
-    await userEvent.keyboard("3{Enter}");
-    await within(tab).findByRole("combobox", { name: "Node size, set here, 3" });
-    const minus = within(tab).getByRole("button", { name: "Clear Node size" });
-    await userEvent.hover(minus);
-    const tip = document.getElementById(minus.getAttribute("aria-describedby") ?? "")?.textContent ?? "";
-    await waitFor(
-        () => {
-            const shown = page()
-                .queryAllByRole("tooltip", { hidden: true })
-                .find((t: HTMLElement) => t.textContent === tip);
-            expect(shown).toBeVisible();
-        },
-        // The theme opens a tooltip after a second's hover.
-        { timeout: 5000 },
-    );
+/** Hovered at rest: it writes nothing, so every section is its dimmed title and "+". */
+export const HoveredAtRest: Story = sceneStory(async () => {
+    await openStyle("Hovered");
 });
 
-/** After Clear: the field is empty again and shows the value beneath as its placeholder. */
-export const Cleared: Story = sceneStory(async () => {
+/** Key people's Shape "+": the Shape properties the layer does not set yet. */
+export const AddToShape: Story = sceneStory(async () => {
     const tab = await openStyle("Key people");
-    await userEvent.click(within(tab).getByRole("button", { name: "Clear Node size" }));
-    const size = await within(tab).findByRole("combobox", { name: /^Node size, not set/ });
+    await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
+    await page().findByRole("menuitem", { name: "Shape" });
+});
+
+/** Key people's size removed with its minus: Shape is its dimmed title and "+" again. */
+export const SizeRemoved: Story = sceneStory(async () => {
+    const tab = await openStyle("Key people");
+    await userEvent.click(within(tab).getByRole("button", { name: "Remove node size" }));
     await waitFor(() => {
-        expect(size.getAttribute("placeholder")).not.toBe("");
+        expect(tab.querySelector('[data-section="node-shape"] .ws-row')).toBeNull();
     });
+});
+
+/** Everything hidden by its eye: only what another shown row paints is still drawn. */
+export const EverythingHidden: Story = sceneStory(async () => {
+    const tree = page().getByRole("tree", { name: "Style layers" });
+    const everything = within(tree).getByRole("treeitem", { name: /^Everything, / });
+    await userEvent.click(within(everything).getByRole("button", { name: "Hide Everything" }));
+    await within(everything).findByRole("button", { name: "Show Everything" });
+    await openStyle("Everything");
 });
 
 /** The Annotations folder: its rows in paint order and its Selection colors open. */
@@ -266,7 +262,7 @@ export const FolderSelectionColors: Story = sceneStory(async () => {
     await page().findByRole("group", { name: /^#E8590C, from Key people/i });
 });
 
-/** Key people and Degree selected together: one panel for both, "Mixed" where they differ. */
+/** Key people and Degree selected together: one panel for both, "Set on 1 of 2" where one sets a property. */
 export const TwoRows: Story = sceneStory(async ({ runs }) => {
     const user = userEvent.setup();
     await openAnnotations();
@@ -293,10 +289,10 @@ export const Draft: Story = sceneStory(async () => {
 /** Key people's Size by a value: the value picker open from the vary glyph. */
 export const VaryBy: Story = sceneStory(async () => {
     const tab = await openStyle("Key people");
-    const field = within(tab).getByRole("combobox", { name: /^Node size, / });
+    const field = within(tab).getByRole("combobox", { name: /^Node size/ });
     // The glyph shows while the field holds focus (a story's pointer events move no CSS hover).
     await userEvent.click(field);
-    const box = field.closest<HTMLElement>(".ws-field");
+    const box = field.closest<HTMLElement>(".ws-row");
     if (box === null) {
         throw new Error("no Node size field");
     }
@@ -431,12 +427,17 @@ export const FootballConference: Story = {
         });
         await userEvent.click(document.querySelector<HTMLElement>(`label[for="${nodes.id}"]`) ?? nodes);
         const tab: HTMLElement = await page().findByTestId("style-tab");
-        const box = tab.querySelector<HTMLElement>('[aria-label^="Node color, "]')?.closest<HTMLElement>(".ws-field");
-        if (box === null || box === undefined) {
-            throw new Error("no Node color field");
-        }
+        await userEvent.click(within(tab).getByRole("button", { name: "Add to node fill" }));
+        await userEvent.click(await page().findByRole("menuitem", { name: "Color" }));
+        const box: HTMLElement = await waitFor(() => {
+            const found: HTMLElement | null = (page().getByTestId("style-tab") as HTMLElement).querySelector(
+                '.ws-row[data-line="node.color"]',
+            );
+            expect(found).not.toBeNull();
+            return found as HTMLElement;
+        });
         // The glyph shows while the field holds focus (a story's pointer events move no CSS hover).
-        box.querySelector<HTMLElement>("input")?.focus();
+        (box.querySelector("input") as HTMLElement | null)?.focus();
         await userEvent.click(await within(box).findByRole("button", { name: "Node color by attribute" }));
         await userEvent.click(await page().findByRole("option", { name: "value" }));
         const made = await waitFor(() => {

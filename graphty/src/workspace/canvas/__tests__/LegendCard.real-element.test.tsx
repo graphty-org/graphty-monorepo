@@ -53,7 +53,7 @@ async function scene(
         throw new Error("the element never came up");
     }
     await session.data.import({ type: "gml", name: "les-miserables.gml", config: { data: lesMiserables } });
-    await session.config.set({ startingRows: true });
+    await session.config.set({ startingRows: true, editableBase: true });
     const ids = session.data.nodes().map((node) => node.id);
     await session.styles.add({
         name: "Key people",
@@ -287,7 +287,7 @@ describe("the canvas key on the real element", () => {
             throw new Error("the element never came up");
         }
         await session.data.import({ type: "gml", name: "les-miserables.gml", config: { data: lesMiserables } });
-        await session.config.set({ startingRows: true });
+        await session.config.set({ startingRows: true, editableBase: true });
         await element.waitForStableFrame();
         assert.isNull(screen.queryByRole("region", { name: "Legend" }), "no key yet: nothing is keyed");
 

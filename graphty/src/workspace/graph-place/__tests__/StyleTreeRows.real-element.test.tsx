@@ -302,8 +302,9 @@ describe("the style tree's rows, menu and Graph settings door on the real elemen
         assert.isTrue((nodes as HTMLInputElement).checked, "Nodes is chosen");
 
         const tab = await screen.findByTestId("style-tab");
-        await userEvent.click(await within(tab).findByRole("combobox", { name: /^Node size, / }));
-        await userEvent.keyboard("3{Enter}");
+        await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
+        // Adding Size is the first write, which adds the layer.
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Size" }));
         await waitFor(() => {
             assert.equal(store.get().inspected?.kind, "layer-row");
         });

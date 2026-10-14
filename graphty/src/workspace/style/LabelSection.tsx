@@ -1,4 +1,4 @@
-import { Popout, PopoutButton, StyleSelect, ToggleIconButton } from "@graphty/compact-mantine";
+import { ControlSection, Popout, PopoutButton, StyleSelect, ToggleIconButton } from "@graphty/compact-mantine";
 import {
     type ChannelDescriptor,
     channelsFor,
@@ -8,38 +8,28 @@ import {
 } from "@graphty/graphty-element/catalog";
 import type { Channel, ChannelValue, LabelStyle } from "@graphty/graphty-element/schema";
 import type { GraphSession, Layer } from "@graphty/graphty-element/session";
-import {
-    ActionIcon,
-    Button,
-    Checkbox,
-    Group,
-    Menu,
-    Stack,
-    Text,
-    TextInput,
-    Tooltip,
-    UnstyledButton,
-} from "@mantine/core";
+import { ActionIcon, Button, Checkbox, Group, Stack, Text, TextInput, Tooltip } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { LabelSettings, type VaryField } from "./LabelSettings";
-import { Field, MixedLine, type RowContext, VarySlot } from "./PropertyRow";
+import { Field, type RowContext, VarySlot } from "./PropertyRow";
 import {
     type DataBinding,
     type DataChoice,
     type Line,
     lineIn,
-    mixedRows,
+    partlySet,
     propose,
     readsNothing,
     removeLine,
-    sharesBeneath,
     sourceName,
+    startFor,
     writeIn,
     type writeLine,
 } from "./row";
+import { AddButton, type AddOption } from "./Section";
 import { focusLineNext, focusSectionNext } from "./useFocusLine";
 import { ValuePicker } from "./ValuePicker";
 import { labelStatement, positionWord, TEXT_KINDS, type TextKindSpec } from "./words";
@@ -114,18 +104,6 @@ function styleOf(line: Line | undefined): LabelStyle {
 }
 
 /**
- * The names of the layers beneath the row that write a text's words, over the row's own elements
- * (`sharesBeneath`), "the default" for graphty-element's base layers.
- * @param session - the element's session.
- * @param layers - the row's layers on this side.
- * @param channel - the words channel.
- * @returns the names, each once.
- */
-function writtenBeneath(session: GraphSession, layers: readonly Layer[], channel: Channel): string[] {
-    return [...new Set(sharesBeneath(session, layers, channel).map((share) => share.name))];
-}
-
-/**
  * A text binding as the app writes it: a number value is written with three significant digits.
  * @param session - the element's session.
  * @param binding - the binding the element proposed.
@@ -134,19 +112,6 @@ function writtenBeneath(session: GraphSession, layers: readonly Layer[], channel
 function formatted(session: GraphSession, binding: DataBinding): DataBinding {
     const kind = session.data.readableValues().find((value) => value.path === binding.by)?.kind;
     return kind === "number" ? { ...binding, format: NUMBER_FORMAT } : binding;
-}
-
-/**
- * What the layers beneath the row write for a text's look, when they agree on one.
- * @param session - the element's session.
- * @param layers - the row's layers on this side.
- * @param channel - the style channel.
- * @returns the style, or an empty one.
- */
-function styleBeneath(session: GraphSession, layers: readonly Layer[], channel: Channel): LabelStyle {
-    const shares = sharesBeneath(session, layers, channel);
-    const value = shares.length === 1 ? shares[0].value : undefined;
-    return typeof value === "object" && value !== null && !("r" in value) ? value : {};
 }
 
 /**
@@ -178,20 +143,19 @@ function channelsOf(kind: TextKindSpec): Channel[] {
 }
 
 /**
- * The Text list of one kind (design 2.3): labels and tooltips on nodes, labels and end captions on
- * edges, one entry of each. "+" adds one: a menu of what can still be added, or, when one kind is
- * left, that kind at once. Picking a kind opens its source list, with "Fixed text" first, and
- * nothing is written until a source is picked or words are typed; Escape leaves nothing. The
- * title of an empty list does what "+" does for a pointer, and is not a tab stop of its own. A
- * kind a layer beneath writes, while this row has none, shows as a gray line whose eye adds an
- * entry here that draws none on these elements.
+ * The Text section of one kind (the owner's style panel design, 2026-10-13): labels and tooltips
+ * on nodes, labels and end captions on edges, one entry of each. A layer that writes no text shows
+ * only the dimmed title and "+". "+" ("Add to Text") lists the kinds of text not here yet and, for
+ * each entry here, its look, size and position while it does not set them. Picking a kind opens its
+ * source list, with "Fixed text" first, and nothing is written until a source is picked or words
+ * are typed; Escape leaves nothing. Picking a look, size or position adds it with its starting
+ * value. Nothing from the layers beneath is drawn.
  * @param props - Component props
  * @param props.ctx - the row and side
- * @returns The list
+ * @returns The section
  */
 export function LabelSection({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.Element {
     const { element, store } = useWorkspace();
-    const [menuOpen, setMenuOpen] = useState(false);
     // The kind picked from "+" whose source list is open, and the kind whose fixed words are being typed.
     const [picking, setPicking] = useState<string | null>(null);
     const [typing, setTyping] = useState<string | null>(null);
@@ -210,12 +174,8 @@ export function LabelSection({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.
     const { session, side: target } = ctx;
     const kinds = TEXT_KINDS[target];
     const kindWord = target === "node" ? "Node" : "Edge";
-    const listName = `${kindWord} text`;
-    // Several rows: an entry they all write alike; one they write differently is "Mixed".
     const hasEntry = (kind: TextKindSpec): boolean =>
         lineIn(ctx, kind.words) !== undefined || lineIn(ctx, kind.style) !== undefined;
-    const addable = kinds.filter((kind) => !hasEntry(kind) && picking !== kind.id && typing !== kind.id);
-    const empty = kinds.every((kind) => !hasEntry(kind)) && picking === null && typing === null;
     const fail = (): void => {
         store.set({ notice: { message: "The text could not be changed" } });
     };
@@ -231,231 +191,202 @@ export function LabelSection({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.
             next = { binding: formatted(session, proposal.binding) };
         }
         focusLineNext(kind.words);
-        // A new entry is sized on screen; the look and the position stay what the layers beneath give.
+        // A new entry is sized on screen.
         const also: Partial<Record<Channel, ChannelValue>> = hasEntry(kind)
             ? {}
             : { [kind.style]: { sizeUnit: "screen" }, [kind.size]: NEW_LABEL_PX };
-        writeIn(ctx, kind.words, next, also).catch(() => {
-            focusLineNext(null);
-            fail();
-        });
+        writeIn(ctx, kind.words, next, also)
+            .then(() => {
+                store.set({ announcement: `${kindWord} ${kind.name.toLowerCase()} added` });
+            })
+            .catch(() => {
+                focusLineNext(null);
+                fail();
+            });
     };
-    const start = (kind: TextKindSpec): void => {
-        picked.current = false;
-        setMenuOpen(false);
-        setPicking(kind.id);
-    };
-    const onAdd = (): void => {
-        if (addable.length === 1) {
-            start(addable[0]);
-        } else if (addable.length > 1) {
-            setMenuOpen(true);
+    const options: AddOption[] = kinds.flatMap((kind) => {
+        if (!hasEntry(kind)) {
+            return picking === kind.id || typing === kind.id ? [] : [{ key: kind.id, label: kind.name }];
         }
+        const style = styleOf(lineIn(ctx, kind.style));
+        const parts: AddOption[] = [];
+        if (style.look === undefined) {
+            parts.push({ key: `${kind.id}:look`, label: `${kind.name} look` });
+        }
+        if (lineIn(ctx, kind.size) === undefined && descriptorOf(target, kind.size) !== undefined) {
+            parts.push({ key: `${kind.id}:size`, label: `${kind.name} size` });
+        }
+        if (style.location === undefined) {
+            parts.push({ key: `${kind.id}:position`, label: `${kind.name} position` });
+        }
+        return parts;
+    });
+    const onAdd = (key: string): void => {
+        const [id, part] = key.split(":");
+        const kind = kinds.find((each) => each.id === id);
+        if (kind === undefined) {
+            return;
+        }
+        if (part === undefined) {
+            picked.current = false;
+            setPicking(kind.id);
+            return;
+        }
+        const styleLine = lineIn(ctx, kind.style);
+        const style = styleOf(styleLine);
+        let write: Promise<unknown>;
+        if (part === "size") {
+            const size = descriptorOf(target, kind.size);
+            if (size === undefined) {
+                return;
+            }
+            focusLineNext(kind.size);
+            write = writeIn(ctx, kind.size, { value: startFor(ctx, size) });
+        } else {
+            const patch: Partial<LabelStyle> =
+                part === "look"
+                    ? { look: LABEL_LOOKS[0]?.id ?? "default" }
+                    : { location: LABEL_STYLE_DEFAULTS.location ?? "top" };
+            write = writeIn(ctx, kind.style, { value: { ...style, ...patch } });
+        }
+        write
+            .then(() => {
+                store.set({ announcement: `${kindWord} ${kind.name.toLowerCase()} ${part} added` });
+            })
+            .catch(fail);
     };
-
-    // One "+" per list. A menu that would list one kind is that kind's own button.
-    const plusName = addable.length === 1 ? `Add ${addable[0].name.toLowerCase()}` : `Add to ${listName.toLowerCase()}`;
-    const plusButton = (
-        <Tooltip label={addable.length === 0 ? `${listName}: one of each kind already` : plusName}>
-            <ActionIcon
-                variant="subtle"
-                size="sm"
-                aria-label={addable.length === 0 ? `${listName}: one of each kind already` : plusName}
-                data-plus
-                aria-disabled={addable.length === 0 ? true : undefined}
-                data-disabled={addable.length === 0 ? true : undefined}
-                // Only the direct button handles its own click; in the menu's case the menu does.
-                {...(addable.length === 1 ? { onClick: onAdd } : {})}
-            >
-                <GLYPHS.add size={14} aria-hidden />
-            </ActionIcon>
-        </Tooltip>
-    );
-    const title = (
-        <Text size="xs" fw={600} pl={4}>
-            Text
-        </Text>
-    );
+    const shown = kinds.filter((kind) => hasEntry(kind) || picking === kind.id || typing === kind.id);
+    const partial = kinds.filter((kind) => !shown.includes(kind) && partlySet(ctx, kind.words, kind.style));
 
     return (
-        // Named by kind: a layer on nodes and edges draws both lists, and no two controls share a name.
-        <Stack ref={list} gap={2} role="group" aria-label={listName} data-section="label">
-            <Group gap={4} h={24} wrap="nowrap" justify="space-between">
-                {empty ? (
-                    // For a pointer, an empty list's title does what "+" does (Figma's empty Fill
-                    // title); the "+" is the one control a keyboard or a screen reader reaches.
-                    <UnstyledButton tabIndex={-1} aria-hidden onClick={onAdd}>
-                        {title}
-                    </UnstyledButton>
-                ) : (
-                    title
-                )}
-                {addable.length > 1 ? (
-                    <Menu opened={menuOpen} onChange={setMenuOpen} position="bottom-end">
-                        <Menu.Target>{plusButton}</Menu.Target>
-                        <Menu.Dropdown>
-                            {kinds.map((kind) => {
-                                const there = !addable.includes(kind);
-                                return (
-                                    <Menu.Item
-                                        key={kind.id}
-                                        leftSection={React.createElement(KIND_GLYPHS[kind.id] ?? GLYPHS.label, {
-                                            size: 14,
-                                            "aria-hidden": true,
-                                        })}
-                                        disabled={there}
-                                        onClick={() => {
-                                            start(kind);
-                                        }}
-                                    >
-                                        <div>{kind.name}</div>
-                                        {there ? (
-                                            <Text size="xs" c="dimmed">
-                                                {`One ${kind.name.toLowerCase()} per element`}
-                                            </Text>
-                                        ) : null}
-                                    </Menu.Item>
-                                );
-                            })}
-                        </Menu.Dropdown>
-                    </Menu>
-                ) : (
-                    plusButton
-                )}
-            </Group>
-            {kinds.map((kind) => {
-                if (picking === kind.id) {
-                    return (
-                        <SourcePicker
-                            key={kind.id}
-                            target={target}
-                            channel={kind.words}
-                            title={kind.name}
-                            opened
-                            onOpenChange={(open) => {
-                                if (!open) {
+        <div
+            ref={list}
+            role="group"
+            aria-label={`${kindWord} text`}
+            data-section={`${target}-text`}
+            className="ws-section"
+        >
+            <ControlSection
+                label="Text"
+                empty={shown.length === 0 && partial.length === 0}
+                collapsible={false}
+                actions={<AddButton kind={target} title="Text" options={options} onAdd={onAdd} />}
+            >
+                {kinds.map((kind) => {
+                    if (picking === kind.id) {
+                        return (
+                            <SourcePicker
+                                key={kind.id}
+                                target={target}
+                                channel={kind.words}
+                                title={kind.name}
+                                opened
+                                onOpenChange={(open) => {
+                                    if (!open) {
+                                        setPicking(null);
+                                        setRefocus(!picked.current);
+                                    }
+                                }}
+                                onFixed={() => {
+                                    picked.current = true;
                                     setPicking(null);
-                                    setRefocus(!picked.current);
-                                }
-                            }}
-                            onFixed={() => {
-                                picked.current = true;
-                                setPicking(null);
-                                setTyping(kind.id);
-                            }}
-                            onPick={(choice) => {
-                                picked.current = true;
-                                setPicking(null);
-                                writeWords(kind, { choice });
-                            }}
-                        >
-                            <Button size="compact-xs" variant="default" c="dimmed" fullWidth justify="flex-start">
-                                Pick a value
-                            </Button>
-                        </SourcePicker>
-                    );
-                }
-                if (typing === kind.id) {
-                    return (
-                        <WordsInput
-                            key={kind.id}
-                            label={`${kindWord} ${kind.name.toLowerCase()} text`}
-                            words=""
-                            autoFocus
-                            onDone={(words) => {
-                                setTyping(null);
-                                if (words !== undefined && words !== "") {
-                                    writeWords(kind, { value: words });
-                                } else {
-                                    setRefocus(true);
-                                }
-                            }}
-                        />
-                    );
-                }
-                if (hasEntry(kind)) {
-                    return <TextEntry key={kind.id} ctx={ctx} kind={kind} onWords={writeWords} onFail={fail} />;
-                }
-                const mixed = mixedRows(ctx, kind.words, kind.style);
-                if (mixed !== undefined && ctx.many !== undefined) {
+                                    setTyping(kind.id);
+                                }}
+                                onPick={(choice) => {
+                                    picked.current = true;
+                                    setPicking(null);
+                                    writeWords(kind, { choice });
+                                }}
+                            >
+                                <Button size="compact-xs" variant="default" fullWidth justify="flex-start">
+                                    Pick a value
+                                </Button>
+                            </SourcePicker>
+                        );
+                    }
+                    if (typing === kind.id) {
+                        return (
+                            <WordsInput
+                                key={kind.id}
+                                label={`${kindWord} ${kind.name.toLowerCase()} text`}
+                                words=""
+                                autoFocus
+                                onDone={(words) => {
+                                    setTyping(null);
+                                    if (words !== undefined && words !== "") {
+                                        writeWords(kind, { value: words });
+                                    } else {
+                                        setRefocus(true);
+                                    }
+                                }}
+                            />
+                        );
+                    }
+                    if (hasEntry(kind)) {
+                        return <TextEntry key={kind.id} ctx={ctx} kind={kind} onWords={writeWords} onFail={fail} />;
+                    }
+                    const some = partlySet(ctx, kind.words, kind.style);
                     const { many } = ctx;
+                    if (some === undefined || many === undefined) {
+                        return null;
+                    }
+                    const noun = kind.name.toLowerCase();
                     return (
-                        <MixedLine
-                            key={kind.id}
-                            glyph={React.createElement(KIND_GLYPHS[kind.id] ?? GLYPHS.label, { size: 14 })}
-                            name={kind.name}
-                            rows={mixed}
-                            onRemove={() => {
-                                Promise.all([many.clear(kind.words), many.clear(kind.style)]).catch(fail);
+                        <Group key={kind.id} gap={4} wrap="nowrap" mih={28} data-line={kind.words}>
+                            <span className="ws-text-kind">
+                                {React.createElement(KIND_GLYPHS[kind.id] ?? GLYPHS.label, {
+                                    size: 14,
+                                    "aria-hidden": true,
+                                })}
+                                <span className="ws-field-name">{KIND_WORDS[kind.id] ?? kind.name}</span>
+                            </span>
+                            <Text size="xs" style={{ flex: 1 }}>
+                                {some.set < some.of ? `Set on ${String(some.set)} of ${String(some.of)}` : "Mixed"}
+                            </Text>
+                            <Tooltip label={`Remove ${noun} from every row`}>
+                                <ActionIcon
+                                    variant="subtle"
+                                    size="sm"
+                                    aria-label={`Remove ${noun} from every row`}
+                                    onClick={() => {
+                                        Promise.all(channelsOf(kind).map((c) => many.clear(c))).catch(fail);
+                                    }}
+                                >
+                                    <GLYPHS.remove size={14} aria-hidden />
+                                </ActionIcon>
+                            </Tooltip>
+                        </Group>
+                    );
+                })}
+                {target === "node" && lineIn(ctx, "node.label") !== undefined && element !== null ? (
+                    <Group gap={8} wrap="nowrap">
+                        <Text size="xs" c="dimmed" aria-live="polite">
+                            {labelStatement(element.nodeLabelCounts, !allLabelsShown)}
+                        </Text>
+                        <Checkbox
+                            size="xs"
+                            ml="auto"
+                            label="Show all labels"
+                            checked={allLabelsShown}
+                            onChange={(event) => {
+                                store.set({ allLabelsShown: event.currentTarget.checked });
                             }}
                         />
-                    );
-                }
-                return <BeneathLine key={kind.id} ctx={ctx} kind={kind} onFail={fail} />;
-            })}
-            {target === "node" && lineIn(ctx, "node.label") !== undefined && element !== null ? (
-                <Group gap={8} pl={4} wrap="nowrap">
-                    <Text size="xs" c="dimmed" aria-live="polite">
-                        {labelStatement(element.nodeLabelCounts, !allLabelsShown)}
-                    </Text>
-                    <Checkbox
-                        size="xs"
-                        ml="auto"
-                        label="Show all labels"
-                        checked={allLabelsShown}
-                        onChange={(event) => {
-                            store.set({ allLabelsShown: event.currentTarget.checked });
-                        }}
-                    />
-                </Group>
-            ) : null}
-        </Stack>
+                    </Group>
+                ) : null}
+            </ControlSection>
+        </div>
     );
 }
 
 /**
- * A kind of text a layer beneath writes while this row writes none: a gray line whose eye adds an
- * entry here that draws none on these elements (`enabled: false`).
- * @param props - Component props
- * @param props.ctx - the row
- * @param props.kind - the kind
- * @param props.onFail - reports a refused write
- * @returns The line, or nothing when no layer beneath writes the kind
+ * A channel's descriptor on one kind, when graphty-element draws it.
+ * @param target - nodes or edges.
+ * @param channel - the channel.
+ * @returns the descriptor, or undefined.
  */
-function BeneathLine({
-    ctx,
-    kind,
-    onFail,
-}: Readonly<{ ctx: RowContext; kind: TextKindSpec; onFail: () => void }>): React.JSX.Element | null {
-    const beneath = writtenBeneath(ctx.session, ctx.layers, kind.words);
-    if (beneath.length === 0) {
-        return null;
-    }
-    const from = beneath.join(" and ");
-    return (
-        <Group gap={4} pl={4} wrap="nowrap" data-beneath={kind.words}>
-            {React.createElement(KIND_GLYPHS[kind.id] ?? GLYPHS.label, {
-                size: 14,
-                "aria-hidden": true,
-                style: { flex: "none", color: "var(--cm-text-secondary)" },
-            })}
-            <Text size="sm" c="var(--cm-text-secondary)" truncate style={{ flex: 1 }}>
-                {`${kind.name}, from ${from}`}
-            </Text>
-            <ToggleIconButton
-                variant="swap"
-                label={`Hide ${kind.name.toLowerCase()} from ${from}`}
-                checked={false}
-                icon={<GLYPHS.show size={14} />}
-                checkedIcon={<GLYPHS.hide size={14} />}
-                onChange={(hide) => {
-                    if (hide) {
-                        writeIn(ctx, kind.style, { value: { enabled: false } }).catch(onFail);
-                    }
-                }}
-            />
-        </Group>
-    );
+function descriptorOf(target: RowContext["side"], channel: Channel): ChannelDescriptor | undefined {
+    return channelsFor(target).find((d) => d.channel === channel && d.renderable);
 }
 
 /**
@@ -634,8 +565,7 @@ function TextEntry({ ctx, kind, onWords, onFail }: Readonly<TextEntryProps>): Re
     const typed = words !== undefined && words.binding === undefined && typeof words.value === "string";
     let source: string;
     if (words === undefined) {
-        const beneath = writtenBeneath(session, layers, kind.words);
-        source = beneath.length === 0 ? "No words" : `From ${beneath.join(" and ")}`;
+        source = "No words";
     } else if (words.binding === undefined) {
         source = typeof words.value === "string" ? words.value : "";
     } else {
@@ -650,7 +580,6 @@ function TextEntry({ ctx, kind, onWords, onFail }: Readonly<TextEntryProps>): Re
         label: look.id === lookId && edited ? `${look.plainName}, edited` : look.plainName,
         glyph: <LookPreview background={look.style.background} color={look.style.color} />,
     }));
-    const beneathStyle = styleBeneath(session, layers, kind.style);
     const sizeDescriptor = descriptorOf(kind.size);
     const where = `${kindWord} ${noun}`;
     const sourcePicker = (trigger: React.ReactElement): React.JSX.Element => (
@@ -753,7 +682,7 @@ function TextEntry({ ctx, kind, onWords, onFail }: Readonly<TextEntryProps>): Re
                         header={{ variant: "title", title: `${kind.name} settings` }}
                     >
                         <Popout.Content>
-                            <LabelSettings style={style} beneath={beneathStyle} onChange={writeStyle} vary={vary} />
+                            <LabelSettings style={style} onChange={writeStyle} vary={vary} />
                         </Popout.Content>
                     </Popout.Panel>
                 </Popout>
@@ -791,7 +720,7 @@ function TextEntry({ ctx, kind, onWords, onFail }: Readonly<TextEntryProps>): Re
                 word="Look"
                 name={`${where} look`}
                 set={style.look !== undefined}
-                onClear={() => {
+                onRemove={() => {
                     writeStyle({ look: undefined });
                 }}
             >
@@ -801,8 +730,8 @@ function TextEntry({ ctx, kind, onWords, onFail }: Readonly<TextEntryProps>): Re
                     key={style.look ?? ""}
                     label=""
                     aria-label={`${where} look`}
-                    value={style.look}
-                    defaultValue="default"
+                    value={style.look ?? ""}
+                    defaultValue={style.look ?? ""}
                     showReset={false}
                     options={looks}
                     onChange={(look) => {
@@ -815,7 +744,7 @@ function TextEntry({ ctx, kind, onWords, onFail }: Readonly<TextEntryProps>): Re
                 word="Position"
                 name={`${where} position`}
                 set={style.location !== undefined}
-                onClear={() => {
+                onRemove={() => {
                     writeStyle({ location: undefined });
                 }}
             >
@@ -823,8 +752,8 @@ function TextEntry({ ctx, kind, onWords, onFail }: Readonly<TextEntryProps>): Re
                     key={style.location ?? ""}
                     label=""
                     aria-label={`${where} position`}
-                    value={style.location}
-                    defaultValue={beneathStyle.location ?? LABEL_STYLE_DEFAULTS.location ?? "top"}
+                    value={style.location ?? ""}
+                    defaultValue={style.location ?? ""}
                     showReset={false}
                     options={LOCATIONS.map((location) => ({ value: location, label: positionWord(location) }))}
                     onChange={(location) => {
@@ -837,31 +766,34 @@ function TextEntry({ ctx, kind, onWords, onFail }: Readonly<TextEntryProps>): Re
 }
 
 /**
- * One line of a text entry on the panel's field column: its word in the label column, the
- * control, an empty vary column, and Clear while the layer sets it.
+ * One line of a text entry on the panel's field column, drawn only while the layer sets it: its
+ * word in the label column, the control, an empty vary column, and a minus that removes it.
  * @param props - Component props
  * @param props.word - the word in the label column
  * @param props.name - the field's accessible name, with its kind ("Node label look")
  * @param props.set - whether the layer sets it
- * @param props.onClear - clears it back to what lies beneath
+ * @param props.onRemove - removes it, so the layers beneath show through
  * @param props.children - the control
- * @returns The line
+ * @returns The line, or nothing while the layer does not set it
  */
 function StyleLine({
     word,
     name,
     set,
-    onClear,
+    onRemove,
     children,
 }: Readonly<{
     word: string;
     name: string;
     set: boolean;
-    onClear: () => void;
+    onRemove: () => void;
     children: React.ReactNode;
-}>): React.JSX.Element {
+}>): React.JSX.Element | null {
+    if (!set) {
+        return null;
+    }
     return (
-        <div className="ws-field" data-named="" data-set={set ? "" : undefined}>
+        <div className="ws-field" data-named="" data-set="">
             <span className="ws-field-label">
                 <span className="ws-field-name" aria-hidden>
                     {word}
@@ -870,13 +802,23 @@ function StyleLine({
             <div className="ws-field-control">{children}</div>
             <span className="ws-slot ws-vary" />
             <span className="ws-slot">
-                {set && (
-                    <Tooltip label="Clear: back to what lies beneath">
-                        <ActionIcon variant="subtle" size="sm" aria-label={`Clear ${name}`} onClick={onClear}>
-                            <GLYPHS.remove size={14} aria-hidden />
-                        </ActionIcon>
-                    </Tooltip>
-                )}
+                <Tooltip label={`Remove ${name.toLowerCase()}`}>
+                    <ActionIcon
+                        variant="subtle"
+                        size="sm"
+                        aria-label={`Remove ${name.toLowerCase()}`}
+                        onClick={(event) => {
+                            // The line goes: focus moves to its section's "+".
+                            event.currentTarget
+                                .closest("[data-section]")
+                                ?.querySelector<HTMLElement>("[data-plus]")
+                                ?.focus();
+                            onRemove();
+                        }}
+                    >
+                        <GLYPHS.remove size={14} aria-hidden />
+                    </ActionIcon>
+                </Tooltip>
             </span>
         </div>
     );

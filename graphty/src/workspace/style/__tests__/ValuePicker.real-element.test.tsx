@@ -69,7 +69,11 @@ function refusedForSize(session: GraphSession): number {
  */
 async function openBySize(): Promise<HTMLElement> {
     const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
-    await userEvent.click(await within(tab).findByRole("combobox", { name: /^Node size, / }));
+    if (tab.querySelector('.ws-row[data-line="node.size"]') === null) {
+        await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Size" }));
+    }
+    await userEvent.click(await screen.findByRole("combobox", { name: /^Node size/ }));
     await userEvent.keyboard("=");
     return findValuePicker();
 }
@@ -162,7 +166,10 @@ describe("the value picker on the real element", () => {
         assert.strictEqual(session.data.statistics().directedness, "undirected");
 
         const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
-        const button = await within(tab).findByRole("button", { name: "Node size by attribute" });
+        // Size is a row once Shape's "+" adds it; its vary glyph opens the picker.
+        await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Size" }));
+        const button = await screen.findByRole("button", { name: "Node size by attribute" }, { timeout: TIMEOUT_MS });
         await userEvent.click(button);
         const picker = await findValuePicker();
         assert.equal(picker.getAttribute("aria-label"), "Size by attribute", "named by its pop-out's title");

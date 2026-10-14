@@ -78,7 +78,7 @@ describe("Graph settings", () => {
 
     it("writes the background color and the highlight color the reader types", async () => {
         const element = await openGraphSettings();
-        const background = screen.getByRole("textbox", { name: "Background color" });
+        const background = screen.getByRole("textbox", { name: /^Background color(,|$)/ });
         await userEvent.clear(background);
         await userEvent.type(background, "112233{Enter}");
         await waitFor(() => {
@@ -89,7 +89,7 @@ describe("Graph settings", () => {
             );
         });
 
-        const highlight = screen.getByRole("textbox", { name: "Highlight color" });
+        const highlight = screen.getByRole("textbox", { name: /^Highlight color(,|$)/ });
         await userEvent.clear(highlight);
         await userEvent.type(highlight, "AA0011{Enter}");
         await waitFor(() => {

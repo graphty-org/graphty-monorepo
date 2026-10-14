@@ -1,7 +1,7 @@
 /**
  * Label entries in the Style tab's Text list, on the REAL graphty-element, driven by real input:
  * the "+" menu (also opened by the empty list's title), the source picker, the look select, the
- * Label settings popover, the entry's eye, a label written beneath shown as a gray line, and the
+ * Label settings popover, the entry's eye, a label written beneath drawn as nothing here, and the
  * size's vary glyph. Every assertion reads what the element reports: the layer stack, the label
  * the element draws, and the bindings.
  */
@@ -141,8 +141,6 @@ describe("label entries on the real element", () => {
             ["Label", "Tooltip"],
             "the Text menu lists both kinds of node text",
         );
-        const glyphs = items.map((item) => item.querySelector("svg")?.getAttribute("class") ?? "");
-        assert.notEqual(glyphs[0], glyphs[1], "Label and Tooltip are drawn with different glyphs");
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Label/ }));
         // Nothing is written before a source is picked.
         assert.isUndefined(writer(session, "node.label"));
@@ -161,7 +159,7 @@ describe("label entries on the real element", () => {
         // key gains no row.
         assert.deepEqual(labelStyle(session), { sizeUnit: "screen" }, "only the size unit is written");
         assert.equal(writer(session, "node.labelSize")?.set?.["node.labelSize"], 12, "a new label is 12 px");
-        assert.isNull(within(textList()).queryByRole("button", { name: "Clear Node label look" }), "Look is not set");
+        assert.isNull(within(textList()).queryByRole("combobox", { name: /^Node label look/ }), "Look is not set");
         assert.equal(document.querySelectorAll(".ws-legend-section").length, keyRows, "no key row is added");
         assert.isNotNull(
             within(textList()).getByRole("button", { name: "Label source: name" }),
@@ -170,21 +168,17 @@ describe("label entries on the real element", () => {
         // The entry says what kind of text it is, and its controls carry the kind.
         const entry = textList().querySelector<HTMLElement>('[data-line="node.label"]');
         assert.include(entry?.querySelector(".ws-text-kind")?.textContent ?? "", "Label");
-        assert.isNotNull(within(textList()).getByRole("combobox", { name: /^Node label look/ }));
-        assert.isNotNull(within(textList()).getByRole("combobox", { name: /^Node label position/ }));
+        // Only what the entry sets is drawn: its size, not a look or a position it does not set.
+        assert.isNull(within(textList()).queryByRole("combobox", { name: /^Node label position/ }));
         assert.isNotNull(within(textList()).getByRole("button", { name: "Node label size by attribute" }));
-        // A second label cannot be added: with only Tooltip left, "+" is Tooltip's own button.
-        const plus = within(textList()).getByRole("button", { name: "Add tooltip" });
-        await userEvent.hover(plus);
-        // The theme's tooltips open after a second, mounted hidden until then.
-        await waitFor(
-            () => {
-                const tips = screen.queryAllByRole("tooltip", { hidden: true }).map((tip) => tip.textContent);
-                assert.include(tips, "Add tooltip", "its tooltip is its name");
-            },
-            { timeout: 5000 },
+        // "+" now offers Tooltip and the label's look and position, never a second label.
+        await userEvent.click(within(textList()).getByRole("button", { name: "Add to node text" }));
+        assert.deepEqual(
+            (await screen.findAllByRole("menuitem")).map((item) => item.textContent),
+            ["Label look", "Label position", "Tooltip"],
         );
-        await userEvent.unhover(plus);
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Label look" }));
+        await within(textList()).findByRole("combobox", { name: /^Node label look/ });
 
         // Picking a look applies it.
         await choose("Node label look", "Dark", textList());
@@ -192,25 +186,26 @@ describe("label entries on the real element", () => {
             assert.equal(labelStyle(session).look, "dark");
             assert.equal(shown("Node label look"), "Dark");
         });
-        // Clear takes the look back off.
-        await userEvent.click(within(textList()).getByRole("button", { name: "Clear Node label look" }));
-        await waitFor(() => {
-            assert.isUndefined(labelStyle(session).look);
-            assert.equal(shown("Node label look"), "Default");
-        });
-
         // A font of the reader's own makes the look read edited; the font's reset clears it back.
         await userEvent.click(within(textList()).getByRole("button", { name: "Node label settings" }));
         const settings = await screen.findByRole("dialog", { name: "Label settings" });
         await choose("Font", "Serif", settings);
         await waitFor(() => {
             assert.equal(labelStyle(session).font, "serif");
-            assert.equal(shown("Node label look"), "Default, edited");
+            assert.equal(shown("Node label look"), "Dark, edited");
         });
         await userEvent.click(within(settings).getByRole("button", { name: "Reset Font to default" }));
         await waitFor(() => {
             assert.isUndefined(labelStyle(session).font);
-            assert.equal(shown("Node label look"), "Default");
+            assert.equal(shown("Node label look"), "Dark");
+        });
+        await userEvent.keyboard("{Escape}");
+
+        // The minus takes the look back off, and its line with it.
+        await userEvent.click(within(textList()).getByRole("button", { name: "Remove node label look" }));
+        await waitFor(() => {
+            assert.isUndefined(labelStyle(session).look);
+            assert.isNull(within(textList()).queryByRole("combobox", { name: /^Node label look/ }));
         });
     });
 
@@ -244,9 +239,9 @@ describe("label entries on the real element", () => {
         });
     });
 
-    it("a label written beneath shows as a gray line; its eye adds an entry here that hides it on the canvas", async () => {
+    it("a label written beneath draws nothing on this row: Text stays its dimmed title and '+'", async () => {
         const { session, element, store } = await openWithGraph();
-        const names = await session.styles.encode({ column: { kind: "node", name: "name" }, channel: "node.label" });
+        await session.styles.encode({ column: { kind: "node", name: "name" }, channel: "node.label" });
         const top = await session.styles.add({
             name: "Top",
             target: "node",
@@ -256,22 +251,13 @@ describe("label entries on the real element", () => {
         store.set({ inspected: { kind: "layer-row", id: top.id } });
         await waitFor(
             () => {
-                assert.isNotNull(within(textList()).getByText(`Label, from ${names.name}`));
                 assert.equal(element.labelOf("3")?.text, "Gamma");
+                assert.isNotNull(textList().querySelector('[data-empty="true"]'), "Text is dimmed");
             },
             { timeout: TIMEOUT_MS },
         );
-
-        await userEvent.click(within(textList()).getByRole("button", { name: `Hide label from ${names.name}` }));
-        await waitFor(
-            () => {
-                assert.deepEqual(session.styles.get(top.id)?.set?.["node.labelStyle"], { enabled: false });
-                assert.notEqual(element.labelOf("3")?.drawn, true, "the label beneath is covered");
-                // The entry is now this layer's own, with its minus.
-                assert.isNotNull(within(textList()).getByRole("button", { name: "Remove label" }));
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        assert.isNull(textList().querySelector("[data-line]"), "no entry from beneath");
+        assert.notInclude(textList().textContent ?? "", "from", "no line names a layer beneath");
     });
 
     it("the size's vary glyph binds label size to degree", async () => {
@@ -328,7 +314,7 @@ describe("label entries on the real element", () => {
         );
     });
 
-    it("Tab crosses one stop per add action: Text's '+' then Effects' '+'", async () => {
+    it("Tab crosses one stop per section: Text's '+' then Fill's '+'", async () => {
         await openWithGraph();
         await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
         const nodes = screen.getByTestId("style-tab").querySelector<HTMLElement>('[data-group="node"]');
@@ -339,11 +325,9 @@ describe("label entries on the real element", () => {
         await userEvent.keyboard("{Tab}");
         assert.equal(
             document.activeElement?.getAttribute("aria-label"),
-            "Add to node effects",
-            "the next stop is the Effects '+', not a list title",
+            "Add to node fill",
+            "the next stop is the next section's '+', not a section title",
         );
-        await userEvent.keyboard("{Tab}");
-        assert.isFalse(nodes.contains(document.activeElement), "the Effects '+' is the Nodes group's last stop");
     });
 
     it("a label of fixed text: Fixed text, type Hello, and the canvas label reads Hello", async () => {

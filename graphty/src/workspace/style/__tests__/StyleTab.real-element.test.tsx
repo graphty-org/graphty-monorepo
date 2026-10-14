@@ -177,7 +177,7 @@ describe("the Selection row's highlight on the real element", () => {
         const highlight = await screen.findByRole("group", { name: "Highlight" }, { timeout: TIMEOUT_MS });
         const part = (name: string): HTMLElement => within(highlight).getByRole("group", { name });
         const hexOf = (name: string): HTMLInputElement =>
-            within(part(name)).getByRole<HTMLInputElement>("textbox", { name: "Color hex value" });
+            within(part(name)).getByRole<HTMLInputElement>("textbox", { name: /^Color hex value(,|$)/ });
         assert.equal(hexOf("Nodes").value, "FFD700");
         assert.equal(hexOf("Edges").value, "0077BB", "the band the element draws selected edges with");
 

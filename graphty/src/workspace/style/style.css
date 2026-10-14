@@ -1,10 +1,19 @@
-/* The Style tab (StylePanel): one line per property, and group headings that stick while it scrolls. */
+/* The Style tab (StylePanel): Nodes and Edges, each a heading over its sections, one line per
+   property the layer sets. */
 
-/* Nodes and Edges stick to the top of the panel: "Color" is in both groups, and the heading says which. */
-.ws-style-group > .cm-section > .cm-section-header {
+/* Nodes and Edges stick to the top of the panel: "Visibility" is in both groups, and the heading
+   says which. */
+.ws-style-group-title {
     position: sticky;
     top: 0;
     z-index: 2;
+    margin: 0;
+    padding: 8px 8px 4px var(--ws-gutter);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--cm-text);
     background: var(--mantine-color-body);
 }
 
@@ -21,11 +30,16 @@
     --ws-label: 80px;
 }
 
-/* A group of core properties: one line each. */
-.ws-property-row {
+/* One property the layer sets: its line, and under it the caption of a layer above that covers it. */
+.ws-row {
     display: flex;
     flex-direction: column;
     min-width: 0;
+}
+
+.ws-field-covered {
+    padding-inline-start: var(--ws-label, 80px);
+    padding-bottom: 2px;
 }
 
 /* A field: one line of about 28px -- its name in the label column, the control, then the vary and
@@ -42,8 +56,7 @@
     grid-template-columns: minmax(0, 1fr) 24px 24px;
 }
 
-/* The name, its painted-over mark, and the settings button of a group's first line, at the
-   column's right. */
+/* The name, in the label column. */
 .ws-field-label {
     display: flex;
     align-items: center;
@@ -59,16 +72,6 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-}
-
-.ws-field-over {
-    display: inline-flex;
-    flex: none;
-    color: var(--cm-icon-secondary, var(--mantine-color-dimmed));
-}
-
-.ws-field-label > :last-child:not(.ws-field-name, .ws-field-over) {
-    margin-inline-start: auto;
 }
 
 .ws-field-control {

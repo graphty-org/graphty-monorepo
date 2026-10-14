@@ -2,7 +2,8 @@
  * The panels of the style tree's other row kinds on the REAL graphty-element, driven by real input
  * (tier3 design, section 2.2): a folder lists its rows in paint order and a click opens one; its
  * Selection colors rewrite a color in every row that wrote it, undone in one step; several rows
- * selected together read "Mixed" where they differ and take one typed value in one undo step,
+ * selected together read "Mixed" where they all set a property differently and "Set on 1 of 2" where
+ * only some set it, with no value borrowed, and the minus takes it off every row in one undo step,
  * leaving a locked row named and unwritten; a draft shows no groups until a kind is chosen. Every
  * assertion reads the element's own layers or the page.
  */
@@ -150,7 +151,7 @@ describe("folders, several rows and the draft on the real element", () => {
         await screen.findByRole("heading", { level: 2, name: "Ring" });
     });
 
-    it("two rows of different sizes read Mixed; 2 writes to both in one Undo; a locked row is named and left out", async () => {
+    it("two rows of different sizes read Mixed; the minus takes it off both in one Undo; a locked row is named and left out", async () => {
         const { session, key, degree, ring } = await openProject();
         await session.styles.lockRow(ring, true);
         await session.styles.settled();
@@ -165,18 +166,20 @@ describe("folders, several rows and the draft on the real element", () => {
 
         const tab = await screen.findByTestId("style-tab");
         assert.isNull(within(tab).queryByRole("heading", { name: "Edges" }), "Ring is left out, so no Edges group");
-        const size = await within(tab).findByRole("combobox", { name: /^Node size, mixed: / });
-        assert.equal(size.getAttribute("placeholder"), "Mixed");
-        assert.equal((size as HTMLInputElement).value, "");
+        const size = await waitFor(() => {
+            const found = tab.querySelector<HTMLElement>('.ws-row[data-line="node.size"]');
+            assert.isNotNull(found);
+            return found;
+        });
+        assert.equal(size.querySelector(".ws-field-control")?.textContent, "Mixed");
+        assert.isNull(size.querySelector("input"), "no value borrowed from either row");
 
-        await userEvent.click(size);
-        await userEvent.keyboard("2{Enter}");
+        await userEvent.click(within(size).getByRole("button", { name: "Remove node size from every row" }));
         await waitFor(() => {
-            assert.equal(written(session, key, "node.size"), 2);
-            assert.equal(written(session, degree, "node.size"), 2);
+            assert.isUndefined(written(session, key, "node.size"));
+            assert.isUndefined(written(session, degree, "node.size"));
         });
         assert.equal(written(session, ring, "edge.color"), "#FF0000", "the locked row is unwritten");
-        await within(tab).findByRole("combobox", { name: "Node size, set here, 2" });
 
         await userEvent.click(screen.getByRole("button", { name: "Undo" }));
         await waitFor(() => {
@@ -185,7 +188,7 @@ describe("folders, several rows and the draft on the real element", () => {
         });
     });
 
-    it("a label and a glow only one of two rows writes read Mixed, never as shared; the minus takes them off", async () => {
+    it("a label and a glow only one of two rows writes read 'Set on 1 of 2', never as shared; the minus takes them off", async () => {
         const { session, key, degree } = await openProject();
         await session.styles.update(key, {
             set: { "node.color": "#ff0000", "node.size": 3, "node.label": "Key", "node.glow": "#00FF00" },
@@ -200,12 +203,13 @@ describe("folders, several rows and the draft on the real element", () => {
         const tab = await screen.findByTestId("style-tab");
 
         const text = within(tab).getByRole("group", { name: "Node text" });
-        await within(text).findByText("Label, mixed: Key people");
-        assert.isNull(text.querySelector("[data-section='label'] input"), "no label entry reads as shared");
+        await within(text).findByText("Set on 1 of 2");
+        assert.isNull(text.querySelector("input"), "no label entry reads as shared");
         const effects = within(tab).getByRole("group", { name: "Node effects" });
-        await within(effects).findByText("Glow, mixed: Key people");
+        const glow = effects.querySelector<HTMLElement>('.ws-row[data-line="node.glow"]');
+        assert.equal(glow?.querySelector(".ws-field-control")?.textContent, "Set on 1 of 2");
 
-        await userEvent.click(within(effects).getByRole("button", { name: "Remove glow from every row" }));
+        await userEvent.click(within(effects).getByRole("button", { name: "Remove node glow from every row" }));
         await waitFor(() => {
             assert.isUndefined(written(session, key, "node.glow"));
         });
@@ -224,8 +228,10 @@ describe("folders, several rows and the draft on the real element", () => {
         assert.isNull(within(tab).queryByRole("heading", { name: "Edges" }));
 
         const before = session.styles.list().length;
-        const size = await within(tab).findByRole("combobox", { name: /^Node size, / });
-        await userEvent.click(size);
+        await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Size" }));
+        const size = await screen.findByRole("combobox", { name: /^Node size/ }, { timeout: TIMEOUT_MS });
+        await userEvent.tripleClick(size);
         await userEvent.keyboard("4{Enter}");
         await waitFor(() => {
             const added = session.styles.list().find((layer) => layer.name === "New layer");

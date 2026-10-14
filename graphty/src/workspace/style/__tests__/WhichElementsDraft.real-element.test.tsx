@@ -115,7 +115,9 @@ describe("a new layer chooses its elements first", () => {
         assert.equal(readerLayers(session).length, before, "picking the rule writes nothing yet");
 
         const tab = await screen.findByTestId("style-tab");
-        await userEvent.click(await within(tab).findByRole("combobox", { name: /^Node size, / }));
+        await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Size" }));
+        await userEvent.tripleClick(await screen.findByRole("combobox", { name: /^Node size/ }));
         await userEvent.keyboard("3{Enter}");
         await waitFor(() => {
             assert.equal(readerLayers(session).length, before + 1, "the first value adds one layer");
@@ -225,7 +227,9 @@ describe("a new layer chooses its elements first", () => {
         const offer = await screen.findByRole("option", { name: /^These \d+ edges, an end's name contains Florida$/ });
         await userEvent.click(offer);
         const tab = await screen.findByTestId("style-tab");
-        await userEvent.click(await within(tab).findByRole("combobox", { name: /^Edge width, / }));
+        await userEvent.click(within(tab).getByRole("button", { name: "Add to edge line" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Width" }));
+        await userEvent.tripleClick(await screen.findByRole("combobox", { name: /^Edge width/ }));
         await userEvent.keyboard("4{Enter}");
         await waitFor(() => {
             const made = readerLayers(session).at(-1);

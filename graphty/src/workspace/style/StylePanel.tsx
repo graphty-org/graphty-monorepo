@@ -1,6 +1,6 @@
 import "./style.css";
 
-import { ComboInput, CompactColorInput, ControlSection, FieldRow } from "@graphty/compact-mantine";
+import { ComboInput, CompactColorInput, FieldRow } from "@graphty/compact-mantine";
 import { channelsFor, toColorValue } from "@graphty/graphty-element/catalog";
 import { type Channel, DEFAULT_SELECTION_STYLE, type LayerId } from "@graphty/graphty-element/schema";
 import type { GraphSession, Layer } from "@graphty/graphty-element/session";
@@ -15,9 +15,8 @@ import type { DraftPaints } from "../inspector/inspected";
 import { edgeName } from "../inspector/words";
 import { isPanelEscape } from "../keys/keys";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { Effects } from "./Effects";
 import { LabelSection } from "./LabelSection";
-import { PropertyRow, type RowContext } from "./PropertyRow";
+import type { RowContext } from "./PropertyRow";
 import {
     beneathOf,
     colorBlockOf,
@@ -29,9 +28,11 @@ import {
     runColorOf,
     selectionLayer,
     selectionRow,
+    startingEverything,
     type Target,
     writeGroupColor,
 } from "./row";
+import { Section } from "./Section";
 import { focusLineNext, useFocusLine } from "./useFocusLine";
 import { useStyleVersion } from "./useStyleVersion";
 import { RuleEditor, WhichElements } from "./WhichElements";
@@ -46,7 +47,7 @@ import {
     selectorOf,
     sentenceOf,
 } from "./whichRule";
-import { CORE_ROWS, LISTS } from "./words";
+import { SECTIONS } from "./words";
 
 /**
  * The row the Style tab edits when the caller names none, read from `inspected` as the inspector
@@ -65,8 +66,11 @@ function defaultRow(
     const id = inspected?.id;
     switch (inspected?.kind) {
         case undefined:
-        case "everything-row":
-            return everythingRow(session);
+        case "everything-row": {
+            // The starting Everything row holds the base look when the project has one.
+            const starting = startingEverything(session);
+            return starting === undefined ? everythingRow(session) : treeRowLayers(session, starting);
+        }
         case "measure-row":
         case "run-row": {
             // A run that has painted nothing yet (queued, failed, styled off) has no row to edit.
@@ -110,11 +114,11 @@ interface StylePanelProps {
 }
 
 /**
- * The Style tab (tier3 design, section 2.2): for a tree row, a header (kind glyph, name, row
- * menu); Which elements for a reader's own layer; then a Nodes group and an Edges group, each only
- * when the row paints that kind, with the core properties always drawn on paired rows, their rare
- * properties behind settings buttons, the label, and the lists. Generated from graphty-element's
- * channel descriptors (`channelsFor`), never typed.
+ * The Style tab (the owner's style panel design, 2026-10-13): for a tree row, Which elements; then
+ * a Nodes group and an Edges group, each only when the row paints that kind, each with its fixed
+ * sections. A section lists only the properties the layer sets, and its "+" adds the rest; nothing
+ * the layer does not set is drawn as a value. Generated from graphty-element's channel descriptors
+ * (`channelsFor`), never typed.
  * @param props - Component props
  * @param props.layers - the row's style layers
  * @param props.rowId - the style tree row, when the panel is a tree row's
@@ -135,7 +139,10 @@ export function StylePanel({ layers, rowId }: Readonly<StylePanelProps>): React.
         return null;
     }
     // Only the Everything row adds a layer of its own; a run's or a layer's row writes to its own.
-    const everything = layers === undefined && (inspected?.kind ?? "everything-row") === "everything-row";
+    const everything =
+        layers === undefined &&
+        (inspected?.kind ?? "everything-row") === "everything-row" &&
+        startingEverything(session) === undefined;
     // Keyed by the row, so an empty label line is dropped when the row changes.
     return (
         <RowStyle key={row.join(" ")} session={session} row={row} fresh={everything ? EVERYTHING_LAYER : undefined} />
@@ -319,7 +326,7 @@ export function StateLine({
  * @param props.sides - the kinds the row may paint; a row that adds no layer shows only the kinds
  *   it has a layer on
  * @param props.fresh - the layer the row's first edit adds; left out, the row adds none
- * @param props.below - the tree row whose beneath the placeholders read
+ * @param props.below - the tree row whose beneath "+" starts a property from
  * @param props.head - what the tab shows above the groups (a layer's Which elements)
  * @param props.many - for several rows edited together, per kind: what they share and how a
  *   write reaches each
@@ -366,28 +373,18 @@ export function RowStyle({
                     documentColors: colors,
                     ...many?.(side),
                 };
-                const descriptors = channelsFor(side);
+                const title = side === "node" ? "Nodes" : "Edges";
                 return (
-                    <div key={side} className="ws-style-group" data-group={side}>
-                        <ControlSection
-                            label={side === "node" ? "Nodes" : "Edges"}
-                            collapsible={false}
-                            headingLevel={3}
-                        >
-                            <Stack gap={0}>
-                                {CORE_ROWS[side].map((spec) => (
-                                    <PropertyRow key={spec.id} ctx={ctx} spec={spec} descriptors={descriptors} />
-                                ))}
-                                {LISTS[side].map((list) =>
-                                    list.id === "effects" ? (
-                                        <Effects key={list.id} ctx={ctx} />
-                                    ) : (
-                                        <LabelSection key={list.id} ctx={ctx} />
-                                    ),
-                                )}
-                            </Stack>
-                        </ControlSection>
-                    </div>
+                    <section key={side} className="ws-style-group" data-group={side} aria-label={title}>
+                        <h3 className="ws-style-group-title">{title}</h3>
+                        {SECTIONS[side].map((spec) =>
+                            spec.id === "text" ? (
+                                <LabelSection key={spec.id} ctx={ctx} />
+                            ) : (
+                                <Section key={spec.id} ctx={ctx} spec={spec} />
+                            ),
+                        )}
+                    </section>
                 );
             })}
         </Stack>

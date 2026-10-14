@@ -84,10 +84,10 @@ async function newLayerFromSelection(hex: string): Promise<void> {
     await userEvent.click(await inspector.findByRole("button", { name: /actions$/ }, { timeout: TIMEOUT_MS }));
     await userEvent.click(await screen.findByRole("menuitem", { name: /New layer from selection/ }));
     const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
-    // Node color is always drawn; typing its hex writes it.
-    const field = within(await within(tab).findByRole("group", { name: /^Node color, / })).getByRole("textbox", {
-        name: /^Node color(,|$)/,
-    });
+    // Fill's "+" adds Color; typing its hex writes it.
+    await userEvent.click(within(tab).getByRole("button", { name: "Add to node fill" }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Color" }));
+    const field = await screen.findByRole("textbox", { name: /^Node color(,|$)/ });
     await userEvent.clear(field);
     await userEvent.type(field, `${hex}{Enter}`);
 }

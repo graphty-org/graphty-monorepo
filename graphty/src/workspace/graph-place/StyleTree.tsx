@@ -12,7 +12,7 @@ import { ADD_ROW_LABEL, draftAnchor, openDraft, orNotice } from "./actions";
 import { ROW_COMMANDS } from "./commands";
 import { KindGlyph } from "./KindGlyph";
 import { RowMenuItems } from "./RowMenu";
-import { count, findTreeRow, isHidden, layerCount, placeOf } from "./rows";
+import { count, findTreeRow, isBaseRow, isHidden, layerCount, placeOf } from "./rows";
 
 /** The tree item id of the new layer "+" adds before it is written. */
 const DRAFT_ID = "draft";
@@ -215,7 +215,9 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
             <ToggleIconButton
                 key="eye"
                 variant="swap"
-                label={`Hide ${row.name}`}
+                // Drawn at rest on every row, and named for what it does now.
+                data-at-rest=""
+                label={row.hidden ? `Show ${row.name}` : `Hide ${row.name}`}
                 checked={row.hidden}
                 icon={<GLYPHS.show size={14} />}
                 checkedIcon={<GLYPHS.hide size={14} />}
@@ -266,6 +268,8 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
             name: row.name,
             label: `${row.name}, layer, ${paintsWords(paints)}`,
             icon: marks,
+            // Everything holding the base look stays at the bottom.
+            movable: !isBaseRow(session, row.id),
             dimmed: hidden,
             count: over ? <PaintedOverMark words={overWords} /> : undefined,
             actions,
@@ -309,7 +313,7 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
         const command = ROW_COMMANDS.find(
             (candidate) => candidate.applies(row) && candidate.rowKeys.some((key) => matchesKey(event, key)),
         );
-        if (command !== undefined && command.disabled(row) === null) {
+        if (command !== undefined && command.disabled(row, session) === null) {
             event.preventDefault();
             void command.run(workspace, row); // NOSONAR(S3735): a deliberately unawaited promise, marked as no-floating-promises asks
         }

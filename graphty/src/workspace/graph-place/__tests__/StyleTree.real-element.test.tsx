@@ -45,7 +45,7 @@ async function openTree(): Promise<{ session: GraphSession; key: string; degree:
         { source: 2, target: 3 },
         { source: 3, target: 4 },
     ]);
-    await session.config.set({ startingRows: true });
+    await session.config.set({ startingRows: true, editableBase: true });
     const key = await session.styles.add({
         name: "Key people",
         target: "node",

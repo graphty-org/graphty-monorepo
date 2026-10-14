@@ -4,7 +4,8 @@
  *
  * Owner items. An owner item is something only the owner can do: a question with options and what
  * each costs to undo. `raiseItem` records one in `state.ownerItems` (the board reads it there) and
- * `endItem` ends it. An item about an issue or a pull request lives there too: `postItems` writes a
+ * `endItem` ends it; once nothing reads an ended item (`droppableItems`), the daemon writes it to the
+ * ledger and drops it from the state. An item about an issue or a pull request lives there too: `postItems` writes a
  * comment and the `needs-decision` label through the `owner-items` write group, again only when
  * the item's text changes, and takes the label off when the item ends. `readAnswers` ends an item
  * when the owner comments on it or removes the label.
@@ -299,7 +300,8 @@ const DAYS_KEPT = 60;
  *   `pr:<n>` or `issue:<n>`, `blocks` says it blocks every worker start, the release, or the
  *   sessions githerd works with (stalls.mjs); any of them pages while the owner is absent
  * @typedef {ItemInput & {options: ItemOption[], target: string | null, blocks: "workers" | "release" | "sessions" | null,
- *   raisedAt: string, updatedAt: string, endedAt?: string, endedBy?: string, answer?: string,
+ *   raisedAt: string, updatedAt: string, endedAt?: string, endedBy?: string, clearedAt?: string,
+ *   answer?: string,
  *   deferredAt?: string, paged?: {text: string, at: string, via: "page" | "digest" | "deferred"},
  *   github?: {text: string, performed: boolean, at: string, labeled?: boolean, unlabeled?: boolean},
  *   retry?: boolean}} OwnerItem `retry` marks a parked lane's item raised again after the owner
@@ -358,10 +360,49 @@ export function raiseItem(state, input, now) {
  */
 export function endItem(state, id, by, now) {
     const item = state.ownerItems?.[id];
-    if (!item || item.endedAt) return false;
+    if (!item) return false;
+    if (item.endedAt) {
+        // The owner answered it before the condition that raised it cleared; now that has too.
+        if (by === "cleared") item.clearedAt ??= now.toISOString();
+        return false;
+    }
     item.endedAt = now.toISOString();
     item.endedBy = by;
     return true;
+}
+
+/**
+ * Items whose answer is read after they end, until the condition that raised them clears (its
+ * raiser ends it with `cleared` again, which sets `clearedAt`): a parked lane re-runs once after the
+ * answer (`parkLane`), a runner balance refusal already answered is not raised again
+ * (`balanceItem`), nor is an answered untrusted critical (`untrustedCriticals`) or a usage limit
+ * before it resets (`usageLimitStep`).
+ */
+const ANSWER_READ_UNTIL_CLEARED =
+    /^(?:paid-capacity|credential|environment|runner-balance|untrusted-critical|usage-limit):/;
+
+/**
+ * The ended owner items nothing reads any more, which the daemon drops from the state once their
+ * record is in the ledger. An ended item is still read while a job is parked on it (its answer goes
+ * into the job's news, `resumeAnswered`), while its `needs-decision` label is still to be taken off
+ * (`postItems`), and, for the kinds of `ANSWER_READ_UNTIL_CLEARED`, after an answer until the
+ * condition that raised it clears.
+ * @param {any} state the daemon state
+ * @returns {OwnerItem[]} the items to drop
+ */
+export function droppableItems(state) {
+    const waitedOn = new Set(
+        Object.values(state.jobs ?? {})
+            .filter((/** @type {any} */ j) => j.state === "parked")
+            .map((/** @type {any} */ j) => j.waitingFor?.owner),
+    );
+    return /** @type {OwnerItem[]} */ (Object.values(state.ownerItems ?? {})).filter(
+        (i) =>
+            i.endedAt &&
+            !waitedOn.has(i.id) &&
+            (!i.github || i.github.unlabeled || i.endedBy === "label-removed") &&
+            (i.endedBy === "cleared" || i.clearedAt || !ANSWER_READ_UNTIL_CLEARED.test(i.id)),
+    );
 }
 
 /** An answer that keeps the item open: the owner has seen it and will answer later. */

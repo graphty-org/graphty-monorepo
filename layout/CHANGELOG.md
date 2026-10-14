@@ -1,3 +1,20 @@
+## 2.5.2 (2026-10-14)
+
+### 🩹 Fixes
+
+- **layout:** use graph-format's engine-independent math ([#2440](https://github.com/graphty-org/graphty-monorepo/issues/2440))
+- **layout:** draw seeded layouts with engine-independent log, sin, cos and acos ([#2430](https://github.com/graphty-org/graphty-monorepo/issues/2430))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.31
+- Updated graph-format to 1.4.0
+- Updated algorithms to 3.4.6
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 2.5.1 (2026-10-13)
 
 ### 🩹 Fixes

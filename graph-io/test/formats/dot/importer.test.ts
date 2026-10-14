@@ -576,6 +576,14 @@ describe("dot importer: the grammar", () => {
         expect(snapshot.nodes.get("pin")).toBeNull();
     });
 
+    it("keeps a node pos as written text beside the position with keepPositionSource", async () => {
+        const { snapshot } = await load('digraph { a [pos="1,2!"] }', { keepPositionSource: true });
+        expect(snapshot.nodes.byRole("position")?.meta.name).toBe("graphty.position");
+        expect(Array.from(nodeCell(snapshot, "a", "graphty.position") as ArrayLike<number>)).toEqual([1, 2, 0]);
+        expect(nodeCell(snapshot, "a", "pos")).toBe("1,2!");
+        expect(nodeCell(snapshot, "a", "pin")).toBe(true);
+    });
+
     it("takes the weight from the weight attribute, explicit only", async () => {
         const { snapshot } = await load('digraph { a -> b [weight=2.5]; b -> c; c -> a [weight=""] }');
         expect(snapshot.flags.weighted).toBe(true);

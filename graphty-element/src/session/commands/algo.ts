@@ -199,10 +199,11 @@ interface Entry {
  * @returns The error, naming the command to use instead.
  */
 function lateWrite(entry: Entry, key: PropertyKey): GraphtyError {
+    const update = entry.target === "node" ? "updateNodes" : "updateEdges";
     const use =
         entry.target === "graph"
             ? "write graphResults while the algorithm runs"
-            : `use session.data.${entry.target === "node" ? "updateNodes" : "updateEdges"}([{ id, values }])`;
+            : `use session.data.${update}([{ id, values }])`;
     const what = entry.target === "graph" ? "the graph's values" : `${entry.target} ${JSON.stringify(entry.id)}`;
     return new GraphtyError({
         code: "E_READONLY",

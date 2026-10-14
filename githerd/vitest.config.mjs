@@ -2,9 +2,12 @@ import { defineConfig } from "vitest/config";
 
 import { workerShare } from "../tools/test-slots.mjs";
 import { TIMING_FUZZ_SETUP, timingFuzzConfig } from "../tools/timing-fuzzer.mjs";
+import { ciReporters } from "../vitest.ci-junit.mjs";
 
 export default defineConfig({
     test: {
+        // The JUnit report in CI and the time-budget check (vitest.ci-junit.mjs), like every package.
+        reporters: ["default", ...ciReporters()],
         environment: "node",
         include: ["test/**/*.test.mjs"],
         // A machine-wide test slot for the whole run (tools/test-slots.mjs), like every package, and a

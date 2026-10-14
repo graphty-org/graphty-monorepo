@@ -1288,6 +1288,12 @@ function finish(job) {
 }
 
 describe("finishedJobsToPrune (issue #2366)", () => {
+    it("a split job's tombstone keeps its children, which the parent's close proposal reads (issue #2557)", () => {
+        expect(
+            tombstoneOf({ id: "issue-10", kind: "issue", target: "#10", state: "done", children: [11] }).children,
+        ).toEqual([11]);
+    });
+
     it("drops a finished job nothing reads, and leaves every job not finished alone", () => {
         const state = base();
         issue(state, 1, LABELED);

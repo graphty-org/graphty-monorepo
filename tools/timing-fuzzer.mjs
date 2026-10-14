@@ -46,7 +46,7 @@ export function parseTimingFuzzSeed(value) {
         return undefined;
     }
     if (value === "random") {
-        return Math.floor(Math.random() * 0xffffffff) >>> 0 || 1;
+        return Math.floor(Math.random() * 0xffffffff) >>> 0 || 1; // NOSONAR(S2245): a test seed, printed for replay, not a secret
     }
     const seed = Number(value);
     if (!Number.isInteger(seed) || seed <= 0) {
@@ -102,7 +102,7 @@ export function installTimingFuzzer(g, seed) {
         anchorRead = Math.max(last, scaled(realNow()));
         anchorReal = realNow();
         const roll = rand();
-        load = roll < 1 / 3 ? "idle" : roll < 2 / 3 ? "busy" : "overloaded";
+        load = ["idle", "busy", "overloaded"][Math.floor(roll * 3)];
         rate = load === "busy" ? 1.5 + 2.5 * rand() : 1;
     };
     const now = () => {
@@ -207,7 +207,7 @@ export function installTimingFuzzer(g, seed) {
         reseed(label) {
             let h = seed >>> 0;
             for (let i = 0; i < label.length; i++) {
-                h = Math.imul(h ^ label.charCodeAt(i), 0x01000193) >>> 0;
+                h = Math.imul(h ^ label.codePointAt(i), 0x01000193) >>> 0;
             }
             state = h;
             pickLoad();

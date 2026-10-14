@@ -2,7 +2,7 @@
 // Source: https://web.archive.org/web/20240730122800id_/https://public.websites.umich.edu/~mejn/netdata/polblogs.zip
 // sha256: e047df21736fef9037f0450f7d3756ecb16a8e347417723181c0f7e493021ddb
 
-import { type DatasetData } from "../build.js";
+import { type DatasetData } from "./build.js";
 
 export const DATA: DatasetData = {
     directed: true,

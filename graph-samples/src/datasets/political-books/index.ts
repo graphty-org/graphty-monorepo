@@ -2,16 +2,18 @@
  * `@graphty/graph-samples/datasets/political-books`: Books about US politics.
  */
 
-import { type SampleGraph } from "../../types.js";
-import { buildDataset } from "../build.js";
-import { DATA } from "./data.js";
+import { type GraphSnapshot } from "@graphty/graph-format";
+
+import { fetchDataset, type FetchDatasetOptions } from "../remote.js";
 
 export { politicalBooksMeta } from "./meta.js";
 
 /**
  * The political books co-purchase network: 105 books, 441 co-purchases, each book's `label` and political `lean`.
- * @returns a fresh copy of the graph as typed arrays
+ * Downloads it from graphty.app: the same as `fetchDataset("political-books", options)`.
+ * @param options - the base URL, fetch implementation and abort signal, as for `fetchDataset`
+ * @returns the graph as a frozen graph-format snapshot
  */
-export function politicalBooks(): SampleGraph {
-    return buildDataset(DATA);
+export function politicalBooks(options?: FetchDatasetOptions): Promise<GraphSnapshot> {
+    return fetchDataset("political-books", options);
 }

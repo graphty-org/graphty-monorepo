@@ -952,7 +952,10 @@ async function cmdStats(c) {
                 config: found.config,
                 stateDir: c.stateDir,
                 owner: await github.login(),
-                githerdClosed: githerdClosedIssues(await offlineState(c.stateDir)),
+                githerdClosed: githerdClosedIssues(
+                    await offlineState(c.stateDir),
+                    await readLedger(c.stateDir, { since: new Date(0) }),
+                ),
                 now: c.now(),
                 days,
             });

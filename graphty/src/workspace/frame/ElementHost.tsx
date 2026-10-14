@@ -9,7 +9,11 @@ import { useEffect, useRef } from "react";
  * shows needs those frames, and on a software GPU each one holds the page's main thread for tens
  * of milliseconds (issue #1943). View settings written on the tag; they record no step.
  */
-const LAYOUT_BEHAVIOR = { labels: { declutter: true }, rendering: { onDemand: true } } as const;
+const LAYOUT_BEHAVIOR = {
+    labels: { declutter: true },
+    rendering: { onDemand: true },
+    camera: { pivotOnSelection: true },
+} as const;
 
 /** Props for ElementHost. */
 interface ElementHostProps {

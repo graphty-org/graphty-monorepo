@@ -7,6 +7,59 @@ const CONTROL = "button:not([disabled]), input:not([disabled]), [tabindex]:not([
 /** The line waiting for focus, as a selector; module state, so it outlives a remount of the tab. */
 let pending: string | null = null;
 
+/** The lines each section of the last drawn tab listed, and which row the tab was; outlives a remount. */
+let drawn: { readonly panel: string; readonly lines: ReadonlyMap<string, readonly string[]> } | null = null;
+
+/**
+ * The lines each section of a tab lists.
+ * @param scope - the tab.
+ * @returns section id to its lines' channels.
+ */
+function linesOf(scope: HTMLElement): Map<string, string[]> {
+    const lines = new Map<string, string[]>();
+    for (const section of scope.querySelectorAll<HTMLElement>("[data-section]")) {
+        const id = section.dataset.section ?? "";
+        lines.set(
+            id,
+            [...section.querySelectorAll<HTMLElement>("[data-line]")].map((line) => line.dataset.line ?? ""),
+        );
+    }
+    return lines;
+}
+
+/**
+ * The control focus goes to when a change nobody asked focus for (an Undo or Redo) adds or takes
+ * away a line: the field of a line that appeared, else the "+" of a section that lost one.
+ * @param scope - the tab.
+ * @param was - the lines before.
+ * @param now - the lines after.
+ * @returns the control, or null when no line came or went.
+ */
+function controlForChange(
+    scope: HTMLElement,
+    was: ReadonlyMap<string, readonly string[]>,
+    now: ReadonlyMap<string, readonly string[]>,
+): HTMLElement | null {
+    for (const [section, lines] of now) {
+        const before = was.get(section) ?? [];
+        const came = lines.find((line) => !before.includes(line));
+        if (came !== undefined) {
+            const line = scope.querySelector(`[data-section="${section}"] [data-line="${came}"]`);
+            return (
+                line?.querySelector<HTMLElement>(`.ws-field-control :is(${CONTROL})`) ??
+                line?.querySelector<HTMLElement>(CONTROL) ??
+                null
+            );
+        }
+    }
+    for (const [section, lines] of was) {
+        if (lines.some((line) => !(now.get(section) ?? []).includes(line))) {
+            return scope.querySelector<HTMLElement>(`[data-section="${section}"] [data-plus]`);
+        }
+    }
+    return null;
+}
+
 /**
  * Asks for keyboard focus on a style line's first control once the line is drawn. A pick that
  * adds or binds a line closes the menu or list it was made in, and often removes that menu's own
@@ -48,13 +101,30 @@ export function focusSectionNext(from: Element, channel: Channel): void {
  * can be drawn once by the tab that asked and again by the tab that replaces it (a selection's
  * first line makes its layer and the tab remounts on that row), so a tab that goes away with focus
  * still on the line it handed it to asks again, and the next tab hands it to its own copy of the line.
+ * A line that comes or goes with nobody asking (an Undo or Redo) while focus is in the tab or has
+ * fallen to the page takes focus itself: a line that came back, in its field; a line taken away, at
+ * its section's "+".
+ * @param panel - which row the tab shows, so a change of row is never read as lines coming or going.
  * @returns the ref for the element that holds the lines.
  */
-export function useFocusLine<T extends HTMLElement>(): RefObject<T | null> {
+export function useFocusLine<T extends HTMLElement>(panel: string): RefObject<T | null> {
     const scope = useRef<T>(null);
     const handed = useRef<string | null>(null);
     // No dependency list: the line appears on whatever render the element's change causes.
     useEffect(() => {
+        const node = scope.current;
+        if (node === null) {
+            return;
+        }
+        const was = drawn;
+        const now = linesOf(node);
+        drawn = { panel, lines: now };
+        // Focus fell to the page, or stays in the tab (on a "+" an Undo did not take away).
+        const active = document.activeElement;
+        const free = active === null || active === document.body || node.contains(active);
+        if (pending === null && free && was?.panel === panel) {
+            controlForChange(node, was.lines, now)?.focus();
+        }
         if (pending === null) {
             return;
         }

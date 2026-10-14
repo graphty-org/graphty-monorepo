@@ -1024,6 +1024,37 @@ function coordsOf(plan: Plan, zColumn: Column | null, node: number): [string, st
 }
 
 /**
+ * The group marker and the nested `<graph>` of a group node: its own id, label and atts, and an
+ * `xlink:href` to each child.
+ * @param snapshot - the snapshot
+ * @param sub - the group's subgraph record (empty when it has none)
+ * @param children - the child node indices
+ * @param inner - the indentation inside the node
+ * @yields the group's att elements
+ * @returns nothing
+ */
+function* groupAttOf(
+    snapshot: GraphSnapshot,
+    sub: Record<string, unknown>,
+    children: ArrayLike<number> & Iterable<number>,
+    inner: string,
+): Generator<string, void, undefined> {
+    yield `${inner}<att name="__isGroup" value="1" type="boolean" cy:type="Boolean" cy:hidden="1"/>\n`;
+    const id = typeof sub.id === "string" ? ` id="${escapeXmlAttribute(sub.id)}"` : "";
+    const lbl = typeof sub.label === "string" ? ` label="${escapeXmlAttribute(sub.label)}"` : "";
+    yield `${inner}<att>\n${inner}    <graph${id}${lbl}>\n`;
+    const atts =
+        typeof sub.atts === "object" && sub.atts !== null ? Object.entries(sub.atts as Record<string, unknown>) : [];
+    for (const [key, value] of atts) {
+        yield* jsonAtt(key, value, `${inner}        `);
+    }
+    for (const child of children) {
+        yield `${inner}        <node xlink:href="#${escapeXmlAttribute(idText(snapshot.ids.idOf(child)))}"/>\n`;
+    }
+    yield `${inner}    </graph>\n${inner}</att>\n`;
+}
+
+/**
  * The XML of one node and its group graph, whose members are `xlink:href` references (every
  * node is declared at the top level, in index order).
  * @param snapshot - the snapshot
@@ -1050,22 +1081,7 @@ function* nodeOf(
     const pointer = cellOf(slot(plan.nodes, "pointer"), node);
     const subgraph = cellOf(slot(plan.nodes, "subgraph"), node);
     if (children.length > 0 || subgraph !== null) {
-        const sub = (subgraph ?? {}) as Record<string, unknown>;
-        yield `${inner}<att name="__isGroup" value="1" type="boolean" cy:type="Boolean" cy:hidden="1"/>\n`;
-        const id = typeof sub.id === "string" ? ` id="${escapeXmlAttribute(sub.id)}"` : "";
-        const lbl = typeof sub.label === "string" ? ` label="${escapeXmlAttribute(sub.label)}"` : "";
-        yield `${inner}<att>\n${inner}    <graph${id}${lbl}>\n`;
-        const atts =
-            typeof sub.atts === "object" && sub.atts !== null
-                ? Object.entries(sub.atts as Record<string, unknown>)
-                : [];
-        for (const [key, value] of atts) {
-            yield* jsonAtt(key, value, `${inner}        `);
-        }
-        for (const child of children) {
-            yield `${inner}        <node xlink:href="#${escapeXmlAttribute(idText(snapshot.ids.idOf(child)))}"/>\n`;
-        }
-        yield `${inner}    </graph>\n${inner}</att>\n`;
+        yield* groupAttOf(snapshot, (subgraph ?? {}) as Record<string, unknown>, children, inner);
     } else if (typeof nested === "string") {
         yield `${inner}<att>\n${inner}    <graph label="${escapeXmlAttribute(nested)}"/>\n${inner}</att>\n`;
     } else if (typeof pointer === "string") {

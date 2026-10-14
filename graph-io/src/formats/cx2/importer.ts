@@ -689,6 +689,25 @@ async function readDocument(
 }
 
 /**
+ * Fail the import: the first member of the array is not a descriptor.
+ * @param value - the member
+ * @param line - its line
+ * @param report - the report
+ * @returns never: the import fails
+ */
+function failNoDescriptor(value: unknown, line: number, report: ImportReportBuilder): never {
+    const keys = isRecord(value) ? Object.keys(value) : [];
+    const keyList = keys.length > 0 ? ` (keys: ${keys.join(", ")})` : "";
+    return report.fail(
+        CX2_ISSUE.NO_DESCRIPTOR,
+        `the first member of the array is not a descriptor with CXVersion${keyList}`,
+        {
+            line,
+        },
+    );
+}
+
+/**
  * Check the descriptor, the first member of the array.
  * @param value - the member
  * @param line - its line
@@ -697,13 +716,7 @@ async function readDocument(
  */
 function readDescriptor(value: unknown, line: number, doc: Cx2Document, report: ImportReportBuilder): void {
     if (!isRecord(value) || !("CXVersion" in value)) {
-        const keys = isRecord(value) ? Object.keys(value) : [];
-        const keyList = keys.length > 0 ? ` (keys: ${keys.join(", ")})` : "";
-        report.fail(
-            CX2_ISSUE.NO_DESCRIPTOR,
-            `the first member of the array is not a descriptor with CXVersion${keyList}`,
-            { line },
-        );
+        failNoDescriptor(value, line, report);
     }
     const raw = value.CXVersion;
     const text = typeof raw === "string" || typeof raw === "number" ? String(raw) : "";
@@ -2262,6 +2275,14 @@ class Cx2Reader {
                 }
             }
         }
+        this.checkStatus();
+        structure.checkCounts();
+    }
+
+    /** The status block: present, and exactly one well-formed element. */
+    private checkStatus(): void {
+        const { report } = this;
+        const { structure } = this.doc;
         if (!structure.hasStatus) {
             report.error("validation-error", CX2_ISSUE.NO_STATUS, "the document ends without a status block", {
                 element: "status",
@@ -2277,7 +2298,6 @@ class Cx2Reader {
                 { element: "status" },
             );
         }
-        structure.checkCounts();
     }
 
     /** Record the metadata: source format and version, name, description, id type, the kept aspects. */

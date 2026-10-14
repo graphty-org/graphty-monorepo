@@ -901,12 +901,12 @@ export class XgmmlEmitter {
         });
     }
 
-    /** The `xgmml.networks` membership of nodes in root-level subgraphs of a generic document. */
-    private writeNetworks(): void {
-        const { subgraphs } = this.doc.root;
-        if (subgraphs.length === 0) {
-            return;
-        }
+    /**
+     * The names of the subgraphs each node row is a member of.
+     * @param subgraphs - the root-level subgraphs
+     * @returns the subgraph names by node row index
+     */
+    private networkMembership(subgraphs: readonly GraphRec[]): Map<number, string[]> {
         const member = new Map<number, string[]>();
         for (const graph of subgraphs) {
             const name = graph.id ?? graph.label ?? "";
@@ -920,6 +920,16 @@ export class XgmmlEmitter {
                 }
             }
         }
+        return member;
+    }
+
+    /** The `xgmml.networks` membership of nodes in root-level subgraphs of a generic document. */
+    private writeNetworks(): void {
+        const { subgraphs } = this.doc.root;
+        if (subgraphs.length === 0) {
+            return;
+        }
+        const member = this.networkMembership(subgraphs);
         if (member.size === 0) {
             return;
         }

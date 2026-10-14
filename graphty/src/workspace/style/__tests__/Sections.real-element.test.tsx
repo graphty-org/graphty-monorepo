@@ -146,43 +146,20 @@ function written(session: GraphSession, name: string, channel: Channel): unknown
 }
 
 /**
- * How many pixels of the graph's canvas differ from its background: what the reader sees drawn.
- * @returns the count.
+ * The names of the nodes the renderer draws now, read from each node's render state.
+ * @param session - the element's session.
+ * @returns the names, sorted.
  */
-async function ink(): Promise<number> {
-    const host = document.querySelector("graphty-element");
-    const canvas = host?.shadowRoot?.querySelector("canvas") ?? host?.querySelector("canvas") ?? null;
-    if (canvas === null) {
-        throw new Error("no canvas");
+function drawn(session: GraphSession): string[] {
+    const element = document.querySelector("graphty-element");
+    if (element === null) {
+        throw new Error("no element");
     }
-    const base64 = await page.screenshot({ element: canvas, save: false });
-    const image = new Image();
-    image.src = `data:image/png;base64,${base64}`;
-    await image.decode();
-    const board = document.createElement("canvas");
-    board.width = image.width;
-    board.height = image.height;
-    const context = board.getContext("2d");
-    if (context === null) {
-        throw new Error("no 2D context");
-    }
-    context.drawImage(image, 0, 0);
-    const { data } = context.getImageData(0, 0, board.width, board.height);
-    // The background is the most common color.
-    const seen = new Map<number, number>();
-    for (let i = 0; i < data.length; i += 4) {
-        const key = (data[i] << 16) | (data[i + 1] << 8) | data[i + 2];
-        seen.set(key, (seen.get(key) ?? 0) + 1);
-    }
-    const background = [...seen].reduce((most, each) => (each[1] > most[1] ? each : most))[0];
-    const [r, g, b] = [(background >> 16) & 255, (background >> 8) & 255, background & 255];
-    let count = 0;
-    for (let i = 0; i < data.length; i += 4) {
-        if (Math.abs(data[i] - r) + Math.abs(data[i + 1] - g) + Math.abs(data[i + 2] - b) > 48) {
-            count++;
-        }
-    }
-    return count;
+    return session.data
+        .nodes()
+        .filter((node) => element.getNode(node.id)?.getRenderState() === "visible")
+        .map((node) => String(node.name))
+        .sort();
 }
 
 describe("the Style tab's sections", () => {
@@ -407,26 +384,24 @@ describe("the Style tab's sections", () => {
         assert.isNotNull(section("edge", "line").querySelector('.ws-row[data-line="edge.color"]'));
         assert.isNotNull(tab);
         await session.styles.settled();
-        const before = await ink();
-        assert.isAbove(before, 0, "the graph is drawn");
+        const all = session.data.nodes().length;
+        await waitFor(() => {
+            assert.lengthOf(drawn(session), all, "the graph is drawn");
+        });
 
         const tree = screen.getByRole("tree", { name: "Style layers" });
         const everything = within(tree).getByRole("treeitem", { name: /^Everything, / });
         await userEvent.click(within(everything).getByRole("button", { name: "Hide Everything" }));
         await within(everything).findByRole("button", { name: "Show Everything" });
         await session.styles.settled();
-        const after = await waitFor(async () => {
-            const drawn = await ink();
-            // The legend and the toolbar float over the canvas and stay; the graph goes.
-            assert.isBelow(drawn, before / 2, "hiding Everything hides the graph");
-            return drawn;
+        await waitFor(() => {
+            assert.deepEqual(drawn(session), ["Javert", "Valjean"], "only Key people's two nodes stay drawn");
         });
-        assert.isAbove(after, 0, "Key people's two nodes stay drawn");
 
         await userEvent.click(within(everything).getByRole("button", { name: "Show Everything" }));
         await session.styles.settled();
-        await waitFor(async () => {
-            assert.isAbove(await ink(), before / 2, "shown again");
+        await waitFor(() => {
+            assert.lengthOf(drawn(session), all, "shown again");
         });
     });
 

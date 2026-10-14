@@ -773,12 +773,13 @@ function checkNumberVerification(value: unknown, count: number, report: ImportRe
     const raw = isRecord(value) ? value.longNumber : undefined;
     const digits = raw instanceof ExactInteger ? raw.digits : String(raw);
     if (count > 1 || !NUMBER_VERIFICATION_VALUES.has(digits)) {
+        const held = raw === undefined ? null : digits;
         report.warning(
             "validation-error",
             CX_ISSUE.NUMBER_VERIFICATION,
             count > 1
                 ? "a second numberVerification element; ignored"
-                : `numberVerification holds ${shown(raw === undefined ? null : digits)}, not 281474976710655`,
+                : `numberVerification holds ${shown(held)}, not 281474976710655`,
             { line, element: "numberVerification" },
         );
     }
@@ -993,10 +994,12 @@ async function readDocument(
                         break;
                     }
                     countMember(event.block, null);
+                    const what =
+                        keys.length > 1 ? `an object with ${keys.length} keys (${keys.join(", ")})` : shown(value);
                     report.error(
                         "parse-error",
                         BAD_ASPECT_BLOCK_CODE,
-                        `a member of the document is ${keys.length > 1 ? `an object with ${keys.length} keys (${keys.join(", ")})` : shown(value)}, not a one-key aspect fragment; skipped`,
+                        `a member of the document is ${what}, not a one-key aspect fragment; skipped`,
                         { line: event.line, element: keys[0] ?? null },
                     );
                     break;
@@ -1360,6 +1363,26 @@ function memberCount(members: ReadonlySet<NodeId> | null, total: number): number
 }
 
 // ============================================================ the build
+
+/** The cyVisualProperties of a graph's view, gathered before they are written. */
+interface VisualCollection {
+    /** per domain, per property: the [row, text] cells */
+    columns: Record<"node" | "edge", Map<string, [number, string][]>>;
+    /** the network values by property */
+    network: Map<string, string>;
+    defaults: number;
+    mappings: number;
+    dependencies: number;
+}
+
+/**
+ * A visual property value as text: a string as it is, anything else as JSON.
+ * @param raw - the value
+ * @returns its text
+ */
+function visualText(raw: unknown): string {
+    return typeof raw === "string" ? raw : JSON.stringify(raw);
+}
 
 /** One attribute column of the graph being built. */
 interface AttributeColumn {
@@ -2849,57 +2872,99 @@ class CxReader {
      * applied.
      */
     private readVisualProperties(): void {
-        const entries = aspect(this.doc, "cyVisualProperties");
         // Cytoscape's table-cell styles: a visual property aspect graph-io keeps but does not read
         const tableStyles = TABLE_STYLE_ASPECTS.reduce((n, name) => n + (this.doc.kept.get(name)?.length ?? 0), 0);
         // the graph's own view (its first): the one its positions come from; the others stay in meta.extra.cx
         const views = new Set(this.plan.views.slice(0, 1));
-        const columns = { node: new Map<string, [number, string][]>(), edge: new Map<string, [number, string][]>() };
-        const network = new Map<string, string>();
-        let defaults = 0;
-        let mappings = 0;
-        let dependencies = 0;
-        for (const { value } of entries) {
-            if (!isRecord(value)) {
-                continue;
-            }
-            const view = value.view === undefined || value.view === null ? null : refId(value.view);
-            if (view !== null && views.size > 0 && !views.has(view)) {
-                continue;
-            }
-            const properties = isRecord(value.properties) ? value.properties : {};
-            mappings += isRecord(value.mappings) ? Object.keys(value.mappings).length : 0;
-            dependencies += isRecord(value.dependencies) ? Object.keys(value.dependencies).length : 0;
-            switch (value.properties_of) {
-                case "nodes":
-                case "edges": {
-                    const domain = value.properties_of === "nodes" ? "node" : "edge";
-                    const target = refId(value.applies_to);
-                    const rows = domain === "node" ? this.nodeRows : this.edgeRows;
-                    const row = target === null ? undefined : rows.get(target);
-                    if (row === undefined) {
-                        if (target === null || !(domain === "node" ? this.rootNodes : this.rootEdges).has(target)) {
-                            this.dangle(`${domain} visual property entry`);
-                        }
-                        continue;
-                    }
-                    for (const [property, raw] of Object.entries(properties)) {
-                        const list = columns[domain].get(property) ?? [];
-                        list.push([row, typeof raw === "string" ? raw : JSON.stringify(raw)]);
-                        columns[domain].set(property, list);
-                    }
-                    break;
-                }
-                case "network":
-                    for (const [property, raw] of Object.entries(properties)) {
-                        network.set(property, typeof raw === "string" ? raw : JSON.stringify(raw));
-                    }
-                    break;
-                default:
-                    defaults += Object.keys(properties).length;
-                    break;
+        const visual: VisualCollection = {
+            columns: { node: new Map(), edge: new Map() },
+            network: new Map(),
+            defaults: 0,
+            mappings: 0,
+            dependencies: 0,
+        };
+        for (const { value } of aspect(this.doc, "cyVisualProperties")) {
+            if (isRecord(value)) {
+                this.collectVisualEntry(value, views, visual);
             }
         }
+        this.writeBypassColumns(visual.columns);
+        this.writeBypassNetwork(visual.network);
+        this.reportStyleRules(visual, tableStyles);
+    }
+
+    /**
+     * File one cyVisualProperties element of this graph's view into the collection: per-element and
+     * network values by property, defaults, mappings and dependencies counted.
+     * @param value - the element
+     * @param views - the views read (empty: every view)
+     * @param visual - the collection to add to
+     */
+    private collectVisualEntry(
+        value: Record<string, unknown>,
+        views: ReadonlySet<NodeId>,
+        visual: VisualCollection,
+    ): void {
+        const view = value.view === undefined || value.view === null ? null : refId(value.view);
+        if (view !== null && views.size > 0 && !views.has(view)) {
+            return;
+        }
+        const properties = isRecord(value.properties) ? value.properties : {};
+        visual.mappings += isRecord(value.mappings) ? Object.keys(value.mappings).length : 0;
+        visual.dependencies += isRecord(value.dependencies) ? Object.keys(value.dependencies).length : 0;
+        switch (value.properties_of) {
+            case "nodes":
+                this.collectElementProperties("node", value.applies_to, properties, visual.columns);
+                break;
+            case "edges":
+                this.collectElementProperties("edge", value.applies_to, properties, visual.columns);
+                break;
+            case "network":
+                for (const [property, raw] of Object.entries(properties)) {
+                    visual.network.set(property, visualText(raw));
+                }
+                break;
+            default:
+                visual.defaults += Object.keys(properties).length;
+                break;
+        }
+    }
+
+    /**
+     * File the visual values of one node or edge under its row; an element not in this graph is
+     * skipped, and reported dangling when it is in no graph of the file.
+     * @param domain - node or edge
+     * @param appliesTo - the element's applies_to
+     * @param properties - its visual properties
+     * @param columns - the per-property cells to add to
+     */
+    private collectElementProperties(
+        domain: "node" | "edge",
+        appliesTo: unknown,
+        properties: Record<string, unknown>,
+        columns: VisualCollection["columns"],
+    ): void {
+        const target = refId(appliesTo);
+        const rows = domain === "node" ? this.nodeRows : this.edgeRows;
+        const row = target === null ? undefined : rows.get(target);
+        if (row === undefined) {
+            if (target === null || !(domain === "node" ? this.rootNodes : this.rootEdges).has(target)) {
+                this.dangle(`${domain} visual property entry`);
+            }
+            return;
+        }
+        for (const [property, raw] of Object.entries(properties)) {
+            const list = columns[domain].get(property) ?? [];
+            list.push([row, visualText(raw)]);
+            columns[domain].set(property, list);
+        }
+    }
+
+    /**
+     * Write the collected per-element visual values as string columns in the cx.bypass namespace.
+     * @param columns - the per-property cells of each domain
+     */
+    private writeBypassColumns(columns: VisualCollection["columns"]): void {
         for (const domain of ["node", "edge"] as const) {
             for (const [property, cells] of columns[domain]) {
                 const handle = declareFresh(
@@ -2922,6 +2987,13 @@ class CxReader {
                 }
             }
         }
+    }
+
+    /**
+     * Write the network visual values as graph values in the cx.bypass namespace.
+     * @param network - the value of each property
+     */
+    private writeBypassNetwork(network: ReadonlyMap<string, string>): void {
         for (const [property, text] of network) {
             try {
                 this.sink.setGraphValue(property, text, {
@@ -2932,20 +3004,30 @@ class CxReader {
                 this.report.recordError(err, { element: property });
             }
         }
-        if (defaults + mappings + dependencies + tableStyles > 0) {
-            const parts = [
-                `cyVisualProperties: ${defaults} default${plural(defaults)}, ${mappings} mapping${plural(mappings)}, ${dependencies} dependenc(ies)`,
-            ];
-            if (tableStyles > 0) {
-                parts.push(`${tableStyles} table style element${plural(tableStyles)}`);
-            }
-            this.report.warning(
-                "unsupported",
-                STYLES_NOT_IMPORTED_CODE,
-                `the file's style rules are not applied (${parts.join("; ")}); they are kept in meta.extra.cx`,
-                { element: "cyVisualProperties" },
-            );
+    }
+
+    /**
+     * Warn that the style rules (defaults, mappings, dependencies, table styles) are kept, not applied.
+     * @param visual - the counted rules
+     * @param tableStyles - the number of table style elements
+     */
+    private reportStyleRules(visual: VisualCollection, tableStyles: number): void {
+        const { defaults, mappings, dependencies } = visual;
+        if (defaults + mappings + dependencies + tableStyles === 0) {
+            return;
         }
+        const parts = [
+            `cyVisualProperties: ${defaults} default${plural(defaults)}, ${mappings} mapping${plural(mappings)}, ${dependencies} dependenc(ies)`,
+        ];
+        if (tableStyles > 0) {
+            parts.push(`${tableStyles} table style element${plural(tableStyles)}`);
+        }
+        this.report.warning(
+            "unsupported",
+            STYLES_NOT_IMPORTED_CODE,
+            `the file's style rules are not applied (${parts.join("; ")}); they are kept in meta.extra.cx`,
+            { element: "cyVisualProperties" },
+        );
     }
 
     /**

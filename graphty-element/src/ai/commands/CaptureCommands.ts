@@ -152,9 +152,10 @@ export const captureVideo: GraphCommand = {
         // Video recording is a more complex feature that requires MediaRecorder
         // For Phase 7, we provide a basic structure but note this needs canvas-level implementation
         if (action === "start") {
+            const autoStop = duration ? ` (will auto-stop in ${duration}s)` : "";
             return Promise.resolve({
                 success: true,
-                message: `Video recording started${duration ? ` (will auto-stop in ${duration}s)` : ""}.`,
+                message: `Video recording started${autoStop}.`,
                 data: {
                     action: "started",
                     duration,

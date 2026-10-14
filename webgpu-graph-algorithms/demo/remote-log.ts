@@ -5,7 +5,19 @@
  */
 
 const ENDPOINT = "https://dev.ato.ms:9087/log";
-const SESSION = `${navigator.userAgent.includes("iPad") ? "ipad" : navigator.userAgent.includes("Macintosh") ? "mac" : "browser"}-${Date.now().toString(36)}`;
+
+/**
+ * The kind of device a user agent names, for the session id.
+ * @param userAgent - navigator.userAgent
+ * @returns "ipad", "mac" or "browser"
+ */
+function deviceKind(userAgent: string): string {
+    if (userAgent.includes("iPad")) {
+        return "ipad";
+    }
+    return userAgent.includes("Macintosh") ? "mac" : "browser";
+}
+const SESSION = `${deviceKind(navigator.userAgent)}-${Date.now().toString(36)}`;
 const PROJECT = "webgpu-fa2-demo";
 
 interface LogEntry {

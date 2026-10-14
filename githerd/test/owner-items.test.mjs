@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { createGitHub } from "../lib/github.mjs";
 import {
     BATCH_MS,
+    createNotifier,
     droppableItems,
     endItem,
     isPresent,
@@ -10,6 +11,7 @@ import {
     LABEL,
     lastTypedAt,
     notePresence,
+    notifiedToDrop,
     ownerItemsPoll,
     planPages,
     postItems,
@@ -535,5 +537,63 @@ describe("ownerItemsPoll", () => {
         // without a client only the pages are planned
         raiseItem(state, GPU, at(2 * MIN));
         expect((await ownerItemsPoll({ state, notifier, acting: false, now: at(BATCH_MS) })).pages).toHaveLength(1);
+    });
+});
+
+describe("dropping page records", () => {
+    /**
+     * Plans this time's pages and hands them to a notifier that delivers with no command (each
+     * delivered key is recorded in `state.notified`, as a delivered page is).
+     * @param {any} state the state
+     * @param {number} ms the time
+     * @returns {Promise<string[]>} the keys the notifier queued: a key it already has is not queued
+     */
+    const page = async (state, ms) => {
+        const notifier = createNotifier({
+            notify: { command: null, maxPerHour: 6 },
+            state,
+            ledger: () => {},
+            now: () => at(ms),
+        });
+        const queued = planPages(state, at(ms)).filter((p) => notifier.send(p));
+        await notifier.flush();
+        return queued.map((p) => p.key);
+    };
+
+    it("keeps an owner page's record while an item it covered is in the state, so its text never pages twice", async () => {
+        const state = {};
+        raiseItem(state, GPU, at(0));
+        const [first] = await page(state, 0);
+        expect(first).toMatch(/^owner:/);
+        expect(notifiedToDrop(state, at(0))).toEqual([]);
+        // The text changes and changes back: the key of the first text is not paged again.
+        raiseItem(state, { ...GPU, question: "Balance is negative." }, at(BATCH_MS));
+        const [second] = await page(state, BATCH_MS);
+        raiseItem(state, GPU, at(2 * BATCH_MS));
+        expect(await page(state, 2 * BATCH_MS)).toEqual([]);
+        endItem(state, GPU.id, "cleared", at(3 * BATCH_MS));
+        expect(notifiedToDrop(state, at(3 * BATCH_MS))).toEqual([]);
+        // The ended item is dropped (droppableItems): nothing can make its keys again.
+        delete state.ownerItems[GPU.id];
+        expect(notifiedToDrop(state, at(3 * BATCH_MS)).sort()).toEqual([first, second].sort());
+    });
+
+    it("drops a digest's record after its day, and never a fatal page's or a queued one's", () => {
+        const state = {
+            notified: { "digest:2026-10-04": "x", "digest:2026-10-05": "x", "fatal:lock": "x" },
+            notify: { failed: { "digest:2026-10-03": "x" }, pending: { "owner:abc": { tries: 0 } } },
+            paging: { covers: { "owner:abc": [] } },
+        };
+        expect(notifiedToDrop(state, at(0)).sort()).toEqual(["digest:2026-10-03", "digest:2026-10-04"]);
+    });
+
+    it("gives a record kept before its items were the items raised by its delivery", () => {
+        const state = /** @type {any} */ ({ notified: { "owner:old": at(MIN).toISOString() } });
+        raiseItem(state, GPU, at(0));
+        raiseItem(state, DOOR, at(2 * MIN));
+        expect(notifiedToDrop(state, at(3 * MIN))).toEqual([]);
+        expect(state.paging.covers["owner:old"]).toEqual([GPU.id]);
+        delete state.ownerItems[GPU.id];
+        expect(notifiedToDrop(state, at(3 * MIN))).toEqual(["owner:old"]);
     });
 });

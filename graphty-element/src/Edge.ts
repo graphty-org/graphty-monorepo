@@ -548,9 +548,9 @@ export class Edge {
         this.srcNode = srcNode;
         this.dstNode = dstNode;
 
-        // create ray for direction / intercept finding
-        // Ray constructor expects (origin, direction), not (origin, destination)
-        this.ray = new Ray(this.srcNode.mesh.position, this.dstNode.mesh.position.subtract(this.srcNode.mesh.position));
+        // The ray the intercept search aims and casts; its own vectors, never a mesh's, because
+        // the search writes into them.
+        this.ray = new Ray(Vector3.Zero(), Vector3.Forward());
 
         this.meshKey = paint.meshKey;
 
@@ -1222,6 +1222,19 @@ export class Edge {
     }
 
     /**
+     * How far a self-loop runs from its node's centre: the usual radius, or far enough out to
+     * clear a node too big for it -- the loop is a circle in the x-y plane, so the node's reach
+     * there is its radius when round, and its box's half-diagonal in that plane otherwise.
+     * @returns The radius.
+     */
+    private selfLoopRadius(): number {
+        const node = this.srcNode;
+        const half = node.drawnHalfExtents;
+        const reach = node.roundRadius ?? Math.hypot(half.x, half.y);
+        return Math.max(EdgeMesh.SELF_LOOP_RADIUS, reach + EdgeMesh.SELF_LOOP_CLEARANCE);
+    }
+
+    /**
      * Draw this edge's curve as a run of straight segments, one slot each, between two points.
      *
      * A CURVE IS A RUN OF THE SAME SLOTS A STRAIGHT LINE TAKES (issue #444). The curve renderer
@@ -1234,7 +1247,8 @@ export class Edge {
      * @param dstPoint - Where it ends.
      */
     private placeCurve(batch: EdgeLineBatch, srcPoint: Vector3, dstPoint: Vector3): void {
-        const flat = EdgeMesh.createBezierLine(srcPoint, dstPoint);
+        const loopRadius = this.srcNode === this.dstNode ? this.selfLoopRadius() : undefined;
+        const flat = EdgeMesh.createBezierLine(srcPoint, dstPoint, undefined, loopRadius);
         const segments = flat.length / 3 - 1;
 
         // Grow before shrinking, and never below one slot: the batch disposes itself when its last
@@ -1489,24 +1503,42 @@ export class Edge {
         } else {
             // AIMED HERE, BY THE ONE EDGE THAT IS ABOUT TO FIRE IT. A pass over every edge in the
             // graph used to do this, once a frame, whether or not the edge had moved.
-            this.ray.origin = srcMesh.position;
-            dstMesh.position.subtractToRef(srcMesh.position, this.ray.direction);
-
             const frame = this.context.getScene().getFrameId();
 
             freshenWorldMatrix(srcMesh, frame);
             freshenWorldMatrix(dstMesh, frame);
 
+            // CAST IN THE WORLD, DRAWN IN GRAPH-ROOT SPACE. The intersection is against the
+            // meshes' world geometry, so the ray runs between their world centres; the line is
+            // drawn under graph-root, so each hit is carried back as how far along the centre
+            // line it is, which a move, turn or scale of graph-root (an XR gesture) leaves alone.
+            const srcWorld = srcMesh.getAbsolutePosition();
+            const dstWorld = dstMesh.getAbsolutePosition();
+            this.ray.origin.copyFrom(srcWorld);
+            dstWorld.subtractToRef(srcWorld, this.ray.direction);
+            const worldSpan = this.ray.direction.length();
+
             const dstHitInfo = this.ray.intersectsMeshes([dstMesh]);
             const srcHitInfo = this.ray.intersectsMeshes([srcMesh]);
 
-            if (dstHitInfo.length && srcHitInfo.length) {
-                dstPoint = dstHitInfo[0].pickedPoint;
-                srcPoint = srcHitInfo[0].pickedPoint;
+            if (dstHitInfo.length && srcHitInfo.length && worldSpan > 0) {
+                const dstHit = dstHitInfo[0].pickedPoint;
+                const srcHit = srcHitInfo[0].pickedPoint;
 
-                if (!srcPoint || !dstPoint) {
+                if (!srcHit || !dstHit) {
                     throw new TypeError("error picking points");
                 }
+
+                srcPoint = Vector3.Lerp(
+                    srcMesh.position,
+                    dstMesh.position,
+                    Vector3.Distance(srcWorld, srcHit) / worldSpan,
+                );
+                dstPoint = Vector3.Lerp(
+                    srcMesh.position,
+                    dstMesh.position,
+                    Vector3.Distance(srcWorld, dstHit) / worldSpan,
+                );
             }
         }
 

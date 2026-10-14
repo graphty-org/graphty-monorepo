@@ -154,6 +154,10 @@ export class NGraphEngine extends LayoutEngine {
     /** Reused by {@link NGraphEngine.separate}: each body, its radius and whether it may move. */
     private readonly bodies: { x: number; y: number; z?: number }[] = [];
     private radii = new Float64Array(0);
+    /** Each body's half-size plus half the gap on x, y and z, three per body. */
+    private reaches = new Float64Array(0);
+    /** 1 for a body drawn round, which is kept apart as a sphere; 0 for one kept apart as a box. */
+    private round = new Uint8Array(0);
     private movable = new Uint8Array(0);
     private readonly cells = new Map<number, number[]>();
     /** Places each new node when `seed` is set; null leaves placement to ngraph. */
@@ -328,10 +332,12 @@ export class NGraphEngine extends LayoutEngine {
         const count = this.nodeMapping.size;
         if (this.radii.length < count) {
             this.radii = new Float64Array(count);
+            this.reaches = new Float64Array(3 * count);
+            this.round = new Uint8Array(count);
             this.movable = new Uint8Array(count);
         }
 
-        const { bodies, radii, movable } = this;
+        const { bodies, radii, reaches, round, movable } = this;
         bodies.length = 0;
         let largest = 0;
         const min = [Infinity, Infinity, Infinity];
@@ -341,8 +347,15 @@ export class NGraphEngine extends LayoutEngine {
             const b = this.ngraphLayout.getNodePosition(ngraphNode.id);
             bodies.push(b);
             radii[i] = node.drawnRadius + gap / 2;
+            // A round node is a sphere; anything else (a box, a tall cylinder, a torus) is kept
+            // apart by its bounding box, which one radius over- or under-states (#2668).
+            round[i] = node.roundRadius === null ? 0 : 1;
+            const half = node.drawnHalfExtents;
+            reaches[3 * i] = half.x + gap / 2;
+            reaches[3 * i + 1] = half.y + gap / 2;
+            reaches[3 * i + 2] = half.z + gap / 2;
             movable[i] = this.ngraphLayout.isNodePinned(ngraphNode) ? 0 : 1;
-            largest = Math.max(largest, radii[i]);
+            largest = Math.max(largest, radii[i], reaches[3 * i], reaches[3 * i + 1], reaches[3 * i + 2]);
             const at = [b.x, b.y, b.z ?? 0];
             for (let axis = 0; axis < 3; axis++) {
                 min[axis] = Math.min(min[axis], at[axis]);
@@ -423,6 +436,10 @@ export class NGraphEngine extends LayoutEngine {
         let dx = b.x - a.x;
         let dy = b.y - a.y;
         let dz = flat ? 0 : (b.z ?? 0) - (a.z ?? 0);
+        if (this.round[i] === 0 || this.round[j] === 0) {
+            return this.pushBoxes(i, j, flat, [dx, dy, dz]);
+        }
+
         const least = this.radii[i] + this.radii[j];
         const squared = dx * dx + dy * dy + dz * dz;
         if (squared >= least * least) {
@@ -455,6 +472,51 @@ export class NGraphEngine extends LayoutEngine {
             a.z = (a.z ?? 0) - dz * share * wa;
             b.z = (b.z ?? 0) + dz * share * wb;
         }
+
+        return true;
+    }
+
+    /**
+     * Push two bodies apart when their bounding boxes overlap: along the axis they overlap least
+     * on, by that much, which is the shortest move that parts them.
+     * @param i - One body's index.
+     * @param j - The other's.
+     * @param flat - Whether depth is ignored.
+     * @param d - The other's centre minus the first's, per axis.
+     * @returns True when they overlapped.
+     */
+    private pushBoxes(i: number, j: number, flat: boolean, d: number[]): boolean {
+        const { reaches } = this;
+        let axis = -1;
+        let least = Infinity;
+        for (let k = 0; k < (flat ? 2 : 3); k++) {
+            const overlap = reaches[3 * i + k] + reaches[3 * j + k] - Math.abs(d[k]);
+            if (overlap <= 0) {
+                return false;
+            }
+
+            if (overlap < least) {
+                least = overlap;
+                axis = k;
+            }
+        }
+
+        const wa = this.movable[i];
+        const wb = this.movable[j];
+        if (wa + wb === 0) {
+            return true;
+        }
+
+        // Two centres level on that axis: a side from their indices, so a seeded layout stays
+        // the same from run to run.
+        const level = (i + j) % 2 === 0 ? 1 : -1;
+        const sign = d[axis] === 0 ? level : Math.sign(d[axis]);
+        const share = (sign * least) / (wa + wb);
+        const key = (["x", "y", "z"] as const)[axis];
+        const a = this.bodies[i];
+        const b = this.bodies[j];
+        a[key] = (a[key] ?? 0) - share * wa;
+        b[key] = (b[key] ?? 0) + share * wb;
 
         return true;
     }

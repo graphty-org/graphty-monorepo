@@ -6,6 +6,7 @@ import { resolveWeights } from "../simulation/inputs.js";
 import { seedPositions } from "../simulation/seed.js";
 import { toLayoutSnapshot } from "../simulation/snapshot.js";
 import type { CommonLayoutOptions } from "../simulation/types.js";
+import { detCos, detSin } from "../utils/det-math.js";
 import { np } from "../utils/numpy.js";
 import { refusal } from "./common.js";
 import { layoutDim } from "./start.js";
@@ -187,7 +188,7 @@ function startPositions(s: GraphSnapshot, options: KamadaKawaiOptions, dim: 2 | 
     }
     if (dim === 2) {
         const theta = np.linspace(0, 2 * Math.PI, n + 1);
-        return Array.from({ length: n }, (_, i) => [Math.cos(theta[i]), Math.sin(theta[i])]);
+        return Array.from({ length: n }, (_, i) => [detCos(theta[i]), detSin(theta[i])]);
     }
     // float64, as kamadaKawaiLayout drew it: a float32 start settles in a different local minimum
     const column = new Float64Array(3 * n).fill(Number.NaN);

@@ -171,7 +171,7 @@ import {
 } from "./owners.mjs";
 import { attributeTickets, mergeTarget, mergeWhat, ticketCloses } from "./waits.mjs";
 import { liveSessions, registeredSessions, socketTransport } from "./peers.mjs";
-import { advanceProposals, closedTargets, veto } from "./proposals.mjs";
+import { advanceProposals, closedTargets, proposeSplitParents, veto } from "./proposals.mjs";
 import {
     needsReleaseDryRun,
     newestContexts,
@@ -2032,6 +2032,16 @@ export async function startDaemon({
         await run("waits", () => confirmClosedWaits(state, { gitHub: gh, repo: config.repo }));
         if (state.trust.login) {
             await run("proposals", async () => {
+                for (const p of proposeSplitParents(state, t.toISOString())) {
+                    void ledger({
+                        kind: "proposal",
+                        id: p.id,
+                        target: p.target,
+                        from: null,
+                        to: p.status,
+                        reason: "split: every child closed",
+                    });
+                }
                 const openPrs = new Set(nodes.map((/** @type {any} */ n) => n.number));
                 await advanceProposals(state, {
                     gitHub: gh,

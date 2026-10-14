@@ -155,11 +155,14 @@ describe("the workspace frame on the real element", () => {
     );
 
     it("opens the shortcuts sheet with ? while a closed Select's list is mounted on the page", async () => {
-        // The inspector has room at the design's width, and its Layout group holds a Select.
+        // The inspector has room at the design's width.
         await page.viewport(1366, 768);
         const session = await openWorkspace();
         await session.data.addNodes([{ id: "a" }, { id: "b" }]);
         await session.data.addEdges([{ src: "a", dst: "b" }]);
+        // The graph opens on Values; its Style tab holds the Layout group's Select.
+        const inspector = screen.getByRole("complementary", { name: "Inspector" });
+        await userEvent.click(within(inspector).getByRole("tab", { name: "Style" }));
         // Mantine keeps a closed Select's options mounted, hidden: the case that once switched
         // every single-key shortcut off.
         await waitFor(

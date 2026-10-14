@@ -126,7 +126,7 @@ describe("the value picker on the real element", () => {
 
         const refused = refusedForSize(session);
         assert.isAbove(refused, 0, "the fixture has columns size cannot take");
-        const fold = within(picker).getByRole("option", { name: `${String(refused)} that do not fit size` });
+        const fold = within(picker).getByRole("option", { name: new RegExp(`^${String(refused)} values?$`) });
         assert.isNull(within(picker).queryByRole("option", { name: "dept" }), "dept is folded");
         await userEvent.click(fold);
         const dept = await within(picker).findByRole("option", { name: "dept" });
@@ -216,7 +216,9 @@ describe("the value picker on the real element", () => {
         );
 
         const picker = await openBySize();
-        await within(picker).findByRole("option", { name: `${String(refusedForSize(session))} that do not fit size` });
+        await within(picker).findByRole("option", {
+            name: new RegExp(`^${String(refusedForSize(session))} values?$`),
+        });
         assert.isAtLeast(within(picker).getAllByRole("option").length, 150, "the columns that fit are listed");
         for (const [name, spy] of reads) {
             assert.equal(spy.mock.calls.length, 0, `data.${name} read no values`);

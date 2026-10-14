@@ -1011,6 +1011,8 @@ function NoValue({
         field = (
             <CompactColorInput
                 label="Value"
+                // The popover's width, not the sidebar's 184: the default widened the popover.
+                width="100%"
                 color={typeof given === "string" ? given : undefined}
                 defaultColor={String(start)}
                 // Once per gesture, so a drag in the picker is one undo step.

@@ -9,7 +9,7 @@ import { formatNumber } from "../inspector/words";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { type DataChoice, propose, type Target } from "./row";
 import { useStyleVersion } from "./useStyleVersion";
-import { channelWord, matchesWordStart, readableName, refusalWords } from "./words";
+import { matchesWordStart, readableName, refusalWords } from "./words";
 
 /** Props for ValuePicker. */
 interface ValuePickerProps {
@@ -193,7 +193,9 @@ export function ValuePicker({
             : [
                   {
                       value: FOLD,
-                      label: `${String(refused.length)} that do not fit ${channelWord(channel).toLowerCase()}`,
+                      // Under the "Does not fit" heading the count says the rest, and fits the
+                      // 240 px list beside "Show why" (the property's name cut it short).
+                      label: refused.length === 1 ? "1 value" : `${String(refused.length)} values`,
                       description: unfolded ? "Hide them" : "Show why",
                       section: "Does not fit",
                   },

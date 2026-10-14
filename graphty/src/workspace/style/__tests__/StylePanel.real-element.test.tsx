@@ -423,7 +423,7 @@ describe("the Style tab's rows on the real element", () => {
         });
         await userEvent.click(await varyGlyph("Node size"));
         const sizes = await findValuePicker();
-        await userEvent.click(within(sizes).getByRole("option", { name: /that do not fit size$/ }));
+        await userEvent.click(within(sizes).getByRole("option", { name: /^\d+ values?$/ }));
         const dept = await within(sizes).findByRole("option", { name: "dept" });
         assert.equal(dept.getAttribute("aria-disabled"), "true");
         assert.equal(

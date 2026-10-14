@@ -1,10 +1,10 @@
-import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
 import { causesOf, gateReport, gateText, keptLines, matchPush, parseGate, readPushes } from "../lib/prepush.mjs";
+import { tempDir } from "./helpers/temp-dir.mjs";
 
 const WS = {
     packages: ["graph-format", "graph-io", "graphty-element", "visual-review"],
@@ -152,7 +152,7 @@ describe("causesOf", () => {
 
 describe("readPushes and gateReport", () => {
     it("merges the backfill, times each push and charges a failure its gate plus the re-push's wait", () => {
-        const dir = mkdtempSync(join(tmpdir(), "prepush-"));
+        const dir = tempDir("prepush-");
         const line = (/** @type {any} */ o) => `${JSON.stringify(o)}\n`;
         const sha = (/** @type {string} */ c) => c.repeat(40);
         writeFileSync(

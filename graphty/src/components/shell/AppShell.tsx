@@ -2497,7 +2497,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
      * than leaving the list saying one thing and the canvas showing another.
      *
      * There is no repaint call beside it. The verb repaints; the wrapper that used to do it by
-     * hand existed because the old `addLayer` was a push with a "TODO: recalculate" comment.
+     * hand existed because the old `addLayer` only pushed the layer and never recalculated.
      * @param layerId - the layer to change.
      * @param patch - what to change about it.
      */

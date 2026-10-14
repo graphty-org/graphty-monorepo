@@ -1,6 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { chmodSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -15,6 +14,7 @@ import {
     workerSettings,
     writeJobFiles,
 } from "../lib/worker-settings.mjs";
+import { tempDir } from "./helpers/temp-dir.mjs";
 
 const STATE = "/home/owner/.githerd/graphty-monorepo";
 
@@ -32,7 +32,7 @@ const OWNER_SETTINGS = {
 
 let dir;
 beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "githerd-worker-settings-"));
+    dir = tempDir("githerd-worker-settings-");
 });
 afterEach(() => {
     rmSync(dir, { recursive: true, force: true });

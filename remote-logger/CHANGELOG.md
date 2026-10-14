@@ -1,3 +1,13 @@
+## 2.0.17 (2026-10-13)
+
+### 🩹 Fixes
+
+- **graphty-element:** free each test file's page under v8 coverage in browser tests ([#2247](https://github.com/graphty-org/graphty-monorepo/issues/2247))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 2.0.16 (2026-10-13)
 
 ### 🩹 Fixes

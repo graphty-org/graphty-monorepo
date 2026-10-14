@@ -1,5 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
@@ -18,6 +17,7 @@ import {
 } from "../lib/config-adopt.mjs";
 import { CONFIG_FILE, normalizeConfig } from "../lib/config.mjs";
 import { createReplay } from "./replay/replay.mjs";
+import { tempDir } from "./helpers/temp-dir.mjs";
 
 const REPO_ROOT = new URL("../..", import.meta.url).pathname;
 const BASE = {
@@ -101,7 +101,7 @@ describe("workflowName", () => {
 describe("the last good file", () => {
     let dir;
     beforeEach(() => {
-        dir = mkdtempSync(join(tmpdir(), "githerd-adopt-"));
+        dir = tempDir("githerd-adopt-");
     });
     afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
@@ -132,7 +132,7 @@ describe("createConfigGate", () => {
         });
 
     beforeEach(() => {
-        dir = mkdtempSync(join(tmpdir(), "githerd-adopt-"));
+        dir = tempDir("githerd-adopt-");
         file = join(dir, "candidate.json");
         ledger = [];
     });
@@ -260,7 +260,7 @@ describe("openConfigRevert", () => {
 
     beforeAll(() => {
         isolateGit();
-        dir = mkdtempSync(join(tmpdir(), "githerd-adopt-git-"));
+        dir = tempDir("githerd-adopt-git-");
         const remote = join(dir, "remote.git");
         const seed = join(dir, "seed");
         git(dir, "init", "--bare", "-b", "main", remote);

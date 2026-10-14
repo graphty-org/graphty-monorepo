@@ -7,19 +7,32 @@
 //   node --test tools/push-queue.test.mjs   (part of pnpm run test:ci-workflows)
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+    copyFileSync,
+    existsSync,
+    mkdirSync,
+    mkdtempSync,
+    readdirSync,
+    readFileSync,
+    rmSync,
+    writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, it } from "node:test";
+import { after, describe, it } from "node:test";
 
 import { isolateGit } from "./isolated-git-env.mjs";
+
+// The temporary directories this file makes go inside this one, removed when the file finishes.
+const TMP = mkdtempSync(join(tmpdir(), "push-queue-"));
+after(() => rmSync(TMP, { recursive: true, force: true }));
 
 isolateGit();
 const QUEUE = new URL("./push-queue.sh", import.meta.url).pathname;
 
 // A repository to run the queue in, with one commit and a bare `origin`, plus the queue's paths.
 function setup() {
-    const root = mkdtempSync(join(tmpdir(), "push-queue-"));
+    const root = mkdtempSync(join(TMP, "push-queue-"));
     const repo = join(root, "repo");
     mkdirSync(repo);
     const git = (...args) => spawnSync("git", args, { cwd: repo, encoding: "utf8" });
@@ -29,8 +42,11 @@ function setup() {
     git("commit", "-q", "-m", "a");
     spawnSync("git", ["init", "-q", "--bare", join(root, "origin.git")]);
     git("remote", "add", "origin", join(root, "origin.git"));
+    // The queue's own settings come only from here, never from the caller: a push made with
+    // PUSH_QUEUE_RETRY=1 runs these tests in its gate with that variable still set (issue #2458).
+    const inherited = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("PUSH_QUEUE_")));
     const env = {
-        ...process.env,
+        ...inherited,
         PUSH_QUEUE_DIR: join(root, "q", "tickets"),
         PUSH_QUEUE_LOG: join(root, "q", "push-log.jsonl"),
         PUSH_QUEUE_GATE: join(root, "no-gate-live"),
@@ -237,6 +253,23 @@ describe("push-queue: a commit that already failed", () => {
         assert.match(r.stderr, /\[FAIL\] graphty \(exit 1/);
     });
 
+    it("still refuses when the caller's environment has PUSH_QUEUE_RETRY=1", () => {
+        const saved = process.env.PUSH_QUEUE_RETRY;
+        process.env.PUSH_QUEUE_RETRY = "1";
+        let ctx;
+        try {
+            ctx = setupWithInputs();
+        } finally {
+            if (saved === undefined) delete process.env.PUSH_QUEUE_RETRY;
+            else process.env.PUSH_QUEUE_RETRY = saved;
+        }
+        failGate(ctx, "[FAIL] Lint failed");
+        const r = push(ctx);
+        assert.equal(r.status, 1, r.stdout + r.stderr);
+        assert.match(r.stderr, /refused/);
+        assert.equal(pushed(ctx), "", "nothing was pushed");
+    });
+
     it("pushes again with PUSH_QUEUE_RETRY=1", () => {
         const ctx = setupWithInputs();
         failGate(ctx, "[FAIL] Lint failed");
@@ -249,6 +282,38 @@ describe("push-queue: a commit that already failed", () => {
         failGate(ctx, "[FAIL] Lint failed");
         writeFileSync(join(ctx.repo, "fix.txt"), "fixed\n");
         assert.equal(push(ctx).status, 0);
+    });
+
+    // Issue #2357: the gate prints on stdout and stderr, each copied into the gate log by a tee. Written
+    // as `cmd > >(tee ...) 2> >(tee ...)`, the tees were children of the command, not of the queue, so
+    // nothing waited for them and the push log line could be written before the [FAIL] line reached
+    // the gate log. The stand-in tee here holds back its copy until the push log has a line (a queue
+    // that does not wait for it), or until the queue (the pid in its ticket) is blocked in wait(2)
+    // with this tee its only child (a queue that waits for it), or the queue is gone.
+    it("records a [FAIL] line whose stdout copy reaches the gate log last", () => {
+        const ctx = setupWithInputs();
+        const bin = join(ctx.root, "bin");
+        mkdirSync(bin);
+        writeFileSync(
+            join(bin, "tee"),
+            `#!/bin/bash
+buf=$(cat; echo .); buf=\${buf%.}
+if [ -n "$buf" ]; then
+    q=$(ls "$PUSH_QUEUE_DIR" | sed 's/.*-//')
+    kids=/proc/$q/task/$q/children
+    waited() { [ "$(cat "$kids")" = "$$ " ] && [ "$(cat "/proc/$q/wchan")" = do_wait ] && [ "$(cat "$kids")" = "$$ " ]; }
+    until [ -s "$PUSH_QUEUE_LOG" ] || ! [ -e "$kids" ] || waited 2>/dev/null; do sleep 0.05; done
+fi
+printf '%s' "$buf" >>"$2"
+printf '%s' "$buf"
+`,
+            { mode: 0o755 },
+        );
+        ctx.env.PATH = `${bin}:${ctx.env.PATH}`;
+        failGate(ctx, "[FAIL] Lint failed");
+        const first = JSON.parse(readFileSync(ctx.env.PUSH_QUEUE_LOG, "utf8").trim());
+        assert.deepEqual(first.gate, ["[FAIL] Lint failed"]);
+        assert.equal(push(ctx).status, 1, "the same commit is refused");
     });
 
     for (const [what, output] of [

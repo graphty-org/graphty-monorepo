@@ -361,7 +361,7 @@ The `tools/` directory contains build scripts:
 | `live.sh` | `<tool> <branch-or-commit>`: merges a branch into a local tool's live worktree, tests it, restarts its servers (`live-tools.json`). See "Where a change takes effect" |
 | `worktree-new.sh` | `<branch> [base]`: a worktree in `.worktrees/` with the main checkout's `.env` linked in and `pnpm install --frozen-lockfile` done |
 | `sonar-gate.mjs` | The pre-push "SonarQube (changed lines)" step: scans the files a push changes into the scratch project `graphty-monorepo-local` and fails on a new issue or security hotspot on a changed line. See "SonarQube" below |
-| `sonar-baseline.mjs` | `--setup` (owner, admin token, once) configures the server and pins its id; `--watch` (under servherd) keeps project `graphty-monorepo` a current analysis of origin/master and posts the weekly burn-down numbers. `tools/sonar/api.mjs` is the only code that handles the token |
+| `sonar-baseline.mjs` | `--setup` (owner, admin token, once) configures the server and pins its id; `--watch` (under servherd) keeps project `graphty-monorepo` a current analysis of origin/master and posts the weekly burn-down numbers with the change per package since last week, filing a `priority:high` issue when the open count rose. `tools/sonar/api.mjs` is the only code that handles the token |
 | `worktree-prune.sh` | Lists worktrees whose branch is merged or deleted upstream, with size, uncommitted files and live processes, and removes each on confirmation. `--dry-run` removes nothing |
 | `release-scheduler/` | A Cloudflare Worker that dispatches `release.yml` at 00:00, 06:00, 12:00 and 18:00 UTC as a GitHub App, and opens an issue when it cannot. Setup and operation: its `README.md` |
 
@@ -392,7 +392,13 @@ when a merge or pull changed the lockfile. Either way, run `pnpm install`.
 The pre-push gate runs "SonarQube (changed lines)" (`tools/sonar-gate.mjs`) on the owner's
 SonarQube server, which is reachable only on the owner's network, so it is never part of CI. It
 fails a push on a NEW issue or security hotspot on a line the push adds or changes; what master
-already has never blocks, even on a touched line. It is one of the source-only checks
+already has never blocks, even on a touched line. Complexity is judged by the whole function, not
+its first line: cognitive complexity (S3776), regex complexity (S5843) and too many parameters
+(S107) block when the push edits the function or regex (anywhere from its first line to its last
+complexity increment) and the finding is new or its score rose compared with the merge base,
+which the step scans too. "Touch it, fix it": a function the push edits that scores 16 to 20 must
+come down to 15 or below in the same push. `// NOSONAR(S3776): <reason>` on the reported line is
+still the escape hatch. It is one of the source-only checks
 (`tools/prepush-source-checks.sh`), so it runs before the push waits for a gate slot and before the build.
 The settings (`SONAR_HOST_URL`, `SONAR_PROJECT_KEY`, `SONAR_TOKEN`, `SONAR_SCANNER_JAVA_EXE_PATH`)
 come from the environment or `.env`; never print the token or put it on a command line. Design and
@@ -597,9 +603,9 @@ reason); run by `tools/check-links.sh`:
   `{@link}`. The unified `npm run docs:build` in CI runs both.
 - **Weekly** (`links-weekly.yml`): every external link. A dead one goes into an issue, not a red build.
 
-A link to graphty.app must point at something `tools/assemble-pages-site.sh` publishes. The layout
-package has no guide pages, so its documentation link is the generated API reference,
-`https://graphty.app/docs/layout/api/generated/`. graphty-element's Storybook is at
+A link to graphty.app must point at something `tools/assemble-pages-site.sh` publishes. Every
+package's documentation link is its landing page, `https://graphty.app/docs/<package>/` (layout's
+guide is `layout/docs/`, copied there by `tools/copy-docs-content.js`). graphty-element's Storybook is at
 `/storybook/graphty-element/`; `/storybook/element/` only redirects there, for old links.
 
 ### Release versioning

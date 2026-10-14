@@ -631,13 +631,9 @@ export class PatternedLineRenderer {
             }
 
             const phase = i % 4;
-            let z = 0;
-            if (phase === 0) {
-                z = 0; // Baseline
-            } else if (phase === 1) {
+            let z = 0; // Baseline (phases 0 and 2)
+            if (phase === 1) {
                 z = amplitude; // Peak
-            } else if (phase === 2) {
-                z = 0; // Baseline
             } else if (phase === 3) {
                 z = -amplitude; // Valley
             }

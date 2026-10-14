@@ -87,12 +87,6 @@
 
                 pbr.ambientTexture = new Texture("./assets/magic/MagicCurvesStoneFloor_ambientocclusion.png", g.scene);
 
-                // pbr.metallicTexture = new Texture(
-                //   // "./assets/magic/MagicCurvesStoneFloor_metallic.png",
-                //   // "./assets/magic/MagicCurvesStoneFloor_roughness.png",
-                //   g.scene
-                // );
-
                 pbr.metallicReflectanceTexture = new Texture(
                     // "./assets/magic/MagicCurvesStoneFloor_roughness.png",
                     "./assets/magic/MagicCurvesStoneFloor_metallic.png",
@@ -104,8 +98,6 @@
                 pbr.emissiveTexture = new Texture("./assets/magic/MagicCurvesStoneFloor_emissive.png", g.scene);
 
                 pbr.emissiveIntensity = 0.25;
-
-                // pbr.roughness = 1;
 
                 return pbr;
             }

@@ -1,5 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -8,6 +7,7 @@ import { startDaemon } from "../../lib/daemon.mjs";
 import { ownerItemsPoll, endItem, raiseItem } from "../../lib/notify.mjs";
 import { readLedger } from "../../lib/store.mjs";
 import { createFakeGh, httpOutput } from "../helpers/fake-gh.mjs";
+import { tempDir } from "../helpers/temp-dir.mjs";
 
 const DATA = new URL("data/", import.meta.url);
 const FROM = Date.parse("2026-09-26T00:00:00Z");
@@ -53,6 +53,32 @@ function weekEvents() {
         });
     }
     return events.sort((a, b) => a.at - b.at);
+}
+
+const HALF_HOUR = 30 * 60_000;
+
+/**
+ * The instants, on the grid of a daemon polling every 30 minutes through the week, at which a page
+ * could go out: the poll after each blocking item is raised and the poll after that (a page batches
+ * what comes due in the 10 minutes after it, and the next poll sends it); each day's digest hour
+ * (16:00 UTC) and the poll after it; and every 3 hours, so an item that pages when it should wait
+ * for the digest, or a page from any other path, still has a poll to go out on before the digest
+ * covers it. Raising a non-blocking item or ending one pages nothing while the owner is away, so
+ * these polls send the pages all 336 would.
+ * @param {{at: number, raise?: any}[]} events the week's events
+ * @returns {number[]} the instants, in order
+ */
+function pollInstants(events) {
+    const at = new Set();
+    const add = (/** @type {number} */ t, /** @type {number} */ n = 1) => {
+        for (let i = 0; i < n; i++) if (t + i * HALF_HOUR < TO) at.add(t + i * HALF_HOUR);
+    };
+    for (let t = FROM; t < TO; t += 3 * 60 * 60_000) add(t);
+    for (let day = FROM; day < TO; day += 24 * 60 * 60_000) add(day + 16 * 60 * 60_000, 2);
+    for (const e of events) {
+        if (e.raise?.blocks) add(FROM + Math.ceil((e.at - FROM) / HALF_HOUR) * HALF_HOUR, 2);
+    }
+    return [...at].sort((a, b) => a - b);
 }
 
 describe("an absent week", () => {
@@ -101,7 +127,7 @@ describe("an absent week", () => {
 
 describe("an absent week, through the whole daemon", () => {
     it("every page it sends is a digest or a blocking item: no alive notice, no reminder, no recovery", async () => {
-        const dir = mkdtempSync(join(tmpdir(), "githerd-absent-"));
+        const dir = tempDir("githerd-absent-");
         const config = join(dir, "githerd.config.json");
         writeFileSync(
             config,
@@ -162,7 +188,7 @@ describe("an absent week, through the whole daemon", () => {
             now: () => clock,
             env: { GITHERD_CONFIG: config, PATH: process.env.PATH, HOME: dir },
             stateDir: join(dir, ".githerd"),
-            // Owner inference would read this machine's whole process table on each of the 336 polls.
+            // Owner inference would read this machine's whole process table on every poll.
             peers: { ownerFacts: async () => ({ pushLog: [], sessions: [], procs: [], worktrees: [] }) },
             autoPoll: false,
             workers: false,
@@ -170,8 +196,12 @@ describe("an absent week, through the whole daemon", () => {
         });
         try {
             const events = weekEvents();
+            const polls = pollInstants(events);
+            // a poll costs milliseconds of real daemon work: polling every 30 minutes (336 polls)
+            // timed this test out on CI, so it polls only where a page could change
+            expect(polls.length).toBeLessThan(100);
             let next = 0;
-            for (let t = FROM; t < TO; t += 30 * 60_000) {
+            for (const t of polls) {
                 clock = new Date(t);
                 for (; next < events.length && events[next].at <= t; next++) {
                     const e = events[next];

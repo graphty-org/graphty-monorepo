@@ -156,8 +156,8 @@ node stays where the user put it and `scale` / `center` are the only mapping bet
   own option (the exported `ForceAtlas2SimulationOptions`, `ForceAtlas2Options & { compat? }`), absent from the exported `ForceAtlas2Options` and
   therefore not reachable through `createSimulation`'s typed options: `new ForceAtlas2Simulation({ compat: "networkx" })`. Mass is `nodeMass`, else the role-`mass` column,
   else `outDegree + 1`; `weight: true` uses the snapshot's arc weights, a string names an edge column. `nodeSize`,
-  `dissuadeHubs`, `seed` and `maxInFlight` are accepted and unused: the CALLER seeds the array with
-  `seedPositions` before `load()`. `iterationsDone` and `reheat()` are public beyond the interface. The one-shot `forceAtlas2` layout runs this
+  `dissuadeHubs` and `maxInFlight` are accepted and unused; `load()` seeds the NaN rows of the array with
+  `seedPositions` from the `seed` option, as the GPU simulation does. `iterationsDone` and `reheat()` are public beyond the interface. The one-shot `forceAtlas2` layout runs this
   class (`settleThreshold: 0`, every one of `maxIter` iterations) and then rescales.
 - `FruchtermanReingoldSimulation` (`fruchterman-reingold.ts`): the loop body of layout 1.x's
   `fruchtermanReingoldLayout` made index-based over the CSR arcs, formulas unchanged
@@ -237,6 +237,12 @@ Use `assert`, not `expect`, as everywhere else in the package.
   `toLayoutSnapshot` turns any object providing `nodes()` and `edges()` into a snapshot
 - **3D support**: All layouts support 3D when `dim: 3` is specified
 - **Deterministic**: Layouts produce consistent results with the same seed
+- **Engine-independent**: never call `Math.log`, `Math.exp`, `Math.sin`, `Math.cos`, `Math.acos` or another
+  "implementation-approximated" Math function in a layout; use `detLog`, `detSin`, `detCos`, `detAcos` from
+  `src/utils/det-math.ts` (fdlibm ports, bit-identical in every engine). Engines change those functions' last bit
+  between versions, and a force layout amplifies it into a different drawing (issue #2430). `Math.sqrt` and the four
+  basic operations are exact by the spec. `test/det-math.test.ts` runs every layout with those Math functions
+  throwing and pins seeded positions
 
 ## Adding a New Layout
 
@@ -245,12 +251,18 @@ Use `assert`, not `expect`, as everywhere else in the package.
 3. Pin its signature in `test/types/exports.test-d.ts`
 4. Add tests in `test/layouts/`
 5. Add a story in `stories/`
-6. Add a checked example to `README.md` (see below)
+6. Add a checked example to `README.md` and to its family's guide page in `docs/guide/` (see below)
 
-## README Samples
+## Documentation and Its Samples
 
-`test/docs/readme-samples.test.ts` type-checks and runs every ```typescript block of `README.md`, and fails when a
-block is not marked `<!-- doc-check -->` just before it. Keep each block self-contained, with its own imports.
+`docs/` is the layout section of graphty.app (`https://graphty.app/docs/layout/`): `index.md`, the guide pages in
+`docs/guide/` and the API overview `docs/api/index.md`. `tools/copy-docs-content.js` copies it into the root `docs/`
+site, whose sidebar is in `docs/.vitepress/config.ts`; a new guide page needs an entry there.
+
+`test/docs/doc-samples.test.ts` type-checks and runs every ```typescript block of `README.md` and of every
+`docs/guide/*.md`, and fails when a block is not marked `<!-- doc-check -->` just before it. A `console.log(...)`
+with a trailing `// comment` must print what the comment starts with. Keep each block self-contained, with its own
+imports.
 
 ## Distribution
 

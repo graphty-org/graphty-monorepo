@@ -239,7 +239,8 @@ export function createNotesApi(dependencies: NotesDependencies): NotesApi {
                 );
             }
 
-            return Object.freeze(found.sort(newestFirst));
+            found.sort(newestFirst);
+            return Object.freeze(found);
         },
 
         get: (id) => entries().get(id)?.note,

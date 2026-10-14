@@ -16,6 +16,7 @@ import { userEvent } from "vitest/browser";
 
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
+import type { RenderManager } from "../../src/managers/RenderManager";
 import {
     click,
     drag,
@@ -218,6 +219,92 @@ describe("the 2D view", () => {
     });
 });
 
+/**
+ * Wait until a count of updates reaches a number.
+ * @param count - The count.
+ * @param target - The number to wait for.
+ */
+async function updatesReach(count: () => number, target: number): Promise<void> {
+    while (count() < target) {
+        await nextFrame();
+    }
+}
+
+/**
+ * Wait until the camera has stopped moving: two input updates in a row with the same camera state.
+ * Animation frames are not that count: a skipped render tick runs no input update.
+ * @param element - The element.
+ * @param updates - The count of the camera input's updates.
+ */
+async function settled(element: Graphty, updates: () => number): Promise<void> {
+    let last = camera(element);
+    for (;;) {
+        await updatesReach(updates, updates() + 1);
+        const now = camera(element);
+        if (now === last) {
+            return;
+        }
+
+        last = now;
+    }
+}
+
+/**
+ * Hold a key for exactly `count` of the camera input's per-frame updates, then let the camera
+ * coast to a stop.
+ *
+ * The frames are counted where the input runs, not as animation frames: the render loop skips a
+ * tick while the GPU is still drawing the last frame, so 30 animation frames can bring 29 updates.
+ * And the frames stop at the count: from the last one until the key-up arrives the render loop is
+ * held, so however long the browser takes to deliver the key-up, the key moves the camera exactly
+ * `count` times and never as far as a zoom limit. The key itself is real input; only the clock is
+ * stopped.
+ * @param element - The element.
+ * @param key - The key, as userEvent names it.
+ * @param name - The camera whose input reads the key: "orbit" (3D) or "2d".
+ * @param count - How many frames to hold it for.
+ */
+async function hold(element: Graphty, key: string, name: "orbit" | "2d", count: number): Promise<void> {
+    const { canvas } = element.graph;
+    const input = (element.graph.camera as unknown as { inputs: Map<string, { update(): void }> }).inputs.get(name);
+    assert.isDefined(input);
+    const { renderManager } = element.graph as unknown as { renderManager: RenderManager };
+    const update = input.update.bind(input);
+    let held = false;
+    let all = 0;
+    let heldFrames = 0;
+    let releaseFrames = (): void => undefined;
+    input.update = (): void => {
+        all++;
+        update();
+        if (held && ++heldFrames === count) {
+            releaseFrames = renderManager.holdFrames();
+        }
+    };
+    // The controller's own key listeners were added first, so these run after it saw each key
+    const press = (): void => {
+        held = true;
+    };
+    const release = (): void => {
+        held = false;
+        releaseFrames();
+    };
+    canvas.addEventListener("keydown", press);
+    canvas.addEventListener("keyup", release);
+    cleanups.push(() => {
+        releaseFrames();
+        input.update = update;
+        canvas.removeEventListener("keydown", press);
+        canvas.removeEventListener("keyup", release);
+    });
+
+    await userEvent.keyboard(`{${key}>}`);
+    await updatesReach(() => heldFrames, count);
+    await userEvent.keyboard(`{/${key}}`);
+    await settled(element, () => all);
+    assert.strictEqual(heldFrames, count, "the key was held for the frames counted");
+}
+
 describe("the keyboard", () => {
     it("does not take focus from the page when it loads", async () => {
         const input = document.createElement("input");
@@ -254,12 +341,77 @@ describe("the keyboard", () => {
         await click(element, EMPTY);
         const before = camera(element);
 
-        await userEvent.keyboard("{ArrowLeft>}");
-        await frames(5);
-        await userEvent.keyboard("{/ArrowLeft}");
-        await frames();
+        await hold(element, "ArrowLeft", "orbit", 5);
 
         assert.notStrictEqual(camera(element), before, "the camera turned");
+    });
+
+    // A and D spin by a fixed angle every frame they are held. A held arrow must turn at the same
+    // angular speed and hold it, not keep speeding up (issue #2292): over the press and the coast
+    // after it, the angle turned is the A and D rate times the frames held.
+    it.each([
+        ["a", "z", 1],
+        ["d", "z", -1],
+        ["ArrowLeft", "y", -1],
+        ["ArrowRight", "y", 1],
+        ["ArrowUp", "x", -1],
+        ["ArrowDown", "x", 1],
+    ] as const)("holding %s turns the 3D camera at the A and D rate", async (key, axis, sign) => {
+        const element = await mounted("3d");
+        await element.setCameraState({ pivotRotation: { x: 0, y: 0, z: 0 } });
+        await click(element, EMPTY);
+        const before = element.getCameraState().pivotRotation?.[axis] ?? Number.NaN;
+
+        const heldFrames = 30;
+        await hold(element, key, "orbit", heldFrames);
+
+        const after = element.getCameraState().pivotRotation?.[axis] ?? Number.NaN;
+        const perFrame = (sign * (after - before)) / heldFrames;
+        // 0.02 radians a frame is keyboardYawSpeed, A and D's rate
+        assert.closeTo(perFrame, 0.02, 0.0004, `radians per frame held, about ${axis}`);
+    });
+
+    // The 2D view's + and - keys zoom by zoomFactorPerFrame (0.02 in log space) per frame held,
+    // not by the many times that a velocity accumulated every frame reaches.
+    it.each([
+        ["=", 1],
+        ["-", -1],
+    ] as const)("holding %s zooms the 2D view by 0.02 (log) per frame held", async (key, sign) => {
+        const element = await mounted("2d");
+        await click(element, EMPTY);
+        const before = element.getCameraState().zoom ?? Number.NaN;
+
+        const heldFrames = 30;
+        await hold(element, key, "2d", heldFrames);
+
+        const after = element.getCameraState().zoom ?? Number.NaN;
+        assert.closeTo((sign * Math.log(after / before)) / heldFrames, 0.02, 0.0004, "log zoom per frame held");
+    });
+
+    // W and S move the camera by the same fraction of its distance every frame they are held, so
+    // the zoom is as quick far out as close in: 0.985 per frame, tenfold over the 157 frames A or
+    // D take to spin half a turn.
+    describe.each([
+        ["close in", 6],
+        ["far out", 600],
+    ])("holding W or S, %s", (_where, start) => {
+        it.each([
+            ["W", 0.985],
+            ["S", 1 / 0.985],
+        ])("%s changes the 3D camera's distance by a factor of %f per frame", async (key, perFrame) => {
+            const element = await mounted("3d");
+            await element.setCameraState({ cameraDistance: start });
+            await click(element, EMPTY);
+
+            const before = element.getCameraState().cameraDistance ?? Number.NaN;
+            assert.closeTo(before, start, 1e-6, "the camera starts at the distance set");
+
+            const heldFrames = 10;
+            await hold(element, key.toLowerCase(), "orbit", heldFrames);
+
+            const after = element.getCameraState().cameraDistance ?? Number.NaN;
+            assert.closeTo(after / before, perFrame ** heldFrames, 1e-9, "one factor per frame held");
+        });
     });
 });
 

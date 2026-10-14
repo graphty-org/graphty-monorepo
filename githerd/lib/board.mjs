@@ -248,6 +248,8 @@ const VERIFY_POLLS = 2;
  * @property {{at: string, text: string, acked: boolean}[]} news what the holder has not seen yet
  * @property {string[]} sessions every session that held it
  * @property {string[]} joined targets other jobs joined into this one
+ * @property {number[]} [joinedIssues] the issues of the issue jobs joined into this one: its pull
+ *   request must name each (done.mjs)
  * @property {any} waitingFor the declared condition, or null
  * @property {string | null} steeredAt when the owner took over the session, or null
  * @property {boolean} fresh the next session starts fresh, not by resume
@@ -747,7 +749,15 @@ export function claimJob(state, args, caller, snapshot, now) {
  */
 function joinJob(state, job, other, reason, now) {
     other.joined.push(job.target);
-    addNews(other, `job ${job.id} joined yours: ${job.target} is now part of it (${reason})`, now);
+    // An issue's own job ends here, so only the other job's pull request can close the issue
+    // (issue #2499); githerd_done requires it to name the issue (done.mjs mustName).
+    const issue = job.kind === "issue" && !job.facts?.scope ? Number(String(job.target).replace(/^#/, "")) : NaN;
+    let name = "";
+    if (Number.isInteger(issue) && issue > 0) {
+        other.joinedIssues = [...(other.joinedIssues ?? []), issue];
+        name = `; your pull request's description must name it too: "Fixes #${issue}", or "Refs #${issue}" if it stays open`;
+    }
+    addNews(other, `job ${job.id} joined yours: ${job.target} is now part of it (${reason})${name}`, now);
     const holder = job.holder;
     move(job, "cancelled", now, { cancelledBy: other.id, reason: `joined ${other.id}` });
     // Design 8.2: the joining session ends; a window githerd opened is ended by the daemon.

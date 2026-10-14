@@ -32,6 +32,7 @@ import { RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel
 import { NodeBehavior, type NodeDragHandler } from "./NodeBehavior";
 import { dispatcherOf } from "./session/GraphSession";
 import { frozenRecord } from "./session/project/draft";
+import { toColorValue } from "./session/styles/channels";
 
 export type NodeIdType = string | number;
 
@@ -1179,6 +1180,18 @@ export class Node {
         // Doubled because the source is a sphere of DIAMETER one, so a scaling of `s` draws a
         // radius of `s / 2`.
         return 2 * this.drawnRadius * multiplier;
+    }
+
+    /**
+     * The colour this node is drawn in now, as `#rrggbb` (with `aa` when not opaque): what the
+     * last paint of the style stack gave it, after hidden rows, runs, notes and data changes have
+     * repainted it. Null before its first paint. A read for tests and tools that must check what
+     * was drawn rather than what the stack would explain.
+     * @returns The drawn colour, or null.
+     * @since 3.26.0
+     */
+    get drawnFill(): string | null {
+        return toColorValue(this.drawnColor)?.hex ?? null;
     }
 
     /**

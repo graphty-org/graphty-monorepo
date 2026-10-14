@@ -116,4 +116,27 @@ describe("a hidden row under a run", () => {
         assert.notInclude(edges(), RED, "a data change repainted without the hidden row");
         session.dispose();
     });
+
+    it("holds no run's picture back while its row is hidden: a hidden layer paints nothing", async () => {
+        const session = createGraphSession({ runs: { execute: groups } });
+        await session.data.addNodes([{ id: "a" }, { id: "b" }, { id: "c" }]);
+        const red = await session.styles.add({
+            name: "Red",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.color": RED },
+        });
+        await session.styles.hideRow(red.id, true);
+        const run = session.runs.start("louvain", undefined, { style: true });
+        await run;
+        await session.styles.settled();
+        const painting = session.runs.painting(run.id);
+        assert.notInclude(
+            painting?.suggestions.map((outcome) => outcome.outcome),
+            "suppressed",
+            "the hidden row held nothing back",
+        );
+        assert.isAbove(session.runs.bindings(run.id).length, 0, "the run painted its layer");
+        session.dispose();
+    });
 });

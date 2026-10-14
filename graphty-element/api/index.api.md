@@ -3157,6 +3157,7 @@ class Node_2 {
     dragging: boolean;
     // (undocumented)
     dragHandler?: NodeDragHandler;
+    get drawnFill(): string | null;
     get drawnRadius(): number;
     getPosition(): {
         x: number;

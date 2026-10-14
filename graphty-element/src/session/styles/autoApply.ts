@@ -230,13 +230,16 @@ export function authoredDriving(layer: Layer, channels: readonly Channel[]): boo
 
 /**
  * The authored layer that already drives one of these channels on every element, so a
- * suggestion beneath it could never show.
+ * suggestion beneath it could never show. A layer whose row is hidden paints nothing, so it
+ * holds nothing back.
  * @param layers - The stack.
  * @param channels - The channels the suggestion would paint.
  * @returns That layer, or undefined when the suggestion may paint.
  */
 function authoredCovering(layers: readonly Layer[], channels: readonly Channel[]): Layer | undefined {
-    return layers.find((layer) => layer.selector.match === "everything" && authoredDriving(layer, channels));
+    return layers.find(
+        (layer) => layer.hidden !== true && layer.selector.match === "everything" && authoredDriving(layer, channels),
+    );
 }
 
 /**

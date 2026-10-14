@@ -206,6 +206,15 @@ describe("pruneClosedIssues", () => {
         expect(state.issues.byNumber).toEqual({});
     });
 
+    it("keeps a split job's closed children while the job is kept, for the parent's close (issue #2557)", () => {
+        const state = stateWith([closed(11), closed(12)], {
+            jobs: { "issue-10": { kind: "issue", target: "#10", state: "done", children: [11, 12] } },
+        });
+        expect(pruneClosedIssues(state)).toBe(0);
+        delete state.jobs["issue-10"];
+        expect(pruneClosedIssues(state)).toBe(2);
+    });
+
     it("records a dropped issue again, with its new text, when it reopens", async () => {
         const state = stateWith([closed(1)]);
         pruneClosedIssues(state);

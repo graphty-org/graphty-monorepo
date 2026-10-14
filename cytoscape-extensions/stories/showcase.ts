@@ -301,7 +301,7 @@ export const LAYOUT_SHOWCASE: Record<string, LayoutShowcase> = {
     planar: {
         load: generated("random-apollonian", { n: 20 }),
         caption:
-            "A 20-node planar triangulation (a random Apollonian network) drawn with no two edges crossing; nodes sit on integer grid points.",
+            "A 20-node planar triangulation (a random Apollonian network) drawn with no two edges crossing: straight edges, nodes on integer grid points, uneven spacing.",
     },
     spectral: {
         ...groups,

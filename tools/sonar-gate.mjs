@@ -3,7 +3,8 @@
 // on a line the push adds or changes. Run by tools/prepush.sh ("SonarQube (changed lines)").
 // Design: design/sonarqube/design.md, section 1.
 //
-// 1. The changed files: `git diff -M --name-status --diff-filter=AMR <merge-base> HEAD`, kept to the
+// 1. The changed files: `git diff -M --name-status --diff-filter=AMR <merge-base> HEAD` (the merge base
+//    with the branch the push merges into, tools/push-base.mjs), kept to the
 //    extensions SonarQube analyzes. A file with uncommitted changes is left out with a warning (the
 //    scanner reads the working tree; the push sends HEAD). Nothing left: pass, no server contact.
 // 2. The server and the setup. Unreachable, or not the pinned server: pass with a boxed warning and
@@ -52,6 +53,8 @@ import {
 } from "node:fs";
 import { basename, delimiter, dirname, extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+
+import { pushBase } from "./push-base.mjs";
 
 import {
     ApiError,
@@ -561,7 +564,7 @@ function box(lines) {
 
 // Phase 1: the analyzable files the push changes, minus those with uncommitted changes.
 function changedFiles(run) {
-    run.base = git(["merge-base", "origin/master", "HEAD"]).trim();
+    run.base = pushBase({ env: envWithoutToken() });
     const changed = parseNameStatus(git(["diff", "-M", "--name-status", "--diff-filter=AMR", run.base, "HEAD"]));
     const analyzable = changed.filter((c) => EXTENSIONS.has(extname(c.path)));
     const dirty = new Set(git(["diff", "--name-only", "HEAD"]).split("\n").filter(Boolean));

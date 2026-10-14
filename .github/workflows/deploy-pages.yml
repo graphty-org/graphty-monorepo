@@ -145,10 +145,12 @@ jobs:
                   run-id: ${{ env.RUN_ID }}
                   github-token: ${{ secrets.GITHUB_TOKEN }}
 
-            # graph-samples' hosted datasets. scripts/build-hosted.mjs needs only Node and the builds of
-            # graph-format and graph-io (the Cytoscape and ontology datasets are read by graph-io's own
-            # importers); it records every source's URL and SHA-256, so its hash keys the download
-            # cache and an older cache still serves the sources that did not change.
+            # graph-samples' datasets, every one of them: no package bundles their data. scripts/build-hosted.mjs
+            # needs only Node and the builds of graph-format, graph-io (the Cytoscape and ontology datasets are
+            # read by graph-io's own importers) and graph-samples (whose dist/data/v1/ holds the small datasets,
+            # packed from the repository's data/, which the script copies beside the large ones it builds); it
+            # records every source's URL and SHA-256, so its hash keys the download cache and an older cache
+            # still serves the sources that did not change.
             - name: Download graph-format build
               uses: actions/download-artifact@v4
               with:
@@ -162,6 +164,14 @@ jobs:
               with:
                   name: build-graph-io
                   path: ./graph-io/dist/
+                  run-id: ${{ env.RUN_ID }}
+                  github-token: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Download graph-samples build
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-graph-samples
+                  path: ./graph-samples/dist/
                   run-id: ${{ env.RUN_ID }}
                   github-token: ${{ secrets.GITHUB_TOKEN }}
 

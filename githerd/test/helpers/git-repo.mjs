@@ -29,8 +29,10 @@ export function put(path, data) {
  */
 export function commitAll(cwd, message, { sign = true } = {}) {
     git(cwd, "add", "-A");
-    git(cwd, "commit", ...(sign ? ["-S"] : []), "-q", "-m", message);
-    return git(cwd, "rev-parse", "HEAD");
+    // The summary line (`[master <sha>] message`) names the commit in full, so no `git rev-parse`
+    // process follows: a test's time is mostly the git processes it runs one after another.
+    const out = git(cwd, "-c", "core.abbrev=40", "commit", ...(sign ? ["-S"] : []), "-m", message);
+    return /** @type {RegExpExecArray} */ (/ ([0-9a-f]{40})\] /.exec(out))[1];
 }
 
 /** @type {string | null} a repository built once per test file, never handed out, copied for each test */

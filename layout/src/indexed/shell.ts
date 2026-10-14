@@ -1,7 +1,6 @@
-import { type F64, type GraphSnapshot, type NodeSet, resolveNodeSet } from "@graphty/graph-format";
+import { detCos, detSin, type F64, type GraphSnapshot, type NodeSet, resolveNodeSet } from "@graphty/graph-format";
 
 import type { LayoutResult } from "../positions.js";
-import { detCos, detSin } from "../utils/det-math.js";
 import { np } from "../utils/numpy.js";
 import { type CommonLayoutOptions, planar, refusal, resolve, result } from "./common.js";
 import { groupsOfColumn } from "./multipartite.js";

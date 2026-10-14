@@ -13,7 +13,7 @@ import cytoscape, {
 } from "cytoscape";
 
 import { ASYNC_ALGORITHM_NAMES, type Backend, type SearchResult } from "../src/index.js";
-import { colorByValue, elementsOf, GENERATE, NO_GPU, type Outcome, PALETTE, SIZES } from "./demo.js";
+import { colorByValue, datasetOptions, elementsOf, GENERATE, NO_GPU, type Outcome, PALETTE, SIZES } from "./demo.js";
 import { paintPaths, type Paths, plainReason, runAlgorithm } from "./run.js";
 
 const SEED = 42;
@@ -418,7 +418,7 @@ export const EXAMPLES: Partial<Record<string, Example>> = {
     kCoreDecomposition: {
         graph: 'Zachary\'s karate club (cy.graphtyDataset("karate"))',
         load: async (cy) => {
-            await cy.graphtyDataset("karate");
+            await cy.graphtyDataset("karate", datasetOptions());
         },
         place: kamadaKawai,
     },

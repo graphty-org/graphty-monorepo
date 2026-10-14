@@ -406,7 +406,12 @@ describe("the push log of tools/push-queue.sh", () => {
     const script = join(import.meta.dirname, "..", "..", "tools", "push-queue.sh");
     /** @type {string[]} */
     const dirs = [];
-    beforeAll(() => isolateGit());
+    beforeAll(() => {
+        isolateGit();
+        // The file's first makeRepo builds the repository the others copy: built here, its git
+        // processes are not counted against the first test's time.
+        dirs.push(makeRepo().tmp);
+    });
     afterEach(() => {
         for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
     });

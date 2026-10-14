@@ -1,7 +1,6 @@
-import type { F64, GraphSnapshot } from "@graphty/graph-format";
+import { detAcos, detCos, detSin, type F64, type GraphSnapshot } from "@graphty/graph-format";
 
 import type { LayoutResult } from "../positions.js";
-import { detAcos, detCos, detSin } from "../utils/det-math.js";
 import { np } from "../utils/numpy.js";
 import { type CommonLayoutOptions, resolve, result } from "./common.js";
 

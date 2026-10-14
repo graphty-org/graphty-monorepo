@@ -1,14 +1,16 @@
 /**
- * `log`, `sin`, `cos` and `acos` that return the same bits on every JavaScript engine.
+ * `log`, `exp`, `sin`, `cos`, `acos`, `hypot` and `pow` that return the same bits on every JavaScript engine.
  *
- * ECMAScript leaves `Math.log`, `Math.sin`, `Math.cos` and `Math.acos` "implementation-approximated", and engines do
- * change their last bit between versions (Chromium 143 and 153 disagree on thousands of inputs). A force layout
- * amplifies a one-bit difference into a different drawing, so a seed would not mean the same picture in every
- * browser. These are ports of fdlibm 5.3 (Sun Microsystems 1993; e_log.c, e_rem_pio2.c, k_sin.c, k_cos.c, s_sin.c,
- * s_cos.c, e_acos.c), the code V8 used before Chromium 153: they read the exponent and mantissa through a DataView
- * and otherwise use only IEEE-754 double addition, subtraction, multiplication, division and `Math.sqrt`, which
- * ECMAScript requires to be correctly rounded. So each result is a pure function of the input bits. Error below
- * 1 ulp, the same as fdlibm.
+ * ECMAScript leaves `Math.log`, `Math.exp`, `Math.sin`, `Math.cos`, `Math.acos`, `Math.hypot` and `Math.pow`
+ * "implementation-approximated", and engines do change their last bit between versions (Chromium 143 and 153
+ * disagree on thousands of inputs). A seeded or iterative computation can amplify a one-bit difference into a
+ * different result, so a seed would not mean the same output in every browser. `detLog`, `detExp`, `detSin`,
+ * `detCos` and `detAcos` are ports of fdlibm 5.3 (Sun Microsystems 1993; e_log.c, e_exp.c, e_rem_pio2.c, k_sin.c,
+ * k_cos.c, s_sin.c, s_cos.c, e_acos.c), the code V8 used before Chromium 153: they read the exponent and mantissa
+ * through a DataView and otherwise use only IEEE-754 double addition, subtraction, multiplication, division and
+ * `Math.sqrt`, which ECMAScript requires to be correctly rounded. So each result is a pure function of the input
+ * bits. Error below 1 ulp, the same as fdlibm. `detHypot` is V8's own `Math.hypot` algorithm and `detPow` is built
+ * on the others.
  * @module
  */
 
@@ -371,4 +373,219 @@ export function detAcos(x: number): number {
     const c = (z - df * df) / (s + df);
     const w = acosRatio(z) * s + c;
     return 2 * (df + w);
+}
+
+// ============================================================ exp (e_exp.c)
+
+const O_THRESHOLD = 7.09782712893383973096e2;
+const U_THRESHOLD = -7.4513321910194110842e2;
+const INV_LN2 = 1.442695040888963387;
+const TWOM1000 = 9.3326361850321887899e-302;
+const P1 = 1.66666666666666019037e-1;
+const P2 = -2.77777777770155933842e-3;
+const P3 = 6.61375632143793436117e-5;
+const P4 = -1.6533902205465251539e-6;
+const P5 = 4.13813679705723846039e-8;
+
+/**
+ * `y * 2^k` for a y in [0.5, 2) and k >= -1021, by adding k to the exponent field.
+ * @param y - the mantissa part
+ * @param k - the power of two
+ * @returns the scaled value
+ */
+function scaleByPowerOfTwo(y: number, k: number): number {
+    view.setFloat64(0, y, true);
+    view.setInt32(4, view.getInt32(4, true) + (k << 20), true);
+    return view.getFloat64(0, true);
+}
+
+/**
+ * e^x where |x| is at least 709.78 or x is not finite: Infinity, 0 or NaN, or null when x is still in range.
+ * @param x - the argument
+ * @param hx - its high word without the sign
+ * @param negative - its sign
+ * @returns the result, or null to compute it
+ */
+function expOutOfRange(x: number, hx: number, negative: boolean): number | null {
+    if (hx >= 0x7ff00000) {
+        // NaN stays NaN, +Infinity stays, -Infinity gives 0
+        return !negative || Number.isNaN(x) ? x + x : 0;
+    }
+    if (x > O_THRESHOLD) {
+        return Infinity;
+    }
+    return x < U_THRESHOLD ? 0 : null;
+}
+
+/** x = k ln 2 + (hi - lo), written by {@link reduceExp}: [k, hi, lo]. */
+const expParts = new Float64Array(3);
+
+/**
+ * Reduces |x| > 0.5 ln 2 to x = k ln 2 + (hi - lo).
+ * @param x - the argument
+ * @param hx - its high word without the sign
+ * @param negative - its sign
+ */
+function reduceExp(x: number, hx: number, negative: boolean): void {
+    if (hx < 0x3ff0a2b2) {
+        expParts[0] = negative ? -1 : 1;
+        expParts[1] = negative ? x + LN2_HI : x - LN2_HI;
+        expParts[2] = negative ? -LN2_LO : LN2_LO;
+        return;
+    }
+    const k = Math.trunc(INV_LN2 * x + (negative ? -0.5 : 0.5));
+    expParts[0] = k;
+    expParts[1] = x - k * LN2_HI;
+    expParts[2] = k * LN2_LO;
+}
+
+/**
+ * e^x, bit-identical across engines.
+ * @param x - the argument
+ * @returns e^x; +Infinity above about 709.78, 0 below about -745.13, NaN for NaN. detExp(1) is fdlibm's
+ * 2.7182818284590455, 1 ulp above `Math.E`, which V8 returns as a special case.
+ */
+export function detExp(x: number): number {
+    const hxSigned = high(x);
+    const negative = hxSigned < 0;
+    const hx = hxSigned & 0x7fffffff;
+    const outside = hx >= 0x40862e42 ? expOutOfRange(x, hx, negative) : null;
+    if (outside !== null) {
+        return outside;
+    }
+    if (hx < 0x3e300000) {
+        return 1 + x; // |x| < 2**-28
+    }
+    let hi = 0;
+    let lo = 0;
+    let k = 0;
+    let r = x;
+    if (hx > 0x3fd62e42) {
+        reduceExp(x, hx, negative); // |x| > 0.5 ln 2
+        [k, hi, lo] = expParts;
+        r = hi - lo;
+    }
+    const t = r * r;
+    const c = r - t * (P1 + t * (P2 + t * (P3 + t * (P4 + t * P5))));
+    if (k === 0) {
+        return 1 - ((r * c) / (c - 2) - r);
+    }
+    const y = 1 - (lo - (r * c) / (2 - c) - hi);
+    return k >= -1021 ? scaleByPowerOfTwo(y, k) : scaleByPowerOfTwo(y, k + 1000) * TWOM1000;
+}
+
+// ============================================================ hypot
+
+/**
+ * The square root of the sum of squares, bit-identical across engines. This is V8's own `Math.hypot`: scale by
+ * the largest magnitude, add the squares with Kahan compensation, take the correctly rounded `Math.sqrt`.
+ * @param values - the components
+ * @returns sqrt(sum of squares); Infinity if any component is infinite, else NaN if any is NaN; 0 for none
+ */
+export function detHypot(...values: number[]): number {
+    let max = 0;
+    let nan = false;
+    for (const v of values) {
+        const a = Math.abs(v);
+        if (Number.isNaN(a)) {
+            nan = true;
+        } else if (a > max) {
+            max = a;
+        }
+    }
+    if (max === Infinity) {
+        return Infinity;
+    }
+    if (nan) {
+        return Number.NaN;
+    }
+    if (max === 0) {
+        return 0;
+    }
+    let sum = 0;
+    let compensation = 0;
+    for (const v of values) {
+        const n = Math.abs(v) / max;
+        const summand = n * n - compensation;
+        const preliminary = sum + summand;
+        compensation = preliminary - sum - summand;
+        sum = preliminary;
+    }
+    return Math.sqrt(sum) * max;
+}
+
+// ============================================================ pow
+
+/**
+ * x^n for an integer n by binary exponentiation: `x * x` for n = 2 and `1 / x` for n = -1, as fdlibm gives.
+ * @param x - the base
+ * @param n - the exponent, an integer
+ * @returns x^n
+ */
+function powByMultiplication(x: number, n: number): number {
+    let base = x;
+    let left = Math.abs(n);
+    let result = 1;
+    while (left > 0) {
+        if (left % 2 === 1) {
+            result *= base;
+        }
+        base *= base;
+        left = Math.floor(left / 2);
+    }
+    return n < 0 ? 1 / result : result;
+}
+
+/**
+ * |x|^y for a finite y that is not a small integer, x not NaN.
+ * @param ax - |x|
+ * @param y - the exponent
+ * @returns |x|^y
+ */
+function powOfMagnitude(ax: number, y: number): number {
+    if (ax === 0) {
+        return y > 0 ? 0 : Infinity;
+    }
+    if (ax === Infinity) {
+        return y > 0 ? Infinity : 0;
+    }
+    if (y === 0.5) {
+        return Math.sqrt(ax); // as fdlibm, which returns sqrt(x) here
+    }
+    return detExp(y * detLog(ax));
+}
+
+/**
+ * x^y, bit-identical across engines. An integer exponent up to 1024 in magnitude is binary exponentiation, so
+ * `detPow(x, 2)` is exactly `x * x` and `detPow(x, -1)` exactly `1 / x`, as fdlibm gives. Otherwise it is
+ * `Math.sqrt(x)` for y = 0.5 and `detExp(y * detLog(|x|))` for the rest, which is not correctly rounded: its
+ * relative error is about |y ln x| times 1.1e-16. The special values follow `Math.pow`.
+ * @param x - the base
+ * @param y - the exponent
+ * @returns x^y
+ */
+export function detPow(x: number, y: number): number {
+    if (y === 0) {
+        return 1;
+    }
+    if (Number.isNaN(x) || Number.isNaN(y)) {
+        return Number.NaN;
+    }
+    const integer = Number.isInteger(y);
+    if (integer && Math.abs(y) <= 1024) {
+        return powByMultiplication(x, y);
+    }
+    const ax = Math.abs(x);
+    if (!Number.isFinite(y)) {
+        if (ax === 1) {
+            return Number.NaN;
+        }
+        return ax > 1 === y > 0 ? Infinity : 0;
+    }
+    if (x < 0 && !integer && ax !== Infinity) {
+        return Number.NaN;
+    }
+    const result = powOfMagnitude(ax, y);
+    const negative = x < 0 || Object.is(x, -0);
+    return negative && integer && y % 2 !== 0 ? -result : result;
 }

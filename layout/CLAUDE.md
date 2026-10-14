@@ -239,8 +239,8 @@ Use `assert`, not `expect`, as everywhere else in the package.
 - **3D support**: All layouts support 3D when `dim: 3` is specified
 - **Deterministic**: Layouts produce consistent results with the same seed
 - **Engine-independent**: never call `Math.log`, `Math.exp`, `Math.sin`, `Math.cos`, `Math.acos` or another
-  "implementation-approximated" Math function in a layout; use `detLog`, `detSin`, `detCos`, `detAcos` from
-  `src/utils/det-math.ts` (fdlibm ports, bit-identical in every engine). Engines change those functions' last bit
+  "implementation-approximated" Math function in a layout; use `detLog`, `detExp`, `detSin`, `detCos`, `detAcos`,
+  `detHypot` and `detPow` from `@graphty/graph-format` (fdlibm ports, bit-identical in every engine). Engines change those functions' last bit
   between versions, and a force layout amplifies it into a different drawing (issue #2430). `Math.sqrt` and the four
   basic operations are exact by the spec. `test/det-math.test.ts` runs every layout with those Math functions
   throwing and pins seeded positions

@@ -1,5 +1,6 @@
 import {
     type DerivedGraph,
+    detHypot,
     type F32,
     GraphBuilder,
     type GraphSnapshot,
@@ -1207,10 +1208,10 @@ function alignToHeld(column: F32, positions: ElementPositions, keep: NodeMask): 
     // alone would pick either; the mirror has to win by more than rounding, or the newcomers of a
     // re-run that already matches (the fixed layout's) would be reflected across the line.
     const tie = 1e-6 * Math.sqrt(spreadFrom * spreadTo);
-    const mirror = Math.hypot(mirrorRe, mirrorIm) > Math.hypot(re, im) + tie;
+    const mirror = detHypot(mirrorRe, mirrorIm) > detHypot(re, im) + tie;
     const turnRe = mirror ? mirrorRe : re;
     const turnIm = mirror ? mirrorIm : im;
-    const length = Math.hypot(turnRe, turnIm);
+    const length = detHypot(turnRe, turnIm);
     const cos = length === 0 ? 1 : turnRe / length;
     const sin = length === 0 ? 0 : turnIm / length;
     const scale = spreadFrom === 0 || spreadTo === 0 ? 1 : Math.sqrt(spreadTo / spreadFrom);

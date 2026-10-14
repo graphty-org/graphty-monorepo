@@ -20,6 +20,7 @@ import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
 import { recommendLayout } from "../../src/session/layout";
+import { drawnFrames } from "../helpers/drawn-frames";
 
 /** How many nodes the fixture carries. */
 const NODE_COUNT = 40;
@@ -64,15 +65,15 @@ describe("how many nodes the data placed", () => {
         container.remove();
     });
 
-    /** Let the render loop run, which is when a layout starts writing coordinates. */
+    /**
+     * Let the render loop run until the layout has written a coordinate for every node, which is
+     * the moment the two counts part. A wait that ends sooner reads them while they still agree.
+     */
     async function afterAFrame(): Promise<void> {
-        await new Promise<void>((resolve) => {
-            requestAnimationFrame(() => {
-                requestAnimationFrame(() => {
-                    resolve();
-                });
-            });
-        });
+        const { positions } = graph.getSession();
+        while (positions.placedCount < NODE_COUNT) {
+            await drawnFrames(graph.getScene(), 1);
+        }
     }
 
     it("stays zero for a file that carried no coordinates, however long the layout runs", async () => {

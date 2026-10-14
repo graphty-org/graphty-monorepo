@@ -219,19 +219,24 @@ graph.setLayout("random", {
 
 ### fixed
 
-Use pre-computed positions from node data:
+Use pre-computed positions from node data. Each node's `position` is its center, with y growing
+upward, multiplied by `positionScale`:
 
 ```typescript
 // Node data includes positions
 const nodes = [
-    { id: "a", x: 0, y: 0, z: 0 },
-    { id: "b", x: 100, y: 0, z: 0 },
-    { id: "c", x: 50, y: 100, z: 0 },
+    { id: "a", position: { x: 0, y: 0, z: 0 } },
+    { id: "b", position: { x: 100, y: 0, z: 0 } },
+    { id: "c", position: { x: 50, y: 100, z: 0 } },
 ];
 
 await graph.addNodes(nodes);
 graph.setLayout("fixed");
 ```
+
+To draw a file (GEXF, yEd GraphML, GML, Pajek, DOT, a Cytoscape session) where it was saved,
+load it with `layout: "recommended"`: see
+[Drawing a file where it was saved](./data-sources.md#drawing-a-file-where-it-was-saved).
 
 ### forceatlas2 (Force-Directed, live)
 

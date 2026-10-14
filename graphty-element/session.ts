@@ -498,6 +498,7 @@ export type {
     LegendFactCode,
     LegendReading,
     LegendSwatch,
+    PreviewSpan,
     RepaintReason,
     RepaintReport,
     RowEncoding,

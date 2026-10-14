@@ -2235,6 +2235,9 @@ export interface PositionEntry {
 export type Precision = "f32" | "f64";
 
 // @public
+export type PreviewSpan = "domain" | "data";
+
+// @public
 export interface Problem {
     readonly code: GraphtyErrorCode | GraphtyWarningCode;
     readonly details?: Readonly<Record<string, unknown>>;
@@ -3959,6 +3962,7 @@ export interface StylesApi {
     preview(binding: RuleBinding, options: {
         readonly channel: Channel;
         readonly bins?: number;
+        readonly span?: PreviewSpan;
     }): BindingPreview;
     proposeEncoding(spec: EncodingSpec | ColumnEncodingSpec): EncodingProposal;
     remove(id: LayerId, options?: RunOptions): Run<void>;

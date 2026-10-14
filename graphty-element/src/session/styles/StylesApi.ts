@@ -133,6 +133,7 @@ import {
     type BindingPreview,
     type PreparedBinding,
     previewBinding,
+    type PreviewSpan,
     requireChannel,
     type RuleBinding,
 } from "./encoding";
@@ -682,6 +683,9 @@ export interface StylesApi {
      * @param options.channel - The channel it would paint.
      * @param options.bins - How many bins to cut a numeric domain into (20 when absent); a scale of
      *     categories has one bin per category.
+     * @param options.span - What the numeric bins span: `"domain"` (the default) cuts the
+     *     binding's domain; `"data"` cuts the values' whole extent together with the domain, for an
+     *     editor whose axis must stay put while the domain moves inside it (since 3.26.0).
      * @returns The preview.
      * @throws A `GraphtyError`: `E_UNKNOWN_CHANNEL` for a channel the element does not have,
      *     `E_BAD_COMMAND` for a binding that reads no value, `E_BAD_LAYER`, `E_UNKNOWN_SCALE`,
@@ -689,7 +693,10 @@ export interface StylesApi {
      *     would.
      * @since 3.26.0
      */
-    preview(binding: RuleBinding, options: { readonly channel: Channel; readonly bins?: number }): BindingPreview;
+    preview(
+        binding: RuleBinding,
+        options: { readonly channel: Channel; readonly bins?: number; readonly span?: PreviewSpan },
+    ): BindingPreview;
     /**
      * How many elements one layer covers, and on how many it decides each channel it writes.
      *
@@ -3872,7 +3879,10 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             return { ...styleAgreement(every, floor, channel), readOver: "everyElement" };
         },
 
-        preview(binding: RuleBinding, options: { readonly channel: Channel; readonly bins?: number }): BindingPreview {
+        preview(
+            binding: RuleBinding,
+            options: { readonly channel: Channel; readonly bins?: number; readonly span?: PreviewSpan },
+        ): BindingPreview {
             const descriptor = requireChannel(options.channel);
             if (!("by" in binding) || typeof binding.by !== "string") {
                 throw badCommand("A preview reads a binding that reads a value: { by: <path>, ... }.", {
@@ -3908,6 +3918,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 column,
                 scales,
                 ...(options.bins === undefined ? {} : { bins: options.bins }),
+                ...(options.span === undefined ? {} : { span: options.span }),
             });
         },
 

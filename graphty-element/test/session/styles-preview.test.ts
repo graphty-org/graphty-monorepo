@@ -281,6 +281,45 @@ describe("styles.preview", () => {
         );
         session.dispose();
     });
+
+    it("with span data, cuts the data's whole extent while a narrowed domain paints inside it", async () => {
+        const session = await sessionOf(Array.from({ length: 11 }, (_, at) => ({ id: `n${String(at)}`, score: at })));
+        const binding: Binding = { by: "data.score", domain: [2, 6] };
+
+        const narrowed = session.styles.preview(binding, { channel: "node.color", bins: 5 });
+        const axis = session.styles.preview(binding, { channel: "node.color", bins: 5, span: "data" });
+        const written = session.styles.preview(binding, { channel: "node.color", bins: 5, span: "domain" });
+
+        assert.deepEqual([narrowed.bins[0].from, narrowed.bins.at(-1)?.to], [2, 6], "by default the domain");
+        assert.deepEqual(written, narrowed, "span domain is the default");
+        assert.deepEqual([axis.bins[0].from, axis.bins.at(-1)?.to], [0, 10], "the data's extent");
+        assert.deepEqual(axis.domain, [2, 6], "the domain is still the binding's");
+        assert.deepEqual(
+            axis.bins.map((bin) => bin.count),
+            [2, 2, 2, 2, 3],
+            "every value on the axis",
+        );
+        assert.deepEqual([axis.below, axis.above], [2, 4], "still counted against the domain");
+        await session.styles.add({
+            name: "Score",
+            target: "node",
+            selector: { match: "has", path: "data.score" },
+            encode: { "node.color": binding },
+        });
+        assert.strictEqual(hexOf(axis.bins[0].paints), colorOf(session, "n0"), "below the domain, its low end");
+        assert.strictEqual(hexOf(axis.bins.at(-1)?.paints), colorOf(session, "n10"), "above it, its high end");
+
+        const wider = session.styles.preview(
+            { by: "data.score", domain: [-5, 20] },
+            { channel: "node.color", span: "data" },
+        );
+        assert.deepEqual(
+            [wider.bins[0].from, wider.bins.at(-1)?.to],
+            [-5, 20],
+            "a domain past the data widens the axis",
+        );
+        session.dispose();
+    });
 });
 
 describe("a binding's own stops", () => {

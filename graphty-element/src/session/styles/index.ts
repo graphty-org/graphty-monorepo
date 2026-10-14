@@ -25,7 +25,7 @@ export { createAutoApplyPolicy } from "./autoApply";
 export type { ColorWrite, StyleColor } from "./colors";
 export type { EncodingSuggestion, HighlightSuggestion, StyleSuggestion } from "./derive";
 export { suggestStyles } from "./derive";
-export type { BindingPreview, BindingPreviewBin } from "./encoding";
+export type { BindingPreview, BindingPreviewBin, PreviewSpan } from "./encoding";
 export type {
     ColumnEncodingSpec,
     EncodingOptions,

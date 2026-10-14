@@ -1765,7 +1765,19 @@ export interface PreviewBindingOptions {
     readonly scales: ScaleRegistry;
     /** How many bins to cut a numeric domain into. */
     readonly bins?: number;
+    /** What the numeric bins span: the domain (the default), or the data's extent and the domain together. */
+    readonly span?: PreviewSpan;
 }
+
+/**
+ * What a preview's numeric bins span. `"domain"` cuts the binding's own domain, so a narrowed
+ * domain narrows the bins with it. `"data"` cuts the values' whole extent together with the
+ * domain, so an editor drawing the bins as its axis keeps every value on it while the domain
+ * moves inside: each bin still paints what the binding paints there, and `below` and `above`
+ * still count against the domain.
+ * @since 3.26.0
+ */
+export type PreviewSpan = "domain" | "data";
 
 /**
  * Find the value a monotonic scale places at a position, by halving.
@@ -1786,6 +1798,22 @@ function valueAt(place: (value: number) => number, domain: readonly [number, num
     }
 
     return (low + high) / 2;
+}
+
+/**
+ * The extent a `span: "data"` preview cuts: the values' own extent (what an automatic domain
+ * would be) together with the binding's domain.
+ * @param options - What the preview was given.
+ * @param low - The domain's lower end.
+ * @param high - The domain's upper end.
+ * @returns The two ends, ascending.
+ */
+function dataAxis(options: PreviewBindingOptions, low: number, high: number): [number, number] {
+    const { channel, column, scales } = options;
+    const binding: RuleBinding = { ...options.binding, domain: "auto", clamp: undefined };
+    const extent = prepareBinding({ channel, binding, column, scales }).domain ?? [low, high];
+
+    return [Math.min(low, ...extent), Math.max(high, ...extent)];
 }
 
 /**
@@ -1834,10 +1862,13 @@ export function previewBinding(options: PreviewBindingOptions): BindingPreview {
 
     const { domain } = prepared;
     const [low, high] = [Math.min(...domain), Math.max(...domain)];
+    // The bins' extent: the domain, or with `span: "data"` the values' extent around it.
+    const axis = options.span === "data" ? dataAxis(options, low, high) : null;
+    const [axisLow, axisHigh] = axis ?? [low, high];
     const binCount = Math.max(1, Math.floor(options.bins ?? PREVIEW_BINS));
     const map = scales.require(scale);
     const context: ScaleContext = {
-        domain: [domain[0], domain[1]],
+        domain: axis ?? [domain[0], domain[1]],
         range: [0, 1],
         ...(binding.midpoint === undefined ? {} : { midpoint: binding.midpoint }),
         ...(binding.exponent === undefined ? {} : { exponent: binding.exponent }),
@@ -1846,13 +1877,14 @@ export function previewBinding(options: PreviewBindingOptions): BindingPreview {
     const stepped = prepared.steps !== undefined;
     const place = (value: number): number => {
         if (stepped) {
-            return high === low ? 0 : (value - low) / (high - low);
+            return axisHigh === axisLow ? 0 : (value - axisLow) / (axisHigh - axisLow);
         }
 
         const placed = map(value, context);
         return typeof placed === "number" ? placed : Number.NaN;
     };
-    const ascending: readonly [number, number] = stepped ? [low, high] : [domain[0], domain[1]];
+    const ascending: readonly [number, number] =
+        stepped || axis !== null ? [axisLow, axisHigh] : [domain[0], domain[1]];
     const edges = Array.from({ length: binCount + 1 }, (_, at) => {
         if (at === 0 || at === binCount) {
             return ascending[at === 0 ? 0 : 1];
@@ -1885,7 +1917,9 @@ export function previewBinding(options: PreviewBindingOptions): BindingPreview {
             below++;
         } else if (number > high) {
             above++;
-        } else {
+        }
+
+        if (number >= axisLow && number <= axisHigh) {
             counts[Math.min(binCount - 1, Math.max(0, Math.floor(position * binCount)))]++;
         }
     }

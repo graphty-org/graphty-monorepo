@@ -1651,22 +1651,9 @@ class PajekParser {
                 i++;
                 continue;
             }
-            if (i + 1 >= tokens.length && isNumericText(token)) {
-                this.report.warnOnce(
-                    "validation-error",
-                    PAJEK_ISSUE.TRAILING_VALUE,
-                    `the number ${JSON.stringify(token)} alone at the end of a row is not a parameter; it is ignored`,
-                    { line },
-                );
-                break;
-            }
             if (i + 1 >= tokens.length) {
-                this.skip(domain);
-                throw new LineError(
-                    "parse-error",
-                    domain === "node" ? PAJEK_ISSUE.VERTEX_LINE : PAJEK_ISSUE.LINE,
-                    `parameter "${token}" has no value`,
-                );
+                this.loneLastToken(token, domain, line);
+                break;
             }
             if (seen.has(token)) {
                 this.report.warning(
@@ -1682,6 +1669,31 @@ class PajekParser {
             i += 2;
         }
         return extras;
+    }
+
+    /**
+     * A token alone at the end of a row, with no value after it: a number is ignored (reported once);
+     * anything else is a parameter without its value, which skips the row.
+     * @param token - the token
+     * @param domain - what is skipped when the row is malformed
+     * @param line - the line number
+     */
+    private loneLastToken(token: string, domain: "node" | "edge", line: number): void {
+        if (isNumericText(token)) {
+            this.report.warnOnce(
+                "validation-error",
+                PAJEK_ISSUE.TRAILING_VALUE,
+                `the number ${JSON.stringify(token)} alone at the end of a row is not a parameter; it is ignored`,
+                { line },
+            );
+            return;
+        }
+        this.skip(domain);
+        throw new LineError(
+            "parse-error",
+            domain === "node" ? PAJEK_ISSUE.VERTEX_LINE : PAJEK_ISSUE.LINE,
+            `parameter "${token}" has no value`,
+        );
     }
 
     /**

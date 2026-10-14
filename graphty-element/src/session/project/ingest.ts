@@ -1170,6 +1170,44 @@ export class Ingest<K extends KnownEdge> {
     }
 
     /**
+     * Report a load that failed while reading and throw what the caller is told.
+     * @param type - Data source type identifier
+     * @param error - What the read threw
+     * @param signal - The load's cancel signal
+     * @param progress - How far the load got
+     * @throws The error itself when the load was cancelled or the error is coded; otherwise an
+     *     Error naming the source and how many chunks it read
+     */
+    private failLoad(type: string, error: unknown, signal: AbortSignal | undefined, progress: LoadProgress): never {
+        // A cancelled load did not fail: whoever cancelled it says why.
+        if (signal?.aborted === true) {
+            throw error;
+        }
+
+        const failure = error instanceof Error ? error : new Error(String(error));
+        this.logger.error("Data source loading failed", failure, {
+            type,
+            chunksProcessed: progress.chunks,
+            nodeRecordsLoaded: progress.nodeRecords,
+            edgeRecordsLoaded: progress.edgeRecords,
+        });
+
+        this.host.loadFailed(type, failure, progress);
+
+        // A coded failure travels out UNCHANGED. Wrapping it in a plain Error destroyed
+        // the `code` a caller switches on, so `await graph.addDataFromSource(...)` was
+        // the one route where a reader's parse failure arrived as an unclassifiable
+        // string while the same failure on the event channel arrived as E_PARSE_FAILED.
+        if (isGraphtyError(error)) {
+            throw error;
+        }
+
+        throw new Error(
+            `Failed to load data from source '${type}' after ${progress.chunks} chunks: ${failure.message}`,
+        );
+    }
+
+    /**
      * Loads data from a registered data source
      * @param type - Data source type identifier
      * @param opts - Options to pass to the data source
@@ -1286,32 +1324,7 @@ export class Ingest<K extends KnownEdge> {
                 };
             } catch (error) {
                 end(failedEnd(error, signal));
-                // A cancelled load did not fail: whoever cancelled it says why.
-                if (signal?.aborted === true) {
-                    throw error;
-                }
-
-                const failure = error instanceof Error ? error : new Error(String(error));
-                this.logger.error("Data source loading failed", failure, {
-                    type,
-                    chunksProcessed: progress.chunks,
-                    nodeRecordsLoaded: progress.nodeRecords,
-                    edgeRecordsLoaded: progress.edgeRecords,
-                });
-
-                this.host.loadFailed(type, failure, progress);
-
-                // A coded failure travels out UNCHANGED. Wrapping it in a plain Error destroyed
-                // the `code` a caller switches on, so `await graph.addDataFromSource(...)` was
-                // the one route where a reader's parse failure arrived as an unclassifiable
-                // string while the same failure on the event channel arrived as E_PARSE_FAILED.
-                if (isGraphtyError(error)) {
-                    throw error;
-                }
-
-                throw new Error(
-                    `Failed to load data from source '${type}' after ${progress.chunks} chunks: ${failure.message}`,
-                );
+                return this.failLoad(type, error, signal, progress);
             }
         } catch (error) {
             end(failedEnd(error, signal));

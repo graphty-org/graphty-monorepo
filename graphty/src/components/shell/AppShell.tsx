@@ -966,6 +966,16 @@ export interface AppShellProps {
 }
 
 /**
+ * A value that is present only when a condition holds, for a prop or child that is left out otherwise.
+ * @param when - whether the value applies.
+ * @param value - the value.
+ * @returns the value, or undefined when the condition does not hold.
+ */
+function onlyWhen<T>(when: boolean, value: T): T | undefined {
+    return when ? value : undefined;
+}
+
+/**
  * The shell's frame and every region inside it.
  *
  * Split from {@link AppShell} because almost everything here reads the store, and
@@ -5265,19 +5275,19 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
 
     return (
         <>
-            {screenTooSmall ? screenTooSmallOverlay : null}
+            {onlyWhen(screenTooSmall, screenTooSmallOverlay)}
             <Box
                 ref={frameRef}
                 data-testid="app-shell"
                 inert={screenTooSmall}
-                aria-hidden={screenTooSmall ? true : undefined}
+                aria-hidden={onlyWhen(screenTooSmall, true)}
                 style={{
                     height: "100vh",
                     display: "grid",
                     gridTemplateRows: `${TOP_BAR_HEIGHT}px minmax(0, 1fr) ${STATUS_BAR_HEIGHT}px`,
                     gridTemplateColumns: "minmax(0, 1fr)",
                     overflow: "hidden",
-                    visibility: screenTooSmall ? "hidden" : undefined,
+                    visibility: onlyWhen(screenTooSmall, "hidden"),
                 }}
             >
                 {/* The top bar spans the full shell width, above the rail. */}
@@ -5330,7 +5340,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                     <Box data-shell-region="rail" style={{ display: "contents" }}>
                         <ActivityRail
                             activeActivity={panelActivity}
-                            disabledActivities={stateAxis === "empty" ? ACTIVITIES_REQUIRING_DATA : undefined}
+                            disabledActivities={onlyWhen(stateAxis === "empty", ACTIVITIES_REQUIRING_DATA)}
                             onActivityClick={handleActivityClick}
                             helpMenu={{
                                 opened: helpOpen,

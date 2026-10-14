@@ -4025,27 +4025,53 @@ function importCytoscapeEdges(ctx: ImportContext, edges: readonly unknown[], edg
             continue;
         }
         try {
-            const u = ctx.textualId(data.source, `${element}.data.source`);
-            const v = ctx.textualId(data.target, `${element}.data.target`);
-            if (u === null || v === null) {
-                ctx.countSkipped("edge");
-                continue;
-            }
-            const idValue = ctx.edgeIdValue(ids, data.id);
-            const edge = ctx.pushEdge(u, v, kind, ctx.weightOf(data), element);
-            ctx.setEdgeId(ids, edge, idValue);
-            const { weightFrom } = ctx.options;
-            for (const key of Object.keys(data)) {
-                if (key !== "id" && key !== "source" && key !== "target" && key !== weightFrom) {
-                    ctx.edges.write(edge, key, data[key], SUFFIX.data, element);
-                }
-            }
-            writeClasses(ctx, ctx.edges, edgeClassesColumn, edge, record.classes, element);
-            writeElementKeys(ctx.edges, edge, record, element);
+            pushCytoscapeEdge(ctx, { ids, kind, edgeClassesColumn }, record, data, element);
         } catch (err) {
             ctx.skip(err, "edge", element);
         }
     }
+}
+
+/**
+ * Add one Cytoscape edge element with both endpoints: its id, weight, data keys, `classes` and
+ * element-level keys.
+ * @param ctx - the context
+ * @param edges - what every edge of the document shares: the id column, the edge kind and the classes column
+ * @param edges.ids - the edge id column
+ * @param edges.kind - the edges' kind
+ * @param edges.edgeClassesColumn - the edge classes column, or INVALID_INDEX
+ * @param record - the element
+ * @param data - its data object
+ * @param element - the element name
+ */
+function pushCytoscapeEdge(
+    ctx: ImportContext,
+    edges: {
+        readonly ids: Parameters<ImportContext["edgeIdValue"]>[0];
+        readonly kind: EdgeKind;
+        readonly edgeClassesColumn: ColumnHandle;
+    },
+    record: JsonRecord,
+    data: JsonRecord,
+    element: string,
+): void {
+    const u = ctx.textualId(data.source, `${element}.data.source`);
+    const v = ctx.textualId(data.target, `${element}.data.target`);
+    if (u === null || v === null) {
+        ctx.countSkipped("edge");
+        return;
+    }
+    const idValue = ctx.edgeIdValue(edges.ids, data.id);
+    const edge = ctx.pushEdge(u, v, edges.kind, ctx.weightOf(data), element);
+    ctx.setEdgeId(edges.ids, edge, idValue);
+    const { weightFrom } = ctx.options;
+    for (const key of Object.keys(data)) {
+        if (key !== "id" && key !== "source" && key !== "target" && key !== weightFrom) {
+            ctx.edges.write(edge, key, data[key], SUFFIX.data, element);
+        }
+    }
+    writeClasses(ctx, ctx.edges, edges.edgeClassesColumn, edge, record.classes, element);
+    writeElementKeys(ctx.edges, edge, record, element);
 }
 
 /**

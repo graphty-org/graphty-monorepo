@@ -2,8 +2,6 @@ import {
     type AbstractActionManager,
     AbstractMesh,
     type Node as SceneNode,
-    type Observer,
-    type PointerInfoPre,
     type Scene,
 } from "@babylonjs/core";
 import { type DerivedGraph, type GraphSnapshot, INVALID_INDEX, type U32 } from "@graphty/graph-format";
@@ -21,6 +19,7 @@ import { GraphtyError } from "../errors/GraphtyError";
 import { type LayoutEngine, layoutEngineInternals } from "../layout/LayoutEngine";
 import { MeshCache } from "../meshes/MeshCache";
 import { adoptNodeRecord, Node, NodeIdType, placeNodeRow } from "../Node";
+import type { NodeDragHandler } from "../NodeBehavior";
 import { inputCountersOf } from "../session/attributes";
 import { legacyScopeOf } from "../session/commands/algo";
 import {
@@ -54,36 +53,45 @@ const GRAPH_RESULTS = "graphResults";
 export type { AddEdgesOptions } from "../session/project/ingest";
 
 /**
- * Take what the given nodes and edges are about to dispose out of every scene-wide list that holds
- * it, in one pass over each list, before any of them is disposed: their meshes out of
- * `scene.meshes` and out of their parent's children, each node mesh's action manager out of
- * `scene.actionManagers`, and each node's two pointer observers out of
- * `scene.onPrePointerObservable`.
+ * Dispose the given nodes and edges -- `teardown` does that -- at a cost in proportion to them,
+ * not to the scene they leave.
  *
- * Babylon removes each of those with `indexOf` and `splice` -- an observer a frame later, from a
- * timer of its own -- so disposing N elements one at a time out of a scene that holds them costs N
- * x scene size: about 20 s for a clear, a replacing import or undoing a load at the 50,000-node
- * render ceiling (issue #543). Dropped here first, each dispose searches only what is left and
- * finds nothing to splice; Babylon still runs the rest of its dispose, including the
- * `onMeshRemovedObservable` notification and the scene root-node bookkeeping.
+ * Babylon takes each disposed mesh, action manager and pointer observer out of a scene-wide list
+ * with `indexOf` and `splice`, and checks whether an action manager is still owned by walking
+ * `scene.meshes`. Disposing k elements one at a time out of a scene of N costs k x N: about 20 s
+ * for a clear at the 50,000-node render ceiling (issue #543), and quadratic for removing half a
+ * graph (issue #2732). So, before `teardown` runs, everything the elements are about to dispose
+ * is taken out of those lists in one pass over each: their meshes out of `scene.meshes` and their
+ * parent's children, each mesh's action manager out of `scene.actionManagers`, and each node's two
+ * pointer observers out of `scene.onPrePointerObservable`, which its drag handler then forgets so
+ * its dispose never searches for them. While `teardown` runs, the survivors are set aside and
+ * the two scene lists are empty, so every search a dispose makes finds nothing at once; Babylon
+ * still runs the rest of its dispose, including the `onMeshRemovedObservable` notification and
+ * the scene root-node bookkeeping. Afterwards the survivors go back in their order, less any that
+ * `teardown` disposed, followed by anything it added.
+ *
+ * An action manager a surviving mesh shares is unhooked from the doomed mesh first, so the
+ * doomed mesh's dispose, finding no other owner in the emptied list, does not dispose it.
  *
  * An observer list compacted while it is being notified would skip a surviving observer for that
  * one event. No teardown runs inside a pre-pointer notification today: removals go through the
- * session's dispatcher, not a pointer observer.
+ * session's dispatcher, not a pointer observer. No frame runs during `teardown`: it is synchronous.
  *
  * ONLY MESHES THE CALLER IS ABOUT TO DISPOSE may be passed: a live mesh dropped here would stay
  * alive and simply stop being drawn. Each element's own mesh and everything parented to it (a
  * node's label plane) are collected; those are what `Node.dispose` and `Edge.dispose` free. A
  * shared batch an edge's line or arrowhead is a slot in is never collected, because it still draws
  * the edges that stay. A mesh not collected -- a batch, a tooltip, a halo, a patterned line's
- * segments -- is still freed correctly by its own dispose, at the old per-mesh cost.
- * @param nodes - The nodes about to be disposed.
- * @param edges - The edges about to be disposed.
+ * segments -- is still freed correctly by its own dispose, and cheaply while the lists are empty.
+ * @param nodes - The nodes `teardown` disposes.
+ * @param edges - The edges `teardown` disposes.
+ * @param teardown - Disposes them.
+ * @returns What `teardown` returns.
  */
-function releaseFromScene(nodes: Iterable<Node>, edges: Iterable<Edge>): void {
+function disposeReleased<T>(nodes: Iterable<Node>, edges: Iterable<Edge>, teardown: () => T): T {
     const doomed = new Set<AbstractMesh>();
-    const observers = new Set<Observer<PointerInfoPre>>();
-    collectDoomed(nodes, edges, doomed, observers);
+    const handlers: NodeDragHandler[] = [];
+    collectDoomed(nodes, edges, doomed, handlers);
 
     // Only the parents that are not going themselves: a label's node mesh is, and its child list
     // is a handful long anyway.
@@ -98,7 +106,7 @@ function releaseFromScene(nodes: Iterable<Node>, edges: Iterable<Edge>): void {
     }
 
     if (scene === undefined) {
-        return;
+        return teardown();
     }
 
     dropAll(scene.meshes, doomed);
@@ -107,15 +115,21 @@ function releaseFromScene(nodes: Iterable<Node>, edges: Iterable<Edge>): void {
     const managers = new Set<AbstractActionManager>();
     for (const mesh of doomed) {
         const manager = mesh.actionManager;
-        if (manager?.disposeWhenUnowned && !kept.has(manager)) {
+        if (manager && kept.has(manager)) {
+            mesh.actionManager = null;
+        } else if (manager?.disposeWhenUnowned) {
             managers.add(manager);
         }
     }
 
     // Read through a plain shape: `Scene` declares this list itself, undeprecated, but also inherits
     // the deprecation `IAssetContainer` puts on it for asset containers, and lint sees only that.
-    dropAll((scene as { actionManagers: AbstractActionManager[] }).actionManagers, managers);
-    dropAll(scene.onPrePointerObservable.observers, observers);
+    const { actionManagers } = scene as { actionManagers: AbstractActionManager[] };
+    dropAll(actionManagers, managers);
+    dropAll(scene.onPrePointerObservable.observers, new Set(handlers.flatMap((handler) => handler.sceneObservers)));
+    for (const handler of handlers) {
+        handler.forgetSceneObservers();
+    }
 
     for (const parent of parents) {
         // Babylon has no public way to edit a node's child list in place; `getChildren()` copies it.
@@ -124,21 +138,49 @@ function releaseFromScene(nodes: Iterable<Node>, edges: Iterable<Edge>): void {
             dropAll(children, doomed);
         }
     }
+
+    const meshes = scene.meshes.splice(0);
+    const owned = actionManagers.splice(0);
+    try {
+        return teardown();
+    } finally {
+        restore(scene.meshes, meshes, (mesh) => !mesh.isDisposed());
+        restore(actionManagers, owned, () => true);
+    }
 }
 
 /**
- * Collect what {@link releaseFromScene} drops: each element's own live mesh and everything
- * parented to it, and each node's pointer observers.
+ * Put the survivors a teardown set aside back into a list it emptied, ahead of anything it added.
+ * @param list - The list.
+ * @param survivors - What was in it before.
+ * @param alive - Whether a survivor is still alive.
+ */
+function restore<T>(list: T[], survivors: readonly T[], alive: (item: T) => boolean): void {
+    const added = list.splice(0);
+    for (const item of survivors) {
+        if (alive(item)) {
+            list.push(item);
+        }
+    }
+
+    for (const item of added) {
+        list.push(item);
+    }
+}
+
+/**
+ * Collect what {@link disposeReleased} drops: each element's own live mesh and everything
+ * parented to it, and each node's drag handler.
  * @param nodes - The nodes about to be disposed.
  * @param edges - The edges about to be disposed.
  * @param doomed - Receives the meshes.
- * @param observers - Receives the pointer observers.
+ * @param handlers - Receives the drag handlers.
  */
 function collectDoomed(
     nodes: Iterable<Node>,
     edges: Iterable<Edge>,
     doomed: Set<AbstractMesh>,
-    observers: Set<Observer<PointerInfoPre>>,
+    handlers: NodeDragHandler[],
 ): void {
     // Anything that is not a live Babylon mesh is skipped: a patterned line, whose segments go by
     // their own dispose.
@@ -152,8 +194,8 @@ function collectDoomed(
     };
     for (const node of nodes) {
         add(node.mesh);
-        for (const observer of node.dragHandler?.sceneObservers ?? []) {
-            observers.add(observer);
+        if (node.dragHandler) {
+            handlers.push(node.dragHandler);
         }
     }
 
@@ -815,42 +857,44 @@ export class DataManager implements Manager {
     private dropRenderNodes(ids: ReadonlySet<NodeIdType>, slice: GraphSlice): EdgeId[] {
         const removed: EdgeId[] = [];
         const edges = [...this.edges.values()];
-        releaseFromScene(
+        disposeReleased(
             [...ids].flatMap((id) => this.nodes.get(id) ?? []),
             edges.filter((edge) => ids.has(edge.srcId) || ids.has(edge.dstId)),
-        );
-        for (const edge of edges) {
-            if (ids.has(edge.srcId) || ids.has(edge.dstId)) {
-                // An edge the slice still holds outlives its endpoint's render object: it goes
-                // back to waiting, as it waited before the endpoint arrived, so the redo that
-                // brings the endpoint back draws it again.
-                const record = slice.edges.get(edge.id);
-                const counter = edgeCounterOf(edge.id);
-                const row = this.store.edgeIndexOf(counter);
-                const { srcId, dstId } = edge;
-                this.teardownEdge(edge, edge.index);
-                if (record !== undefined && row !== INVALID_INDEX) {
-                    const pending: PendingEdge = {
-                        record: record,
-                        sourceId: srcId,
-                        targetId: dstId,
-                        edgeIndex: row,
-                        edgeId: counter,
-                    };
-                    this.pendingEdges.push(pending);
-                    this.rememberPending(pending);
-                    continue;
+            () => {
+                for (const edge of edges) {
+                    if (ids.has(edge.srcId) || ids.has(edge.dstId)) {
+                        // An edge the slice still holds outlives its endpoint's render object: it goes
+                        // back to waiting, as it waited before the endpoint arrived, so the redo that
+                        // brings the endpoint back draws it again.
+                        const record = slice.edges.get(edge.id);
+                        const counter = edgeCounterOf(edge.id);
+                        const row = this.store.edgeIndexOf(counter);
+                        const { srcId, dstId } = edge;
+                        this.teardownEdge(edge, edge.index);
+                        if (record !== undefined && row !== INVALID_INDEX) {
+                            const pending: PendingEdge = {
+                                record: record,
+                                sourceId: srcId,
+                                targetId: dstId,
+                                edgeIndex: row,
+                                edgeId: counter,
+                            };
+                            this.pendingEdges.push(pending);
+                            this.rememberPending(pending);
+                            continue;
+                        }
+
+                        removed.push(edge.id);
+                    }
                 }
 
-                removed.push(edge.id);
-            }
-        }
-
-        for (const node of [...this.nodes.values()]) {
-            if (ids.has(node.id)) {
-                this.disposeRenderNode(node);
-            }
-        }
+                for (const node of [...this.nodes.values()]) {
+                    if (ids.has(node.id)) {
+                        this.disposeRenderNode(node);
+                    }
+                }
+            },
+        );
 
         return removed;
     }
@@ -862,32 +906,33 @@ export class DataManager implements Manager {
      * @param edges - The edge ids removed, including every edge attached to a removed node.
      */
     private dropRendered(nodes: readonly NodeIdType[], edges: readonly EdgeId[]): void {
-        releaseFromScene(
+        disposeReleased(
             nodes.flatMap((id) => this.nodes.get(id) ?? []),
             edges.flatMap((id) => this.edges.get(id) ?? []),
+            () => {
+                for (const id of edges) {
+                    const edge = this.edges.get(id);
+                    if (edge !== undefined) {
+                        this.teardownEdge(edge, edge.index);
+                        continue;
+                    }
+
+                    const counter = edgeCounterOf(id);
+                    const pending = this.pendingEdges.findIndex((entry) => entry.edgeId === counter);
+                    if (pending !== -1) {
+                        this.forgetPending(this.pendingEdges[pending]);
+                        this.pendingEdges.splice(pending, 1);
+                    }
+                }
+
+                for (const id of nodes) {
+                    const node = this.nodes.get(id);
+                    if (node !== undefined) {
+                        this.disposeRenderNode(node);
+                    }
+                }
+            },
         );
-        for (const id of edges) {
-            const edge = this.edges.get(id);
-            if (edge !== undefined) {
-                this.teardownEdge(edge, edge.index);
-                continue;
-            }
-
-            const counter = edgeCounterOf(id);
-            const pending = this.pendingEdges.findIndex((entry) => entry.edgeId === counter);
-            if (pending !== -1) {
-                this.forgetPending(this.pendingEdges[pending]);
-                this.pendingEdges.splice(pending, 1);
-            }
-        }
-
-        for (const id of nodes) {
-            const node = this.nodes.get(id);
-            if (node !== undefined) {
-                this.disposeRenderNode(node);
-            }
-        }
-
         this.removedEdges = edges;
         if (nodes.length > 0 || edges.length > 0) {
             this.eventManager.emitElementsRemoved([...nodes], [...edges], this.cause);
@@ -1294,14 +1339,15 @@ export class DataManager implements Manager {
      * meshes this method just freed.
      */
     private disposeNodesAndEdges(): void {
-        releaseFromScene(this.nodes.values(), this.edges.values());
-        for (const edge of this.edges.values()) {
-            edge.dispose();
-        }
+        disposeReleased(this.nodes.values(), this.edges.values(), () => {
+            for (const edge of this.edges.values()) {
+                edge.dispose();
+            }
 
-        for (const node of this.nodes.values()) {
-            node.dispose();
-        }
+            for (const node of this.nodes.values()) {
+                node.dispose();
+            }
+        });
     }
 
     /**

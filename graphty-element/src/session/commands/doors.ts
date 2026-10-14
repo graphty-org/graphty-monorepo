@@ -1434,6 +1434,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             setPositionDirect: GESTURE,
             getNode: READ,
             sceneObservers: READ,
+            forgetSceneObservers: LIFECYCLE,
             select: SELECTION,
             dispose: LIFECYCLE,
         },

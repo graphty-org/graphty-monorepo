@@ -116,21 +116,26 @@ function calls() {
 const starts = () => calls().filter((c) => c.argv[1] === "start");
 const registry = () => JSON.parse(readFileSync(join(fake, "registry.json"), "utf8"));
 /**
- * Every live process running the state directory's daemon.
+ * Every live process running the state directory's daemon. A child the daemon spawns (git, gh)
+ * shows the daemon's command line between its fork and its exec, so a process whose parent is one
+ * of them is the daemon's child, never a second daemon: servherd starts every daemon.
  * @returns {number[]} their pids
  */
 function daemonPids() {
     const script = join(stateDir(), "current", "bin", "githerd-daemon.mjs");
-    return readdirSync("/proc")
-        .filter((name) => /^\d+$/.test(name))
-        .filter((pid) => {
-            try {
-                return readFileSync(`/proc/${pid}/cmdline`, "utf8").split("\0").includes(script) && alive(Number(pid));
-            } catch {
-                return false; // gone meanwhile
-            }
-        })
-        .map(Number);
+    /** @type {Map<number, number>} pid to parent pid */
+    const found = new Map();
+    for (const name of readdirSync("/proc").filter((n) => /^\d+$/.test(n))) {
+        try {
+            if (!readFileSync(`/proc/${name}/cmdline`, "utf8").split("\0").includes(script)) continue;
+            const stat = readFileSync(`/proc/${name}/stat`, "utf8");
+            const [state, ppid] = stat.slice(stat.lastIndexOf(")") + 2).split(" ");
+            if (state !== "Z") found.set(Number(name), Number(ppid));
+        } catch {
+            // gone meanwhile
+        }
+    }
+    return [...found].filter(([, ppid]) => !found.has(ppid)).map(([pid]) => pid);
 }
 
 /**
@@ -544,6 +549,20 @@ describe("one daemon", () => {
         expect(starts().map((c) => c.cwd)).toEqual([stateDir(), stateDir()]);
         expect(Object.keys(registry())).toEqual([daemonName()]);
         expect(daemonPids()).toHaveLength(1);
+    });
+
+    it("counts no child of the daemon as a second daemon, though it shows the daemon's command line", async () => {
+        // Between fork and exec, a child the daemon spawns (git, gh) still shows the daemon's
+        // command line. A shell's subshell is such a child that stays: it forks and never execs.
+        const script = join(stateDir(), "current", "bin", "githerd-daemon.mjs");
+        const stand = spawn("sh", ["-c", "(sleep 30; :) & echo up; wait", "sh", script], {
+            detached: true,
+            stdio: ["ignore", "pipe", "ignore"],
+        });
+        launchers.push(stand);
+        // The shell prints only after it forked the subshell.
+        await new Promise((r) => stand.stdout.once("data", r));
+        expect(daemonPids()).toEqual([stand.pid]);
     });
 });
 

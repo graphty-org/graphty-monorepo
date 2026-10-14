@@ -1370,40 +1370,67 @@ export async function startDaemon({
                 .map((f) => f.patch ?? null);
             if (detail.files.includes("nx.json")) detail.nxReleaseChanged = await nxReleaseChanged(node);
         }
-        if (config.ownerGate) {
-            // The newest run of each check only: a draft-event run's "CI not run" failure beside the
-            // ready run's made two failures, so the gate's steps were never read again (#2144).
-            const failing = newestCheckRuns(node).filter(
-                (c) =>
-                    config.requiredChecks.includes(c.name) &&
-                    c.status === "COMPLETED" &&
-                    !["SUCCESS", "NEUTRAL", "SKIPPED"].includes(c.conclusion),
-            );
-            if (failing.length === 1 && failing[0].databaseId) {
-                const job = failing[0].databaseId;
-                // A record from before the capture check was read has no `captureFailed`: read it once.
-                if (prev?.gateJob !== job || prev?.headSha !== node.headRefOid || !prev?.captureFailed) {
-                    const res = await github().get(`repos/${repo}/actions/jobs/${job}`);
-                    detail.failedSteps = (res.body?.steps ?? [])
-                        .filter((s) => s.conclusion === "failure")
-                        .map((s) => s.name);
-                    // A failed capture shows only in the gate's annotations (prs.mjs captureFailures).
-                    const notes = await github().get(`repos/${repo}/check-runs/${job}/annotations?per_page=100`);
-                    detail.gateAnnotations = (notes.body ?? []).map((/** @type {any} */ a) => String(a.message ?? ""));
-                }
-                detail.gateJob = job;
-                if (config.ownerGate.rejectMarker) {
-                    const since = node.commits?.nodes?.[0]?.commit?.committedDate ?? "1970-01-01T00:00:00Z";
-                    const res = await github().get(`repos/${repo}/issues/${n}/comments?since=${since}&per_page=100`);
-                    // Only the owner can reject: another account's comment never counts.
-                    detail.comments = (res.body ?? [])
-                        .filter((c) => board.byOwner(state, c.user?.login) && !board.isWatchdogComment(c.body))
-                        .map((c) => ({ body: c.body ?? "", createdAt: c.created_at }));
-                }
-            }
-        }
+        if (config.ownerGate) await gateDetail(node, prev, detail);
         detail.underlying = await underlyingFailures(node, prev);
         node.detail = detail;
+    }
+
+    /**
+     * Adds to a pull request's detail what the owner gate needs while its one failing required
+     * check is the gate's: the gate job's failed steps and annotations, read once per finished
+     * read of that job, and the owner's comments since the head, for the reject marker.
+     * @param {any} node the GraphQL node
+     * @param {any} prev the saved record
+     * @param {Record<string, any>} detail the detail, changed in place
+     */
+    async function gateDetail(node, prev, detail) {
+        const repo = config.repo;
+        // The newest run of each check only: a draft-event run's "CI not run" failure beside the
+        // ready run's made two failures, so the gate's steps were never read again (#2144).
+        const failing = newestCheckRuns(node).filter(
+            (c) =>
+                config.requiredChecks.includes(c.name) &&
+                c.status === "COMPLETED" &&
+                !["SUCCESS", "NEUTRAL", "SKIPPED"].includes(c.conclusion),
+        );
+        if (failing.length !== 1 || !failing[0].databaseId) return;
+        const job = failing[0].databaseId;
+        // A record from before the capture check was read has no `captureFailed`, and one from
+        // before `gateRead` may hold an unfinished read: read either once more.
+        if (prev?.gateRead !== job || prev?.headSha !== node.headRefOid || !prev?.captureFailed) {
+            Object.assign(detail, await readGateJob(job));
+        } else detail.gateRead = job;
+        detail.gateJob = job;
+        if (config.ownerGate?.rejectMarker) {
+            const since = node.commits?.nodes?.[0]?.commit?.committedDate ?? "1970-01-01T00:00:00Z";
+            const res = await github().get(`repos/${repo}/issues/${node.number}/comments?since=${since}&per_page=100`);
+            // Only the owner can reject: another account's comment never counts.
+            detail.comments = (res.body ?? [])
+                .filter((c) => board.byOwner(state, c.user?.login) && !board.isWatchdogComment(c.body))
+                .map((c) => ({ body: c.body ?? "", createdAt: c.created_at }));
+        }
+    }
+
+    /**
+     * Reads a failed gate job's failed steps and annotations. GitHub can call the check run
+     * complete before the job's steps have their conclusions: kept, such a read made #1727's
+     * visual wait "required check failing" for its whole head (issue #2081). So `gateRead` names
+     * the job only when every step has one; otherwise it is read again next poll.
+     * @param {number} job the job's id
+     * @returns {Promise<{failedSteps: string[], gateAnnotations: string[], gateRead?: number}>} what was read
+     */
+    async function readGateJob(job) {
+        const repo = config.repo;
+        /** @type {{name: string, conclusion: string | null}[]} */
+        const steps = (await github().get(`repos/${repo}/actions/jobs/${job}`)).body?.steps ?? [];
+        // A failed capture shows only in the gate's annotations (prs.mjs captureFailures).
+        const notes = await github().get(`repos/${repo}/check-runs/${job}/annotations?per_page=100`);
+        const finished = steps.length > 0 && steps.every((s) => s.conclusion != null);
+        return {
+            failedSteps: steps.filter((s) => s.conclusion === "failure").map((s) => s.name),
+            gateAnnotations: (notes.body ?? []).map((/** @type {any} */ a) => String(a.message ?? "")),
+            ...(finished ? { gateRead: job } : {}),
+        };
     }
 
     /**
@@ -3010,7 +3037,10 @@ export async function startDaemon({
         const shared = markShared(state, prs, nodes, { threshold: config.sharedFailurePrs, at: iso });
         for (const key of shared.declared) event("shared-failure", { key, prs: state.sharedFailures[key].prs });
         for (const end of shared.ended) event("shared-failure-ended", end);
-        for (const node of nodes) if (node.detail.gateJob) prs[node.number].gateJob = node.detail.gateJob;
+        for (const node of nodes) {
+            if (node.detail.gateJob) prs[node.number].gateJob = node.detail.gateJob;
+            if (node.detail.gateRead) prs[node.number].gateRead = node.detail.gateRead;
+        }
         await rerunCancelled(gh, prs, iso);
         for (const ended of board.expire(state, sessionGone)) {
             void ledger({

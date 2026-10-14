@@ -2087,6 +2087,46 @@ describe("the poll loop", () => {
         expect(daemon.state.prs["7"]).toMatchObject({ ownerGate: true, gateJob: 555 });
     });
 
+    it("reads the gate's steps again while GitHub has not finished them, then waits on the owner (#2081)", async () => {
+        writeConfig({
+            requiredChecks: ["All Checks Pass"],
+            ownerGate: { steps: ["^Check visual changes were accepted$"], rejectMarker: "visual-review-rejects" },
+        });
+        scene.prs = [gatedPr()];
+        const visual = { name: "Check visual changes were accepted", conclusion: "failure" };
+        // The check run is complete, its last step not yet: no step failed so far.
+        scene.job = {
+            555: {
+                steps: [
+                    { name: "Check all jobs passed", conclusion: "success" },
+                    { ...visual, conclusion: null },
+                ],
+            },
+        };
+        const daemon = await start();
+        await poll(daemon);
+        expect(daemon.state.prs["7"]).toMatchObject({
+            ownerGate: false,
+            stuck: expect.arrayContaining(["required check failing: All Checks Pass"]),
+        });
+        scene.job = { 555: { steps: [{ name: "Check all jobs passed", conclusion: "success" }, visual] } };
+        clock = new Date("2026-10-02T12:03:00Z");
+        await poll(daemon);
+        expect(daemon.state.prs["7"]).toMatchObject({ ownerGate: true, gateRead: 555 });
+        expect(daemon.state.prs["7"].stuck).toContain("waiting on owner: visual review");
+        clock = new Date("2026-10-02T12:06:00Z");
+        await poll(daemon);
+        const reads = () => gh.calls.filter((c) => c.args.at(-1)?.endsWith("/actions/jobs/555")).length;
+        expect(reads()).toBe(2);
+
+        // A record saved before `gateRead` with such a read kept (#1727) is read once more.
+        Object.assign(daemon.state.prs["7"], { ownerGate: false, ownerSteps: false, gateRead: undefined });
+        clock = new Date("2026-10-02T12:09:00Z");
+        await poll(daemon);
+        expect(daemon.state.prs["7"]).toMatchObject({ ownerGate: true, gateRead: 555 });
+        expect(reads()).toBe(3);
+    });
+
     it("takes the reject marker from the owner's comments only", async () => {
         writeConfig({
             requiredChecks: ["All Checks Pass"],

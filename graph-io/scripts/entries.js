@@ -25,6 +25,7 @@ export const ENTRIES = Object.freeze({
     obo: "src/formats/obo/index.ts",
     cys: "src/formats/cys/index.ts",
     styles: "src/styles/index.ts",
+    positions: "src/positions/index.ts",
 });
 
 /**

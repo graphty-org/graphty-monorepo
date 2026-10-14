@@ -385,7 +385,7 @@ describe("GML, DOT and Pajek read through graph-io", () => {
         );
 
         assert.deepStrictEqual(nodes, [
-            { id: "1", label: "z", position: { x: 0.1, y: 0.2, z: 0 }, x: 0.1, y: 0.2 },
+            { id: "1", label: "z", x: 0.1, y: 0.2, position: { x: 0.1, y: -0.2, z: 0 } },
             { id: "2" },
         ]);
     });
@@ -403,7 +403,8 @@ describe("GML, DOT and Pajek read through graph-io", () => {
 
         assert.deepStrictEqual(nodes, [
             { id: "1", label: "5" },
-            { id: "2", position: { x: 0.123456789, y: 0.5, z: 0 }, x: 0.123456789, y: 0.5 },
+            // x and y as written; the position is y up (Pajek is y down)
+            { id: "2", x: 0.123456789, y: 0.5, position: { x: 0.123456789, y: -0.5, z: 0 } },
         ]);
     });
 

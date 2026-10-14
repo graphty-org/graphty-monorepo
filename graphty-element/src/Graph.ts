@@ -343,6 +343,20 @@ export interface NodeScreenPosition {
 }
 
 /**
+ * The entries of an options object that hold a value: a key set to null or undefined is left out,
+ * so it never reaches a load as a declared-and-empty override.
+ * @param options - the options
+ * @returns the options without their empty entries
+ */
+function presentOnly<T extends Record<string, unknown>>(options: T): Partial<{ [K in keyof T]: NonNullable<T[K]> }> {
+    return Object.fromEntries(
+        Object.entries(options).filter(([, value]) => value !== null && value !== undefined),
+    ) as Partial<{
+        [K in keyof T]: NonNullable<T[K]>;
+    }>;
+}
+
+/**
  * Main orchestrator class for graph visualization and interaction.
  * Integrates Babylon.js scene management, coordinates nodes, edges, layouts, and styling.
  */
@@ -2028,6 +2042,9 @@ export class Graph implements GraphContext {
      *     labels) as style layers, so the graph looks as it does in the program that wrote it;
      *     `"none"` (the default) loads the data alone
      * @param options.styleOptions - How the file's styles are turned into layers
+     * @param options.layout - `"recommended"` chooses a layout for what was loaded once it is loaded:
+     *     `fixed`, which draws each node where the file put it, when every node arrived with a position,
+     *     and a computed one otherwise. `"keep"` (the default) leaves the layout as it is
      * @returns Promise that resolves to the load's id when data is loaded
      */
     async loadFromFile(
@@ -2042,6 +2059,7 @@ export class Graph implements GraphContext {
             graphName?: string;
             styles?: "file" | "none";
             styleOptions?: FileStyleOptions;
+            layout?: "recommended" | "keep";
         },
     ): Promise<{ loadId: number }> {
         const load = this.reserveLoad(options?.replace);
@@ -2102,6 +2120,9 @@ export class Graph implements GraphContext {
      *     labels) as style layers, so the graph looks as it does in the program that wrote it;
      *     `"none"` (the default) loads the data alone
      * @param options.styleOptions - How the file's styles are turned into layers
+     * @param options.layout - `"recommended"` chooses a layout for what was loaded once it is loaded:
+     *     `fixed`, which draws each node where the file put it, when every node arrived with a position,
+     *     and a computed one otherwise. `"keep"` (the default) leaves the layout as it is
      * @returns Promise that resolves to the load's id when data is loaded
      * @example
      * ```typescript
@@ -2127,6 +2148,7 @@ export class Graph implements GraphContext {
             graphName?: string;
             styles?: "file" | "none";
             styleOptions?: FileStyleOptions;
+            layout?: "recommended" | "keep";
         },
     ): Promise<{ loadId: number }> {
         const load = this.reserveLoad(options?.replace);
@@ -2144,9 +2166,15 @@ export class Graph implements GraphContext {
         const { graphIndex, graphName, styles, styleOptions } = options ?? {};
         const mergedOptions = {
             nodeIdPath: options?.nodeIdPath ?? configured.nodeIdPath,
-            ...(edgeSource === null ? {} : { edgeSource }),
-            ...(edgeTarget === null ? {} : { edgeTarget }),
-            ...withoutUndefined({ graphIndex, graphName, styles, styleOptions }),
+            ...presentOnly({
+                edgeSource,
+                edgeTarget,
+                graphIndex,
+                graphName,
+                layout: options?.layout,
+                styles,
+                styleOptions,
+            }),
         };
 
         // If we already fetched content for detection, pass it as data to avoid double-fetch

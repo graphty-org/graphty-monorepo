@@ -2903,6 +2903,9 @@ export class Graphty extends LitElement {
      *     labels) as style layers, so the graph looks as it does in the program that wrote it;
      *     `"none"` (the default) loads the data alone
      * @param options.styleOptions - How the file's styles are turned into layers
+     * @param options.layout - `"recommended"` chooses a layout for what was loaded once it is loaded:
+     *     `fixed`, which draws each node where the file put it, when every node arrived with a position,
+     *     and a computed one otherwise. `"keep"` (the default) leaves the layout as it is
      * @returns Promise that resolves to `{ loadId }`, the id every event about this load carries
      * @since 1.5.0
      * @example
@@ -2922,6 +2925,7 @@ export class Graphty extends LitElement {
             graphName?: string;
             styles?: "file" | "none";
             styleOptions?: FileStyleOptions;
+            layout?: "recommended" | "keep";
         },
     ): Promise<{ loadId: number }> {
         return this.#graph.loadFromUrl(url, options);
@@ -2945,6 +2949,9 @@ export class Graphty extends LitElement {
      *     labels) as style layers, so the graph looks as it does in the program that wrote it;
      *     `"none"` (the default) loads the data alone
      * @param options.styleOptions - How the file's styles are turned into layers
+     * @param options.layout - `"recommended"` chooses a layout for what was loaded once it is loaded:
+     *     `fixed`, which draws each node where the file put it, when every node arrived with a position,
+     *     and a computed one otherwise. `"keep"` (the default) leaves the layout as it is
      * @returns Promise that resolves to `{ loadId }`, the id every event about this load carries
      * @since 1.5.0
      * @example
@@ -2966,6 +2973,7 @@ export class Graphty extends LitElement {
             graphName?: string;
             styles?: "file" | "none";
             styleOptions?: FileStyleOptions;
+            layout?: "recommended" | "keep";
         },
     ): Promise<{ loadId: number }> {
         return this.#graph.loadFromFile(file, options);

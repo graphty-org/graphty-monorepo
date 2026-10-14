@@ -34,8 +34,8 @@ function statedBy(header: unknown, issues: readonly ImportIssue[]): string {
  * `@graphty/graph-io`'s GML importer.
  *
  * Each record carries the keys the file wrote: a node's `id` and its attributes (a nested
- * `graphics [ ... ]` block stays one nested object, and its `x`, `y` and `z` are also the node's
- * `position`), an edge's `source`, `target` and attributes.
+ * `graphics [ ... ]` block stays one nested object, as written) and its `position`, read from that
+ * block by the one path every reader shares (`toRecords`); an edge's `source`, `target` and attributes.
  * Only nodes the file declares become node records; an edge endpoint with no `node` block is left
  * to the element, as it always was.
  *
@@ -83,7 +83,7 @@ export class GMLDataSource extends DataSource {
             report.counts.expandedMixed,
         );
 
-        const { nodes, edges } = toRecords(imported, columnsMapping(snapshot, true), this);
+        const { nodes, edges } = toRecords(imported, columnsMapping(snapshot), this);
         yield* this.chunkData(nodes, edges);
     }
 }

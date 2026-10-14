@@ -17,7 +17,7 @@ type DOTDataSourceConfig = BaseDataSourceConfig;
  * edge endpoint (`a:p1 -> b`) names a place on the node, not another node, so it is not part of
  * the id. A cluster subgraph is a node of its own, with the cluster's attributes (its `label`,
  * `fillcolor` and so on), as graph-io reads it and as Graphviz draws it. `pos`
- * stays the text the file wrote. A node written in several statements has the attributes of all
+ * stays the text the file wrote, and the node's `position` is read from it. A node written in several statements has the attributes of all
  * of them, the later ones winning, as Graphviz draws it.
  *
  * DOT states direction once, in the keyword that opens the file. A body with no keyword
@@ -73,7 +73,7 @@ export class DOTDataSource extends DataSource {
             );
         }
 
-        const { nodes, edges } = toRecords(imported, columnsMapping(snapshot, true), this);
+        const { nodes, edges } = toRecords(imported, columnsMapping(snapshot), this);
         yield* this.chunkData(nodes, edges);
     }
 }

@@ -21,6 +21,7 @@ import {
 import type { AdHocData } from "../config/common.js";
 import { GraphtyError } from "../errors/index.js";
 import type { ErrorAggregator } from "./ErrorAggregator.js";
+import { applyFilePositions, filePositionsOf } from "./filePositions.js";
 
 /** How the scratch builder treats what the importer pushes, beyond what graph-format does itself. */
 interface ScratchPolicy {
@@ -111,10 +112,10 @@ class DeclaringBuilder extends GraphBuilder {
 
 /** What one import produced: the frozen scratch graph, the importer's report and the declared nodes. */
 export interface ImportedGraph {
-    /** The importer that read the file. */
-    readonly importer: GraphImporter;
     readonly snapshot: GraphSnapshot;
     readonly report: ImportReport;
+    /** The importer that read it, which says how the file spells its node positions. */
+    readonly importer: GraphImporter;
     /** The ids of the nodes the file declared, as opposed to those an edge created. */
     readonly declared: ReadonlySet<NodeId>;
 }
@@ -163,7 +164,7 @@ export async function importDocument<Opts>(
         ({ report } = error);
     }
 
-    return { importer, snapshot: builder.freeze(), report, declared: builder.declared };
+    return { snapshot: builder.freeze(), report, importer, declared: builder.declared };
 }
 
 /**
@@ -548,7 +549,8 @@ export function attributeKey(kind: "node" | "edge", title: string, id: string): 
 
 /**
  * Where {@link copyColumns} puts a column on a record: under its own name, except a reserved
- * `graphty.*` column and one named like a key that identifies the record, which it leaves out.
+ * `graphty.*` column, the stored node position ({@link toRecords} writes it as `position`) and one
+ * named like a key that identifies the record, which it leaves out.
  * @param kind - node or edge
  * @param column - the column
  * @returns the key, or null
@@ -556,6 +558,7 @@ export function attributeKey(kind: "node" | "edge", title: string, id: string): 
 export function copiedPath(kind: "node" | "edge", column: Column): string | null {
     const { name } = column.meta;
     return name.startsWith(RESERVED_PREFIX) ||
+        column.meta.role === "position" ||
         (IDENTITY_KEYS[kind] as readonly string[]).includes(name) ||
         (kind === "edge" && name === EDGE_ID_KEY)
         ? null
@@ -664,7 +667,8 @@ function readerImportOf(
 /**
  * Copy every set cell of one row onto a record: each attribute column under its own name, a
  * multi-component cell as an array, an f32 cell widened as {@link cell} does. graph-format's
- * reserved `graphty.*` columns carry structure, not data, and are not copied; nor is a key the
+ * reserved `graphty.*` columns carry structure, not data, and are not copied; nor is the stored
+ * node position, which {@link toRecords} writes in one spelling for every format; nor is a key the
  * record already holds, so a column named `id`, `source` or `target` cannot take their place.
  * @param table - the node or edge table
  * @param row - the row
@@ -673,27 +677,12 @@ function readerImportOf(
 export function copyColumns(table: AttributeTable, row: number, record: Record<string, unknown>): void {
     for (const column of table) {
         const { name } = column.meta;
-        if (name.startsWith(RESERVED_PREFIX) || Object.hasOwn(record, name) || !column.isSet(row)) {
+        const skipped = name.startsWith(RESERVED_PREFIX) || column.meta.role === "position";
+        if (skipped || Object.hasOwn(record, name) || !column.isSet(row)) {
             continue;
         }
 
         record[name] = ArrayBuffer.isView(column.value(row)) ? components(column, row) : cell(column, row);
-    }
-}
-
-/**
- * Write a node row's position (the column with role `position`) onto its record as
- * `position: { x, y, z }`, the shape every data source hands the element and
- * `readSeedPosition` reads. Call it before {@link copyColumns}, which then leaves the key alone.
- * @param table - the node table
- * @param row - the row
- * @param record - receives the position
- */
-export function copyPosition(table: AttributeTable, row: number, record: Record<string, unknown>): void {
-    const column = table.byRole("position");
-    if (column?.isSet(row) === true) {
-        const [x, y, z] = components(column, row);
-        record.position = { x, y, z };
     }
 }
 
@@ -703,7 +692,8 @@ export function copyPosition(table: AttributeTable, row: number, record: Record<
  * Only declared nodes become records, in declaration order. Each logical edge of the file becomes one record: when the importer expanded an edge into
  * two halves to hold a mixed-direction file, the mirror half (the one whose `pair` points at a
  * lower row) is skipped. An edge carries `weight` only when the file gave it one, at the precision
- * the importer read it with.
+ * the importer read it with. A node the file placed carries `position: { x, y, z }`: its center, y up,
+ * in the file's own unit, read by graph-io's `extractPositions` whatever the format's spelling.
  * @param imported - the import
  * @param mapping - the format's mapping from rows to record keys
  * @param reader - the data source the records are for, which remembers the import (see {@link readerImport})
@@ -729,6 +719,8 @@ export function toRecords(
         mapping.node(ids.indexOf(id), record);
         nodes.push(record);
     }
+
+    applyFilePositions(nodes, filePositionsOf(imported), (record) => ids.indexOf(record.id as NodeId));
 
     const pair = snapshot.edges.byRole("pair");
     const weight = snapshot.edges.byRole("weight");
@@ -812,20 +804,14 @@ export function withoutStyleSlots(snapshot: GraphSnapshot, mapping: RecordMappin
 }
 
 /**
- * The mapping that keeps every attribute under its own name (see {@link copyColumns}).
+ * The mapping that keeps every attribute under its own name and adds nothing (see {@link copyColumns}).
  * @param snapshot - the imported graph
- * @param positions - also give each node its position as `position: { x, y, z }` (see
- *     {@link copyPosition}); otherwise nothing is added
  * @returns the mapping
  */
-export function columnsMapping(snapshot: GraphSnapshot, positions = false): RecordMapping {
+export function columnsMapping(snapshot: GraphSnapshot): RecordMapping {
     return {
         path: copiedPath,
         node: (row, record) => {
-            if (positions) {
-                copyPosition(snapshot.nodes, row, record);
-            }
-
             copyColumns(snapshot.nodes, row, record);
         },
         edge: (row, record) => {

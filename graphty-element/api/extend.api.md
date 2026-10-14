@@ -283,6 +283,7 @@ export interface BaseDataSourceConfig {
     graphIndex?: number;
     graphName?: string;
     styles?: "file" | "none";
+    layout?: "recommended" | "keep";
     url?: string;
 }
 

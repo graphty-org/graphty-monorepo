@@ -270,6 +270,7 @@ export interface BaseDataSourceConfig {
     graphIndex?: number;
     graphName?: string;
     styles?: "file" | "none";
+    layout?: "recommended" | "keep";
     url?: string;
 }
 
@@ -899,6 +900,7 @@ export const EdgeStyle: z.ZodObject<{
             text: z.ZodOptional<z.ZodString>;
             font: z.ZodOptional<z.ZodDefault<z.ZodString>>;
             fontSize: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+            size: z.ZodOptional<z.ZodNumber>;
             fontWeight: z.ZodOptional<z.ZodDefault<z.ZodString>>;
             fontStyle: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
                 normal: "normal";
@@ -1066,6 +1068,7 @@ export const EdgeStyle: z.ZodObject<{
             text: z.ZodOptional<z.ZodString>;
             font: z.ZodOptional<z.ZodDefault<z.ZodString>>;
             fontSize: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+            size: z.ZodOptional<z.ZodNumber>;
             fontWeight: z.ZodOptional<z.ZodDefault<z.ZodString>>;
             fontStyle: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
                 normal: "normal";
@@ -1232,6 +1235,7 @@ export const EdgeStyle: z.ZodObject<{
         text: z.ZodOptional<z.ZodString>;
         font: z.ZodOptional<z.ZodDefault<z.ZodString>>;
         fontSize: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        size: z.ZodOptional<z.ZodNumber>;
         fontWeight: z.ZodOptional<z.ZodDefault<z.ZodString>>;
         fontStyle: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
             normal: "normal";
@@ -1660,6 +1664,7 @@ export class Graph implements GraphContext {
         graphName?: string;
         styles?: "file" | "none";
         styleOptions?: FileStyleOptions;
+        layout?: "recommended" | "keep";
     }): Promise<{
         loadId: number;
     }>;
@@ -1673,6 +1678,7 @@ export class Graph implements GraphContext {
         graphName?: string;
         styles?: "file" | "none";
         styleOptions?: FileStyleOptions;
+        layout?: "recommended" | "keep";
     }): Promise<{
         loadId: number;
     }>;
@@ -2091,6 +2097,7 @@ export class Graphty extends LitElement {
         graphName?: string;
         styles?: "file" | "none";
         styleOptions?: FileStyleOptions;
+        layout?: "recommended" | "keep";
     }): Promise<{
         loadId: number;
     }>;
@@ -2104,6 +2111,7 @@ export class Graphty extends LitElement {
         graphName?: string;
         styles?: "file" | "none";
         styleOptions?: FileStyleOptions;
+        layout?: "recommended" | "keep";
     }): Promise<{
         loadId: number;
     }>;
@@ -3452,6 +3460,7 @@ export const NodeStyle: z.ZodObject<{
         text: z.ZodOptional<z.ZodString>;
         font: z.ZodOptional<z.ZodDefault<z.ZodString>>;
         fontSize: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        size: z.ZodOptional<z.ZodNumber>;
         fontWeight: z.ZodOptional<z.ZodDefault<z.ZodString>>;
         fontStyle: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
             normal: "normal";
@@ -3598,6 +3607,7 @@ export const NodeStyle: z.ZodObject<{
         text: z.ZodOptional<z.ZodString>;
         font: z.ZodOptional<z.ZodDefault<z.ZodString>>;
         fontSize: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        size: z.ZodOptional<z.ZodNumber>;
         fontWeight: z.ZodOptional<z.ZodDefault<z.ZodString>>;
         fontStyle: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
             normal: "normal";
@@ -4214,6 +4224,7 @@ export const RichTextStyle: z.ZodObject<{
     text: z.ZodOptional<z.ZodString>;
     font: z.ZodOptional<z.ZodDefault<z.ZodString>>;
     fontSize: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+    size: z.ZodOptional<z.ZodNumber>;
     fontWeight: z.ZodOptional<z.ZodDefault<z.ZodString>>;
     fontStyle: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
         normal: "normal";

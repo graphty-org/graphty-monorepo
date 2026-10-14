@@ -25,6 +25,7 @@ import type {
     StyleReadContext,
     StyleWriteCapabilities,
 } from "./styles/types.js";
+import type { ImporterPositions, PositionReadContext } from "./positions/types.js";
 
 /**
  * What an importer reads: whole text, whole bytes, a byte stream (a browser
@@ -297,6 +298,20 @@ export interface GraphImporter<Opts = unknown> {
      * @returns the styles, or null when the file has none
      */
     styles?(snapshot: GraphSnapshot, context: StyleReadContext): ImporterStyles | null;
+    /**
+     * Optional: where this format's stored node coordinates are and how they are spelled, for
+     * `extractPositions()` (`@graphty/graph-io/positions`). Without it, the role-`position` column
+     * is read as its `meta.extra` declares (y up, center, file units when it says nothing). With it,
+     * the answer wins over the column's `meta.extra`; null falls back to the column.
+     *
+     * The simple form names plain numeric columns: `() => ({ x: "x", y: "y", yAxis: "down", units: "px" })`.
+     * The advanced form names a 3-component `column` and may add `anchor`, `width` / `height` size
+     * columns, `groups` (container boxes), `medianNodeSize` and `tool`.
+     * @param snapshot - the graph this importer read
+     * @param ctx - `signal` to abort
+     * @returns the spelling, or null to read the role-`position` column as declared
+     */
+    positions?(snapshot: GraphSnapshot, ctx: PositionReadContext): ImporterPositions | null;
 }
 
 /**

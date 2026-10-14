@@ -282,11 +282,6 @@ function gexfMapping(snapshot: GraphSnapshot, graphDirected: boolean, fileStyles
                 }
 
                 switch (column.meta.role) {
-                    case "position": {
-                        const [x, y, z] = components(column, row);
-                        record.position = { x, y, z };
-                        break;
-                    }
                     case "color": {
                         if (fileStyles) {
                             break;

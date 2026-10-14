@@ -127,6 +127,7 @@ import {
     SUFFIX,
 } from "./dialect.js";
 import { importObographs } from "./obographs.js";
+import { jsonPositions } from "./positions.js";
 import { jsonStyles, type JsonStyleSource } from "./styles.js";
 
 /**
@@ -4244,6 +4245,7 @@ export const jsonImporter: GraphImporter<JsonImportOptions> = Object.freeze({
         "typedefs",
     ]),
     extensions: Object.freeze([".json"]),
+    positions: jsonPositions,
     mimeTypes: Object.freeze(["application/json"]),
 
     /**

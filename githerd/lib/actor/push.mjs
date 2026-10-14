@@ -393,19 +393,36 @@ export function createPushQueue({
      * @returns {Promise<string>} the result, as the job's news line
      */
     async function attempt(e, job) {
-        const head = await worktreeHead(e.worktree);
+        // The commits the remote lacks are read beside the HEAD check; a moved HEAD answers first.
+        const [head, unpushed] = await Promise.all([
+            worktreeHead(e.worktree),
+            git(root, ["rev-list", e.head, "--not", `--remotes=${remote}`]).catch((/** @type {Error} */ err) => err),
+        ]);
         if (head !== e.head) return `push refused: the worktree's HEAD moved from ${e.head} to ${head}; push again`;
-        const reasons = [];
-        const shas = lines(await git(root, ["rev-list", e.head, "--not", `--remotes=${remote}`]));
-        for (const sha of shas) {
-            reasons.push(...(await commitReasons(root, sha, null, secrets)));
-            const patch = await git(root, ["show", "--format=", "--no-color", "--no-ext-diff", "-U0", sha]);
-            const added = patch.split("\n").filter((l) => l.startsWith("+") && !l.startsWith("+++ "));
-            for (const r of checkOutgoing(added.join("\n"), secrets)) {
-                reasons.push(`commit ${sha.slice(0, 9)}'s diff ${r}`);
-            }
-        }
-        reasons.push(...(await gateReasons(e, shas)));
+        if (unpushed instanceof Error) throw unpushed;
+        const shas = lines(unpushed);
+        // Every check is its own git process, and none waits on another: run side by side, a push
+        // waits for the slowest instead of the sum (five processes a commit, each slow to start on
+        // a machine busy with gates).
+        // ponytail: one batch of processes per push, unbounded; bound it if a push of hundreds of
+        // new commits ever matters.
+        const [own, gate] = await Promise.all([
+            Promise.all(
+                shas.map(async (sha) => {
+                    const [message, patch] = await Promise.all([
+                        commitReasons(root, sha, null, secrets),
+                        git(root, ["show", "--format=", "--no-color", "--no-ext-diff", "-U0", sha]),
+                    ]);
+                    const added = patch.split("\n").filter((l) => l.startsWith("+") && !l.startsWith("+++ "));
+                    const diff = checkOutgoing(added.join("\n"), secrets).map(
+                        (r) => `commit ${sha.slice(0, 9)}'s diff ${r}`,
+                    );
+                    return [...message, ...diff];
+                }),
+            ),
+            gateReasons(e, shas),
+        ]);
+        const reasons = [...own.flat(), ...gate];
         if (reasons.length) {
             await ledger({ kind: "push-refused", job: job.id, branch: e.branch, head: e.head, reasons });
             return `push refused: ${reasons.join("; ")}`;
@@ -482,19 +499,14 @@ export function createPushQueue({
      */
     async function gateReasons(e, shas) {
         const guarded = [...GATE_PATHS, ...protectedPaths()];
+        const dirtyCheck = exec("git", [...SAFE, "status", "--porcelain", "--", ...guarded], { cwd: e.worktree });
+        const trees = await Promise.all(
+            shas.map((sha) =>
+                git(root, ["diff-tree", "-r", "-m", "--first-parent", "--no-commit-id", "--name-only", sha]),
+            ),
+        );
         const changed = new Set();
-        for (const sha of shas) {
-            const out = await git(root, [
-                "diff-tree",
-                "-r",
-                "-m",
-                "--first-parent",
-                "--no-commit-id",
-                "--name-only",
-                sha,
-            ]);
-            for (const p of lines(out)) if (isProtected(p, guarded)) changed.add(p);
-        }
+        for (const out of trees) for (const p of lines(out)) if (isProtected(p, guarded)) changed.add(p);
         const reasons = [];
         const master = `refs/remotes/${remote}/${defaultBranch}`;
         for (const p of changed) {
@@ -505,7 +517,7 @@ export function createPushQueue({
             if (mine.code === theirs.code && mine.stdout === theirs.stdout) continue;
             reasons.push(`it changes ${p}, which decides what the gate runs or is githerd's own`);
         }
-        const dirty = await exec("git", [...SAFE, "status", "--porcelain", "--", ...guarded], { cwd: e.worktree });
+        const dirty = await dirtyCheck;
         if (dirty.code !== 0 || dirty.stdout.trim()) {
             const what = dirty.stdout.trim().split("\n").slice(0, 3).join(", ") || dirty.stderr.trim();
             reasons.push(`the worktree has uncommitted changes to gate paths: ${what}`);

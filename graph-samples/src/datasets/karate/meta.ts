@@ -1,4 +1,5 @@
 import { type DatasetMeta } from "../build.js";
+import { PACKED } from "../packed.js";
 
 /** What the karate dataset is, where it came from and under which terms. */
 export const karateMeta: DatasetMeta = {
@@ -22,4 +23,6 @@ export const karateMeta: DatasetMeta = {
         "minimum cut between nodes 0 and 33",
         "spring and Kamada-Kawai layouts",
     ],
+    hosting: "remote",
+    ...PACKED.karate,
 };

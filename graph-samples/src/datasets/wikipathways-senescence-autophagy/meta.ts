@@ -1,4 +1,5 @@
 import { type DatasetMeta } from "../build.js";
+import { PACKED } from "../packed.js";
 
 /** What the wikipathways-senescence-autophagy dataset is, where it came from and under which terms. */
 export const wikipathwaysSenescenceAutophagyMeta: DatasetMeta = {
@@ -26,4 +27,6 @@ export const wikipathwaysSenescenceAutophagyMeta: DatasetMeta = {
         "coloring by element type",
         "a small directed graph with many components",
     ],
+    hosting: "remote",
+    ...PACKED["wikipathways-senescence-autophagy"],
 };

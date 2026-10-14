@@ -1,4 +1,5 @@
 import { type DatasetMeta } from "../build.js";
+import { PACKED } from "../packed.js";
 
 /** What the politicalBlogs dataset is, where it came from and under which terms. */
 export const politicalBlogsMeta: DatasetMeta = {
@@ -27,4 +28,6 @@ export const politicalBlogsMeta: DatasetMeta = {
         "degree-corrected block models",
         "force-directed layouts colored by lean",
     ],
+    hosting: "remote",
+    ...PACKED["political-blogs"],
 };

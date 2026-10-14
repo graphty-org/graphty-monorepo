@@ -1406,6 +1406,22 @@ export function projectFileName(name: string | null | undefined): string {
 }
 
 /**
+ * Refuses to open a project over unsaved changes unless the caller discards them.
+ * @param dirty - The session has unsaved changes.
+ * @param discard - The caller's `discard` option.
+ * @throws {GraphtyError} E_UNSAVED_CHANGES when there are changes to lose.
+ */
+function refuseUnsaved(dirty: boolean, discard: boolean | undefined): void {
+    if (dirty && discard !== true) {
+        throw new GraphtyError({
+            code: "E_UNSAVED_CHANGES",
+            message: "The session has unsaved changes. Pass { discard: true } to open the project over them.",
+            source: "data",
+        });
+    }
+}
+
+/**
  * The project's name from a file's name: without `.graphty.json` or `.json`.
  * @param fileName - The file's name.
  * @returns The name, or null for none.
@@ -1568,14 +1584,7 @@ export function projectOf(
             const restored = new Set<ProjectSlice>();
 
             if (isProject) {
-                if (isDirty() && options.discard !== true) {
-                    throw new GraphtyError({
-                        code: "E_UNSAVED_CHANGES",
-                        message:
-                            "The session has unsaved changes. Pass { discard: true } to open the project over them.",
-                        source: "data",
-                    });
-                }
+                refuseUnsaved(isDirty(), options.discard);
 
                 const data = doc.members.get("graphty-data")?.[0];
                 if (data === undefined) {

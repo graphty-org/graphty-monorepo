@@ -384,6 +384,16 @@ const SAVE_COPY_ACTION = "Save a copy";
 const SHELL_AUTOSAVE_KEY = "app.graphty.shell";
 
 /**
+ * A value only while a condition holds.
+ * @param condition - whether to give the value.
+ * @param value - the value.
+ * @returns the value, or undefined when the condition does not hold.
+ */
+function onlyWhen<T>(condition: boolean, value: T): T | undefined {
+    return condition ? value : undefined;
+}
+
+/**
  * The graph host's autosave prop: the shell's key when autosave is on, nothing when it is off.
  * @param on - whether the shell autosaves.
  * @returns the props to spread.
@@ -5480,19 +5490,19 @@ function ShellFrame(props: { readonly persist: boolean; readonly autosave: boole
 
     return (
         <NoteDraftContext.Provider value={noteDraftKeeper}>
-            {screenTooSmall ? screenTooSmallOverlay : null}
+            {onlyWhen(screenTooSmall, screenTooSmallOverlay)}
             <Box
                 ref={frameRef}
                 data-testid="app-shell"
                 inert={screenTooSmall}
-                aria-hidden={screenTooSmall ? true : undefined}
+                aria-hidden={onlyWhen(screenTooSmall, true)}
                 style={{
                     height: "100vh",
                     display: "grid",
                     gridTemplateRows: `${TOP_BAR_HEIGHT}px minmax(0, 1fr) ${STATUS_BAR_HEIGHT}px`,
                     gridTemplateColumns: "minmax(0, 1fr)",
                     overflow: "hidden",
-                    visibility: screenTooSmall ? "hidden" : undefined,
+                    visibility: onlyWhen(screenTooSmall, "hidden" as const),
                 }}
             >
                 {/* The top bar spans the full shell width, above the rail. */}

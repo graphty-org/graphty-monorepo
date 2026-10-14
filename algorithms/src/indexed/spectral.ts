@@ -1,5 +1,6 @@
 import {
     type AdjacencyView,
+    detHypot,
     type GraphSnapshot,
     type NumericVector,
     renumberPartition,
@@ -313,7 +314,8 @@ function inertiaOf(points: Float64Array, assign: Uint32Array, n: number, d: numb
     for (let i = 0; i < n; i++) {
         const c = assign[i];
         for (let t = 0; t < d; t++) {
-            total += (points[i * d + t] - sums[c * d + t] / sizes[c]) ** 2;
+            const delta = points[i * d + t] - sums[c * d + t] / sizes[c];
+            total += delta * delta;
         }
     }
     return total;
@@ -404,7 +406,8 @@ function kMeans(
             let moved = 0;
             for (let t = 0; t < d; t++) {
                 const next = sums[c * d + t] / sizes[c];
-                moved += (next - centres[c * d + t]) ** 2;
+                const delta = next - centres[c * d + t];
+                moved += delta * delta;
                 centres[c * d + t] = next;
             }
             shift = Math.max(shift, Math.sqrt(moved));
@@ -518,7 +521,7 @@ export function spectralClustering(s: GraphSnapshot, options: SpectralOptions): 
     if (type === "normalized") {
         for (let i = 0; i < n; i++) {
             const row = points.subarray(i * k, i * k + k);
-            const norm = Math.hypot(...row);
+            const norm = detHypot(...row);
             if (norm > 0) {
                 row.forEach((x, c) => (row[c] = x / norm));
             }

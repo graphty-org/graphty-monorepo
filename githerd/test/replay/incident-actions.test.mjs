@@ -65,7 +65,16 @@ describe("replay: the daemon's incident actions on 2026-10-02", () => {
         const opened = [];
         const outcomes = [];
         const from = Date.parse("2026-10-02T00:00:00Z");
-        for (let at = from; at < Date.parse("2026-10-03T02:00:00Z"); at += 60_000) {
+        const to = Date.parse("2026-10-03T02:00:00Z");
+        // The daemon polls every minute, but folding an answer the minute before already gave is no
+        // news, and the actions are called only while a red stretch is open. So the replay polls
+        // only where master's answer changes (and the minute after), and every minute while an
+        // action is pending: the same outcomes as all 1,560 minutes, at a fraction of the work.
+        const changed = replay.changedMinutes(MASTER, from, to);
+        let polls = 0;
+        for (let at = from; at < to; at += 60_000) {
+            if (!changed.has(at) && !code && !paid) continue;
+            polls++;
             replay.setTime(at);
             const runs = (await github.get(MASTER, { purpose: "essential" })).body.workflow_runs;
             const folded = foldRuns(facts, runs, LANES, at);
@@ -105,6 +114,7 @@ describe("replay: the daemon's incident actions on 2026-10-02", () => {
             }
         }
 
+        expect(polls).toBeLessThan(550);
         expect(fake.writes()).toEqual([]);
         expect(opened).toEqual([
             "10-02T04:05 paid-capacity 36962785245",

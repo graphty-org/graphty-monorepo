@@ -34,8 +34,8 @@ function statedBy(header: unknown, issues: readonly ImportIssue[]): string {
  * `@graphty/graph-io`'s GML importer.
  *
  * Each record carries the keys the file wrote: a node's `id` and its attributes (a nested
- * `graphics [ ... ]` block stays one nested object, without its x, y and z, which are the node's
- * `position`), an edge's `source`, `target` and attributes.
+ * `graphics [ ... ]` block stays one nested object, as written) and its `position`, read from that
+ * block by the one path every reader shares (`toRecords`); an edge's `source`, `target` and attributes.
  * Only nodes the file declares become node records; an edge endpoint with no `node` block is left
  * to the element, as it always was.
  *
@@ -68,10 +68,10 @@ export class GMLDataSource extends DataSource {
         const imported = await importWhole(
             gmlImporter,
             await this.getInput(),
-            // The graphics block stays in the record without its x, y and z, which are the node's
-            // position, and `value` stays an attribute: the element reads its weight from the
-            // record, not from the importer.
-            { ids: "canonical", weightFrom: null },
+            // The graphics block stays whole in the record beside the position read from it, and
+            // `value` stays an attribute: the element reads its weight from the record, not from
+            // the importer.
+            { ids: "canonical", keepPositionSource: true, weightFrom: null },
             this.errorAggregator,
             // A repeated node id keeps its first declaration, as the element keeps a repeated record.
             { firstDeclarationWins: true },

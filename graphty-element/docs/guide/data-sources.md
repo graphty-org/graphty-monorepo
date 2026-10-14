@@ -484,8 +484,8 @@ These are read by `@graphty/graph-io` too, and each record keeps the keys the fi
   and the later line fills in only what the first left out (`1 0.1 0.2` then `1 "z"` is a node at
   0.1, 0.2 labelled `z`). A DOT node written in several statements has the attributes of all of
   them, the later ones winning, as Graphviz draws it;
-- a DOT cluster subgraph is a node only when an edge names it. A node's `pos` and a cluster's `bb`
-  become the record's `position` (see [Drawing a file where it was saved](#drawing-a-file-where-it-was-saved)).
+- a DOT cluster subgraph is a node only when an edge names it. A node's `pos` stays the text the
+  file wrote, and it and a cluster's `bb` give the record's `position` (see [Drawing a file where it was saved](#drawing-a-file-where-it-was-saved)).
 
 ### Changes in graphty-element 3.1
 

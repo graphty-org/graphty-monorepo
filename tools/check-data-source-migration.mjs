@@ -63,6 +63,29 @@ function defines(source, name) {
 }
 
 /**
+ * Checks one file of the data directory: a data source imports its importer from graph-io, and no
+ * file defines a parser function.
+ * @param file - the file's path
+ * @param name - the file's path as a problem names it
+ * @returns one line per problem
+ */
+function dataFileProblems(file, name) {
+    const problems = [];
+    const source = readFileSync(file, "utf8");
+    if (/^\w+DataSource\.ts$/.test(file.split(/[\\/]/).pop())) {
+        if (!importsOf(source, true).some((s) => s === "@graphty/graph-io" || s.startsWith("@graphty/graph-io/"))) {
+            problems.push(`${name}: does not import its importer from @graphty/graph-io`);
+        }
+    }
+    for (const fn of PARSER_FUNCTIONS) {
+        if (defines(source, fn)) {
+            problems.push(`${name}: defines the parser function ${fn}`);
+        }
+    }
+    return problems;
+}
+
+/**
  * Checks a repository tree.
  * @param rootDir - the repository root
  * @returns one line per problem, stable across edits that do not change the verdict
@@ -80,18 +103,7 @@ function check(rootDir) {
     }
     const dataDir = join(rootDir, DATA_DIR);
     for (const file of sourceFiles(dataDir)) {
-        const source = readFileSync(file, "utf8");
-        const name = file.split(/[\\/]/).pop();
-        if (/^\w+DataSource\.ts$/.test(name)) {
-            if (!importsOf(source, true).some((s) => s === "@graphty/graph-io" || s.startsWith("@graphty/graph-io/"))) {
-                problems.push(`${rel(file)}: does not import its importer from @graphty/graph-io`);
-            }
-        }
-        for (const fn of PARSER_FUNCTIONS) {
-            if (defines(source, fn)) {
-                problems.push(`${rel(file)}: defines the parser function ${fn}`);
-            }
-        }
+        problems.push(...dataFileProblems(file, rel(file)));
     }
     if (existsSync(join(dataDir, "csv-variant-detection.ts"))) {
         problems.push(`${DATA_DIR}/csv-variant-detection.ts: exists`);

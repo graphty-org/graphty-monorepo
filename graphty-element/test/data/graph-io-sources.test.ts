@@ -469,13 +469,10 @@ describe("GML, DOT and Pajek read through graph-io", () => {
         );
     });
 
-    test("DOT reads pos as the node's position, and its ! as a pin", async () => {
-        const { nodes } = await collect(new DOTDataSource({ data: 'graph { a [pos="1,2!"]; b [pos="3,4"] }' }));
+    test("DOT keeps pos as the text the file wrote beside the position read from it", async () => {
+        const { nodes } = await collect(new DOTDataSource({ data: 'graph { a [pos="1,2!"] }' }));
 
-        assert.deepStrictEqual(nodes, [
-            { id: "a", pin: true, position: { x: 1, y: 2, z: 0 } },
-            { id: "b", position: { x: 3, y: 4, z: 0 } },
-        ]);
+        assert.deepStrictEqual(nodes, [{ id: "a", position: { x: 1, y: 2, z: 0 }, pos: "1,2!", pin: true }]);
     });
 
     test("DOT reads a body with no keyword by its edge operators", async () => {

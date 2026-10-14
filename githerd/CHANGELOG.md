@@ -1,3 +1,24 @@
+## 0.1.6 (2026-10-14)
+
+### 🩹 Fixes
+
+- **githerd:** require a job's pull request to name the issues joined into it ([#2262](https://github.com/graphty-org/graphty-monorepo/issues/2262), [#2261](https://github.com/graphty-org/graphty-monorepo/issues/2261), [#2499](https://github.com/graphty-org/graphty-monorepo/issues/2499))
+- **githerd:** name the holding session wherever a holder is shown ([#2486](https://github.com/graphty-org/graphty-monorepo/issues/2486))
+- **githerd:** cut the work of the tests that timed out in busy pre-push gates ([#2478](https://github.com/graphty-org/graphty-monorepo/issues/2478), [#2479](https://github.com/graphty-org/graphty-monorepo/issues/2479), [#2480](https://github.com/graphty-org/graphty-monorepo/issues/2480))
+- **githerd:** keep an issue off the queue while a stacked pull request fixes it ([#2470](https://github.com/graphty-org/graphty-monorepo/issues/2470))
+
+### 🔥 Performance
+
+- **githerd:** drop ended owner items from state and save state.json compactly ([#2352](https://github.com/graphty-org/graphty-monorepo/issues/2352), [#2270](https://github.com/graphty-org/graphty-monorepo/issues/2270))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.53
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.1.5 (2026-10-14)
 
 ### 🩹 Fixes

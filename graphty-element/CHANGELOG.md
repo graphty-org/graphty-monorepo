@@ -1,3 +1,23 @@
+## 3.25.8 (2026-10-14)
+
+### 🩹 Fixes
+
+- **graphty-element:** keep the node positions GML, DOT and Pajek files store ([#2490](https://github.com/graphty-org/graphty-monorepo/issues/2490))
+- **graphty-element:** use engine-independent math in seeded layouts and A* ([#2440](https://github.com/graphty-org/graphty-monorepo/issues/2440))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.53
+- Updated graph-samples to 0.1.31
+- Updated graph-format to 1.4.0
+- Updated algorithms to 3.4.6
+- Updated graph-io to 0.3.39
+- Updated layout to 2.5.2
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.25.7 (2026-10-14)
 
 ### 🩹 Fixes

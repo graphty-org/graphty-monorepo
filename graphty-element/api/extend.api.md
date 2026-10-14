@@ -282,8 +282,8 @@ export interface BaseDataSourceConfig {
     file?: File;
     graphIndex?: number;
     graphName?: string;
-    styles?: "file" | "none";
     layout?: "recommended" | "keep";
+    styles?: "file" | "none";
     url?: string;
 }
 

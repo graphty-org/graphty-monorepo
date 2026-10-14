@@ -269,8 +269,8 @@ export interface BaseDataSourceConfig {
     file?: File;
     graphIndex?: number;
     graphName?: string;
-    styles?: "file" | "none";
     layout?: "recommended" | "keep";
+    styles?: "file" | "none";
     url?: string;
 }
 
@@ -3322,7 +3322,6 @@ export const NodeShapes: z.ZodEnum<{
     vee: "vee";
     star: "star";
     sphere: "sphere";
-    ellipse: "ellipse";
     cylinder: "cylinder";
     cone: "cone";
     capsule: "capsule";
@@ -3348,6 +3347,7 @@ export const NodeShapes: z.ZodEnum<{
     geodesic: "geodesic";
     rectangle: "rectangle";
     "round-rectangle": "round-rectangle";
+    ellipse: "ellipse";
     triangle: "triangle";
     pentagon: "pentagon";
     hexagon: "hexagon";
@@ -3366,7 +3366,6 @@ export const NodeStyle: z.ZodObject<{
             vee: "vee";
             star: "star";
             sphere: "sphere";
-            ellipse: "ellipse";
             cylinder: "cylinder";
             cone: "cone";
             capsule: "capsule";
@@ -3392,6 +3391,7 @@ export const NodeStyle: z.ZodObject<{
             geodesic: "geodesic";
             rectangle: "rectangle";
             "round-rectangle": "round-rectangle";
+            ellipse: "ellipse";
             triangle: "triangle";
             pentagon: "pentagon";
             hexagon: "hexagon";
@@ -3437,9 +3437,9 @@ export const NodeStyle: z.ZodObject<{
         width: z.ZodOptional<z.ZodNumber>;
         style: z.ZodOptional<z.ZodEnum<{
             solid: "solid";
-            double: "double";
             dashed: "dashed";
             dotted: "dotted";
+            double: "double";
         }>>;
     }, z.core.$strict>>;
     label: z.ZodOptional<z.ZodPrefault<z.ZodObject<{

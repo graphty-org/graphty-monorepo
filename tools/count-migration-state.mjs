@@ -33,7 +33,8 @@ const CSR_HELPERS = new Set([
  * @param value - a list (printed as its length and its members) or a single value
  */
 function print(label, value) {
-    console.log(`${label}: ${Array.isArray(value) ? `${value.length} -- ${value.join(", ")}` : value}`);
+    const shown = Array.isArray(value) ? `${value.length} -- ${value.join(", ")}` : value;
+    console.log(`${label}: ${shown}`);
 }
 
 /**
@@ -47,6 +48,30 @@ function legacyFile(path) {
         return true;
     }
     return !["indexed/", "data-structures/", "types/", "utils/", "errors.ts"].some((p) => path.startsWith(p));
+}
+
+/**
+ * The value names one import clause binds, as the exporting module spells them: `default`, `*`
+ * for a namespace import, and each named specifier that is not type-only.
+ * @param clause - the import clause (not type-only)
+ * @returns the names
+ */
+function clauseValueNames(clause) {
+    const names = [];
+    if (clause.name !== undefined) {
+        names.push("default");
+    }
+    const bindings = clause.namedBindings;
+    if (bindings !== undefined && ts.isNamespaceImport(bindings)) {
+        names.push("*");
+    } else if (bindings !== undefined) {
+        for (const el of bindings.elements) {
+            if (!el.isTypeOnly) {
+                names.push((el.propertyName ?? el.name).text);
+            }
+        }
+    }
+    return names;
 }
 
 /**
@@ -72,19 +97,7 @@ function valueImports(text, moduleRe) {
         if (clause.isTypeOnly) {
             continue;
         }
-        if (clause.name !== undefined) {
-            names.push("default");
-        }
-        const bindings = clause.namedBindings;
-        if (bindings !== undefined && ts.isNamespaceImport(bindings)) {
-            names.push("*");
-        } else if (bindings !== undefined) {
-            for (const el of bindings.elements) {
-                if (!el.isTypeOnly) {
-                    names.push((el.propertyName ?? el.name).text);
-                }
-            }
-        }
+        names.push(...clauseValueNames(clause));
     }
     return names;
 }

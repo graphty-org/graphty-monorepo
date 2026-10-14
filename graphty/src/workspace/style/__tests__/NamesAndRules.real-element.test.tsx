@@ -123,8 +123,8 @@ describe("one name per value, rules in words", () => {
 
     it("each value has one name in the Style tab, the Values tab and the key", async () => {
         const { rows } = await openScene();
-        // A measurement's value goes by its algorithm's name; a grouping's by what it holds.
-        const expected = { degree: "Degree", louvain: "Community", bridges: "Edge betweenness" } as const;
+        // A measurement's value and a grouping's go by the algorithm's name, as the tree names runs.
+        const expected = { degree: "Degree", louvain: "Louvain", bridges: "Edge betweenness" } as const;
         for (const [run, name] of Object.entries(expected) as [keyof typeof expected, string][]) {
             const style = await openRow(rows[run], "Style");
             await waitFor(() => {

@@ -505,6 +505,8 @@ export function startingValue(
             : undefined;
     const value =
         highlight ??
+        // What the element draws there now (no head on an undirected graph), else the catalog's.
+        session?.styles.defaultValue(descriptor.channel) ??
         descriptor.default ??
         (descriptor.accepts === "number" ? descriptor.min : undefined) ??
         (descriptor.accepts === "enum" ? descriptor.values?.[0] : undefined) ??

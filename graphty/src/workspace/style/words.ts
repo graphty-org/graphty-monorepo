@@ -363,7 +363,14 @@ export function readableName(session: GraphSession, value: ReadableValue): { nam
     const primary = session.results.path(run.id);
     const field = run.fields.find((f) => session.results.path(run.id, f.name) === primary)?.plainName;
     const descriptor = session.catalog.algorithms().find((each) => each.key === run.algorithm);
-    const measured = descriptor !== undefined && (run.shape === "node-metric" || run.shape === "edge-metric");
+    // A measure or a grouping is named after its method, as the style tree names its row: "Louvain",
+    // never the field's "Community".
+    const measured =
+        descriptor !== undefined &&
+        (run.shape === "node-metric" ||
+            run.shape === "edge-metric" ||
+            run.shape === "community" ||
+            run.shape === "layered-grouping");
     const main = measured ? wordsFor(descriptor).name : field;
     const group = runName(session, run);
     // The main value, or the main value read at an edge's end, which carries the same catalog name.

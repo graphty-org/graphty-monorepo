@@ -17,6 +17,7 @@ import { page, userEvent } from "vitest/browser";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
+import { paletteWord } from "../words";
 
 /** A hang guard for the element coming up, not a pass/fail timing. */
 const TIMEOUT_MS = 90_000;
@@ -175,7 +176,9 @@ async function editValue(
     // A palette change reaches every value without an entry and leaves the entry alone.
     await userEvent.click(within(popover).getByRole("combobox", { name: /^Palette/ }));
     const options = await screen.findAllByRole("option");
-    const next = options.find((o) => o.getAttribute("aria-selected") !== "true");
+    // The layer sets no palette, so none is shown as chosen: pick one other than the one in force.
+    const inForce = session.styles.legendOf(layer.id).find((block) => block.channel === "node.color")?.palette?.name;
+    const next = options.find((o) => o.textContent !== paletteWord(inForce ?? ""));
     assert.isDefined(next);
     if (next !== undefined) {
         await userEvent.click(next);

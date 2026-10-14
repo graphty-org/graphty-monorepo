@@ -181,7 +181,8 @@ describe("one line per property", () => {
         const pill = line.querySelector<HTMLElement>(".cm-var-fill");
         assert.isNotNull(pill);
         const chit = line.querySelector<HTMLElement>(".cm-var-chit");
-        assert.isAtLeast(chit?.getBoundingClientRect().width ?? 0, 30, "a strip of its colors at rest");
+        // Wider than a one-color chit (16), narrow enough that the source's name fits beside it.
+        assert.isAtLeast(chit?.getBoundingClientRect().width ?? 0, 20, "a strip of its colors at rest");
         const before = pill?.getBoundingClientRect().width;
         await userEvent.click(within(line).getByRole("button", { name: /^Node color: / }));
         await screen.findByRole("dialog", { name: /Color from data/ });

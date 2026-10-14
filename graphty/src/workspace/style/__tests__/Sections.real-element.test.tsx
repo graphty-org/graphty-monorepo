@@ -274,8 +274,8 @@ describe("the Style tab's sections", () => {
         within(screen.getByRole("tree", { name: "Style layers" })).getByRole("treeitem", { name: /^Key people, / });
     });
 
-    it("hands focus to the section's '+' when Undo takes an added row away", async () => {
-        await openScene();
+    it("hands focus to the restored row, or the section's '+', on every Undo, and announces each", async () => {
+        const { store } = await openScene();
         await openStyle("Key people");
         await userEvent.click(within(section("node", "shape")).getByRole("button", { name: "Add to node shape" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Size" }));
@@ -291,18 +291,82 @@ describe("the Style tab's sections", () => {
         await waitFor(() => {
             assert.equal(document.activeElement?.getAttribute("aria-label"), "Add to node shape");
         });
+        const spoken = store.get().announced;
         await userEvent.keyboard("{Control>}z{/Control}");
         const back = await waitFor(() => {
             const found = section("node", "shape").querySelector<HTMLElement>('.ws-row[data-line="node.size"]');
             assert.isNotNull(found, "Undo brings the row back");
+            assert.isTrue(
+                found?.querySelector(".ws-field-control")?.contains(document.activeElement),
+                "focus in the restored row's field",
+            );
             return found;
         });
+        assert.match(store.get().announcement, /^Undid /, "the Undo is announced");
+        assert.isAbove(store.get().announced, spoken);
         within(back).getByRole("button", { name: "Remove node size" }).focus();
+        const again = store.get().announced;
         await userEvent.keyboard("{Control>}z{/Control}");
         await waitFor(() => {
             assert.isTrue(isEmpty(section("node", "shape")), "Undo takes the add back");
             assert.equal(document.activeElement?.getAttribute("aria-label"), "Add to node shape", "focus on its '+'");
         });
+        assert.isAbove(store.get().announced, again, "this Undo is announced too");
+    });
+
+    it("starts an added arrowhead at what an undirected graph draws there: none", async () => {
+        const { session } = await openScene();
+        await openStyle("Everything");
+        await userEvent.click(within(section("edge", "ends")).getByRole("button", { name: "Add to edge ends" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Head" }));
+        await waitFor(() => {
+            assert.equal(written(session, "Everything", "edge.arrowHead"), "none");
+        });
+    });
+
+    it("names a grouping's field after its method, and a bound row says once who covers it", async () => {
+        const { session } = await openScene();
+        const { runId } = await session.runs.start("louvain");
+        await session.styles.encode({ run: runId, channel: "node.color", name: "Groups" });
+        await session.styles.add({
+            name: "Cover",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.color": "#123456" },
+        });
+        await session.styles.settled();
+        await openStyle("Groups");
+        const pill = await waitFor(() => {
+            const found = section("node", "fill").querySelector<HTMLElement>(".cm-var-name");
+            assert.equal(found?.textContent, "Louvain", "named after the method, as the tree names runs");
+            return found;
+        });
+        assert.isNotNull(pill);
+        const color = section("node", "fill").querySelector<HTMLElement>('.ws-row[data-line="node.color"]');
+        assert.match(color?.querySelector("[data-covered-caption]")?.textContent ?? "", /^Covered by Cover on /);
+        assert.notInclude(color?.textContent ?? "", "Painted over", "one caption, not two");
+    });
+
+    it("offers a popover's choices without showing an unset one as the value", async () => {
+        const { session } = await openScene();
+        const { runId } = await session.runs.start("louvain");
+        await session.styles.encode({ run: runId, channel: "node.color", name: "Groups" });
+        await session.styles.settled();
+        const layer = session.styles.list().find((each) => each.name === "Groups");
+        assert.isUndefined(layer?.encode?.["node.color"]?.palette, "the layer sets no palette");
+        await openStyle("Groups");
+        await userEvent.click(
+            await waitFor(() => within(section("node", "fill")).getByRole("button", { name: /^Node color: / })),
+        );
+        const dialog = await screen.findByRole("dialog");
+        const palette = within(dialog).getByLabelText(/^Palette/);
+        assert.equal(palette.getAttribute("aria-label"), "Palette, not set");
+        assert.equal((palette as HTMLInputElement).value, "", "no palette shown as chosen");
+        const chips = within(dialog).getAllByRole("button", { name: / color, not set/ });
+        assert.isAbove(chips.length, 0);
+        for (const chip of chips) {
+            assert.notMatch(chip.getAttribute("aria-label") ?? "", /#[0-9A-F]{6}/i, "no color named as its value");
+        }
     });
 
     it("starts an added property from the one value beneath, and over values that vary from one plain value", async () => {

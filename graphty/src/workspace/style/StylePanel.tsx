@@ -34,6 +34,7 @@ import {
 } from "./row";
 import { Section } from "./Section";
 import { focusLineNext, useFocusLine } from "./useFocusLine";
+import { useLabelColumn } from "./useLabelColumn";
 import { useStyleVersion } from "./useStyleVersion";
 import { RuleEditor, WhichElements } from "./WhichElements";
 import {
@@ -145,7 +146,13 @@ export function StylePanel({ layers, rowId }: Readonly<StylePanelProps>): React.
         startingEverything(session) === undefined;
     // Keyed by the row, so an empty label line is dropped when the row changes.
     return (
-        <RowStyle key={row.join(" ")} session={session} row={row} fresh={everything ? EVERYTHING_LAYER : undefined} />
+        <RowStyle
+            key={row.join(" ")}
+            session={session}
+            row={row}
+            fresh={everything ? EVERYTHING_LAYER : undefined}
+            panel={layers === undefined ? `${inspected?.kind ?? "everything-row"} ${inspected?.id ?? ""}` : undefined}
+        />
     );
 }
 
@@ -330,6 +337,8 @@ export function StateLine({
  * @param props.head - what the tab shows above the groups (a layer's Which elements)
  * @param props.many - for several rows edited together, per kind: what they share and how a
  *   write reaches each
+ * @param props.panel - which row the tab shows, when its layers can come and go under it (the
+ *   Everything row's first line adds its layer); by default its tree row, else its layers
  * @returns The tab
  */
 export function RowStyle({
@@ -340,6 +349,7 @@ export function RowStyle({
     below,
     head,
     many,
+    panel,
 }: Readonly<{
     session: GraphSession;
     row: readonly LayerId[];
@@ -348,8 +358,10 @@ export function RowStyle({
     below?: string;
     head?: React.ReactNode;
     many?: (side: Target) => Pick<RowContext, "many" | "beneath">;
+    panel?: string;
 }>): React.JSX.Element {
-    const scope = useFocusLine<HTMLDivElement>();
+    const scope = useFocusLine<HTMLDivElement>(panel ?? below ?? row.join(" "));
+    useLabelColumn(scope);
     const sides = offered.filter((t) => fresh !== undefined || rowLayers(session, row, t).length > 0);
     // Beneath the row, over its own elements: its tree row, else its lowest layer's, else (a row
     // not written yet) the stack as it is.
@@ -459,6 +471,7 @@ function SelectionRow({ session }: Readonly<{ session: GraphSession }>): React.J
             row={row}
             sides={sides}
             fresh={selectionLayer(session, selectionName(session))}
+            panel={`selection ${JSON.stringify([nodes, edges])}`}
         />
     );
 }

@@ -682,7 +682,8 @@ const NEUTRAL_SCALES: ReadonlySet<string> = new Set(["linear", "ordinal", "passt
 /**
  * A varied field's second line (tier3 design, section 2.2): up to 8 category chits and "+N", a
  * ramp's domain ends, or a number's From / To; then a note for each non-neutral setting ("Log
- * scale", the element's legend facts), as plain secondary text. All of it from the element's
+ * scale", the element's legend facts but the one the field's coverage caption already says), as
+ * plain secondary text. All of it from the element's
  * legend block for the field.
  * @param props - Component props
  * @param props.block - the field's legend block, if the element has painted it
@@ -696,8 +697,9 @@ function VariedLine({ block }: Readonly<{ block: LegendBlock | undefined }>): Re
         ...(block.scale === undefined || NEUTRAL_SCALES.has(block.scale.kind)
             ? []
             : [`${SCALE_WORDS[block.scale.kind] ?? enumWords(block.scale.kind)} scale`]),
+        // The field's own coverage caption ("Covered by ... on 77 of 77") says who paints over it.
         ...block.facts.flatMap((fact) => {
-            const sentence = factSentence(fact);
+            const sentence = fact.code === "legend.painted-over" ? null : factSentence(fact);
             return sentence === null ? [] : [sentence.charAt(0).toUpperCase() + sentence.slice(1)];
         }),
     ];
@@ -750,7 +752,7 @@ function VariedLine({ block }: Readonly<{ block: LegendBlock | undefined }>): Re
 }
 
 /** How wide a bound color's swatch is at rest: a ramp strip, or six group chits side by side. */
-const SWATCH_STRIP = 36;
+const SWATCH_STRIP = 20;
 
 /**
  * Category colors as hard gradient stops, so each reads as its own chit: at most six.

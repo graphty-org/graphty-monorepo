@@ -247,6 +247,7 @@ export function BindingPopover({
                     aria-label={`How ${name.toLowerCase()} meets the layers beneath`}
                     value={binding.combine}
                     defaultValue="replace"
+                    placeholder=""
                     options={COMBINE_WORDS}
                     onChange={(mode) => {
                         patch({ combine: mode === "multiply" || mode === "add" ? mode : undefined });
@@ -418,6 +419,8 @@ function Ramp({ session, descriptor, layerId, binding, source, preview, patch }:
                 labels={{ from: "Values from", to: "Values to" }}
                 scale={binding.scale}
                 defaultScale={preview.scale}
+                // Nothing the layer does not set is shown as its value: an unset select is empty.
+                unsetText=""
                 scales={scales}
                 onScaleChange={(next) => {
                     patch({ scale: next, palette: binding.palette });
@@ -481,6 +484,7 @@ function Ramp({ session, descriptor, layerId, binding, source, preview, patch }:
                     label="Steps"
                     value={binding.bins}
                     defaultValue={preview.stepCounts.length}
+                    emptyText=""
                     min={2}
                     max={12}
                     onChange={(bins) => {
@@ -672,6 +676,8 @@ function Categories({ session, descriptor, layerId, binding, source, preview, pa
                     label="Palette"
                     value={binding.palette}
                     defaultValue={shownPalette ?? palettes[0]?.id ?? ""}
+                    // Offered, never shown as chosen until the layer sets one (the owner's rule).
+                    placeholder=""
                     options={palettes.map((p) => ({
                         value: p.id,
                         label: paletteWord(p.id),
@@ -718,6 +724,8 @@ function Categories({ session, descriptor, layerId, binding, source, preview, pa
                                 aria-label={`${source} ${name} color`}
                                 color={typeof category.entry === "string" ? category.entry : undefined}
                                 defaultColor={cssOf(painted) ?? "#999999"}
+                                // Empty until this value has a color of its own.
+                                emptyText=""
                                 showOpacity={false}
                                 showReset={false}
                                 onChangeEnd={(next) => {
@@ -734,6 +742,7 @@ function Categories({ session, descriptor, layerId, binding, source, preview, pa
                                     label={`${source} ${name} ${channelWord(channel).toLowerCase()}`}
                                     value={typeof category.entry === "number" ? category.entry : undefined}
                                     defaultValue={typeof painted === "number" ? painted : 1}
+                                    emptyText=""
                                     min={descriptor.min}
                                     max={descriptor.max}
                                     onChange={(next) => {
@@ -783,6 +792,7 @@ function Categories({ session, descriptor, layerId, binding, source, preview, pa
                     label="More values than colors"
                     value={binding.overflow}
                     defaultValue="other"
+                    placeholder=""
                     options={OVERFLOW_WORDS}
                     onChange={(overflow) => {
                         patch({ overflow: overflow as DataBinding["overflow"] });
@@ -1026,6 +1036,7 @@ function NoValue({
                 label="No value"
                 value={given === null ? undefined : "value"}
                 defaultValue="skip"
+                placeholder=""
                 options={[
                     { value: "skip", label: "Leave as is" },
                     { value: "value", label: "Use one value" },

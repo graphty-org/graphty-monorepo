@@ -120,7 +120,7 @@ describe("Pajek styles: Pajek's rules", () => {
             "#ff8000",
             "#33cc99",
             "#404040",
-            null,
+            "#ffff99",
             null,
             null,
         ]);
@@ -133,7 +133,26 @@ describe("Pajek styles: Pajek's rules", () => {
             "#000000",
         ]);
         const bad = styles.styles.notes.find((n) => n.code === "W_STYLE_BAD_VALUE");
-        expect(bad?.params.samples).toEqual(["LightYellow", "RGB(2,0,0)"]);
+        expect(bad?.params.samples).toEqual(["RGB(2,0,0)"]);
+    });
+
+    it("reads Pajek's own color names, which dvips lacks, as the manual's color table draws them", async () => {
+        const names = {
+            LightYellow: "#ffff99",
+            LightCyan: "#ccffff",
+            LightMagenta: "#ffccff",
+            LightPurple: "#ccccff",
+            LightGreen: "#ccffb3",
+            LightOrange: "#ffccb3",
+            Canary: "#ffff7f",
+            LFadedGreen: "#e6ffcc",
+            Pink: "#ffd9f3",
+            LSkyBlue: "#d9f3ff",
+        };
+        const lines = Object.keys(names).map((name, i) => `${String(i + 1)} "${name}" ic ${name}`);
+        const { snapshot, styles } = await load(`*Vertices ${String(lines.length)}\n${lines.join("\n")}\n`);
+        expect(drawn(styles, snapshot, "node", "fill")).toEqual(Object.values(names));
+        expect(codes(styles)).toEqual([]);
     });
 
     it("gives a file without parameters Pajek's defaults, and none with toolDefaults: false", async () => {
@@ -141,11 +160,29 @@ describe("Pajek styles: Pajek's rules", () => {
         const { snapshot, styles } = await load(doc);
         expect(new Set(drawn(styles, snapshot, "node", "shape"))).toEqual(new Set(["ellipse"]));
         expect(drawn(styles, snapshot, "node", "fill")).toEqual([null, null, null]);
+        expect(new Set(drawn(styles, snapshot, "node", "borderColor"))).toEqual(new Set(["#000000"]));
+        expect(new Set(drawn(styles, snapshot, "node", "borderWidth"))).toEqual(new Set([1]));
+        expect(new Set(drawn(styles, snapshot, "node", "labelColor"))).toEqual(new Set(["#000000"]));
+        expect(new Set(drawn(styles, snapshot, "node", "labelPosition"))).toEqual(new Set(["center"]));
         expect(new Set(drawn(styles, snapshot, "edge", "color"))).toEqual(new Set(["#000000"]));
+        expect(new Set(drawn(styles, snapshot, "edge", "width"))).toEqual(new Set([1]));
         expect(drawn(styles, snapshot, "edge", "targetArrow")).toEqual(["triangle", "none", "none"]);
         const bare = await load(doc, false);
         expect(bare.styles.styles.rules.filter((r) => r.origin === "tool")).toEqual([]);
         expect(drawn(bare.styles, bare.snapshot, "node", "shape")).toEqual([null, null, null]);
+        for (const property of ["borderColor", "borderWidth", "labelColor", "labelPosition"]) {
+            expect(drawn(bare.styles, bare.snapshot, "node", property)).toEqual([null, null, null]);
+        }
+        expect(drawn(bare.styles, bare.snapshot, "edge", "width")).toEqual([null, null, null]);
+    });
+
+    it("keeps a vertex's or line's own parameters above Pajek's defaults", async () => {
+        const doc = "*Vertices 2\n1 a bc Red bw 3 lc Blue\n2 b\n*Edges\n1 2 1 w 4\n";
+        const { snapshot, styles } = await load(doc);
+        expect(drawn(styles, snapshot, "node", "borderColor")).toEqual(["#ff0000", "#000000"]);
+        expect(drawn(styles, snapshot, "node", "borderWidth")).toEqual([3, 1]);
+        expect(drawn(styles, snapshot, "node", "labelColor")).toEqual(["#0000ff", "#000000"]);
+        expect(new Set(drawn(styles, snapshot, "edge", "width"))).toEqual(new Set([4]));
     });
 });
 
@@ -195,9 +232,7 @@ describe("Pajek styles: writing", () => {
         const { snapshot, styles } = await load(file("shapes-and-lines.net"));
         const out = await registry.exportGraphToString(snapshot, "pajek", { styles });
         expect(out.startsWith(PAJEK_STYLE_COMMENT)).toBe(true);
-        expect(out).toMatch(
-            /^2 square 0\.8 0\.25 0\.5 box ic SkyBlue lc Black x_fact 4\.0 y_fact 4\.0 fos 16\.0 bw 2\.0$/m,
-        );
+        expect(out).toMatch(/^2 square 0\.8 0\.25 0\.5 box ic SkyBlue x_fact 4\.0 y_fact 4\.0 fos 16\.0 bw 2\.0$/m);
         expect(out).toContain("4 2 -1 l dotted c Red p Dots");
         const back = await load(out);
         expect(back.styles.styles.source.tool).toBe("graphty");
@@ -215,6 +250,22 @@ describe("Pajek styles: writing", () => {
                 drawn(styles, snapshot, target, property),
             );
         }
+    });
+
+    it("leaves out what Pajek draws by default: a black border 1 wide, a black label, lines 1 wide", async () => {
+        const doc = "*Vertices 2\n1 a bc Black bw 1 lc Black\n2 b bc Red bw 2 lc Blue\n*Edges\n1 2 1 w 1\n";
+        const { snapshot, styles } = await load(doc);
+        const out = await registry.exportGraphToString(snapshot, "pajek", { styles });
+        expect(out).toMatch(/^1 a$/m);
+        expect(out).toMatch(/^2 b bc Red lc Blue bw 2\.0$/m);
+        expect(out).toMatch(/^1 2 1$/m);
+        const again = await load(out.replace(/^% graphty\.styles .*\n/, ""));
+        for (const property of ["borderColor", "borderWidth", "labelColor"]) {
+            expect(drawn(again.styles, again.snapshot, "node", property)).toEqual(
+                drawn(styles, snapshot, "node", property),
+            );
+        }
+        expect(drawn(again.styles, again.snapshot, "edge", "width")).toEqual([1]);
     });
 
     it("reads a file without the comment line by inference, as any Pajek file", async () => {

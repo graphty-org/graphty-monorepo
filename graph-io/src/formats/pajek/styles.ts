@@ -191,8 +191,8 @@ function styleColumns(table: GraphSnapshot["nodes"], keys: readonly string[]): s
 }
 
 /**
- * The styles of a Pajek file, read the way Pajek draws them, with Pajek's stated defaults beneath: an ellipse, black
- * solid lines, and an arrow at the target of every arc. A file graphty wrote gives back its `graphty.styles` block.
+ * The styles of a Pajek file, read the way Pajek draws them, with Pajek's stated defaults beneath: an ellipse with a
+ * black border and a black centered label, black solid lines 1 wide, and an arrow at the target of every arc. A file graphty wrote gives back its `graphty.styles` block.
  * @param snapshot - the graph the import built
  * @param context - the work budget and the block text the import kept
  * @returns the styles
@@ -318,7 +318,8 @@ function opaque(get: Get, properties: readonly string[], approximate: Approximat
 }
 
 /**
- * A vertex's parameters from its values, leaving out the ellipse Pajek draws by default.
+ * A vertex's parameters from its values, leaving out what Pajek draws by default: an ellipse with a black border 1
+ * wide and a black label.
  * @param get - the vertex's values
  * @param approximate - records approximations
  * @returns the parameters, the shape keyword under `shape`
@@ -350,13 +351,13 @@ function vertexParams(get: Get, approximate: Approximate): Map<string, Written> 
     ] as const;
     for (const [property, key] of colors) {
         const v = get(property);
-        if (typeof v === "string") {
+        if (typeof v === "string" && (property === "fill" || v !== "#000000")) {
             out.set(key, pajekColorText(v));
         }
     }
     for (const [property, key] of numbers) {
         const v = get(property);
-        if (typeof v === "number") {
+        if (typeof v === "number" && (property !== "borderWidth" || v !== 1)) {
             out.set(key, v);
         }
     }
@@ -364,7 +365,7 @@ function vertexParams(get: Get, approximate: Approximate): Map<string, Written> 
 }
 
 /**
- * A line's parameters from its values, leaving out Pajek's black solid line. Arrows are Pajek's own: an arc has one
+ * A line's parameters from its values, leaving out Pajek's black solid line 1 wide. Arrows are Pajek's own: an arc has one
  * at its target and an edge none, so any other arrow is noted.
  * @param get - the line's values
  * @param directed - whether the line is an arc
@@ -379,7 +380,7 @@ function lineParams(get: Get, directed: boolean, approximate: Approximate): Map<
         out.set("c", pajekColorText(color));
     }
     const width = get("width");
-    if (typeof width === "number") {
+    if (typeof width === "number" && width !== 1) {
         out.set("w", width);
     }
     const lineStyle = get("lineStyle");

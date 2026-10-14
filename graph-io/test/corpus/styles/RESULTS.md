@@ -321,17 +321,17 @@ Tool values are elements drawn with the writing program's default.
 | json/sigma-website-wikipedia.json.gz | ok | 2085 | 0 | 1 | 1 | 0 | - | - | 0 | 16680 | 0 |  |
 | json/vis-WorldCup2014.json.gz | ok | 736 | 9228 | 4 | 3 | 10361 | 84% | 0% | 0 | 22136 | 0 |  |
 | json/vis-dot-to-graph-softmaint.json | ok | 213 | 269 | 4 | 3 | 0 | - | - | 0 | 3004 | 0 |  |
-| pajek/SamTseng_CATAR__Pajek_format.net | ok | 3 | 8 | 3 | 3 | 11 | 55% | 0% | 0 | 38 | 0 |  |
-| pajek/generated/b98-trailing-zero.net | ok | 12 | 26 | 2 | 4 | 21 | 81% | 0% | 0 | 120 | 0 |  |
-| pajek/generated/color-forms.net | ok | 8 | 5 | 2 | 3 | 11 | 100% | 0% | 0 | 37 | 0 | W_STYLE_BAD_VALUE |
-| pajek/generated/colors-mix.net | ok | 80 | 80 | 3 | 4 | 283 | 29% | 0% | 0 | 352 | 0 | W_STYLE_BAD_VALUE, W_STYLE_UNKNOWN_VALUE |
-| pajek/generated/graphty-written.net | ok | 6 | 7 | 2 | 3 | 22 | 95% | 0% | 0 | 20 | 0 | W_STYLE_UNKNOWN_VALUE |
-| pajek/generated/nan-values.net | ok | 4 | 16 | 2 | 2 | 0 | - | - | 0 | 88 | 0 |  |
-| pajek/generated/proto-color-names.net | ok | 3 | 2 | 2 | 3 | 2 | 100% | 0% | 0 | 10 | 0 | W_STYLE_BAD_VALUE, W_STYLE_UNKNOWN_VALUE |
-| pajek/generated/shapes-and-lines.net | ok | 6 | 7 | 2 | 3 | 19 | 100% | 0% | 0 | 31 | 0 | W_STYLE_UNKNOWN_VALUE |
-| pajek/generated/tamper-block-truncated.net | ok | 6 | 7 | 2 | 3 | 15 | 100% | 0% | 0 | 33 | 0 | W_STYLE_BLOCK_IGNORED, W_STYLE_UNKNOWN_VALUE |
-| pajek/generated/tamper-native-edited.net | ok | 6 | 7 | 3 | 3 | 22 | 95% | 0% | 0 | 20 | 0 | W_STYLE_UNKNOWN_VALUE |
-| pajek/generated/tamper-node-added.net | ok | 7 | 7 | 2 | 3 | 15 | 100% | 0% | 0 | 35 | 0 | W_STYLE_BLOCK_IGNORED, W_STYLE_UNKNOWN_VALUE |
+| pajek/SamTseng_CATAR__Pajek_format.net | ok | 3 | 8 | 3 | 3 | 11 | 55% | 0% | 0 | 55 | 0 |  |
+| pajek/generated/b98-trailing-zero.net | ok | 12 | 26 | 2 | 4 | 21 | 81% | 0% | 0 | 178 | 0 |  |
+| pajek/generated/color-forms.net | ok | 8 | 5 | 2 | 3 | 12 | 100% | 0% | 0 | 66 | 0 | W_STYLE_BAD_VALUE |
+| pajek/generated/colors-mix.net | ok | 80 | 80 | 3 | 4 | 283 | 29% | 0% | 0 | 592 | 0 | W_STYLE_BAD_VALUE, W_STYLE_UNKNOWN_VALUE |
+| pajek/generated/graphty-written.net | ok | 6 | 7 | 2 | 3 | 25 | 96% | 0% | 0 | 26 | 0 | W_STYLE_UNKNOWN_VALUE |
+| pajek/generated/nan-values.net | ok | 4 | 16 | 2 | 2 | 0 | - | - | 0 | 120 | 0 |  |
+| pajek/generated/proto-color-names.net | ok | 3 | 2 | 2 | 3 | 2 | 100% | 0% | 0 | 24 | 0 | W_STYLE_BAD_VALUE, W_STYLE_UNKNOWN_VALUE |
+| pajek/generated/shapes-and-lines.net | ok | 6 | 7 | 2 | 3 | 19 | 100% | 0% | 0 | 53 | 0 | W_STYLE_UNKNOWN_VALUE |
+| pajek/generated/tamper-block-truncated.net | ok | 6 | 7 | 2 | 3 | 15 | 100% | 0% | 0 | 57 | 0 | W_STYLE_BLOCK_IGNORED, W_STYLE_UNKNOWN_VALUE |
+| pajek/generated/tamper-native-edited.net | ok | 6 | 7 | 3 | 3 | 25 | 96% | 0% | 0 | 26 | 0 | W_STYLE_UNKNOWN_VALUE |
+| pajek/generated/tamper-node-added.net | ok | 7 | 7 | 2 | 3 | 15 | 100% | 0% | 0 | 63 | 0 | W_STYLE_BLOCK_IGNORED, W_STYLE_UNKNOWN_VALUE |
 | roles/by-group-0 | ok | 0 | 0 | 0 | 0 | 0 | - | - | 0 | 0 | 0 |  |
 | roles/by-group-1 | ok | 1 | 0 | 1 | 0 | 0 | - | - | 0 | 0 | 0 |  |
 | roles/by-group-300 | ok | 300 | 600 | 3 | 3 | 1642 | 7% | 7% | 0 | 0 | 0 |  |

@@ -106,6 +106,12 @@ const GEPHI = "gephi master 92e503df61a7";
 const VIS = "vis-network 10.1.2 vis-network.esm.js";
 const SIGMA = "sigma 3.0.3 packages/sigma/src";
 const PAJEK = "Pajek 6.02 reference manual";
+const PAJEK_SHAPES =
+    "the SHAPES.CFG Pajek writes when none exists (DrawEPS.htm), " +
+    "github.com/ohshane/radical-clustering 0f568f67893558035868b3db1bf365870ba52f6b shapes.cfg, SHAPE ELLIPSE";
+const PAJEK_INI =
+    "Pajek.ini Draw and Export defaults, github.com/ohshane/radical-clustering " +
+    "0f568f67893558035868b3db1bf365870ba52f6b pajek.ini";
 const OGDF = "ogdf master 1a40505ac006";
 const NX = "networkx 6da4704cbf32 networkx/drawing/nx_pylab.py line";
 
@@ -409,9 +415,14 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 node: {
                     shape: v("ellipse", `${PAJEK} p. 85`),
                     opacity: v(1, `${PAJEK} p. 87`),
+                    borderColor: v("#000000", `${PAJEK_SHAPES} (bc Black)`),
+                    borderWidth: v(1, `${PAJEK_SHAPES} (bw 1); ${PAJEK_INI} (SizeofVertexBorder 1, BorderWidth 1)`),
+                    labelColor: v("#000000", `${PAJEK_SHAPES} (lc Black)`),
+                    labelPosition: v("center", `${PAJEK_SHAPES} (lr 0); ${PAJEK} p. 85 (radius 0 is centered)`),
                 },
                 edge: {
                     color: v("#000000", `${PAJEK} p. 90`),
+                    width: v(1, `${PAJEK_INI} (SizeofLines 1)`),
                     lineStyle: v("solid", `${PAJEK} p. 90`),
                     opacity: v(1, `${PAJEK} p. 87`),
                     sourceArrow: v("none", `${PAJEK} p. 91`),

@@ -6,7 +6,8 @@
  * - X11: the names Graphviz 2.43 resolves in its default `x11` scheme, measured with `dot -Txdot` (`gray` is
  *   `#c0c0c0` there, not CSS's `#808080`).
  * - Brewer: the ColorBrewer schemes Graphviz knows (`/blues9/3`), measured the same way; index i is entry i - 1.
- * - dvips: the 68 CMYK color names of LaTeX's dvips driver, which Pajek uses, converted to RGB.
+ * - dvips: the 68 CMYK color names of LaTeX's dvips driver, which Pajek uses, converted to RGB, plus the ten names
+ *   Pajek adds to them (LightYellow ... LSkyBlue), as the Pajek 6.02 manual's Figure 19 (p. 105) fills their swatches.
  * - Java: the `java.awt.Color` constants Cytoscape and Gephi write.
  */
 
@@ -185,7 +186,11 @@ export const DVIPS_COLORS: ReadonlyMap<string, string> = table(
         "SkyBlue=61ffe0 Turquoise=26ffcc TealBlue=1ffaa3 Aquamarine=2effb2 BlueGreen=26ffab Emerald=00ff80 " +
         "JungleGreen=03ff7a SeaGreen=4fff80 Green=00ff00 ForestGreen=00e000 PineGreen=00bf29 LimeGreen=80ff00 " +
         "YellowGreen=8fff42 SpringGreen=bdff3d OliveGreen=009900 RawSienna=8c0000 Sepia=4d0000 Brown=660000 " +
-        "Tan=db9470 Gray=808080 Black=000000 White=ffffff",
+        "Tan=db9470 Gray=808080 Black=000000 White=ffffff " +
+        // Pajek's own names, not in dvips: the RGB fill of each swatch in the Pajek 6.02 manual, Figure 19, p. 105
+        // (http://mrvar.fdv.uni-lj.si/pajek/pajekman.pdf); Pajek's SVG export draws LightCyan as rgb(204,255,255) too.
+        "LightYellow=ffff99 LightCyan=ccffff LightMagenta=ffccff LightPurple=ccccff LightGreen=ccffb3 " +
+        "LightOrange=ffccb3 Canary=ffff7f LFadedGreen=e6ffcc Pink=ffd9f3 LSkyBlue=d9f3ff",
 );
 
 /** Java's `java.awt.Color` constants, lowercase, with and without the underscore. */

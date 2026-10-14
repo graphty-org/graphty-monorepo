@@ -80,6 +80,16 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.shape": "mesh",
     "node.wireframe": "mesh",
     "node.flat": "mesh",
+    // Width, height, depth and flatness are baked into the source mesh like the size. A border is
+    // its own source mesh keyed under the node's, its colour in its material: like an outline's,
+    // a colour per style rather than per instance.
+    "node.width": "mesh",
+    "node.height": "mesh",
+    "node.depth": "mesh",
+    "node.planar": "mesh",
+    "node.borderColor": "mesh",
+    "node.borderWidth": "mesh",
+    "node.borderStyle": "mesh",
     // An effect's COLOUR is geometry here, and the renderer is why. Babylon draws an instanced
     // node through its SOURCE mesh: a glow layer's `customEmissiveColorSelector` is handed the
     // source, and a highlight layer keys its per-mesh colour by the source's uniqueId. So two

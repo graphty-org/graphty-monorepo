@@ -1572,6 +1572,8 @@ export function metricFieldSpecs(kind: "node" | "edge", valueType?: "number" | "
 class Node_2 {
     constructor(graph: Graph | GraphContext, nodeId: NodeIdType, paint: NodePaint, data: AdHocData<string | number>, opts?: NodeOpts);
     applySessionPaint(paint: NodePaint): void;
+    // @internal
+    get borderReach(): number;
     get data(): AdHocData<string | number>;
     dispose(): void;
     // (undocumented)
@@ -1579,6 +1581,8 @@ class Node_2 {
     // (undocumented)
     dragHandler?: NodeDragHandler;
     get drawnRadius(): number;
+    // @internal
+    framingHalf(axis: "x" | "y" | "z"): number;
     getPosition(): {
         x: number;
         y: number;

@@ -13,11 +13,10 @@ import { applyFilePositions, filePositionsOf } from "./filePositions";
 import {
     aggregateErrors,
     columnsMapping,
-    components,
     copiedPath,
     copyColumns,
-    type ImportedGraph,
     importDocument,
+    type ImportedGraph,
     importRecords,
     importWhole,
     type ReaderImport,
@@ -151,8 +150,7 @@ function cytoscapeMapping(snapshot: GraphSnapshot): RecordMapping {
         edge(row, record): void {
             copyColumns(snapshot.edges, row, record);
         },
-        path: (kind, column) =>
-            kind === "node" && column === parent ? null : copiedPath(kind, column),
+        path: (kind, column) => (kind === "node" && column === parent ? null : copiedPath(kind, column)),
     };
 }
 

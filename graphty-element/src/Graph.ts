@@ -6875,12 +6875,3 @@ export class Graph implements GraphContext {
         this.shutdown();
     }
 }
-
-/**
- * An object without its undefined values, so an option left unset is not passed on as declared-and-empty.
- * @param o - The object
- * @returns A copy holding only the keys with a value
- */
-function withoutUndefined<T extends object>(o: T): Partial<T> {
-    return Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as Partial<T>;
-}

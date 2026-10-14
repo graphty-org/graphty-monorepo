@@ -57,6 +57,7 @@ import {
     type IssueCategory,
     type LossNote,
 } from "../../src/index.js";
+import type { ImporterPositions, PositionReadContext } from "../../src/positions/index.js";
 import type {
     EdgeStyleProperty,
     GraphStyleProperty,
@@ -65,7 +66,6 @@ import type {
     StyleReadContext,
     StyleWriteCapabilities,
 } from "../../src/styles/types.js";
-import type { ImporterPositions, PositionReadContext } from "../../src/positions/index.js";
 
 // ============================================================ 12.4, transcribed
 

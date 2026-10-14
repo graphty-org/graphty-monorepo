@@ -17,6 +17,7 @@ import {
     type IdCoercion,
 } from "@graphty/graph-format";
 
+import type { ImporterPositions, PositionReadContext } from "./positions/types.js";
 import type {
     EdgeStyleProperty,
     GraphStyleProperty,
@@ -25,7 +26,6 @@ import type {
     StyleReadContext,
     StyleWriteCapabilities,
 } from "./styles/types.js";
-import type { ImporterPositions, PositionReadContext } from "./positions/types.js";
 
 /**
  * What an importer reads: whole text, whole bytes, a byte stream (a browser

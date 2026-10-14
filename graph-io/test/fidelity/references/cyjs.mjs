@@ -169,11 +169,17 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
                     style,
                     layout: { name: layout },
                 });
-                cy.forceRender();
-                // endpoints and label boxes are settled by the renderer's first frames
-                await new Promise((frame) =>
-                    globalThis.requestAnimationFrame(() => globalThis.requestAnimationFrame(frame)),
-                );
+                // endpoints and label boxes are settled once the renderer has drawn twice
+                await new Promise((drawn) => {
+                    let draws = 0;
+                    cy.on("render", () => {
+                        draws += 1;
+                        if (draws === 2) {
+                            drawn();
+                        }
+                    });
+                    cy.forceRender();
+                });
                 const S = (e, keys) => Object.fromEntries(keys.map((k) => [k, e.style(k)]));
                 const nodeKeys = [
                     "shape",

@@ -67,14 +67,13 @@ for (const meta of metas) {
     writeFileSync(path.join(outDir, `${meta.name}.gsnp.gz`), gz);
     packed.push({ ...meta, bytes: gz.length, sha256: createHash("sha256").update(gz).digest("hex") });
 }
-writeFileSync(
-    path.join(outDir, "index.json"),
-    `${JSON.stringify(
-        packed.map((meta) => ({ ...meta, url: `${BASE_URL}${meta.name}.gsnp.gz` })),
-        null,
-        2,
-    ).replace(/[\u0080-\uffff]/g, (c) => String.raw`\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`)}\n`,
+const index = packed.map((meta) => ({ ...meta, url: BASE_URL + meta.name + ".gsnp.gz" }));
+// every non-ASCII character escaped, so the file stays plain ASCII
+const json = JSON.stringify(index, null, 2).replaceAll(
+    /[\u0080-\uffff]/g,
+    (c) => String.raw`\u` + c.codePointAt(0).toString(16).padStart(4, "0"),
 );
+writeFileSync(path.join(outDir, "index.json"), json + "\n");
 console.log(`packed ${packed.length} datasets into dist/data/v1/`);
 
 if (process.argv.includes("--write")) {

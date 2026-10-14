@@ -466,7 +466,7 @@ async function main() {
     }
     writeFileSync(
         path.join(outDir, "index.json"),
-        `${asciiJson([...small, ...metas.map((meta) => ({ ...meta, url: `${BASE_URL}${meta.name}.gsnp.gz` }))], 2)}\n`,
+        asciiJson([...small, ...metas.map((meta) => ({ ...meta, url: BASE_URL + meta.name + ".gsnp.gz" }))], 2) + "\n",
     );
     const hosted = path.join(packageRoot, "src/datasets/hosted.ts");
     writeFileSync(

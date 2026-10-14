@@ -480,9 +480,10 @@ describe("Label Golden Masters - Advanced Features", () => {
         test("fontSize 0 produces a zero-area plane -- a label nobody can see", () => {
             // REPORTED, NOT FIXED. `RichTextLabel._createMesh` computes
             // `sizeScale = this.options.fontSize / 48` and uses it directly as the plane height,
-            // so a font size of 0 yields a plane of 0 x 0 that renders nothing. The style schema
-            // now refuses it (`fontSize` is at least 1 in `src/config/RichTextStyle.ts`), but a
-            // label built directly, as here, still takes it and the reader sees nothing.
+            // so a font size of 0 yields a plane of 0 x 0 that renders nothing. The schema permits
+            // it: `src/config/RichTextStyle.ts:60` is `z.number().default(48).optional()` with no
+            // `.positive()`, so a style carrying `fontSize: 0` parses, interns a style id, builds a
+            // texture and draws -- and the reader sees nothing.
             //
             // The fix belongs in label rendering, which a concurrent pass owns, so this asserts the
             // behaviour as it stands today. It is written to FAIL the moment the defect is fixed,

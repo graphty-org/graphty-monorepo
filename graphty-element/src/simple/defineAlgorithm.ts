@@ -201,16 +201,14 @@ function descriptorOf(algorithm: CheckedAlgorithm): AlgorithmDescriptor {
     const names = { plainName: algorithm.name, technicalName: algorithm.name };
     const shape = SHAPES[algorithm.member];
     const perElement = algorithm.member === "node" || algorithm.member === "edge";
+    const metricFields = shape === "edge-metric" ? edgeMetricFields : nodeMetricFields;
     return {
         key: algorithm.id,
         ...names,
         description: algorithm.description,
         category: "custom",
         shape,
-        fields:
-            shape === "community"
-                ? communityFields(names)
-                : (shape === "edge-metric" ? edgeMetricFields : nodeMetricFields)(names),
+        fields: shape === "community" ? communityFields(names) : metricFields(names),
         options: algorithm.options,
         costClass: perElement ? "instant" : "iterative",
         complexity: "O(n + m)",

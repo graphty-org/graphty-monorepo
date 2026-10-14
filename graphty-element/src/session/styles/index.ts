@@ -41,6 +41,7 @@ export type {
     ChannelRefusalCode,
     ChannelShare,
     ExplainTarget,
+    LeftOutCode,
     StyleAgreement,
     StyleContribution,
     StyleCounts,

@@ -1680,6 +1680,9 @@ export interface LayoutRecommendationOptions {
 }
 
 // @public
+export type LeftOutCode = "top.tie";
+
+// @public
 export interface LeftOutEdge {
     readonly line?: number;
     readonly missingEnds?: readonly EdgeEnd[];
@@ -3857,6 +3860,7 @@ export interface StyleContribution {
 
 // @public
 export interface StyleCounts {
+    readonly leftOut: readonly CodedFact<LeftOutCode>[];
     readonly matched: number;
     readonly noValue: number;
     readonly outsideScale: number;

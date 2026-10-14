@@ -492,6 +492,7 @@ export type {
     Layer,
     LayerPosition,
     LayerProblem,
+    LeftOutCode,
     LegendBlock,
     LegendFact,
     LegendFactCode,

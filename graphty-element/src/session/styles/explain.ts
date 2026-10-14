@@ -34,8 +34,19 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import type { Channel, ChannelValue, EdgeId, Encoding, LayerId, LayerSpec, NodeId, Path } from "../../catalog/types";
+import type {
+    Channel,
+    ChannelValue,
+    EdgeId,
+    Encoding,
+    LayerId,
+    LayerSpec,
+    NodeId,
+    Path,
+    RuleTree,
+} from "../../catalog/types";
 import { GraphtyError } from "../../errors";
+import { rankEntries, topOfRanking } from "../results/statistics";
 import type { CodedFact } from "../shared";
 import { CHANNELS, type ChannelValues, isChannel } from "./channels";
 import { type PreparedBinding, requireChannel } from "./encoding";
@@ -227,6 +238,14 @@ export interface StyleCounts {
      */
     readonly undrawn: readonly CodedFact<UndrawnCode>[];
     /**
+     * Elements a "top N" in the layer's selector left out because they tie, one fact per top that
+     * fell short: a top takes a tie group whole or not at all, so when every element carries the
+     * same value (each node of a community carries its community's size) it can take none. Empty
+     * when every top took all it was asked for. See {@link LeftOutCode}.
+     * @since 3.27.0
+     */
+    readonly leftOut: readonly CodedFact<LeftOutCode>[];
+    /**
      * Changes whenever these counts may have changed: on every `style:changed`, and on every change
      * to the data or the run results the layers read. Equal revisions mean equal counts.
      */
@@ -245,6 +264,19 @@ export interface StyleCounts {
  * @since 3.26.0
  */
 export type UndrawnCode = "caption.noArrow";
+
+/**
+ * Why a "top N" took fewer than N, as the `code` of a {@link StyleCounts.leftOut} fact. The
+ * application words it. Each code's `params`:
+ *
+ * | Code | Params |
+ * | --- | --- |
+ * | `top.tie` | `path`: the value ranked; `n`: how many were asked for; `taken`: how many it took; `value`: the value the left-out group ties at; `count`: how many tie there |
+ *
+ * New codes may be added in a minor release: word an unknown one generically.
+ * @since 3.27.0
+ */
+export type LeftOutCode = "top.tie";
 
 /** The elements an agreement is read over, as dense indices. */
 export interface AgreementElements {
@@ -892,8 +924,10 @@ export function styleCounts(
     let outsideScale = 0;
     const others = new Map<LayerId, number>();
     const captions = captionTally(sources.directed?.() ?? true);
+    // The elements once, as an array: the walk below and the tops' ranking both read them.
+    const indices = [...(layer.target === "node" ? elements.nodes : elements.edges)];
 
-    for (const index of layer.target === "node" ? elements.nodes : elements.edges) {
+    for (const index of indices) {
         if (selector.test !== null && !selector.test(index)) {
             continue;
         }
@@ -918,8 +952,71 @@ export function styleCounts(
         reads,
         paintedBy,
         undrawn: captions.facts(),
+        leftOut: topTies(layer.selector, columns, indices),
         revision,
     };
+}
+
+/**
+ * Every "top N" a selector names, as a path and a count: a `top` selector, and each `threshold`
+ * leaf with a `top` in a rule.
+ * @param selector - The layer's selector.
+ * @returns The tops.
+ */
+function topsOf(selector: Layer["selector"]): { path: Path; n: number }[] {
+    if (selector.match === "top") {
+        return [{ path: selector.path, n: selector.n }];
+    }
+    if (selector.match !== "rule") {
+        return [];
+    }
+    const found: { path: Path; n: number }[] = [];
+    const walk = (tree: RuleTree): void => {
+        if (tree.kind === "threshold" && tree.top !== undefined) {
+            found.push({ path: tree.path, n: tree.top });
+        } else if (tree.kind === "all" || tree.kind === "any") {
+            tree.of.forEach(walk);
+        } else if (tree.kind === "not") {
+            walk(tree.of);
+        }
+    };
+    walk(selector.where);
+
+    return found;
+}
+
+/**
+ * The tops a selector names that a tie stopped short, ranked by the same cut the selector runs
+ * (`topOfRanking`), so the fact and the match count can never disagree.
+ * @param selector - The layer's selector.
+ * @param columns - The layer's kind of element.
+ * @param elements - The elements of that kind, as dense indices.
+ * @returns One `top.tie` fact per top that took fewer than asked.
+ */
+function topTies(
+    selector: Layer["selector"],
+    columns: ElementColumns,
+    elements: readonly number[],
+): readonly CodedFact<LeftOutCode>[] {
+    const facts: CodedFact<LeftOutCode>[] = [];
+    for (const { path, n } of topsOf(selector)) {
+        const population: { id: NodeId; value: number }[] = [];
+        for (const index of elements) {
+            const value = columns.value(index, path);
+            if (typeof value === "number" && Number.isFinite(value)) {
+                population.push({ id: index, value });
+            }
+        }
+        const { entries, leftOut } = topOfRanking(rankEntries(population), n);
+        if (leftOut !== null) {
+            facts.push({
+                code: "top.tie",
+                params: { path, n, taken: entries.length, value: leftOut.value, count: leftOut.count },
+            });
+        }
+    }
+
+    return Object.freeze(facts);
 }
 
 /**

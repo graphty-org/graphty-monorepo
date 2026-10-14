@@ -239,7 +239,7 @@ export function BindingPopover({
                 <Range key={String(binding.range)} descriptor={descriptor} range={binding.range} patch={patch} />
             ) : null}
             {(isColor || isNumber) && (categorical || !isColor) ? (
-                <NoValue descriptor={descriptor} missing={binding.missing ?? "skip"} patch={patch} />
+                <NoValue session={session} descriptor={descriptor} missing={binding.missing ?? "skip"} patch={patch} />
             ) : null}
             {isNumber ? (
                 <StyleSelect
@@ -443,7 +443,7 @@ function Ramp({ session, descriptor, layerId, binding, source, preview, patch }:
                           },
                           noValue: { count: preview.noValue, paint: cssOf(preview.noValuePaints) ?? null },
                           onNoValueChange: (paint: boolean) => {
-                              const start = cssOf(startingValue(descriptor)) ?? "#999999";
+                              const start = cssOf(startingValue(descriptor, session)) ?? "#999999";
                               patch({ missing: paint ? { value: start } : "skip" });
                           },
                       }
@@ -984,23 +984,26 @@ function Range({
 /**
  * No value: leave an element with no value as the layers beneath paint it, or give it one value.
  * @param props - Component props
+ * @param props.session - the element's session
  * @param props.descriptor - the bound property
  * @param props.missing - the binding's `missing`
  * @param props.patch - writes a change
  * @returns The control
  */
 function NoValue({
+    session,
     descriptor,
     missing,
     patch,
 }: Readonly<{
+    session: GraphSession;
     descriptor: ChannelDescriptor;
     missing: NonNullable<DataBinding["missing"]>;
     patch: (change: Partial<DataBinding>) => void;
 }>): React.JSX.Element {
     const given = missing === "skip" ? null : missing.value;
     // One value starts where a new line of this property would: the element's default for it.
-    const raw = startingValue(descriptor);
+    const raw = startingValue(descriptor, session);
     const start: string | number =
         typeof raw === "number" || typeof raw === "string" ? raw : (toColorValue(raw as ColorInput)?.hex ?? "");
     let field: React.JSX.Element | null = null;

@@ -1,18 +1,62 @@
-import { CHANNEL_DESCRIPTORS } from "@graphty/graphty-element/catalog";
+import { CHANNEL_DESCRIPTORS, type ChannelDescriptor } from "@graphty/graphty-element/catalog";
 import { createGraphSession, type GraphSession } from "@graphty/graphty-element/session";
 import { afterEach, assert, describe, it } from "vitest";
 
 import { addLabelRow, EVERYTHING_LAYER, LABEL_SIZE_PX, propose, startingValue, writeLine } from "../row";
 
+/**
+ * Every channel a "+" can add: drawn, and not a whole label style or a channel that takes nothing.
+ * @returns the descriptors.
+ */
+function addable(): ChannelDescriptor[] {
+    return Object.values(CHANNEL_DESCRIPTORS).filter(
+        (descriptor) =>
+            descriptor.renderable && descriptor.accepts !== "labelStyle" && descriptor.accepts !== "nothing",
+    );
+}
+
 describe("the value a line starts with", () => {
+    let session: GraphSession | null = null;
+    afterEach(() => {
+        session?.dispose();
+        session = null;
+    });
+
     it("is the element's own value for every channel a line can add, never an invented one", () => {
-        for (const descriptor of Object.values(CHANNEL_DESCRIPTORS)) {
-            if (!descriptor.renderable || descriptor.accepts === "labelStyle" || descriptor.accepts === "nothing") {
-                continue;
-            }
+        for (const descriptor of addable()) {
             const value = startingValue(descriptor);
-            const own = descriptor.default ?? descriptor.min ?? descriptor.values?.[0] ?? "";
+            const own = descriptor.default ?? descriptor.off ?? descriptor.min ?? descriptor.values?.[0] ?? "";
             assert.deepEqual(value, own, descriptor.channel);
+        }
+    });
+
+    it("starts an unset label background at what the element draws there: nothing", async () => {
+        session = createGraphSession();
+        await session.data.addNodes([{ id: "a" }]);
+        for (const channel of ["node.labelBackground", "edge.labelBackground"] as const) {
+            assert.equal(session.styles.defaultValue(channel), "none", channel);
+            assert.equal(startingValue(CHANNEL_DESCRIPTORS[channel]), "none", channel);
+            assert.equal(startingValue(CHANNEL_DESCRIPTORS[channel], session), "none", channel);
+        }
+    });
+
+    it("adds every addable channel at its starting value, with and without a session", async () => {
+        session = createGraphSession();
+        await session.data.addNodes([{ id: "a" }, { id: "b" }]);
+        await session.data.addEdges([{ src: "a", dst: "b" }]);
+        for (const descriptor of addable()) {
+            for (const value of [startingValue(descriptor), startingValue(descriptor, session)]) {
+                const id = await writeLine(
+                    session,
+                    [],
+                    descriptor.target,
+                    descriptor.channel,
+                    { value },
+                    EVERYTHING_LAYER,
+                );
+                const layer = session.styles.list().find((each) => each.id === id);
+                assert.deepEqual(layer?.set?.[descriptor.channel], value, descriptor.channel);
+            }
         }
     });
 

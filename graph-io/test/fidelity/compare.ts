@@ -34,12 +34,17 @@ export interface Transform {
     rms: number;
 }
 
-/** One judged element: its metric value, the reference's value and the subject's. */
+/**
+ * One judged element: its metric value, the reference's value and the subject's, lengths in
+ * reference units (the subject's times the fitted scale).
+ */
 export interface Judged {
     id: string;
     value: number | string;
     ref: unknown;
     got: unknown;
+    /** What the subject's style asked for, when its scene says: a diagnostic, never scored. */
+    requested?: unknown;
 }
 
 export interface PropertyResult {
@@ -556,13 +561,24 @@ const ratio = (
 ): Verdict => {
     if (ref === 0 || got === 0) {
         const same = zeroEqual && ref === 0 && got === 0;
-        return { value: same ? 1 : "zero", bad: same ? 0 : 1e3, pass: same, ref, got };
+        return { value: same ? 1 : "zero", bad: same ? 0 : 1e3, pass: same, ref, got: got * scale };
     }
     const r = (got * scale) / ref;
-    return { value: r, bad: logBad(r), pass: within(r, range), ref, got };
+    return { value: r, bad: logBad(r), pass: within(r, range), ref, got: got * scale };
 };
 
 const visibleLabel = (n: SceneNode): SceneNode["label"] => (n.label?.visible === true && n.visible ? n.label : null);
+/**
+ * The subject's label for judging how it is drawn (its size, color and place): any label on a
+ * visible node, seen or not, so a label drawn too small to read, or hidden, is still measured
+ * against the reference's (and fails there) rather than leaving the property unjudged.
+ * @param n - the subject node
+ * @returns the label, or null
+ */
+const drawnLabel = (n: SceneNode): SceneNode["label"] => (n.visible ? n.label : null);
+
+/** A reference value the subject drew where nobody can see it: a fail, whatever it drew. */
+const unseen = (ref: unknown): Verdict => ({ value: "not visible", bad: 1e3, pass: false, ref, got: null });
 const normText = (s: string | null | undefined): string | null => (s ? s.replace(/\s+/g, " ").trim() || null : null);
 
 interface Ctx {
@@ -604,12 +620,17 @@ const NODE_JUDGES: Partial<Record<Property, NodeJudge>> = {
         const rh = (s.h * t.scale) / r.h;
         const worse = logBad(rw) >= logBad(rh) ? rw : rh;
         const pass = within(rw, THRESHOLDS.sizeRatio) && within(rh, THRESHOLDS.sizeRatio);
-        return { value: worse, bad: logBad(worse), pass, ref: [r.w, r.h], got: [s.w, s.h] };
+        return { value: worse, bad: logBad(worse), pass, ref: [r.w, r.h], got: [s.w * t.scale, s.h * t.scale] };
     },
     shape: (r, s) => equal(r.shape, s.shape),
     fill: (r, s) => color(r.fill, s.fill),
     // with no reference fill there is nothing for an opacity to apply to; `fill` judges the missing fill
-    fillOpacity: (r, s) => (r.fill === null ? null : opacity(r.fillOpacity, s.fillOpacity)),
+    fillOpacity: (r, s) => {
+        if (r.fill === null) {
+            return null;
+        }
+        return s.fill === null ? unseen(r.fillOpacity) : opacity(r.fillOpacity, s.fillOpacity);
+    },
     borderColor: (r, s) => (r.border.width > 0 ? color(r.border.color, s.border.color) : null),
     borderWidth: (r, s, { t }) => ratio(r.border.width, s.border.width, t.scale, THRESHOLDS.borderWidthRatio, true),
     borderStyle: (r, s) => (r.border.width > 0 ? equal(r.border.style, s.border.style) : null),
@@ -620,18 +641,24 @@ const NODE_JUDGES: Partial<Record<Property, NodeJudge>> = {
     },
     labelColor: (r, s) => {
         const a = visibleLabel(r);
-        const b = visibleLabel(s);
-        return a && b ? color(a.color, b.color) : null;
+        const b = drawnLabel(s);
+        if (!a || !b) {
+            return null;
+        }
+        return b.visible ? color(a.color, b.color) : unseen(a.color);
     },
     fontSize: (r, s, { t }) => {
         const a = visibleLabel(r);
-        const b = visibleLabel(s);
+        const b = drawnLabel(s);
         return a && b ? ratio(a.fontSize, b.fontSize, t.scale, THRESHOLDS.fontSizeRatio, true) : null;
     },
     labelPosition: (r, s) => {
         const a = visibleLabel(r);
-        const b = visibleLabel(s);
-        return a && b ? equal(a.position, b.position) : null;
+        const b = drawnLabel(s);
+        if (!a || !b) {
+            return null;
+        }
+        return b.visible ? equal(a.position, b.position) : unseen(a.position);
     },
     visible: (r, s) => equal(r.visible, s.visible),
 };
@@ -658,7 +685,7 @@ const EDGE_JUDGES: Partial<Record<Property, EdgeJudge>> = {
     edgeLabel: (r, s) => equal(normText(r.label), normText(s.label)),
 };
 
-const summarize = (items: { id: string; v: Verdict }[]): PropertyResult => {
+const summarize = (items: { id: string; v: Verdict; requested?: unknown }[]): PropertyResult => {
     if (items.length === 0) {
         return { status: "unjudged", n: 0, passRate: null, worst: [], note: "nothing comparable on either side" };
     }
@@ -667,11 +694,12 @@ const summarize = (items: { id: string; v: Verdict }[]): PropertyResult => {
         .filter((i) => !i.v.pass)
         .sort((a, b) => b.v.bad - a.v.bad)
         .slice(0, 5)
-        .map(({ id, v }) => ({
+        .map(({ id, v, requested }) => ({
             id,
             value: typeof v.value === "number" ? round(v.value) : v.value,
             ref: roundAll(v.ref),
             got: roundAll(v.got),
+            ...(requested === undefined ? {} : { requested: roundAll(requested) }),
         }));
     return {
         status: passed === items.length ? "pass" : "fail",
@@ -828,7 +856,7 @@ function judge(
         return summarize(
             m.nodes.flatMap(([r, s]) => {
                 const v = nodeJudge(r, s, full);
-                return v ? [{ id: r.id, v }] : [];
+                return v ? [{ id: r.id, v, requested: s.requested?.[p] }] : [];
             }),
         );
     }
@@ -837,7 +865,7 @@ function judge(
         return summarize(
             m.edges.flatMap(([r, s, rev]) => {
                 const v = edgeJudge(r, s, rev, full);
-                return v ? [{ id: r.id, v }] : [];
+                return v ? [{ id: r.id, v, requested: s.requested?.[p] }] : [];
             }),
         );
     }

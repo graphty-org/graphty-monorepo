@@ -4,8 +4,8 @@
  * per-property table (status, pass rate, the route judged against, the worst elements), how each
  * further reference route agrees with the direct one, and the API gaps. Served locally only.
  */
-import type { PropertyResult, SampleResult, Status } from "../../../graph-io/test/fidelity/compare";
-import { PROPERTIES, type Scene } from "../../../graph-io/test/fidelity/scene";
+import type { Judged, PropertyResult, SampleResult, Status } from "../../../graph-io/test/fidelity/compare";
+import { PROPERTIES, type Property, type Scene } from "../../../graph-io/test/fidelity/scene";
 
 const esc = (s: unknown): string =>
     String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c] ?? c);
@@ -80,6 +80,8 @@ export interface ReportSample {
     result: SampleResult;
     /** The direct reference scene, drawn beside the canvas. */
     reference: Scene;
+    /** What graphty-element drew. */
+    graphty: Scene;
     /** The graphty canvas PNG, relative to the report. */
     png: string;
     file: string;
@@ -88,7 +90,7 @@ export interface ReportSample {
 const STATUS_HELP: Record<Status, string> = {
     pass: "every judged element within threshold",
     fail: "some judged element outside threshold",
-    gap: "graphty-element's public API cannot report it as drawn; counts as a fail",
+    gap: "the drawn scene cannot be read for it; counts as a fail",
     unjudged: "no reference route carries it, or nothing to compare",
     degenerate: "no alignment possible (all nodes at one point, or fewer than 2 matched)",
 };
@@ -99,14 +101,18 @@ const STATUS_HELP: Record<Status, string> = {
  * @param generatedAt - when
  * @returns the HTML document
  */
-export function renderReport(samples: readonly ReportSample[], generatedAt: string): string {
+export function renderReport(
+    samples: readonly ReportSample[],
+    selfCheck: readonly SelfCheck[],
+    generatedAt: string,
+): string {
     const index = samples
         .map(
             ({ result }) =>
                 `<tr><th><a href="#${esc(result.sample)}">${esc(result.sample)}</a></th>${PROPERTIES.map((p) => cell(result.properties[p], `${p}: ${result.properties[p].judgedAgainst ?? "no reference"}; ${result.properties[p].note ?? ""}`)).join("")}</tr>`,
         )
         .join("");
-    const sections = samples.map(({ result, reference, png, file }) => {
+    const sections = samples.map(({ result, reference, graphty, png, file }) => {
         const c = result.counts;
         const t = result.transform;
         const rows = PROPERTIES.map((p) => {
@@ -114,7 +120,7 @@ export function renderReport(samples: readonly ReportSample[], generatedAt: stri
             const worst = r.worst
                 .map(
                     (w) =>
-                        `${esc(w.id)}: ${esc(JSON.stringify(w.value))} (ref ${esc(JSON.stringify(w.ref))}, got ${esc(JSON.stringify(w.got))})`,
+                        `${esc(w.id)}: ${esc(JSON.stringify(w.value))} (ref ${esc(JSON.stringify(w.ref))}, drew ${esc(JSON.stringify(w.got))}${requested(w)})`,
                 )
                 .join("<br>");
             return `<tr><th>${p}</th>${cell(r)}<td>${String(r.n)}</td><td>${esc(r.judgedAgainst ?? "-")}</td><td class="small">${esc(r.note ?? "")}${worst ? `<br>${worst}` : ""}</td></tr>`;
@@ -132,6 +138,7 @@ export function renderReport(samples: readonly ReportSample[], generatedAt: stri
 Nodes ${String(c.matchedNodes)} matched of ${String(c.refNodes)} (graphty ${String(c.subjectNodes)}); edges ${String(c.matchedEdges)} of ${String(c.refEdges)} (graphty ${String(c.subjectEdges)}, ${String(c.reversedEdges)} reversed, ${String(c.extraSubjectEdges)} extra).
 ${t ? `Fit: scale ${t.scale.toPrecision(4)}, rotation ${(t.rotation * 57.2958).toFixed(1)} deg${t.reflect ? ", reflected" : ""}, residual ${(t.rms * 100).toFixed(2)}% of the diagonal.` : "No fit."}
 ${c.unmatchedRefNodes.length > 0 ? `Unmatched reference nodes, first ones: ${esc(c.unmatchedRefNodes.join(", "))}.` : ""}</p>
+${scaleTable(reference, graphty, t?.scale ?? null)}
 <div class="pair"><figure>${sceneToSvg(reference)}<figcaption>Reference: ${esc(reference.provenance.route)} (${esc(reference.provenance.tool)} ${esc(reference.provenance.version)})</figcaption></figure>
 <figure><img src="${esc(png)}" alt="graphty-element canvas"><figcaption>graphty-element canvas</figcaption></figure></div>
 <table><tr><th>property</th><th>status</th><th>n</th><th>judged against</th><th>note and worst elements</th></tr>${rows}</table>
@@ -156,10 +163,130 @@ th.v { writing-mode: vertical-rl; transform: rotate(180deg); font-weight: normal
 figure { margin: 0; flex: 1 1 380px; max-width: 800px; } figure svg, figure img { width: 100%; height: auto; border: 1px solid var(--line); }
 </style></head><body>
 <h1>Style fidelity</h1>
+<p><b>Drawn pass rates, all samples:</b> ${esc(drawnRates(samples))}</p>
+${selfCheckSection(selfCheck)}
+<p class="small">Every graphty value is read off the drawn scene (mesh boxes through the camera, material and instance colors, outline and glow layers, label planes, edge batches), never off the requested style; the requested value is shown beside a miss as "requested". Lengths are in reference units: graphty pixels times the fit's scale, fitted on node centers only. A fill under an outline or glow that reaches across the node, or on a node under 1 px, is not visible; so is a label behind its node's front face or under 1 px tall.</p>
 <p class="small">Generated ${esc(generatedAt)}. Each property is judged against the highest-ranked reference route that carries it.
 ${(Object.keys(STATUS_HELP) as Status[]).map((s) => `<span class="${s}">&nbsp;${s}&nbsp;</span> ${STATUS_HELP[s]}`).join("; ")}.</p>
 <div class="scroll"><table class="grid"><tr><th>sample</th>${PROPERTIES.map((p) => `<th class="v">${p}</th>`).join("")}</tr>${index}</table></div>
 ${sections.join("\n")}
 </body></html>
 `;
+}
+
+/** One planted fault and whether its scorer caught it. */
+export interface SelfCheck {
+    fault: string;
+    property: Property;
+    sample: string;
+    /** The property's pass rate of the clean drawing against itself: must be 1. */
+    cleanPassRate: number | null;
+    /** Its pass rate with the fault planted: must be 0. */
+    faultyPassRate: number | null;
+    worst: Judged[];
+    caught: boolean;
+}
+
+const requested = (w: Judged): string =>
+    w.requested === undefined ? "" : `, requested ${esc(JSON.stringify(w.requested))}`;
+
+/**
+ * Each property's pass rate over every judged element of every sample, best-judged first; a gap
+ * counts its elements as failed.
+ * @param samples - the samples
+ * @returns one line
+ */
+function drawnRates(samples: readonly ReportSample[]): string {
+    return PROPERTIES.flatMap((p) => {
+        let passed = 0;
+        let n = 0;
+        for (const { result } of samples) {
+            const r = result.properties[p];
+            if (r.passRate !== null && (r.status === "pass" || r.status === "fail" || r.status === "gap")) {
+                passed += r.passRate * r.n;
+                n += r.n;
+            }
+        }
+        return n === 0 ? [] : [`${p} ${String(Math.round((100 * passed) / n))}% (n=${String(n)})`];
+    }).join(", ");
+}
+
+/**
+ * The self-check table, shown before the scores it vouches for.
+ * @param checks - the self-check results
+ * @returns HTML
+ */
+function selfCheckSection(checks: readonly SelfCheck[]): string {
+    if (checks.length === 0) {
+        return `<p class="fail">Self-check did not run: no score below is vouched for.</p>`;
+    }
+    const ok = checks.every((c) => c.caught);
+    const rows = checks
+        .map(
+            (c) =>
+                `<tr><th>${esc(c.property)}</th><td>${esc(c.fault)}</td><td class="${c.caught ? "pass" : "fail"}">${c.caught ? "caught" : "MISSED"}</td><td>${esc(String(c.cleanPassRate))}</td><td>${esc(String(c.faultyPassRate))}</td><td class="small">${c.worst.map((w) => `${esc(w.id)}: ref ${esc(JSON.stringify(w.ref))}, drew ${esc(JSON.stringify(w.got))}`).join("<br>")}</td></tr>`,
+        )
+        .join("");
+    return `<h2>Self-check ${ok ? "passed" : "FAILED"}</h2>
+<p class="small">Each fault is planted in the renderer of a fresh ${esc(checks[0].sample)} drawing, never in its style, and the faulty drawing is scored against the clean one. The clean drawing must pass the property (1) and the faulty one must fail every element (0).</p>
+<table><tr><th>property</th><th>planted fault</th><th>result</th><th>clean</th><th>faulty</th><th>worst</th></tr>${rows}</table>`;
+}
+
+const median = (xs: number[]): number | null => {
+    const v = xs.filter((x) => Number.isFinite(x)).sort((a, b) => a - b);
+    return v.length === 0 ? null : v[Math.floor(v.length / 2)];
+};
+
+const fmt = (x: number | null): string => {
+    if (x === null) {
+        return "-";
+    }
+    return x >= 10 ? x.toFixed(0) : x.toPrecision(2);
+};
+
+/**
+ * Medians of the drawn lengths beside the reference's, in reference units, so a drawing at the
+ * wrong scale is visible at a glance.
+ * @param ref - the reference scene
+ * @param g - graphty's scene
+ * @param scale - the fit's scale (graphty pixels to reference units)
+ * @returns HTML
+ */
+function scaleTable(ref: Scene, g: Scene, scale: number | null): string {
+    if (scale === null) {
+        return "";
+    }
+    const drawn = (n: { drawn?: Record<string, unknown> }, key: string): number => Number(n.drawn?.[key]);
+    const caps = (e: Scene["edges"][number]): number[] =>
+        ((e.drawn?.caps ?? []) as { sizePx: number }[]).map((c) => c.sizePx * scale);
+    const rows: [string, number | null, number | null][] = [
+        ["node width", median(ref.nodes.map((n) => n.w)), median(g.nodes.map((n) => n.w * scale))],
+        ["node height", median(ref.nodes.map((n) => n.h)), median(g.nodes.map((n) => n.h * scale))],
+        [
+            "border or glow width",
+            median(ref.nodes.map((n) => n.border.width)),
+            median(g.nodes.map((n) => n.border.width * scale)),
+        ],
+        [
+            "label font height",
+            median(ref.nodes.flatMap((n) => (n.label ? [n.label.fontSize] : []))),
+            median(g.nodes.flatMap((n) => (n.label ? [n.label.fontSize * scale] : []))),
+        ],
+        ["edge thickness", median(ref.edges.map((e) => e.width)), median(g.edges.map((e) => e.width * scale))],
+        ["arrowhead size", null, median(g.edges.flatMap(caps))],
+    ];
+    const covered = g.nodes.filter((n) => n.drawn?.fillCovered === true).length;
+    const occluded = g.nodes.filter((n) => n.drawn?.labelOccluded === true).length;
+    const kinds = new Map<string, number>();
+    for (const e of g.edges) {
+        const k = typeof e.drawn?.kind === "string" ? e.drawn.kind : "?";
+        kinds.set(k, (kinds.get(k) ?? 0) + 1);
+    }
+    return `<table class="small"><tr><th>median, reference units</th><th>reference</th><th>graphty drew</th><th>graphty px</th></tr>${rows
+        .map(
+            ([what, r, gv]) =>
+                `<tr><th>${what}</th><td>${fmt(r)}</td><td>${fmt(gv)}</td><td>${fmt(gv === null ? null : gv / scale)}</td></tr>`,
+        )
+        .join("")}</table>
+<p class="small">graphty: ${String(covered)} of ${String(g.nodes.length)} fills covered by an outline or glow; ${String(occluded)} labels hidden inside their node; edges drawn as ${esc([...kinds].map(([k, n]) => `${k} ${String(n)}`).join(", "))}; median screen node ${fmt(median(g.nodes.map((n) => drawn(n, "screenW"))))} x ${fmt(median(g.nodes.map((n) => drawn(n, "screenH"))))} px.</p>`;
 }

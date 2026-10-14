@@ -156,7 +156,9 @@
                         ]
                     },
                     "visible": { "type": "boolean" },
-                    "z": { "type": "number" }
+                    "z": { "type": "number" },
+                    "requested": { "type": "object" },
+                    "drawn": { "type": "object" }
                 }
             }
         },
@@ -200,7 +202,9 @@
                             "target": { "$ref": "#/definitions/arrow" }
                         }
                     },
-                    "label": { "type": ["string", "null"] }
+                    "label": { "type": ["string", "null"] },
+                    "requested": { "type": "object" },
+                    "drawn": { "type": "object" }
                 }
             }
         },

@@ -90,6 +90,14 @@ export interface SceneNode {
     } | null;
     visible: boolean;
     z: number;
+    /**
+     * graphty side only, diagnostic and never scored: what the style asked for, per scored
+     * property, so a miss can be told apart as a mapping bug (it asked for the wrong thing) or a
+     * rendering bug (it asked for the right thing and drew another).
+     */
+    requested?: Partial<Record<Property, unknown>>;
+    /** graphty side only, diagnostic and never scored: renderer facts behind the drawn values. */
+    drawn?: Record<string, unknown>;
 }
 
 export interface SceneEdge {
@@ -105,6 +113,14 @@ export interface SceneEdge {
     style: LineStyle;
     arrow: { source: ArrowClass | "none"; target: ArrowClass | "none" };
     label: string | null;
+    /**
+     * graphty side only, diagnostic and never scored: what the style asked for, per scored
+     * property, so a miss can be told apart as a mapping bug (it asked for the wrong thing) or a
+     * rendering bug (it asked for the right thing and drew another).
+     */
+    requested?: Partial<Record<Property, unknown>>;
+    /** graphty side only, diagnostic and never scored: renderer facts behind the drawn values. */
+    drawn?: Record<string, unknown>;
 }
 
 export interface SceneGroup {

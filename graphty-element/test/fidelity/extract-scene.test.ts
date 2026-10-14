@@ -7,7 +7,15 @@ import { assert, describe, it } from "vitest";
 
 import { EdgeArrowTypes, EdgeLineTypes, NodeShapes } from "../../schema";
 import { FILE_STYLE_SHAPES } from "../../src/session/styles/fileStyles/shapes";
-import { arrowClassOf, colorOf, GRAPHTY_GAPS, labelPositionOf, lineStyleOf, shapeClassOf } from "./extract-scene";
+import {
+    arrowClassOf,
+    capClassOf,
+    colorOf,
+    GRAPHTY_GAPS,
+    labelPositionOf,
+    lineStyleOf,
+    shapeClassOf,
+} from "./extract-scene";
 
 describe("the graphty scene extractor's vocabulary", () => {
     it("reads every file shape back as the class it was imported from", () => {
@@ -90,5 +98,13 @@ describe("the graphty scene extractor's vocabulary", () => {
     it("lists each API gap once", () => {
         const properties = GRAPHTY_GAPS.map((gap) => gap.property);
         assert.strictEqual(new Set(properties).size, properties.length);
+    });
+
+    it("reads a drawn arrowhead's class off its mesh name, 2D and 3D", () => {
+        assert.strictEqual(capClassOf("arrow-2d-normal"), "filled-triangle");
+        assert.strictEqual(capClassOf("arrow-2d-diamond"), "diamond");
+        assert.strictEqual(capClassOf("filled-circle-arrow"), "circle");
+        assert.strictEqual(capClassOf("sphere-dot-arrow-3d"), "circle");
+        assert.strictEqual(capClassOf("something-else"), "other");
     });
 });

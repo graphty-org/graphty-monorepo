@@ -5,7 +5,7 @@
  */
 import type { RouteId } from "./routes.js";
 
-interface FidelitySample {
+export interface FidelitySample {
     /** The directory under scenes/. */
     id: string;
     /** graph-io's format name. */

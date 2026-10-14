@@ -1,5 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
@@ -9,6 +8,7 @@ import { move, newJob } from "../lib/board.mjs";
 import { planPages } from "../lib/notify.mjs";
 import { scanTranscripts } from "../lib/owners.mjs";
 import { stallStep, usageLimitStep } from "../lib/stalls.mjs";
+import { tempDir } from "./helpers/temp-dir.mjs";
 
 // The real stall of graphty-monorepo-2d (githerd's ledger, 2026-10-12): it claimed issue-2071 at
 // 00:52 and issue-467 at 01:08, heard the status question about both at 02:45:21, never answered,
@@ -163,7 +163,7 @@ describe("the usage limit", () => {
      * @returns {Promise<any>} the transcripts as the daemon keeps them
      */
     async function scanned(quota = { status: "rejected", resetsAt: 1791849600, rateLimitType: "seven_day" }) {
-        const projects = mkdtempSync(join(tmpdir(), "githerd-stalls-"));
+        const projects = tempDir("githerd-stalls-");
         dirs.push(projects);
         const cwd = "/home/u/repo";
         mkdirSync(join(projects, "-home-u-repo"));

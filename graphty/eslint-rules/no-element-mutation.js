@@ -93,6 +93,25 @@ function candidateRoots(name) {
 }
 
 /**
+ * The member a member expression names: its identifier, or a computed literal string.
+ * @param {MemberNode} node - The member expression.
+ * @returns {string | null} The name, or null for a key only known at run time.
+ */
+function memberName(node) {
+    if (!node.computed) {
+        return node.property.type === "Identifier" ? node.property.name : null;
+    }
+    const key = /** @type {any} */ (node.property);
+    if (key.type === "Literal" && typeof key.value === "string") {
+        return key.value;
+    }
+    if (key.type === "TemplateLiteral" && key.expressions.length === 0) {
+        return key.quasis[0].value.cooked;
+    }
+    return null;
+}
+
+/**
  * Builds the rule over a door list.
  * @param {() => DoorsDocument} loadDoors - Reads the door list; called once, on first use.
  * @returns {import("eslint").Rule.RuleModule} The rule.
@@ -115,6 +134,36 @@ export function createRule(loadDoors) {
         }
 
         return index;
+    }
+
+    /**
+     * The renderer root a member declaration belongs to. A member of the element's own
+     * type belongs to it; so does a member of an app-local copy of an element type
+     * (`ElementGraph`, reported on its own), because calling it reaches the element.
+     * @param {any} declaration - A TypeScript declaration of the member.
+     * @returns {DoorRootEntry | undefined} The root, or undefined for anything that is not the element's.
+     */
+    function ownerRoot(declaration) {
+        const owner = declaration.parent?.name?.text;
+        const file = declaration.getSourceFile();
+        if (typeof owner !== "string") {
+            return undefined;
+        }
+        if (ELEMENT_PATH.test(file.fileName)) {
+            return doors().renderer.get(owner);
+        }
+        if (file.isDeclarationFile) {
+            return undefined;
+        }
+        const aliases = /** @type {Record<string, string>} */ (ALIASES);
+        for (const name of candidateRoots(owner)) {
+            const root = doors().renderer.get(aliases[name] ?? name);
+            if (root) {
+                return root;
+            }
+        }
+
+        return undefined;
     }
 
     return {
@@ -207,36 +256,6 @@ export function createRule(loadDoors) {
                 );
             }
 
-            /**
-             * The renderer root a member declaration belongs to. A member of the element's own
-             * type belongs to it; so does a member of an app-local copy of an element type
-             * (`ElementGraph`, reported on its own), because calling it reaches the element.
-             * @param {any} declaration - A TypeScript declaration of the member.
-             * @returns {DoorRootEntry | undefined} The root, or undefined for anything that is not the element's.
-             */
-            function ownerRoot(declaration) {
-                const owner = declaration.parent?.name?.text;
-                const file = declaration.getSourceFile();
-                if (typeof owner !== "string") {
-                    return undefined;
-                }
-                if (ELEMENT_PATH.test(file.fileName)) {
-                    return doors().renderer.get(owner);
-                }
-                if (file.isDeclarationFile) {
-                    return undefined;
-                }
-                const aliases = /** @type {Record<string, string>} */ (ALIASES);
-                for (const name of candidateRoots(owner)) {
-                    const root = doors().renderer.get(aliases[name] ?? name);
-                    if (root) {
-                        return root;
-                    }
-                }
-
-                return undefined;
-            }
-
             return {
                 MemberExpression(node) {
                     const name = memberName(node);
@@ -297,25 +316,6 @@ export function createRule(loadDoors) {
                     checkName(node);
                 },
             };
-
-            /**
-             * The member a member expression names: its identifier, or a computed literal string.
-             * @param {MemberNode} node - The member expression.
-             * @returns {string | null} The name, or null for a key only known at run time.
-             */
-            function memberName(node) {
-                if (!node.computed) {
-                    return node.property.type === "Identifier" ? node.property.name : null;
-                }
-                const key = /** @type {any} */ (node.property);
-                if (key.type === "Literal" && typeof key.value === "string") {
-                    return key.value;
-                }
-                if (key.type === "TemplateLiteral" && key.expressions.length === 0) {
-                    return key.quasis[0].value.cooked;
-                }
-                return null;
-            }
 
             /**
              * Reports a local type named after an element type. A type inside an ambient

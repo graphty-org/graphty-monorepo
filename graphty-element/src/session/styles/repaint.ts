@@ -147,6 +147,13 @@ export interface RepaintSources {
     readonly measured?: (path: Path, target: SelectorTarget) => ArrayLike<number> | undefined;
     /** The scales a binding may name. Absent builds a registry holding the built-ins. */
     readonly scales?: ScaleRegistry;
+    /**
+     * The clock a pass's slices are timed on. Absent is `performance.now()`; a test that drives
+     * the session's clock itself hands it in, so how often a pass yields depends on that clock and
+     * not on how busy the machine is.
+     * @returns Milliseconds.
+     */
+    readonly now?: () => number;
 }
 
 /**
@@ -909,6 +916,7 @@ function reasonOf(edits: readonly LayerEdit[]): RepaintReason {
  */
 export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
     const scales = sources.scales ?? createScaleRegistry();
+    const now = sources.now ?? ((): number => performance.now());
 
     /**
      * Prepared layers, keyed by the compiled layer they were built from.
@@ -1398,7 +1406,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
      * @throws The signal's reason when the pass has been cancelled.
      */
     const breathe = async (context: RepaintContext, deadline: number): Promise<number> => {
-        if (performance.now() < deadline) {
+        if (now() < deadline) {
             return deadline;
         }
 
@@ -1407,10 +1415,10 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         });
 
         if (context.signal.aborted) {
-            throw context.signal.reason as Error;
+            throw context.signal.reason as Error; // NOSONAR(S3696): rethrows the abort signal's reason, as the platform does
         }
 
-        return performance.now() + SLICE_MS;
+        return now() + SLICE_MS;
     };
 
     /**
@@ -1686,7 +1694,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         problems = [];
 
         if (context.signal.aborted) {
-            throw context.signal.reason as Error;
+            throw context.signal.reason as Error; // NOSONAR(S3696): rethrows the abort signal's reason, as the platform does
         }
 
         const { node: nodes, edge: edges } = stores;
@@ -1700,7 +1708,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         const total = nodes.dirtyCount + edges.dirtyCount;
         context.report({ phase: "painting", completed: 0, total });
 
-        const deadline = performance.now() + SLICE_MS;
+        const deadline = now() + SLICE_MS;
         const node = await paintTarget(nodes, stack, context, deadline, skipBelow);
         context.report({ phase: "painting", completed: node.painted, total });
         const edge = await paintTarget(edges, stack, context, node.deadline, skipBelow);

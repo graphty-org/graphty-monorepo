@@ -5,8 +5,7 @@
  * state directory of before 2026-10 (`~/.githerd/<folder name>`) moves to the new name only for
  * the checkout it belongs to, and only once nothing runs from it.
  */
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -20,6 +19,7 @@ import { realPlatform, retireStrayWindows } from "../lib/start.mjs";
 import { defaultStateDir, legacyStateDir } from "../lib/store.mjs";
 import { endSession, running, tmuxSocket } from "../lib/tmux.mjs";
 import { fakeWorkers, sleep } from "./helpers/fake-worker.mjs";
+import { tempDir } from "./helpers/temp-dir.mjs";
 
 /** @type {string} */
 let dir;
@@ -61,7 +61,7 @@ function context(root) {
 beforeAll(() => isolateGit());
 
 beforeEach(() => {
-    dir = realpathSync(mkdtempSync(join(tmpdir(), "githerd-multi-")));
+    dir = realpathSync(tempDir("githerd-multi-"));
     home = join(dir, "home");
     mkdirSync(home);
     a = checkout(join(dir, "a", "main"), "Org-One/app");

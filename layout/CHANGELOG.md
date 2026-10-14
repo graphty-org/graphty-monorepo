@@ -1,3 +1,13 @@
+## 2.5.1 (2026-10-13)
+
+### 🩹 Fixes
+
+- **layout:** give every input refusal of the layouts a code and params ([#2335](https://github.com/graphty-org/graphty-monorepo/issues/2335))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 2.5.0 (2026-10-13)
 
 ### 🚀 Features

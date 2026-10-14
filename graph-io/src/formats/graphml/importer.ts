@@ -512,15 +512,13 @@ class GraphmlReader implements XmlHandler {
         const parent = this.ctx.at(-1) ?? null;
         switch (parent) {
             case Ctx.Capture:
+            case Ctx.Data:
+            case Ctx.Default:
                 this.captureStart(name, attrs);
                 return;
             case Ctx.Skip:
             case Ctx.Desc:
                 this.ctx.push(Ctx.Skip);
-                return;
-            case Ctx.Data:
-            case Ctx.Default:
-                this.captureStart(name, attrs);
                 return;
             case Ctx.Dropped:
                 this.dropStart(localName(name));

@@ -487,7 +487,13 @@ const WHY_LINES = 30;
  */
 export function whyText(item, state, ledger, now) {
     const names = aliases(item);
-    const jobs = Object.values(state.jobs ?? {}).filter((j) => names.has(j.id) || names.has(j.target));
+    // A finished job dropped from the state, or kept only as a tombstone, is read from its whole
+    // record in the ledger (its `job-dropped` line); a job in the state under that id wins.
+    const byId = new Map(
+        ledger.filter((e) => e.kind === "job-dropped" && e.record).map((e) => [String(e.job), e.record]),
+    );
+    for (const j of Object.values(state.jobs ?? {})) if (!j.tombstone || !byId.has(j.id)) byId.set(j.id, j);
+    const jobs = [...byId.values()].filter((j) => names.has(j.id) || names.has(j.target));
     const items = Object.values(state.ownerItems ?? {}).filter((i) => names.has(i.id) || names.has(String(i.target)));
     // The records' own ids name the item too: a job's record lines carry its id, not its target.
     for (const r of [...jobs, ...items]) names.add(r.id);

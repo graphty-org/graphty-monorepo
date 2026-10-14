@@ -154,6 +154,7 @@ import {
 import { createScaleRegistry } from "./styles/scales";
 import { selectorScope } from "./styles/selector";
 import { createSelectorSource, edgeEndPathOf, edgeEndpointOf, type SessionSelectorSource } from "./styles/sources";
+import { paintingOf } from "./styles/StylesApi";
 import type {
     AccelerationControllerLike,
     CommandOutcome,
@@ -2841,14 +2842,16 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
 
         painter.invalidate();
         const kept = new Set(rendered.styles);
+        // As it paints: a hidden row's layer repaints as disabled, never as its author wrote it.
+        const stack = paintingOf(styles, target.styles);
         // ponytail: repaints every kept layer, not only those reading the changed runs -- the
         // cost the element paid before on every finished run; name the readers if it shows.
-        const edits = target.styles
-            .filter((entry) => kept.has(entry))
+        const edits = stack
+            .filter((_entry, index) => kept.has(target.styles[index]))
             .map((entry) => ({ previous: entry, next: entry }));
 
         if (edits.length > 0) {
-            await painter.repaint({ reason: "update", edits, stack: target.styles, fromIndex: 0 }, RUNS_PASS);
+            await painter.repaint({ reason: "update", edits, stack, fromIndex: 0 }, RUNS_PASS);
         }
     });
 
@@ -2865,9 +2868,12 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         }
 
         painter.invalidate();
-        const edits = readers.map((entry) => ({ previous: entry, next: entry }));
+        const stack = paintingOf(styles, target.styles);
+        const edits = stack
+            .filter((entry) => entry.reads.some(isNotePath))
+            .map((entry) => ({ previous: entry, next: entry }));
         const fromIndex = target.styles.indexOf(readers[0]);
-        await painter.repaint({ reason: "update", edits, stack: target.styles, fromIndex }, RUNS_PASS);
+        await painter.repaint({ reason: "update", edits, stack, fromIndex }, RUNS_PASS);
     });
 
     // The `graph` hook of a session with no renderer: a layer may select on any value a data
@@ -2904,12 +2910,12 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 return;
             }
 
+            // As it paints: a hidden row's layer repaints as disabled, never as its author wrote it.
+            const stack = paintingOf(styles, target.styles);
             const recordsOnly = ![...dirty].some(
                 (key) => key === ROWS_MOVED || !(key.startsWith("n:") || key.startsWith("e:") || key.startsWith("v:")),
             );
-            const readers = recordsOnly
-                ? target.styles.filter((entry) => readsAnyField(entry, changed))
-                : target.styles;
+            const readers = recordsOnly ? stack.filter((entry) => readsAnyField(entry, changed)) : stack;
             if (readers.length === 0) {
                 return;
             }
@@ -2926,11 +2932,11 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 paintedThrough !== null &&
                 moved !== null &&
                 [...dirty].every(changesRowsOnly) &&
-                target.styles.every(paintsRowAlone)
+                stack.every(paintsRowAlone)
             ) {
                 const kept = { node: paintedThrough.nodes, edge: paintedThrough.edges };
                 const still = (): boolean => store.store.renumberCount === now.renumbers;
-                await painter.repaintMoved(target.styles, moved, kept, editedRows(graph, dirty), RUNS_PASS, still);
+                await painter.repaintMoved(stack, moved, kept, editedRows(graph, dirty), RUNS_PASS, still);
                 // A freeze that renumbered the rows while the pass ran leaves the next pass to
                 // paint everything.
                 paintedThrough = still() ? now : null;
@@ -2939,12 +2945,12 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
 
             painter.invalidate();
             const edits = readers.map((entry) => ({ previous: entry, next: entry }));
-            const fromIndex = target.styles.indexOf(readers[0]);
-            await painter.repaint({ reason: "update", edits, stack: target.styles, fromIndex }, RUNS_PASS);
+            const fromIndex = stack.indexOf(readers[0]);
+            await painter.repaint({ reason: "update", edits, stack, fromIndex }, RUNS_PASS);
             if (recordsOnly) {
                 // The layers above paint what the edited field's readers match now; an element the
                 // edit took out of a reader's match is found by its own row, repainted whole.
-                await painter.repaintElements(target.styles, editedRows(snapshot(), dirty), RUNS_PASS);
+                await painter.repaintElements(stack, editedRows(snapshot(), dirty), RUNS_PASS);
                 // Only the readers' elements were painted: one that moved with a renumbering and
                 // matches none of them still shows what its old row showed.
                 paintedThrough =

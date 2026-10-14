@@ -4028,5 +4028,21 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         },
     };
 
+    PAINTING.set(api, painting);
     return api;
+}
+
+/** Each stack's {@link paintingOf} view, by the API that owns it. */
+const PAINTING = new WeakMap<SessionStylesApi, (stack: readonly CompiledLayer[]) => readonly CompiledLayer[]>();
+
+/**
+ * A stack as it paints: a hidden row's layers, and the element's base layers while the Everything
+ * row holds the base look, read as disabled. What every repaint of the stack must be handed; the
+ * raw stack paints a hidden layer.
+ * @param api - A stack {@link createStylesApi} built.
+ * @param stack - A stack of that API's project state (a lane's `rendered` or `target`).
+ * @returns The stack as it paints.
+ */
+export function paintingOf(api: SessionStylesApi, stack: readonly CompiledLayer[]): readonly CompiledLayer[] {
+    return PAINTING.get(api)?.(stack) ?? stack;
 }

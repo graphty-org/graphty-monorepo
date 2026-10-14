@@ -456,6 +456,29 @@ function estimateFactor(
     return { speed: newSpeed, speedEfficiency: eff };
 }
 
+/**
+ * Whether some node below `n` is pinned in `previous` and not in `mask` (an unpin), comparing word by word.
+ * @param previous - the mask held so far
+ * @param mask - the new mask
+ * @param words - the words to compare
+ * @param n - the node count
+ * @returns true at the first unpinned node
+ */
+function unpinsAny(previous: NodeMask, mask: NodeMask, words: number, n: number): boolean {
+    for (let w = 0; w < words; w++) {
+        if (previous[w] === mask[w]) {
+            continue;
+        }
+        const last = Math.min(n, w * 32 + 32);
+        for (let i = w * 32; i < last; i++) {
+            if (maskTest(previous, i) && !maskTest(mask, i)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 // ============================================================ the simulation
 
 /**
@@ -637,22 +660,8 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
                 `ForceAtlas2Simulation: setFixed: the mask has ${mask.length} words, ${words} needed for ${n} nodes`,
             );
         }
-        let unpinned = false;
         const previous = this.fixed;
-        if (previous !== null) {
-            for (let w = 0; w < words && !unpinned; w++) {
-                if (previous[w] === mask[w]) {
-                    continue;
-                }
-                const last = Math.min(n, w * 32 + 32);
-                for (let i = w * 32; i < last; i++) {
-                    if (maskTest(previous, i) && !maskTest(mask, i)) {
-                        unpinned = true;
-                        break;
-                    }
-                }
-            }
-        }
+        const unpinned = previous !== null && unpinsAny(previous, mask, words, n);
         const copy = new Uint32Array(words);
         copy.set(mask.subarray(0, words));
         this.fixed = copy;

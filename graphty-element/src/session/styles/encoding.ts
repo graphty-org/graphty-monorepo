@@ -844,9 +844,9 @@ function unsupportedChannel(descriptor: ChannelDescriptor): GraphtyError {
  */
 function outOfRange(descriptor: ChannelDescriptor, value: unknown, what: string): GraphtyError {
     const { max, min, values } = descriptor;
-    const low = min === undefined ? "any" : String(min);
-    const high = max === undefined ? "any" : String(max);
-    const allowed = values === undefined ? `is drawn from ${low} to ${high}` : `takes one of ${values.join(", ")}`;
+    const bound = (limit: number | undefined): string => (limit === undefined ? "any" : String(limit));
+    const allowed =
+        values === undefined ? `is drawn from ${bound(min)} to ${bound(max)}` : `takes one of ${values.join(", ")}`;
 
     return new GraphtyError({
         code: "E_OPTION_RANGE",

@@ -27,9 +27,15 @@ GATE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 # it is here and not in git-lfs's own hook). It reads git's ref lines on stdin; nothing below does.
 "$GATE_DIR/tools/lfs-pre-push.sh" "$@" || exit 1
 
-# Secret scan of every file this branch changes since it left origin/master. It runs here as
+# The branch this push merges into (origin/master, or a stacked pull request's parent branch), asked
+# once and exported, so every step below measures "this push's changes" from the same base without
+# asking again. The push queue has usually asked already.
+PUSH_BASE_REF=${PUSH_BASE_REF:-$(node "$GATE_DIR/tools/push-base.mjs")} || exit 1
+export PUSH_BASE_REF
+
+# Secret scan of every file this branch changes since it left that branch. It runs here as
 # well as in pre-commit because a commit made with a temporary core.hooksPath skips pre-commit.
-PREPUSH_ROOT="$PWD" "$GATE_DIR/tools/scan-secrets.sh" "$(git merge-base origin/master HEAD)" HEAD || exit 1
+PREPUSH_ROOT="$PWD" "$GATE_DIR/tools/scan-secrets.sh" "$(git merge-base "$PUSH_BASE_REF" HEAD)" HEAD || exit 1
 
 # Run the prepush validation script
 PREPUSH_ROOT="$PWD" "$GATE_DIR/tools/prepush.sh"

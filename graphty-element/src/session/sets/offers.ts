@@ -487,8 +487,8 @@ export function createOffering(sources: OfferSources): Offering {
                 const edges = counts.pass === undefined ? undefined : (passed?.edges ?? 0);
                 const name = spec.name(value);
                 const title = name.charAt(0).toUpperCase() + name.slice(1);
-
                 const noun = nodes === 1 ? "node" : "nodes";
+
                 return Object.freeze({
                     item,
                     label: nodes === undefined ? title : `${title} (${nodes.toLocaleString("en-US")} ${noun})`,

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { git, isolateGit } from "../../visual-review/test/helpers.mjs";
-import { claimJob, move, newJob } from "../lib/board.mjs";
+import { claimJob, claimSnapshot, move, newJob } from "../lib/board.mjs";
 import { doneIo, githerdDone, pollVerifying, recheckRefused, verifyClaim } from "../lib/done.mjs";
 import { accumulateMerged, landStacked } from "../lib/merged.mjs";
 import { masterRefs, readyIssues } from "../lib/queue.mjs";
@@ -1564,5 +1564,78 @@ describe("a fix stacked on another open pull request (#2467)", () => {
         expect(JSON.parse((await githerdDone(ctx, job, report({ pr: 2445 }), "w1")).text).verified).toBe(true);
         expect(s.merged.carried["2414"].pr).toBe(2445);
         expect(s.merged.refs).toBeUndefined();
+    });
+});
+
+describe("an issue joined into another job (#2499)", () => {
+    /**
+     * Issue job #2262 joins #2261's job, as githerd_claim with overlap "join" does.
+     * @returns {{s: any, host: any, joiner: any}} the state and both jobs
+     */
+    function joined() {
+        const s = state();
+        const host = working("issue", "#2261");
+        const joiner = newJob({ kind: "issue", target: "#2262" }, NOW);
+        s.jobs = { [host.id]: host, [joiner.id]: joiner };
+        const snap = claimSnapshot(s, {});
+        const args = {
+            job: joiner.id,
+            snapshotVersion: snap.version,
+            overlap: { decision: "join", with: host.id, reason: "the same layout-pace test" },
+            plan: "fix it in #2261's pull request",
+        };
+        expect(claimJob(s, args, { session: "w2" }, snap, NOW).ok).toBe(true);
+        expect(joiner.state).toBe("cancelled");
+        return { s, host, joiner };
+    }
+    const merged = (/** @type {string} */ body) =>
+        fakeIo({ pull: async () => ({ merged: true, state: "closed", base: { ref: "master" }, body }) });
+
+    it("tells the host's holder to name the joined issue in its pull request", () => {
+        const { host } = joined();
+        expect(host.joinedIssues).toEqual([2262]);
+        expect(host.news.at(-1).text).toContain('"Fixes #2262"');
+    });
+
+    it("refuses the host's done while its merged pull request names only its own issue", async () => {
+        const { s, host } = joined();
+        expect(await verifyClaim(host, report({ pr: 2300 }), view(s, merged("Fixes #2261")))).toEqual({
+            missing: [expect.stringContaining("does not name #2262")],
+            fixable: true,
+        });
+        expect(await verifyClaim(host, report({ pr: 2300 }), view(s, merged("Fixes #2261\nFixes #2262")))).toEqual({
+            holds: true,
+        });
+    });
+
+    it("refuses an open pull request that does not reference the joined issue", async () => {
+        const { s, host } = joined();
+        s.prs[7] = pr({ references: [2261] });
+        const io = fakeIo({ pull: async () => ({ state: "open", body: "Fixes #2261" }) });
+        expect(await verifyClaim(host, report({ pr: 7 }), view(s, io))).toMatchObject({
+            missing: [expect.stringContaining("does not reference #2262")],
+            fixable: true,
+        });
+        s.prs[7] = pr({ references: [2261, 2262] });
+        expect(await verifyClaim(host, report({ pr: 7 }), view(s, io))).toEqual({ holds: true });
+    });
+
+    it("links the joined issue to a carried fix too, so its landing is a reference to verify", async () => {
+        const { s, host } = joined();
+        const io = fakeIo({
+            pull: async () => ({
+                state: "closed",
+                merged: true,
+                body: "x",
+                base: { ref: "master", repo: { full_name: "o/r" } },
+                head: { sha: OTHER, repo: { full_name: "o/r" } },
+            }),
+            pullContains: async () => true,
+        });
+        const { ctx } = setup(s, io);
+        await githerdDone(ctx, host, report({ pr: 739, commits: [FIX] }), "w1");
+        expect(host.state).toBe("done");
+        expect(s.merged.refs).toEqual({ 2261: ["#739"], 2262: ["#739"] });
+        expect(masterRefs(s, 2262)).toEqual(["#739"]);
     });
 });

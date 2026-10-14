@@ -796,33 +796,13 @@ export function viewWeightPaths(view: GraphView): readonly string[] {
 }
 
 /**
- * The warnings a run over this view completes with: one per path at which some read found no
- * number.
- * @param view - The view.
- * @returns The sentences, in first-read order; empty when every read found a number.
- */
-export function viewWarnings(view: GraphView): readonly string[] {
-    const state = stateOf(view);
-    const warnings: string[] = [];
-    for (const tally of state.tallies.values()) {
-        if (tally.missing.size > 0) {
-            warnings.push(tallyWarning(state, tally));
-        }
-    }
-
-    return warnings;
-}
-
-/**
  * The warning for one path at which some read found no number.
- * @param state - The view's state.
- * @param tally - The path's tally, with at least one missing read.
+ * @param id - The algorithm id the sentence starts with.
+ * @param tally - The path's tally; at least one read missed.
+ * @param total - How many nodes or edges the graph has.
  * @returns The sentence.
  */
-function tallyWarning(state: ViewState, tally: Tally): string {
-    const { id } = state.options;
-    const missing = tally.missing.size;
-    const plural = `${tally.target}s`;
+function tallyWarning(id: string, tally: Tally, total: number): string {
     const sample = tally.sample === undefined ? "" : JSON.stringify(tally.sample);
     if (tally.found.size === 0) {
         return tally.text.size > 0
@@ -830,9 +810,29 @@ function tallyWarning(state: ViewState, tally: Tally): string {
             : `${id}: no ${tally.target} has a number at "${tally.path}", so every read of it was left out.`;
     }
 
-    const total = tally.target === "node" ? state.source.snapshot.nodeCount : state.source.snapshot.edgeCount;
+    const missing = tally.missing.size;
     const text = tally.text.size;
     const verb = text === 1 ? "holds" : "hold";
     const textPart = text === 0 ? "" : ` (${text} ${verb} text, e.g. ${sample})`;
-    return `${id}: ${missing} of ${total} ${plural} ${missing === 1 ? "has" : "have"} no number at "${tally.path}"${textPart}; they were left out.`;
+    return `${id}: ${missing} of ${total} ${tally.target}s ${missing === 1 ? "has" : "have"} no number at "${tally.path}"${textPart}; they were left out.`;
+}
+
+/**
+ * The warnings a run over this view completes with: one per path at which some read found no
+ * number.
+ * @param view - The view.
+ * @returns The sentences, in first-read order; empty when every read found a number.
+ */
+export function viewWarnings(view: GraphView): readonly string[] {
+    const state = stateOf(view);
+    const { snapshot } = state.source;
+    const warnings: string[] = [];
+    for (const tally of state.tallies.values()) {
+        if (tally.missing.size > 0) {
+            const total = tally.target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
+            warnings.push(tallyWarning(state.options.id, tally, total));
+        }
+    }
+
+    return warnings;
 }

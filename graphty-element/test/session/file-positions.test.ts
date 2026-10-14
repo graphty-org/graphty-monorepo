@@ -8,6 +8,7 @@
 import { assert, describe, it, vi } from "vitest";
 
 import { DataConfig } from "../../src/config/DataConfig";
+import { exportSession } from "../../src/data/export";
 import { makeSession } from "./helpers";
 
 const SCALE = 2;
@@ -75,6 +76,54 @@ describe("an import with layout recommended keeps the drawing a file stores", ()
             }
 
             session.dispose();
+        });
+    }
+});
+
+/**
+ * Import a file with `layout: "recommended"` into a fresh session and read every node's position.
+ * @param type - the format
+ * @param data - the file
+ * @returns the session and the positions by id
+ */
+async function loaded(
+    type: string,
+    data: string,
+): Promise<{ session: ReturnType<typeof makeSession>["session"]; at: Map<string, number[]> }> {
+    const { session } = makeSession({
+        config: DataConfig.parse({ directed: "auto", knownFields: { positionScale: SCALE } }),
+    });
+    await session.data.import({ type, config: { data } }, { layout: "recommended" });
+    await vi.waitFor(() => {
+        assert.lengthOf(session.history.pending, 0);
+    });
+    const snapshot = session.snapshot();
+    const read = { x: 0, y: 0, z: 0 };
+    const at = new Map<string, number[]>();
+    for (let row = 0; row < snapshot.nodeCount; row++) {
+        session.positions.read(row, read);
+        at.set(String(snapshot.ids.idOf(row)), [read.x, read.y, read.z]);
+    }
+
+    return { session, at };
+}
+
+describe("a file loaded and saved is drawn the same way when loaded again", () => {
+    for (const [type, data] of [
+        ["gml", GML],
+        ["pajek", PAJEK],
+        ["dot", DOT],
+        ["pajek", '*Vertices 2\n1 "a" 0.25 0.75 0.9\n2 "b" 0.5 0.125 0.2\n*Edges\n1 2\n'],
+    ] as const) {
+        it(`${type}${data.includes("0.9") ? " 3D" : ""}`, async () => {
+            const first = await loaded(type, data);
+            const saved = await exportSession(first.session, type).text();
+            const second = await loaded(type, saved);
+
+            assert.deepEqual([...second.at.values()], [...first.at.values()], saved);
+            assert.isTrue(second.session.layout.id === "fixed");
+            first.session.dispose();
+            second.session.dispose();
         });
     }
 });

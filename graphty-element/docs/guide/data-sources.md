@@ -373,6 +373,10 @@ camera on the graph after every load, so a drawing in pixels and one in the 0 to
 fill the view; change `positionScale` only to change how far apart nodes sit compared with their
 size.
 
+Saving writes each node's current position back the way its format spells it: `exportGraph` to
+GML or Pajek turns y downward again (and puts Pajek's 0.5 back on a 3D drawing's z), divided by
+`positionScale`, so a file loaded and saved is drawn the same way when it is loaded again.
+
 `@graphty/graph-io/positions` is the reader the element uses, and it can be called on its own:
 see [Reading stored positions](https://graphty.app/docs/graph-io/guide/positions) in the
 graph-io guide.

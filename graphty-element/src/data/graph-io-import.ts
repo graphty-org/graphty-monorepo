@@ -164,7 +164,7 @@ export async function importDocument<Opts>(
         ({ report } = error);
     }
 
-    return { snapshot: builder.freeze(), report, importer: importer, declared: builder.declared };
+    return { snapshot: builder.freeze(), report, importer, declared: builder.declared };
 }
 
 /**

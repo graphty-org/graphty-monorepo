@@ -1,0 +1,42 @@
+{
+  "version": 2,
+  "pr": 2057,
+  "subject": {
+    "builtMerge": "18bc66f28c08658db51762724fcf7365ec4278c7",
+    "head": "af2ecb66e87c2a11738d9cb513f62a2e1db85d56",
+    "runId": 38338836021,
+    "runAttempt": 1,
+    "environment": {
+      "chromium": "143.0.7499.4",
+      "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "gpu": false,
+      "cpu": "AMD EPYC 7763 64-Core Processor",
+      "emojiFont": true,
+      "fonts": "018a3f813b3c58238736b0a956f43d73e3e3e2ff63ab6acb147ccd558132de12",
+      "tool": "18bc66f28c08658db51762724fcf7365ec4278c7"
+    },
+    "scale": 2
+  },
+  "items": [
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-datasets--contiguous-usa.png",
+      "from": "d38587954a0d04c68883c110d7d054c195d6a5d3fb0e5b2812f361bd1850e8b0",
+      "to": "bd5ac490339944fc1ec3b8a6e256d3f4a7947ac48ad51da6db9f02f9775bee99",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 1682,
+        "commit": "c5381deabd53f813fd66dc4cb4c5a15899c191da",
+        "record": "visual-baselines/reviews/20261013T023856Z-pr1682.json",
+        "reviewedAt": "2026-10-13T02:38:56.034Z"
+      }
+    }
+  ],
+  "rejects": [],
+  "reviewedAt": "2026-10-13T03:17:18.536Z",
+  "approval": {
+    "credentialId": "738fFZY3-Pa709BzFejFYRRnYVXX9K-eYpqc4bd7JMdzkEG2UGoy1M-r9Qm0l913",
+    "authenticatorData": "eMXhA2qypKDHuqedyDb0Pl-uTkIvHZ2wKAgFSf4SSWAdAAAAAA",
+    "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiSldxeGJxQm9HRlAzc1o5SjFJVk1RVFFUU0djZEJYbFBwTTZ6aHU0QUJhdyIsIm9yaWdpbiI6Imh0dHBzOi8vZGV2LmF0by5tczo5MjA5IiwiY3Jvc3NPcmlnaW4iOmZhbHNlfQ",
+    "signature": "MEYCIQDoql5ICRbL6xtjwOjDqstPEa_G45au3qA4NfvgVM8iaQIhAOPJM_NrWRyiuL-cDjaB4QFCJeluoyBvDyI7P8k5FtgE"
+  }
+}

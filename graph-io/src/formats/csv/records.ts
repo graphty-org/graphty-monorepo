@@ -739,125 +739,169 @@ class RecordScanner {
      * @returns the position after the last character consumed
      */
     scan(chunk: string, from: number): number {
-        const { quoteCode, delimiterCode } = this;
+        const { delimiterCode } = this;
         const n = chunk.length;
         let i = from;
         this.segment = from;
         while (i < n) {
             const c = chunk.charCodeAt(i);
-            if (this.state === COMMENT) {
-                if (c === LF || c === CR) {
-                    this.comment = this.grow(this.comment, chunk.slice(this.segment, i));
-                    this.reader.leadingComments.push(this.comment);
-                    this.reader.leadingCommentLines.push(this.line);
-                    this.comment = "";
-                    this.state = START;
-                    this.endLine(c);
-                    this.segment = i + 1;
-                }
+            const { state } = this;
+            if (state === COMMENT) {
+                this.commentChar(chunk, i, c);
                 i++;
                 continue;
             }
-            if (this.state === QUOTED) {
-                // jump to the next quote; the run in between is field text whose line breaks are counted
-                const q = chunk.indexOf(this.quoteText, i);
-                const end = q < 0 ? n : q;
-                if (end > i) {
-                    this.countLineBreaks(chunk, i, end);
-                }
-                if (q < 0) {
-                    i = n;
-                    break;
-                }
-                this.field = this.grow(this.field, chunk.slice(this.segment, q));
-                this.state = CLOSING;
-                this.lastWasCr = false;
-                i = q + 1;
+            if (state === QUOTED) {
+                i = this.quotedRun(chunk, i);
                 continue;
             }
             const isDelimiter = c === delimiterCode || (this.collapse && c === TAB);
-            if (this.state === CLOSING) {
-                if (c === quoteCode) {
-                    this.field = this.grow(this.field, this.quoteText);
-                    this.segment = i + 1;
-                    this.state = QUOTED;
-                    this.lastWasCr = false;
-                    i++;
-                    continue;
-                }
-                if (!isDelimiter && c !== LF && c !== CR) {
-                    this.reader.badQuote(this.startLine, this.count + 1);
-                }
-                this.state = AFTER_QUOTED;
-                this.segment = i;
-                // fall through to the delimiter / line-end handling below without consuming c
-            }
-            if (isDelimiter || c === LF || c === CR) {
-                if (c === LF && this.lastWasCr) {
-                    // the second half of a CRLF already ended the record
-                    this.lastWasCr = false;
-                    this.segment = i + 1;
-                    i++;
-                    continue;
-                }
-                if (this.state === UNQUOTED) {
-                    this.field = this.grow(this.field, chunk.slice(this.segment, i));
-                }
-                if (isDelimiter && this.collapse && this.state === START) {
-                    // a run of whitespace, or indentation: one separator
-                    this.lastWasCr = false;
-                    this.segment = i + 1;
-                    i++;
-                    continue;
-                }
-                if (isDelimiter) {
-                    this.push();
-                    this.state = START;
-                    this.lastWasCr = false;
-                    this.segment = i + 1;
-                    i++;
-                    continue;
-                }
-                // a line ending right after a whitespace run in the whitespace dialect ends no field
-                if (!(this.state === START && (this.count === 0 || this.collapse))) {
-                    this.push();
-                }
-                if (this.count > 0) {
-                    this.ready = true;
-                    this.recordLine = this.startLine;
-                }
-                this.state = START;
-                this.endLine(c);
-                this.segment = i + 1;
-                i++;
+            if (state === CLOSING || isDelimiter || c === LF || c === CR) {
+                i = this.boundary(chunk, i, c, isDelimiter);
                 if (this.ready) {
                     return i;
                 }
                 continue;
             }
-            this.lastWasCr = false;
-            if (this.state === START) {
-                if (this.leading && this.count === 0 && this.commentCodes.includes(c)) {
-                    this.state = COMMENT;
-                    this.segment = i;
-                    i++;
-                    continue;
-                }
-                this.leading = false;
-                if (c === quoteCode) {
-                    this.state = QUOTED;
-                    this.fieldQuoted = true;
-                    this.segment = i + 1;
-                } else {
-                    this.state = UNQUOTED;
-                    this.segment = i;
-                }
-            } else if (c === quoteCode && this.state === UNQUOTED && this.reader.strayQuoteLine === 0) {
-                this.reader.strayQuoteLine = this.startLine;
-            }
+            this.fieldChar(c, i);
             i++;
         }
         return i;
+    }
+
+    /**
+     * One character of a leading comment line: a line break ends the comment.
+     * @param chunk - the chunk
+     * @param i - the character's index
+     * @param c - the character's code
+     */
+    private commentChar(chunk: string, i: number, c: number): void {
+        if (c !== LF && c !== CR) {
+            return;
+        }
+        this.comment = this.grow(this.comment, chunk.slice(this.segment, i));
+        this.reader.leadingComments.push(this.comment);
+        this.reader.leadingCommentLines.push(this.line);
+        this.comment = "";
+        this.state = START;
+        this.endLine(c);
+        this.segment = i + 1;
+    }
+
+    /**
+     * Inside a quoted field: jump to the next quote; the run in between is field text whose line
+     * breaks are counted.
+     * @param chunk - the chunk
+     * @param i - where the run starts
+     * @returns the position after the quote, or the chunk end when there is none
+     */
+    private quotedRun(chunk: string, i: number): number {
+        const q = chunk.indexOf(this.quoteText, i);
+        const end = q < 0 ? chunk.length : q;
+        if (end > i) {
+            this.countLineBreaks(chunk, i, end);
+        }
+        if (q < 0) {
+            return chunk.length;
+        }
+        this.field = this.grow(this.field, chunk.slice(this.segment, q));
+        this.state = CLOSING;
+        this.lastWasCr = false;
+        return q + 1;
+    }
+
+    /**
+     * The character after a quote inside a quoted field, a delimiter or a line break: a doubled
+     * quote, the end of a field, or the end of a record.
+     * @param chunk - the chunk
+     * @param i - the character's index
+     * @param c - the character's code
+     * @param isDelimiter - whether it separates fields
+     * @returns the position after the character
+     */
+    private boundary(chunk: string, i: number, c: number, isDelimiter: boolean): number {
+        if (this.state === CLOSING) {
+            if (c === this.quoteCode) {
+                this.field = this.grow(this.field, this.quoteText);
+                this.segment = i + 1;
+                this.state = QUOTED;
+                this.lastWasCr = false;
+                return i + 1;
+            }
+            if (!isDelimiter && c !== LF && c !== CR) {
+                this.reader.badQuote(this.startLine, this.count + 1);
+            }
+            this.state = AFTER_QUOTED;
+            this.segment = i;
+        }
+        if (c === LF && this.lastWasCr) {
+            // the second half of a CRLF already ended the record
+            this.lastWasCr = false;
+            this.segment = i + 1;
+            return i + 1;
+        }
+        if (this.state === UNQUOTED) {
+            this.field = this.grow(this.field, chunk.slice(this.segment, i));
+        }
+        if (isDelimiter) {
+            // in the whitespace dialect a run of whitespace, or indentation, is one separator
+            if (!(this.collapse && this.state === START)) {
+                this.push();
+                this.state = START;
+            }
+            this.lastWasCr = false;
+            this.segment = i + 1;
+            return i + 1;
+        }
+        this.lineEnd(c);
+        this.segment = i + 1;
+        return i + 1;
+    }
+
+    /**
+     * A line break that ends a record (or a blank line).
+     * @param c - the LF or CR
+     */
+    private lineEnd(c: number): void {
+        // a line ending right after a whitespace run in the whitespace dialect ends no field
+        if (!(this.state === START && (this.count === 0 || this.collapse))) {
+            this.push();
+        }
+        if (this.count > 0) {
+            this.ready = true;
+            this.recordLine = this.startLine;
+        }
+        this.state = START;
+        this.endLine(c);
+    }
+
+    /**
+     * Any other character outside a quoted field: the start of a field or a comment, or field text.
+     * @param c - the character's code
+     * @param i - its index
+     */
+    private fieldChar(c: number, i: number): void {
+        this.lastWasCr = false;
+        if (this.state !== START) {
+            if (c === this.quoteCode && this.state === UNQUOTED && this.reader.strayQuoteLine === 0) {
+                this.reader.strayQuoteLine = this.startLine;
+            }
+            return;
+        }
+        if (this.leading && this.count === 0 && this.commentCodes.includes(c)) {
+            this.state = COMMENT;
+            this.segment = i;
+            return;
+        }
+        this.leading = false;
+        if (c === this.quoteCode) {
+            this.state = QUOTED;
+            this.fieldQuoted = true;
+            this.segment = i + 1;
+        } else {
+            this.state = UNQUOTED;
+            this.segment = i;
+        }
     }
 
     /**

@@ -3,7 +3,7 @@
 import { type DatasetMeta } from "./build.js";
 
 /**
- * The metadata of every hosted dataset: too large to bundle, loaded with `fetchDataset(name)` from
+ * The metadata of every large dataset (over about 5,000 nodes), loaded with `fetchDataset(name)` from
  * https://graphty.app/data/graph-samples/v1/. `sha256` and `bytes` describe the published .gsnp.gz file.
  */
 export const HOSTED_DATASETS: readonly DatasetMeta[] = [

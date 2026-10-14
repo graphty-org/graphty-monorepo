@@ -878,8 +878,6 @@ export class OperationQueueManager implements Manager {
      */
     enableBatching(): void {
         this.batchingEnabled = true;
-        // TODO: Operations queued while batching was disabled will be executed
-        // when waitForCompletion() is called
     }
 
     /**

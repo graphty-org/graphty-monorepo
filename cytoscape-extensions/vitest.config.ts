@@ -20,6 +20,8 @@ export default defineConfig({
     test: {
         // The machine-wide limit on concurrent test runs (tools/test-slots.mjs; off on GitHub Actions).
         globalSetup: ["../tools/test-slots.mjs"],
+        // dataset downloads read graph-samples' build output instead of graphty.app (test/setup/local-datasets.mjs)
+        setupFiles: ["./test/setup/local-datasets.mjs"],
         // At most this run's share of the cores for the Node projects (tools/test-slots.mjs); browser
         // projects keep their own maxWorkers or fileParallelism.
         maxWorkers: workerShare(),

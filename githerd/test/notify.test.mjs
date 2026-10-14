@@ -1,11 +1,12 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { homedir, tmpdir } from "node:os";
+import { existsSync, readFileSync, rmSync } from "node:fs";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { BROKEN_AFTER, createNotifier, MAX_MESSAGE, MAX_TRIES, TIMEOUT_MS } from "../lib/notify.mjs";
+import { tempDir } from "./helpers/temp-dir.mjs";
 
 const FAKE = fileURLToPath(new URL("helpers/fake-notify.mjs", import.meta.url));
 
@@ -69,7 +70,7 @@ function make({ maxPerHour = 6, command, timeoutMs, state = { schema: 1 }, held 
 }
 
 beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "githerd-notify-"));
+    dir = tempDir("githerd-notify-");
     log = join(dir, "calls.jsonl");
     behavior = "ok";
     ledger = [];

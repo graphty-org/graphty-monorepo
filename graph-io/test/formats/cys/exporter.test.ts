@@ -1,11 +1,11 @@
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { type ColumnDecl, GraphBuilder, GraphFormatError, type GraphSnapshot } from "@graphty/graph-format";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished } from "vitest";
 
 import { collectBytes } from "../../../src/common/writer.js";
 import { readZipDirectory, readZipEntry, writeZip } from "../../../src/common/zip.js";
@@ -193,6 +193,7 @@ describe("cysExporter: the archive Cytoscape reads", () => {
             return;
         }
         const dir = mkdtempSync(join(tmpdir(), "cys-"));
+        onTestFinished(() => rmSync(dir, { recursive: true, force: true }));
         const path = join(dir, "out.cys");
         writeFileSync(path, await sessionOf(graph()));
         const run = spawnSync("python3", [

@@ -2666,6 +2666,10 @@
             "weight"
         ]
     },
+    "pajek/graphstream_gs-core__B.net": {
+        "nodes": ["bw", "fos", "ic", "id", "label", "shape", "x", "x_fact", "y", "y_fact"],
+        "edges": ["ap", "directed", "h2", "source", "target", "w", "weight"]
+    },
     "xgmml/BasicDataVizDemo.xgmml.gz": {
         "nodes": [
             "COMMON",

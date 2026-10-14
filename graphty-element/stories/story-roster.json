@@ -187,6 +187,7 @@
         "Styles/Node::Shape",
         "Styles/Node::Size",
         "Styles/Node::Wireframe",
+        "Styles/Selection Highlight::Box",
         "Styles/Selection Highlight::Color",
         "Styles/Selection Highlight::Default",
         "Styles/Selection Highlight::Opacity",

@@ -17,7 +17,7 @@ import type { GraphSelectionStyleInput } from "../src/config";
 // Importing the module is what defines the <graphty-element> custom element, so this line is
 // load-bearing even though only the type is named.
 import { assertGraphLoaded, type Drawn, drawn, holds, renderedElement } from "./assertions";
-import { eventWaitingDecorator, setLayoutPreSteps, waitForGraphSettled } from "./helpers";
+import { eventWaitingDecorator, renderFn, setLayoutPreSteps, storySetup, waitForGraphSettled } from "./helpers";
 
 /** Five nodes, far enough apart that a halo around one is a halo around one. */
 const NODES = [{ id: "alpha" }, { id: "beta" }, { id: "gamma" }, { id: "delta" }, { id: "epsilon" }];
@@ -226,5 +226,32 @@ export const RestyledWhileSelected: Story = {
         await new Promise((resolve) => setTimeout(resolve, SETTLE_MS));
 
         await assertHalo(scene, { color: "#7CB342", alpha: 0.7, clearance: 2 });
+    },
+};
+
+/**
+ * The halo around a box: a larger box around the selected node, never a sphere behind it. The
+ * halo is the node's own shape scaled out, so a box's corners are ringed too (issue #2643).
+ */
+export const Box: Story = {
+    render: (args, context) => {
+        const element = renderFn(args, context);
+        element.addEventListener("graph-settled", () => {
+            (element as HTMLElement & { selectNode: (id: string) => boolean }).selectNode(SELECTED);
+        });
+
+        return element;
+    },
+    args: {
+        setup: storySetup({ node: { "node.shape": "box" } }),
+        nodeData: NODES,
+        edgeData: EDGES,
+        layout: "ngraph",
+        layoutConfig: { seed: 42 },
+    } as HighlightArgs,
+    play: async ({ canvasElement }) => {
+        const scene = await selected(canvasElement, "Box");
+
+        await assertHalo(scene, { color: "#FFD700", alpha: 0.4, clearance: 1.45 });
     },
 };

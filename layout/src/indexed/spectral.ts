@@ -38,8 +38,9 @@ function spectralRows(
     const rows = new Float64Array(n * dim);
     if (n <= 2) {
         for (let i = 0; i < n; i++) {
+            const offset = i === 0 ? -scale : scale;
             for (let k = 0; k < dim; k++) {
-                rows[dim * i + k] = n === 1 ? center[k] : center[k] + (i === 0 ? -scale : scale);
+                rows[dim * i + k] = n === 1 ? center[k] : center[k] + offset;
             }
         }
         return rows;

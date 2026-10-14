@@ -9,19 +9,7 @@ import { cleanupTestGraph, createTestGraph, setBehavior } from "../helpers/testS
 describe("3D Camera Controls", () => {
     let graph: Graph;
     let cameraController: OrbitCameraController;
-    /**
-     * The controller plus the two private fields this file asserts on. The rotation velocities are
-     * the controller's inertia state and there is no public reader for them, so the test declares
-     * what it reaches for instead of casting at each use.
-     */
-    type InspectableOrbitController = {
-        [K in keyof OrbitInputController]: OrbitInputController[K];
-    } & {
-        rotationVelocityX: number;
-        rotationVelocityY: number;
-    };
-
-    let inputController: InspectableOrbitController;
+    let inputController: OrbitInputController;
 
     beforeEach(async () => {
         // Create test graph
@@ -42,8 +30,7 @@ describe("3D Camera Controls", () => {
         assert.isDefined(cameraController, "Camera controller should be defined after switching to 3D mode");
 
         // Access the input controller through camera manager
-        inputController = (cameraManager as unknown as { activeInputHandler: InspectableOrbitController })
-            .activeInputHandler;
+        inputController = (cameraManager as unknown as { activeInputHandler: OrbitInputController }).activeInputHandler;
         assert.isDefined(inputController, "Input controller should be defined");
 
         // Verify input controller is enabled
@@ -98,39 +85,27 @@ describe("3D Camera Controls", () => {
         assert.isFalse(isPointerDownAfter, "Pointer down should be cleared after pointer up");
     });
 
-    test("arrow keys rotate with velocity", () => {
+    test("arrow keys turn the camera, one way and the other", () => {
         const { canvas } = graph;
+        const rotate = vi.spyOn(cameraController, "rotate");
+        /**
+         * The turn one update makes while a key is held.
+         * @param key - The key.
+         * @returns The yaw and pitch handed to the camera.
+         */
+        const turnFor = (key: string): [number, number] => {
+            rotate.mockClear();
+            canvas.dispatchEvent(new KeyboardEvent("keydown", { key }));
+            inputController.update();
+            canvas.dispatchEvent(new KeyboardEvent("keyup", { key }));
+            assert.equal(rotate.mock.calls.length, 1, `${key} turned the camera once`);
+            return rotate.mock.calls[0];
+        };
 
-        // Test arrow left (increase Y rotation velocity)
-        canvas.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft" }));
-        inputController.update();
-
-        assert.isTrue(inputController.rotationVelocityY > 0, "Arrow Left should increase Y rotation velocity");
-
-        // Reset and test arrow right (decrease Y rotation velocity)
-        (inputController as any).rotationVelocityY = 0;
-        canvas.dispatchEvent(new KeyboardEvent("keyup", { key: "ArrowLeft" }));
-        canvas.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight" }));
-        inputController.update();
-
-        assert.isTrue(inputController.rotationVelocityY < 0, "Arrow Right should decrease Y rotation velocity");
-
-        // Reset and test arrow up (increase X rotation velocity)
-        (inputController as any).rotationVelocityY = 0;
-        (inputController as any).rotationVelocityX = 0;
-        canvas.dispatchEvent(new KeyboardEvent("keyup", { key: "ArrowRight" }));
-        canvas.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp" }));
-        inputController.update();
-
-        assert.isTrue(inputController.rotationVelocityX > 0, "Arrow Up should increase X rotation velocity");
-
-        // Reset and test arrow down (decrease X rotation velocity)
-        (inputController as any).rotationVelocityX = 0;
-        canvas.dispatchEvent(new KeyboardEvent("keyup", { key: "ArrowUp" }));
-        canvas.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown" }));
-        inputController.update();
-
-        assert.isTrue(inputController.rotationVelocityX < 0, "Arrow Down should decrease X rotation velocity");
+        assert.isBelow(turnFor("ArrowLeft")[0], 0, "ArrowLeft turns one way");
+        assert.isAbove(turnFor("ArrowRight")[0], 0, "ArrowRight turns the other");
+        assert.isBelow(turnFor("ArrowUp")[1], 0, "ArrowUp tilts one way");
+        assert.isAbove(turnFor("ArrowDown")[1], 0, "ArrowDown tilts the other");
     });
 
     test("WASD keys control camera movement", () => {
@@ -194,23 +169,17 @@ describe("3D Camera Controls", () => {
         canvas.dispatchEvent(new KeyboardEvent("keyup", { key: "d", bubbles: true }));
     });
 
-    test("keyboard controls have inertia damping", () => {
+    test("an arrow key stops turning the camera when it is released", () => {
         const { canvas } = graph;
+        const rotate = vi.spyOn(cameraController, "rotate");
 
-        // Start rotation
         canvas.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft" }));
         inputController.update();
+        assert.equal(rotate.mock.calls.length, 1, "a held arrow turns the camera");
 
-        const initialVelocity = inputController.rotationVelocityY;
-        assert.isTrue(initialVelocity > 0, "Should have positive rotation velocity");
-
-        // Stop input but keep updating (inertia should reduce velocity)
         canvas.dispatchEvent(new KeyboardEvent("keyup", { key: "ArrowLeft" }));
         inputController.update();
-
-        const dampedVelocity = inputController.rotationVelocityY;
-        assert.isTrue(dampedVelocity < initialVelocity, "Velocity should be damped when key is released");
-        assert.isTrue(dampedVelocity > 0, "Some velocity should remain due to inertia");
+        assert.equal(rotate.mock.calls.length, 1, "nothing coasts on after the key is released");
     });
 
     test("canvas gains focus on pointer down", () => {
@@ -252,12 +221,9 @@ describe("3D Camera Controls", () => {
         canvas.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }));
         inputController.update();
 
-        // When disabled, rotationVelocityY should not increase from arrow key
-        assert.equal(
-            inputController.rotationVelocityY,
-            0,
-            "Rotation velocity should remain zero when input is disabled",
-        );
+        // When disabled, the arrow key does not turn the camera
+        const rotate = vi.spyOn(cameraController, "rotate");
+        assert.equal(rotate.mock.calls.length, 0, "The camera should not turn when input is disabled");
 
         inputController.enable();
         assert.isTrue((inputController as any).enabled, "Input controller should be re-enabled");
@@ -266,10 +232,7 @@ describe("3D Camera Controls", () => {
         canvas.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }));
         inputController.update();
 
-        assert.isTrue(
-            inputController.rotationVelocityY > 0,
-            "Rotation velocity should increase when input is re-enabled",
-        );
+        assert.equal(rotate.mock.calls.length, 1, "The camera should turn when input is re-enabled");
     });
 
     test("multi-touch prevents mouse orbit", () => {
@@ -316,16 +279,6 @@ describe("3D Camera Controls", () => {
         assert.isTrue(rotationUnchanged, "Pivot should not orbit during multi-touch");
     });
 
-    test("rotation velocity properties are accessible", () => {
-        // These properties are used internally and should be accessible for testing
-        assert.isDefined(inputController.rotationVelocityX, "rotationVelocityX should be accessible");
-        assert.isDefined(inputController.rotationVelocityY, "rotationVelocityY should be accessible");
-
-        // Initial values should be zero
-        assert.equal(inputController.rotationVelocityX, 0, "Initial X rotation velocity should be zero");
-        assert.equal(inputController.rotationVelocityY, 0, "Initial Y rotation velocity should be zero");
-    });
-
     test("camera position updates on rotation", () => {
         const { canvas } = graph;
         canvas.focus();
@@ -333,7 +286,7 @@ describe("3D Camera Controls", () => {
         // Test that updateCameraPosition is called during the input controller update
         const updateSpy = vi.spyOn(cameraController, "updateCameraPosition");
 
-        // Apply keyboard rotation (ArrowLeft increases rotationVelocityY)
+        // Apply keyboard rotation
         canvas.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }));
         inputController.update();
 
@@ -345,32 +298,5 @@ describe("3D Camera Controls", () => {
 
         // Verify the camera is properly parented to the pivot
         assert.equal(cameraController.camera.parent, cameraController.pivot, "Camera should be parented to the pivot");
-    });
-
-    test("update method applies rotation velocity", () => {
-        // Ensure input controller is enabled
-        assert.isTrue((inputController as any).enabled, "Input controller should be enabled");
-
-        // Manually set rotation velocity (these are private fields accessed for testing)
-        (inputController as any).rotationVelocityX = 0.1;
-        (inputController as any).rotationVelocityY = 0.1;
-
-        // Spy on the rotate method to verify it's called with the velocity values
-        const rotateSpy = vi.spyOn(cameraController, "rotate");
-
-        // Update should apply the velocity
-        inputController.update();
-
-        // Verify rotate was called twice (once for X, once for Y velocity)
-        assert.equal(rotateSpy.mock.calls.length, 2, "rotate() should be called twice for X and Y velocity");
-
-        // Check the velocity was applied and damped
-        const finalVelocityX = (inputController as any).rotationVelocityX;
-        const finalVelocityY = (inputController as any).rotationVelocityY;
-
-        assert.isTrue(finalVelocityX < 0.1, "Rotation velocity X should be damped after update");
-        assert.isTrue(finalVelocityY < 0.1, "Rotation velocity Y should be damped after update");
-        assert.isTrue(finalVelocityX > 0, "Rotation velocity X should still be positive due to inertia");
-        assert.isTrue(finalVelocityY > 0, "Rotation velocity Y should still be positive due to inertia");
     });
 });

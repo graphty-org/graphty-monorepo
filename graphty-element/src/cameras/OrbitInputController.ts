@@ -14,8 +14,6 @@ export class OrbitInputController {
     private lastX = 0;
     private lastY = 0;
     private isMultiTouch = false;
-    private rotationVelocityX = 0;
-    private rotationVelocityY = 0;
     private keysDown: Record<string, boolean> = {};
     private readonly config: OrbitConfig;
     private hammer: HammerManager | null = null;
@@ -159,25 +157,15 @@ export class OrbitInputController {
 
         const keys = this.keysDown;
         const cam = this.controller;
-        // The velocity is damped every frame, so a held key settles where the push and the damping
-        // balance: push / (1 - damping). Pushing by speed * (1 - damping) settles a held arrow at
-        // exactly keyboardRotationSpeed radians a frame, as A and D turn by keyboardYawSpeed.
-        const push = this.config.keyboardRotationSpeed * (1 - this.config.inertiaDamping);
+        // A held arrow turns by exactly keyboardRotationSpeed radians every frame, from the first
+        // frame to the last, as A and D spin by keyboardYawSpeed: no velocity, so nothing builds
+        // up while it is held and nothing coasts on after it is let go.
+        const turn = this.config.keyboardRotationSpeed / this.config.trackballRotationSpeed;
+        const yaw = (keys.arrowleft ? 1 : 0) - (keys.arrowright ? 1 : 0);
+        const pitch = (keys.arrowup ? 1 : 0) - (keys.arrowdown ? 1 : 0);
 
-        if (keys.arrowleft) {
-            this.rotationVelocityY += push;
-        }
-
-        if (keys.arrowright) {
-            this.rotationVelocityY -= push;
-        }
-
-        if (keys.arrowup) {
-            this.rotationVelocityX += push;
-        }
-
-        if (keys.arrowdown) {
-            this.rotationVelocityX -= push;
+        if (yaw !== 0 || pitch !== 0) {
+            cam.rotate(-yaw * turn, -pitch * turn);
         }
 
         // W and S are exact inverses, so a press of one undoes the same press of the other
@@ -195,16 +183,6 @@ export class OrbitInputController {
 
         if (keys.d) {
             cam.spin(-this.config.keyboardYawSpeed);
-        }
-
-        if (Math.abs(this.rotationVelocityX) > 0.00001) {
-            cam.rotate(0, -this.rotationVelocityX / this.config.trackballRotationSpeed);
-            this.rotationVelocityX *= this.config.inertiaDamping;
-        }
-
-        if (Math.abs(this.rotationVelocityY) > 0.00001) {
-            cam.rotate(-this.rotationVelocityY / this.config.trackballRotationSpeed, 0);
-            this.rotationVelocityY *= this.config.inertiaDamping;
         }
 
         cam.updateCameraPosition();

@@ -1,7 +1,6 @@
-import type { F64, GraphSnapshot } from "@graphty/graph-format";
+import { detCos, detSin, type F64, type GraphSnapshot } from "@graphty/graph-format";
 
 import { type LayoutResult, rescaleInPlace } from "../positions.js";
-import { detCos, detSin } from "../utils/det-math.js";
 import { type CommonLayoutOptions, planar, resolve, result } from "./common.js";
 
 /** Options of the index-based spiral layout. */

@@ -264,7 +264,7 @@ githerd stats [--json]           # issues and pull requests per week, where issu
 githerd stats --backfill         # first rebuild the missing days of the last 8 weeks from GitHub (reads only)
 githerd stats --backfill-gate    # first recover older pushes' pre-push gate output from transcripts and shard logs
 githerd mode paused              # lower the mode locally (also dry-run); mode clear removes it
-githerd pause | resume           # stop / restart every worker start and doorbell
+githerd pause | resume           # stop / restart every worker start, doorbell and message to sessions
 githerd workers <n> | --stop     # working sessions (0 keeps only the urgent slot); --stop ends all
 githerd keep <window> [--with-job]  # hand a worker's window to you
 githerd release <job>            # give back a job you stopped or kept

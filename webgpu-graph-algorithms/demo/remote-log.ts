@@ -36,7 +36,8 @@ function push(level: LogEntry["level"], parts: unknown[]): void {
     const message = parts
         .map((p) => {
             if (p instanceof Error) {
-                return `${p.name}: ${p.message}${p.stack ? `\n${p.stack}` : ""}`;
+                const stack = p.stack ? `\n${p.stack}` : "";
+                return `${p.name}: ${p.message}${stack}`;
             }
             if (typeof p === "string") {
                 return p;

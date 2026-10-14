@@ -36,8 +36,9 @@ and token are not in that file (section "Configuration and secrets").
 The new step, "SonarQube (changed lines)", is `tools/sonar-gate.mjs`, run by `tools/prepush.sh`:
 
 1. **Find the changed files.** `git diff -M --name-status --diff-filter=AMR <merge-base> HEAD`,
-   where the merge base is the same `git merge-base origin/master HEAD` the gate already uses for
-   nx. The push sends HEAD, so HEAD is what is judged, never the working tree. Keep the
+   where the merge base is the one the gate uses for nx: with the branch the push merges into
+   (`tools/push-base.mjs`), which is origin/master unless the branch is stacked on another pull
+   request's branch. The push sends HEAD, so HEAD is what is judged, never the working tree. Keep the
    extensions SonarQube analyzes (`.ts .tsx .js .mjs .cjs .html .css .py`); the scanner applies
    the exclusions in `sonar-project.properties` itself, so the gate does not copy them. A file
    with uncommitted changes is left out of the scan and named in a warning ("not checked: has

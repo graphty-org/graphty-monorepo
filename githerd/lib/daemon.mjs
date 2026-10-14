@@ -1303,16 +1303,20 @@ export async function startDaemon({
             );
             if (failing.length === 1 && failing[0].databaseId) {
                 const job = failing[0].databaseId;
-                // A record from before the capture check was read has no `captureFailed`: read it once.
-                if (prev?.gateJob !== job || prev?.headSha !== node.headRefOid || !prev?.captureFailed) {
+                // A record from before the capture check was read has no `captureFailed`, and one from
+                // before `gateRead` may hold an unfinished read: read either once more.
+                if (prev?.gateRead !== job || prev?.headSha !== node.headRefOid || !prev?.captureFailed) {
                     const res = await github().get(`repos/${repo}/actions/jobs/${job}`);
-                    detail.failedSteps = (res.body?.steps ?? [])
-                        .filter((s) => s.conclusion === "failure")
-                        .map((s) => s.name);
+                    const steps = res.body?.steps ?? [];
+                    detail.failedSteps = steps.filter((s) => s.conclusion === "failure").map((s) => s.name);
                     // A failed capture shows only in the gate's annotations (prs.mjs captureFailures).
                     const notes = await github().get(`repos/${repo}/check-runs/${job}/annotations?per_page=100`);
                     detail.gateAnnotations = (notes.body ?? []).map((/** @type {any} */ a) => String(a.message ?? ""));
-                }
+                    // GitHub can call the check run complete before the job's steps have their
+                    // conclusions: kept, such a read made #1727's visual wait "required check
+                    // failing" for its whole head (issue #2081). It is read again next poll.
+                    if (steps.length && steps.every((s) => s.conclusion != null)) detail.gateRead = job;
+                } else detail.gateRead = job;
                 detail.gateJob = job;
                 if (config.ownerGate.rejectMarker) {
                     const since = node.commits?.nodes?.[0]?.commit?.committedDate ?? "1970-01-01T00:00:00Z";
@@ -2932,7 +2936,10 @@ export async function startDaemon({
         const shared = markShared(state, prs, nodes, { threshold: config.sharedFailurePrs, at: iso });
         for (const key of shared.declared) event("shared-failure", { key, prs: state.sharedFailures[key].prs });
         for (const end of shared.ended) event("shared-failure-ended", end);
-        for (const node of nodes) if (node.detail.gateJob) prs[node.number].gateJob = node.detail.gateJob;
+        for (const node of nodes) {
+            if (node.detail.gateJob) prs[node.number].gateJob = node.detail.gateJob;
+            if (node.detail.gateRead) prs[node.number].gateRead = node.detail.gateRead;
+        }
         await rerunCancelled(gh, prs, iso);
         for (const ended of board.expire(state, sessionGone)) {
             void ledger({

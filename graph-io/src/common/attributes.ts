@@ -326,35 +326,75 @@ export function declareResolved(
                 throw err;
             }
             if (err.code === "E_COLUMN_EXISTS" && !renamed) {
-                const taken = takenIn(sink, domain);
-                const id = current.origin?.id ?? null;
-                const name = uniqueColumnName(current.name, id, taken);
-                report.warning(
-                    "coercion",
-                    COLUMN_RENAMED_CODE,
-                    `${domain} column "${current.name}" renamed to "${name}": the sink already holds that name with another shape`,
-                    { ...where, element: where?.element ?? current.name },
-                );
-                current = { ...current, name };
+                current = renameColumn(sink, domain, current, report, where);
                 renamed = true;
                 continue;
             }
             if (err.code === "E_DUPLICATE_ROLE" && current.role !== undefined && !roleDropped) {
-                const holder = typeof err.details.holder === "string" ? err.details.holder : "another column";
-                report.warning(
-                    "coercion",
-                    ROLE_TAKEN_CODE,
-                    `${domain} column "${current.name}" loses the ${current.role} role: "${holder}" already holds it`,
-                    { ...where, element: where?.element ?? current.name },
-                );
-                const { role: _role, ...withoutRole } = current;
-                current = withoutRole;
+                current = dropRole(err, domain, current, current.role, report, where);
                 roleDropped = true;
                 continue;
             }
             throw err;
         }
     }
+}
+
+/**
+ * The declaration under a name the sink does not hold yet, recording W_COLUMN_RENAMED.
+ * @param sink - the sink
+ * @param domain - node or edge
+ * @param decl - the declaration whose name clashed
+ * @param report - the report
+ * @param where - the line and element, when known
+ * @returns the renamed declaration
+ */
+function renameColumn(
+    sink: GraphSink,
+    domain: "node" | "edge",
+    decl: ColumnDecl,
+    report: ImportReportBuilder,
+    where: IssueLocation | undefined,
+): ColumnDecl {
+    const taken = takenIn(sink, domain);
+    const id = decl.origin?.id ?? null;
+    const name = uniqueColumnName(decl.name, id, taken);
+    report.warning(
+        "coercion",
+        COLUMN_RENAMED_CODE,
+        `${domain} column "${decl.name}" renamed to "${name}": the sink already holds that name with another shape`,
+        { ...where, element: where?.element ?? decl.name },
+    );
+    return { ...decl, name };
+}
+
+/**
+ * The declaration without the role another column holds, recording W_ROLE_TAKEN.
+ * @param err - the sink's E_DUPLICATE_ROLE error
+ * @param domain - node or edge
+ * @param decl - the declaration whose role clashed
+ * @param role - its role
+ * @param report - the report
+ * @param where - the line and element, when known
+ * @returns the declaration without its role
+ */
+function dropRole(
+    err: GraphFormatError,
+    domain: "node" | "edge",
+    decl: ColumnDecl,
+    role: ColumnRole,
+    report: ImportReportBuilder,
+    where: IssueLocation | undefined,
+): ColumnDecl {
+    const holder = typeof err.details.holder === "string" ? err.details.holder : "another column";
+    report.warning(
+        "coercion",
+        ROLE_TAKEN_CODE,
+        `${domain} column "${decl.name}" loses the ${role} role: "${holder}" already holds it`,
+        { ...where, element: where?.element ?? decl.name },
+    );
+    const { role: _role, ...withoutRole } = decl;
+    return withoutRole;
 }
 
 /**

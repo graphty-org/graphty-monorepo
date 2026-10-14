@@ -127,7 +127,7 @@ export async function pollIssues(gitHub, repo, saved) {
 
 /**
  * The issue numbers something in the state still looks up in `state.issues.byNumber`: a job that
- * has not ended (its target and a triage batch), a deferral, a left-out bundle member, a proposal
+ * has not ended (its target and a triage batch), a split job's children, a deferral, a left-out bundle member, a proposal
  * that has not ended, an owner item that has not ended, a flaky test's issue, a dequeued release's
  * issue and an unresolved escalation's hold issue. Built once per pass.
  * @param {any} state the daemon state
@@ -148,6 +148,8 @@ function referencedIssues(state) {
         add(issueOf(j.target));
         for (const n of j.facts?.batch ?? []) add(n);
     }
+    // A split job's children, while the job is kept: proposals.mjs proposeSplitParents reads them.
+    for (const j of Object.values(state.jobs ?? {})) for (const n of j.children ?? []) add(n);
     for (const p of live(state.proposals, (p) => PROPOSAL_ENDED.has(p.status))) add(issueOf(p.target));
     for (const i of live(state.ownerItems, (i) => Boolean(i.endedAt))) add(issueOf(i.target));
     for (const e of live(state.escalations, (e) => Boolean(e.resolvedAt))) add(e.holdIssue);

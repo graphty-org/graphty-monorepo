@@ -4,7 +4,7 @@
 // Source: https://www2.census.gov/geo/docs/reference/cenpop2020/CenPop2020_Mean_ST.txt
 // sha256: af37e0d68c617f417ef805a94c07cbb0f788863e3cc4db21a3b35f28766f2f06
 
-import { type DatasetData } from "../build.js";
+import { type DatasetData } from "./build.js";
 
 export const DATA: DatasetData = {
     directed: false,

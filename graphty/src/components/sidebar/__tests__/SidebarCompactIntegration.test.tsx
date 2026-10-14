@@ -82,7 +82,7 @@ describe("the style inspector is drawn with library controls only", () => {
         renderPanel();
 
         expect(screen.getAllByTestId("control-group").length).toBeGreaterThan(0);
-        // The Shape section holds two selects: the shape and the border style.
+        // The Shape section holds several selects: the shape, the size mode and the border style.
         expect(
             within(screen.getByRole("group", { name: "Shape" })).getAllByTestId("style-select").length,
         ).toBeGreaterThan(0);

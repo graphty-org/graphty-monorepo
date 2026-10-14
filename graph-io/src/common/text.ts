@@ -202,21 +202,7 @@ export class TextCellWriter {
     write(row: number, text: string): void {
         const kind = inferTextDtype(text);
         const value = parseTextCell(text);
-        if (
-            typeof value === "number" &&
-            !Number.isSafeInteger(value) &&
-            I32_TEXT.test(text) &&
-            BigInt(text) !== BigInt(value)
-        ) {
-            // an integer beyond 2^53 is stored as the nearest double; say so once per column
-            this.report.warnOnce(
-                "precision",
-                PRECISION_CODE,
-                `${this.domain} column "${this.name}": integers beyond 2^53 are stored as the nearest double (first: ${text})`,
-                { element: this.name },
-                `${PRECISION_CODE}:${this.domain}:${this.name}`,
-            );
-        }
+        this.warnIfImprecise(text, value);
         const wasString = this.textDtype === "string";
         const textDtype =
             this.textDtype === null || textDtypeRank(kind) > textDtypeRank(this.textDtype) ? kind : this.textDtype;
@@ -247,6 +233,29 @@ export class TextCellWriter {
         }
         if (this.textDtype === "f64" && this.valueDtype !== "f64") {
             this.widen("f64");
+        }
+    }
+
+    /**
+     * Warn, once per column, when the cell is an integer beyond 2^53 that is stored as the nearest
+     * double.
+     * @param text - the cell text
+     * @param value - the parsed value
+     */
+    private warnIfImprecise(text: string, value: unknown): void {
+        if (
+            typeof value === "number" &&
+            !Number.isSafeInteger(value) &&
+            I32_TEXT.test(text) &&
+            BigInt(text) !== BigInt(value)
+        ) {
+            this.report.warnOnce(
+                "precision",
+                PRECISION_CODE,
+                `${this.domain} column "${this.name}": integers beyond 2^53 are stored as the nearest double (first: ${text})`,
+                { element: this.name },
+                `${PRECISION_CODE}:${this.domain}:${this.name}`,
+            );
         }
     }
 

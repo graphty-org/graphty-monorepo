@@ -2,6 +2,7 @@
  * The option lists the style inspector's pickers are built from.
  */
 
+import { CHANNEL_DESCRIPTORS } from "@graphty/graphty-element/catalog";
 import { EdgeArrowTypes, EdgeLineTypes, NodeBorderStyles, NodeShapes } from "@graphty/graphty-element/schema";
 
 /**
@@ -82,6 +83,14 @@ export const ARROW_TYPE_OPTIONS: StyleOption[] = EdgeArrowTypes.options.map((typ
     value: type,
     label: optionLabel(type),
 }));
+
+/**
+ * How a node's size is read ("scale" or "diameter"), derived from the element's own
+ * `node.sizeMode` channel so a mode added to the element appears here with no edit.
+ */
+export const NODE_SIZE_MODE_OPTIONS: StyleOption[] = (CHANNEL_DESCRIPTORS["node.sizeMode"].values ?? []).map(
+    (mode) => ({ value: mode, label: optionLabel(mode) }),
+);
 
 /** The node border line styles, as the element's `NodeBorderStyles` spells them. */
 export const BORDER_STYLE_OPTIONS: StyleOption[] = NodeBorderStyles.options.map((style) => ({

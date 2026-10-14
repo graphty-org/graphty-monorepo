@@ -66,7 +66,9 @@ export const RichTextStyle = z.strictObject({
 
     // Font settings
     font: z.string().default("Verdana").optional(),
-    fontSize: z.number().default(48).optional(),
+    // At least 1, as the size channels say: a label's plane is fontSize / 48 tall, so 0 draws a
+    // label nobody can see and a negative size draws nonsense.
+    fontSize: z.number().min(1).default(48).optional(),
     /**
      * What `fontSize` is measured in. `"world"` (the default): a length in the scene, 48 to one
      * world unit per line, so the label grows and shrinks with the zoom. `"screen"`: CSS pixels

@@ -2,7 +2,7 @@
  * The option lists the style inspector's pickers are built from.
  */
 
-import { EdgeArrowTypes, EdgeLineTypes, NodeShapes } from "@graphty/graphty-element/schema";
+import { EdgeArrowTypes, EdgeLineTypes, NodeBorderStyles, NodeShapes } from "@graphty/graphty-element/schema";
 
 /**
  * One row of a `StyleSelect`: the value written into the layer and the word drawn for it.
@@ -81,4 +81,10 @@ export const LINE_TYPE_OPTIONS: StyleOption[] = EdgeLineTypes.options.map((type)
 export const ARROW_TYPE_OPTIONS: StyleOption[] = EdgeArrowTypes.options.map((type) => ({
     value: type,
     label: optionLabel(type),
+}));
+
+/** The node border line styles, as the element's `NodeBorderStyles` spells them. */
+export const BORDER_STYLE_OPTIONS: StyleOption[] = NodeBorderStyles.options.map((style) => ({
+    value: style,
+    label: optionLabel(style),
 }));

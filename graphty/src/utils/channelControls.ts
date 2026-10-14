@@ -17,6 +17,7 @@ import type { Channel } from "@graphty/graphty-element/session";
 
 import {
     ARROW_TYPE_OPTIONS,
+    BORDER_STYLE_OPTIONS,
     LINE_TYPE_OPTIONS,
     NODE_SHAPE_OPTIONS,
     type StyleOption,
@@ -107,6 +108,13 @@ const CHANNEL_UI: Readonly<Record<Channel, ChannelUi>> = {
     "node.wireframe": {},
     "node.flat": {},
     "node.marker": {},
+    "node.width": { step: 0.1 },
+    "node.height": { step: 0.1 },
+    "node.depth": { step: 0.1 },
+    "node.planar": {},
+    "node.borderColor": {},
+    "node.borderWidth": { step: 0.05 },
+    "node.borderStyle": { options: BORDER_STYLE_OPTIONS },
     "edge.color": {},
     "edge.width": { step: 0.5 },
     "edge.opacity": { step: 0.05 },

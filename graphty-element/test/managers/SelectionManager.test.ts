@@ -5,6 +5,7 @@ import { Graph } from "../../src/Graph";
 import { EventManager } from "../../src/managers/EventManager";
 import { SelectionManager } from "../../src/managers/SelectionManager";
 import type { Node } from "../../src/Node";
+import { assertScalesLinearly, visitsDuring } from "../helpers/cost";
 import { cleanupTestGraph, createTestGraph } from "../helpers/testSetup";
 
 /**
@@ -291,6 +292,46 @@ describe("SelectionManager", () => {
             const result = selectionManager.selectById("non-existent");
             assert.isFalse(result);
             assert.isNull(selectionManager.getSelectedNode());
+        });
+    });
+
+    // A shift-click on a node: it joins the selection, or leaves it if it was in.
+    describe("toggle", () => {
+        it("adds a node that is not selected and takes out one that is", () => {
+            const [a, b] = [createMockNode("a"), createMockNode("b")];
+
+            selectionManager.toggle(a);
+            selectionManager.toggle(b);
+            assert.deepStrictEqual(
+                selectionManager.getSelectedNodes().map((node) => node.id),
+                ["a", "b"],
+            );
+
+            selectionManager.toggle(a);
+            assert.deepStrictEqual(
+                selectionManager.getSelectedNodes().map((node) => node.id),
+                ["b"],
+            );
+            assert.isFalse(a.isSelected(), "the node taken out is no longer highlighted");
+        });
+
+        it("costs work in proportion to the selection, no more", async () => {
+            await assertScalesLinearly(
+                async (size) => {
+                    const manager = new SelectionManager(eventManager);
+                    for (let i = 0; i < size; i++) {
+                        manager.toggle(createMockNode(String(i)));
+                    }
+
+                    const extra = createMockNode("extra");
+                    const visits = await visitsDuring(() => {
+                        manager.toggle(extra);
+                    });
+                    manager.dispose();
+                    return visits;
+                },
+                { sizes: [250, 1000], counter: "elements visited by one toggle" },
+            );
         });
     });
 });

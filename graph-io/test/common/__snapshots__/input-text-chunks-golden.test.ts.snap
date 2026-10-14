@@ -1,0 +1,2214 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`textChunks golden > a chunk that is neither a string nor bytes 1`] = `
+{
+  "chunks": [
+    ""ab"",
+  ],
+  "error": "GraphFormatError: E_UNSUPPORTED: an input chunk must be a string or a Uint8Array",
+  "issues": [],
+  "progress": [
+    [
+      2,
+      undefined,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > a chunk that is neither a string nor bytes 2`] = `
+{
+  "chunks": [],
+  "error": "GraphFormatError: E_UNSUPPORTED: an input chunk must be a string or a Uint8Array",
+  "issues": [],
+  "progress": [],
+}
+`;
+
+exports[`textChunks golden > a signal aborted between chunks 1`] = `
+{
+  "chunks": [
+    ""ab"",
+  ],
+  "error": "Error: : later",
+  "issues": [],
+  "progress": [
+    [
+      2,
+      undefined,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > allowEmpty accepts empty input in every shape 1`] = `
+{
+  "chunks": [],
+  "error": null,
+  "issues": [],
+  "progress": [
+    [
+      0,
+      0,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > allowEmpty accepts empty input in every shape 2`] = `
+{
+  "chunks": [],
+  "error": null,
+  "issues": [],
+  "progress": [
+    [
+      0,
+      0,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > allowEmpty accepts empty input in every shape 3`] = `
+{
+  "chunks": [],
+  "error": null,
+  "issues": [],
+  "progress": [
+    [
+      0,
+      0,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > allowEmpty accepts empty input in every shape 4`] = `
+{
+  "chunks": [],
+  "error": null,
+  "issues": [],
+  "progress": [
+    [
+      0,
+      0,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > an already-aborted signal, in every shape 1`] = `
+{
+  "chunks": [],
+  "error": "Error: : stop",
+  "issues": [],
+  "progress": [],
+}
+`;
+
+exports[`textChunks golden > an already-aborted signal, in every shape 2`] = `
+{
+  "chunks": [],
+  "error": "Error: : stop",
+  "issues": [],
+  "progress": [],
+}
+`;
+
+exports[`textChunks golden > an already-aborted signal, in every shape 3`] = `
+{
+  "chunks": [],
+  "error": "Error: : stop",
+  "issues": [],
+  "progress": [],
+}
+`;
+
+exports[`textChunks golden > an already-aborted signal, in every shape 4`] = `
+{
+  "chunks": [],
+  "error": "Error: : stop",
+  "issues": [],
+  "progress": [],
+}
+`;
+
+exports[`textChunks golden > an input that is not an import input 1`] = `
+{
+  "chunks": [],
+  "error": "GraphFormatError: E_UNSUPPORTED: the input is an ArrayBuffer; an importer reads a string, a Uint8Array, a ReadableStream or an async iterable of strings and Uint8Arrays; wrap it as new Uint8Array(buffer)",
+  "issues": [],
+  "progress": [],
+}
+`;
+
+exports[`textChunks golden > an input that is not an import input 2`] = `
+{
+  "chunks": [],
+  "error": "GraphFormatError: E_UNSUPPORTED: the input is null; an importer reads a string, a Uint8Array, a ReadableStream or an async iterable of strings and Uint8Arrays",
+  "issues": [],
+  "progress": [],
+}
+`;
+
+exports[`textChunks golden > bytes and strings mixed in one iterable 1`] = `
+{
+  "chunks": [
+    ""abcd"",
+    ""ef"",
+  ],
+  "error": null,
+  "issues": [],
+  "progress": [
+    [
+      2,
+      undefined,
+    ],
+    [
+      4,
+      undefined,
+    ],
+    [
+      6,
+      undefined,
+    ],
+    [
+      6,
+      6,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > bytes and strings mixed in one iterable 2`] = `
+{
+  "chunks": [
+    ""ab"",
+    ""c\\u00e9"",
+    ""d"",
+  ],
+  "error": null,
+  "issues": [],
+  "progress": [
+    [
+      2,
+      undefined,
+    ],
+    [
+      5,
+      undefined,
+    ],
+    [
+      6,
+      undefined,
+    ],
+    [
+      6,
+      6,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > bytes and strings mixed in one iterable 3`] = `
+{
+  "chunks": [
+    ""x"",
+  ],
+  "error": null,
+  "issues": [],
+  "progress": [
+    [
+      3,
+      undefined,
+    ],
+    [
+      4,
+      undefined,
+    ],
+    [
+      4,
+      4,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > bytes and strings mixed in one iterable 4`] = `
+{
+  "chunks": [
+    ""abcdef"",
+  ],
+  "error": "ImportError: E_IMPORT: invalid UTF-8 at byte 6: a byte chunk ends inside a multi-byte sequence and a text chunk follows",
+  "issues": [
+    ""error E_INVALID_UTF8 invalid UTF-8 at byte 6: a byte chunk ends inside a multi-byte sequence and a text chunk follows"",
+  ],
+  "progress": [
+    [
+      6,
+      undefined,
+    ],
+    [
+      8,
+      undefined,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > bytes and strings mixed in one iterable 5`] = `
+{
+  "chunks": [],
+  "error": "ImportError: E_IMPORT: invalid UTF-8 at byte 0: a byte chunk ends inside a multi-byte sequence and a text chunk follows",
+  "issues": [
+    ""error E_INVALID_UTF8 invalid UTF-8 at byte 0: a byte chunk ends inside a multi-byte sequence and a text chunk follows"",
+  ],
+  "progress": [
+    [
+      2,
+      undefined,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > bytes and strings mixed in one iterable 6`] = `
+{
+  "chunks": [
+    ""x"",
+    ""\\ufeff"",
+    ""y"",
+  ],
+  "error": null,
+  "issues": [
+    ""warning W_CONTROL_CHARACTER the input holds the control character U+FEFF (in \\"\\ufeff\\"); it is kept in the id or value it is part of"",
+  ],
+  "progress": [
+    [
+      1,
+      undefined,
+    ],
+    [
+      4,
+      undefined,
+    ],
+    [
+      5,
+      undefined,
+    ],
+    [
+      5,
+      5,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > bytes and strings mixed in one iterable 7`] = `
+{
+  "chunks": [],
+  "error": "ImportError: E_IMPORT: the input is empty",
+  "issues": [
+    ""error E_EMPTY_INPUT the input is empty"",
+  ],
+  "progress": [],
+}
+`;
+
+exports[`textChunks golden > bytes and strings mixed in one iterable 8`] = `
+{
+  "chunks": [],
+  "error": "ImportError: E_IMPORT: the input is empty",
+  "issues": [
+    ""error E_EMPTY_INPUT the input is empty"",
+  ],
+  "progress": [
+    [
+      0,
+      undefined,
+    ],
+    [
+      0,
+      undefined,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > bytes: bom 1`] = `
+{
+  "chunks": [
+    ""x"",
+  ],
+  "error": null,
+  "issues": [],
+  "progress": [
+    [
+      4,
+      4,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > bytes: control 1`] = `
+{
+  "chunks": [
+    ""ab\\u0001cd"",
+  ],
+  "error": null,
+  "issues": [
+    ""warning W_CONTROL_CHARACTER the input holds the control character U+0001 (in \\"ab\\\\u0001cd\\"); it is kept in the id or value it is part of"",
+  ],
+  "progress": [
+    [
+      5,
+      5,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > bytes: ctrlZEnd 1`] = `
+{
+  "chunks": [
+    ""abc"",
+  ],
+  "error": null,
+  "issues": [
+    ""warning W_CONTROL_CHARACTER the input ends with a Ctrl-Z (0x1A), the DOS end-of-file marker; it was ignored"",
+  ],
+  "progress": [
+    [
+      4,
+      4,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > bytes: ctrlZMiddle 1`] = `
+{
+  "chunks": [
+    ""a\\u001ab"",
+  ],
+  "error": null,
+  "issues": [
+    ""warning W_CONTROL_CHARACTER the input holds the control character U+001A (in \\"a\\\\u001ab\\"); it is kept in the id or value it is part of"",
+  ],
+  "progress": [
+    [
+      3,
+      3,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > bytes: empty 1`] = `
+{
+  "chunks": [],
+  "error": "ImportError: E_IMPORT: the input is empty",
+  "issues": [
+    ""error E_EMPTY_INPUT the input is empty"",
+  ],
+  "progress": [
+    [
+      0,
+      0,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > bytes: foreignZip 1`] = `
+{
+  "chunks": [],
+  "error": "ImportError: E_IMPORT: the input is a zip archive (a Cytoscape session (.cys) is read by the cys importer; extract any other graph file from it first), not test text",
+  "issues": [
+    ""error E_FOREIGN_FORMAT the input is a zip archive (a Cytoscape session (.cys) is read by the cys importer; extract any other graph file from it first), not test text"",
+  ],
+  "progress": [],
+}
+`;
+
+exports[`textChunks golden > bytes: large 1`] = `
+{
+  "chunks": [
+    "[262143] "aaaaaaaa"..."aaaaaaaa"",
+    "[262143] "\\ud83d\\ude00bbbbbb"..."bbbbbbbb"",
+    ""bbbbbbbb"",
+  ],
+  "error": null,
+  "issues": [],
+  "progress": [
+    [
+      262144,
+      524296,
+    ],
+    [
+      524288,
+      524296,
+    ],
+    [
+      524296,
+      524296,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > bytes: multibyte 1`] = `
+{
+  "chunks": [
+    ""caf\\u00e9 \\ud83d\\ude00 end"",
+  ],
+  "error": null,
+  "issues": [],
+  "progress": [
+    [
+      14,
+      14,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > bytes: onlyBom 1`] = `
+{
+  "chunks": [],
+  "error": "ImportError: E_IMPORT: the input is empty",
+  "issues": [
+    ""error E_EMPTY_INPUT the input is empty"",
+  ],
+  "progress": [
+    [
+      3,
+      3,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > bytes: plain 1`] = `
+{
+  "chunks": [
+    ""a,b\\nc,d\\n"",
+  ],
+  "error": null,
+  "issues": [],
+  "progress": [
+    [
+      8,
+      8,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > bytes: twoBoms 1`] = `
+{
+  "chunks": [
+    ""x"",
+  ],
+  "error": null,
+  "issues": [
+    ""warning W_CONTROL_CHARACTER the input starts with 2 byte order marks (U+FEFF); the extra ones were ignored"",
+  ],
+  "progress": [
+    [
+      7,
+      7,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > bytes: whitespace 1`] = `
+{
+  "chunks": [
+    "" \\n\\t "",
+  ],
+  "error": "ImportError: E_IMPORT: the input holds only whitespace",
+  "issues": [
+    ""error E_EMPTY_INPUT the input holds only whitespace"",
+  ],
+  "progress": [
+    [
+      4,
+      4,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > declared encoding read from a head split across small chunks 1`] = `
+{
+  "chunks": [
+    ""enc=iso-8859-1 \\u00e9"",
+  ],
+  "error": null,
+  "issues": [],
+  "progress": [
+    [
+      2,
+      undefined,
+    ],
+    [
+      4,
+      undefined,
+    ],
+    [
+      6,
+      undefined,
+    ],
+    [
+      8,
+      undefined,
+    ],
+    [
+      10,
+      undefined,
+    ],
+    [
+      12,
+      undefined,
+    ],
+    [
+      14,
+      undefined,
+    ],
+    [
+      16,
+      undefined,
+    ],
+    [
+      16,
+      16,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > declared encoding read from a head split across small chunks 2`] = `
+{
+  "chunks": [
+    ""enc=iso-8"",
+    ""859"",
+    ""-1 "",
+    ""\\u00e9"",
+  ],
+  "error": null,
+  "issues": [
+    ""warning W_UNKNOWN_ENCODING the input declares the encoding \\"iso-\\", which this platform cannot decode; reading it as UTF-8"",
+    ""warning W_ENCODING_FALLBACK the input is not valid UTF-8 (at byte 15: it ends inside a multi-byte UTF-8 sequence, so it may be truncated) and declares no encoding; read as windows-1252 (pass the encoding option to choose another)"",
+  ],
+  "progress": [
+    [
+      3,
+      undefined,
+    ],
+    [
+      6,
+      undefined,
+    ],
+    [
+      9,
+      undefined,
+    ],
+    [
+      12,
+      undefined,
+    ],
+    [
+      15,
+      undefined,
+    ],
+    [
+      16,
+      undefined,
+    ],
+    [
+      16,
+      16,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > declared encoding read from a head split across small chunks 3`] = `
+{
+  "chunks": [
+    ""enc=iso-8859-1 \\u00e9"",
+  ],
+  "error": null,
+  "issues": [],
+  "progress": [
+    [
+      16,
+      16,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > invalid UTF-8 when UTF-8 is required 1`] = `
+{
+  "chunks": [],
+  "error": "ImportError: E_IMPORT: invalid UTF-8 at byte 1",
+  "issues": [
+    ""error E_INVALID_UTF8 invalid UTF-8 at byte 1"",
+  ],
+  "progress": [],
+}
+`;
+
+exports[`textChunks golden > invalid UTF-8 when UTF-8 is required 2`] = `
+{
+  "chunks": [],
+  "error": "ImportError: E_IMPORT: invalid UTF-8 at byte 1",
+  "issues": [
+    ""error E_INVALID_UTF8 invalid UTF-8 at byte 1"",
+  ],
+  "progress": [
+    [
+      1,
+      undefined,
+    ],
+    [
+      2,
+      undefined,
+    ],
+    [
+      3,
+      undefined,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > iterable of 2-char strings: bom 1`] = `
+{
+  "chunks": [
+    ""x"",
+  ],
+  "error": null,
+  "issues": [],
+  "progress": [
+    [
+      4,
+      undefined,
+    ],
+    [
+      4,
+      4,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > iterable of 2-char strings: control 1`] = `
+{
+  "chunks": [
+    ""ab"",
+    ""\\u0001c"",
+    ""d"",
+  ],
+  "error": null,
+  "issues": [
+    ""warning W_CONTROL_CHARACTER the input holds the control character U+0001 (in \\"\\\\u0001c\\"); it is kept in the id or value it is part of"",
+  ],
+  "progress": [
+    [
+      2,
+      undefined,
+    ],
+    [
+      4,
+      undefined,
+    ],
+    [
+      5,
+      undefined,
+    ],
+    [
+      5,
+      5,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > iterable of 2-char strings: ctrlZEnd 1`] = `
+{
+  "chunks": [
+    ""ab"",
+    ""c"",
+  ],
+  "error": null,
+  "issues": [
+    ""warning W_CONTROL_CHARACTER the input ends with a Ctrl-Z (0x1A), the DOS end-of-file marker; it was ignored"",
+  ],
+  "progress": [
+    [
+      2,
+      undefined,
+    ],
+    [
+      4,
+      undefined,
+    ],
+    [
+      4,
+      4,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > iterable of 2-char strings: ctrlZMiddle 1`] = `
+{
+  "chunks": [
+    ""a"",
+    ""\\u001ab"",
+  ],
+  "error": null,
+  "issues": [
+    ""warning W_CONTROL_CHARACTER the input holds the control character U+001A (in \\"\\\\u001ab\\"); it is kept in the id or value it is part of"",
+  ],
+  "progress": [
+    [
+      2,
+      undefined,
+    ],
+    [
+      3,
+      undefined,
+    ],
+    [
+      3,
+      3,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > iterable of 2-char strings: empty 1`] = `
+{
+  "chunks": [],
+  "error": "ImportError: E_IMPORT: the input is empty",
+  "issues": [
+    ""error E_EMPTY_INPUT the input is empty"",
+  ],
+  "progress": [],
+}
+`;
+
+exports[`textChunks golden > iterable of 2-char strings: foreignZip 1`] = `
+{
+  "chunks": [
+    ""PK"",
+    ""\\u0003\\u0004"",
+    ""re"",
+    ""st"",
+  ],
+  "error": null,
+  "issues": [
+    ""warning W_CONTROL_CHARACTER the input holds the control character U+0003 (in \\"\\\\u0003\\\\u0004\\"); it is kept in the id or value it is part of"",
+  ],
+  "progress": [
+    [
+      2,
+      undefined,
+    ],
+    [
+      4,
+      undefined,
+    ],
+    [
+      6,
+      undefined,
+    ],
+    [
+      8,
+      undefined,
+    ],
+    [
+      8,
+      8,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > iterable of 2-char strings: large 1`] = `
+{
+  "chunks": [
+    "[100000] "aaaaaaaa"..."aaaaaaaa"",
+    "[100000] "aaaaaaaa"..."aaaaaaaa"",
+    "[100000] "aaaaaaaa"..."bbbbbbbb"",
+    "[100000] "bbbbbbbb"..."bbbbbbbb"",
+    "[100000] "bbbbbbbb"..."bbbbbbbb"",
+    "[24294] "bbbbbbbb"..."bbbbbbbb"",
+  ],
+  "error": null,
+  "issues": [],
+  "progress": [
+    [
+      100000,
+      undefined,
+    ],
+    [
+      200000,
+      undefined,
+    ],
+    [
+      300002,
+      undefined,
+    ],
+    [
+      400002,
+      undefined,
+    ],
+    [
+      500002,
+      undefined,
+    ],
+    [
+      524296,
+      undefined,
+    ],
+    [
+      524296,
+      524296,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > iterable of 2-char strings: multibyte 1`] = `
+{
+  "chunks": [
+    ""ca"",
+    ""f\\u00e9"",
+    "" \\ud83d"",
+    ""\\ude00 "",
+    ""en"",
+    ""d"",
+  ],
+  "error": null,
+  "issues": [],
+  "progress": [
+    [
+      2,
+      undefined,
+    ],
+    [
+      5,
+      undefined,
+    ],
+    [
+      9,
+      undefined,
+    ],
+    [
+      13,
+      undefined,
+    ],
+    [
+      15,
+      undefined,
+    ],
+    [
+      16,
+      undefined,
+    ],
+    [
+      16,
+      16,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > iterable of 2-char strings: onlyBom 1`] = `
+{
+  "chunks": [],
+  "error": "ImportError: E_IMPORT: the input is empty",
+  "issues": [
+    ""error E_EMPTY_INPUT the input is empty"",
+  ],
+  "progress": [
+    [
+      3,
+      undefined,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > iterable of 2-char strings: plain 1`] = `
+{
+  "chunks": [
+    ""a,"",
+    ""b\\n"",
+    ""c,"",
+    ""d\\n"",
+  ],
+  "error": null,
+  "issues": [],
+  "progress": [
+    [
+      2,
+      undefined,
+    ],
+    [
+      4,
+      undefined,
+    ],
+    [
+      6,
+      undefined,
+    ],
+    [
+      8,
+      undefined,
+    ],
+    [
+      8,
+      8,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > iterable of 2-char strings: twoBoms 1`] = `
+{
+  "chunks": [
+    ""x"",
+  ],
+  "error": null,
+  "issues": [
+    ""warning W_CONTROL_CHARACTER the input starts with 2 byte order marks (U+FEFF); the extra ones were ignored"",
+  ],
+  "progress": [
+    [
+      6,
+      undefined,
+    ],
+    [
+      7,
+      undefined,
+    ],
+    [
+      7,
+      7,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > iterable of 2-char strings: whitespace 1`] = `
+{
+  "chunks": [
+    "" \\n"",
+    ""\\t "",
+  ],
+  "error": "ImportError: E_IMPORT: the input holds only whitespace",
+  "issues": [
+    ""error E_EMPTY_INPUT the input holds only whitespace"",
+  ],
+  "progress": [
+    [
+      2,
+      undefined,
+    ],
+    [
+      4,
+      undefined,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > iterable of 3-byte chunks: bom 1`] = `
+{
+  "chunks": [
+    ""x"",
+  ],
+  "error": null,
+  "issues": [],
+  "progress": [
+    [
+      3,
+      undefined,
+    ],
+    [
+      4,
+      undefined,
+    ],
+    [
+      4,
+      4,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > iterable of 3-byte chunks: control 1`] = `
+{
+  "chunks": [
+    ""ab\\u0001cd"",
+  ],
+  "error": null,
+  "issues": [
+    ""warning W_CONTROL_CHARACTER the input holds the control character U+0001 (in \\"ab\\\\u0001cd\\"); it is kept in the id or value it is part of"",
+  ],
+  "progress": [
+    [
+      3,
+      undefined,
+    ],
+    [
+      5,
+      undefined,
+    ],
+    [
+      5,
+      5,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > iterable of 3-byte chunks: ctrlZEnd 1`] = `
+{
+  "chunks": [
+    ""abc"",
+  ],
+  "error": null,
+  "issues": [
+    ""warning W_CONTROL_CHARACTER the input ends with a Ctrl-Z (0x1A), the DOS end-of-file marker; it was ignored"",
+  ],
+  "progress": [
+    [
+      3,
+      undefined,
+    ],
+    [
+      4,
+      undefined,
+    ],
+    [
+      4,
+      4,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > iterable of 3-byte chunks: ctrlZMiddle 1`] = `
+{
+  "chunks": [
+    ""a\\u001ab"",
+  ],
+  "error": null,
+  "issues": [
+    ""warning W_CONTROL_CHARACTER the input holds the control character U+001A (in \\"a\\\\u001ab\\"); it is kept in the id or value it is part of"",
+  ],
+  "progress": [
+    [
+      3,
+      undefined,
+    ],
+    [
+      3,
+      3,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > iterable of 3-byte chunks: empty 1`] = `
+{
+  "chunks": [],
+  "error": "ImportError: E_IMPORT: the input is empty",
+  "issues": [
+    ""error E_EMPTY_INPUT the input is empty"",
+  ],
+  "progress": [],
+}
+`;
+
+exports[`textChunks golden > iterable of 3-byte chunks: foreignZip 1`] = `
+{
+  "chunks": [],
+  "error": "ImportError: E_IMPORT: the input is a zip archive (a Cytoscape session (.cys) is read by the cys importer; extract any other graph file from it first), not test text",
+  "issues": [
+    ""error E_FOREIGN_FORMAT the input is a zip archive (a Cytoscape session (.cys) is read by the cys importer; extract any other graph file from it first), not test text"",
+  ],
+  "progress": [
+    [
+      3,
+      undefined,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > iterable of 3-byte chunks: large 1`] = `
+{
+  "chunks": [
+    "[70000] "aaaaaaaa"..."aaaaaaaa"",
+    "[70000] "aaaaaaaa"..."aaaaaaaa"",
+    "[70000] "aaaaaaaa"..."aaaaaaaa"",
+    "[69998] "aaaaaaaa"..."bbbbbbbb"",
+    "[70000] "bbbbbbbb"..."bbbbbbbb"",
+    "[70000] "bbbbbbbb"..."bbbbbbbb"",
+    "[70000] "bbbbbbbb"..."bbbbbbbb"",
+    "[34296] "bbbbbbbb"..."bbbbbbbb"",
+  ],
+  "error": null,
+  "issues": [],
+  "progress": [
+    [
+      70000,
+      undefined,
+    ],
+    [
+      140000,
+      undefined,
+    ],
+    [
+      210000,
+      undefined,
+    ],
+    [
+      280000,
+      undefined,
+    ],
+    [
+      350000,
+      undefined,
+    ],
+    [
+      420000,
+      undefined,
+    ],
+    [
+      490000,
+      undefined,
+    ],
+    [
+      524296,
+      undefined,
+    ],
+    [
+      524296,
+      524296,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > iterable of 3-byte chunks: multibyte 1`] = `
+{
+  "chunks": [
+    ""caf\\u00e9 "",
+    ""\\ud83d\\ude00 e"",
+    ""nd"",
+  ],
+  "error": null,
+  "issues": [],
+  "progress": [
+    [
+      3,
+      undefined,
+    ],
+    [
+      6,
+      undefined,
+    ],
+    [
+      9,
+      undefined,
+    ],
+    [
+      12,
+      undefined,
+    ],
+    [
+      14,
+      undefined,
+    ],
+    [
+      14,
+      14,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > iterable of 3-byte chunks: onlyBom 1`] = `
+{
+  "chunks": [],
+  "error": "ImportError: E_IMPORT: the input is empty",
+  "issues": [
+    ""error E_EMPTY_INPUT the input is empty"",
+  ],
+  "progress": [
+    [
+      3,
+      undefined,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > iterable of 3-byte chunks: plain 1`] = `
+{
+  "chunks": [
+    ""a,b\\nc,"",
+    ""d\\n"",
+  ],
+  "error": null,
+  "issues": [],
+  "progress": [
+    [
+      3,
+      undefined,
+    ],
+    [
+      6,
+      undefined,
+    ],
+    [
+      8,
+      undefined,
+    ],
+    [
+      8,
+      8,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > iterable of 3-byte chunks: twoBoms 1`] = `
+{
+  "chunks": [
+    ""x"",
+  ],
+  "error": null,
+  "issues": [
+    ""warning W_CONTROL_CHARACTER the input starts with 2 byte order marks (U+FEFF); the extra ones were ignored"",
+  ],
+  "progress": [
+    [
+      3,
+      undefined,
+    ],
+    [
+      6,
+      undefined,
+    ],
+    [
+      7,
+      undefined,
+    ],
+    [
+      7,
+      7,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > iterable of 3-byte chunks: whitespace 1`] = `
+{
+  "chunks": [
+    "" \\n\\t "",
+  ],
+  "error": "ImportError: E_IMPORT: the input holds only whitespace",
+  "issues": [
+    ""error E_EMPTY_INPUT the input holds only whitespace"",
+  ],
+  "progress": [
+    [
+      3,
+      undefined,
+    ],
+    [
+      4,
+      undefined,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > latin-1 bytes in every shape 1`] = `
+{
+  "chunks": [
+    ""caf\\u00e9\\nb"",
+  ],
+  "error": null,
+  "issues": [
+    ""warning W_ENCODING_FALLBACK the input is not valid UTF-8 (at byte 3) and declares no encoding; read as windows-1252 (pass the encoding option to choose another)"",
+  ],
+  "progress": [
+    [
+      6,
+      6,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > latin-1 bytes in every shape 2`] = `
+{
+  "chunks": [
+    ""caf"",
+    ""\\u00e9\\nb"",
+  ],
+  "error": null,
+  "issues": [
+    ""warning W_ENCODING_FALLBACK the input is not valid UTF-8 (at byte 3) and declares no encoding; read as windows-1252 (pass the encoding option to choose another)"",
+  ],
+  "progress": [
+    [
+      2,
+      undefined,
+    ],
+    [
+      4,
+      undefined,
+    ],
+    [
+      6,
+      undefined,
+    ],
+    [
+      6,
+      6,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > latin-1 bytes in every shape 3`] = `
+{
+  "chunks": [
+    ""caf"",
+    ""\\u00e9\\n"",
+    ""b"",
+  ],
+  "error": null,
+  "issues": [
+    ""warning W_ENCODING_FALLBACK the input is not valid UTF-8 (at byte 3) and declares no encoding; read as windows-1252 (pass the encoding option to choose another)"",
+  ],
+  "progress": [
+    [
+      1,
+      undefined,
+    ],
+    [
+      2,
+      undefined,
+    ],
+    [
+      3,
+      undefined,
+    ],
+    [
+      4,
+      undefined,
+    ],
+    [
+      5,
+      undefined,
+    ],
+    [
+      6,
+      undefined,
+    ],
+    [
+      6,
+      6,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > stream of 1-byte chunks: bom 1`] = `
+{
+  "chunks": [
+    ""x"",
+  ],
+  "error": null,
+  "issues": [],
+  "progress": [
+    [
+      1,
+      undefined,
+    ],
+    [
+      2,
+      undefined,
+    ],
+    [
+      3,
+      undefined,
+    ],
+    [
+      4,
+      undefined,
+    ],
+    [
+      4,
+      4,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > stream of 1-byte chunks: control 1`] = `
+{
+  "chunks": [
+    ""ab\\u0001c"",
+    ""d"",
+  ],
+  "error": null,
+  "issues": [
+    ""warning W_CONTROL_CHARACTER the input holds the control character U+0001 (in \\"ab\\\\u0001c\\"); it is kept in the id or value it is part of"",
+  ],
+  "progress": [
+    [
+      1,
+      undefined,
+    ],
+    [
+      2,
+      undefined,
+    ],
+    [
+      3,
+      undefined,
+    ],
+    [
+      4,
+      undefined,
+    ],
+    [
+      5,
+      undefined,
+    ],
+    [
+      5,
+      5,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > stream of 1-byte chunks: ctrlZEnd 1`] = `
+{
+  "chunks": [
+    ""abc"",
+  ],
+  "error": null,
+  "issues": [
+    ""warning W_CONTROL_CHARACTER the input ends with a Ctrl-Z (0x1A), the DOS end-of-file marker; it was ignored"",
+  ],
+  "progress": [
+    [
+      1,
+      undefined,
+    ],
+    [
+      2,
+      undefined,
+    ],
+    [
+      3,
+      undefined,
+    ],
+    [
+      4,
+      undefined,
+    ],
+    [
+      4,
+      4,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > stream of 1-byte chunks: ctrlZMiddle 1`] = `
+{
+  "chunks": [
+    ""a\\u001ab"",
+  ],
+  "error": null,
+  "issues": [
+    ""warning W_CONTROL_CHARACTER the input holds the control character U+001A (in \\"a\\\\u001ab\\"); it is kept in the id or value it is part of"",
+  ],
+  "progress": [
+    [
+      1,
+      undefined,
+    ],
+    [
+      2,
+      undefined,
+    ],
+    [
+      3,
+      undefined,
+    ],
+    [
+      3,
+      3,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > stream of 1-byte chunks: empty 1`] = `
+{
+  "chunks": [],
+  "error": "ImportError: E_IMPORT: the input is empty",
+  "issues": [
+    ""error E_EMPTY_INPUT the input is empty"",
+  ],
+  "progress": [],
+}
+`;
+
+exports[`textChunks golden > stream of 1-byte chunks: foreignZip 1`] = `
+{
+  "chunks": [],
+  "error": "ImportError: E_IMPORT: the input is a zip archive (a Cytoscape session (.cys) is read by the cys importer; extract any other graph file from it first), not test text",
+  "issues": [
+    ""error E_FOREIGN_FORMAT the input is a zip archive (a Cytoscape session (.cys) is read by the cys importer; extract any other graph file from it first), not test text"",
+  ],
+  "progress": [
+    [
+      1,
+      undefined,
+    ],
+    [
+      2,
+      undefined,
+    ],
+    [
+      3,
+      undefined,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > stream of 1-byte chunks: large 1`] = `
+{
+  "chunks": [
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4096] "aaaaaaaa"..."aaaaaaaa"",
+    "[4095] "aaaaaaaa"..."aaaaaaaa"",
+    "[4095] "\\ud83d\\ude00bbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    "[4096] "bbbbbbbb"..."bbbbbbbb"",
+    ""bbbbbbbb"",
+  ],
+  "error": null,
+  "issues": [],
+  "progress": [
+    [
+      130,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > stream of 1-byte chunks: multibyte 1`] = `
+{
+  "chunks": [
+    ""caf"",
+    ""\\u00e9"",
+    "" "",
+    ""\\ud83d\\ude00"",
+    "" "",
+    ""e"",
+    ""n"",
+    ""d"",
+  ],
+  "error": null,
+  "issues": [],
+  "progress": [
+    [
+      1,
+      undefined,
+    ],
+    [
+      2,
+      undefined,
+    ],
+    [
+      3,
+      undefined,
+    ],
+    [
+      4,
+      undefined,
+    ],
+    [
+      5,
+      undefined,
+    ],
+    [
+      6,
+      undefined,
+    ],
+    [
+      7,
+      undefined,
+    ],
+    [
+      8,
+      undefined,
+    ],
+    [
+      9,
+      undefined,
+    ],
+    [
+      10,
+      undefined,
+    ],
+    [
+      11,
+      undefined,
+    ],
+    [
+      12,
+      undefined,
+    ],
+    [
+      13,
+      undefined,
+    ],
+    [
+      14,
+      undefined,
+    ],
+    [
+      14,
+      14,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > stream of 1-byte chunks: onlyBom 1`] = `
+{
+  "chunks": [],
+  "error": "ImportError: E_IMPORT: the input is empty",
+  "issues": [
+    ""error E_EMPTY_INPUT the input is empty"",
+  ],
+  "progress": [
+    [
+      1,
+      undefined,
+    ],
+    [
+      2,
+      undefined,
+    ],
+    [
+      3,
+      undefined,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > stream of 1-byte chunks: plain 1`] = `
+{
+  "chunks": [
+    ""a,b\\n"",
+    ""c"",
+    "","",
+    ""d"",
+    ""\\n"",
+  ],
+  "error": null,
+  "issues": [],
+  "progress": [
+    [
+      1,
+      undefined,
+    ],
+    [
+      2,
+      undefined,
+    ],
+    [
+      3,
+      undefined,
+    ],
+    [
+      4,
+      undefined,
+    ],
+    [
+      5,
+      undefined,
+    ],
+    [
+      6,
+      undefined,
+    ],
+    [
+      7,
+      undefined,
+    ],
+    [
+      8,
+      undefined,
+    ],
+    [
+      8,
+      8,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > stream of 1-byte chunks: twoBoms 1`] = `
+{
+  "chunks": [
+    ""x"",
+  ],
+  "error": null,
+  "issues": [],
+  "progress": [
+    [
+      1,
+      undefined,
+    ],
+    [
+      2,
+      undefined,
+    ],
+    [
+      3,
+      undefined,
+    ],
+    [
+      4,
+      undefined,
+    ],
+    [
+      5,
+      undefined,
+    ],
+    [
+      6,
+      undefined,
+    ],
+    [
+      7,
+      undefined,
+    ],
+    [
+      7,
+      7,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > stream of 1-byte chunks: whitespace 1`] = `
+{
+  "chunks": [
+    "" \\n\\t "",
+  ],
+  "error": "ImportError: E_IMPORT: the input holds only whitespace",
+  "issues": [
+    ""error E_EMPTY_INPUT the input holds only whitespace"",
+  ],
+  "progress": [
+    [
+      1,
+      undefined,
+    ],
+    [
+      2,
+      undefined,
+    ],
+    [
+      3,
+      undefined,
+    ],
+    [
+      4,
+      undefined,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > string with an encoding option 1`] = `
+{
+  "chunks": [
+    ""x"",
+  ],
+  "error": null,
+  "issues": [
+    ""warning W_OPTION_IGNORED option encoding has no effect on text input, which is already decoded"",
+  ],
+  "progress": [
+    [
+      1,
+      1,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > string: bom 1`] = `
+{
+  "chunks": [
+    ""x"",
+  ],
+  "error": null,
+  "issues": [],
+  "progress": [
+    [
+      4,
+      4,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > string: control 1`] = `
+{
+  "chunks": [
+    ""ab\\u0001cd"",
+  ],
+  "error": null,
+  "issues": [
+    ""warning W_CONTROL_CHARACTER the input holds the control character U+0001 (in \\"ab\\\\u0001cd\\"); it is kept in the id or value it is part of"",
+  ],
+  "progress": [
+    [
+      5,
+      5,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > string: ctrlZEnd 1`] = `
+{
+  "chunks": [
+    ""abc"",
+  ],
+  "error": null,
+  "issues": [
+    ""warning W_CONTROL_CHARACTER the input ends with a Ctrl-Z (0x1A), the DOS end-of-file marker; it was ignored"",
+  ],
+  "progress": [
+    [
+      4,
+      4,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > string: ctrlZMiddle 1`] = `
+{
+  "chunks": [
+    ""a\\u001ab"",
+  ],
+  "error": null,
+  "issues": [
+    ""warning W_CONTROL_CHARACTER the input holds the control character U+001A (in \\"a\\\\u001ab\\"); it is kept in the id or value it is part of"",
+  ],
+  "progress": [
+    [
+      3,
+      3,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > string: empty 1`] = `
+{
+  "chunks": [],
+  "error": "ImportError: E_IMPORT: the input is empty",
+  "issues": [
+    ""error E_EMPTY_INPUT the input is empty"",
+  ],
+  "progress": [
+    [
+      0,
+      0,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > string: foreignZip 1`] = `
+{
+  "chunks": [
+    ""PK\\u0003\\u0004rest"",
+  ],
+  "error": null,
+  "issues": [
+    ""warning W_CONTROL_CHARACTER the input holds the control character U+0003 (in \\"PK\\\\u0003\\\\u0004rest\\"); it is kept in the id or value it is part of"",
+  ],
+  "progress": [
+    [
+      8,
+      8,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > string: large 1`] = `
+{
+  "chunks": [
+    "[262145] "aaaaaaaa"..."aaaaaa\\ud83d\\ude00"",
+    "[262144] "bbbbbbbb"..."bbbbbbbb"",
+    ""bbbbb"",
+  ],
+  "error": null,
+  "issues": [],
+  "progress": [
+    [
+      262147,
+      524296,
+    ],
+    [
+      524291,
+      524296,
+    ],
+    [
+      524296,
+      524296,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > string: multibyte 1`] = `
+{
+  "chunks": [
+    ""caf\\u00e9 \\ud83d\\ude00 end"",
+  ],
+  "error": null,
+  "issues": [],
+  "progress": [
+    [
+      14,
+      14,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > string: onlyBom 1`] = `
+{
+  "chunks": [],
+  "error": "ImportError: E_IMPORT: the input is empty",
+  "issues": [
+    ""error E_EMPTY_INPUT the input is empty"",
+  ],
+  "progress": [
+    [
+      3,
+      3,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > string: plain 1`] = `
+{
+  "chunks": [
+    ""a,b\\nc,d\\n"",
+  ],
+  "error": null,
+  "issues": [],
+  "progress": [
+    [
+      8,
+      8,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > string: twoBoms 1`] = `
+{
+  "chunks": [
+    ""x"",
+  ],
+  "error": null,
+  "issues": [
+    ""warning W_CONTROL_CHARACTER the input starts with 2 byte order marks (U+FEFF); the extra ones were ignored"",
+  ],
+  "progress": [
+    [
+      7,
+      7,
+    ],
+  ],
+}
+`;
+
+exports[`textChunks golden > string: whitespace 1`] = `
+{
+  "chunks": [
+    "" \\n\\t "",
+  ],
+  "error": "ImportError: E_IMPORT: the input holds only whitespace",
+  "issues": [
+    ""error E_EMPTY_INPUT the input holds only whitespace"",
+  ],
+  "progress": [
+    [
+      4,
+      4,
+    ],
+  ],
+}
+`;

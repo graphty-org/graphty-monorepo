@@ -532,6 +532,15 @@ export function createGitHub({
                 status: res.status,
             });
         }
+        // A 200 whose body is not a GraphQL answer (an HTML or empty body from a proxy that gave
+        // up) has no data; reading on would throw a TypeError far from the cause.
+        const data = res.body?.data;
+        if (data === null || typeof data !== "object") {
+            const text = typeof res.body === "string" ? res.body : JSON.stringify(res.body);
+            throw new GitHubError("graphql", `GraphQL answer had no data (${res.status}): ${text.slice(0, 200)}`, {
+                status: res.status,
+            });
+        }
         return res;
     }
 

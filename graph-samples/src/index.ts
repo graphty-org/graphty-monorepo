@@ -1,8 +1,7 @@
 /**
- * `@graphty/graph-samples`: the shared types, the dataset catalogue, the loader for hosted
- * datasets and the conversion to graphty-element records. The generators live in
- * `@graphty/graph-samples/generators` and each bundled dataset in
- * `@graphty/graph-samples/datasets/<name>`, so an application bundles only what it imports.
+ * `@graphty/graph-samples`: the shared types, the dataset catalogue, the loader for the datasets
+ * (every one is downloaded from graphty.app on demand; none is bundled) and the conversion to
+ * graphty-element records. The generators live in `@graphty/graph-samples/generators`.
  */
 
 export { type DatasetMeta } from "./datasets/build.js";

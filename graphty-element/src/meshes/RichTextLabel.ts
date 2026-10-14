@@ -13,7 +13,7 @@ import {
 
 import { BadgeStyleManager } from "../BadgeStyleManager";
 import { type RichTextStyleType } from "../config";
-import { RENDERING_GROUPS } from "../constants/meshConstants";
+import { drawAboveOutlines, RENDERING_GROUPS } from "../constants/meshConstants";
 import { type ContentArea as PointerContentArea, type PointerDirection, PointerRenderer } from "./PointerRenderer";
 import { RichTextAnimator } from "./RichTextAnimator";
 import { measureLine, RichTextParser } from "./RichTextParser";
@@ -933,11 +933,14 @@ export class RichTextLabel {
 
         this.mesh.material = this.material;
         this.mesh.billboardMode = this.options.billboardMode;
-        // A label sorts by depth with the nodes and edges it belongs to. A tooltip asks to be
-        // drawn on top: its group is drawn last with the depth buffer cleared, so nothing in the
-        // graph can cover what the reader pointed at.
+        // A label sorts by depth with the nodes and edges it belongs to, drawn with the arrow
+        // caps after the node outlines (see RENDERING_GROUPS). A tooltip asks to be drawn on
+        // top: its group is drawn last with the depth buffer cleared, so nothing in the graph
+        // can cover what the reader pointed at.
         if (this.options.onTop === true) {
             this.mesh.renderingGroupId = RENDERING_GROUPS.ON_TOP;
+        } else {
+            drawAboveOutlines(this.mesh);
         }
     }
 

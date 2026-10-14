@@ -979,10 +979,12 @@ export const pajekExporter: GraphExporter<PajekExportOptions> = Object.freeze({
         // keyword and the relation name (dict columns written as keywords)
         const owned = new Set<string>();
         for (const { column, slot } of [...nodePlan, ...edgePlan]) {
-            if (slot === "shape" || slot === "relation") {
-                owned.add(`${column.meta.domain}:${column.meta.name}`);
-            } else if (slot === "param" && column.meta.domain === "node" && column.meta.name === SHAPE_COLUMN) {
-                // the shape-as-parameter note already says the column reads back as string
+            // a shape written as a parameter is owned too: its note already says the column reads back as string
+            if (
+                slot === "shape" ||
+                slot === "relation" ||
+                (slot === "param" && column.meta.domain === "node" && column.meta.name === SHAPE_COLUMN)
+            ) {
                 owned.add(`${column.meta.domain}:${column.meta.name}`);
             }
         }

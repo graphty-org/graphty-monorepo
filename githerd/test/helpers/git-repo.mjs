@@ -35,8 +35,27 @@ export function commitAll(cwd, message, { sign = true } = {}) {
     return /** @type {RegExpExecArray} */ (/ ([0-9a-f]{40})\] /.exec(out))[1];
 }
 
+/** @type {string | null} a repository built once per test file, never handed out, copied for each test */
+let template = null;
+
 /**
- * Builds a repository as `makeRepo` returns it, from git commands.
+ * Creates `<tmp>/remote.git` and the clone `<tmp>/root` on branch master with one signed commit,
+ * configured to sign with an SSH key it trusts. Git builds it once per test file (about 15
+ * processes); each call copies that one and rewrites the paths in the clone's config, starting no
+ * process: beside the pre-push gate's other shards every process start costs tens of ms.
+ * @returns {{tmp: string, root: string, remote: string}} the paths
+ */
+export function makeRepo() {
+    if (!template || !existsSync(template)) template = buildRepo().tmp;
+    const tmp = tempDir("githerd-git-");
+    cpSync(template, tmp, { recursive: true });
+    const config = join(tmp, "root", ".git", "config");
+    writeFileSync(config, readFileSync(config, "utf8").replaceAll(template, tmp));
+    return { tmp, root: join(tmp, "root"), remote: join(tmp, "remote.git") };
+}
+
+/**
+ * Builds the repository `makeRepo` describes, with git.
  * @returns {{tmp: string, root: string, remote: string}} the paths
  */
 function buildRepo() {
@@ -65,24 +84,4 @@ function buildRepo() {
     commitAll(root, "chore: first");
     git(root, "push", "-q", "origin", "master");
     return { tmp, root, remote };
-}
-
-/** @type {string | null} a repository this test file built and never hands out, which each copies */
-let template = null;
-
-/**
- * Creates `<tmp>/remote.git` and the clone `<tmp>/root` on branch master with one signed commit,
- * configured to sign with a fresh SSH key it trusts. Each is a copy of one repository the test file
- * builds with git at its first call, with the clone's config (key, trust list, remote) pointed at
- * the copy: a copy runs no process, and building runs fifteen, one after another, which on a
- * machine busy with gates took seconds of the calling test's time.
- * @returns {{tmp: string, root: string, remote: string}} the paths
- */
-export function makeRepo() {
-    if (template === null || !existsSync(template)) template = buildRepo().tmp;
-    const tmp = tempDir("githerd-git-");
-    cpSync(template, tmp, { recursive: true });
-    const config = join(tmp, "root", ".git", "config");
-    writeFileSync(config, readFileSync(config, "utf8").replaceAll(template, tmp));
-    return { tmp, root: join(tmp, "root"), remote: join(tmp, "remote.git") };
 }

@@ -1525,7 +1525,7 @@
                     // PATH 1: Try controller trigger first
                     // Find controller by handedness (Map is keyed by uniqueId, not handedness)
                     let controller = null;
-                    for (const [uniqueId, entry] of this.controllers) {
+                    for (const [, entry] of this.controllers) {
                         if (entry.handedness === handedness) {
                             controller = entry.controller;
                             break;
@@ -2601,7 +2601,7 @@
                 // This will detect if the render loop freezes
                 let watchdogLastFrame = 0;
                 let watchdogFreezeDetected = false;
-                const watchdogInterval = setInterval(() => {
+                setInterval(() => {
                     if (frameCount === watchdogLastFrame && frameCount > 0 && !watchdogFreezeDetected) {
                         watchdogFreezeDetected = true;
                         const freezeDuration = Date.now() - lastFrameTime;

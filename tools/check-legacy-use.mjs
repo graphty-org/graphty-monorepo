@@ -82,6 +82,32 @@ export function isDeprecated(...symbols) {
 }
 
 /**
+ * One export of algorithms or layout, if it is legacy.
+ * @param checker - the type checker
+ * @param pkg - the package name
+ * @param srcDir - the package's src directory
+ * @param exported - the exported symbol
+ * @returns the entry (positional, graphClass), or undefined when the export is not legacy
+ */
+function legacyEntry(checker, pkg, srcDir, exported) {
+    const symbol = exported.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(exported) : exported;
+    const decl = symbol.declarations?.[0];
+    if (decl === undefined) {
+        return undefined;
+    }
+    const path = relative(srcDir, decl.getSourceFile().fileName).split(sep).join("/");
+    const deprecated = isDeprecated(exported, symbol);
+    const legacy = pkg === ALGORITHMS ? algorithmsLegacyFile(path) : layoutLegacyFile(path);
+    if (!legacy && !deprecated) {
+        return undefined;
+    }
+    return {
+        positional: pkg === LAYOUT && path.startsWith("layouts/"),
+        graphClass: pkg === ALGORITHMS && path === "core/graph.ts" && (symbol.flags & ts.SymbolFlags.Class) !== 0,
+    };
+}
+
+/**
  * The legacy exports of algorithms and layout, read from their src/index.ts.
  * @param rootDir - the workspace root
  * @returns package name -> export name -> { positional, graphClass }
@@ -105,20 +131,9 @@ function legacyExports(rootDir) {
         const moduleSymbol = checker.getSymbolAtLocation(program.getSourceFile(join(srcDir, "index.ts")));
         const names = new Map();
         for (const exported of checker.getExportsOfModule(moduleSymbol)) {
-            const symbol = exported.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(exported) : exported;
-            const decl = symbol.declarations?.[0];
-            if (decl === undefined) {
-                continue;
-            }
-            const path = relative(srcDir, decl.getSourceFile().fileName).split(sep).join("/");
-            const deprecated = isDeprecated(exported, symbol);
-            const legacy = pkg === ALGORITHMS ? algorithmsLegacyFile(path) : layoutLegacyFile(path);
-            if (legacy || deprecated) {
-                names.set(exported.name, {
-                    positional: pkg === LAYOUT && path.startsWith("layouts/"),
-                    graphClass:
-                        pkg === ALGORITHMS && path === "core/graph.ts" && (symbol.flags & ts.SymbolFlags.Class) !== 0,
-                });
+            const entry = legacyEntry(checker, pkg, srcDir, exported);
+            if (entry !== undefined) {
+                names.set(exported.name, entry);
             }
         }
         result.set(pkg, names);

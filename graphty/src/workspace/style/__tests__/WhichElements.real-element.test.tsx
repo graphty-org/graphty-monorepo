@@ -170,4 +170,78 @@ describe("Which elements", () => {
         });
         assert.include(screen.getByTestId("which-elements").textContent, "5 of 100 nodes, 5 of 99 edges");
     });
+
+    it("a Top 10 a tie stops short says why instead of a bare 0 of 100", async () => {
+        const { session, store } = await openWithGraph();
+        // 20 nodes share the biggest size, so a top 10 cannot take part of them.
+        await session.data.updateNodes(NODES.map((n) => ({ id: n.id, values: { size: n.id < 20 ? 2 : 1 } })));
+        const layer = await session.styles.add({
+            name: "Big",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.color": "#ff0000" },
+        });
+        await openEditor(store, layer.id);
+
+        await choose(screen.getByRole("combobox", { name: "Rule" }), "Top N by");
+        await userEvent.click(screen.getByRole("combobox", { name: "By" }));
+        await userEvent.click(await screen.findByRole("option", { name: /size/i }));
+
+        await waitFor(() => {
+            assert.strictEqual(session.styles.counts(layer.id).matched, 0);
+            const status = within(screen.getByTestId("which-elements")).getByRole("status").textContent ?? "";
+            assert.include(status, "0 of 100 nodes");
+            assert.match(status, /took none: 20 nodes tie at 2/);
+        });
+    });
+
+    it("a rule the element refuses says so, and the layer keeps its rule", async () => {
+        const { session, store } = await openWithGraph();
+        const layer = await session.styles.add({
+            name: "All",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.color": "#ff0000" },
+        });
+        await openEditor(store, layer.id);
+
+        await choose(screen.getByRole("combobox", { name: "Rule" }), "Expression");
+        await userEvent.type(screen.getByRole("textbox", { name: "Expression" }), "degree >");
+
+        await waitFor(() => {
+            const status = within(screen.getByTestId("which-elements")).getByRole("status").textContent ?? "";
+            assert.match(status, /^Not used/);
+        });
+        // "degree" was a whole rule, written as it was typed; "degree >" is not, so it stays.
+        assert.deepEqual(session.styles.get(layer.id)?.selector, { match: "expression", where: "degree" });
+    });
+
+    it("Escape after Paints Both puts the row back on nodes with the rule it opened on", async () => {
+        const { session, store } = await openWithGraph();
+        const layer = await session.styles.add({
+            name: "All",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.color": "#ff0000" },
+        });
+        await openEditor(store, layer.id);
+
+        await userEvent.click(within(screen.getByRole("radiogroup", { name: "Paints" })).getByText("Both"));
+        await waitFor(() => {
+            assert.strictEqual(session.styles.parts(layer.id)?.target, "both");
+        });
+        const row = await idCondition("starts with");
+        await userEvent.type(row.getByRole("textbox", { name: "Value" }), "9");
+        await waitFor(() => {
+            assert.strictEqual(session.styles.counts(layer.id).matched, 11);
+        });
+
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            const parts = session.styles.parts(layer.id);
+            assert.strictEqual(parts?.target, "node");
+            assert.isUndefined(parts?.edge);
+            assert.deepEqual(session.styles.get(layer.id)?.selector, { match: "everything" });
+        });
+    });
 });

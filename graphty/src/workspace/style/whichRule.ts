@@ -4,7 +4,13 @@
  * Every value a rule reads comes from the element's `session.data.readableValues()`.
  */
 
-import { type GraphSession, type Layer, type RuleTree, selectorRule } from "@graphty/graphty-element/session";
+import {
+    type CodedFact,
+    type GraphSession,
+    type Layer,
+    type RuleTree,
+    selectorRule,
+} from "@graphty/graphty-element/session";
 
 import {
     attributeOf,
@@ -76,6 +82,30 @@ export const MODES: readonly { readonly value: Mode; readonly label: string }[] 
  */
 export function countWords(n: number, kind: "node" | "edge"): string {
     return `${String(n)} ${kind}${n === 1 ? "" : "s"}`;
+}
+
+/**
+ * Why a layer's "top N" took fewer than N, from graphty-element's `styles.counts(id).leftOut`
+ * facts: "Top 10 by Community size took none: 13 nodes tie at 13".
+ * @param facts - the counts' left-out facts.
+ * @param kind - what the layer paints.
+ * @param attributes - the readable fields, for the value's name.
+ * @returns one sentence per fact.
+ */
+export function leftOutWords(
+    facts: readonly CodedFact[],
+    kind: "node" | "edge",
+    attributes: readonly Field[],
+): string[] {
+    return facts.map(({ code, params }) => {
+        const { path, n, taken, value, count } = params;
+        if (code !== "top.tie") {
+            return "Some elements were left out of the top.";
+        }
+        const name = attributes.find((a) => a.path === path)?.plainName ?? String(path);
+        const took = taken === 0 ? "none" : `only ${String(taken)}`;
+        return `Top ${String(n)} by ${name} took ${took}: ${countWords(Number(count), kind)} tie at ${String(value)}.`;
+    });
 }
 
 /**

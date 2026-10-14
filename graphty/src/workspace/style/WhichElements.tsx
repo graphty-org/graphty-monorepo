@@ -31,6 +31,7 @@ import {
     type Form,
     formOf,
     type Kind,
+    leftOutWords,
     MODES,
     readsNodes,
     ruleName,
@@ -338,6 +339,41 @@ export function RuleEditor(props: Readonly<RuleEditorProps>): React.JSX.Element 
 }
 
 /**
+ * Put a row back as the Which elements editor opened on it: what it paints, then each part's rule
+ * and name. A part added while the editor was open (Paints: Both) shares the rule it had, so the
+ * kind goes back first and a dropped part never keeps the edited rule.
+ * @param session - the element's session.
+ * @param rowId - the row, or any of its parts.
+ * @param before - each part's selector and name when the editor opened.
+ * @param kind - what the row painted when the editor opened.
+ */
+async function restoreOpened(
+    session: GraphSession,
+    rowId: LayerId,
+    before: ReadonlyMap<LayerId, Pick<Layer, "selector" | "name">>,
+    kind: Kind,
+): Promise<void> {
+    let parts = session.styles.parts(rowId);
+    if (parts !== undefined && parts.target !== kind) {
+        parts = await session.styles.writeRow(rowId, { target: kind });
+    }
+    const now = [parts?.node, parts?.edge].filter((id): id is LayerId => id !== undefined);
+    const was = before.get(rowId) ?? [...before.values()][0];
+    const changed = now.some((id) => {
+        const old = before.get(id) ?? was;
+        return JSON.stringify(old?.selector) !== JSON.stringify(session.styles.get(id)?.selector);
+    });
+    if (!changed || was === undefined) {
+        return;
+    }
+    await session.transaction("Which elements", async (tx) => {
+        for (const id of now) {
+            await tx.styles.update(id, before.get(id) ?? was);
+        }
+    });
+}
+
+/**
  * The Which elements section of a layer, whoever made it (tier3 design, section 3.1). At rest it
  * is the rule as a sentence and how many it paints; a click opens the editor in place. Every edit
  * that makes a whole rule is written to the layer at once, so the count and the canvas are the
@@ -364,17 +400,25 @@ export function WhichElements({
 
     const [open, setOpen] = useState(false);
     const [form, setForm] = useState<Form>(() => formOf(selector, attributes, prefer));
-    // Each part's selector and name when the editor opened, which Escape writes back.
+    // Set when the element refused the rule the editor made: the layer keeps its old rule.
+    const [refused, setRefused] = useState(false);
+    // Each part's selector and name, and what the row painted, when the editor opened: Escape
+    // writes them back.
     const opened = useRef<ReadonlyMap<LayerId, Pick<Layer, "selector" | "name">>>(new Map());
+    const openedKind = useRef<Kind>(kind);
     const sentence = useRef<HTMLButtonElement>(null);
 
     const stats = session.data.statistics();
-    const painted = layers
-        .map((l) => {
-            const total = l.target === "node" ? stats.nodeCount : stats.edgeCount;
-            return `${String(session.styles.counts(l.id).matched)} of ${countWords(total, l.target)}`;
-        })
-        .join(", ");
+    const painted = [
+        layers
+            .map((l) => {
+                const total = l.target === "node" ? stats.nodeCount : stats.edgeCount;
+                return `${String(session.styles.counts(l.id).matched)} of ${countWords(total, l.target)}`;
+            })
+            .join(", "),
+        // A top that a tie stopped short says so, or "0 of 77 nodes" reads as a broken rule.
+        ...layers.flatMap((l) => leftOutWords(session.styles.counts(l.id).leftOut, l.target, attributes)),
+    ].join(". ");
     const resting = formOf(selector, attributes, prefer);
     // At rest the sentence reads the layer as it is; open, the rule being edited.
     const words = sentenceOf(session, attributes, open ? form : resting, kind);
@@ -402,7 +446,9 @@ export function WhichElements({
         setForm(next);
         const made = selectorOf(next, attributes, kinds.has("node"));
         if (made !== null && JSON.stringify(made) !== JSON.stringify(selector)) {
-            void write(made);
+            void write(made).then((ok) => {
+                setRefused(!ok);
+            });
         }
     };
     const close = (): void => {
@@ -423,6 +469,8 @@ export function WhichElements({
                     aria-label={`Which elements: ${words}. Edit`}
                     onClick={() => {
                         opened.current = new Map(layers.map((l) => [l.id, { selector: l.selector, name: l.name }]));
+                        openedKind.current = kind;
+                        setRefused(false);
                         setForm(resting);
                         setOpen(true);
                     }}
@@ -449,23 +497,9 @@ export function WhichElements({
                 if (isPanelEscape(event.nativeEvent)) {
                     event.preventDefault();
                     event.stopPropagation();
-                    const before = opened.current;
-                    // Restores the rule (and the name it gave) the editor opened on, if an edit changed it.
-                    const changed = layers.some((l) => {
-                        const was = before.get(l.id);
-                        return was !== undefined && JSON.stringify(was.selector) !== JSON.stringify(l.selector);
-                    });
-                    if (changed) {
-                        void session
-                            .transaction("Which elements", async (tx) => {
-                                for (const [id, was] of before) {
-                                    if (session.styles.get(id) !== undefined) {
-                                        await tx.styles.update(id, was);
-                                    }
-                                }
-                            })
-                            .catch(() => undefined);
-                    }
+                    void restoreOpened(session, parts?.id ?? layer, opened.current, openedKind.current).catch(
+                        () => undefined,
+                    );
                     close();
                 }
             }}
@@ -496,12 +530,17 @@ export function WhichElements({
                 onPick={(picked) => {
                     setForm(formOf(picked, attributes, prefer));
                     void write(picked).then((ok) => {
+                        setRefused(!ok);
                         if (!ok) {
                             store.set({ notice: { message: "That rule could not be used for this layer" } });
                         }
                     });
                 }}
-                status={painted}
+                status={
+                    refused
+                        ? `Not used: this layer cannot take that rule, so it keeps the one before. ${painted}`
+                        : painted
+                }
                 onDone={close}
             />
         </Stack>

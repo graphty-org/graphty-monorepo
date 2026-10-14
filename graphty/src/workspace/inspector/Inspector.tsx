@@ -29,11 +29,11 @@ import { FolderPanel } from "../style/FolderPanel";
 import { MultiRowPanel } from "../style/MultiRowPanel";
 import { GroupStyle, SelectionRowStyle, SelectionStyle, StylePanel } from "../style/StylePanel";
 import { GraphSettings } from "./GraphSettings";
-import { AttributeValues, EverythingValues, Overview } from "./GraphValues";
+import { AttributeValues, Overview } from "./GraphValues";
 import { useSessionVersion } from "./hooks";
 import { identityOf, type InspectedKindId, type Resolved, resolveInspected } from "./inspected";
 import { MENUS } from "./kindMenus";
-import { FolderValues, LayerValues } from "./LayerValues";
+import { EverythingRowValues, FolderValues, LayerValues } from "./LayerValues";
 import { EdgeValues, NeighborList, NodeValues, SeveralValues } from "./NodeValues";
 import { type Draft, swatchOf } from "./reads";
 import { GroupValues, RunStateBar, RunValues } from "./RunValues";
@@ -540,7 +540,7 @@ function bodyOf(
                       values: <GroupValues run={run} group={resolved.group} version={version} />,
                   };
         case "everything-row":
-            return { style: <StylePanel />, values: <EverythingValues /> };
+            return { style: <StylePanel />, values: <EverythingRowValues /> };
         // Style edits the highlight a selected node is drawn with; Values is what the selection holds.
         case "selection-row":
             return { style: <SelectionStyle />, values: <SeveralValues version={version} /> };

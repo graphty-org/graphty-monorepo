@@ -442,11 +442,12 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
         assert.include((await inspector().findByRole("group", { name: "Table" })).textContent, "Nodes");
         assert.include(inspector().getByRole("group", { name: "Has a value" }).textContent, "100%");
 
-        // The Everything row: what it covers, from the element's counts.
+        // The Everything row: the same structure as every layer, its counts the element's.
         act(() => {
             store.set({ inspected: { kind: "everything-row" }, tabs: { "everything-row": "values" } });
         });
-        assert.include((await inspector().findByText(/^Covers every node and edge/)).textContent, "12 nodes, 13 edges");
+        const covers = await inspector().findByRole("group", { name: "Covers" });
+        assert.include(within(covers).getByRole("group", { name: "Matched nodes" }).textContent, "12");
 
         // A group row: its members are the nodes Louvain put in that group.
         const group = session.runs.get(id)?.result?.summary().groups?.[0];

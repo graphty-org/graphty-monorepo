@@ -5,7 +5,7 @@ import React, { useState } from "react";
 
 import { findTreeRow } from "../graph-place/rows";
 import { useWorkspace } from "../state/WorkspaceContext";
-import { sourceName } from "../style/row";
+import { everythingRow, sourceName, startingEverything } from "../style/row";
 import { useStyleVersion } from "../style/useStyleVersion";
 import { channelWord, groupRank, hexOf, valueName } from "../style/words";
 import { DistributionRows } from "./Distribution";
@@ -444,6 +444,65 @@ function StateValues({
 }
 
 /**
+ * Where a layer's look shows (the reader's question "why don't I see my look?"): per property it
+ * writes, "on N of M nodes"; then, where layers above cover it, the top three of them with how many
+ * elements each covers, and "N more". A covering layer's row selects what that layer paints.
+ * @param props - Component props
+ * @param props.session - the session
+ * @param props.counted - the row's layers with the element's counts
+ * @returns the section, or null when the row writes nothing
+ */
+function WhereItShows({
+    session,
+    counted,
+}: Readonly<{
+    session: GraphSession;
+    counted: readonly { layer: Layer; counts: ReturnType<GraphSession["styles"]["counts"]> }[];
+}>): React.JSX.Element | null {
+    const rows = counted.flatMap(({ layer, counts }) =>
+        Object.entries(counts.painted).map(([channel, n]) => ({
+            layer,
+            counts,
+            channel: channel as Channel,
+            n: n ?? 0,
+        })),
+    );
+    if (rows.length === 0) {
+        return null;
+    }
+    return (
+        <ControlSection label="Where its look shows" collapsible={false} headingLevel={3}>
+            {rows.map(({ layer, counts, channel, n }) => {
+                const noun = layer.target === "node" ? "node" : "edge";
+                const covers = counts.covers[channel];
+                return (
+                    <React.Fragment key={`${layer.id}:${channel}`}>
+                        <DataRow
+                            stat
+                            name={`${noun === "node" ? "Node" : "Edge"} ${channelWord(channel).toLowerCase()}`}
+                            value={`on ${formatNumber(n)} of ${count(counts.matched, noun)}`}
+                        />
+                        {covers?.layers.map((cover) => (
+                            <DataRow
+                                key={cover.layerId}
+                                name={`Covered by ${session.styles.get(cover.layerId)?.name ?? "a layer"}`}
+                                value={count(cover.count, noun)}
+                                onClick={() => {
+                                    void session.selection.apply({ layer: cover.layerId });
+                                }}
+                            />
+                        ))}
+                        {covers !== undefined && covers.more > 0 && (
+                            <DataRow name={`${String(covers.more)} more ${covers.more === 1 ? "layer" : "layers"}`} />
+                        )}
+                    </React.Fragment>
+                );
+            })}
+        </ControlSection>
+    );
+}
+
+/**
  * The layers of a row: its node part and its edge part, those it has.
  * @param session - the session.
  * @param rowId - the row.
@@ -457,21 +516,29 @@ function rowLayersOf(session: GraphSession, rowId: string): Layer[] {
 
 /**
  * The Values tab of a layer row (tier3 design, section 2.4): information, never styling, built the
- * same way for every row from the values it reads. Matched and Values read; then, per value, its
- * histogram (numbers), its groups (categories) or its ordered steps (a path); a "Top N by" list,
- * a small set's members, Selected's and Hovered's current elements; painted counts last.
+ * same way for every row, Everything included. Covers (what it matches); Where its look shows (per
+ * property, and who covers it); Values read; then, per value, its histogram (numbers), its groups
+ * (categories) or its ordered steps (a path); a "Top N by" list, a small set's members, and
+ * Selected's and Hovered's current elements.
  * @param props - Component props
  * @param props.id - the row
+ * @param props.layerIds - the layers to read instead of the row's, for Everything without a row
  * @returns the tab
  */
-export function LayerValues({ id }: Readonly<{ id: string }>): React.JSX.Element | null {
+export function LayerValues({
+    id,
+    layerIds,
+}: Readonly<{ id: string; layerIds?: readonly string[] }>): React.JSX.Element | null {
     const { session, element } = useWorkspace();
     const styleVersion = useStyleVersion(session, element);
     const sessionVersion = useSessionVersion(session);
     if (session === null) {
         return null;
     }
-    const layers = rowLayersOf(session, id);
+    const layers =
+        layerIds === undefined
+            ? rowLayersOf(session, id)
+            : layerIds.flatMap((layerId) => session.styles.get(layerId) ?? []);
     if (layers.length === 0) {
         return (
             <Text size="xs" c="dimmed" p="md">
@@ -489,7 +556,7 @@ export function LayerValues({ id }: Readonly<{ id: string }>): React.JSX.Element
 
     return (
         <>
-            <ControlSection label="Summary" collapsible={false} headingLevel={3}>
+            <ControlSection label="Covers" collapsible={false} headingLevel={3}>
                 {counted.map(({ layer, counts }) => (
                     <DataRow
                         key={layer.id}
@@ -499,6 +566,7 @@ export function LayerValues({ id }: Readonly<{ id: string }>): React.JSX.Element
                     />
                 ))}
             </ControlSection>
+            <WhereItShows session={session} counted={counted} />
             {/* Its own section: a header row with no value read as the label of the row below. */}
             {reads.length + states.length > 0 && (
                 <ControlSection label="Values read" collapsible={false} headingLevel={3}>
@@ -538,20 +606,22 @@ export function LayerValues({ id }: Readonly<{ id: string }>): React.JSX.Element
                     <MemberValues session={session} layer={layer} matched={counts.matched} version={version} />
                 </React.Fragment>
             ))}
-            <ControlSection label="Painted" collapsible={false} headingLevel={3}>
-                {counted.flatMap(({ layer, counts }) =>
-                    Object.entries(counts.painted).map(([channel, n]) => (
-                        <DataRow
-                            key={channel}
-                            stat
-                            name={`${layer.target === "node" ? "Node" : "Edge"} ${channelWord(channel as Channel).toLowerCase()}`}
-                            value={`${formatNumber(n ?? 0)} of ${formatNumber(counts.matched)}`}
-                        />
-                    )),
-                )}
-            </ControlSection>
         </>
     );
+}
+
+/**
+ * The Everything row's Values tab: the same structure as every other layer's, read from the
+ * starting Everything row (or the reader's own layer that paints everything).
+ * @returns the tab
+ */
+export function EverythingRowValues(): React.JSX.Element | null {
+    const { session } = useWorkspace();
+    if (session === null) {
+        return null;
+    }
+    const id = startingEverything(session);
+    return id === undefined ? <LayerValues id="" layerIds={everythingRow(session)} /> : <LayerValues id={id} />;
 }
 
 /**

@@ -131,7 +131,7 @@ describe("one name per value, rules in words", () => {
                 assert.include(style.textContent, name, `${run}'s Style tab names its value ${name}`);
             });
             const values = await openRow(rows[run], "Values");
-            await within(values).findByRole("heading", { name: "Painted" });
+            await within(values).findByRole("heading", { name: "Where its look shows" });
             assert.include(values.textContent, name, `${run}'s Values tab names its value ${name}`);
         }
         const key = await screen.findByRole("region", { name: "Legend" });
@@ -204,7 +204,7 @@ describe("one name per value, rules in words", () => {
         assert.isNotEmpty(keyNames);
         assert.deepEqual(names, keyNames);
         assert.deepEqual(names.slice(0, 2), ["Group 1", "Group 2"]);
-        for (const title of ["Summary", "Painted"]) {
+        for (const title of ["Covers", "Where its look shows"]) {
             assert.lengthOf(within(values).getAllByRole("heading", { name: title }), 1, title);
         }
     });

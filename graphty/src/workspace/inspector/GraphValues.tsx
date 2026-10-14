@@ -186,26 +186,6 @@ export function Overview(): React.JSX.Element | null {
     );
 }
 
-/**
- * The Everything row's Values tab (tier1-design.md section 2.7): what the row covers, which is
- * every node and every edge.
- * @returns The Summary
- */
-export function EverythingValues(): React.JSX.Element | null {
-    const { session } = useWorkspace();
-    if (session === null) {
-        return null;
-    }
-    const { nodes, edges } = session.status.counts;
-    return (
-        <ControlSection label="Summary" collapsible={false} headingLevel={3}>
-            <Text size="xs" px="md">
-                {`Covers every node and edge: ${count(nodes, "node")}, ${count(edges, "edge")}.`}
-            </Text>
-        </ControlSection>
-    );
-}
-
 const ORIGIN_WORDS = { imported: "From the file", joined: "Joined", computed: "Computed", result: "Result" } as const;
 
 /**

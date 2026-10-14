@@ -101,19 +101,22 @@ function statValue(scope: HTMLElement, name: string): string {
 }
 
 /**
- * Checks the Painted section against `styles.counts`.
+ * Checks the Where its look shows section against `styles.counts`.
  * @param session - the session.
  * @param inspector - the inspector.
  * @param layer - the layer.
  */
 function assertPainted(session: GraphSession, inspector: HTMLElement, layer: Layer): void {
     const counts = session.styles.counts(layer.id);
-    const painted = within(inspector).getByRole("group", { name: "Painted" });
+    const painted = within(inspector).getByRole("group", { name: "Where its look shows" });
     const entries = Object.entries(counts.painted);
     assert.isNotEmpty(entries);
     for (const [channel, n] of entries) {
         const name = `Node ${channelWord(channel as Parameters<typeof channelWord>[0]).toLowerCase()}`;
-        assert.equal(statValue(painted, name), `${formatNumber(n ?? 0)} of ${formatNumber(counts.matched)}`);
+        assert.match(
+            statValue(painted, name),
+            new RegExp(`^on ${formatNumber(n ?? 0)} of ${formatNumber(counts.matched)} nodes?$`),
+        );
     }
 }
 
@@ -168,7 +171,7 @@ describe("a layer row's Values tab on the real element", () => {
         const { layer } = await runLayer(session, "louvain");
         const inspector = await openValues(store, layer.row ?? layer.id);
         await within(inspector).findByText("Groups, largest first");
-        assert.lengthOf(within(inspector).getAllByRole("group", { name: "Summary" }), 1);
+        assert.lengthOf(within(inspector).getAllByRole("group", { name: "Covers" }), 1);
         assert.isEmpty(within(inspector).queryAllByTestId("histogram-bar"));
         assert.isNull(within(inspector).queryByTestId("values-spread"));
         // The values read are a section of their own, not a header row whose next row reads as its value.
@@ -196,7 +199,7 @@ describe("a layer row's Values tab on the real element", () => {
             (name) => name.textContent,
         );
         assert.deepEqual(names, order);
-        assert.lengthOf(within(inspector).getAllByRole("group", { name: "Summary" }), 1);
+        assert.lengthOf(within(inspector).getAllByRole("group", { name: "Covers" }), 1);
     });
 
     it("Selected lists the node a real click on the canvas selected", async () => {
@@ -226,5 +229,30 @@ describe("a layer row's Values tab on the real element", () => {
         const now = await within(inspector).findByRole("group", { name: "Now" });
         assert.isNotNull(within(now).getByText(String(id)));
         assert.equal(statValue(inspector, "Is selected"), "This view only");
+    });
+
+    it("Where its look shows: a covered layer names who covers it, and that row selects what it paints", async () => {
+        const { session, store } = await open();
+        const base = await session.styles.add({
+            name: "Base red",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.color": "#ff0000" },
+        });
+        await session.styles.add({
+            name: "Top blue",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.color": "#0000ff" },
+        });
+        await session.styles.settled();
+        const inspector = await openValues(store, base.row ?? base.id);
+        const shows = await within(inspector).findByRole("group", { name: "Where its look shows" });
+        const { matched } = session.styles.counts(base.id);
+        assert.match(statValue(shows, "Node color"), new RegExp(`^on 0 of ${formatNumber(matched)} nodes?$`));
+        await userEvent.click(within(shows).getByText("Covered by Top blue"));
+        await waitFor(() => {
+            assert.equal(session.selection.nodes.length, matched);
+        });
     });
 });

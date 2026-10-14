@@ -11,7 +11,15 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { after, describe, it } from "node:test";
 
-import { BUILD_NODE_OPTIONS, buildChild, needsScan, pickCommit, prepareAlert, scanLock } from "../sonar-baseline.mjs";
+import {
+    BUILD_NODE_OPTIONS,
+    buildChild,
+    needsScan,
+    pickCommit,
+    prepareAlert,
+    scanLock,
+    weekOverWeek,
+} from "../sonar-baseline.mjs";
 
 const run = (headSha, status, conclusion = "", event = "schedule", databaseId = headSha) => ({
     headSha,
@@ -167,5 +175,30 @@ describe("prepareAlert", () => {
         prepareAlert("", stamp, issues);
         assert.equal(existsSync(stamp), true, "the alert stays open until gh closes it");
         assert.equal(calls.length, 3);
+    });
+});
+
+describe("weekOverWeek", () => {
+    const week = (w, packages) => ({ week: w, total: Object.values(packages).reduce((a, b) => a + b, 0), packages });
+
+    it("states each package's change since last week, and says when the total rose", () => {
+        const prev = week("2026-W41", { "graph-io": 267, layout: 21, tools: 17 });
+        const now = week("2026-W42", { "graph-io": 250, layout: 25, githerd: 3 });
+        const { lines, rose } = weekOverWeek(prev, now);
+        assert.deepEqual(lines, [
+            "- Change since 2026-W41: -27 (305 to 278)",
+            "  - graph-io: 250 (-17)",
+            "  - layout: 25 (+4)",
+            "  - githerd: 3 (new)",
+            "  - tools: 0 (-17)",
+        ]);
+        assert.equal(rose, false);
+        assert.equal(weekOverWeek(now, week("2026-W43", { "graph-io": 251, layout: 25, githerd: 3 })).rose, true);
+    });
+
+    it("lists the packages without a change on the first week recorded", () => {
+        const { lines, rose } = weekOverWeek(null, week("2026-W42", { a: 1, b: 5 }));
+        assert.deepEqual(lines, ["- Open issues by package (no earlier week recorded):", "  - b: 5", "  - a: 1"]);
+        assert.equal(rose, false);
     });
 });

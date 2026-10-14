@@ -1,3 +1,19 @@
+## 0.6.53 (2026-10-14)
+
+### 🩹 Fixes
+
+- **webgpu-graph-algorithms:** size the 3D grid without Math.cbrt ([#2440](https://github.com/graphty-org/graphty-monorepo/issues/2440))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.0
+- Updated algorithms to 3.4.6
+- Updated layout to 2.5.2
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.6.52 (2026-10-13)
 
 ### 🧱 Updated Dependencies

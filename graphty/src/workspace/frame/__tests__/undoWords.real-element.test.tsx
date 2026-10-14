@@ -139,14 +139,16 @@ describe("Undo, Redo and Clear selection words", () => {
 
     // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
-        "says what Escape cleared when the Selection row has the focus",
+        "says what Escape cleared when the Selected row has the focus",
         async () => {
             const { session, store } = await openWithGraph();
+            // The starting rows the app turns on for a project it opens; this one was open from the start.
+            await session.config.set({ startingRows: true, editableBase: true, runPlacement: "top" });
             await session.selection.apply({ where: "value > `0`" });
             const edges = session.selection.edges.length;
             assert.isAbove(edges, 0);
 
-            await userEvent.click(await screen.findByRole("treeitem", { name: /^Selection/ }));
+            await userEvent.click(await screen.findByRole("treeitem", { name: /^Selected, / }));
             await userEvent.keyboard("{Escape}");
             await waitFor(() => {
                 assert.equal(session.selection.size, 0);

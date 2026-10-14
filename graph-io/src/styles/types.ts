@@ -439,6 +439,10 @@ export type StyleRuleReason =
     | "LAYER_CAP"
     /** Edges with no color of their own take their source node's color, as the writing tool draws them. */
     | "SOURCE_NODE_COLOR"
+    /** Edges with no color of their own take the mean of their two nodes' colors, as the writing tool draws them. */
+    | "END_NODES_COLOR"
+    /** Nodes with no border of their own get a border darker than their fill and scaled with their size, as the writing tool draws them. */
+    | "FILL_BORDER"
     /** Edges with no width of their own are as thick as their weight, as the writing tool draws them. */
     | "EDGE_WEIGHT"
     /** Nodes with no label of their own show their name, as the writing tool draws them (Graphviz's `\N`). */

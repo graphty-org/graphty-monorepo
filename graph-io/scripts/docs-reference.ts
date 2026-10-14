@@ -1333,6 +1333,10 @@ function toolDefaultsBlock(ctx: Context): string[] {
                 return "nodes are labeled with their id";
             case "colorFromSourceNode":
                 return "an edge with no color of its own takes its source node's fill";
+            case "colorFromEndNodes":
+                return "an edge with no color of its own takes the mean of its two nodes' fills";
+            case "borderFromFill":
+                return `a node with no border of its own gets a border of its fill times ${code(String(d.darken))}, ${code(String(d.widthFactor))} times its width wide`;
             case "widthFromWeight":
                 return "an edge with no width of its own is as thick as its weight (1 without one, and 1 for a weight of 0 or below, so the edge stays visible)";
             case "targetArrowOnDirected":

@@ -49,6 +49,28 @@ export type ToolDerivedDefault =
           readonly source: string;
       }
     | {
+          /**
+           * An edge with no color of its own takes the mean of its two nodes' colors, each channel rounded down
+           * (Gephi Preview's "mixed" edge color).
+           */
+          readonly kind: "colorFromEndNodes";
+          /** Where the default is stated. */
+          readonly source: string;
+      }
+    | {
+          /**
+           * A node with no border of its own gets a border of its fill with each channel times `darken`, `widthFactor`
+           * times its width wide (Gephi Preview's "darker" border, scaled with the node).
+           */
+          readonly kind: "borderFromFill";
+          /** What each color channel of the fill is multiplied by. */
+          readonly darken: number;
+          /** The border's width as a share of the node's width. */
+          readonly widthFactor: number;
+          /** Where the default is stated. */
+          readonly source: string;
+      }
+    | {
           /** An edge with no width of its own is drawn as thick as its weight (1 for an edge with no weight, or a weight of 0 or below). */
           readonly kind: "widthFromWeight";
           /** Where the default is stated. */
@@ -105,6 +127,7 @@ const Y3 = "yFiles for HTML API docs,";
 const GEPHI = "gephi master 92e503df61a7";
 const VIS = "vis-network 10.1.2 vis-network.esm.js";
 const SIGMA = "sigma 3.0.3 packages/sigma/src";
+const GEXFJS = "github.com/raphv/gexf-js ebfd2a7213d3 js/gexfjs.js";
 const PAJEK = "Pajek 6.02 reference manual";
 const OGDF = "ogdf master 1a40505ac006";
 const NX = "networkx 6da4704cbf32 networkx/drawing/nx_pylab.py line";
@@ -328,16 +351,44 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     width: v(10, `${GEPHI} AbstractProcessor.java lines 195-198`),
                     height: v(10, `${GEPHI} AbstractProcessor.java lines 195-198`),
                     shape: v("ellipse", "GEXF 1.3 viz shape default disc; Preview NodeRenderer"),
+                    opacity: v(1, `${GEPHI} DefaultPreset.java line 87 (NODE_OPACITY 100)`),
+                    // Preview hides labels (DefaultPreset.java line 106) and so does the Overview (VizConfig.java
+                    // line 113); graph-io shows them as sigma.js and gexf-js do (see formats/gexf/styles.ts), in
+                    // the color and font Gephi gives a label it shows
+                    labelColor: v("#000000", `${GEPHI} DefaultPreset.java line 91 (DependantOriginalColor(BLACK))`),
+                    labelFont: v("Arial", `${GEPHI} DefaultPreset.java line 93 (Arial plain 12)`),
                 },
                 edge: {
+                    curved: v(
+                        true,
+                        `${GEPHI} DefaultPreset.java line 66 (EDGE_CURVED true); EdgeRenderer.java line 117`,
+                    ),
                     sourceArrow: v("none", `${GEPHI} DefaultPreset.java line 62`),
                     targetArrow: v("none", `${GEPHI} DefaultPreset.java line 62`),
+                    opacity: v(1, `${GEPHI} DefaultPreset.java line 71 (EDGE_OPACITY 100)`),
                 },
                 graph: { background: v("#ffffff", `${GEPHI} VizConfig.java line 111`) },
                 derived: [
                     {
-                        kind: "colorFromSourceNode",
-                        source: `${GEPHI} VizConfig.java line 119 (EdgeColorMode.SOURCE)`,
+                        kind: "labelFromColumn",
+                        column: "label",
+                        source: `${SIGMA}/settings.ts lines 119-126 (renderLabels); ${GEXFJS} lines 1019-1040`,
+                    },
+                    {
+                        kind: "colorFromEndNodes",
+                        source:
+                            `${GEPHI} DefaultPreset.java line 65 (EdgeColor.Mode.MIXED); ` +
+                            "PreviewAPI types/EdgeColor.java lines 89-93",
+                    },
+                    {
+                        kind: "borderFromFill",
+                        darken: 0.498,
+                        widthFactor: 0.08,
+                        source:
+                            `${GEPHI} DefaultPreset.java lines 84, 86 (DependantColor DARKER, NODE_BORDER_FIXED false); ` +
+                            "PreviewAPI types/DependantColor.java lines 55, 85-86; Utils ColorUtils.java lines 22-34; " +
+                            "PreviewPlugin renderers/SizeUtils.java lines 11, 33-38 (0.16 x size / 2 of a node drawn " +
+                            "size x 2 wide, builders/NodeBuilder.java line 65)",
                     },
                     {
                         kind: "widthFromWeight",

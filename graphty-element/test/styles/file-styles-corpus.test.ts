@@ -411,27 +411,67 @@ describe("a file's styles drawn as the translation predicts, over the corpus", (
 });
 
 describe("a node border another program wrote", () => {
-    // node.outline is a screen-space glow of one pixel width, wider than a node framed to fit, so
-    // drawing another program's border on it hides the node's fill (issue #2252).
-    it("is not drawn as an outline, and the load says the border is not drawn", async () => {
+    /**
+     * Load a Cytoscape.js document with one node style and explain node "a".
+     * @param style - The node style.
+     * @returns What node "a" is drawn with, and the load's notes.
+     */
+    async function load(style: Record<string, unknown>): Promise<{
+        merged: Readonly<Record<string, unknown>>;
+        notes: readonly { code: string; params: Readonly<Record<string, unknown>> }[];
+    }> {
         const doc = JSON.stringify({
             elements: [{ data: { id: "a" } }, { data: { id: "b" } }],
-            style: [
-                {
-                    selector: "node",
-                    style: { "background-color": "#00ff00", "border-color": "#000000", "border-width": 2 },
-                },
-            ],
+            style: [{ selector: "node", style }],
         });
         const session = createGraphSession();
-        await session.data.import({ type: "json", config: { data: doc } }, { styles: "file" });
-        const { merged } = session.styles.explain({ node: "a" });
+        try {
+            await session.data.import({ type: "json", config: { data: doc } }, { styles: "file" });
+            return {
+                merged: session.styles.explain({ node: "a" }).merged,
+                notes: session.data.lastImport()?.styles?.notes ?? [],
+            };
+        } finally {
+            session.dispose();
+        }
+    }
+
+    // node.outline is a screen-space glow of one pixel width, wider than a node framed to fit, so
+    // drawing another program's border on it hides the node's fill (issue #2252). The border is a
+    // ring sized with the node, so it is drawn on the border channels.
+    it("is drawn as a border ring, not as an outline", async () => {
+        const { merged, notes } = await load({
+            "background-color": "#00ff00",
+            "border-color": "#ff0000",
+            "border-width": 4,
+            "border-style": "dashed",
+            width: 40,
+            height: 40,
+        });
         assert.strictEqual(norm(merged["node.color"]), "#00ff00");
         assert.isNull(norm(merged["node.outline"]));
-        const notes = session.data.lastImport()?.styles?.notes ?? [];
-        assert.isTrue(
-            notes.some((note) => note.code === FILE_STYLE_ISSUE.NOT_DRAWN && note.params.property === "borderColor"),
+        assert.strictEqual(norm(merged["node.borderColor"]), "#ff0000");
+        assert.strictEqual(merged["node.borderStyle"], "dashed");
+        const notDrawn = notes.filter((note) => note.code === FILE_STYLE_ISSUE.NOT_DRAWN);
+        assert.deepEqual(
+            notDrawn.map((note) => note.params.property),
+            [],
+            "no border property is left undrawn",
         );
-        session.dispose();
+    });
+
+    it("draws the border width at the file's width relative to the node", async () => {
+        const { merged } = await load({ "border-width": 4, width: 40, height: 40 });
+        const size = merged["node.size"];
+        const width = merged["node.borderWidth"];
+        assert.isNumber(size);
+        assert.isNumber(width);
+        assert.closeTo((width as number) / (size as number), 4 / 40, 1e-9);
+    });
+
+    it("draws a double border as a double ring", async () => {
+        const { merged, notes } = await load({ "border-width": 2, "border-style": "double", width: 40, height: 40 });
+        assert.strictEqual(merged["node.borderStyle"], "double");
+        assert.isFalse(notes.some((note) => note.params.property === "borderStyle"));
     });
 });

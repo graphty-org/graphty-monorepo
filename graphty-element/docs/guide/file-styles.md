@@ -72,7 +72,7 @@ while it turns a file's rules into layers:
 | Code                         | What happened                                                                                                        |
 | ---------------------------- | -------------------------------------------------------------------------------------------------------------------- |
 | `W_STYLE_DRAWN_NEAREST`      | Drawn as the nearest value the element has: a 2D shape as a 3D one, a width and a height as one size, a dash pattern |
-| `W_STYLE_NOT_DRAWN`          | A property the element does not draw (a border width, an image); left out                                            |
+| `W_STYLE_NOT_DRAWN`          | A property the element does not draw (an image, an edge tooltip); left out                                           |
 | `W_STYLE_NO_COUNTERPART`     | A value the element has no counterpart for (a label position, an unknown arrow); left out                            |
 | `W_STYLE_COLUMN_ABSENT`      | A rule reads a column no element of this load holds; left out                                                        |
 | `W_STYLE_TABLE_AS_VALUES`    | A mapping table too large or too mixed to keep as a table; its values are kept per element                           |

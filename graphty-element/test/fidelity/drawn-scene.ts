@@ -40,6 +40,7 @@ export const DRAWN_API_CANDIDATES: readonly string[] = [
     "a node's drawn screen box (width and height), not one radius (nodeScreenPosition)",
     "a node's drawn fill color, its instance color multiplied into its material",
     "whether an outline or glow is drawn around a node, its color and its reach in pixels",
+    "a node's drawn border ring: its color, its width in pixels and its line style",
     "a label's drawn font height in pixels, color, place relative to its node and whether the node hides it",
     "an edge's drawn kind (flat line, screen-space line, curve, pattern), thickness in pixels and path",
     "the arrowheads drawn at each end of an edge and their size in pixels",
@@ -181,6 +182,10 @@ interface PatternInternals {
     width: number;
     color: string;
     opacity: number;
+}
+interface NodeInternals {
+    border: AbstractMesh | null;
+    drawnStyle: { border?: { style?: string } } | null;
 }
 interface LabelInternals {
     actualDimensions: { width: number; height: number };
@@ -358,7 +363,42 @@ export interface DrawnNode {
     instanceColor: boolean;
     visible: boolean;
     ring: { kind: Ring["kind"]; color: string | null; reachPx: number; inner: boolean } | null;
+    /** The border ring drawn outside the fill, or null when the node has none. */
+    border: DrawnBorder | null;
     label: DrawnLabel | null;
+}
+
+/** A node's border ring as drawn. */
+export interface DrawnBorder {
+    color: string | null;
+    /** How far the ring reaches past the fill's box, in render pixels. */
+    widthPx: number;
+    /** The line style the ring was built in (the node's own record of it). */
+    style: string;
+}
+
+/**
+ * A node's border ring: its material's color, and its width as half of how much wider and taller
+ * its box is than the fill's box.
+ * @param node - the node
+ * @param fill - the fill's screen box
+ * @param p - the projector
+ * @returns the drawn border, or null when none is drawn
+ */
+function readBorder(node: Node, fill: ScreenBox, p: Projector): DrawnBorder | null {
+    const { border, drawnStyle } = node as unknown as NodeInternals;
+    if (border === null || border.isDisposed() || !border.isEnabled() || !border.isVisible) {
+        return null;
+    }
+    const box = p.box(border);
+    const widthPx = (box.x1 - box.x0 - (fill.x1 - fill.x0) + (box.y1 - box.y0 - (fill.y1 - fill.y0))) / 4;
+    const source = border instanceof InstancedMesh ? border.sourceMesh : border;
+    const material = materialColor(source.material);
+    return {
+        color: material ? hex(material.rgb) : null,
+        widthPx: Math.max(0, widthPx),
+        style: drawnStyle?.border?.style ?? "solid",
+    };
 }
 
 /**
@@ -397,6 +437,7 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
         instanceColor: buffer !== undefined,
         visible: node.getRenderState() === "visible" && mesh.isEnabled() && mesh.isVisible && source.visibility > 0,
         ring: ring ?? null,
+        border: readBorder(node, box, p),
         label: readLabel(node.label, p),
     };
 }

@@ -43,7 +43,15 @@ import { FILE_STYLE_TRANSLATION_ISSUE, type FileStyleNoteCode } from "./codes";
 import { type FoldableLayer, foldToCap } from "./fold";
 import type { FileStyleMeaning, FileStyleOrigin } from "./origin";
 import { computedPath, fileStylePath, isFileStylePath, parseFileStylePath } from "./path";
-import { ARROW_SHAPES, FILE_STYLE_SHAPES, type FileStyleShapeTable, LINE_STYLES, LINE_STYLES_NEAREST } from "./shapes";
+import {
+    ARROW_SHAPES,
+    BORDER_STYLES,
+    BORDER_STYLES_NEAREST,
+    FILE_STYLE_SHAPES,
+    type FileStyleShapeTable,
+    LINE_STYLES,
+    LINE_STYLES_NEAREST,
+} from "./shapes";
 import type { FileStyleScalar } from "./store";
 
 /** The most terms a selector made from a file holds; a wider group is written onto the elements. */
@@ -427,12 +435,14 @@ function closingQuote(where: string, from: number, quote: string): number {
  * @param kind - Nodes or edges.
  * @param factor - What a length of the file is multiplied by.
  * @param shapes - The 2D-to-3D shape table.
+ * @param graphty - Whether graphty wrote the file.
  * @returns The plans per property.
  */
 function channelPlans(
     kind: StyleTarget,
     factor: number,
     shapes: FileStyleShapeTable,
+    graphty: boolean,
 ): ReadonlyMap<string, readonly ChannelPlan[]> {
     const id = (channel: Channel): ChannelPlan => ({ channel, convert: (value) => value, identity: true });
     const table = (
@@ -448,11 +458,21 @@ function channelPlans(
             : { nearest: (value: StyleValue) => typeof value === "string" && nearest.has(value) }),
     });
     const label = (field: string): ChannelPlan => id(`${kind}.${field}` as Channel);
+    const length = (channel: Channel): ChannelPlan => ({
+        channel,
+        convert: (value) => (typeof value === "number" ? round(value * factor) : null),
+        identity: factor === 1,
+    });
     if (kind === "node") {
         const shapeTable = new Map(Object.entries(shapes));
         return new Map<string, readonly ChannelPlan[]>([
             ["fill", [id("node.color")]],
-            ["borderColor", [id("node.outline")]],
+            // graphty writes a consumer's `node.outline` as `borderColor`, so its own file reads it
+            // back there. Another program's border is a ring sized with the node: drawn as the
+            // outline's screen-space glow it covers the fill once the graph is framed (issue #2252).
+            ["borderColor", [id(graphty ? "node.outline" : "node.borderColor")]],
+            ["borderWidth", [length("node.borderWidth")]],
+            ["borderStyle", [table("node.borderStyle", BORDER_STYLES, BORDER_STYLES_NEAREST)]],
             ["label", [id("node.label")]],
             ["tooltip", [id("node.tooltip")]],
             ["shape", [table("node.shape", shapeTable, new Set(shapeTable.keys()))]],
@@ -467,16 +487,7 @@ function channelPlans(
     return new Map<string, readonly ChannelPlan[]>([
         ["color", [id("edge.color")]],
         ["opacity", [id("edge.opacity")]],
-        [
-            "width",
-            [
-                {
-                    channel: "edge.width",
-                    convert: (value) => (typeof value === "number" ? round(value * factor) : null),
-                    identity: factor === 1,
-                },
-            ],
-        ],
+        ["width", [length("edge.width")]],
         ["lineStyle", [table("edge.style", LINE_STYLES, LINE_STYLES_NEAREST)]],
         ["targetArrow", [table("edge.arrowHead", ARROW_SHAPES)]],
         ["sourceArrow", [table("edge.arrowTail", ARROW_SHAPES)]],
@@ -497,19 +508,8 @@ function channelPlans(
 
 /** The properties the element draws nothing for, per kind. */
 const NOT_DRAWN: Readonly<Record<StyleTarget, ReadonlySet<string>>> = {
-    node: new Set(["borderWidth", "borderStyle", "image"]),
+    node: new Set(["image"]),
     edge: new Set(["tooltip"]),
-};
-
-/**
- * The properties drawn only from a file graphty wrote, per kind. A node's `borderColor` is drawn
- * on `node.outline`, a screen-space glow of one fixed pixel width: it is what graphty writes a
- * consumer's outline as, but another program's border is a ring sized with the node, and drawn as
- * the glow it covers the node's fill once the graph is framed to fit (issue #2252).
- */
-const GRAPHTY_ONLY: Readonly<Record<StyleTarget, ReadonlySet<string>>> = {
-    node: new Set(["borderColor"]),
-    edge: new Set(),
 };
 
 /** The properties the translation draws in passes of their own, per kind. */
@@ -701,7 +701,12 @@ class KindTranslation {
         this.#notes = notes;
         this.#columns = columns;
         this.#n = kind === "node" ? input.snapshot.nodeCount : input.snapshot.edgeCount;
-        this.#plans = channelPlans(kind, factor, input.options.shapes ?? FILE_STYLE_SHAPES);
+        this.#plans = channelPlans(
+            kind,
+            factor,
+            input.options.shapes ?? FILE_STYLE_SHAPES,
+            input.extracted.styles.source.tool === "graphty",
+        );
         this.#keys = new Set(input.extracted.columns[kind].keys());
         this.#rules = input.extracted.styles.rules.filter(
             (rule) => rule.target === kind && (input.options.toolDefaults !== false || rule.origin !== "tool"),
@@ -1442,10 +1447,7 @@ class KindTranslation {
                 continue;
             }
 
-            if (
-                NOT_DRAWN[this.#kind].has(property) ||
-                (GRAPHTY_ONLY[this.#kind].has(property) && this.#input.extracted.styles.source.tool !== "graphty")
-            ) {
+            if (NOT_DRAWN[this.#kind].has(property)) {
                 this.#noteNotDrawn(rule, property, source);
                 continue;
             }

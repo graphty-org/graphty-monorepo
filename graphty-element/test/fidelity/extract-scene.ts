@@ -227,6 +227,23 @@ function labelPlace(label: ScreenBox, node: DrawnNode): LabelPositionClass {
 }
 
 /**
+ * The border a node shows: its border ring when it has one, else the outline or glow drawn around
+ * it, else none.
+ * @param d - what the renderer drew
+ * @returns the border
+ */
+function drawnBorderOf(d: DrawnNode): SceneNode["border"] {
+    if (d.border !== null) {
+        const { style } = d.border;
+        const kept: LineStyle = style === "solid" || style === "dashed" || style === "dotted" ? style : "other";
+        return { color: d.border.color, width: d.border.widthPx, style: kept };
+    }
+    return d.ring
+        ? { color: d.ring.color, width: d.ring.reachPx, style: "solid" }
+        : { color: null, width: 0, style: "solid" };
+}
+
+/**
  * One node as drawn, with the precedence rules applied, and what its style asked for.
  * @param id - the node id
  * @param d - what the renderer drew
@@ -257,9 +274,7 @@ function sceneNode(id: string, d: DrawnNode, merged: Readonly<Record<string, unk
         shape: shapeClassOf(SHAPE_NAMES.has(d.meshName) ? d.meshName : d.shapeType),
         fill: d.visible && !covered && !subPixel ? d.fillDrawn : null,
         fillOpacity: d.fillOpacity,
-        border: ring
-            ? { color: ring.color, width: ring.reachPx, style: "solid" }
-            : { color: null, width: 0, style: "solid" },
+        border: drawnBorderOf(d),
         label:
             label === null
                 ? null
@@ -277,7 +292,7 @@ function sceneNode(id: string, d: DrawnNode, merged: Readonly<Record<string, unk
             shape: shapeClassOf(channel(merged, "node.shape")),
             fill: requestedFill?.hex ?? null,
             fillOpacity: (typeof opacity === "number" ? opacity : 1) * (requestedFill?.alpha ?? 1),
-            borderColor: colorOf(merged["node.outline"])?.hex ?? null,
+            borderColor: colorOf(merged["node.borderColor"] ?? merged["node.outline"])?.hex ?? null,
             labelColor: colorOf(labelStyle.color ?? channel(merged, "node.labelColor"))?.hex ?? null,
             fontSize: labelStyle.sizePx ?? channel(merged, "node.labelSize"),
             labelPosition: labelPositionOf(labelStyle.location),
@@ -290,6 +305,7 @@ function sceneNode(id: string, d: DrawnNode, merged: Readonly<Record<string, unk
             subPixel,
             instanceColor: d.instanceColor,
             ring: ring ? { ...ring, reachPx: round(ring.reachPx) } : null,
+            border: d.border ? { ...d.border, widthPx: round(d.border.widthPx) } : null,
             labelFontPx: label ? round(label.fontPx) : null,
             labelOccluded: occluded,
         },

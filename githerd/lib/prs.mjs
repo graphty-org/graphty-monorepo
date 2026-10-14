@@ -21,6 +21,7 @@
 import { execFileSync } from "node:child_process";
 
 import { advisoryFailure, advisoryWords, utcDay } from "./advisory.mjs";
+import { sessionName } from "./board.mjs";
 import { balanceRefusal, classify } from "./classify.mjs";
 import { failureKey, isSummaryJob } from "./lanes.mjs";
 import { staleRevert } from "./master-fix.mjs";
@@ -620,7 +621,8 @@ export function whyStuck(number, rec, ctx) {
     const reasons = [...pullRequestReasons(rec, ctx.master, ctx.config?.release?.commitPattern)];
 
     const claim = ctx.claims?.[`pr:${number}`];
-    if (claim) reasons.push(`claimed by ${claim.holderName ?? claim.holder}`);
+    if (claim)
+        reasons.push(`claimed by ${sessionName({ sessions: ctx.sessions }, claim.holder, claim.holderName ?? null)}`);
     for (const [id, s] of Object.entries(ctx.sessions ?? {})) {
         if (s.branch === rec.headRef) reasons.push(`worked by session ${s.name ?? id}`);
     }

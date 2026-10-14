@@ -352,7 +352,7 @@ export class DirectionResolver {
             // an undirected self-loop is one arc (I7); the builder does not mirror it either
             return first;
         }
-        const mirror = sink.addEdge(target, source, weight);
+        const mirror = sink.addEdge(target, source, weight); // NOSONAR(S2234): the mirror arc runs the other way on purpose
         this.track(mirror);
         this.mirrorOfLast = mirror;
         sink.setEdgeValue(this.directedHandle, mirror, mutual);

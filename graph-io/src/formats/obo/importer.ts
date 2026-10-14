@@ -1429,7 +1429,8 @@ class OboReader {
             return;
         }
         const map = (record.values.get("obo.qualifiers") as Record<string, unknown[]> | undefined) ?? {};
-        (map[tag] ??= []).push({ value, qualifiers });
+        map[tag] ??= [];
+        map[tag].push({ value, qualifiers });
         record.values.set("obo.qualifiers", map);
     }
 

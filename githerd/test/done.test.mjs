@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { git, isolateGit } from "../../visual-review/test/helpers.mjs";
 import { claimJob, move, newJob } from "../lib/board.mjs";
 import { doneIo, githerdDone, pollVerifying, recheckRefused, verifyClaim } from "../lib/done.mjs";
-import { accumulateMerged } from "../lib/merged.mjs";
+import { accumulateMerged, landStacked } from "../lib/merged.mjs";
 import { masterRefs, readyIssues } from "../lib/queue.mjs";
 import { statusData, statusText } from "../lib/tools.mjs";
 import { commitAll, makeRepo, put } from "./helpers/git-repo.mjs";
@@ -1465,5 +1465,104 @@ describe("a release incident whose fix another session's pull request carries (#
             missing: [expect.stringContaining(`does not contain ${HEAD.slice(0, 9)}`)],
             fixable: true,
         });
+    });
+});
+
+describe("a fix stacked on another open pull request (#2467)", () => {
+    /** #2242, the open feature pull request; #2445, the fix based on its branch. */
+    const parent = pr({ headSha: OTHER, headRef: "feat/style-import", references: [] });
+    const fix = (/** @type {object} */ over = {}) =>
+        pr({ headRef: "fix/2414", baseRef: "feat/style-import", stackedOn: 2242, references: [], ...over });
+    const io = fakeIo({
+        pull: async () => ({ state: "open", body: "Fixes #2414", base: { ref: "feat/style-import" } }),
+    });
+    const ready = { state: "open", author: "owner", labels: ["bug", "priority:high", "effort:low"] };
+    const ranked = (/** @type {any} */ s) => readyIssues(s, { labels: LABELS }, NOW).ranked.map((i) => i.number);
+
+    it("accepts the fix, keeps the issue off the queue until the stack lands, then asks to verify it", async () => {
+        const s = state({ prs: { 2242: parent, 2445: fix() }, issues: { byNumber: { 2414: ready } } });
+        const job = (s.jobs["issue-2414"] = working("issue", "2414"));
+        const { ctx } = setup(s, io);
+        const r = JSON.parse((await githerdDone(ctx, job, report({ pr: 2445 }), "w1")).text);
+        expect(r.verified).toBe(true);
+        expect(job.state).toBe("done");
+        expect(s.merged.carried["2414"].pr).toBe(2445);
+        expect(ranked(s)).toEqual([]);
+        // The fix merges into #2242's branch: not on master yet, so the issue stays off the queue.
+        const merge = {
+            number: 2445,
+            title: "fix",
+            headRef: "fix/2414",
+            base: "feat/style-import",
+            mergedAt: "2026-10-05T00:00:00Z",
+            mergeSha: FIX,
+            closes: [],
+            mentions: [2414],
+            paths: [],
+            truncated: false,
+        };
+        s.merged = accumulateMerged(s.merged, [merge]);
+        delete s.prs[2445];
+        expect(ranked(s)).toEqual([]);
+        // #2242 lands on master with it: the merge is a reference of #2414, verified and closed by an issue job.
+        s.merged = await landStacked(s.merged, async () => true);
+        expect(masterRefs(s, 2414)).toEqual(["#2445"]);
+        expect(s.merged.carried).toEqual({});
+        expect(ranked(s)).toEqual([2414]);
+    });
+
+    it("counts only the parent's own failures as the parent's, and still refuses a branch no open pull request has", async () => {
+        const failing = { required: { "All Checks Pass": "FAILURE" } };
+        const s = state({
+            prs: { 2242: { ...parent, ...failing, failureKeys: ["CI / Docs", "CI / browser-2"] } },
+        });
+        const job = working("issue", "2414");
+        s.prs[2445] = fix({ ...failing, failureKeys: ["CI / Docs"] });
+        expect(await verifyClaim(job, report({ pr: 2445 }), view(s, io))).toEqual({ holds: true, stacked: true });
+        s.prs[2445] = fix({ ...failing, failureKeys: ["CI / Docs", "CI / Lint"] });
+        expect(await verifyClaim(job, report({ pr: 2445 }), view(s, io))).toEqual({
+            missing: [expect.stringContaining("required checks failing")],
+        });
+        s.prs[2445] = fix({ stackedOn: null });
+        expect(await verifyClaim(job, report({ pr: 2445 }), view(s, io))).toEqual({
+            missing: [expect.stringContaining("based on feat/style-import")],
+        });
+    });
+
+    it("accepts a pr job on a stacked pull request, and a carried fix in one", async () => {
+        const s = state({ prs: { 2242: parent, 2445: fix() } });
+        expect(await verifyClaim(working("pr", "2445"), report(), view(s, io))).toEqual({ holds: true, stacked: true });
+        const carrying = fakeIo({
+            pull: async () => ({
+                state: "open",
+                merged: false,
+                base: { ref: "feat/style-import", repo: { full_name: "o/r" } },
+                head: { sha: HEAD, repo: { full_name: "o/r" } },
+            }),
+            pullContains: async () => true,
+        });
+        const job = working("issue", "2414");
+        expect(await verifyClaim(job, report({ pr: 2445, commits: [FIX] }), view(s, carrying))).toEqual({
+            holds: true,
+            merged: false,
+            stacked: true,
+        });
+    });
+
+    it("accepts a fix already merged into an open pull request's branch, and records it until the stack lands", async () => {
+        const s = state({ prs: { 2242: parent }, issues: { byNumber: { 2414: ready } } });
+        const job = (s.jobs["issue-2414"] = working("issue", "2414"));
+        const merged = fakeIo({
+            pull: async () => ({
+                state: "closed",
+                merged: true,
+                body: "Fixes #2414",
+                base: { ref: "feat/style-import" },
+            }),
+        });
+        const { ctx } = setup(s, merged);
+        expect(JSON.parse((await githerdDone(ctx, job, report({ pr: 2445 }), "w1")).text).verified).toBe(true);
+        expect(s.merged.carried["2414"].pr).toBe(2445);
+        expect(s.merged.refs).toBeUndefined();
     });
 });

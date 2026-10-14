@@ -179,3 +179,34 @@ export function rowsHeading(session: GraphSession, ids: readonly string[]): stri
 export function rowName(session: GraphSession, id: string): string {
     return findTreeRow(session.styles.tree(), id)?.row.name ?? "Gone";
 }
+
+/**
+ * A layer's kind in words, from what it paints: "Node layer", "Edge layer" or "Node and edge
+ * layer". Never where it came from: every layer is equal.
+ * @param session - the element's session.
+ * @param id - the row's id.
+ * @returns the words, or undefined for a row the stack does not hold.
+ */
+export function layerKindWords(session: GraphSession, id: string): string | undefined {
+    const target = session.styles.parts(id)?.target;
+    if (target === undefined) {
+        return undefined;
+    }
+    return { node: "Node layer", edge: "Edge layer", both: "Node and edge layer" }[target];
+}
+
+/**
+ * What a row's kind glyph stands for, as its tooltip says it.
+ * @param session - the element's session.
+ * @param row - the row.
+ * @returns the words.
+ */
+export function kindGlyphWords(session: GraphSession, row: StyleRow): string {
+    if (row.kind === "folder") {
+        return "Folder";
+    }
+    const target = session.styles.parts(row.id)?.target;
+    return target === undefined
+        ? "Layer"
+        : { node: "Paints nodes", edge: "Paints edges", both: "Paints nodes and edges" }[target];
+}

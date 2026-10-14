@@ -91,7 +91,7 @@ describe("the workspace frame on the real element", () => {
         async () => {
             const session = await openWorkspace();
             await session.data.addNodes([{ id: "a" }, { id: "b" }]);
-            await screen.findByText(/to add results here/, undefined, { timeout: TIMEOUT_MS });
+            await screen.findByRole("treeitem", { name: /^Everything, / }, { timeout: TIMEOUT_MS });
 
             const names = new Map<string, number>();
             for (const control of document.querySelectorAll<HTMLElement>(

@@ -57,7 +57,9 @@ describe("a run's layer from the style tree", () => {
         const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
         await userEvent.click(
             await within(tree).findByRole("treeitem", {
-                name: new RegExp(`^${label.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&")}, layer`),
+                name: new RegExp(
+                    `^${label.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&")}, (node |edge |node and edge )?layer`,
+                ),
             }),
         );
 

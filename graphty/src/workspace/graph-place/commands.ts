@@ -2,7 +2,7 @@ import type { GraphSession, StyleRow, StyleRowPin } from "@graphty/graphty-eleme
 
 import { type Command, type CommandContext, defineRegistration } from "../commands/registry";
 import type { GLYPHS } from "../glyphs";
-import { deleteRow, duplicateRow, openDraft, orNotice, selectWhatItPaints, ungroup } from "./actions";
+import { addLayer, deleteRow, duplicateRow, orNotice, selectWhatItPaints, ungroup } from "./actions";
 import { FIND_BOX_ID } from "./FindBox";
 import { findTreeRow, isBaseRow } from "./rows";
 
@@ -257,7 +257,7 @@ export const registration = defineRegistration({
             },
         },
         {
-            // The tree's "+" > Add layer, from Quick actions too: a draft on what is selected.
+            // The tree's "+" > Layer, from Quick actions too: a real layer, named and ready to rename.
             id: "row.add-layer",
             label: "Add layer",
             group: "Graph tree",
@@ -265,8 +265,7 @@ export const registration = defineRegistration({
             disabled: ({ session }) => (session === null ? "Nothing is open" : null),
             run: ({ session, workspace }) => {
                 if (session !== null) {
-                    workspace.set({ page: "panels", place: "graph" });
-                    openDraft(session, workspace);
+                    void orNotice(workspace, "add a layer", addLayer(session, workspace, MENU_FOCUS_RETURN_MS));
                 }
             },
         },
@@ -276,6 +275,5 @@ export const registration = defineRegistration({
         { kind: "layer-row", tabs: ["style", "values"] },
         { kind: "folder-row", tabs: ["style", "values"] },
         { kind: "rows", tabs: [] },
-        { kind: "draft-row", tabs: [] },
     ],
 });

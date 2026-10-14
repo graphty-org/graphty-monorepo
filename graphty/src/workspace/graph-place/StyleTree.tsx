@@ -1,22 +1,21 @@
 import { ToggleIconButton, Tree, type TreeNodeData, type TreeRowActions } from "@graphty/compact-mantine";
 import type { GraphSession, StaleNote, StyleRow } from "@graphty/graphty-element/session";
 import { ActionIcon, Menu, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
-import React from "react";
+import React, { useRef } from "react";
 
+import { CommandMenuItem } from "../frame/menus";
 import { GLYPHS } from "../glyphs";
 import { staleWords } from "../inspector/words";
 import { matchesKey } from "../keys/keys";
 import type { WorkspaceState, WorkspaceStore } from "../state/store";
-import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
+import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { StylePanel } from "../style/StylePanel";
-import { ADD_ROW_LABEL, draftAnchor, openDraft, orNotice } from "./actions";
+import { openers } from "../toolbar/popover";
+import { ADD_ROW_LABEL, addLayer, orNotice } from "./actions";
 import { ROW_COMMANDS } from "./commands";
 import { KindGlyph } from "./KindGlyph";
 import { RowMenuItems } from "./RowMenu";
-import { count, findTreeRow, isBaseRow, isHidden, layerCount, placeOf } from "./rows";
-
-/** The tree item id of the new layer "+" adds before it is written. */
-const DRAFT_ID = "draft";
+import { count, findTreeRow, isBaseRow, isHidden, layerCount, layerKindWords, placeOf } from "./rows";
 
 /** Longer than a closing menu takes to hand focus back to its opener. */
 const MENU_FOCUS_RETURN_MS = 50;
@@ -110,8 +109,6 @@ function selectedIds(inspected: WorkspaceState["inspected"]): string[] {
         case "layer-row":
         case "folder-row":
             return inspected.id === undefined ? [] : [inspected.id];
-        case "draft-row":
-            return [DRAFT_ID];
         case "rows": {
             try {
                 const ids: unknown = JSON.parse(inspected.id ?? "[]");
@@ -132,11 +129,9 @@ function selectedIds(inspected: WorkspaceState["inspected"]): string[] {
  * @param ids - the rows.
  */
 function openRows(store: WorkspaceStore, tree: readonly StyleRow[], ids: readonly string[]): void {
-    const rows = ids.filter((id) => id !== DRAFT_ID);
+    const rows = ids;
     if (rows.length === 0) {
-        // A click on the draft's own row keeps it as it is (its kind and where Escape goes back to).
-        const now = store.get().inspected;
-        store.set({ inspected: ids.includes(DRAFT_ID) && now?.kind === "draft-row" ? now : null });
+        store.set({ inspected: null });
         return;
     }
     if (rows.length > 1) {
@@ -157,7 +152,7 @@ interface StyleTreeProps {
  * the topmost first. Two row kinds, a layer and a folder, each with its glyph; a layer's marks say
  * what it paints and whether it is painted over. The eye and lock sit on the row (on hover, focus,
  * and always when on); a pin shows as a mark. Click selects one row, Shift- or Control-click
- * several. "+" adds a layer (a draft, not written until its first value) or a folder. Every row
+ * several. "+" adds a layer or a folder, or opens Analyze. Every row
  * has the same menu. Rows drag to reorder or into a folder; a drop out of a pin band is refused.
  * @param props - Component props
  * @param props.session - the element's session
@@ -169,30 +164,6 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
     const inspected = useWorkspaceState((state) => state.inspected);
     const renamingRow = useWorkspaceState((state) => state.renamingRow);
     const tree = session.styles.tree();
-    const drafting = inspected?.kind === "draft-row";
-    // The draft sits where its first write will put it: directly above the row selected when it
-    // opened, else at the top of the unpinned rows.
-    const anchor = drafting ? draftAnchor(session, inspected) : undefined;
-    const anchored = anchor === undefined ? undefined : findTreeRow(tree, anchor);
-    const draftParent = anchored?.folders.at(-1)?.id ?? null;
-    const draftAt =
-        anchored === undefined
-            ? tree.filter((row) => row.pin === "top").length
-            : [...(anchored.folders.at(-1)?.children ?? tree)].reverse().findIndex((row) => row.id === anchor);
-    const draftItem: TreeNodeData = {
-        id: DRAFT_ID,
-        name: "New layer",
-        label: "New layer, layer, not written yet",
-        dimmed: true,
-        movable: false,
-    };
-    // The rows of one list, top first, with the draft in its place when it belongs in this list.
-    const withDraft = (list: TreeNodeData[], parent: string | null): TreeNodeData[] => {
-        if (drafting && parent === draftParent) {
-            list.splice(draftAt, 0, draftItem);
-        }
-        return list;
-    };
 
     const toItem = (row: StyleRow, folders: readonly StyleRow[]): TreeNodeData => {
         const hidden = isHidden({ row, folders });
@@ -219,6 +190,7 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
                 // Drawn at rest on every row, and named for what it does now.
                 data-at-rest=""
                 label={row.hidden ? `Show ${row.name}` : `Hide ${row.name}`}
+                tooltip={`Turn this ${row.kind === "folder" ? "folder" : "layer"} ${row.hidden ? "on" : "off"}`}
                 checked={row.hidden}
                 icon={<GLYPHS.show size={14} />}
                 checkedIcon={<GLYPHS.hide size={14} />}
@@ -238,10 +210,7 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
             </>
         );
         if (row.kind === "folder") {
-            const children = withDraft(
-                [...row.children].reverse().map((child) => toItem(child, [...folders, row])),
-                row.id,
-            );
+            const children = [...row.children].reverse().map((child) => toItem(child, [...folders, row]));
             return {
                 id: row.id,
                 name: row.name,
@@ -268,7 +237,7 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
         return {
             id: row.id,
             name: row.name,
-            label: `${row.name}, layer, ${paintsWords(paints)}`,
+            label: `${row.name}, ${(layerKindWords(session, row.id) ?? "Layer").toLowerCase()}, ${paintsWords(paints)}`,
             icon: marks,
             // Everything holding the base look stays at the bottom.
             movable: !isBaseRow(session, row.id),
@@ -279,16 +248,9 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
         };
     };
 
-    const items = withDraft(
-        [...tree].reverse().map((row) => toItem(row, [])),
-        null,
-    );
-
-    // The tree control counts the draft among its list's rows; the element does not.
-    const placeFor = (move: { id: string; parentId: string | null; index: number }): ReturnType<typeof placeOf> => {
-        const index = drafting && move.parentId === draftParent && move.index > draftAt ? move.index - 1 : move.index;
-        return placeOf(tree, { ...move, index });
-    };
+    const items = [...tree].reverse().map((row) => toItem(row, []));
+    const placeFor = (move: { id: string; parentId: string | null; index: number }): ReturnType<typeof placeOf> =>
+        placeOf(tree, move);
 
     const rowMenu = (node: TreeNodeData, actions: TreeRowActions): React.ReactNode => {
         const found = findTreeRow(tree, node.id);
@@ -351,9 +313,7 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
                 renameLabel="Row name"
                 renaming={renamingRow}
                 onRenamingChange={(id) => {
-                    if (id !== DRAFT_ID) {
-                        store.set({ renamingRow: id });
-                    }
+                    store.set({ renamingRow: id });
                 }}
                 onRename={(id, name) => {
                     void orNotice(store, `rename ${name}`, session.styles.renameRow(id, name));
@@ -365,19 +325,22 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
 }
 
 /**
- * The "+" beside the tree's title: Add layer opens a draft; Add folder makes "New folder" with its
- * name ready to type.
+ * The "+" beside the tree's title, where layers come from: Layer makes a real layer at once with
+ * its name ready to type; Folder makes "New folder" the same way; Analyze... opens the toolbar's
+ * Analyze popover (the one Analyze), and closing it gives focus back to this "+".
  * @param props - Component props
  * @param props.session - the element's session
  * @param props.store - the chrome store
  * @returns The button and its menu
  */
 function AddMenu({ session, store }: Readonly<{ session: GraphSession; store: WorkspaceStore }>): React.JSX.Element {
+    const button = useRef<HTMLButtonElement>(null);
+    const analyze = useCommand("analyze.open");
     return (
         <Menu position="bottom-end">
             <Menu.Target>
                 <Tooltip label={ADD_ROW_LABEL}>
-                    <ActionIcon variant="subtle" size="sm" aria-label={ADD_ROW_LABEL}>
+                    <ActionIcon ref={button} variant="subtle" size="sm" aria-label={ADD_ROW_LABEL}>
                         <GLYPHS.add size={14} />
                     </ActionIcon>
                 </Tooltip>
@@ -386,10 +349,10 @@ function AddMenu({ session, store }: Readonly<{ session: GraphSession; store: Wo
                 <Menu.Item
                     leftSection={<GLYPHS.layer size={14} aria-hidden />}
                     onClick={() => {
-                        openDraft(session, store);
+                        void orNotice(store, "add a layer", addLayer(session, store, MENU_FOCUS_RETURN_MS));
                     }}
                 >
-                    Add layer
+                    Layer
                 </Menu.Item>
                 <Menu.Item
                     leftSection={<GLYPHS.folder size={14} aria-hidden />}
@@ -411,8 +374,22 @@ function AddMenu({ session, store }: Readonly<{ session: GraphSession; store: Wo
                         })();
                     }}
                 >
-                    Add folder
+                    Folder
                 </Menu.Item>
+                {analyze !== null && (
+                    <CommandMenuItem
+                        icon={<GLYPHS.analyze size={14} aria-hidden />}
+                        label="Analyze..."
+                        shortcut={analyze.command.keys?.[0]}
+                        reason={analyze.disabledReason}
+                        onRun={() => {
+                            if (button.current !== null) {
+                                openers.analyze = button.current;
+                            }
+                            analyze.run();
+                        }}
+                    />
+                )}
             </Menu.Dropdown>
         </Menu>
     );

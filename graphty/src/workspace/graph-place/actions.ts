@@ -1,4 +1,4 @@
-import type { GraphSession, LayerId, RowSpec, StyleRow } from "@graphty/graphty-element/session";
+import type { GraphSession, LayerId, RowSpec, StyleRow, StyleRowPlace } from "@graphty/graphty-element/session";
 
 import type { Notice, WorkspaceState, WorkspaceStore } from "../state/store";
 import { findTreeRow } from "./rows";
@@ -19,60 +19,101 @@ export async function orNotice(store: WorkspaceStore, what: string, work: Promis
     }
 }
 
-/** The accessible name of the style tree's "+", where focus goes back when a draft is discarded. */
+/** The accessible name of the style tree's "+", where focus goes back after Undo of an added layer. */
 export const ADD_ROW_LABEL = "Add a layer or a folder";
 
 /**
- * The row a new layer lands directly above (Figma inserts above the selection): the row the
- * inspector showed when the draft opened, unless it is pinned, since an unpinned layer cannot
- * sit inside a pin band. Undefined puts it at the top of the unpinned rows.
- * @param session - the element's session.
- * @param inspected - the store's `inspected` while the draft is open.
- * @returns the row's id, or undefined.
+ * Puts focus on the style tree's "+".
  */
-export function draftAnchor(session: GraphSession, inspected: WorkspaceState["inspected"]): string | undefined {
-    const back = inspected?.kind === "draft-row" ? inspected.back : undefined;
-    if ((back?.kind !== "layer-row" && back?.kind !== "folder-row") || back.id === undefined) {
-        return undefined;
-    }
-    const row = findTreeRow(session.styles.tree(), back.id)?.row;
-    return row?.pin === "none" ? row.id : undefined;
+export function focusAddButton(): void {
+    document.querySelector<HTMLElement>(`[aria-label="${ADD_ROW_LABEL}"]`)?.focus();
 }
 
 /**
- * Opens a new layer's draft, remembering what the inspector showed so discarding it goes back.
- * Its kind is the selected layer row's (it lands just above that row), else what is selected on
- * the canvas (nodes, edges or both), else nodes.
- * @param session - the element's session.
- * @param store - the chrome store.
+ * Every row name in the tree, at any depth.
+ * @param rows - the rows.
+ * @returns the names.
  */
-export function openDraft(session: GraphSession, store: WorkspaceStore): void {
-    const now = store.get().inspected;
-    const back = now?.kind === "draft-row" ? (now.back ?? null) : now;
-    const { nodes, edges } = session.selection;
-    let paints: "node" | "edge" | "both" = "node";
-    const rowTarget =
-        back?.kind === "layer-row" && back.id !== undefined ? session.styles.parts(back.id)?.target : undefined;
-    if (rowTarget !== undefined) {
-        paints = rowTarget;
-    } else if (nodes.length > 0) {
-        paints = edges.length > 0 ? "both" : "node";
-    } else if (edges.length > 0) {
-        paints = "edge";
-    }
-    store.set({ inspected: { kind: "draft-row", id: paints, back } });
+function rowNames(rows: readonly StyleRow[]): string[] {
+    return rows.flatMap((row) => [row.name, ...rowNames(row.children)]);
 }
 
 /**
- * Discards the draft: the inspector shows again what it showed before the draft opened, the
- * status line says so, and focus goes back to the tree's "+".
- * @param store - the chrome store.
+ * A new layer's name: "Layer N", N the lowest number no row's name uses.
+ * @param tree - the element's tree.
+ * @returns the name.
  */
-export function discardDraft(store: WorkspaceStore): void {
-    store.set({ inspected: store.get().inspected?.back ?? null, announcement: "New layer discarded" });
-    requestAnimationFrame(() => {
-        document.querySelector<HTMLElement>(`[aria-label="${ADD_ROW_LABEL}"]`)?.focus();
+export function nextLayerName(tree: readonly StyleRow[]): string {
+    const used = new Set(rowNames(tree));
+    let n = 1;
+    while (used.has(`Layer ${String(n)}`)) {
+        n++;
+    }
+    return `Layer ${String(n)}`;
+}
+
+/**
+ * Where a new layer lands (Figma inserts above the selection): directly above the row the
+ * inspector shows when that row is unpinned, else at the top of the unpinned rows.
+ * @param session - the element's session.
+ * @param inspected - the store's `inspected`.
+ * @returns the place, bottom first.
+ */
+function newLayerPlace(session: GraphSession, inspected: WorkspaceState["inspected"]): StyleRowPlace {
+    const tree = session.styles.tree();
+    const anchor =
+        (inspected?.kind === "layer-row" || inspected?.kind === "folder-row") && inspected.id !== undefined
+            ? findTreeRow(tree, inspected.id)
+            : undefined;
+    if (anchor !== undefined && anchor.row.pin === "none") {
+        const parent = anchor.folders.at(-1);
+        const siblings = parent?.children ?? tree;
+        return { parent: parent?.id ?? null, index: siblings.findIndex((row) => row.id === anchor.row.id) + 1 };
+    }
+    return { parent: null, index: tree.length - tree.filter((row) => row.pin === "top").length };
+}
+
+/**
+ * Add layer: a real layer at once, in one undo step, named "Layer N", on both kinds and every node
+ * and edge, writing nothing yet. It opens in the inspector with its name ready to type; Escape or
+ * a click away keeps it, and only Delete or Undo removes it. After an Undo takes it away, focus
+ * goes back to the tree's "+".
+ * @param session - the element's session.
+ * @param store - the chrome store.
+ * @param afterMenu - how long to wait for a closing menu to hand focus back before renaming.
+ * @returns the new row's id.
+ */
+export async function addLayer(session: GraphSession, store: WorkspaceStore, afterMenu = 0): Promise<string> {
+    const name = nextLayerName(session.styles.tree());
+    const place = newLayerPlace(session, store.get().inspected);
+    const id = await session.transaction(`Add ${name}`, async (tx) => {
+        const added = await tx.styles.addRow({ name, target: "both", selector: { match: "everything" } });
+        await tx.styles.moveRow(added.id, place);
+        return added.id;
     });
+    // ponytail: listens until the row goes, however many steps later; one listener per added layer.
+    const off = session.on("history:changed", () => {
+        if (findTreeRow(session.styles.tree(), id) !== undefined) {
+            return;
+        }
+        off();
+        const active = document.activeElement;
+        if (active === null || active === document.body || active.closest("[role=tree]") !== null) {
+            focusAddButton();
+        }
+    });
+    store.set({ page: "panels", place: "graph", inspected: { kind: "layer-row", id } });
+    setTimeout(() => {
+        // Focus the row first: the name field hands focus back to what held it when it opened,
+        // so naming ends on the new row.
+        document
+            .querySelector<HTMLElement>(
+                `[role="tree"][aria-label="Style layers"] .cm-tree-row[data-id="${CSS.escape(id)}"]`,
+            )
+            ?.focus();
+        store.set({ renamingRow: id });
+    }, afterMenu);
+    return id;
 }
 
 /**

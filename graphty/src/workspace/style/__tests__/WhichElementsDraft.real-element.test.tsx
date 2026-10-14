@@ -53,12 +53,15 @@ function readerLayers(session: GraphSession): Layer[] {
     return session.styles.list().filter((l) => l.source.by === "user");
 }
 
-/** Clicks the tree's "+" and Add layer. */
+/** Clicks the tree's "+" and Layer, keeps the name it is given (Escape), and opens its Which elements. */
 async function addLayer(): Promise<void> {
     await userEvent.click(
         await screen.findByRole("button", { name: "Add a layer or a folder" }, { timeout: TIMEOUT_MS }),
     );
-    await userEvent.click(await screen.findByRole("menuitem", { name: "Add layer" }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Layer" }));
+    await screen.findByRole("textbox", { name: "Row name" });
+    await userEvent.keyboard("{Escape}");
+    await openEditor("Layer 1");
 }
 
 /**
@@ -96,12 +99,12 @@ async function openEditor(name: string): Promise<void> {
     await userEvent.click(await screen.findByRole("button", { name: /^Which elements: / }, { timeout: TIMEOUT_MS }));
 }
 
-describe("a new layer chooses its elements first", () => {
+describe("a new layer chooses its elements", () => {
     beforeAll(async () => {
         await page.viewport(1440, 900);
     });
 
-    it("finds 'State' in the draft, so Size 3 paints only those 24 teams, names the layer by its rule, and Both adds edges", async () => {
+    it("finds 'State' in a new layer, so Size 3 paints only those 24 teams, and Both adds edges", async () => {
         const { session, store } = await openCollegeFootball();
         const before = readerLayers(session).length;
         await addLayer();
@@ -112,7 +115,6 @@ describe("a new layer chooses its elements first", () => {
         await userEvent.keyboard("State");
         const live = await screen.findByRole("option", { name: /^.+ contains State, 24 nodes$/ });
         await userEvent.click(live);
-        assert.equal(readerLayers(session).length, before, "picking the rule writes nothing yet");
 
         const tab = await screen.findByTestId("style-tab");
         await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
@@ -120,19 +122,15 @@ describe("a new layer chooses its elements first", () => {
         await userEvent.tripleClick(await screen.findByRole("combobox", { name: /^Node size/ }));
         await userEvent.keyboard("3{Enter}");
         await waitFor(() => {
-            assert.equal(readerLayers(session).length, before + 1, "the first value adds one layer");
+            const made = readerLayers(session).find((l) => l.set?.["node.size"] === 3);
+            assert.isDefined(made);
         });
-        const made = readerLayers(session).at(-1);
+        assert.equal(readerLayers(session).length, before + 1, "Layer 1 is the one new layer");
+        const made = readerLayers(session).find((l) => l.set?.["node.size"] === 3);
         assert.isDefined(made);
-        assert.equal((made.set as Record<string, unknown> | undefined)?.["node.size"], 3);
         assert.equal(session.styles.counts(made.id).matched, 24, "only the matched teams change size");
-        assert.include(made.name, "State", "named by its rule");
-
-        // The new layer opens as its own row; its kind changes in place.
-        await waitFor(() => {
-            assert.equal(store.get().inspected?.kind, "layer-row");
-        });
-        await userEvent.click(await screen.findByRole("button", { name: /^Which elements: / }));
+        assert.equal(store.get().inspected?.kind, "layer-row");
+        // The editor is still open from the find; its kind changes in place.
         await chooseKind("Both");
         await waitFor(() => {
             assert.isDefined(session.styles.parts(made.id)?.edge, "an edge part was added");
@@ -201,21 +199,6 @@ describe("a new layer chooses its elements first", () => {
         }
     });
 
-    it("an unfinished condition keeps the draft a draft: no property to set until the rule is whole", async () => {
-        const { session } = await openCollegeFootball();
-        const before = readerLayers(session).length;
-        await addLayer();
-        await chooseKind("Nodes");
-        // Before any condition the draft paints every node, and offers its properties.
-        assert.isNotNull(await screen.findByTestId("style-tab"));
-
-        await choose(screen.getByRole("combobox", { name: "Rule" }), "Where a value");
-        await userEvent.click(screen.getByRole("button", { name: "Add condition" }));
-        await screen.findByText("Finish the rule to set its properties");
-        assert.isNull(screen.queryByTestId("style-tab"), "no property can be set, so none paints every node");
-        assert.equal(readerLayers(session).length, before, "nothing was written");
-    });
-
     it("finds edges by an end's name: Edges and 'Florida' offers the games of the Florida teams", async () => {
         const { session } = await openCollegeFootball();
         // The teams are named by the file's label column, not their numbers.
@@ -236,24 +219,6 @@ describe("a new layer chooses its elements first", () => {
             assert.equal(made?.selector.match, "ids");
             assert.isAbove(made === undefined ? 0 : session.styles.counts(made.id).matched, 0);
         });
-    });
-
-    it("Escape on a fresh draft discards it and puts focus on the Add button", async () => {
-        const { session } = await openCollegeFootball();
-        const before = JSON.stringify(session.styles.tree());
-        await addLayer();
-        const tree = screen.getByRole("tree", { name: "Style layers" });
-        await within(tree).findByRole("treeitem", { name: /^New layer, layer/ });
-        await waitFor(() => {
-            assert.equal((document.activeElement as HTMLInputElement | null)?.type, "radio");
-        });
-
-        await userEvent.keyboard("{Escape}");
-        await waitFor(() => {
-            assert.isNull(within(tree).queryByRole("treeitem", { name: /^New layer, / }));
-            assert.equal(document.activeElement?.getAttribute("aria-label"), "Add a layer or a folder");
-        });
-        assert.equal(JSON.stringify(session.styles.tree()), before, "nothing was written");
     });
 
     it("a run's layer shows its rule like any other: Degree's condition reads its value", async () => {

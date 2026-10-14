@@ -4,37 +4,20 @@ import { EllipsizedName } from "@graphty/compact-mantine";
 import { Text, UnstyledButton } from "@mantine/core";
 import React, { useMemo } from "react";
 
-import { GLYPHS } from "../glyphs";
-import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
+import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { FindBox } from "./FindBox";
 import { StyleTree } from "./StyleTree";
 import { useSessionVersion } from "./useSessionVersion";
 
 /**
- * The footer line's one message: with no graph, "Add data to start"; with a graph and nothing
- * run, "Analyze in the toolbar (Shift+A) to add results here". It is a hint, not a second Analyze
- * control: it names the toolbar's Analyze button, the one control of that name, and draws its
- * glyph, since a touch reader sees only the icon and gets no tooltip or key.
+ * The footer line: "Add data to start" while there is no graph, else nothing (the layer list is
+ * never empty, and its "+" offers Analyze).
  * @param props - Component props
  * @param props.hasGraph - Whether the element holds a node
- * @param props.hasRuns - Whether anything has been run
- * @returns The line, or null when there is nothing to say
+ * @returns The line, or null
  */
-function Footer({ hasGraph, hasRuns }: Readonly<{ hasGraph: boolean; hasRuns: boolean }>): React.JSX.Element | null {
-    const analyze = useCommand("analyze.open");
-    if (!hasGraph) {
-        return <Text className="ws-graph-footer">Add data to start</Text>;
-    }
-    if (hasRuns) {
-        return null;
-    }
-    const key = analyze?.command.keys?.[0] ?? "Shift+A";
-    return (
-        <Text className="ws-graph-footer">
-            Analyze <GLYPHS.analyze size={12} aria-hidden className="ws-graph-footer-glyph" /> in the toolbar ({key}) to
-            add results here
-        </Text>
-    );
+function Footer({ hasGraph }: Readonly<{ hasGraph: boolean }>): React.JSX.Element | null {
+    return hasGraph ? null : <Text className="ws-graph-footer">Add data to start</Text>;
 }
 
 /**
@@ -47,14 +30,13 @@ export function GraphPlace(): React.JSX.Element {
     const projectName = useWorkspaceState((state) => state.project?.name ?? "");
     const version = useSessionVersion(session);
 
-    const { name, hasGraph, hasRuns } = useMemo(() => {
+    const { name, hasGraph } = useMemo(() => {
         const _changeCount = version; // NOSONAR(S1481): reads the change count so the memo runs again on each session change
         return session === null
-            ? { name: projectName, hasGraph: false, hasRuns: false }
+            ? { name: projectName, hasGraph: false }
             : {
                   name: session.data.source()?.name ?? projectName,
                   hasGraph: session.data.statistics().nodeCount > 0,
-                  hasRuns: session.runs.list().some((run) => run.status !== "removed"),
               };
     }, [session, version, projectName]);
 
@@ -78,7 +60,7 @@ export function GraphPlace(): React.JSX.Element {
                 <FindBox />
             </div>
             {session === null ? null : <StyleTree session={session} />}
-            <Footer hasGraph={hasGraph} hasRuns={hasRuns} />
+            <Footer hasGraph={hasGraph} />
         </section>
     );
 }

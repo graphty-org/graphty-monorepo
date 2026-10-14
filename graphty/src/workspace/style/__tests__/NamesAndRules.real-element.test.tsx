@@ -160,27 +160,27 @@ describe("one name per value, rules in words", () => {
         assert.include(names, rows.degree, "the row keeps its name");
     });
 
-    it("a draft finding 'Mme' counts 6 nodes before any value is set", async () => {
+    it("a new layer finding 'Mme' counts 6 nodes before any value is set", async () => {
         const { session } = await openScene();
-        const before = session.styles.list().length;
         await userEvent.click(
             await screen.findByRole("button", { name: "Add a layer or a folder" }, { timeout: TIMEOUT_MS }),
         );
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Add layer" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Layer" }));
+        await screen.findByRole("textbox", { name: "Row name" });
+        await userEvent.keyboard("{Escape}");
+        await userEvent.click(await screen.findByRole("button", { name: /^Which elements: / }));
         const kinds = await screen.findByRole("radiogroup", { name: "Paints" });
-        assert.isTrue(
-            within(kinds).getByRole<HTMLInputElement>("radio", { name: "Nodes" }).checked,
-            "the kind is preselected",
-        );
+        const nodes = within(kinds).getByRole<HTMLInputElement>("radio", { name: "Nodes" });
+        await userEvent.click(document.querySelector<HTMLElement>(`label[for="${nodes.id}"]`) ?? nodes);
         await userEvent.click(screen.getByRole("combobox", { name: "Find elements" }));
         await userEvent.keyboard("Mme");
         await userEvent.click(await screen.findByRole("option", { name: "name contains Mme, 6 nodes" }));
-        const editor = within(screen.getByTestId("which-elements"));
+        const made = session.styles.list().find((layer) => layer.name === "Layer 1" && layer.target === "node");
+        assert.isDefined(made);
         await waitFor(() => {
-            assert.match(editor.getByRole("status").textContent, /^6 nodes, /);
+            assert.equal(session.styles.counts(made.id).matched, 6);
         });
-        assert.equal(editor.getByTestId("which-sentence").textContent, "Nodes where name contains Mme");
-        assert.equal(session.styles.list().length, before, "nothing is written yet");
+        assert.isEmpty(Object.keys(made.set ?? {}), "no value is set");
     });
 
     it("Louvain's Values tab lists Group 1 to Group 6 as the key does", async () => {

@@ -26,7 +26,6 @@ import { RuleRows } from "../rules/RuleRows";
 import { useWorkspace } from "../state/WorkspaceContext";
 import {
     countWords,
-    DRAFT_NAME,
     fieldsOf,
     type Form,
     formOf,
@@ -426,7 +425,6 @@ export function WhichElements({
     const write = async (next: Selector): Promise<boolean> => {
         const name = layers[0]?.name;
         const named =
-            name === DRAFT_NAME ||
             name === ruleName(session, attributes, resting, kind) ||
             name === sentenceOf(session, attributes, resting, kind);
         const renamed = ruleName(session, attributes, formOf(next, attributes, prefer), kind);

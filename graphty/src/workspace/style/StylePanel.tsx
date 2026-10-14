@@ -2,18 +2,14 @@ import "./style.css";
 
 import { ComboInput, CompactColorInput, FieldRow } from "@graphty/compact-mantine";
 import { channelsFor, toColorValue } from "@graphty/graphty-element/catalog";
-import { type Channel, DEFAULT_SELECTION_STYLE, type LayerId } from "@graphty/graphty-element/schema";
-import type { GraphSession, Layer } from "@graphty/graphty-element/session";
+import { DEFAULT_SELECTION_STYLE, type LayerId } from "@graphty/graphty-element/schema";
+import type { GraphSession } from "@graphty/graphty-element/session";
 import { Group, Stack, Text } from "@mantine/core";
 import React, { useEffect, useId, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
-import { discardDraft, draftAnchor } from "../graph-place/actions";
 import { findTreeRow, isHidden, isLocked, rowLayers as treeRowLayers } from "../graph-place/rows";
-import { useAsyncValue } from "../inspector/hooks";
-import type { DraftPaints } from "../inspector/inspected";
 import { edgeName } from "../inspector/words";
-import { isPanelEscape } from "../keys/keys";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { LabelSection } from "./LabelSection";
 import type { RowContext } from "./PropertyRow";
@@ -33,21 +29,10 @@ import {
     writeGroupColor,
 } from "./row";
 import { Section } from "./Section";
-import { focusLineNext, useFocusLine } from "./useFocusLine";
+import { useFocusLine } from "./useFocusLine";
 import { useLabelColumn } from "./useLabelColumn";
 import { useStyleVersion } from "./useStyleVersion";
-import { RuleEditor, WhichElements } from "./WhichElements";
-import {
-    BLANK_FORM,
-    DRAFT_NAME,
-    draftCount,
-    fieldsOf,
-    type Form,
-    formOf,
-    ruleName,
-    selectorOf,
-    sentenceOf,
-} from "./whichRule";
+import { WhichElements } from "./WhichElements";
 import { SECTIONS } from "./words";
 
 /**
@@ -616,118 +601,6 @@ export function GroupStyle({
                     }
                 }}
             />
-        </Stack>
-    );
-}
-
-/**
- * The new layer's panel before it is written (tier3 design, section 2.2): the whole Which elements
- * editor (kind, find, rule) first, focus on the kind; then, once a kind is chosen, its groups.
- * As soon as it has a rule it shows the rule's sentence and the element's count of what it
- * matches. Nothing reaches the element until a value is set, and that first write adds the layer
- * (a row on both kinds for Both) painting only what the rule matches, named by its rule, opens it
- * as its own row with focus on the line just set, and says "Layer ... added". Escape discards the draft, says so, and gives focus back to the Add button;
- * opening anything else abandons it too. Either leaves nothing behind.
- * @param props - Component props
- * @param props.paints - what it paints, once chosen
- * @returns The panel
- */
-export function DraftPanel({ paints }: Readonly<{ paints: DraftPaints | undefined }>): React.JSX.Element | null {
-    const { session, element, store } = useWorkspace();
-    const version = useStyleVersion(session, element);
-    const [before] = useState(() => new Set(session?.styles.list().map((layer) => layer.id)));
-    const [form, setForm] = useState<Form>(BLANK_FORM);
-    // A find offer's own selector, kept as the element built it until the rule is edited.
-    const [picked, setPicked] = useState<Layer["selector"] | null>(null);
-    // The first write added the layer: from here on it is a row like any other.
-    const added = session?.styles.list().find((layer) => !before.has(layer.id) && layer.source.by === "user");
-    const addedRow = added === undefined ? undefined : (added.row ?? added.id);
-    useEffect(() => {
-        if (addedRow === undefined || session === null) {
-            return;
-        }
-        // Focus stays on the line just set, in the layer's own panel, and the add is said.
-        const line = document.activeElement?.closest<HTMLElement>("[data-line]")?.dataset.line;
-        if (line !== undefined) {
-            focusLineNext(line as Channel);
-        }
-        const name = findTreeRow(session.styles.tree(), addedRow)?.row.name ?? "New layer";
-        store.set({ inspected: { kind: "layer-row", id: addedRow }, announcement: `Layer ${name} added` });
-    }, [addedRow, session, store]);
-    const attributes = session === null ? [] : fieldsOf(session);
-    const selector = picked ?? selectorOf(form, attributes, paints !== "edge");
-    const shown = picked === null ? form : formOf(picked, attributes, paints === "edge" ? "edge" : "node");
-    // What the rule matches, as soon as there is one, before any value is written.
-    const counted = useAsyncValue(
-        () => (session === null || selector === null ? null : draftCount(session, selector, paints ?? "node")),
-        `${JSON.stringify(selector)}:${paints ?? ""}:${String(version)}`,
-    );
-    if (session === null) {
-        return null;
-    }
-    const ruled = selector !== null && selector.match !== "everything";
-    // A rule begun and not finished is not "every element": the draft stays a draft until it is.
-    const unfinished = selector === null && !(form.mode === "where" && form.conditions.length === 0);
-    const name = ruled ? ruleName(session, attributes, shown, paints ?? "node") : DRAFT_NAME;
-    const choose = (kind: DraftPaints): void => {
-        store.set((state) => ({ inspected: { ...state.inspected, kind: "draft-row", id: kind } }));
-    };
-    const hint = "added when a property is set";
-    const statusOf = (): string => {
-        if (unfinished) {
-            return "Finish the rule to set its properties";
-        }
-        return ruled && counted !== undefined && counted !== null
-            ? `${counted}, ${hint}`
-            : "Nothing is added until a property is set";
-    };
-    return (
-        <Stack
-            gap={0}
-            onKeyDown={(event) => {
-                if (isPanelEscape(event.nativeEvent)) {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    discardDraft(store);
-                }
-            }}
-        >
-            <Stack gap={6} p={8} role="group" aria-label="Which elements" data-testid="which-elements">
-                <RuleEditor
-                    session={session}
-                    attributes={attributes}
-                    kind={paints}
-                    onKind={choose}
-                    form={form}
-                    onForm={(next) => {
-                        setPicked(null);
-                        setForm(next);
-                    }}
-                    onPick={(selected, kind) => {
-                        setPicked(selected);
-                        setForm(formOf(selected, attributes, kind));
-                        if (paints === undefined) {
-                            choose(kind);
-                        }
-                    }}
-                    sentence={ruled ? sentenceOf(session, attributes, shown, paints ?? "node") : undefined}
-                    status={statusOf()}
-                />
-            </Stack>
-            {paints !== undefined && !unfinished && (
-                <RowStyle
-                    key={paints}
-                    session={session}
-                    row={[]}
-                    sides={paints === "both" ? ["node", "edge"] : [paints]}
-                    fresh={{
-                        name,
-                        selector: selector ?? { match: "everything" },
-                        both: paints === "both",
-                        above: draftAnchor(session, store.get().inspected),
-                    }}
-                />
-            )}
         </Stack>
     );
 }

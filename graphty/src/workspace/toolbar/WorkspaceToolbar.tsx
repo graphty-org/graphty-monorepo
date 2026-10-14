@@ -264,9 +264,10 @@ export function WorkspaceToolbar(): React.JSX.Element {
                 }}
                 onClose={() => {
                     if (document.activeElement === null || document.activeElement === document.body) {
-                        (openers.path ?? anchors.current.analyze)?.focus();
+                        (openers.path ?? openers.analyze ?? anchors.current.analyze)?.focus();
                     }
                     delete openers.path;
+                    delete openers.analyze;
                 }}
                 closeOnEscape={false}
                 width={380}

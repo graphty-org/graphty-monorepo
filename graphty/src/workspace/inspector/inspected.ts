@@ -27,8 +27,6 @@ import type { WorkspaceState } from "../state/store";
  * - `layer-row`: one row of the style tree; the id is the row's id (its layer, or its node part).
  * - `folder-row`: a folder of the style tree; the id is the folder's id.
  * - `rows`: several rows of the style tree selected together; the id is their ids as a JSON array.
- * - `draft-row`: the new layer "+" adds, not written yet; the id is what it paints (`node`,
- *   `edge` or `both`), absent until the reader chooses. Opening anything else abandons it.
  * - `attribute`: an attribute from the Data place; the id is its path, such as `data.age`.
  * - `filter-step`: the filter step editor; the id is the step's id, `new`, or
  *   `new:<node|edge>:<path>` for a new step on that attribute.
@@ -49,7 +47,6 @@ export const INSPECTED_KINDS = [
     "layer-row",
     "folder-row",
     "rows",
-    "draft-row",
     "attribute",
     "filter-step",
     "source",
@@ -79,13 +76,9 @@ export type Resolved =
     | { readonly kind: "layer-row"; readonly layer: string }
     | { readonly kind: "folder-row"; readonly row: string }
     | { readonly kind: "rows"; readonly rows: readonly string[] }
-    | { readonly kind: "draft-row"; readonly paints: DraftPaints | undefined }
     | { readonly kind: "attribute"; readonly path: string }
     | { readonly kind: "filter-step"; readonly step: string }
     | { readonly kind: "source"; readonly row: string };
-
-/** What a new layer not yet written paints. */
-export type DraftPaints = "node" | "edge" | "both";
 
 /**
  * The id a node carries in `inspected.id`. A node id is a string or a number, and the two must
@@ -210,14 +203,6 @@ function fromRow(inspected: WorkspaceState["inspected"]): Resolved | undefined {
             }
             break;
         }
-        case "draft-row":
-            return {
-                kind: "draft-row",
-                paints:
-                    inspected.id === "node" || inspected.id === "edge" || inspected.id === "both"
-                        ? inspected.id
-                        : undefined,
-            };
         case "attribute":
             if (inspected.id !== undefined) {
                 return { kind: "attribute", path: inspected.id };

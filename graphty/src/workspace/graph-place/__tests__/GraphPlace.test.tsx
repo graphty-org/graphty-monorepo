@@ -143,10 +143,10 @@ describe("the Graph place", () => {
         assert.deepEqual(
             rows.map((r) => r.getAttribute("aria-label")),
             [
-                "Hovered, layer, 0 nodes",
-                "Selected, layer, 0 nodes, 0 edges",
+                "Hovered, node layer, 0 nodes",
+                "Selected, node and edge layer, 0 nodes, 0 edges",
                 "Annotations, folder, 0 layers",
-                "Everything, layer, 3 nodes, 2 edges",
+                "Everything, node and edge layer, 3 nodes, 2 edges",
             ],
         );
     });
@@ -156,14 +156,10 @@ describe("the Graph place", () => {
         assert.isNotNull(screen.getByText("Add data to start"));
     });
 
-    it("reads 'Analyze in the toolbar (Shift+A) to add results here' with a graph and nothing run, as a hint and not a second Analyze control", async () => {
+    it("draws no footer hint with a graph: the layer list is never empty and its + offers Analyze", async () => {
         renderPlace(await sessionWithGraph());
-
-        const footer = screen.getByText(/to add results here/);
-        assert.equal(footer.textContent?.replace(/\s+/g, " "), "Analyze in the toolbar (Shift+A) to add results here");
-        assert.isNull(within(footer).queryByRole("button"));
-        // The toolbar button's glyph, for a touch reader who sees no tooltip and has no key.
-        assert.isNotNull(footer.querySelector("svg[aria-hidden='true']"));
+        assert.isNull(screen.queryByText(/to add results here/));
+        assert.isNull(screen.queryByText("Add data to start"));
     });
 
     it("lists matches while typing and selects nothing until a pick", async () => {

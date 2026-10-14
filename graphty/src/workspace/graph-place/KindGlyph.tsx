@@ -1,12 +1,15 @@
 import type { GraphSession, StyleRow } from "@graphty/graphty-element/session";
+import { Tooltip } from "@mantine/core";
 import React from "react";
 
 import { GLYPHS } from "../glyphs";
+import { kindGlyphWords } from "./rows";
 
 /**
  * A style tree row's kind glyph: a folder, or what a layer paints -- a dot for nodes, a line for
  * edges, a dot on a line for both -- each one icon at one size and stroke, so no kind reads dimmer
  * than another. The tree, the inspector's header and a folder's list of rows all draw this one.
+ * Its tooltip says what it stands for ("Paints nodes and edges"); never where the layer came from.
  * @param props - Component props
  * @param props.session - the element's session
  * @param props.row - the row
@@ -31,5 +34,11 @@ export function KindGlyph({
             Glyph = GLYPHS.bothKinds;
         }
     }
-    return <Glyph size={size} aria-hidden style={{ flexShrink: 0 }} />;
+    return (
+        <Tooltip label={kindGlyphWords(session, row)}>
+            <span data-kind-glyph="" style={{ display: "inline-flex", flexShrink: 0 }}>
+                <Glyph size={size} aria-hidden />
+            </span>
+        </Tooltip>
+    );
 }

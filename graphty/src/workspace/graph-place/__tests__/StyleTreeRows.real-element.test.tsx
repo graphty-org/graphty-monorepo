@@ -281,7 +281,7 @@ describe("the style tree's rows, menu and Graph settings door on the real elemen
         assert.equal(session.selection.edges.length, 0);
     });
 
-    it("lands a new layer directly above the selected row, its kind preselected from that row", async () => {
+    it("lands a new layer directly above the selected row, on both kinds, in one undo step", async () => {
         const { store, session } = await openSample();
         const degree = await session.runs.start("degree");
         await session.runs.start("louvain");
@@ -293,25 +293,16 @@ describe("the style tree's rows, menu and Graph settings door on the real elemen
         await userEvent.click(await row(name));
 
         await userEvent.click(screen.getByRole("button", { name: "Add a layer or a folder" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Add layer" }));
-        // The draft sits just above Connections in the tree, and paints nodes, as Connections does.
-        const draft = await within(tree()).findByRole("treeitem", { name: /^New layer, / });
-        const items = within(tree()).getAllByRole("treeitem");
-        assert.match(items[items.indexOf(draft) + 1]?.getAttribute("aria-label") ?? "", new RegExp(`^${name}, `));
-        const nodes = within(screen.getByRole("radiogroup", { name: "Paints" })).getByRole("radio", { name: "Nodes" });
-        assert.isTrue((nodes as HTMLInputElement).checked, "Nodes is chosen");
-
-        const tab = await screen.findByTestId("style-tab");
-        await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
-        // Adding Size is the first write, which adds the layer.
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Size" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Layer" }));
         await waitFor(() => {
             assert.equal(store.get().inspected?.kind, "layer-row");
+            assert.notEqual(store.get().inspected?.id, degreeRow?.id);
         });
         const rows = session.styles.tree();
         const at = rows.findIndex((each) => each.id === degreeRow?.id);
         assert.equal(rows[at + 1]?.id, store.get().inspected?.id, "the new layer is directly above Connections");
-        assert.equal(session.styles.parts(rows[at + 1]?.id ?? "")?.target, "node");
+        assert.equal(session.styles.parts(rows[at + 1]?.id ?? "")?.target, "both");
+        await userEvent.keyboard("{Escape}");
         // One undo takes the whole new layer back.
         await session.undo();
         await waitFor(() => {
@@ -382,7 +373,7 @@ describe("the style tree's rows, menu and Graph settings door on the real elemen
     it("ends naming a new folder with focus on its row", async () => {
         await openScene();
         await userEvent.click(screen.getByRole("button", { name: "Add a layer or a folder" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Add folder" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Folder" }));
         const field = await screen.findByRole("textbox", { name: "Row name" });
         await waitFor(() => {
             assert.equal(document.activeElement, field);

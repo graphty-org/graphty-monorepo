@@ -216,35 +216,35 @@ describe("folders, several rows and the draft on the real element", () => {
         assert.isUndefined(written(session, degree, "node.glow"));
     });
 
-    it("a draft with nothing selected opens on Nodes, showing only that kind's group", async () => {
+    it("Layer from + paints nodes and edges, shows both groups, and its first value goes on the layer it made", async () => {
         const { session } = await openProject();
+        const before = session.styles.list().length;
         await userEvent.click(screen.getByRole("button", { name: "Add a layer or a folder" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Add layer" }));
-        await screen.findByText("Nothing is added until a property is set");
-        const nodes = screen.getByRole<HTMLInputElement>("radio", { name: "Nodes" });
-        assert.isTrue(nodes.checked, "Nodes is chosen for the reader");
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Layer" }));
+        await screen.findByRole("textbox", { name: "Row name" });
+        await userEvent.keyboard("{Escape}");
         const tab = await screen.findByTestId("style-tab");
         assert.isNotNull(within(tab).getByRole("heading", { name: "Nodes" }));
-        assert.isNull(within(tab).queryByRole("heading", { name: "Edges" }));
+        assert.isNotNull(within(tab).getByRole("heading", { name: "Edges" }));
+        assert.equal(session.styles.list().length, before + 2, "one row, a node part and an edge part");
 
-        const before = session.styles.list().length;
         await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Size" }));
         const size = await screen.findByRole("combobox", { name: /^Node size/ }, { timeout: TIMEOUT_MS });
         await userEvent.tripleClick(size);
         await userEvent.keyboard("4{Enter}");
         await waitFor(() => {
-            const added = session.styles.list().find((layer) => layer.name === "New layer");
+            const added = session.styles.list().find((layer) => layer.name === "Layer 1" && layer.target === "node");
             assert.equal((added?.set as Record<string, unknown> | undefined)?.["node.size"], 4);
         });
-        assert.equal(session.styles.list().length, before + 1, "the first value adds one layer");
+        assert.equal(session.styles.list().length, before + 2, "the value adds no other layer");
         await waitFor(() => {
             assert.deepEqual(
                 within(tree())
                     .getAllByRole("treeitem")
                     .filter((item) => item.getAttribute("aria-selected") === "true")
                     .map((item) => item.getAttribute("aria-label")?.split(",")[0]),
-                ["New layer"],
+                ["Layer 1"],
             );
         });
     });

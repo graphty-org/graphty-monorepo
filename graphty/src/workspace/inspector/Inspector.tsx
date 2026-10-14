@@ -19,7 +19,7 @@ import { GLYPHS, KIND_GLYPHS } from "../glyphs";
 import { orNotice } from "../graph-place/actions";
 import { KindGlyph } from "../graph-place/KindGlyph";
 import { RowMenuItems } from "../graph-place/RowMenu";
-import { findTreeRow, placeOf, rowName, rowsHeading, runRowKind } from "../graph-place/rows";
+import { findTreeRow, layerKindWords, placeOf, rowName, rowsHeading, runRowKind } from "../graph-place/rows";
 import { LayerRowPanel } from "../graph-place/StyleTree";
 import { notesAbout } from "../notes/words";
 import { runName } from "../runWords";
@@ -27,7 +27,7 @@ import { tabFor } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { FolderPanel } from "../style/FolderPanel";
 import { MultiRowPanel } from "../style/MultiRowPanel";
-import { DraftPanel, GroupStyle, SelectionRowStyle, SelectionStyle, StylePanel } from "../style/StylePanel";
+import { GroupStyle, SelectionRowStyle, SelectionStyle, StylePanel } from "../style/StylePanel";
 import { GraphSettings } from "./GraphSettings";
 import { AttributeValues, EverythingValues, Overview } from "./GraphValues";
 import { useSessionVersion } from "./hooks";
@@ -440,13 +440,11 @@ function headerOf(session: GraphSession, resolved: Resolved, run: Run | undefine
         case "selection-row":
             return { name: "Selection" };
         case "layer-row":
-            return { name: rowName(session, resolved.layer) };
+            return { name: rowName(session, resolved.layer), kind: layerKindWords(session, resolved.layer) };
         case "folder-row":
             return { name: rowName(session, resolved.row) };
         case "rows":
             return { name: rowsHeading(session, resolved.rows) };
-        case "draft-row":
-            return { name: "New layer" };
         case "filter-step": {
             // Whether the step is on, as its row's checkbox says, so the editor alone tells.
             const step = session.visibility.steps.find((s) => s.id === resolved.step);
@@ -559,9 +557,6 @@ function bodyOf(
             };
         case "rows":
             return { only: <MultiRowPanel ids={resolved.rows} /> };
-        case "draft-row":
-            // Not keyed by the kind: a rule written before the kind changes is kept.
-            return { only: <DraftPanel paints={resolved.paints} /> };
         case "filter-step":
             // Keyed by the step, so opening another step starts from its own fields.
             return { only: <FilterStepEditor key={resolved.step} id={resolved.step} /> };

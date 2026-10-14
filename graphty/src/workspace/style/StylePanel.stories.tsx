@@ -274,13 +274,11 @@ export const TwoRows: Story = sceneStory(async ({ runs }) => {
     await page().findByRole("heading", { level: 2, name: "2 layers" });
 });
 
-/** A draft from Add layer, its kind chosen: nothing is added until a property is set. */
-export const Draft: Story = sceneStory(async () => {
+/** "+" > Layer: a real "Layer 1" on nodes and edges, its name ready to type, writing nothing yet. */
+export const NewLayer: Story = sceneStory(async () => {
     await userEvent.click(page().getByRole("button", { name: "Add a layer or a folder" }));
-    await userEvent.click(await page().findByRole("menuitem", { name: "Add layer" }));
-    await page().findByText("Nothing is added until a property is set");
-    const nodes = page().getByRole("radio", { name: "Nodes" });
-    await userEvent.click(document.querySelector<HTMLElement>(`label[for="${nodes.id}"]`) ?? nodes);
+    await userEvent.click(await page().findByRole("menuitem", { name: "Layer" }));
+    await page().findByRole("textbox", { name: "Row name" });
     await page().findByTestId("style-tab");
 });
 
@@ -410,9 +408,9 @@ async function loadFootball(canvasElement: HTMLElement): Promise<GraphtyElement>
 }
 
 /**
- * A new node layer named Conference, its color varying by the conference code with one color per
- * value, all through the panel: Add layer, Nodes, the color's vary glyph, the value, the pill's
- * "One color per value", and a rename in the tree. The binding popover is left open.
+ * A new layer named Conference, its node color varying by the conference code with one color per
+ * value, all through the panel: "+" > Layer named Conference, the color's vary glyph, the value, the pill's
+ * "One color per value". The binding popover is left open.
  */
 export const FootballConference: Story = {
     args: { store: createWorkspaceStore() },
@@ -421,11 +419,9 @@ export const FootballConference: Story = {
         const { session } = element;
         const before = new Set(session.styles.list().map((l) => l.id));
         await userEvent.click(page().getByRole("button", { name: "Add a layer or a folder" }));
-        await userEvent.click(await page().findByRole("menuitem", { name: "Add layer" }));
-        const nodes = within(await page().findByRole("radiogroup", { name: "Paints" })).getByRole("radio", {
-            name: "Nodes",
-        });
-        await userEvent.click(document.querySelector<HTMLElement>(`label[for="${nodes.id}"]`) ?? nodes);
+        await userEvent.click(await page().findByRole("menuitem", { name: "Layer" }));
+        await page().findByRole("textbox", { name: "Row name" });
+        await userEvent.keyboard("{Control>}a{/Control}Conference{Enter}");
         const tab: HTMLElement = await page().findByTestId("style-tab");
         await userEvent.click(within(tab).getByRole("button", { name: "Add to node fill" }));
         await userEvent.click(await page().findByRole("menuitem", { name: "Color" }));
@@ -441,17 +437,15 @@ export const FootballConference: Story = {
         await userEvent.click(await within(box).findByRole("button", { name: "Node color by attribute" }));
         await userEvent.click(await page().findByRole("option", { name: "value" }));
         const made = await waitFor(() => {
-            const layer = session.styles.list().find((l) => !before.has(l.id));
+            const layer = session.styles
+                .list()
+                .find((l) => !before.has(l.id) && l.encode?.["node.color"] !== undefined);
             expect(layer).toBeDefined();
             return layer as NonNullable<typeof layer>;
         });
-
-        const tree = page().getByRole("tree", { name: "Style layers" });
-        const escaped = made.name.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        await userEvent.dblClick(await within(tree).findByRole("treeitem", { name: new RegExp(`^${escaped}, `) }));
-        await page().findByRole("textbox", { name: "Row name" });
-        await userEvent.keyboard("{Control>}a{/Control}Conference{Enter}");
-        await within(tree).findByRole("treeitem", { name: /^Conference, / });
+        await within(page().getByRole("tree", { name: "Style layers" })).findByRole("treeitem", {
+            name: /^Conference, /,
+        });
 
         const styleTab = await openStyle("Conference");
         const popover = await openColorBinding(styleTab);

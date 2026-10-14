@@ -113,6 +113,52 @@ export function fromPositionColumn(
 }
 
 /**
+ * The per-component mean of the first `n` rows, skipping NaN (0 for a component with no value). Scratch is f64.
+ * @param positions - `dim`-stride positions
+ * @param n - rows to read
+ * @param dim - components per row
+ * @returns the mean, one entry per component
+ */
+function nanMean(positions: F32 | F64, n: number, dim: number): Float64Array {
+    const mean = new Float64Array(dim);
+    const counts = new Float64Array(dim);
+    for (let i = 0; i < n * dim; i++) {
+        const v = positions[i];
+        if (!Number.isNaN(v)) {
+            mean[i % dim] += v;
+            counts[i % dim]++;
+        }
+    }
+    for (let k = 0; k < dim; k++) {
+        mean[k] = counts[k] > 0 ? mean[k] / counts[k] : 0;
+    }
+    return mean;
+}
+
+/**
+ * The largest distance of a row from `mean`, a NaN component counting as no distance.
+ * @param positions - `dim`-stride positions
+ * @param n - rows to read
+ * @param dim - components per row
+ * @param mean - the point to measure from
+ * @returns the largest distance (0 when there are no rows)
+ */
+function maxNanDistance(positions: F32 | F64, n: number, dim: number, mean: Float64Array): number {
+    let maxDistance = 0;
+    for (let i = 0; i < n; i++) {
+        let sumSquares = 0;
+        for (let k = 0; k < dim; k++) {
+            const d = positions[dim * i + k] - mean[k];
+            if (!Number.isNaN(d)) {
+                sumSquares += d * d;
+            }
+        }
+        maxDistance = Math.max(maxDistance, Math.sqrt(sumSquares));
+    }
+    return maxDistance;
+}
+
+/**
  * `rescaleLayout` over a flat array, in place: centre the positions on their mean, scale the farthest to `scale`
  * and move them to `center`. A NaN component is skipped by the mean and the distance and stays NaN; when every
  * position coincides, each non-NaN component becomes the centre's. Scratch is f64.
@@ -129,29 +175,8 @@ export function rescaleInPlace<T extends F32 | F64>(
     center?: ArrayLike<number>,
 ): T {
     const n = Math.floor(positions.length / dim);
-    const mean = new Float64Array(dim);
-    const counts = new Float64Array(dim);
-    for (let i = 0; i < n * dim; i++) {
-        const v = positions[i];
-        if (!Number.isNaN(v)) {
-            mean[i % dim] += v;
-            counts[i % dim]++;
-        }
-    }
-    for (let k = 0; k < dim; k++) {
-        mean[k] = counts[k] > 0 ? mean[k] / counts[k] : 0;
-    }
-    let maxDistance = 0;
-    for (let i = 0; i < n; i++) {
-        let sumSquares = 0;
-        for (let k = 0; k < dim; k++) {
-            const d = positions[dim * i + k] - mean[k];
-            if (!Number.isNaN(d)) {
-                sumSquares += d * d;
-            }
-        }
-        maxDistance = Math.max(maxDistance, Math.sqrt(sumSquares));
-    }
+    const mean = nanMean(positions, n, dim);
+    const maxDistance = maxNanDistance(positions, n, dim, mean);
     const factor = maxDistance > 0 ? scale / maxDistance : 0;
     for (let i = 0; i < n * dim; i++) {
         const v = positions[i];

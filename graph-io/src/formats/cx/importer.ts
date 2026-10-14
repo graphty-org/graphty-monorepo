@@ -773,12 +773,13 @@ function checkNumberVerification(value: unknown, count: number, report: ImportRe
     const raw = isRecord(value) ? value.longNumber : undefined;
     const digits = raw instanceof ExactInteger ? raw.digits : String(raw);
     if (count > 1 || !NUMBER_VERIFICATION_VALUES.has(digits)) {
+        const held = raw === undefined ? null : digits;
         report.warning(
             "validation-error",
             CX_ISSUE.NUMBER_VERIFICATION,
             count > 1
                 ? "a second numberVerification element; ignored"
-                : `numberVerification holds ${shown(raw === undefined ? null : digits)}, not 281474976710655`,
+                : `numberVerification holds ${shown(held)}, not 281474976710655`,
             { line, element: "numberVerification" },
         );
     }
@@ -993,10 +994,12 @@ async function readDocument(
                         break;
                     }
                     countMember(event.block, null);
+                    const what =
+                        keys.length > 1 ? `an object with ${keys.length} keys (${keys.join(", ")})` : shown(value);
                     report.error(
                         "parse-error",
                         BAD_ASPECT_BLOCK_CODE,
-                        `a member of the document is ${keys.length > 1 ? `an object with ${keys.length} keys (${keys.join(", ")})` : shown(value)}, not a one-key aspect fragment; skipped`,
+                        `a member of the document is ${what}, not a one-key aspect fragment; skipped`,
                         { line: event.line, element: keys[0] ?? null },
                     );
                     break;

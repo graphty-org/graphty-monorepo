@@ -416,7 +416,8 @@ export function decodeEntities(raw: string, line: number, repairs?: XmlRepairs):
             const digits = name.slice(hex ? 2 : 1);
             // XML 1.0 puts no limit on leading zeros (&#x0000000041; is "A")
             const ok = hex ? /^0*[\da-fA-F]{1,6}$/.test(digits) : /^0*\d{1,7}$/.test(digits);
-            const cp = ok ? Number.parseInt(digits, hex ? 16 : 10) : -1;
+            const radix = hex ? 16 : 10;
+            const cp = ok ? Number.parseInt(digits, radix) : -1;
             const low = cp >= 0xd800 && cp <= 0xdbff ? lowSurrogateAfter(raw, semi + 1, repairs) : null;
             if (low !== null) {
                 repairs?.surrogatePair?.(lineAt(raw, amp, line));

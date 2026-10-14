@@ -134,7 +134,7 @@ A name not in the [dataset list](../reference/graphs#datasets) rejects with a `R
 the closest match. With your own `baseUrl`, any other name is fetched from
 `<baseUrl>/<name>.gsnp.gz` and fails with HTTP 404 if your server lacks it.
 
-### Script tag: `graphtyImport` or `graphtyDataset` rejects naming `dist/cdn/cytoscape-extensions.js`
+### Script tag: `graphtyImport` or `graphtyExport` rejects naming `dist/cdn/cytoscape-extensions.js`
 
 `dist/cytoscape-extensions.bundle.js` finds `dist/cdn/` through its own `<script src>` URL, so it
 cannot be inlined. Load it with `<script src>`, as [Installation](./installation#script-tag) shows.

@@ -2,7 +2,7 @@
 // Source: https://ndownloader.figshare.com/files/94935
 // sha256: 023323653640ce63dfdedd596a0082a3fe78f69819589e3bed5ba5352d360a61
 
-import { type DatasetData } from "../build.js";
+import { type DatasetData } from "./build.js";
 
 export const DATA: DatasetData = {
     directed: false,

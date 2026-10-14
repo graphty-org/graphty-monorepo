@@ -1,6 +1,6 @@
 /**
- * Writes the two tier 1 samples that exist only as bundled graph-samples modules, Les Miserables
- * and Florentine families, into public/samples/ as GML with graph-io's GML writer, so the start
+ * Writes the two tier 1 samples that exist only as graph-samples datasets, Les Miserables and
+ * Florentine families, into public/samples/ as GML with graph-io's GML writer, so the start
  * screen opens them by URL through graphty-element's ordinary import like any other file
  * (design/ui/tier1-real-app/plan.md section 1, "Samples").
  *
@@ -18,8 +18,12 @@ import { fileURLToPath } from "node:url";
 import { fromEdgeArrays } from "@graphty/graph-format";
 import { gmlExporter } from "@graphty/graph-io/gml";
 import type { SampleGraph } from "@graphty/graph-samples";
-import { florentineFamilies } from "@graphty/graph-samples/datasets/florentine-families";
-import { lesMiserables } from "@graphty/graph-samples/datasets/les-miserables";
+
+// graph-samples' repository copy of the data (not in its npm package, which downloads datasets from
+// graphty.app), so the script runs offline and writes the same files
+import { buildDataset } from "../../graph-samples/data/build.js";
+import { DATA as FLORENTINE_FAMILIES } from "../../graph-samples/data/florentine-families.js";
+import { DATA as LES_MISERABLES } from "../../graph-samples/data/les-miserables.js";
 
 const OUT = resolve(dirname(fileURLToPath(import.meta.url)), "../public/samples");
 
@@ -54,5 +58,5 @@ async function write(file: string, graph: SampleGraph, weightKey?: string): Prom
     console.log(`wrote ${file}: ${String(snapshot.nodeCount)} nodes, ${String(snapshot.edgeCount)} edges`);
 }
 
-await write("les-miserables.gml", lesMiserables(), "shared_chapters");
-await write("florentine.gml", florentineFamilies());
+await write("les-miserables.gml", buildDataset(LES_MISERABLES), "shared_chapters");
+await write("florentine.gml", buildDataset(FLORENTINE_FAMILIES));

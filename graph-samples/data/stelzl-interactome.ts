@@ -2,7 +2,7 @@
 // Source: https://raw.githubusercontent.com/cytoscape/cytoscape-tutorials/8d1f66e4cd12446f4a928ab72e3cf2660cd6c74a/protocols/data/STELZ.cys
 // sha256: 3d4356d095eee438d0f7f567b94d46555f16d30766a9db9b6b3fc7e47a32c1d8
 
-import { type DatasetData } from "../build.js";
+import { type DatasetData } from "./build.js";
 
 export const DATA: DatasetData = {
     directed: true,

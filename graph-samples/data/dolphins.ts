@@ -2,7 +2,7 @@
 // Source: https://web.archive.org/web/20231115052843id_/https://www-personal.umich.edu/~mejn/netdata/dolphins.zip
 // sha256: 42ad752c1711f2e9ab625aef0fb123463523a2590825b546b02ecac23735aa4c
 
-import { type DatasetData } from "../build.js";
+import { type DatasetData } from "./build.js";
 
 export const DATA: DatasetData = {
     directed: false,

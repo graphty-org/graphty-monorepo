@@ -1,4 +1,5 @@
 import { type DatasetMeta } from "../build.js";
+import { PACKED } from "../packed.js";
 
 /** What the knuthMiles dataset is, where it came from and under which terms. */
 export const knuthMilesMeta: DatasetMeta = {
@@ -26,4 +27,6 @@ export const knuthMilesMeta: DatasetMeta = {
         "thresholding a complete graph into a sparse road-like graph",
         "geographic and distance-based (MDS, stress) layouts",
     ],
+    hosting: "remote",
+    ...PACKED["knuth-miles"],
 };

@@ -2,7 +2,7 @@
 // Source: https://web.archive.org/web/20231227004245id_/https://public.websites.umich.edu/~mejn/netdata/celegansneural.zip
 // sha256: 4322642c25e38c6c9866d24f582af6ebd983f1ed5faef27a63ceda40da9c0646
 
-import { type DatasetData } from "../build.js";
+import { type DatasetData } from "./build.js";
 
 export const DATA: DatasetData = {
     directed: true,

@@ -6,6 +6,7 @@ import {
     closedTargets,
     GRACE_DAYS,
     proposalComment,
+    proposeSplitParents,
     recordVerdict,
     veto,
 } from "../lib/proposals.mjs";
@@ -487,5 +488,43 @@ describe("advanceProposals: dry-run to acting, crashes and reopens", () => {
         ]);
         expect(recordVerdict(state, dup("s3")).refused).toBe("issue:5 is vetoed");
         expect(state.proposals["issue:6"].watched).toBe(false);
+    });
+});
+
+describe("proposeSplitParents (issue #2557)", () => {
+    const at = new Date(START).toISOString();
+    const splitState = (childStates, parentState = "open") => ({
+        jobs: { "issue-10": { id: "issue-10", kind: "issue", target: "#10", state: "done", children: [11, 12] } },
+        issues: {
+            byNumber: {
+                10: { state: parentState },
+                11: { state: childStates[0] },
+                12: { state: childStates[1] },
+            },
+        },
+    });
+
+    it("proposes closing a split parent once every child is closed, naming the children", () => {
+        const state = splitState(["closed", "closed"]);
+        const made = proposeSplitParents(state, at);
+        expect(made.map((p) => p.target)).toEqual(["issue:10"]);
+        expect(state.proposals["issue:10"]).toMatchObject({ kind: "split", status: "confirmed" });
+        expect(proposalComment(state.proposals["issue:10"])).toContain("#11, #12");
+        // Once only: a second pass makes nothing new.
+        expect(proposeSplitParents(state, at)).toEqual([]);
+    });
+
+    it("proposes nothing while a child is open, or once the parent is closed", () => {
+        expect(proposeSplitParents(splitState(["closed", "open"]), at)).toEqual([]);
+        expect(proposeSplitParents(splitState(["closed", "closed"], "closed"), at)).toEqual([]);
+    });
+
+    it("proposes nothing while a child is not known closed, or after the owner vetoed the parent", () => {
+        const unknown = splitState(["closed", "closed"]);
+        delete unknown.issues.byNumber[12];
+        expect(proposeSplitParents(unknown, at)).toEqual([]);
+        const vetoed = splitState(["closed", "closed"]);
+        veto(vetoed, "issue:10", { by: "owner", reason: "keep", at });
+        expect(proposeSplitParents(vetoed, at)).toEqual([]);
     });
 });

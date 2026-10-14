@@ -159,6 +159,11 @@ function alive(ticket) {
     return ticket.start === null || start === null || start === ticket.start;
 }
 
+// The machine (ENFILE) or this process (EMFILE) is out of file handles: transient, so a look at the
+// tickets that fails with one is tried again instead of failing the run (issue #2558).
+const NO_HANDLES = new Set(["ENFILE", "EMFILE"]);
+const HANDLE_TRIES = 30;
+
 /**
  * The live tickets, oldest first; tickets of dead processes are removed.
  * @param dir the ticket directory
@@ -172,7 +177,10 @@ export function liveTickets(dir) {
         let ticket;
         try {
             ticket = { name, ...JSON.parse(readFileSync(join(dir, name), "utf8")) };
-        } catch {
+        } catch (err) {
+            if (NO_HANDLES.has(err.code)) {
+                throw err; // skipping a ticket we could not open would misplace us in the queue
+            }
             continue; // removed under us
         }
         if (alive(ticket)) {
@@ -209,6 +217,7 @@ const age = (ms) => (ms < 60_000 ? `${Math.round(ms / 1000)}s` : `${Math.round(m
  * @param options.env its environment (HELD)
  * @param options.poll milliseconds between looks
  * @param options.log where the one waiting line goes
+ * @param options.list reads the live tickets (a test replaces it)
  * @returns a function that gives the slot back (a no-op when none was taken)
  */
 export async function acquire({
@@ -219,14 +228,34 @@ export async function acquire({
     env = process.env,
     poll = 2000,
     log = (line) => process.stderr.write(`${line}\n`),
+    list = liveTickets,
 }) {
     const none = () => {};
     if (slots === 0 || env[HELD]) {
         return none;
     }
+    let short = 0;
+    // The tickets; while the file table is full, waits for a free handle, polling, HANDLE_TRIES times in a row.
+    const look = async () => {
+        for (;;) {
+            try {
+                const live = list(dir);
+                short = 0;
+                return live;
+            } catch (err) {
+                if (!NO_HANDLES.has(err.code) || ++short > HANDLE_TRIES) {
+                    throw err;
+                }
+                if (short === 1) {
+                    log(`test-slots: no free file handle (${err.code}) to read ${dir}; trying again every ${poll} ms`);
+                }
+                await new Promise((r) => setTimeout(r, poll));
+            }
+        }
+    };
     mkdirSync(dir, { recursive: true });
     const mine = ancestors(pid).add(pid);
-    if (liveTickets(dir).some((t) => mine.has(t.pid))) {
+    if ((await look()).some((t) => mine.has(t.pid))) {
         return none; // this process or one it runs under already holds a slot
     }
     const name = `${String(Date.now()).padStart(15, "0")}-${String(pid).padStart(8, "0")}`;
@@ -236,11 +265,11 @@ export async function acquire({
     const release = () => rmSync(join(dir, name), { force: true });
     let told = false;
     for (;;) {
-        const live = liveTickets(dir);
+        const live = await look();
         const at = live.findIndex((t) => t.name === name);
         if (at === -1) {
             // Our ticket is gone (a cleanup removed the directory): queue again at the back.
-            return acquire({ label, dir, slots, pid, env, poll, log });
+            return acquire({ label, dir, slots, pid, env, poll, log, list });
         }
         if (at < slots) {
             return release;

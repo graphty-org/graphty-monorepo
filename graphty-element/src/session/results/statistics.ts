@@ -577,9 +577,10 @@ export function topOfRanking(ranking: readonly RankingEntry[], n: number): TopRa
     }
 
     const count = end - taken;
+    const kept = taken === 0 ? "none are" : `only the top ${String(taken)} are`;
     const reason =
         `${String(count)} tie at ${String(value)}, and taking them would make ${String(taken + count)}, ` +
-        `more than the ${String(n)} asked for, so ${taken === 0 ? "none are" : `only the top ${String(taken)} are`} taken.`;
+        `more than the ${String(n)} asked for, so ${kept} taken.`;
 
     return Object.freeze({
         entries: ranking.slice(0, taken),

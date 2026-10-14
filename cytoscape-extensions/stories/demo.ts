@@ -36,6 +36,15 @@ cytoscape.use(graphtyCytoscape);
  */
 export const CAPTURE = /[?&]chromatic=true/.test(globalThis.location?.search ?? "");
 
+/**
+ * Where the stories load the sample datasets from: the copy of graph-samples' build that .storybook/main.ts serves
+ * next to the Storybook (staticDirs), the same files graphty.app publishes, so a story needs no internet.
+ * @returns the options for cy.graphtyDataset
+ */
+export function datasetOptions(): { baseUrl: string } {
+    return { baseUrl: new URL("graph-samples-data/v1/", document.baseURI).href };
+}
+
 /** Node counts; "large" and "huge" are where the GPU is meant to pay off. */
 export const SIZES = { small: 100, medium: 2_000, large: 10_000, huge: 50_000 };
 type Size = keyof typeof SIZES;

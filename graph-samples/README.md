@@ -2,8 +2,9 @@
 
 Graphs to try things on: seeded random-graph generators that produce the same graph on every
 machine, the classic deterministic families, and a handful of well-known real networks with their
-ground truth. Everything comes out as typed arrays that
-[`@graphty/graph-format`](../graph-format) loads in one call, and that a Web Worker can transfer.
+ground truth. The generators produce typed arrays that
+[`@graphty/graph-format`](../graph-format) loads in one call, and that a Web Worker can transfer;
+the real networks download from graphty.app as graph-format snapshots when you ask for them.
 
 ```bash
 npm install @graphty/graph-samples @graphty/graph-format
@@ -113,14 +114,35 @@ All run in linear time in the size of the output, so 100,000-node graphs take mi
 
 ## Load a dataset
 
-Each bundled dataset is its own subpath, so an application bundles only the ones it imports:
+No dataset's data is in the package: every dataset is published at
+`https://graphty.app/data/graph-samples/v1/<name>.gsnp.gz` as a gzipped graph-format wire file and
+downloaded when you ask for it. `fetchDataset(name)` loads any of them as a frozen
+`GraphSnapshot`, with its node columns:
+
+```ts
+import { fetchDataset } from "@graphty/graph-samples";
+
+const club = await fetchDataset("karate"); // 34 nodes, 78 weighted edges, node column `club`
+const roads = await fetchDataset("road-ny");
+const mine = await fetchDataset("road-ny", { baseUrl: "https://my.cdn/graphs/" }); // a mirror of your own
+```
+
+`fetchDataset(name, { baseUrl, fetch, signal })` takes a base URL (a mirror or a self-hosted copy of
+the files), a `fetch` implementation and an abort signal. A failed download rejects with
+`fetching <url> failed: HTTP <status>`.
+
+Each small dataset also has a subpath of its own, with its metadata and a loader that is the same
+call:
 
 ```ts
 import { karate, karateMeta } from "@graphty/graph-samples/datasets/karate";
 
-const club = karate(); // 34 nodes, 78 weighted edges, node column `club`
+const club = await karate(); // fetchDataset("karate"); karate({ baseUrl }) for a mirror
 karateMeta.citation; // what to cite
 ```
+
+Up to graph-samples 0.1 these subpaths bundled their data and `karate()` returned a `SampleGraph`
+synchronously. Since 0.2 it returns a `Promise<GraphSnapshot>` from the download; add `await`.
 
 | Subpath                                      | Graph                                                     | Nodes / edges  | Ground truth |
 | -------------------------------------------- | --------------------------------------------------------- | -------------- | ------------ |
@@ -149,19 +171,10 @@ ontology datasets are read from their published files (a Cytoscape session, a CX
 ontology) by `@graphty/graph-io`'s own importers; the drawn ones carry the saved `x` and `y`, with
 y growing upward.
 
-### Hosted datasets
+### Large datasets
 
-Datasets too large to bundle are published at
-`https://graphty.app/data/graph-samples/v1/<name>.gsnp.gz` as gzipped graph-format wire files and
-fetched on demand. They are in `DATASETS` too, with `hosting: "remote"`, the file size (`bytes`)
-and its SHA-256:
-
-```ts
-import { fetchDataset } from "@graphty/graph-samples";
-
-const roads = await fetchDataset("road-ny"); // a GraphSnapshot, with its node columns
-const mine = await fetchDataset("road-ny", { baseUrl: "https://my.cdn/graphs/" });
-```
+The large datasets have no subpath; load them with `fetchDataset(name)`. Every dataset, small or
+large, is in `DATASETS` with `hosting: "remote"`, the file size (`bytes`) and its SHA-256:
 
 | Name               | Graph                                                    | Nodes / edges       | Download | Ground truth |
 | ------------------ | -------------------------------------------------------- | ------------------- | -------- | ------------ |
@@ -172,17 +185,24 @@ const mine = await fetchDataset("road-ny", { baseUrl: "https://my.cdn/graphs/" }
 | `disease-ontology` | Human Disease Ontology, disease to parent (directed)     | 14,854 / 17,479     | 0.3 MB   |              |
 | `bioplex3-hct116`  | BioPlex 3.0 HCT116 protein interactions (directed, x/y)  | 10,251 / 75,346     | 0.7 MB   |              |
 
-`https://graphty.app/data/graph-samples/v1/index.json` lists the same metadata with each file's URL.
+`https://graphty.app/data/graph-samples/v1/index.json` lists every dataset's metadata with its
+file's URL.
 
-### Publishing the hosted datasets
+### Publishing the datasets
 
-`npm run datasets:hosted` (`scripts/build-hosted.mjs`) downloads each source, checks it against the
-SHA-256 recorded in the script, and writes `public-data/v1/<name>.gsnp.gz`, `index.json` and
-`src/datasets/hosted.ts` (the catalogue entries). The `.gsnp.gz` files are not committed: every
-deploy of graphty.app (`.github/workflows/deploy-pages.yml`) runs the script and publishes
-`public-data/v1/` at `/data/graph-samples/v1/`. The build is deterministic for a given Node.js major
-version (the workflow uses 22), so the checksums in the committed `hosted.ts` match the published
-files. To add, change or remove a hosted dataset, edit the script, run it, commit the script and
+The small datasets are converted into the repository (`data/<name>.ts`, by
+`npm run datasets:convert`), and graph-samples' build packs them into `dist/data/v1/<name>.gsnp.gz`
+(`scripts/pack-datasets.mjs`; `npm run datasets:pack` also rewrites their sizes and checksums in
+`src/datasets/packed.ts`). Neither `data/` nor `dist/data/` is published to npm.
+
+`npm run datasets:hosted` (`scripts/build-hosted.mjs`) downloads each large dataset's source,
+checks it against the SHA-256 recorded in the script, and writes `public-data/v1/<name>.gsnp.gz`
+and `src/datasets/hosted.ts` (the catalogue entries); it copies the small datasets' files from
+`dist/data/v1/` beside them and writes `index.json` for all of them. The `.gsnp.gz` files are not
+committed: every deploy of graphty.app (`.github/workflows/deploy-pages.yml`) runs the script and
+publishes `public-data/v1/` at `/data/graph-samples/v1/`. The build is deterministic for a given
+Node.js major version (the workflow uses 22), so the committed checksums match the published
+files. To add, change or remove a large dataset, edit the script, run it, commit the script and
 `src/datasets/hosted.ts` together with `NOTICE`, and merge to master.
 
 ## Draw one with graphty-element
@@ -191,7 +211,7 @@ files. To add, change or remove a hosted dataset, edit the script, run it, commi
 import { toElementData } from "@graphty/graph-samples";
 import { football } from "@graphty/graph-samples/datasets/football";
 
-const { nodes, edges } = toElementData(football());
+const { nodes, edges } = toElementData(await football());
 element.nodeData = nodes; // { id, label, conference }
 element.edgeData = edges; // { source, target }
 ```

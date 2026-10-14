@@ -542,7 +542,7 @@ function personalizedNeedsCpu(
     options: PageRankOptions | undefined,
 ): boolean {
     const outW = options?.weighted === true && s.weights !== null ? s.weightedOutDegree() : s.outDegree();
-    return pageRankNeedsCpu(options) || !personalization.some((mass) => mass > 0) || outW.some((w) => w === 0);
+    return pageRankNeedsCpu(options) || !personalization.some((mass) => mass > 0) || outW.includes(0);
 }
 
 /**

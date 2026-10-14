@@ -1,6 +1,5 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { appendFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
@@ -20,6 +19,7 @@ import {
 import { identify } from "../lib/proc.mjs";
 import { prInUse } from "../lib/queue.mjs";
 import { makeRepo } from "./helpers/git-repo.mjs";
+import { tempDir } from "./helpers/temp-dir.mjs";
 
 const NOW = new Date("2026-10-05T22:00:00Z");
 const ROOT = "/r";
@@ -144,7 +144,7 @@ describe("inferOwners", () => {
     it("parses git's worktree list and reads a push log with a torn line", () => {
         const porcelain = `worktree ${ROOT}\nHEAD ${SHA}\nbranch refs/heads/master\n\nworktree ${ROOT}/.worktrees/d\nHEAD ${SHA}\ndetached\n\nworktree ${ROOT}/.worktrees/x\nHEAD ${SHA}\nbranch refs/heads/feat/x\n`;
         expect(parseWorktrees(porcelain)).toEqual(WORKTREES);
-        const dir = mkdtempSync(join(tmpdir(), "githerd-owners-"));
+        const dir = tempDir("githerd-owners-");
         try {
             writeFileSync(join(dir, "log"), `${JSON.stringify(push(ALICE))}\n{"torn\n`);
             expect(readPushLog(join(dir, "log"))).toEqual([push(ALICE)]);
@@ -163,7 +163,7 @@ describe("callingSession", () => {
      * @returns {{procDir: string, sessionsDir: string, dir: string}} the directories
      */
     const world = (procs, entries) => {
-        const dir = mkdtempSync(join(tmpdir(), "githerd-calling-"));
+        const dir = tempDir("githerd-calling-");
         for (const [pid, ppid, start] of procs) {
             mkdirSync(join(dir, "proc", String(pid)), { recursive: true });
             // Fields 3 on: the state, the parent, 17 more, then field 22, the start time.
@@ -243,7 +243,7 @@ describe("pushes found in Claude Code transcripts", () => {
      * @returns {{projects: string, alice: string, bob: string}} the directory and the two files
      */
     function projectsDir() {
-        const projects = mkdtempSync(join(tmpdir(), "githerd-transcripts-"));
+        const projects = tempDir("githerd-transcripts-");
         dirs.push(projects);
         mkdirSync(join(projects, "-r-a"), { recursive: true });
         mkdirSync(join(projects, "-r", "sb", "subagents", "workflows", "w"), { recursive: true });
@@ -335,7 +335,7 @@ describe("issues filed in Claude Code transcripts", () => {
         }) + "\n";
 
     it("records the issue a session's gh issue create made, also when its result is read a poll later", async () => {
-        const projects = mkdtempSync(join(tmpdir(), "githerd-filed-"));
+        const projects = tempDir("githerd-filed-");
         dirs.push(projects);
         mkdirSync(join(projects, "-r"), { recursive: true });
         const file = join(projects, "-r", "sa.jsonl");
@@ -406,7 +406,12 @@ describe("the push log of tools/push-queue.sh", () => {
     const script = join(import.meta.dirname, "..", "..", "tools", "push-queue.sh");
     /** @type {string[]} */
     const dirs = [];
-    beforeAll(() => isolateGit());
+    beforeAll(() => {
+        isolateGit();
+        // The file's first makeRepo builds the repository the others copy: built here, its git
+        // processes are not counted against the first test's time.
+        dirs.push(makeRepo().tmp);
+    });
     afterEach(() => {
         for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
     });

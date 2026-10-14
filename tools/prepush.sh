@@ -79,7 +79,12 @@ MAIN_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")"
 PUSH_HEAD="$(git rev-parse HEAD)"
 SCREENSHOTS_PGID=""
 SCREENSHOTS_STAGED=0
+GPU_PGID=""
 cleanup() {
+    if [ -n "$GPU_PGID" ]; then
+        kill -- -"$GPU_PGID" 2>/dev/null
+        wait "$GPU_PGID" 2>/dev/null
+    fi
     if [ -n "$SCREENSHOTS_PGID" ]; then
         # Its whole session too: the capture's time limits (timeout) put its steps in groups of their own.
         pkill -s "$SCREENSHOTS_PGID" 2>/dev/null
@@ -90,12 +95,14 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# The affected projects, as nx names them. The base is where this branch left origin/master,
-# so commits other people landed on master since then do not count as this push's changes.
+# The affected projects, as nx names them. The base is where this branch left the branch it merges
+# into (tools/push-base.mjs: origin/master, or the parent branch of a stacked pull request), so
+# commits other people landed there since then do not count as this push's changes.
 if [ "${PREPUSH_ALL:-0}" = "1" ]; then
     PROJECTS=$(NX_DAEMON=false pnpm exec nx show projects --json 2>/dev/null)
 else
-    BASE=$(git merge-base origin/master HEAD)
+    PUSH_BASE_REF=${PUSH_BASE_REF:-$(node "$SCRIPT_DIR/push-base.mjs")} && export PUSH_BASE_REF
+    BASE=$(git merge-base "$PUSH_BASE_REF" HEAD)
     PROJECTS=$(NX_DAEMON=false pnpm exec nx show projects --affected --base="$BASE" --head=HEAD --json 2>/dev/null)
 fi
 # An empty answer is nx (or the pnpm in front of it) cut short, not "nothing affected", which is "[]".
@@ -218,6 +225,25 @@ SCREENSHOTS_PGID=$!
 SCREENSHOTS_STAGED=1
 echo ""
 
+# The real-GPU half: the paid T4 runs only on the daily release, so this is the only NVIDIA run before it.
+# CI's webgpu-graph-algorithms-node shard (below, through run-tests.sh) runs on Mesa lavapipe; this runs
+# the same node projects on this machine's NVIDIA card through the libEGL tree (GRAPHTY_EGL_LIB_DIR, else
+# the main checkout's gitignored tmp/egl/; webgpu-graph-algorithms/CLAUDE.md). GRAPHTY_GPU_REQUIRE=nvidia,
+# not any: a missing EGL tree fails loudly here instead of passing on lavapipe a second time. "Affected"
+# is nx's, so a change to graph-format or the lockfile runs it too. It runs in the background beside the
+# CPU test shards, holding the machine's one GPU slot instead of a CPU test slot (tools/test-slots.mjs
+# --gpu): it waits on the card most of the time and uses under one core. Its own process group, killed
+# by the EXIT trap; its verdict is read after the Tests step.
+if affected webgpu-graph-algorithms; then
+    EGL_LIB_DIR="${GRAPHTY_EGL_LIB_DIR:-$MAIN_DIR/tmp/egl/root/usr/lib/x86_64-linux-gnu}"
+    GPU_LOG="$MAIN_DIR/tmp/prepush-gpu/$(basename "$ROOT_DIR").log"
+    mkdir -p "$(dirname "$GPU_LOG")"
+    echo -e "${YELLOW}> webgpu-graph-algorithms on the local NVIDIA GPU, in the background (log: $GPU_LOG)${NC}"
+    setsid bash -c "cd webgpu-graph-algorithms && LD_LIBRARY_PATH='$EGL_LIB_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}' GRAPHTY_GPU_REQUIRE=nvidia node '$SCRIPT_DIR/test-slots.mjs' --gpu npm run test:run" >"$GPU_LOG" 2>&1 &
+    GPU_PGID=$!
+    echo ""
+fi
+
 # Tests: the test shards CI's test job runs for this push, with CI's commands and environment, read
 # from tools/ci-test-matrix.mjs (the list ci.yml plans from) by tools/prepush-tests.mjs, so this gate
 # and CI cannot drift -- except the shards whose "local" policy there leaves them to CI: graphty-element's
@@ -230,16 +256,18 @@ echo ""
 run_step "Tests (the CI shards of the affected packages)" \
     "timeout --foreground --kill-after=60s '${PREPUSH_TESTS_TIMEOUT:-90m}' PREPUSH_ROOT='$ROOT_DIR' node '$SCRIPT_DIR/prepush-tests.mjs' '$PROJECTS' '${BASE:-}'"
 
-# The real-GPU half: the paid T4 runs only on the daily release, so this is the only NVIDIA run before it.
-# CI's webgpu-graph-algorithms-node shard (above, through run-tests.sh) runs on Mesa lavapipe; this runs
-# the same node projects on this machine's NVIDIA card through the libEGL tree (GRAPHTY_EGL_LIB_DIR, else
-# the main checkout's gitignored tmp/egl/; webgpu-graph-algorithms/CLAUDE.md). GRAPHTY_GPU_REQUIRE=nvidia,
-# not any: a missing EGL tree fails loudly here instead of passing on lavapipe a second time. "Affected"
-# is nx's, so a change to graph-format or the lockfile runs it too.
-if affected webgpu-graph-algorithms; then
-    EGL_LIB_DIR="${GRAPHTY_EGL_LIB_DIR:-$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/tmp/egl/root/usr/lib/x86_64-linux-gnu}"
-    run_step "webgpu-graph-algorithms on the local NVIDIA GPU" \
-        "(cd webgpu-graph-algorithms && LD_LIBRARY_PATH='$EGL_LIB_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}' GRAPHTY_GPU_REQUIRE=nvidia npm run test:run)"
+if [ -n "$GPU_PGID" ]; then
+    echo -e "${YELLOW}> webgpu-graph-algorithms on the local NVIDIA GPU${NC}"
+    if wait "$GPU_PGID"; then
+        cat "$GPU_LOG"
+        echo -e "${GREEN}[PASS] webgpu-graph-algorithms on the local NVIDIA GPU passed${NC}"
+        echo ""
+    else
+        cat "$GPU_LOG"
+        echo -e "${RED}[FAIL] webgpu-graph-algorithms on the local NVIDIA GPU failed (above; the log is $GPU_LOG)${NC}"
+        exit 1
+    fi
+    GPU_PGID=""
 fi
 
 echo -e "${YELLOW}> Screenshots${NC}"

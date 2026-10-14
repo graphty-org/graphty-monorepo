@@ -3,7 +3,6 @@ import {
     cpSync,
     existsSync,
     mkdirSync,
-    mkdtempSync,
     readFileSync,
     readlinkSync,
     rmSync,
@@ -11,7 +10,6 @@ import {
     writeFileSync,
 } from "node:fs";
 import { execFileSync } from "node:child_process";
-import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -25,6 +23,7 @@ import { startDaemon } from "../lib/daemon.mjs";
 import { appendLedger, readLedger, repoIdentity } from "../lib/store.mjs";
 import { PACKAGE_DIR } from "../lib/version.mjs";
 import { createFakeGh } from "./helpers/fake-gh.mjs";
+import { tempDir } from "./helpers/temp-dir.mjs";
 
 const FAKE_SERVHERD = fileURLToPath(new URL("helpers/fake-servherd.mjs", import.meta.url));
 const FAKE_NOTIFY = fileURLToPath(new URL("helpers/fake-notify.mjs", import.meta.url));
@@ -180,7 +179,7 @@ function signer(behavior) {
 }
 
 beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "githerd-cli-"));
+    dir = tempDir("githerd-cli-");
     root = join(dir, "main");
     fake = join(dir, "servherd");
     notifyLog = join(dir, "notify.log");
@@ -602,6 +601,24 @@ describe("mine and disown from inside a Claude session", () => {
         expect((await cli(["pause-offers"], { session: none })).code).toBe(2);
         const worker = { session: inSession(), tty: false, extraEnv: { GITHERD_JOB: "pr-710" } };
         expect((await cli(["pause-offers"], worker)).code).toBe(1);
+    });
+
+    it("excludes the session it runs under from githerd's workers, and includes it again", async () => {
+        const d = await daemon({ peers: { sessions: () => [], registered: () => registered } });
+        const agent = { session: inSession(), tty: false, extraEnv: { CLAUDECODE: "1" } };
+        expect(await cli(["exclude-me"], agent)).toMatchObject({
+            code: 0,
+            out: "githerd treats graphty-14 as no worker until it ends or runs include-me",
+        });
+        expect(d.state.excluded).toEqual({ s14: expect.objectContaining({ name: "graphty-14" }) });
+        expect((await readLedger(d.stateDir)).at(-1)).toMatchObject({ kind: "session-excluded", session: "s14" });
+        expect(await cli(["include-me"], agent)).toMatchObject({
+            code: 0,
+            out: "githerd treats graphty-14 as a worker again",
+        });
+        expect(d.state.excluded).toEqual({});
+        const worker = { session: inSession(), tty: false, extraEnv: { GITHERD_JOB: "pr-710" } };
+        expect((await cli(["exclude-me"], worker)).code).toBe(1);
     });
 
     it("takes, answers about and finishes a job through the session tools, as the session it runs under", async () => {

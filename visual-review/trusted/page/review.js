@@ -14,9 +14,11 @@ import pixelmatch from "/pixelmatch.mjs";
 import { cropOf, dimmed, grow, regions } from "./spot.js";
 
 // The session token, from the address, or kept in this browser from an earlier visit: the
-// notifier's link carries no token (it goes through a push service), and still opens here.
+// notifier's link carries no token (it goes through a push service), and still opens here. A
+// home-screen web app keeps its own storage, apart from the browser's, so with none here the page
+// asks for it (askToken), and again when the server refuses it.
 const TOKEN_KEY = "visual-review:token";
-const token = (() => {
+let token = (() => {
     const given = new URLSearchParams(location.hash.slice(1)).get("token");
     try {
         if (given) {
@@ -583,12 +585,93 @@ function askReason(item, decision, label = null) {
     );
 }
 
+// A request the server refused for its token: the page asks for the token, and the caller waits
+// for good (a promise that never settles), so nothing it would draw covers the question.
+const refused = () => new Promise(() => {});
+const REFUSED = "The review server did not accept that token: paste it again.";
+
+// The token form: asks for the session token, or the whole URL serve printed, and keeps it the way
+// an address with #token= does. `error` says why it asks again. The token is never shown.
+function askToken(error = "") {
+    token = "";
+    try {
+        localStorage.removeItem(TOKEN_KEY);
+    } catch {
+        // Nothing kept to remove.
+    }
+    // A refused token leaves the address, so a reload does not bring it back; the screen stays.
+    const p = new URLSearchParams(location.hash.slice(1));
+    if (p.has("token")) {
+        p.delete("token");
+        history.replaceState(null, "", p.size > 0 ? `#${p}` : location.pathname + location.search);
+    }
+    nav++;
+    blocking?.end();
+    stopFlash();
+    state.screen = "token";
+    crumbs.hidden = true;
+    finishSlot.replaceChildren();
+    setBar();
+    say("");
+    let form = document.getElementById("token-form");
+    if (!form) {
+        const field = el("input", {
+            type: "password",
+            id: "token-field",
+            autocomplete: "off",
+            autocapitalize: "off",
+            spellcheck: "false",
+            "aria-describedby": "token-error",
+        });
+        form = el(
+            "form",
+            { id: "token-form", class: "token-form", onsubmit: (e) => useToken(e, field) },
+            el("label", { for: "token-field" }, "Paste the session token (or the full URL serve printed)"),
+            field,
+            el("p", { id: "token-error", class: "error", role: "alert" }),
+            el("button", { type: "submit", class: "primary" }, "Open"),
+        );
+        render(form);
+        field.focus();
+    }
+    form.querySelector("#token-error").textContent = error;
+}
+
+function useToken(e, field) {
+    e.preventDefault();
+    const v = field.value.trim();
+    // A URL's fragment (#token=...&target=...), or the token alone.
+    const part = v.includes("#") ? v.slice(v.indexOf("#") + 1) : v;
+    const given = (part.includes("token=") ? new URLSearchParams(part).get("token") : v) ?? "";
+    if (given === "") {
+        document.getElementById("token-error").textContent = "Paste the token or the URL first.";
+        return;
+    }
+    field.value = "";
+    token = given;
+    try {
+        localStorage.setItem(TOKEN_KEY, given);
+    } catch {
+        // Kept for this visit only.
+    }
+    checkFinish();
+    route();
+}
+
 async function api(path, body) {
+    const sent = token;
     const res = await fetch(path, {
         method: body ? "POST" : "GET",
         headers: { "x-review-token": token, ...(body ? { "content-type": "application/json" } : {}) },
         body: body ? JSON.stringify(body) : undefined,
     });
+    if (res.status === 401) {
+        // Only the token in use is refused: an answer to an older one changes nothing.
+        if (sent === token) {
+            askToken(sent ? REFUSED : "");
+        }
+        return refused();
+    }
     const json = await res.json().catch(() => ({}));
     if (!res.ok) {
         const err = new Error(json.error ?? `${res.status} ${res.statusText}`);
@@ -633,7 +716,14 @@ function image(kind, file, hash, route = "img") {
         route === "img" ? IMAGES_KEPT : THUMBS_KEPT,
         () => {
             const path = [route, state.target.id, state.project, kind, file].map(encodeURIComponent).join("/");
-            return fetch(`/api/${path}`, { headers: { "x-review-token": token } }).then(async (res) => {
+            const sent = token;
+            return fetch(`/api/${path}`, { headers: { "x-review-token": sent } }).then(async (res) => {
+                if (res.status === 401) {
+                    if (sent === token) {
+                        askToken(sent ? REFUSED : "");
+                    }
+                    return refused();
+                }
                 if (!res.ok) {
                     throw new Error(`${file}: ${(await res.json().catch(() => ({}))).error ?? res.status}`);
                 }
@@ -1182,7 +1272,12 @@ function inboxView(inbox) {
             if (r) {
                 return readyRow(r);
             }
-            return bad ? badRow(bad) : el("li", { class: "meta" }, `#${g.prs[n]}: nothing to decide`);
+            if (bad) {
+                return badRow(bad);
+            }
+            // Only a member the server counted as done has nothing to decide; never guess it.
+            const said = { done: "nothing to decide", capturing: "still capturing" }[g.states?.[n]];
+            return el("li", { class: "meta" }, `#${g.prs[n]}: ${said ?? "status unknown: reload the page"}`);
         });
         const first = g.ids.find((id) => inbox.ready.some((r) => r.id === id && r.undecided > 0));
         return el(
@@ -3175,27 +3270,44 @@ async function renderStage(item, view, keep) {
     const stage = document.getElementById("stage");
     const only = onlyPane(item);
     const panes = (l, r) => ({ right: [r], left: [l] })[only] ?? [l, r];
+    const labels = stageLabels(item, view);
+    const { left, right } = waitingPanes(item, labels);
+    if (!keep) {
+        stage.replaceChildren(...panes(left, right));
+    }
+    if (await skimmed(item, seq)) {
+        return;
+    }
+    const s = { item, view, keep, seq, stage, only, panes, labels, left, right };
+    let drawn;
+    try {
+        drawn = view === "side" ? await drawSide(s) : await drawCompared(s);
+    } catch (err) {
+        stageFailed(s, err);
+        return;
+    }
+    if (!drawn) {
+        return;
+    }
+    shown(stage, item);
+    const frames = [...stage.querySelectorAll(".frame")];
+    scrollTogether(frames);
+    fit(stage);
+    refit.disconnect();
+    refit.observe(stage);
+    stageKey = `${item.file}|${state.zoom}`;
+    if (keep) {
+        for (const f of frames) {
+            [f.scrollLeft, f.scrollTop] = keep;
+        }
+    }
+    await showChangedAreas(s, drawn.diff);
+}
+
+// Each pane's label for this view, on its wait as on its pictures: a view whose pictures are
+// still being made never shows another view's label first.
+function stageLabels(item, view) {
     const baseName = item.from ? `Baseline of ${item.from}` : "Baseline";
-    const imgOf = async (kind) => {
-        const img = await loaded(
-            await image(kind, item.file, item[kind]),
-            `${kind === "capture" ? "new image" : "baseline"} of ${item.file}`,
-        );
-        img.alt = `${kind === "capture" ? "new image" : "baseline"} of ${itemName(item)}`;
-        return img;
-    };
-    const emptyRight = () =>
-        item.status === "failed"
-            ? pane(
-                  "No capture: it failed",
-                  item.console.length > 0
-                      ? el("pre", { class: "console" }, `${item.reason ?? ""}\n\n${item.console.join("\n")}`)
-                      : el("p", { class: "failed" }, item.reason ?? "capture failed"),
-                  true,
-              )
-            : pane("No capture", null, true);
-    // Each pane's label for this view, on its wait as on its pictures: a view whose pictures are
-    // still being made never shows another view's label first.
     const marked = view === "highlight";
     const flashing = view === "flash" || (view === "spotlight" && state.spotFlash);
     const leftLabel = marked ? `${baseName}, changed pixels in red` : baseName;
@@ -3207,131 +3319,181 @@ async function renderStage(item, view, keep) {
     } else if (view === "spotlight") {
         rightLabel = "Spotlight: the new image, dimmed except around each change";
     }
-    // A failed capture's artifact holds no copy of its baseline, so none is fetched.
-    const failed = item.status === "failed";
+    return { marked, flashing, leftLabel, rightLabel };
+}
+
+// The two panes as they wait for their pictures. A failed capture's artifact holds no copy of its
+// baseline, so none is fetched.
+function waitingPanes(item, { leftLabel, rightLabel }) {
     let left = pane("No baseline", null, true);
-    if (failed) {
+    if (item.status === "failed") {
         left = pane("Baseline not shown: the capture failed", null, true);
     } else if (item.baseline) {
         left = pane(leftLabel, paneWait("baseline"));
     }
-    const right = item.capture ? pane(rightLabel, paneWait("new image")) : emptyRight();
-    if (!keep) {
-        stage.replaceChildren(...panes(left, right));
+    const right = item.capture ? pane(rightLabel, paneWait("new image")) : noCapturePane(item);
+    return { left, right };
+}
+
+// The right pane of an item with no capture: a failed one shows why.
+function noCapturePane(item) {
+    if (item.status !== "failed") {
+        return pane("No capture", null, true);
     }
-    // Skimming (K held): the item before was left before its images even showed, so this one waits
-    // SKIM_MS before fetching; passed in that time, it fetches nothing, and the item stopped on is
-    // not queued behind every item skipped.
+    return pane(
+        "No capture: it failed",
+        item.console.length > 0
+            ? el("pre", { class: "console" }, `${item.reason ?? ""}\n\n${item.console.join("\n")}`)
+            : el("p", { class: "failed" }, item.reason ?? "capture failed"),
+        true,
+    );
+}
+
+// Skimming (K held): the item before was left before its images even showed, so this one waits
+// SKIM_MS before fetching; passed in that time, it fetches nothing, and the item stopped on is
+// not queued behind every item skipped. True when the stage moved on meanwhile.
+async function skimmed(item, seq) {
     const now = performance.now();
     const skimming = now - lastStageAt < SKIM_MS && lastShown !== lastStageFile;
     lastStageAt = now;
     lastStageFile = item.file;
-    if (skimming) {
-        await sleep(SKIM_MS);
-        if (seq !== stageRender) {
-            return;
-        }
+    if (!skimming) {
+        return false;
     }
-    let diff = null;
+    await sleep(SKIM_MS);
+    return seq !== stageRender;
+}
+
+// One of the item's two images, loaded, with its alt text.
+async function stageImage(item, kind) {
+    const what = kind === "capture" ? "new image" : "baseline";
+    const img = await loaded(await image(kind, item.file, item[kind]), `${what} of ${item.file}`);
+    img.alt = `${what} of ${itemName(item)}`;
+    return img;
+}
+
+// Side by side: each image as soon as it arrives; the changed areas fill in afterwards. Null when
+// the stage moved on meanwhile.
+async function drawSide(s) {
+    const { item, keep, seq, stage, only, panes, left, right } = s;
+    const failed = item.status === "failed";
+    await Promise.all([
+        item.baseline && !failed && only !== "right" && fillPane(s, "baseline", left),
+        item.capture && fillPane(s, "capture", right),
+    ]);
+    if (seq !== stageRender) {
+        return null;
+    }
+    if (keep) {
+        stage.replaceChildren(...panes(left, right));
+    }
+    return { diff: null };
+}
+
+// Puts one image in its pane, or the error that kept it out.
+async function fillPane({ item, keep, seq, stage }, kind, figure) {
+    const frame = figure.querySelector(".frame");
     try {
-        if (view === "side") {
-            // Each image as soon as it arrives; the changed areas fill in afterwards.
-            const fill = async (kind, figure) => {
-                const frame = figure.querySelector(".frame");
-                try {
-                    const img = await imgOf(kind);
-                    // With Focus on, an image is put in its pane only once its focus point is known,
-                    // so it appears framed, never at the top left and then jumping. shown() works it
-                    // out for the next item ahead, so after a decision this rarely waits.
-                    const at = state.focus && !keep ? await focusBox(item).catch(() => null) : null;
-                    if (seq === stageRender) {
-                        frame.replaceChildren(el("div", { class: "sheet" }, img));
-                        fit(stage);
-                        if (at) {
-                            center(stage, at);
-                        }
-                    }
-                } catch (err) {
-                    if (seq === stageRender) {
-                        frame.replaceChildren(paneError(err.message));
-                    }
-                    throw err;
-                }
-            };
-            await Promise.all([
-                item.baseline && !failed && only !== "right" && fill("baseline", left),
-                item.capture && fill("capture", right),
-            ]);
-            if (seq !== stageRender) {
-                return;
-            }
-            if (keep) {
-                stage.replaceChildren(...panes(left, right));
-            }
-        } else {
-            diff = await diffOf(item);
-            const leftPics = [await imgOf("baseline"), ...(marked ? [overlay(diff)] : [])];
-            let rightPics;
-            if (flashing) {
-                // The two images one after the other in the same place: themselves, or both spotlighted.
-                rightPics =
-                    view === "flash"
-                        ? [await imgOf("baseline"), await imgOf("capture")]
-                        : [spotlight(diff, diff.a), spotlight(diff, diff.b)];
-            } else if (marked) {
-                rightPics = [await imgOf("capture"), overlay(diff)];
-            } else {
-                rightPics = [spotlight(diff)];
-            }
-            if (seq !== stageRender) {
-                return;
-            }
-            const l = pane(leftLabel, el("div", { class: "sheet" }, leftPics));
-            const r = pane(rightLabel, el("div", { class: "sheet" }, rightPics));
-            stage.replaceChildren(...panes(l, r));
-            if (flashing) {
-                const [base, next] = rightPics;
-                next.style.visibility = "hidden";
-                r.classList.add("flashing");
-                if (state.motion) {
-                    const name = view === "flash" ? "Flash" : "Spotlight";
-                    const tag = r.querySelector(".label");
-                    let showingNew = false;
-                    flashTimer = setInterval(() => {
-                        showingNew = !showingNew;
-                        base.style.visibility = showingNew ? "hidden" : "visible";
-                        next.style.visibility = showingNew ? "visible" : "hidden";
-                        tag.textContent = showingNew ? `${name}: new` : `${name}: baseline`;
-                    }, FLASH_MS);
-                }
-            }
-            if (marked && state.blink && state.motion) {
-                // Both panes' overlays on and off together, at Flash's pace.
-                const marks = [...stage.querySelectorAll(".diffmark")];
-                let on = true;
-                flashTimer = setInterval(() => {
-                    on = !on;
-                    for (const m of marks) {
-                        m.style.visibility = on ? "visible" : "hidden";
-                    }
-                }, FLASH_MS);
+        const img = await stageImage(item, kind);
+        // With Focus on, an image is put in its pane only once its focus point is known,
+        // so it appears framed, never at the top left and then jumping. shown() works it
+        // out for the next item ahead, so after a decision this rarely waits.
+        const at = state.focus && !keep ? await focusBox(item).catch(() => null) : null;
+        if (seq === stageRender) {
+            frame.replaceChildren(el("div", { class: "sheet" }, img));
+            fit(stage);
+            if (at) {
+                center(stage, at);
             }
         }
     } catch (err) {
         if (seq === stageRender) {
-            if (view !== "side") {
-                stage.replaceChildren(
-                    ...panes(pane(leftLabel, paneError(err.message)), pane(rightLabel, paneError(err.message))),
-                );
-            } else if (keep) {
-                stage.replaceChildren(...panes(left, right));
-            }
+            frame.replaceChildren(paneError(err.message));
         }
+        throw err;
+    }
+}
+
+// The views that compare the two images (highlight, flash, spotlight): both panes drawn at once
+// from the item's diff. Null when the stage moved on meanwhile.
+async function drawCompared({ item, view, seq, stage, panes, labels }) {
+    const { marked, flashing, leftLabel, rightLabel } = labels;
+    const diff = await diffOf(item);
+    const leftPics = [await stageImage(item, "baseline"), ...(marked ? [overlay(diff)] : [])];
+    let rightPics;
+    if (flashing) {
+        // The two images one after the other in the same place: themselves, or both spotlighted.
+        rightPics =
+            view === "flash"
+                ? [await stageImage(item, "baseline"), await stageImage(item, "capture")]
+                : [spotlight(diff, diff.a), spotlight(diff, diff.b)];
+    } else if (marked) {
+        rightPics = [await stageImage(item, "capture"), overlay(diff)];
+    } else {
+        rightPics = [spotlight(diff)];
+    }
+    if (seq !== stageRender) {
+        return null;
+    }
+    const l = pane(leftLabel, el("div", { class: "sheet" }, leftPics));
+    const r = pane(rightLabel, el("div", { class: "sheet" }, rightPics));
+    stage.replaceChildren(...panes(l, r));
+    if (flashing) {
+        startFlash(r, rightPics, view);
+    }
+    if (marked && state.blink && state.motion) {
+        startBlink(stage);
+    }
+    return { diff };
+}
+
+// Flash and flashing Spotlight: the two pictures take turns in the right pane.
+function startFlash(r, [base, next], view) {
+    next.style.visibility = "hidden";
+    r.classList.add("flashing");
+    if (!state.motion) {
         return;
     }
-    shown(stage, item);
-    const frames = [...stage.querySelectorAll(".frame")];
-    // Zoomed, scrolling one pane scrolls the other to the same place.
+    const name = view === "flash" ? "Flash" : "Spotlight";
+    const tag = r.querySelector(".label");
+    let showingNew = false;
+    flashTimer = setInterval(() => {
+        showingNew = !showingNew;
+        base.style.visibility = showingNew ? "hidden" : "visible";
+        next.style.visibility = showingNew ? "visible" : "hidden";
+        tag.textContent = showingNew ? `${name}: new` : `${name}: baseline`;
+    }, FLASH_MS);
+}
+
+// Both panes' overlays on and off together, at Flash's pace.
+function startBlink(stage) {
+    const marks = [...stage.querySelectorAll(".diffmark")];
+    let on = true;
+    flashTimer = setInterval(() => {
+        on = !on;
+        for (const m of marks) {
+            m.style.visibility = on ? "visible" : "hidden";
+        }
+    }, FLASH_MS);
+}
+
+// An image or the diff failed to load: the compared views show the error in both panes; side by
+// side already shows it in its pane, and a kept stage gets its panes back.
+function stageFailed({ view, keep, seq, stage, panes, labels, left, right }, err) {
+    if (seq !== stageRender) {
+        return;
+    }
+    if (view !== "side") {
+        stage.replaceChildren(
+            ...panes(pane(labels.leftLabel, paneError(err.message)), pane(labels.rightLabel, paneError(err.message))),
+        );
+    } else if (keep) {
+        stage.replaceChildren(...panes(left, right));
+    }
+}
+
+// Zoomed, scrolling one pane scrolls the other to the same place.
+function scrollTogether(frames) {
     for (const f of frames) {
         f.addEventListener("scroll", () => {
             for (const o of frames) {
@@ -3342,32 +3504,12 @@ async function renderStage(item, view, keep) {
             }
         });
     }
-    fit(stage);
-    refit.disconnect();
-    refit.observe(stage);
-    stageKey = `${item.file}|${state.zoom}`;
-    if (keep) {
-        for (const f of frames) {
-            [f.scrollLeft, f.scrollTop] = keep;
-        }
-    }
-    if (item.baseline && item.capture) {
-        try {
-            diff ??= await diffOf(item);
-        } catch {
-            return;
-        }
-        if (seq !== stageRender) {
-            return;
-        }
-        shownBoxes = diff.boxes;
-        const count = document.getElementById("box-count");
-        count.textContent =
-            diff.boxes.length === 0
-                ? "No changed area at this threshold"
-                : `${Math.min(state.box, diff.boxes.length - 1) + 1} of ${diff.boxes.length}`;
-        showBox(stage, diff.boxes, false, !keep);
-    } else {
+}
+
+// With both images, outlines the changed areas and counts them; with one, frames its focus point
+// when Focus is on.
+async function showChangedAreas({ item, keep, seq, stage }, drawnDiff) {
+    if (!(item.baseline && item.capture)) {
         shownBoxes = [];
         if (state.focus && !keep) {
             const at = await focusBox(item).catch(() => null);
@@ -3375,7 +3517,24 @@ async function renderStage(item, view, keep) {
                 center(stage, at);
             }
         }
+        return;
     }
+    let diff = drawnDiff;
+    try {
+        diff ??= await diffOf(item);
+    } catch {
+        return;
+    }
+    if (seq !== stageRender) {
+        return;
+    }
+    shownBoxes = diff.boxes;
+    const count = document.getElementById("box-count");
+    count.textContent =
+        diff.boxes.length === 0
+            ? "No changed area at this threshold"
+            : `${Math.min(state.box, diff.boxes.length - 1) + 1} of ${diff.boxes.length}`;
+    showBox(stage, diff.boxes, false, !keep);
 }
 
 // Runs `then` once what the page holds now has been drawn: a frame's callbacks run before it is
@@ -4591,6 +4750,7 @@ const UPDATE_STEPS = [
     ["fetching", "Fetching", /^(starting|fetching)/],
     ["merging", "Merging", /^merging/],
     ["committing", "Committing", /^committing/],
+    ["checking", "Checking the merge", /^checking/],
     ["pushing", "Pushing", /^pushing/],
 ];
 
@@ -5350,7 +5510,7 @@ document.addEventListener("visibilitychange", () => {
 });
 
 if (token === "") {
-    render(el("p", { class: "error" }, "No session token: open the URL that visual-review serve printed."));
+    askToken();
 } else {
     checkFinish();
     route();

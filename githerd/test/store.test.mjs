@@ -1,16 +1,6 @@
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import {
-    existsSync,
-    mkdirSync,
-    mkdtempSync,
-    readdirSync,
-    readFileSync,
-    rmSync,
-    utimesSync,
-    writeFileSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -37,6 +27,7 @@ import {
     writeFatal,
     writeProgress,
 } from "../lib/store.mjs";
+import { tempDir } from "./helpers/temp-dir.mjs";
 
 const STORE = pathToFileURL(fileURLToPath(new URL("../lib/store.mjs", import.meta.url))).href;
 
@@ -45,7 +36,7 @@ const now = () => NOW;
 
 let dir;
 beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "githerd-store-"));
+    dir = tempDir("githerd-store-");
 });
 afterEach(() => rmSync(dir, { recursive: true, force: true }));
 

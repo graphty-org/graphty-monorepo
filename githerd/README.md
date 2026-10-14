@@ -96,21 +96,36 @@ is unclassified: githerd holds merges, re-runs the job once and queues an urgent
 the session that takes it calls `githerd_verdict` with code or environment. Only a code verdict
 allows a revert; an environment verdict lifts the hold. When a job waits in the queue with no
 free worker slot, githerd messages the sessions in this repository with room once per job, inviting
-them to call `githerd_next` and claim it. A session the owner adds to `workers.sessions` first gets one
-onboarding message, before any invitation: the owner made it a githerd worker; take jobs with
-`githerd_next` and `githerd_claim`, do each job's work in background subagents, answer the status
-questions with `githerd_expect` and report with `githerd_done`; start now unless the owner says
-otherwise. It is sent once per membership (taking the session out of `workers.sessions` and back in
-sends it again). A session the owner has busy with other work calls `githerd_offers` with `pause`
+them to call `githerd_next` and claim it. Every live Claude session working in the repository (in
+Claude Code's session registry, `~/.claude/sessions`) is a worker, so a new session is picked up
+on its own, except the sessions `workers.exclude` names and those that excluded themselves. An
+entry in `workers.exclude` matches a session's name or its sessionId: Claude Code gives each new
+client a random name, so a name only fits a session that keeps it, while a sessionId never names
+another session. A session that must never get work, such as one coordinating the others, runs
+`githerd exclude-me` from its shell; githerd records its sessionId and treats it as no worker until
+it ends or runs `githerd include-me` (a restarted session runs it again). An excluded session hears
+no onboarding, invitation, status question or cancellation notice; only the question whose a
+failed pull request is still reaches every session. Each worker session first gets one onboarding
+message, before any invitation: it is a githerd worker; take jobs with `githerd_next` and
+`githerd_claim`, do each job's work in background subagents, answer the status questions with
+`githerd_expect` and report with `githerd_done`; start now unless the owner says otherwise. It is
+sent once per session. The older `workers.sessions` allowlist is deprecated but still works: while
+the config sets it, only the sessions it names are workers, its onboarding is once per name (taking
+a name out and back in sends it again), and `githerd mode` and status print a deprecation note.
+A session the owner has busy with other work calls `githerd_offers` with `pause`
 true, or runs `githerd pause-offers` from its shell: githerd invites it to nothing, and the board
 says so, until `pause` false or `githerd resume-offers`. A session whose githerd tools fail, or that has none, does every
 step of a job from its shell with `githerd next`, `claim`, `status-answer` and `done` (the tools of
-the same names, for the session the command runs under); every message githerd sends prints them. It stays in `workers.sessions`. A session has room while it is idle, or while the
+the same names, for the session the command runs under); every message githerd sends prints them. It stays a worker. A session has room while it is idle, or while the
 `capacity` it last gave in `githerd_expect` (how many more jobs it can work in parallel) is above
-the jobs it claimed since. No fixed allowance limits a session; the shared resources do: while
-more pushes wait in the push queue than it has gate slots, the repository's Actions runs wait for a
-runner, or more test runs wait than there are test slots, githerd invites no session to new work and its status question says to
-take none; the board names the constraint. `workers.maxActive` (working, starting, or waiting on its
+the jobs it claimed since. No fixed allowance limits a session; the shared resources do (the
+owner's rule of 2026-10-08): while more pushes wait in the push queue than it has gate slots, the
+repository's Actions runs wait for a runner, or more test runs wait than there are test slots,
+githerd invites no session that is actively working a job to new work and its status question
+says to take none; the board names the constraint. A session actively working no job (nothing it
+holds is working, starting or waiting on its own task, or all of that only waits to push, for CI,
+for the owner's review or to merge) still gets work (the owner's rule of 2026-10-13): githerd
+invites it and asks its capacity as usual, and tells it it may take one job. `workers.maxActive` (working, starting, or waiting on its
 own task; blocked, parked and verifying jobs do not count) is only a runaway guard: a session at it
 is not invited, and `githerd_claim` refuses it another until it finishes or reports one. The number
 of queued issue jobs follows the room the sessions reported (at least one, at most twice
@@ -359,27 +374,34 @@ workers need those made configurable first.
 
 ## What the committed project settings turn on
 
-Two files register githerd for every Claude Code session opened in a checkout that has them. Both
-point at `~/.githerd/graphty-org_graphty-monorepo/current/`, which `githerd install` (or the first
-daemon start) creates, so a branch's own edits never change its hooks or its MCP server:
+Two files register githerd for every Claude Code session opened in a checkout that has them, and
+neither runs a branch's own code, so a branch's edits never change its hooks or its MCP server:
 
 - `.mcp.json` registers the MCP server above. Claude Code asks once per project to approve a
   project's MCP servers. Once approved, every session's launcher finds the one daemon **and starts
   it through servherd when it is not running**: landing this file on the default branch is what
   makes githerd run whenever a session is open. Before githerd is installed, `node` finds no file
   and Claude Code lists the server as failed; nothing else happens.
-- `.claude/settings.json` registers a `SessionStart` hook for new sessions (`startup` only):
-  `bin/githerd-hook.mjs SessionStart` asks the daemon for its status and prints one line, banners
-  first (`githerd: master green; 0 waiting on the owner; 3 open pull requests; mode dry-run`), to
-  the person and into the session's context. It waits 2 s for the daemon and then prints why there
-  is no answer; it always exits 0, so a broken githerd never blocks a session. Before githerd is
-  installed, the command finds no file and prints nothing. Workers get every hook of design
-  section 4.10 (the Stop gate, steering, API failures, the guard) from their generated settings.
-  It also registers a `PreToolUse` hook on Bash: a shell check skips every command without
-  `gh `, and for the rest `bin/githerd-hook.mjs PreToolUse` logs each `gh` write to an issue or a
-  pull request in `session-writes.jsonl` in the state directory, so the daemon never reads a
-  comment, reopen or label removal a Claude session made with the owner's account as his own
-  input. It prints nothing and always exits 0.
+- `.claude/settings.json` registers its hooks through
+  `~/.githerd/graphty-org_graphty-monorepo.hook.mjs`, which the running daemon writes every time
+  it starts: the installed daemon and the development daemon of `githerd dev` alike. The file runs
+  that daemon's own `bin/githerd-hook.mjs` against that daemon's state directory, so the hooks reach
+  whichever githerd is running. A session that sets `GITHERD_STATE_DIR` itself keeps its own. Until
+  a daemon has started once, the file does not exist and the hooks do nothing; when its code is gone
+  (a removed worktree), the file exits 0 and prints nothing.
+    - A `SessionStart` hook for new sessions (`startup` only) asks the daemon for its status and
+      prints one line, banners first (`githerd: master green; 0 waiting on the owner; 3 open pull
+requests; mode dry-run`), to the person and into the session's context. It waits 2 s for the
+      daemon and then prints why there is no answer; it always exits 0, so a broken githerd never
+      blocks a session.
+    - A `PreToolUse` hook on Bash: a shell check skips every command without `gh ` before any
+      process starts, and for the rest the hook logs each `gh` write to an issue or a pull request in
+      `session-writes.jsonl` in the daemon's state directory, so the daemon never reads a comment,
+      reopen or label removal a Claude session made with the owner's account as his own input. A
+      read such as `gh issue view` logs nothing. It prints nothing and always exits 0.
+
+    Workers get every hook of design section 4.10 (the Stop gate, steering, API failures, the guard)
+    from their generated settings.
 
 On a branch that is not merged, both files act only in sessions started in that branch's own
 worktree.

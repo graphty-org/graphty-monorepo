@@ -25,7 +25,7 @@
  * The same messaging asks each owner session holding a job for its status and whether it can take
  * another job (`statusStep`), asks the owner of a broken pull request whether it is fixing it
  * (`brokenOwned`), invites sessions with room to pull work (`inviteStep`), and first tells each
- * session the owner made a worker what that means (`onboardStep`).
+ * session githerd first sees as a worker what that means (`onboardStep`).
  */
 
 import {
@@ -305,9 +305,11 @@ function filerOnly(state, job, to) {
  * @param {string} reason its one-line reason from the queue order
  * @param {string} cli the githerd command line a session without githerd's tools runs
  * @param {boolean} [filed] the one session invited filed the job's issue
+ * @param {string[]} [pressure] the saturated shared resources: only sessions actively working no
+ *   job are invited then, each told it may take one (`oneJobText`)
  * @returns {string} the message
  */
-function inviteText(job, reason, cli, filed = false) {
+function inviteText(job, reason, cli, filed = false, pressure = undefined) {
     // A verdict job names the exact failure key githerd_verdict takes.
     const key = job.facts?.scope === "verdict" ? ` githerd_verdict takes its key exactly: ${job.target}.` : "";
     // The filer of an issue hears it first (queue.mjs filerFirst): its fix may already exist.
@@ -315,8 +317,9 @@ function inviteText(job, reason, cli, filed = false) {
         ? ` This session filed ${job.target}, so it is offered here first: if you already have its fix (committed, ` +
           `in the push queue or in a pull request), claim ${job.id} so no other session starts a second one.`
         : "";
+    const one = pressure?.length ? " " + oneJobText(pressure) : "";
     return (
-        `githerd has work queued (${job.id}, ${reason}).${mine} If you're free, call githerd_next and claim a job; ` +
+        `githerd has work queued (${job.id}, ${reason}).${mine}${one} If you're free, call githerd_next and claim a job; ` +
         `otherwise ignore this.${key} Without githerd's tools, or when they fail: \`${cli} next\` and ` +
         `\`${cli} claim <job> ...\` from your shell.\n` +
         "New to githerd? Its onboarding message explains it, as does githerd/README.md; githerd_offers with pause " +
@@ -325,17 +328,40 @@ function inviteText(job, reason, cli, filed = false) {
 }
 
 /**
- * The one message a session hears when the owner adds it to `workers.sessions`, before any
- * invitation: written for a session that has never heard of githerd.
+ * The worker sessions among the live ones: githerd hands or manages work through these
+ * (onboarding, invitations, status questions, cancellation notices). Every live session is one,
+ * except a session `workers.exclude` names (by name or sessionId) and one that excluded itself
+ * (`setExcluded`, `state.excluded[<sessionId>]`). A config that still sets the deprecated
+ * `workers.sessions` allowlist keeps only the sessions it names.
+ * @param {import("./peers.mjs").PeerSession[]} live the live sessions in this repository
+ * @param {any} state the daemon state
+ * @param {{sessions?: string[] | null, exclude?: string[]} | undefined} workers the config's `workers`
+ * @returns {import("./peers.mjs").PeerSession[]} the worker sessions
+ */
+export function workerSessions(live, state, workers) {
+    const allow = workers?.sessions;
+    const exclude = workers?.exclude ?? [];
+    return live.filter(
+        (s) =>
+            (!allow || allow.includes(s.name)) &&
+            !exclude.includes(s.name) &&
+            !exclude.includes(s.sessionId) &&
+            !state.excluded?.[s.sessionId],
+    );
+}
+
+/**
+ * The one message a session hears when githerd first sees it as a worker (`workerSessions`),
+ * before any invitation: written for a session that has never heard of githerd.
  * @param {string} name the session's name
  * @param {string} cli the githerd command line a session without githerd's tools runs
  * @returns {string} the message
  */
 function onboardText(name, cli) {
     return (
-        `githerd: the owner has made this session (${name}) a githerd worker. githerd is this repository's job ` +
+        `githerd: this session (${name}) is a githerd worker. githerd is this repository's job ` +
         "queue: it turns the owner's issues, pull requests and CI failures into jobs and offers them to its " +
-        "workers.\n" +
+        "workers, which are every Claude session working in this repository unless excluded.\n" +
         "What that means for you: githerd will message you when work is queued. Take a job with githerd_next " +
         "(the queue, with each job's text) and githerd_claim. Do each job's work in a background subagent or " +
         "workflow, so this conversation stays free to answer githerd's status questions with githerd_expect. " +
@@ -349,32 +375,42 @@ function onboardText(name, cli) {
         "Read more in githerd/README.md and in each job's text.\n" +
         "Start taking jobs now, unless the owner tells you otherwise. If the owner has you busy with other work, " +
         `call githerd_offers with pause true (or run \`${cli} pause-offers\`) and githerd offers you nothing ` +
-        `until you resume (pause false, or \`${cli} resume-offers\`).`
+        `until you resume (pause false, or \`${cli} resume-offers\`). A session that must never be a worker ` +
+        `(one that coordinates the others) runs \`${cli} exclude-me\`, and githerd messages it no work at all.`
     );
 }
 
 /**
- * Tells each live session in `workers.sessions` that it has become a githerd worker
+ * Tells each worker session (`sessions()`, already `workerSessions`) that it is a githerd worker
  * (`onboardText`), once: `state.onboarded[<name>]` = `{session, at}` records it, so a restart does
- * not repeat it, and drops when the name leaves `workers.sessions`, so adding it back tells it again.
- * Nothing is recorded for a send that failed (the next pass retries it) nor in dry-run, where each
- * send is a would-do line. With `workers.sessions` naming none, every session is messageable and
- * nobody was made a worker, so nobody is told. Runs before `inviteStep`.
+ * not repeat it. Under the deprecated `workers.sessions` allowlist the record is by name and drops
+ * when the name leaves the list, so adding it back tells it again. Otherwise it is by sessionId,
+ * since names are random per client: a session is told once, and its record drops when it ends
+ * (`sessionGone`), as does a self-exclusion (`setExcluded`). Nothing is recorded for a send that failed (the next pass retries it) nor in
+ * dry-run, where each send is a would-do line. Runs before `inviteStep`.
  * @param {any} state the daemon state, changed in place
  * @param {{acting: boolean, sessions: () => import("./peers.mjs").PeerSession[],
- *   transport: import("./peers.mjs").Transport, now: Date, config?: any, cli?: string}} opts
- *   whether the `workers` write group acts, the sessions githerd may message, the transport, the
- *   clock, the config and the githerd command line
+ *   transport: import("./peers.mjs").Transport, now: Date, config?: any, cli?: string,
+ *   sessionGone?: (session: string) => boolean}} opts
+ *   whether the `workers` write group acts, the worker sessions, the transport, the clock, the
+ *   config, the githerd command line and whether a session ended
  * @returns {Promise<({kind: string} & Record<string, unknown>)[]>} the ledger lines
  */
-export async function onboardStep(state, { acting, sessions, transport, now, config, cli = DEFAULT_CLI }) {
+export async function onboardStep(
+    state,
+    { acting, sessions, transport, now, config, cli = DEFAULT_CLI, sessionGone = () => false },
+) {
     const members = config?.workers?.sessions;
-    if (!members) return [];
     state.onboarded ??= {};
-    for (const name of Object.keys(state.onboarded)) if (!members.includes(name)) delete state.onboarded[name];
+    for (const [name, o] of Object.entries(state.onboarded)) {
+        if (members ? !members.includes(name) : sessionGone(o.session)) delete state.onboarded[name];
+    }
+    for (const id of Object.keys(state.excluded ?? {})) if (sessionGone(id)) delete state.excluded[id];
+    const told = (/** @type {import("./peers.mjs").PeerSession} */ s) =>
+        members ? state.onboarded[s.name] : Object.values(state.onboarded).some((o) => o.session === s.sessionId);
     const lines = [];
-    for (const s of sessions()) {
-        if (!members.includes(s.name) || state.onboarded[s.name]) continue;
+    for (const s of workerSessions(sessions(), state, config?.workers)) {
+        if (told(s)) continue;
         if (!acting) {
             const op = `onboard ${s.name} as a githerd worker`;
             lines.push({ kind: "would-do", group: "workers", op, session: s.name });
@@ -388,9 +424,32 @@ export async function onboardStep(state, { acting, sessions, transport, now, con
 }
 
 /**
+ * Excludes one session from githerd's workers, or includes it again (`githerd exclude-me` /
+ * `include-me` from its shell): `state.excluded[<sessionId>]` = `{name, at}`. Keyed by sessionId,
+ * since a name is random per client and may be reused; it lasts while the session lives
+ * (`workerSessions`). Unlike pausing offers, an excluded session hears no onboarding, invitation,
+ * status question or cancellation notice.
+ * @param {any} state the daemon state, changed in place
+ * @param {{name: string, session: string, excluded: boolean, at: string}} who the session's name
+ *   and id, whether to exclude it, and the time
+ * @returns {{text: string, entry: {kind: string} & Record<string, unknown>}} the answer and its ledger entry
+ */
+export function setExcluded(state, { name, session, excluded, at }) {
+    state.excluded ??= {};
+    if (excluded) state.excluded[session] = { name, at };
+    else delete state.excluded[session];
+    return {
+        text: excluded
+            ? `githerd treats ${name} as no worker until it ends or runs include-me`
+            : `githerd treats ${name} as a worker again`,
+        entry: { kind: excluded ? "session-excluded" : "session-included", name, session },
+    };
+}
+
+/**
  * Pauses or resumes githerd's job offers to one session (`githerd_offers`, or `githerd
  * pause-offers` / `resume-offers` from its shell): `state.offersPaused[<name>]` = `{session, at,
- * by}`. A paused session is invited to nothing (`inviteStep`); it stays in `workers.sessions`.
+ * by}`. A paused session is invited to nothing (`inviteStep`); it stays a worker.
  * @param {any} state the daemon state, changed in place
  * @param {{name: string, session: string, paused: boolean, at: string, by: string}} who the
  *   session's name and id, whether to pause, the time and how it said so
@@ -470,6 +529,47 @@ const NOT_COUNTED =
     "Jobs that are only waiting to push, for CI, for the owner's review or to merge do not count toward your capacity";
 
 /**
+ * How many jobs a session holds that it is actively working: working, starting, or waiting on its
+ * own local task, less those only waiting to push, for CI, for the owner's review or to merge
+ * (`jobWaits` in waits.mjs). Blocked, parked, verifying and other waiting jobs (githerd watches
+ * those for it) never count.
+ * @param {any} state the daemon state
+ * @param {string} session the session id
+ * @returns {number} the count
+ */
+function activeCount(state, session) {
+    const waits = jobWaits(state);
+    return Object.values(state.jobs ?? {}).filter(
+        (j) =>
+            j.holder?.session === session &&
+            !waits.has(j.id) &&
+            (ACTIVE.has(j.state) || (j.state === "waiting" && j.waitingFor?.local)),
+    ).length;
+}
+
+/**
+ * Whether back-pressure holds new work back from a session (pressure.mjs): a shared resource is
+ * saturated and the session already holds a job it is actively working (`activeCount`). A session
+ * with none is idle, waiting for work, and is offered one job whatever the pressure (the owner's
+ * rule of 2026-10-13).
+ * @param {any} state the daemon state
+ * @param {string} session the session id
+ * @returns {boolean} new work is held back from it
+ */
+const heldBack = (state, session) => Boolean(state.pressure?.length) && activeCount(state, session) > 0;
+
+/**
+ * The sentence telling an idle session (`heldBack` false) under pressure that it may take one job.
+ * @param {string[] | undefined} pressure the constraints holding new work back
+ * @returns {string} the sentence, empty without pressure
+ */
+const oneJobText = (pressure) =>
+    pressure?.length
+        ? `The shared resources are saturated (${pressure.join("; ")}), but this session is actively working no ` +
+          "job, so it may take one job now; githerd offers more once they have room."
+        : "";
+
+/**
  * Why a session may take no more jobs now, or null: it holds `workers.maxActive` jobs it is
  * actively working (working, starting, or waiting on its own local task other than its push).
  * Blocked, parked, verifying and other waiting jobs do not count, nor does a job only waiting to
@@ -481,13 +581,7 @@ const NOT_COUNTED =
  */
 export function atActiveCap(state, session, config) {
     const max = config?.workers?.maxActive ?? DEFAULT_MAX_ACTIVE;
-    const waits = jobWaits(state);
-    const active = Object.values(state.jobs ?? {}).filter(
-        (j) =>
-            j.holder?.session === session &&
-            !waits.has(j.id) &&
-            (ACTIVE.has(j.state) || (j.state === "waiting" && j.waitingFor?.local)),
-    ).length;
+    const active = activeCount(state, session);
     return active >= max ? `you hold ${active} active jobs; finish or report one first. ${NOT_COUNTED}.` : null;
 }
 
@@ -540,7 +634,7 @@ function dueInvites(state, queue, live, { config, now }) {
             ({ job }) => !jobInUse(state, state.jobs[job], { config, now, session: s.sessionId }),
         );
         const { free, at } = inviteRoom(state, s, able.length, now);
-        if (!free || atActiveCap(state, s.sessionId, config)) continue;
+        if (!free || atActiveCap(state, s.sessionId, config) || heldBack(state, s.sessionId)) continue;
         for (const { job: id } of able) {
             const job = state.jobs[id];
             const heard = job.invited?.[s.sessionId] ?? job.invitedAt;
@@ -555,7 +649,8 @@ function dueInvites(state, queue, live, { config, now }) {
  * decisions of 2026-10-05): every pass, each queued job no worker slot took is announced to every
  * session at its prompt (`AT_PROMPT`) or whose last capacity answer leaves room (`room`) and
  * that has not heard it since its room last rose (`inviteRoom`); never one at `workers.maxActive`
- * (`atActiveCap`). So a session that heard a job and
+ * (`atActiveCap`), nor, while a shared resource is saturated, one actively working a job
+ * (`heldBack`; an idle one hears that it may take one job). So a session that heard a job and
  * did not take it hears it again only after reporting more room: a capacity answer above what its
  * last one left, or reaching its prompt after reporting none. Who heard which job is kept on the job, `job.invited` =
  * `{[session]: at}` (a job's older `invitedAt` counts as heard by every session). githerd's own
@@ -575,8 +670,9 @@ function dueInvites(state, queue, live, { config, now }) {
 export async function inviteStep(state, { now, acting, sessions, transport, offered, config, cli = DEFAULT_CLI }) {
     const lines = [];
     const queue = offered.filter(({ job }) => state.jobs?.[job]?.state === "queued");
-    // A saturated shared resource holds every invitation to new work back (pressure.mjs).
-    if (!queue.length || state.pressure?.length) return lines;
+    // A saturated shared resource holds invitations back only from sessions with active work
+    // (`heldBack`, in dueInvites).
+    if (!queue.length) return lines;
     // A session that paused offers (setOffersPaused) hears none until it resumes.
     const live = sessions().filter((s) => !state.offersPaused?.[s.name]);
     state.inviteRooms ??= {};
@@ -596,7 +692,7 @@ export async function inviteStep(state, { now, acting, sessions, transport, offe
             const op = `invite ${names.length} idle session(s) to take ${id}`;
             lines.push({ kind: "would-do", group: "workers", op, job: id });
         }
-        const text = inviteText(job, reason, cli, filerOnly(state, job, to));
+        const text = inviteText(job, reason, cli, filerOnly(state, job, to), state.pressure);
         const out = acting ? await tellSessions(to, text, transport) : { sent: [], failed: [] };
         state.invited = { at, count: acting ? out.sent.length : names.length, acting };
         lines.push({ kind: "sessions-invited", job: id, sessions: names, ...out });
@@ -642,15 +738,18 @@ function waitersLine(state, job) {
 
 /**
  * The status question's word on taking more jobs: while a shared resource is saturated
- * (`state.pressure`, pressure.mjs), take none; otherwise as many as the session can work in
- * parallel, its capacity answer setting the number. No fixed per-session allowance is named:
- * `workers.maxActive` is only a runaway guard.
+ * (`state.pressure`, pressure.mjs), take none if the session actively works a job, and one if it
+ * works none (`heldBack`); otherwise as many as the session can work in parallel, its capacity
+ * answer setting the number. No fixed per-session allowance is named: `workers.maxActive` is only
+ * a runaway guard.
  * @param {string[] | undefined} pressure the constraints holding new work back
+ * @param {boolean} idle the session actively works no job (`activeCount`)
  * @returns {string} the sentences
  */
-function roomText(pressure) {
+function roomText(pressure, idle) {
     const answer =
         "Answer with capacity set, in those githerd_expect calls, to how many more jobs this session can take now";
+    if (pressure?.length && idle) return `${oneJobText(pressure)} ${answer}. `;
     if (pressure?.length)
         return (
             `The shared resources are saturated (${pressure.join("; ")}): take no new job now; githerd invites you ` +
@@ -680,7 +779,7 @@ function statusText(state, jobs, minutes, cli) {
         "Answer by calling githerd_expect once per listed job, with job set to its id, reason set to one line on " +
         `where it stands (without githerd's tools, or when they fail: \`${cli} status-answer <job> --capacity <n> ` +
         '"<status>"` from your shell). ' +
-        roomText(state.pressure) +
+        roomText(state.pressure, !activeCount(state, jobs[0].holder?.session)) +
         `${NOT_COUNTED}: count only jobs you are actively ` +
         "working when you answer capacity. " +
         `A listed job still unanswered when githerd asks again in ${minutes} minutes goes back to the queue. ` +
@@ -849,7 +948,9 @@ function brokenAskDue(state, n, rec, { now, minutes, live }, lines) {
         return null;
     }
     if (gone || (same && ask.heard && !brokenAnswered(state, n, ask))) {
-        lines.push(releaseBroken(state, n, rec, owner.session, gone ? "githerd cannot ask its owner" : silence(ask)));
+        const line = releaseBroken(state, n, rec, owner.session, gone ? "githerd cannot ask its owner" : silence(ask));
+        // The question left unanswered, which stalls.mjs judges the session's silence by.
+        lines.push(gone ? line : { ...line, asked: ask.at });
         return null;
     }
     return {
@@ -1037,11 +1138,11 @@ function githerdWatches(job) {
  * else here ends a claim, and elapsed time alone never does. A job githerd itself is watching for
  * (blocked, parked, or waiting on something but a local task) is not asked about, and any question
  * it had pending is dropped, so it is never released for silence. A session githerd may not
- * message (`workers.sessions`) is not asked, so its silence is never held against it; nor is a
+ * message (no worker, `workerSessions`) is not asked, so its silence is never held against it; nor is a
  * question nobody heard (dry-run, or a send that failed). githerd's own workers have the watchdog
  * instead. The same message asks the owner of each broken pull request whether it is fixing it
  * (`brokenOwned`), whoever that owner is: it asks about the session's own pull request, so
- * `workers.sessions` does not apply. A session the question does not reach because it holds no job
+ * worker or not does not matter. A session the question does not reach because it holds no job
  * it is asked about is asked for its capacity alone (`capacityDue`).
  * @param {any} state the daemon state, changed in place
  * @param {{now: Date, acting: boolean, sessions: () => import("./peers.mjs").PeerSession[],
@@ -1079,8 +1180,8 @@ export async function statusStep(
 }
 
 /**
- * Whether session `s` is due the capacity question (`askCapacity`): it is not paused, no shared
- * resource is saturated, it holds no job the status question asks about (that question asks its
+ * Whether session `s` is due the capacity question (`askCapacity`): it is not paused, back-pressure
+ * does not hold new work back from it (`heldBack`), it holds no job the status question asks about (that question asks its
  * capacity already), its last capacity answer is missing, gone stale (`staleSince`) or used up
  * (`room`), a queued job is one it could claim (`jobInUse`), and neither its last answer nor the
  * last capacity question came within `minutes`.
@@ -1091,7 +1192,7 @@ export async function statusStep(
  */
 function capacityDue(state, s, { now, minutes, config }) {
     const id = s.sessionId;
-    if (state.offersPaused?.[s.name] || state.pressure?.length) return false;
+    if (state.offersPaused?.[s.name] || heldBack(state, id)) return false;
     const jobs = Object.values(state.jobs ?? {});
     if (jobs.some((j) => j.holder?.session === id && ASKED.has(j.state) && !githerdWatches(j))) return false;
     const said = state.capacity?.[id];
@@ -1131,11 +1232,12 @@ async function askCapacity(state, { now, acting, sessions, transport, minutes, c
             lines.push({ kind: "would-do", group: "workers", op: `ask ${s.name} for its capacity` });
             continue;
         }
+        const one = oneJobText(state.pressure);
         const text =
             "githerd: jobs are queued, and githerd has no current word on how many this session can take. " +
             "Answer by calling githerd_expect with no job, capacity set to how many more jobs this session can " +
             `take now and reason one line (without githerd's tools: \`${cli} capacity <n> "<reason>"\` from your ` +
-            `shell). ${NOT_COUNTED}. githerd asks again in ${minutes} minutes while jobs stay queued.`;
+            `shell). ${NOT_COUNTED}.${one ? " " + one : ""} githerd asks again in ${minutes} minutes while jobs stay queued.`;
         lines.push({ kind: "capacity-asked", session: s.name, ...(await tellSessions([s], text, transport)) });
     }
 }
@@ -1269,7 +1371,7 @@ function dueJobs(state, now, minutes, lines) {
         if (ask?.heard && !answered) {
             const reason = `no answer to the status question of ${ask.at}`;
             releaseOwnerJob(job, reason, now);
-            lines.push({ kind: "claim-released", job: job.id, session, reason });
+            lines.push({ kind: "claim-released", job: job.id, session, reason, asked: ask.at });
             continue;
         }
         due.set(session, [...(due.get(session) ?? []), job]);
@@ -1330,7 +1432,7 @@ async function askSession(state, { session, jobs, prs, target }, { now, acting, 
  * Tells each owner session that held a job the reconcile cancelled (its cause ended: the incident
  * ended, the pull request closed or needs no work, the issue closed) that the job is gone, through
  * the same messaging as the status question: one message to that session only, none to a session
- * githerd may not message (`workers.sessions`), and a would-do line in dry-run. A githerd worker
+ * githerd may not message (no worker, `workerSessions`), and a would-do line in dry-run. A githerd worker
  * reads the job's news instead.
  * @param {{job: string, reason: string, session?: string | null, startedBy?: string | null}[]} cancelled
  *   the jobs syncJobs cancelled

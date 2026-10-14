@@ -248,6 +248,51 @@ function snapshot(ctx) {
 }
 
 /**
+ * Checks a new wait's target for its kind and completes `waitingFor` (a merge wait's stored target,
+ * a local wait's output file). Throws on a target githerd could never settle.
+ * @param {SessionToolContext} ctx the request context
+ * @param {any} job the waiting job
+ * @param {string | null} session the holder's session
+ * @param {any} args the githerd_wait arguments
+ * @param {Record<string, unknown>} waitingFor the wait being declared, completed in place
+ * @returns {{text: string, isError: true} | null} the refusal, or null when the target is good
+ */
+function checkWaitTarget(ctx, job, session, args, waitingFor) {
+    const { state } = ctx;
+    if (args.for === "job") {
+        const other = state.jobs?.[args.target];
+        if (!other || board.TERMINAL.includes(other.state)) {
+            return { text: JSON.stringify({ ok: false, reason: `${args.target} is settled` }), isError: true };
+        }
+        if (board.closesCycle(state, job.id, other.id)) {
+            throw new Error(`waiting on ${other.id} closes a cycle: it already waits on ${job.id}`);
+        }
+    }
+    if (args.for === "merge") {
+        const target = mergeTarget(args.target);
+        if (!target) throw new Error(`a merge wait names a pull request (#1520) or a branch, not ${args.target}`);
+        waitingFor.merge = target;
+    }
+    if (args.for === "local") {
+        // A task's directory is named after the session's own directory: an owner session's
+        // is the checkout it started in, never the job's worktree.
+        const cwd = state.sessions?.[session ?? ""]?.cwd ?? job.worktree ?? "";
+        const output = taskOutputPath(ctx.uid, cwd, session ?? "", args.target);
+        waitingFor.output = output;
+        // The wait ends when that file records the task's exit (advance.mjs localNews): a
+        // target with no output file is a label githerd could never settle.
+        if (!(ctx.taskExists ?? existsSync)(output)) {
+            throw new Error(
+                `a local wait names the id of a background task this session started, whose output ` +
+                    `is ${output}; there is no such file for ${args.target}. To wait for a push, ` +
+                    `use githerd_push; for checks or a merge, wait for "checks" or "merge"`,
+            );
+        }
+    }
+    return null;
+}
+
+/**
  * The fourteen tools with their handlers, bound to one request.
  * @param {SessionToolContext} ctx the request context
  * @returns {import("./mcp.mjs").Tool[]} the tools
@@ -359,37 +404,8 @@ export function sessionToolSet(ctx) {
             const key = WAIT_KEYS[args.for];
             /** @type {Record<string, unknown>} */
             const waitingFor = { [key]: args.target, reason: args.reason };
-            if (args.for === "job") {
-                const other = state.jobs?.[args.target];
-                if (!other || board.TERMINAL.includes(other.state)) {
-                    return { text: JSON.stringify({ ok: false, reason: `${args.target} is settled` }), isError: true };
-                }
-                if (board.closesCycle(state, job.id, other.id)) {
-                    throw new Error(`waiting on ${other.id} closes a cycle: it already waits on ${job.id}`);
-                }
-            }
-            if (args.for === "merge") {
-                const target = mergeTarget(args.target);
-                if (!target)
-                    throw new Error(`a merge wait names a pull request (#1520) or a branch, not ${args.target}`);
-                waitingFor.merge = target;
-            }
-            if (args.for === "local") {
-                // A task's directory is named after the session's own directory: an owner session's
-                // is the checkout it started in, never the job's worktree.
-                const cwd = state.sessions?.[session ?? ""]?.cwd ?? job.worktree ?? "";
-                const output = taskOutputPath(ctx.uid, cwd, session ?? "", args.target);
-                waitingFor.output = output;
-                // The wait ends when that file records the task's exit (advance.mjs localNews): a
-                // target with no output file is a label githerd could never settle.
-                if (!(ctx.taskExists ?? existsSync)(output)) {
-                    throw new Error(
-                        `a local wait names the id of a background task this session started, whose output ` +
-                            `is ${output}; there is no such file for ${args.target}. To wait for a push, ` +
-                            `use githerd_push; for checks or a merge, wait for "checks" or "merge"`,
-                    );
-                }
-            }
+            const refusal = checkWaitTarget(ctx, job, session, args, waitingFor);
+            if (refusal) return refusal;
             // A wait that is settled already would end at the next poll and leave the job working
             // (issue #1377: a checks wait on a draft whose checks had all reported).
             const settled = waitNews(state, { ...job, state: "waiting", stateSince: now.toISOString(), waitingFor });
@@ -529,6 +545,9 @@ export function sessionToolSet(ctx) {
                 const cwd = sessionCwd(client, session, state.sessions?.[session]?.cwd, ctx.home);
                 const record = board.heartbeat(state, { session, cwd }, now);
                 record.protocol = client?.protocol;
+                // A tool call is the session itself acting, unlike the MCP server's heartbeat: what
+                // ends a stall (stalls.mjs).
+                record.calledAt = now.toISOString();
                 // An owner session's claude process, whose registry entry names the session.
                 if (!client?.job && client?.pid) record.pid = client.pid;
             }

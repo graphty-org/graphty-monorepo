@@ -19,7 +19,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, it } from "node:test";
+import { after, describe, it } from "node:test";
 
 import { GROUPS, groupEntry, plan, SHARDS } from "./ci-test-matrix.mjs";
 import { isolateGit } from "./isolated-git-env.mjs";
@@ -49,11 +49,19 @@ import { gateShards, localShards, shardEnv, startRule } from "./prepush-tests.mj
 import { strayChanges } from "./release-diff.mjs";
 import { changedFiles, skippedProjects } from "./visual-capture-plan.mjs";
 
+// The temporary directories this file makes go inside this one, removed when the file finishes.
+const TMP = mkdtempSync(join(tmpdir(), "ci-workflows-"));
+after(() => rmSync(TMP, { recursive: true, force: true }));
+
 // Every git process below (and in the scripts the hook tests run) runs without the developer's own
 // config: a commit there must never reach their signing key.
 isolateGit();
 
 const PUSHOVER_SECRETS = ["secrets.PUSHOVER_APP_TOKEN", "secrets.PUSHOVER_USER_KEY"];
+// The caller's environment without the gate's own settings (PREPUSH_RERUN_ALL, PREPUSH_SHARD_TIMEOUT,
+// PREPUSH_ROOT): a push made with one of them runs these tests in its gate with it still set.
+const withoutPrepushSettings = () =>
+    Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("PREPUSH_")));
 const workflow = (name) => readFileSync(new URL(`../.github/workflows/${name}`, import.meta.url), "utf8");
 const job = (text, name) => {
     const start = text.indexOf(`\n    ${name}:\n`);
@@ -90,9 +98,10 @@ describe("the test matrix", () => {
         );
     });
 
-    it("uploads coverage only for the members that uploaded it before the groups", () => {
+    it("uploads coverage for every member that writes it", () => {
         const browser = plan(PACKAGES).find((e) => e.shard === "small-browser");
-        assert.doesNotMatch(browser.coverage, /visual-review|webgpu-graph-algorithms-browser/);
+        assert.doesNotMatch(browser.coverage, /webgpu-graph-algorithms-browser|graphty-storybook/);
+        assert.match(browser.coverage, /visual-review=visual-review\/coverage\/lcov.info/);
         assert.match(browser.coverage, /^algorithms-browser=algorithms\/coverage\/lcov.info /);
         assert.equal(browser["needs-browser"], true);
     });
@@ -144,7 +153,7 @@ describe("the pre-push gate matches CI", () => {
             /run_step "[^"]+" \\\n\s+"timeout --foreground --kill-after=60s '\$\{PREPUSH_TESTS_TIMEOUT:-90m\}' PREPUSH_ROOT='\$ROOT_DIR' node '\$SCRIPT_DIR\/prepush-tests.mjs' '\$PROJECTS' '\$\{BASE:-\}'"/,
         );
         // No test command of its own, which could drift from CI's -- but the NVIDIA run, which CI has none of.
-        const nvidia = /\n {4}run_step "webgpu-graph-algorithms on the local NVIDIA GPU" \\\n.*\n/;
+        const nvidia = /\n {4}setsid bash -c "cd webgpu-graph-algorithms && .*\n/;
         assert.match(prepush, nvidia);
         assert.doesNotMatch(
             prepush.replace(nvidia, "\n"),
@@ -278,7 +287,7 @@ describe("the pre-push gate matches CI", () => {
                 timeout: 60_000,
                 // Its own slot directory, with a slot per shard: never waits on, or holds up, the real slots.
                 env: {
-                    ...process.env,
+                    ...withoutPrepushSettings(),
                     GRAPHTY_TEST_SLOTS_DIR: join(dir, "tmp/test-slots"),
                     GRAPHTY_TEST_SLOTS: "2",
                     GRAPHTY_TEST_SLOT_HELD: "",
@@ -312,7 +321,7 @@ describe("the pre-push gate matches CI", () => {
                 encoding: "utf8",
                 timeout: 60_000,
                 env: {
-                    ...process.env,
+                    ...withoutPrepushSettings(),
                     GRAPHTY_TEST_SLOTS_DIR: join(dir, "tmp/test-slots"),
                     GRAPHTY_TEST_SLOTS: "1",
                     GRAPHTY_TEST_SLOT_HELD: "",
@@ -348,14 +357,20 @@ describe("the pre-push gate matches CI", () => {
         assert.equal(startable([pick("graphty-element-browser-1")], all).length, shards.length - 1);
     });
 
-    it("runs webgpu-graph-algorithms on the local NVIDIA GPU after the CI shards, requiring nvidia", () => {
+    it("runs webgpu-graph-algorithms on the local NVIDIA GPU beside the CI shards, on the GPU slot, requiring nvidia", () => {
         const prepush = code(tool("prepush.sh"));
         const tests = prepush.indexOf("prepush-tests.mjs' '$PROJECTS'");
-        const gpu = prepush.indexOf('run_step "webgpu-graph-algorithms on the local NVIDIA GPU"');
-        assert.ok(tests > 0 && gpu > tests, "after the Tests step");
+        const gpu = prepush.indexOf("--gpu npm run test:run");
+        const verdict = prepush.lastIndexOf('wait "$GPU_PGID"');
+        assert.ok(gpu > 0 && gpu < tests && verdict > tests, "started before the Tests step, read after it");
         assert.match(
             prepush,
-            /\nif affected webgpu-graph-algorithms; then\n[\s\S]*?GRAPHTY_EGL_LIB_DIR[\s\S]*?LD_LIBRARY_PATH='\$EGL_LIB_DIR[^']*' GRAPHTY_GPU_REQUIRE=nvidia npm run test:run\)"\nfi/,
+            /\nif affected webgpu-graph-algorithms; then\n[\s\S]*?GRAPHTY_EGL_LIB_DIR[\s\S]*?setsid bash -c "cd webgpu-graph-algorithms && LD_LIBRARY_PATH='\$EGL_LIB_DIR[^']*' GRAPHTY_GPU_REQUIRE=nvidia node '\$SCRIPT_DIR\/test-slots.mjs' --gpu npm run test:run" >"\$GPU_LOG" 2>&1 &\n {4}GPU_PGID=\$!\n/,
+        );
+        assert.match(
+            prepush,
+            /cleanup\(\) \{\n {4}if \[ -n "\$GPU_PGID" \]; then\n {8}kill -- -"\$GPU_PGID"/,
+            "the EXIT trap stops it",
         );
         assert.doesNotMatch(prepush, /GRAPHTY_GPU_REQUIRE=any npm run test:run/);
     });
@@ -1439,7 +1454,7 @@ describe("Playwright's system packages", () => {
     // the dry run with PKGS and the install by writing DOWNLOADS into the archive directory, and
     // dpkg-query reports the packages named in INSTALLED as installed.
     const run = ({ hit, cached = [], stale = [], downloads = [], aptSays = "", installed = "a b" }) => {
-        const home = mkdtempSync(join(tmpdir(), "pw-debs-"));
+        const home = mkdtempSync(join(TMP, "pw-debs-"));
         const bin = join(home, "bin");
         const debs = join(home, "debs");
         const archives = join(home, "archives");
@@ -1585,6 +1600,31 @@ describe("gpu.yml", () => {
             job(workflow("gpu-weekly-paired.yml"), "paired"),
             /runs-on: machine\/gpu=t4\/cpu=4\/ram=16\/tenancy=on_demand\n/,
         );
+    });
+
+    it("runs every T4 job in the ubuntu:24.04 container, since the 22.04 host cannot load Dawn", () => {
+        // The machine.dev host's libstdc++ lacks GLIBCXX_3.4.32, which webgpu 0.6.x's dawn.node needs: a T4 job on the
+        // bare host gets E_NO_WEBGPU at its adapter report (issue #2313: the weekly failed that way every week).
+        const dir = new URL("../.github/workflows/", import.meta.url);
+        let checked = 0;
+        for (const file of readdirSync(dir).filter((f) => f.endsWith(".yml"))) {
+            const code = readFileSync(new URL(file, dir), "utf8").replace(/^\s*#.*$/gm, "");
+            for (const body of code.split(/\n(?= {4}[a-z][\w-]*:\n)/)) {
+                if (!/\n {8}runs-on: .*gpu=t4/.test(body)) continue;
+                const where = `${file}: ${body.trim().split("\n")[0]}`;
+                assert.match(body, /\n {8}container:\n {12}image: ubuntu:24\.04\n {12}options: --gpus all\b/, where);
+                assert.match(body, /NVIDIA_DRIVER_CAPABILITIES: all\n/, where);
+                // the whole apt-get install command, with its backslash-continued lines
+                const install = body.match(/apt-get install(?:[^\n]*\\\n)*[^\n]*/)?.[0] ?? "";
+                assert.match(install, /\blibvulkan1 libegl1\b/, where);
+                assert.doesNotMatch(body, /modprobe/, `${where}: a container cannot load kernel modules`);
+                if (/\bgh (issue|api|pr|run) /.test(body)) {
+                    assert.match(install, /\sgh\s/, `${where}: calls gh, so installs it`);
+                }
+                checked++;
+            }
+        }
+        assert.ok(checked >= 2, `found the T4 jobs (${checked})`);
     });
 
     it("leaves no pull request or master push able to start a paid T4 anywhere", () => {
@@ -3654,6 +3694,21 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
                 new RegExp(`(\\./|[ "'])tools/${s.replace(".", "\\.")}`),
                 `${s} from SCRIPT_DIR`,
             );
+        }
+    });
+});
+
+describe("pnpm-lock.yaml", () => {
+    it("holds one Playwright version, the one CI installs browsers for", () => {
+        // A second version lets a re-resolution move @vitest/browser-playwright's peer to it, and
+        // every browser shard then fails to find its browser. pnpm-workspace.yaml's overrides pin it.
+        const lock = readFileSync(new URL("../pnpm-lock.yaml", import.meta.url), "utf8");
+        for (const name of ["playwright", "playwright-core", "@playwright/test"]) {
+            const escaped = name.replace(/[/@]/g, "\\$&");
+            const versions = new Set(
+                [...lock.matchAll(new RegExp(`^  '?${escaped}@(\\d[^:'(]*)'?:`, "gm"))].map((m) => m[1]),
+            );
+            assert.deepEqual([...versions], ["1.57.0"], `${name} versions in pnpm-lock.yaml`);
         }
     });
 });

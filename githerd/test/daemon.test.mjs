@@ -1,15 +1,5 @@
 import { spawn } from "node:child_process";
-import {
-    chmodSync,
-    existsSync,
-    mkdirSync,
-    mkdtempSync,
-    readdirSync,
-    readFileSync,
-    rmSync,
-    writeFileSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
+import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -27,6 +17,7 @@ import { readHistory } from "../lib/stats.mjs";
 import { readLedger, repoIdentity, spoolEvent } from "../lib/store.mjs";
 import { statusData, statusText } from "../lib/tools.mjs";
 import { createFakeGh, httpOutput } from "./helpers/fake-gh.mjs";
+import { tempDir } from "./helpers/temp-dir.mjs";
 
 const FAKE_NOTIFY = fileURLToPath(new URL("helpers/fake-notify.mjs", import.meta.url));
 const DAEMON_BIN = fileURLToPath(new URL("../bin/githerd-daemon.mjs", import.meta.url));
@@ -363,7 +354,7 @@ function sleeper() {
 beforeAll(() => isolateGit());
 
 beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "githerd-daemon-"));
+    dir = tempDir("githerd-daemon-");
     configFile = join(dir, "githerd.config.json");
     notifyLog = join(dir, "notify.log");
     clock = new Date("2026-10-02T12:00:00Z");
@@ -443,6 +434,18 @@ describe("HTTP endpoints", () => {
         const file = JSON.parse(readFileSync(join(dir, ".githerd", "daemon.json"), "utf8"));
         expect(file).toMatchObject({ ...identify(process.pid), port: daemon.port, root: dir });
         expect(daemon.url).toBe(`http://127.0.0.1:${daemon.port}`);
+    });
+
+    it("publishes itself to the project settings' hooks, unless it is a one-poll check", async () => {
+        const home = join(dir, "home");
+        const pointer = join(home, ".githerd", "o_r.hook.mjs");
+        await (await start({ env: { GITHERD_CONFIG: configFile, PATH: process.env.PATH, HOME: home } })).shutdown();
+        expect(existsSync(pointer)).toBe(false);
+        const env = { GITHERD_CONFIG: configFile, PATH: process.env.PATH, HOME: home, GITHERD_DEV: "1" };
+        await (await start({ env, autoPoll: true })).shutdown();
+        const text = readFileSync(pointer, "utf8");
+        expect(text).toContain(`process.env.GITHERD_DEV_STATE ??= ${JSON.stringify(join(dir, ".githerd"))};`);
+        expect(text).toContain("/bin/githerd-hook.mjs");
     });
 
     it("lists the fourteen session tools on /rpc", async () => {
@@ -563,6 +566,8 @@ describe("HTTP endpoints", () => {
         const transport = { send: async (/** @type {string} */ s, /** @type {string} */ t) => void sent.push([s, t]) };
         const daemon = await start({ peers: { sessions: () => listed, transport } });
         daemon.state.jobs = { "issue-7": newJob({ kind: "issue", target: "#7", id: "issue-7" }, clock) };
+        // Onboarded already: only the status question is sent.
+        daemon.state.onboarded = { "graphty-2d": { session: "wt-1", at: clock.toISOString() } };
         const tool = async (/** @type {string} */ name, /** @type {any} */ args) =>
             (
                 await (
@@ -633,6 +638,7 @@ describe("HTTP endpoints", () => {
             move(job, "starting", clock, { holder: { session: "wt-1", window: null, startedBy: "owner" } });
             move(job, "working", clock);
             daemon.state.jobs = { [job.id]: job };
+            daemon.state.onboarded = { "graphty-2d": { session: "wt-1", at: clock.toISOString() } };
             daemon.state.escalations = {
                 [key]: { key, kind: "release-stalled", raisedAt: clock.toISOString(), resolvedAt: clock.toISOString() },
             };
@@ -673,6 +679,19 @@ describe("HTTP endpoints", () => {
         await fetch(`${daemon.url}/heartbeat`, { method: "POST", body: JSON.stringify({ session: "wt-1" }) });
         await poll(daemon);
         expect(job).toMatchObject({ state: "queued", reason: "claim lapsed: session wt-1 ended" });
+    });
+
+    it("drops a finished job nothing reads after a poll, its whole record first written to the ledger", async () => {
+        const daemon = await start();
+        const job = newJob({ kind: "triage", target: "20 issues", id: "triage-full-4" }, clock);
+        move(job, "cancelled", clock, { reason: "superseded" });
+        daemon.state.jobs = { "triage-full-4": job };
+        await poll(daemon);
+        expect(saved().jobs["triage-full-4"]).toBeUndefined();
+        const lines = (await readLedger(join(dir, ".githerd"))).filter((e) => e.kind === "job-dropped");
+        expect(lines).toEqual([
+            expect.objectContaining({ job: "triage-full-4", record: JSON.parse(JSON.stringify(job)) }),
+        ]);
     });
 
     it("registers a heartbeat and refuses one without a session", async () => {
@@ -2370,6 +2389,38 @@ describe("who workers.sessions limits", () => {
         expect(ops).toContain("invite 1 idle session(s) to take verdict-ci-build");
         expect(ops).toContain("ask graphty-13 for the status of issue-8");
         expect(ops.some((op) => op.includes("graphty-14"))).toBe(false);
+    });
+});
+
+describe("every live session a worker unless excluded", () => {
+    it("onboards and invites a session no list names, never one workers.exclude or exclude-me leaves out", async () => {
+        writeConfig({ requiredChecks: ["All Checks Pass"], workers: { exclude: ["graphty-d2"] } });
+        const peers = {
+            sessions: () => [
+                { pid: 1, sessionId: "s1", name: "graphty-06", cwd: dir, socket: "/s1.sock", status: "idle" },
+                { pid: 2, sessionId: "s2", name: "graphty-d2", cwd: dir, socket: "/s2.sock", status: "idle" },
+                { pid: 3, sessionId: "s3", name: "graphty-7c", cwd: dir, socket: "/s3.sock", status: "idle" },
+            ],
+            transport: { send: async () => {} },
+        };
+        const daemon = await start({ peers });
+        daemon.state.excluded = { s3: { name: "graphty-7c", at: clock.toISOString() } };
+        await poll(daemon);
+        scene.head = B;
+        scene.commits = [commit(B, A, "Merge pull request #2 from o/feat"), commit(A, null, "first")];
+        scene.ci = [run(101, B, "failure"), run(100, A, "success")];
+        for (const at of ["12:03", "12:06"]) {
+            clock = new Date(`2026-10-02T${at}:00Z`);
+            await poll(daemon);
+        }
+        const ops = (await readLedger(join(dir, ".githerd")))
+            .filter((e) => e.kind === "would-do" && e.group === "workers")
+            .map((e) => e.op);
+        expect(ops).toContain("onboard graphty-06 as a githerd worker");
+        expect(ops).toContain("invite 1 idle session(s) to take verdict-ci-build");
+        expect(ops.some((op) => op.includes("graphty-d2") || op.includes("graphty-7c"))).toBe(false);
+        const invited = (await readLedger(join(dir, ".githerd"))).filter((e) => e.kind === "sessions-invited");
+        expect(invited.flatMap((e) => e.sessions)).toEqual(["graphty-06"]);
     });
 });
 

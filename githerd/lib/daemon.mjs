@@ -79,8 +79,10 @@ import {
     inviteStep,
     markMine,
     onboardStep,
+    setExcluded,
     setOffersPaused,
     statusStep,
+    workerSessions,
     tellAccepted,
     tellCancelled,
 } from "./asks.mjs";
@@ -91,9 +93,9 @@ import { createConfigGate, openConfigRevert } from "./config-adopt.mjs";
 import { effectiveMode, MODELS } from "./config.mjs";
 import { updateMainCheckout } from "./main-checkout.mjs";
 import { createGitHub, GitHubError, notSent } from "./github.mjs";
-import { answerHook, staleSpooled, writeNews } from "./hook.mjs";
-import { pollIssues } from "./issues.mjs";
-import { backfillTriaged, syncJobs } from "./jobs.mjs";
+import { answerHook, hookPointer, publishHook, staleSpooled, writeNews } from "./hook.mjs";
+import { pollIssues, pruneClosedIssues } from "./issues.mjs";
+import { backfillTriaged, finishedJobsToPrune, syncJobs, tombstoneOf } from "./jobs.mjs";
 import { checkFaults, confirmClosedWaits, settleWaits, tickJobs, waitNews } from "./advance.mjs";
 import {
     endIdleSessions,
@@ -119,7 +121,7 @@ import { gateLocked, launcherContext, prepareUpdate, reapStaleGate, servherd, ta
 import { doneIo, pollVerifying, recheckRefused } from "./done.mjs";
 import { labelMasterFixes, linkMasterFix } from "./master-fix.mjs";
 import { balanceRefusal, classify, isNoLog, refusedOnly } from "./classify.mjs";
-import { flakePoll, gitBlobs, masterFlakeStep, noteMasterLog, readWorkspace } from "./flakes.mjs";
+import { flakePoll, gitBlobs, masterFlakeStep, noteMasterLog, pruneSettledFlakes, readWorkspace } from "./flakes.mjs";
 import { markShared } from "./shared.mjs";
 import { createIncidentActions, laneNotProgressing } from "./incident-actions.mjs";
 import { releaseFailedSummary, releaseHold } from "./release.mjs";
@@ -138,6 +140,7 @@ import {
     readDependencies,
 } from "./merge-status.mjs";
 import { createNotifier, endItem, notePresence, ownerItemsPoll, presentDays, raiseItem } from "./notify.mjs";
+import { stallStep, usageLimitStep } from "./stalls.mjs";
 import {
     activePolicies,
     CONTROL_OPS,
@@ -736,6 +739,9 @@ export async function startDaemon({
     state.master.lanes ??= {};
     state.incidents ??= {};
     state.issues ??= { since: null, byNumber: {} };
+    // Settled flaky tests first, so their closed issues go in the same pass; ledgered below.
+    const settledAtLoad = pruneSettledFlakes(state);
+    pruneClosedIssues(state);
     state.merged ??= { lastScanAt: null, pending: [], closed: [] };
     await backfillFromLedger(state, stateDir, say);
     // References kept under an earlier rule (a stacked merge, a bare `#n` in prose): read them again.
@@ -846,6 +852,7 @@ export async function startDaemon({
         void write.finally(() => writes.delete(write));
         return write;
     };
+    for (const line of settledAtLoad) void ledger(line);
 
     /** @type {Record<string, Map<string, string>>} the recorded collections as last put in the ledger */
     const recorded = {};
@@ -865,6 +872,30 @@ export async function startDaemon({
             const file = join(stateDir, "etags.json");
             writeFileSync(`${file}.tmp`, JSON.stringify(client.etags));
             renameSync(`${file}.tmp`, file);
+        }
+    }
+
+    /**
+     * Drops the finished jobs nothing reads any more and makes tombstones of those only a rule
+     * that makes jobs still reads (`finishedJobsToPrune`, issue #2366), each only once its whole
+     * record is in the ledger (a `job-dropped` line, which githerd why reads), so the state holds
+     * what is open and the ledger the history. A job whose line could not be written stays whole.
+     * @returns {Promise<void>}
+     */
+    async function pruneFinishedJobs() {
+        if (!mayWrite()) return;
+        const { tombstone, drop } = finishedJobsToPrune(state, (id) => tasks.has(id));
+        const dropping = new Set(drop);
+        for (const id of [...tombstone, ...drop]) {
+            const job = state.jobs[id];
+            try {
+                if (!job.tombstone)
+                    await appendLedger(stateDir, { kind: "job-dropped", job: id, record: job }, { now });
+                if (dropping.has(id)) delete state.jobs[id];
+                else state.jobs[id] = tombstoneOf(job);
+            } catch (err) {
+                say("error", `ledger: ${/** @type {Error} */ (err).message}; job ${id} kept`);
+            }
         }
     }
 
@@ -2105,7 +2136,7 @@ export async function startDaemon({
 
     /**
      * Every live session in this repository. The ownership question goes to all of them: asking
-     * whose a pull request is hands no one work, and a session outside `workers.sessions` may hold it.
+     * whose a pull request is hands no one work, and an excluded session may hold it.
      * @returns {import("./peers.mjs").PeerSession[]} the sessions
      */
     function liveInRepo() {
@@ -2116,19 +2147,17 @@ export async function startDaemon({
     }
 
     /**
-     * The live sessions in this repository githerd may hand or manage work through (invitations,
-     * status questions, cancellation notices): the config's `workers.sessions` names, or every one
-     * when it names none.
+     * The live sessions in this repository githerd may hand or manage work through (onboarding,
+     * invitations, status questions, cancellation notices): every one but the excluded, or only
+     * the deprecated `workers.sessions` allowlist's (asks.mjs workerSessions).
      * @returns {import("./peers.mjs").PeerSession[]} the sessions
      */
     function messageable() {
-        const allow = config?.workers.sessions;
-        const live = liveInRepo();
-        return allow ? live.filter((s) => allow.includes(s.name)) : live;
+        return workerSessions(liveInRepo(), state, config?.workers);
     }
 
     /**
-     * Asks every live session in this repository, `workers.sessions` or not, whose a pull request
+     * Asks every live session in this repository, worker or not, whose a pull request
      * with failed CI is (asks.mjs,
      * design 8.2); in dry-run the question is a would-do line.
      * @param {Date} t the poll's time
@@ -2157,7 +2186,8 @@ export async function startDaemon({
             sessionGone: ownerSessionGone,
             cli: cliCommand,
         });
-        for (const line of lines) void ledger(line);
+        // The transcripts were just read: a usage limit in one is told to the owner at once (stalls.mjs).
+        for (const line of [...lines, ...usageLimitStep(state, t)]) void ledger(line);
     }
 
     /**
@@ -2185,8 +2215,8 @@ export async function startDaemon({
     }
 
     /**
-     * Tells each session the owner added to `workers.sessions` that it is a githerd worker, once,
-     * before any invitation (asks.mjs onboardStep); in dry-run each message is a would-do line.
+     * Tells each worker session that it is a githerd worker, once, before any invitation (asks.mjs
+     * onboardStep); in dry-run each message is a would-do line.
      * @param {Date} t the poll's time
      */
     async function onboardWorkers(t) {
@@ -2197,6 +2227,7 @@ export async function startDaemon({
             transport: peers.transport ?? socketTransport(),
             config,
             cli: cliCommand,
+            sessionGone,
         });
         for (const line of lines) void ledger(line);
     }
@@ -2239,7 +2270,14 @@ export async function startDaemon({
             cli: cliCommand,
             config,
         });
-        for (const line of lines) void ledger(line);
+        // A session that stopped answering, or sits on a dialog, is told to the owner once (stalls.mjs).
+        const stalls = stallStep(state, {
+            now: t,
+            minutes: config.workers.statusMinutes,
+            sessions: messageable(),
+            lines,
+        });
+        for (const line of [...lines, ...stalls]) void ledger(line);
     }
 
     /**
@@ -2853,6 +2891,13 @@ export async function startDaemon({
                 outcome: ended.reason,
             });
         }
+        // Every line that names a session gives the name sessions address each other by (#2486).
+        board.nameSessions(
+            state,
+            (peers.registered ?? registeredSessions)({
+                sessionsDir: join(env.HOME ?? homedir(), ".claude", "sessions"),
+            }),
+        );
         const ctx = {
             master: view,
             config,
@@ -2868,6 +2913,9 @@ export async function startDaemon({
 
         const issues = await pollIssues(gh, config.repo, state.issues);
         state.issues = { since: issues.since, byNumber: issues.byNumber };
+        for (const line of pruneSettledFlakes(state)) void ledger(line);
+        pruneClosedIssues(state);
+        await pruneFinishedJobs();
         await checkOverrides();
     }
 
@@ -3656,6 +3704,7 @@ export async function startDaemon({
                 "session-disown",
                 "session-wait",
                 "session-offers",
+                "session-exclude",
             ].includes(cmd?.op)
         ) {
             return { status: 403, text: `${cmd.op} is the owner's: a worker cannot run it` };
@@ -3673,7 +3722,7 @@ export async function startDaemon({
         if (["mine", "mine-list", "mine-drop"].includes(cmd?.op)) return ownerMine(cmd);
         if (cmd?.op === "session-mine" || cmd?.op === "session-disown") return sessionAnswer(cmd);
         if (cmd?.op === "session-wait") return sessionWait(cmd);
-        if (cmd?.op === "session-offers") return sessionOffers(cmd);
+        if (cmd?.op === "session-offers" || cmd?.op === "session-exclude") return sessionOffers(cmd);
         if (["answer", "order", "policy", "policy-end"].includes(cmd?.op))
             return ownerCommand(state, cmd, now(), worker);
         if (CONTROL_OPS.has(cmd?.op)) {
@@ -3684,7 +3733,7 @@ export async function startDaemon({
             status: 400,
             text:
                 "op must be ack, veto, mine, mine-list, mine-drop, session-mine, session-disown, session-wait, " +
-                "session-offers, answer, " +
+                "session-offers, session-exclude, answer, " +
                 "order, policy, " +
                 "policy-end, pause, resume, " +
                 "workers, keep or release",
@@ -3781,9 +3830,10 @@ export async function startDaemon({
 
     /**
      * `githerd pause-offers` and `githerd resume-offers` run from inside a Claude session: what
-     * `githerd_offers` does for that session (asks.mjs setOffersPaused). It acts for the session the
-     * CLI runs under, which must be a live entry in Claude Code's session registry.
-     * @param {any} cmd `{op: "session-offers", paused, session}`
+     * `githerd_offers` does for that session (asks.mjs setOffersPaused); `githerd exclude-me` and
+     * `include-me` take it out of githerd's workers or put it back (asks.mjs setExcluded). It acts
+     * for the session the CLI runs under, which must be a live entry in Claude Code's session registry.
+     * @param {any} cmd `{op: "session-offers", paused, session}` or `{op: "session-exclude", excluded, session}`
      * @returns {any} the answer
      */
     function sessionOffers(cmd) {
@@ -3791,6 +3841,11 @@ export async function startDaemon({
         const s = (peers.registered ?? registeredSessions)({ sessionsDir }).find((x) => x.sessionId === cmd.session);
         if (!s) return { status: 404, text: `no live Claude Code session ${cmd.session} in the session registry` };
         const at = now().toISOString();
+        if (cmd.op === "session-exclude") {
+            const excluded = cmd.excluded === true;
+            const { text, entry } = setExcluded(state, { name: s.name, session: s.sessionId, excluded, at });
+            return { status: 200, text, entry };
+        }
         const { text, entry } = setOffersPaused(state, {
             name: s.name,
             session: s.sessionId,
@@ -4053,6 +4108,17 @@ export async function startDaemon({
     writeFileSync(tmp, `${JSON.stringify({ ...self, port: boundPort, root, codeHash, startedAt })}\n`);
     renameSync(tmp, daemonFile);
     say("info", `githerd ${version} listening on 127.0.0.1:${boundPort} for ${root} (${mode()})`);
+    // The project settings' hooks run whatever daemon was published last; a one-poll check or a
+    // self-update's protocol test is not the repository's daemon, and publishes nothing.
+    if (autoPoll) {
+        try {
+            const home = env.HOME ?? homedir();
+            const custom = stateDir === defaultStateDir(root, home) ? null : stateDir;
+            publishHook(hookPointer(home, root, config?.repo), { dev: Boolean(env.GITHERD_DEV), stateDir: custom });
+        } catch (err) {
+            say("error", `hook pointer: ${/** @type {Error} */ (err).message}`);
+        }
+    }
 
     /**
      * The owner item for state githerd could not read whole. An empty start blocks every worker
@@ -4100,6 +4166,7 @@ export async function startDaemon({
     }
 
     reportStart();
+    await pruneFinishedJobs();
     await save();
     if (containerRestarted) {
         ledger({ kind: "event", event: "container-restart", from: previous.alive.pid1Start, to: pid1Start });

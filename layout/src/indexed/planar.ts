@@ -781,12 +781,15 @@ function neighbourLists(g: GraphSnapshot): number[][] {
  * @param scale - the distance of the farthest node from the centre
  * @param center - at least 2 components
  * @returns `2 * n` values
- * @throws "G is not planar." when the graph is not planar
+ * @throws "G is not planar." (code `E_NOT_PLANAR`) when the graph is not planar
  */
 function planarRows(g: GraphSnapshot, scale: number, center: readonly number[]): F64 {
     const embedding = new LeftRight(neighbourLists(g)).run();
     if (embedding === null) {
-        throw new Error("G is not planar.");
+        throw Object.assign(new Error("G is not planar."), {
+            code: "E_NOT_PLANAR",
+            params: { nodeCount: g.nodeCount, edgeCount: g.edgeCount },
+        });
     }
     return rescaleInPlace(embeddingToRows(embedding), 2, scale, center);
 }
@@ -799,7 +802,8 @@ function planarRows(g: GraphSnapshot, scale: number, center: readonly number[]):
  * @param s - the snapshot; a directed one is read as its undirected derived graph
  * @param options - `scale` is the distance of the farthest node from the centre
  * @returns the layout
- * @throws "G is not planar." when the graph is not planar
+ * @throws an Error "G is not planar." when the graph is not planar, with `code` `E_NOT_PLANAR` and `params`
+ * `{ nodeCount, edgeCount }` (of the undirected graph it tested)
  */
 export function planar(s: GraphSnapshot, options: CommonLayoutOptions = {}): LayoutResult {
     const { n, dim, scale, center } = resolve(s, options);

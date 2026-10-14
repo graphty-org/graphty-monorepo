@@ -135,15 +135,13 @@ export class CrossPlatformBenchmark {
         // Force garbage collection if available
         if (this.config.platform === "node") {
             (globalThis as { gc?: () => void }).gc?.();
-        } else {
+        } else if (globalThis.window !== undefined && globalThis.performance && "memory" in globalThis.performance) {
             // Browser memory pressure hint
-            if (typeof window !== "undefined" && window.performance && "memory" in window.performance) {
-                // Some browsers support gc() in development
-                try {
-                    (globalThis as { gc?: () => void }).gc?.();
-                } catch {
-                    // Ignore if not available
-                }
+            // Some browsers support gc() in development
+            try {
+                (globalThis as { gc?: () => void }).gc?.();
+            } catch {
+                // Ignore if not available
             }
         }
     }
@@ -160,20 +158,18 @@ export class CrossPlatformBenchmark {
                     rss: mem.rss,
                 };
             }
-        } else {
+        } else if (globalThis.window !== undefined && globalThis.performance && "memory" in globalThis.performance) {
             // Browser memory information
-            if (typeof window !== "undefined" && window.performance && "memory" in window.performance) {
-                const mem = (
-                    window.performance as Performance & {
-                        memory: { usedJSHeapSize: number; totalJSHeapSize: number; jsHeapSizeLimit: number };
-                    }
-                ).memory;
-                return {
-                    usedJSHeapSize: mem.usedJSHeapSize,
-                    totalJSHeapSize: mem.totalJSHeapSize,
-                    jsHeapSizeLimit: mem.jsHeapSizeLimit,
-                };
-            }
+            const mem = (
+                window.performance as Performance & {
+                    memory: { usedJSHeapSize: number; totalJSHeapSize: number; jsHeapSizeLimit: number };
+                }
+            ).memory;
+            return {
+                usedJSHeapSize: mem.usedJSHeapSize,
+                totalJSHeapSize: mem.totalJSHeapSize,
+                jsHeapSizeLimit: mem.jsHeapSizeLimit,
+            };
         }
         return {};
     }

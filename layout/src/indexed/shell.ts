@@ -1,8 +1,8 @@
-import { type F64, type GraphSnapshot, type NodeSet, resolveNodeSet } from "@graphty/graph-format";
+import { detCos, detSin, type F64, type GraphSnapshot, type NodeSet, resolveNodeSet } from "@graphty/graph-format";
 
 import type { LayoutResult } from "../positions.js";
 import { np } from "../utils/numpy.js";
-import { type CommonLayoutOptions, planar, resolve, result } from "./common.js";
+import { type CommonLayoutOptions, planar, refusal, resolve, result } from "./common.js";
 import { groupsOfColumn } from "./multipartite.js";
 
 /** Options of the index-based shell layout. */
@@ -50,7 +50,11 @@ export function shellRows(
     }
     const turn = rotate === "networkx" ? Math.PI / shells.length : rotate;
     if (!Number.isFinite(turn)) {
-        throw new TypeError(`rotate must be a finite number of radians or "networkx", not ${String(rotate)}`);
+        throw refusal(
+            new TypeError(`rotate must be a finite number of radians or "networkx", not ${String(rotate)}`),
+            "E_BAD_OPTION",
+            { option: "rotate", value: rotate },
+        );
     }
     const radiusBump = scale / shells.length;
     let radius = radiusBump;
@@ -65,8 +69,8 @@ export function shellRows(
         const theta = np.linspace(0, 2 * Math.PI, shell.length + 1);
         const first = (k + 1) * turn;
         for (let j = 0; j < shell.length; j++) {
-            rows[2 * shell[j]] = Math.cos(theta[j] + first) * radius + center[0];
-            rows[2 * shell[j] + 1] = Math.sin(theta[j] + first) * radius + center[1];
+            rows[2 * shell[j]] = detCos(theta[j] + first) * radius + center[0];
+            rows[2 * shell[j] + 1] = detSin(theta[j] + first) * radius + center[1];
         }
         radius += radiusBump;
     });
@@ -80,18 +84,28 @@ export function shellRows(
  * @param options - `scale / m` is the radius step between the m shells; `nlist` the shells; `rotate` the turn of
  * each shell past the one inside it
  * @returns the layout
+ * @throws an Error with `code` `E_UNKNOWN_COLUMN` or `E_COLUMN_TYPE` when `nlist` names a node column the snapshot
+ * does not hold or one that is not u32 or dict, `E_BAD_NODE` for a shell index that is not a node, and `E_BAD_OPTION`
+ * for a `rotate` that is not finite; `params` carry the facts
  */
 export function shell(s: GraphSnapshot, options: ShellLayoutOptions = {}): LayoutResult {
     const { n, dim, scale, center } = resolve(s, options);
     const { nlist } = options;
     const shells =
         typeof nlist === "string"
-            ? groupsOfColumn(s, nlist, "shell")
+            ? groupsOfColumn(s, nlist, "nlist")
             : (nlist?.map((set) => resolveNodeSet(s, set)) ?? [Array.from({ length: n }, (_, i) => i)]);
     for (const list of shells) {
         for (let j = 0; j < list.length; j++) {
             if (!Number.isInteger(list[j]) || list[j] < 0 || list[j] >= n) {
-                throw new Error(`shell node index ${String(list[j])} is not a node of the graph`);
+                throw refusal(
+                    new Error(`shell node index ${String(list[j])} is not a node of the graph`),
+                    "E_BAD_NODE",
+                    {
+                        option: "nlist",
+                        index: list[j],
+                    },
+                );
             }
         }
     }

@@ -148,7 +148,8 @@ export default tseslint.config(
             // Keep non-null assertion as error (important for safety)
             "@typescript-eslint/no-non-null-assertion": "error",
             // TODO: Re-enable these rules and fix issues incrementally
-            // These rules have many violations from strictTypeChecked
+            // These rules have many violations from strictTypeChecked. They are turned back on
+            // package by package below ("STRICT TYPE RULES, PACKAGE BY PACKAGE", issue #2345).
             "@typescript-eslint/no-unnecessary-condition": "off",
             "@typescript-eslint/no-unsafe-argument": "off",
             "@typescript-eslint/no-unsafe-assignment": "off",
@@ -204,6 +205,56 @@ export default tseslint.config(
             "simple-import-sort/exports": "error",
         },
     },
+
+    // ============================================
+    // STRICT TYPE RULES, PACKAGE BY PACKAGE (#2345)
+    // ============================================
+    // The six rules switched off above, back on for each package that has no violation of them,
+    // so a new one cannot creep in. Add a rule to a package's list once its violations are fixed;
+    // when every package lists a rule, delete it here and its "off" line above. A package with its
+    // own eslint.config.js lists its rules there, because these globs are relative to the repo
+    // root (webgpu-graph-algorithms/eslint.config.js). This block sits before the blocks that
+    // switch type information off (stories, scripts, configs), so those files stay exempt.
+    ...Object.entries({
+        "graph-format": {
+            "@typescript-eslint/no-unsafe-argument": "error",
+            "@typescript-eslint/no-unsafe-call": "error",
+            "@typescript-eslint/no-unsafe-member-access": "error",
+            "@typescript-eslint/no-unsafe-return": "error",
+        },
+        "graph-io": {
+            "@typescript-eslint/no-unsafe-call": "error",
+            "@typescript-eslint/no-unsafe-member-access": "error",
+        },
+        "graph-samples": {
+            "@typescript-eslint/no-unnecessary-condition": "error",
+            "@typescript-eslint/no-unsafe-argument": "error",
+            "@typescript-eslint/no-unsafe-assignment": "error",
+            "@typescript-eslint/no-unsafe-call": "error",
+            "@typescript-eslint/no-unsafe-member-access": "error",
+            "@typescript-eslint/no-unsafe-return": "error",
+        },
+        "cytoscape-extensions": {
+            "@typescript-eslint/no-unsafe-call": "error",
+            "@typescript-eslint/no-unsafe-member-access": "error",
+            "@typescript-eslint/no-unsafe-return": "error",
+        },
+        layout: {
+            "@typescript-eslint/no-unsafe-call": "error",
+        },
+        "remote-logger": {
+            "@typescript-eslint/no-unsafe-argument": "error",
+            "@typescript-eslint/no-unsafe-call": "error",
+            "@typescript-eslint/no-unsafe-return": "error",
+        },
+        "compact-mantine": {
+            "@typescript-eslint/no-unsafe-argument": "error",
+            "@typescript-eslint/no-unsafe-assignment": "error",
+            "@typescript-eslint/no-unsafe-call": "error",
+            "@typescript-eslint/no-unsafe-member-access": "error",
+            "@typescript-eslint/no-unsafe-return": "error",
+        },
+    }).map(([pkg, rules]) => ({ files: [`${pkg}/**/*.ts`, `${pkg}/**/*.tsx`], rules })),
 
     // ============================================
     // ACCESSIBILITY RULES FOR compact-mantine JSX
@@ -289,6 +340,18 @@ export default tseslint.config(
         ignores: ["**/*.bench.test.ts", "**/*.bench-browser.ts", "**/benchmarks/**", "**/bench/**"],
         plugins: { local: { rules: { "no-test-timing": noTestTiming } } },
         rules: { "local/no-test-timing": "error" },
+    },
+    // Tests that still wait a counted number of animation frames, exempt from that one check until
+    // each is rewritten to wait on what it needs (#2535). graphty-element's are in its own config.
+    // Remove a file once it is fixed; never add one.
+    {
+        files: [
+            "compact-mantine/tests/figma/inputs.browser.test.tsx",
+            "compact-mantine/tests/figma/overlays.browser.test.tsx",
+            "compact-mantine/tests/figma/shell.browser.test.tsx",
+            "compact-mantine/tests/theme/combobox-props.browser.test.tsx",
+        ],
+        rules: { "local/no-test-timing": ["error", { frameWaits: false }] },
     },
 
     // ============================================

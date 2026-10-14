@@ -3537,6 +3537,16 @@ export function fromBytes(bytes: Uint8Array | ArrayBufferLike, options?: FromWir
 export function fromByteChunks(chunks: Iterable<Uint8Array>, options?: FromWireOptions): GraphSnapshot;
 export function isGraphSnapshot(x: unknown): x is GraphSnapshot;
 export function equalsTopology(a: GraphSnapshot, b: GraphSnapshot): boolean;
+// Math that returns the same bits in every JavaScript engine, for seeded and iterative code in every graphty
+// package (ECMAScript leaves the last bit of Math.log, Math.exp, Math.sin, ... to the engine). fdlibm ports for
+// log, exp, sin, cos and acos; V8's algorithm for hypot; pow by multiplication for integer exponents up to 1024.
+export function detLog(x: number): number;
+export function detExp(x: number): number;
+export function detSin(x: number): number;
+export function detCos(x: number): number;
+export function detAcos(x: number): number;
+export function detHypot(...values: number[]): number;
+export function detPow(x: number, y: number): number;
 
 // ============================================================ builder
 export interface GraphBuilderOptions {

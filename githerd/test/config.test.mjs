@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -12,10 +12,12 @@ import {
     defaultBranch,
     originHead,
     effectiveMode,
+    legacySessionsNote,
     normalizeConfig,
     repoRoot,
     resolveConfig,
 } from "../lib/config.mjs";
+import { tempDir } from "./helpers/temp-dir.mjs";
 
 const ROOT = fileURLToPath(new URL("../../", import.meta.url));
 const MINIMAL = { repo: "o/r", lanes: { ci: { workflow: "ci.yml", gating: "required" } } };
@@ -28,6 +30,24 @@ describe("normalizeConfig", () => {
         ).toEqual(["graphty-monorepo-2d"]);
         expect(() => normalizeConfig({ ...MINIMAL, workers: { sessions: "graphty-monorepo-2d" } })).toThrow(
             /workers.sessions must be null or a list/,
+        );
+    });
+
+    it("takes workers.exclude as a list of session names or sessionIds, empty by default", () => {
+        expect(normalizeConfig(MINIMAL).workers.exclude).toEqual([]);
+        const ids = ["graphty-monorepo-d2", "edf07b88-2700-4a9d-93d1-b77a43d817e8"];
+        expect(normalizeConfig({ ...MINIMAL, workers: { exclude: ids } }).workers.exclude).toEqual(ids);
+        for (const bad of ["graphty-monorepo-d2", [""], null, [3]]) {
+            expect(() => normalizeConfig({ ...MINIMAL, workers: { exclude: bad } })).toThrow(
+                /workers.exclude must be a list/,
+            );
+        }
+    });
+
+    it("notes that the workers.sessions allowlist is deprecated, only while a config sets it", () => {
+        expect(legacySessionsNote(normalizeConfig(MINIMAL).workers)).toBeNull();
+        expect(legacySessionsNote(with_({ workers: { sessions: ["graphty-13"] } }).workers)).toMatch(
+            /^DEPRECATED workers.sessions: .*workers.exclude$/,
         );
     });
 
@@ -60,6 +80,7 @@ describe("normalizeConfig", () => {
             statusMinutes: 15,
             maxActive: 3,
             sessions: null,
+            exclude: [],
         });
         expect(c.lanes.ci).toEqual({ workflow: "ci.yml", gating: "required", maxMinutes: null });
     });
@@ -255,7 +276,7 @@ describe("resolveConfig", () => {
 
     beforeAll(() => {
         isolateGit();
-        dir = mkdtempSync(join(tmpdir(), "githerd-config-"));
+        dir = tempDir("githerd-config-");
         remote = join(dir, "remote.git");
         const seed = join(dir, "seed");
         git(dir, "init", "--bare", "-b", "main", remote);

@@ -312,6 +312,18 @@ describe("describeProperty command", () => {
             const data = result.data as { target: string };
             assert.strictEqual(data.target, "edges");
         });
+
+        it("reads a field spelled the way selectors spell it, under 'data.'", async () => {
+            // Every selector a model writes names fields as data.weight, so it asks this tool the
+            // same way. Read literally that is a field called "data", and the model was told
+            // weight does not exist and spent a tool round asking again (release held, #2384).
+            const result = await describeProperty.execute(graph, { property: "data.weight", target: "edges" }, context);
+            assert.strictEqual(result.success, true, result.message);
+            const data = result.data as { type: string; nullCount: number; statistics: { min: number } };
+            assert.strictEqual(data.type, "number");
+            assert.strictEqual(data.nullCount, 0);
+            assert.strictEqual(typeof data.statistics.min, "number");
+        });
     });
 
     describe("command metadata", () => {

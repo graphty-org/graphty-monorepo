@@ -1,4 +1,4 @@
-import { expandEdges, type F32, type GraphSnapshot, type NumericVector } from "@graphty/graph-format";
+import { detCos, detSin, expandEdges, type F32, type GraphSnapshot, type NumericVector } from "@graphty/graph-format";
 
 import { _kamadaKawaiSolve } from "../algorithms/optimization/index.js";
 import { type LayoutResult, rescaleInPlace } from "../positions.js";
@@ -7,6 +7,7 @@ import { seedPositions } from "../simulation/seed.js";
 import { toLayoutSnapshot } from "../simulation/snapshot.js";
 import type { CommonLayoutOptions } from "../simulation/types.js";
 import { np } from "../utils/numpy.js";
+import { refusal } from "./common.js";
 import { layoutDim } from "./start.js";
 
 /** The ideal distance of a pair with no path between them, as networkx fills its matrix. */
@@ -90,13 +91,21 @@ export function idealDistances(s: GraphSnapshot, options: KamadaKawaiOptions): n
     let d: ArrayLike<number>;
     if (options.dist !== null && options.dist !== undefined) {
         if (options.dist.length !== n * n) {
-            throw new RangeError(`kamadaKawai: dist has ${options.dist.length} values, expected ${n * n} (n * n)`);
+            throw refusal(
+                new RangeError(`kamadaKawai: dist has ${options.dist.length} values, expected ${n * n} (n * n)`),
+                "E_BAD_OPTION",
+                { option: "dist", length: options.dist.length, expected: n * n },
+            );
         }
         // the diagonal sits at every (n + 1)th index
         if (n >= 2 && !options.dist.some((v, at) => Number.isFinite(v) && at % (n + 1) !== 0)) {
-            throw new RangeError(
-                "kamadaKawai: dist has no finite distance between two different nodes; " +
-                    "was it computed from a graph without edges?",
+            throw refusal(
+                new RangeError(
+                    "kamadaKawai: dist has no finite distance between two different nodes; " +
+                        "was it computed from a graph without edges?",
+                ),
+                "E_BAD_OPTION",
+                { option: "dist" },
             );
         }
         d = options.dist;
@@ -114,7 +123,11 @@ export function idealDistances(s: GraphSnapshot, options: KamadaKawaiOptions): n
             for (let a = rowPtr[u]; a < rowPtr[u + 1]; a++) {
                 const weight = w === null ? 1 : w[a];
                 if (!(weight >= 0)) {
-                    throw new RangeError(`kamadaKawai: weights are distances and must be >= 0, got ${weight}`);
+                    throw refusal(
+                        new RangeError(`kamadaKawai: weights are distances and must be >= 0, got ${weight}`),
+                        "E_BAD_WEIGHT",
+                        { weight },
+                    );
                 }
                 const at = u * n + colIdx[a];
                 if (weight < m[at]) {
@@ -162,7 +175,11 @@ function startPositions(s: GraphSnapshot, options: KamadaKawaiOptions, dim: 2 | 
     const { pos } = options;
     if (pos !== null && pos !== undefined) {
         if (pos.length !== dim * n) {
-            throw new RangeError(`kamadaKawai: pos has ${pos.length} values, expected ${dim * n} (dim * nodeCount)`);
+            throw refusal(
+                new RangeError(`kamadaKawai: pos has ${pos.length} values, expected ${dim * n} (dim * nodeCount)`),
+                "E_BAD_OPTION",
+                { option: "pos", length: pos.length, expected: dim * n },
+            );
         }
         return Array.from({ length: n }, (_, i) =>
             Array.from(pos.subarray(dim * i, dim * i + dim), (v) => (Number.isNaN(v) ? 0 : v)),
@@ -170,7 +187,7 @@ function startPositions(s: GraphSnapshot, options: KamadaKawaiOptions, dim: 2 | 
     }
     if (dim === 2) {
         const theta = np.linspace(0, 2 * Math.PI, n + 1);
-        return Array.from({ length: n }, (_, i) => [Math.cos(theta[i]), Math.sin(theta[i])]);
+        return Array.from({ length: n }, (_, i) => [detCos(theta[i]), detSin(theta[i])]);
     }
     // float64, as kamadaKawaiLayout drew it: a float32 start settles in a different local minimum
     const column = new Float64Array(3 * n).fill(Number.NaN);

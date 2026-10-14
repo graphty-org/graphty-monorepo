@@ -1,6 +1,7 @@
 import { defineConfig } from "vitest/config";
 
 import { workerShare } from "../tools/test-slots.mjs";
+import { TIMING_FUZZ_SETUP, timingFuzzConfig } from "../tools/timing-fuzzer.mjs";
 
 export default defineConfig({
     test: {
@@ -14,7 +15,9 @@ export default defineConfig({
         maxWorkers: workerShare(),
         // No test runs git with the developer's own config, including a GIT_CONFIG_COUNT signing override.
         // No test sees the developer's real HOME.
-        setupFiles: ["test/isolate-git.setup.mjs", "test/temp-home.setup.mjs"],
+        // Under GRAPHTY_TIMING_FUZZ, every test runs with the clock and timers perturbed (tools/timing-fuzzer.mjs).
+        setupFiles: [TIMING_FUZZ_SETUP, "test/isolate-git.setup.mjs", "test/temp-home.setup.mjs"],
+        ...timingFuzzConfig(),
         coverage: {
             provider: "v8",
             reporter: ["text", "json-summary", "json", "lcov", "html"],

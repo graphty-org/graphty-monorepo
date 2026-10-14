@@ -33,6 +33,7 @@ import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
 import { workerShare } from "../tools/test-slots.mjs";
+import { TIMING_FUZZ_SETUP, timingFuzzConfig } from "../tools/timing-fuzzer.mjs";
 import { ciReporters } from "../vitest.ci-junit.mjs";
 import { getLlmRegressionCaseTimeoutMs } from "./test/helpers/llm-regression-env";
 
@@ -290,7 +291,8 @@ export default defineConfig({
                 test: {
                     name: "default",
                     server: { deps: { external: [WORKSPACE_DIST] } },
-                    setupFiles: ["./test/setup.ts"],
+                    setupFiles: [TIMING_FUZZ_SETUP, "./test/setup.ts"],
+                    ...timingFuzzConfig(),
                     // The shared config's figure. Tests that import a whole entry point take several
                     // seconds on a CI runner or under the pre-push gate, past vitest's default five.
                     testTimeout: 30000,
@@ -381,7 +383,8 @@ export default defineConfig({
                     name: "mesh",
                     server: { deps: { external: [WORKSPACE_DIST] } },
                     environment: "node",
-                    setupFiles: ["./test/mesh-testing/test-setup.ts"],
+                    setupFiles: [TIMING_FUZZ_SETUP, "./test/mesh-testing/test-setup.ts"],
+                    ...timingFuzzConfig(),
                     include: ["test/mesh-testing/**/*.test.ts"],
                     exclude: [
                         // Exclude experimental/temporary folders ending with ~
@@ -425,7 +428,8 @@ export default defineConfig({
                     // of starting a browser project at all -- but a file that needs a settled physics
                     // layout or a video encode does not belong in a gate a person waits on.
                     name: "contract",
-                    setupFiles: ["./test/setup.ts"],
+                    setupFiles: [TIMING_FUZZ_SETUP, "./test/setup.ts"],
+                    ...timingFuzzConfig(),
                     include: [
                         "test/browser/label-paint.test.ts",
                         "test/browser/style-layer-ordering.test.ts",
@@ -493,7 +497,8 @@ export default defineConfig({
                 optimizeDeps: { include: ["iwer", ...PREBUNDLED] },
                 test: {
                     name: "xr",
-                    setupFiles: [BROWSER_COVERAGE_SETUP, "./test/setup.ts"],
+                    setupFiles: [BROWSER_COVERAGE_SETUP, TIMING_FUZZ_SETUP, "./test/setup.ts"],
+                    ...timingFuzzConfig(),
                     include: XR_BROWSER_TESTS,
                     fileParallelism: false,
                     browser: {
@@ -546,7 +551,8 @@ export default defineConfig({
                 resolve: { alias: OWN_ENTRY_POINTS },
                 test: {
                     name: "browser",
-                    setupFiles: [BROWSER_COVERAGE_SETUP, "./test/setup.ts"],
+                    setupFiles: [BROWSER_COVERAGE_SETUP, TIMING_FUZZ_SETUP, "./test/setup.ts"],
+                    ...timingFuzzConfig(),
                     include: [
                         "test/browser/**/*.test.ts",
                         "test/managers/DataManager.test.ts",
@@ -619,7 +625,8 @@ export default defineConfig({
                 optimizeDeps: { include: ["iwer", ...PREBUNDLED] },
                 test: {
                     name: "interactions",
-                    setupFiles: [BROWSER_COVERAGE_SETUP, "./test/setup.ts"],
+                    setupFiles: [BROWSER_COVERAGE_SETUP, TIMING_FUZZ_SETUP, "./test/setup.ts"],
+                    ...timingFuzzConfig(),
                     include: ["test/interactions/**/*.test.ts"],
                     exclude: [
                         // Exclude experimental/temporary folders ending with ~

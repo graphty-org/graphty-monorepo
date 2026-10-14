@@ -75,6 +75,17 @@ function runOf(session: GraphSession | null, resolved: Resolved): Run | undefine
 }
 
 /**
+ * The run a style tree row's layer paints, so its state bar (out of date, Rerun) shows there too.
+ * @param session - the session.
+ * @param resolved - what is inspected.
+ * @returns the run, for a layer row bound to one.
+ */
+function layerRunOf(session: GraphSession | null, resolved: Resolved): Run | undefined {
+    const source = resolved.kind === "layer-row" ? session?.styles.get(resolved.layer)?.source : undefined;
+    return source?.by === "run" ? session?.runs.get(source.runId) : undefined;
+}
+
+/**
  * The inspector (tier1-design.md section 2.7): the properties of what is selected, read and
  * edited in place. A header of two lines, a state bar when a run needs one, then the Style and
  * Values tabs, or one body for a kind with no tabs. The tab last chosen stays chosen per kind;
@@ -118,6 +129,7 @@ export function Inspector(): React.JSX.Element {
     );
     const identity = identityOf(resolved);
     const run = runOf(session, resolved);
+    const barRun = run ?? layerRunOf(session, resolved);
     // A run's kind is its paint tree row's, whichever door opened it, so the two draw one glyph.
     const kindId: InspectedKindId =
         run !== undefined && (resolved.kind === "measure-row" || resolved.kind === "run-row")
@@ -340,7 +352,7 @@ export function Inspector(): React.JSX.Element {
                         )}
                     </Group>
                 </Stack>
-                {run !== undefined && <RunStateBar run={run} draft={runDraft} onDraft={onDraft} />}
+                {barRun !== undefined && <RunStateBar run={barRun} draft={runDraft} onDraft={onDraft} />}
                 {content}
             </Stack>
         </PopoutManager>

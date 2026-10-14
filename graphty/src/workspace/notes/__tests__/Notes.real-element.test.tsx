@@ -199,7 +199,7 @@ describe("Notes, on the real element", () => {
             const store = createWorkspaceStore();
             const session = await openSample(store);
             await session.runs.start("pagerank", {});
-            await userEvent.click(await screen.findByRole("treeitem", { name: "PageRank" }));
+            await userEvent.click(await screen.findByRole("treeitem", { name: /^Influence, / }));
             await waitFor(() => {
                 assert.isNotNull(store.get().inspected);
             });

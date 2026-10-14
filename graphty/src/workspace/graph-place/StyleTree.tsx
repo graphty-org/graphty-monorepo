@@ -1,9 +1,10 @@
 import { ToggleIconButton, Tree, type TreeNodeData, type TreeRowActions } from "@graphty/compact-mantine";
-import type { GraphSession, StyleRow } from "@graphty/graphty-element/session";
+import type { GraphSession, StaleNote, StyleRow } from "@graphty/graphty-element/session";
 import { ActionIcon, Menu, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
 import React from "react";
 
 import { GLYPHS } from "../glyphs";
+import { staleWords } from "../inspector/words";
 import { matchesKey } from "../keys/keys";
 import type { WorkspaceState, WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
@@ -262,7 +263,8 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
             </span>
         );
         const overWords = paintedOverWords(paints);
-        const description = [...states, ...(over ? [overWords] : [])];
+        const stale = staleOf(session, row);
+        const description = [...(stale === null ? [] : [staleWords(stale)]), ...states, ...(over ? [overWords] : [])];
         return {
             id: row.id,
             name: row.name,
@@ -414,6 +416,24 @@ function AddMenu({ session, store }: Readonly<{ session: GraphSession; store: Wo
             </Menu.Dropdown>
         </Menu>
     );
+}
+
+/**
+ * Why a row's run is out of date, when the row paints a run's result and the run is.
+ * @param session - the element's session.
+ * @param row - the row.
+ * @returns the run's stale note, or null.
+ */
+function staleOf(session: GraphSession, row: StyleRow): StaleNote | null {
+    const parts = session.styles.parts(row.id);
+    for (const id of [parts?.node, parts?.edge]) {
+        const source = id === undefined ? undefined : session.styles.get(id)?.source;
+        const stale = source?.by === "run" ? (session.runs.get(source.runId)?.stale ?? null) : null;
+        if (stale !== null) {
+            return stale;
+        }
+    }
+    return null;
 }
 
 /**

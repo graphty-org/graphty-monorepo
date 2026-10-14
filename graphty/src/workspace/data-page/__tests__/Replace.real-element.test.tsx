@@ -79,7 +79,7 @@ describe("Replace with file...", () => {
                 await run;
                 await live.styles.settled();
             });
-            await screen.findByRole("treeitem", { name: "PageRank" });
+            await screen.findByRole("treeitem", { name: /^Influence, / });
 
             act(() => {
                 replaceSource(store, live.data.sources()[0], new File([FRIENDS_V2], "friends-v2.csv"));
@@ -108,7 +108,10 @@ describe("Replace with file...", () => {
             });
             assert.isDefined(live.runs.get(run.id), "the run is kept");
             assert.strictEqual(live.runs.get(run.id)?.stale?.reason, "data-changed");
-            const row = await screen.findByRole("treeitem", { name: "PageRank, out of date" });
+            const row = await screen.findByRole("treeitem", { name: /^Influence, / });
+            await waitFor(() => {
+                assert.include(row.textContent, "Data changed since this run", "the row says why it is out of date");
+            });
 
             await userEvent.click(row);
             const inspector = within(screen.getByRole("complementary", { name: "Inspector" }));
@@ -116,8 +119,8 @@ describe("Replace with file...", () => {
             assert.strictEqual(live.runs.get(run.id)?.status, "succeeded", "nothing reran by itself");
 
             await userEvent.click(inspector.getByRole("button", { name: "Rerun" }));
-            await screen.findByRole("treeitem", { name: "PageRank" }, { timeout: TIMEOUT_MS });
             await waitFor(() => {
+                assert.notInclude(row.textContent, "Data changed since this run");
                 assert.isNull(inspector.queryByText("Data changed since this run"));
             });
             assert.strictEqual(live.runs.get(run.id)?.stale, null);

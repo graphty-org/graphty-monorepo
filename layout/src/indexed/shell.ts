@@ -1,4 +1,4 @@
-import { type F64, type GraphSnapshot, type NodeSet, resolveNodeSet } from "@graphty/graph-format";
+import { detCos, detSin, type F64, type GraphSnapshot, type NodeSet, resolveNodeSet } from "@graphty/graph-format";
 
 import type { LayoutResult } from "../positions.js";
 import { np } from "../utils/numpy.js";
@@ -69,8 +69,8 @@ export function shellRows(
         const theta = np.linspace(0, 2 * Math.PI, shell.length + 1);
         const first = (k + 1) * turn;
         for (let j = 0; j < shell.length; j++) {
-            rows[2 * shell[j]] = Math.cos(theta[j] + first) * radius + center[0];
-            rows[2 * shell[j] + 1] = Math.sin(theta[j] + first) * radius + center[1];
+            rows[2 * shell[j]] = detCos(theta[j] + first) * radius + center[0];
+            rows[2 * shell[j] + 1] = detSin(theta[j] + first) * radius + center[1];
         }
         radius += radiusBump;
     });

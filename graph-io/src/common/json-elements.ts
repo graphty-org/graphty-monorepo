@@ -1493,10 +1493,11 @@ async function* blockElements(
  * @category Plugin helpers
  */
 export function reportTooDeep(report: ImportReportBuilder, event: Extract<AspectEvent, { kind: "deep" }>): void {
+    const what = event.aspect === null ? "a member of the document" : `an element of "${event.aspect}"`;
     report.error(
         "parse-error",
         BAD_ASPECT_BLOCK_CODE,
-        `${event.aspect === null ? "a member of the document" : `an element of "${event.aspect}"`} is nested ${event.depth} levels deep, more than the ${MAX_ELEMENT_DEPTH} a graph keeps; skipped`,
+        `${what} is nested ${event.depth} levels deep, more than the ${MAX_ELEMENT_DEPTH} a graph keeps; skipped`,
         { line: event.line, element: event.aspect },
     );
 }
@@ -1893,7 +1894,8 @@ export class CxStructure {
         }
         const error = typeof value.error === "string" ? value.error : "";
         if (value.success === false) {
-            const message = `the producer marked the document as failed${error.length > 0 ? `: ${error}` : ""}`;
+            const detail = error.length > 0 ? `: ${error}` : "";
+            const message = `the producer marked the document as failed${detail}`;
             this.report.error("validation-error", STATUS_FAILED_CODE, message, { line, element: "status" });
             throw this.report.abort(message, { code: STATUS_FAILED_CODE });
         }

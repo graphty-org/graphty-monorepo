@@ -15,6 +15,7 @@ import {
     readdirSync,
     readFileSync,
     rmSync,
+    truncateSync,
     writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -98,9 +99,10 @@ describe("the test matrix", () => {
         );
     });
 
-    it("uploads coverage only for the members that uploaded it before the groups", () => {
+    it("uploads coverage for every member that writes it", () => {
         const browser = plan(PACKAGES).find((e) => e.shard === "small-browser");
-        assert.doesNotMatch(browser.coverage, /visual-review|webgpu-graph-algorithms-browser/);
+        assert.doesNotMatch(browser.coverage, /webgpu-graph-algorithms-browser|graphty-storybook/);
+        assert.match(browser.coverage, /visual-review=visual-review\/coverage\/lcov.info/);
         assert.match(browser.coverage, /^algorithms-browser=algorithms\/coverage\/lcov.info /);
         assert.equal(browser["needs-browser"], true);
     });
@@ -142,6 +144,23 @@ describe("the pre-push gate matches CI", () => {
                 );
             }
         }
+    });
+
+    it("never writes core dumps, and passes Formatting with one in the tree (#2617)", () => {
+        const prepush = code(tool("prepush.sh"));
+        const limit = prepush.indexOf("\nulimit -c 0\n");
+        assert.ok(limit > 0 && limit < prepush.indexOf("prepush-source-checks.sh"), "ulimit -c 0 before every step");
+        // prettier reads the root .gitignore; a sparse 3 GiB dump costs no disk.
+        const dir = mkdtempSync(join(TMP, "core-dump-"));
+        writeFileSync(join(dir, ".gitignore"), readFileSync(new URL("../.gitignore", import.meta.url)));
+        writeFileSync(join(dir, "ok.js"), "export const a = 1;\n");
+        for (const name of ["core", "core.2406307"]) {
+            writeFileSync(join(dir, name), "");
+            truncateSync(join(dir, name), 3 * 1024 ** 3);
+        }
+        const prettier = new URL("../node_modules/.bin/prettier", import.meta.url).pathname;
+        const run = spawnSync(prettier, ["--check", "."], { cwd: dir, encoding: "utf8" });
+        assert.equal(run.status, 0, run.stdout + run.stderr);
     });
 
     it("tests through tools/prepush-tests.mjs only, on CI's affected set", () => {

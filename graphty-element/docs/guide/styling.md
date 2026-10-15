@@ -173,7 +173,8 @@ A channel is one visual property with one name. These are all of them:
 | Node channel        | Takes                                                              |
 | ------------------- | ------------------------------------------------------------------ |
 | `node.color`        | any CSS colour                                                     |
-| `node.size`         | a number                                                           |
+| `node.size`         | 0 or more, in scene units; what it measures is `node.sizeMode`'s   |
+| `node.sizeMode`     | `scale` (the default) or `diameter`                                |
 | `node.shape`        | `sphere`, `box`, `cylinder`, `icosphere`, ...                      |
 | `node.label`        | the words to draw                                                  |
 | `node.labelStyle`   | `{font, sizePx, weight, color, background, outline, padding, ...}` |
@@ -238,6 +239,44 @@ at 24 px, and each field takes the value from the highest layer that set it.
 Glowing nodes are drawn through one mesh per distinct `node.glow` and `node.glowStrength`
 pair. A handful of glow styles costs nothing; a strength encoded from data, with a different value
 on every node, gives up instancing for the glowing nodes.
+
+### What a node's size measures
+
+`node.sizeMode` says how `node.size` is read. With `scale`, the default, the size multiplies each
+shape's own geometry, so shapes of one size are drawn at different extents. With `diameter`, the
+size is the largest width, height or depth of the drawn shape, the same for every shape: a size-1
+octahedron is as wide as a size-1 sphere.
+
+```typescript
+await element.session.styles.add({
+    name: "Same extent for every shape",
+    target: "node",
+    selector: { match: "everything" },
+    set: { "node.sizeMode": "diameter" },
+});
+```
+
+Under `scale`, a node's largest extent is its size times:
+
+| Shape                                                    | Factor |
+| -------------------------------------------------------- | ------ |
+| `sphere`, `box`, `capsule`                               | 1      |
+| `torus-knot`                                             | 1.25   |
+| `goldberg`, `icosphere`, `torus`                         | 1.5    |
+| `square_pyramid`                                         | 1.51   |
+| `cylinder`, `cone`                                       | 1.62   |
+| `geodesic`                                               | 1.7    |
+| `triangular_dipyramid`, `elongated_pentagonal_dipyramid` | 1.96   |
+| `pentagonal_pyramid`                                     | 2.01   |
+| `pentagonal_dipyramid`                                   | 2.06   |
+| `elongated_pentagonal_cupola`                            | 2.07   |
+| `dodecahedron`, `rhombicuboctahedron`                    | 2.14   |
+| `pentagonal_prism`                                       | 2.16   |
+| `hexagonal_prism`                                        | 2.24   |
+| `triangular_prism`                                       | 2.29   |
+| `icosahedron`                                            | 2.35   |
+| `elongated_square_dipyramid`                             | 2.43   |
+| `tetrahedron`, `octahedron`                              | 2.83   |
 
 ### Drawing a style editor
 

@@ -109,6 +109,14 @@ inputs="$top/tools/prepush-inputs.mjs"
 [ "$use_gate" = 1 ] && inputs="$gate_dir/tools/prepush-inputs.mjs"
 fingerprint=; gate_tree=
 [ -n "$sha" ] && [ -f "$inputs" ] && fingerprint=$(cd "$top" && node "$inputs" fingerprint 2>/dev/null)
+# The branch this push merges into (tools/push-base.mjs: origin/master, or a stacked pull request's
+# parent branch), asked once here and exported to the source checks and the gate, so a push asks at
+# most once and every step measures its changes from the same base.
+push_base="$top/tools/push-base.mjs"
+[ "$use_gate" = 1 ] && push_base="$gate_dir/tools/push-base.mjs"
+if [ -z "${PUSH_BASE_REF:-}" ] && [ -n "$sha" ] && [ -f "$push_base" ]; then
+    PUSH_BASE_REF=$(cd "$top" && node "$push_base" --branch "$branch") && export PUSH_BASE_REF
+fi
 gate_tree_of() { [ "$use_gate" = 1 ] && git -C "$gate_dir" rev-parse HEAD:tools HEAD:.husky 2>/dev/null | paste -sd: -; }
 gate_tree=$(gate_tree_of)
 if [ -n "$fingerprint" ] && [ "${PUSH_QUEUE_RETRY:-}" != 1 ] && [ -f "$log" ]; then
@@ -169,7 +177,7 @@ fi
 # Only an nx workspace has packages to ask about: elsewhere (a test's throwaway repository) pnpm and
 # nx would only fail, after seconds of startup and a listing of every directory above the checkout.
 fast=0
-if [ "$rc" = 0 ] && [ "${1:-}" = git ] && [ -f "$top/nx.json" ] && base=$(git merge-base origin/master HEAD 2>/dev/null); then
+if [ "$rc" = 0 ] && [ "${1:-}" = git ] && [ -f "$top/nx.json" ] && base=$(git merge-base "${PUSH_BASE_REF:-origin/master}" HEAD 2>/dev/null); then
     affected_json=$(NX_DAEMON=false pnpm exec nx show projects --affected --base="$base" --head=HEAD --json 2>/dev/null)
     [ "$affected_json" = "[]" ] && fast=1 && echo "push-queue: no package affected; skipping the queue"
 fi
@@ -218,7 +226,7 @@ done
 # their way to where they went before (logged, above), and both copies finish before the log is read. The
 # log line then carries the queue times, the gate's [FAIL] and FAIL lines -- with the FAIL lines of
 # each failed shard's own log (tmp/prepush-tests/<shard>.log), whose printed tail can miss them --
-# and the top-level directories the push changes against its merge base with origin/master
+# and the top-level directories the push changes against its merge base with the branch it merges into
 # (Markdown left out). Recording never fails or slows the push: each part that fails is left out of
 # the line. Logs older than 14 days are removed.
 # Through the live gate: git runs gate-live's pre-push hook, in the pushed checkout.
@@ -236,7 +244,7 @@ gate=$(sed 's/\x1b\[[0-9;]*m//g' "$gate_log" 2>/dev/null | grep -aE '\[FAIL\]|^ 
         while ((getline l < f) > 0) { gsub(/\033\[[0-9;]*m/, "", l); if (l ~ /^ *FAIL /) print l }
         close(f) }' 2>/dev/null | head -200 | jq -Rsc 'split("\n") | map(select(length > 0))' 2>/dev/null)
 changed=
-if [ -n "$sha" ] && base=$(git merge-base origin/master "$sha" 2>/dev/null); then
+if [ -n "$sha" ] && base=$(git merge-base "${PUSH_BASE_REF:-origin/master}" "$sha" 2>/dev/null); then
     changed=$(git diff --name-only "$base" "$sha" 2>/dev/null | awk -F/ '!/\.md$/ { print (NF > 1 ? $1 "/" : $0) }' | sort -u \
         | jq -Rsc 'split("\n") | map(select(length > 0))' 2>/dev/null)
 fi

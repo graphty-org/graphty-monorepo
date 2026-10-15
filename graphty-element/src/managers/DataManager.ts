@@ -12,6 +12,7 @@ import type { LoadReport } from "../data/report";
 import { adoptEdgeRecord, Edge, placeEdgeRow } from "../Edge";
 import { GraphtyError } from "../errors/GraphtyError";
 import { type LayoutEngine, layoutEngineInternals } from "../layout/LayoutEngine";
+import { disposeLabelsTogether } from "../meshes/LabelBatch";
 import { MeshCache } from "../meshes/MeshCache";
 import { adoptNodeRecord, Node, NodeIdType, placeNodeRow } from "../Node";
 import type { NodeDragHandler } from "../NodeBehavior";
@@ -85,6 +86,18 @@ export type { AddEdgesOptions } from "../session/project/ingest";
  * @returns What `teardown` returns.
  */
 export function disposeReleased<T>(nodes: Iterable<Node>, edges: Iterable<Edge>, teardown: () => T): T {
+    // The labels go together too, after the lists below are restored: see LabelBatch (issue #2804).
+    return disposeLabelsTogether(() => setAsideAndDispose(nodes, edges, teardown));
+}
+
+/**
+ * The body of {@link disposeReleased}, inside its label batch.
+ * @param nodes - The nodes `teardown` disposes.
+ * @param edges - The edges `teardown` disposes.
+ * @param teardown - Disposes them.
+ * @returns What `teardown` returns.
+ */
+function setAsideAndDispose<T>(nodes: Iterable<Node>, edges: Iterable<Edge>, teardown: () => T): T {
     const doomed = new Set<AbstractMesh>();
     const handlers: NodeDragHandler[] = [];
     collectDoomed(nodes, edges, doomed, handlers);

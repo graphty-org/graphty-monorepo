@@ -84,16 +84,21 @@ describe("CanvasToolbar", () => {
         it("opens with the 2D / 3D segmented control", () => {
             render(<CanvasToolbar {...props()} />);
 
-            const radios = within(bar()).getAllByRole("radio");
+            const radios = within(bar()).getAllByRole<HTMLInputElement>("radio");
 
-            expect(radios.map((radio) => radio.textContent)).toEqual(["2D", "3D"]);
-            expect(bar().firstElementChild).toBe(radios[0].parentElement);
+            expect(radios.map((radio) => radio.labels?.[0]?.textContent)).toEqual(["2D", "3D"]);
+            expect(bar().firstElementChild).toBe(within(bar()).getByRole("radiogroup"));
         });
 
         it("draws one divider after the segmented control and one before Views", () => {
             render(<CanvasToolbar {...props()} />);
 
-            expect(within(bar()).getAllByRole("separator")).toHaveLength(2);
+            const separators = within(bar()).getAllByRole("separator");
+            expect(separators).toHaveLength(2);
+            for (const separator of separators) {
+                expect(separator.tagName).toBe("HR");
+                expect(separator).toHaveAttribute("aria-orientation", "vertical");
+            }
         });
 
         it("draws no zoom percentage: the status bar owns that fact", () => {

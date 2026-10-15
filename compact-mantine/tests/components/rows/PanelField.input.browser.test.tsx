@@ -6,7 +6,7 @@ import { DirectionProvider, MantineProvider } from "@mantine/core";
 import { render, screen } from "@testing-library/react";
 import React from "react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { cdp, page } from "vitest/browser";
+import { page } from "vitest/browser";
 
 import { compactTheme } from "../../../src";
 import { PanelField } from "../../../src/components/rows/PanelField";
@@ -44,12 +44,19 @@ function fieldInput(): HTMLInputElement {
 }
 
 /**
- * Emulate a touch screen, whose pointer is coarse, or put the mouse back.
- * @param enabled - true for a touch screen
+ * Make the coarse-pointer query match, as on a touch screen. Chromium's touch emulation would do
+ * it too, but switching it off leaves (hover: none) matching for every later test file.
  */
-async function emulateTouchScreen(enabled: boolean): Promise<void> {
-    const session = cdp() as unknown as { send: (method: string, params: Record<string, unknown>) => Promise<unknown> };
-    await session.send("Emulation.setTouchEmulationEnabled", { enabled });
+function coarsePointer(): void {
+    const real = window.matchMedia.bind(window);
+    vi.spyOn(window, "matchMedia").mockImplementation((query: string) => {
+        const list = real(query);
+        if (query !== "(pointer: coarse)") {
+            return list;
+        }
+        // The real list's listeners, with the answer a touch screen gives.
+        return Object.create(list, { matches: { value: true } }) as MediaQueryList;
+    });
 }
 
 // A test frame small enough not to be scaled into the runner's window, so a move of 12 pixels
@@ -60,7 +67,7 @@ beforeAll(async () => {
 
 afterEach(async () => {
     await release();
-    await emulateTouchScreen(false);
+    vi.restoreAllMocks();
 });
 
 describe("PanelField scrubbing with the real mouse", () => {
@@ -182,7 +189,7 @@ describe("PanelField scrubbing with the real mouse", () => {
     });
 
     it("does not scrub on a coarse pointer", async () => {
-        await emulateTouchScreen(true);
+        coarsePointer();
         const onScrub = vi.fn();
         renderField(<PanelField label="Smallest" glyph="sizeSmallest" value="1.0" onScrub={onScrub} />);
 

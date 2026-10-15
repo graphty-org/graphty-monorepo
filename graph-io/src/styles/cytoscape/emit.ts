@@ -716,7 +716,7 @@ function addBypasses(
             continue;
         }
         const drawn = resolveRules(modelRules, target, p, e.src);
-        const step = rampStep(model.map.get(p), w.vp);
+        const step = drawnStep(model.map.get(p), w.vp, STYLE_PROPERTIES[target].get(p));
         let rounded = 0;
         for (let i = 0; i < e.n; i++) {
             const v = want[i];
@@ -734,14 +734,19 @@ function addBypasses(
 }
 
 /**
- * The step Cytoscape rounds the values of a written mapping to: a continuous mapping on a visual property that holds
- * whole numbers (a font size, a 0..255 transparency) is drawn rounded, unless the mapping already rounds to it.
+ * The step Cytoscape rounds the values of a written mapping to: a continuous mapping, or a passthrough written as
+ * one, on a visual property that holds whole numbers (a font size, a 0..255 transparency) is drawn rounded, unless
+ * the mapping already rounds to it. A passthrough written as a table writes its values through the property's writer,
+ * which notes them itself.
  * @param m - the mapping written, if any
  * @param vp - the visual property it sets
+ * @param kind - the kind of value the property holds
  * @returns the step, or undefined when Cytoscape draws the mapping's values as they are
  */
-function rampStep(m: Mapping | undefined, vp: string): number | undefined {
-    return m?.kind === "continuous" && m.step === undefined ? vpStep(vp) : undefined;
+function drawnStep(m: Mapping | undefined, vp: string, kind: string | undefined): number | undefined {
+    const ramp = m?.kind === "continuous" && m.step === undefined;
+    const passthrough = m?.kind === "passthrough" && PASSTHROUGH_SAFE.has(kind ?? "");
+    return ramp || passthrough ? vpStep(vp) : undefined;
 }
 
 /**

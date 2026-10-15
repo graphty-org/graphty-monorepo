@@ -942,7 +942,12 @@ export function GroupDetail({
                     return null;
                 }
                 const entries = groups.map((g) => g.entries[channel]);
-                const same = entries.every((entry) => entry === entries[0]);
+                // What each group paints now, its own entry or the layer's: groups that look
+                // different read Mixed even when none has an entry of its own.
+                const looks = groups.map((g) =>
+                    JSON.stringify(literalOf(g.entries[channel] ?? paints.get(channel)?.get(String(g.value)))),
+                );
+                const same = looks.every((look) => look === looks[0]);
                 const anySet = entries.some((entry) => entry !== undefined);
                 const name = channelWord(channel);
                 return (

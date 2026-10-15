@@ -267,11 +267,6 @@ describe("per-group settings", () => {
         const grid = within(popover).getByRole("grid", { name: /groups$/ });
         assert.equal(grid.getAttribute("aria-multiselectable"), "true");
         const groups = session.styles.groups(layer.id, path);
-        // Give the first group a color of its own, so the two differ.
-        await session.styles.setValueEntries(layer.id, path, [
-            { channel: "node.color", value: groups[0].value as number, entry: "#AA0000" },
-        ]);
-        await session.styles.settled();
 
         // A click opens the first group; Escape comes back to its row; Shift+ArrowDown adds the
         // second; Enter opens both.
@@ -292,7 +287,9 @@ describe("per-group settings", () => {
         });
         await userEvent.keyboard("{Enter}");
         const detail = await screen.findByRole("group", { name: "2 groups properties" });
+        // Neither has a color of its own, but the palette paints them apart: Mixed.
         assert.isNotNull(detail.querySelector("[data-group-field='node.color'] [data-mixed]"), "the two differ: Mixed");
+        const before = drawn(session, nodeOf(session, path, String(groups[0].value)), "node.color");
 
         const hex = within(detail).getByRole("textbox", { name: /color/i });
         await userEvent.clear(hex);
@@ -305,7 +302,7 @@ describe("per-group settings", () => {
         });
         await session.undo();
         await session.styles.settled();
-        assert.equal(drawn(session, a, "node.color"), "#aa0000", "one undo takes both back");
+        assert.equal(drawn(session, a, "node.color"), before, "one undo takes both back");
         assert.notEqual(drawn(session, b, "node.color"), "#00aa55");
     });
 

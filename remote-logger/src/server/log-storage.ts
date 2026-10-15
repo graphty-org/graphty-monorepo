@@ -232,11 +232,13 @@ function logMatches(log: LogEntry, filter: LogFilter): boolean {
  * @returns The pattern, or undefined when the query is not a valid regular expression
  */
 function searchPattern(query: string, regex: boolean): RegExp | undefined {
+    let pattern: RegExp;
     try {
-        return regex ? new RegExp(query, "i") : new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+        pattern = regex ? new RegExp(query, "i") : new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
     } catch {
         return undefined;
     }
+    return pattern;
 }
 
 /**

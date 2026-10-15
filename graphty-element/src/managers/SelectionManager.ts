@@ -253,9 +253,10 @@ export class SelectionManager implements Manager {
      * @param ids - The ids of the edges that were removed.
      */
     onEdgesRemoved(ids: readonly EdgeId[]): void {
-        // With no edge selected, there is nothing to take out, and resolving the ids would freeze
-        // the graph: once per removal of a run of them, each over the whole graph (issue #2733).
-        if (ids.length === 0 || this.selection?.edgeRemovalChangesNothing() === true) {
+        // With none of these edges selected, there is nothing to take out, and resolving the ids
+        // would freeze the graph: once per removal of a run of them, each over the whole graph
+        // (issues #2733, #2788).
+        if (ids.length === 0 || this.selection?.edgeRemovalChangesNothing(ids) === true) {
             return;
         }
 

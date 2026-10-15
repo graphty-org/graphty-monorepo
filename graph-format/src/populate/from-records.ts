@@ -414,6 +414,29 @@ function weightOf(record: RecordRow, key: string, edge: number): number | undefi
 }
 
 /**
+ * Add the node of one record: anonymous when the rules name no id key, else by the record's id.
+ * @param builder - the builder
+ * @param rules - the resolved rules
+ * @param record - the node record
+ * @param position - the record's position, for the message
+ * @returns the node index
+ */
+function pushNode(builder: GraphBuilder, rules: RecordRules, record: RecordRow, position: number): number {
+    const { nodeId } = rules;
+    if (nodeId === null) {
+        return builder.addAnonymousNodes(1);
+    }
+    if (!hasKey(record, nodeId)) {
+        throw new GraphFormatError("E_INVALID_ID", `node record ${position} has no "${nodeId}" key`, {
+            field: nodeId,
+            node: position,
+            reason: "missing id",
+        });
+    }
+    return builder.addNode(coerceId(record[nodeId], rules.ids, nodeId));
+}
+
+/**
  * Push the node records.
  * @param builder - the builder
  * @param rules - the resolved rules
@@ -423,19 +446,7 @@ function pushNodes(builder: GraphBuilder, rules: RecordRules, nodes: Iterable<Re
     const { nodeId, attributes } = rules;
     let position = 0;
     for (const record of nodes) {
-        let index: number;
-        if (nodeId === null) {
-            index = builder.addAnonymousNodes(1);
-        } else {
-            if (!hasKey(record, nodeId)) {
-                throw new GraphFormatError("E_INVALID_ID", `node record ${position} has no "${nodeId}" key`, {
-                    field: nodeId,
-                    node: position,
-                    reason: "missing id",
-                });
-            }
-            index = builder.addNode(coerceId(record[nodeId], rules.ids, nodeId));
-        }
+        const index = pushNode(builder, rules, record, position);
         if (attributes.readsAttributes) {
             for (const key of Object.keys(record)) {
                 if (key !== nodeId) {

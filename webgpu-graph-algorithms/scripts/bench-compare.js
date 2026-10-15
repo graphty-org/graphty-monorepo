@@ -197,22 +197,31 @@ function pinnedBaseline(file) {
     const rows = new Map();
     for (const s of sessions) {
         for (const r of s.results) {
-            const key = `${r.group}/${r.name}`;
-            const best = rows.get(key);
-            const min = typeof r.minMs === "number" ? r.minMs : undefined;
-            if (best === undefined) {
-                rows.set(key, { medianMs: r.medianMs, minMs: min });
-                continue;
-            }
-            if (r.medianMs < best.medianMs) {
-                best.medianMs = r.medianMs;
-            }
-            if (min !== undefined && (best.minMs === undefined || min < best.minMs)) {
-                best.minMs = min;
-            }
+            foldBest(rows, r);
         }
     }
     return { rows, sessions: sessions.length };
+}
+
+/**
+ * Folds one session's result into the pinned rows: the lower median and the lower minimum win.
+ * @param {Map<string, { medianMs: number, minMs: number | undefined }>} rows - the pinned rows, updated in place
+ * @param {{ group: string, name: string, medianMs: number, minMs?: number }} r - the result
+ */
+function foldBest(rows, r) {
+    const key = `${r.group}/${r.name}`;
+    const best = rows.get(key);
+    const min = typeof r.minMs === "number" ? r.minMs : undefined;
+    if (best === undefined) {
+        rows.set(key, { medianMs: r.medianMs, minMs: min });
+        return;
+    }
+    if (r.medianMs < best.medianMs) {
+        best.medianMs = r.medianMs;
+    }
+    if (min !== undefined && (best.minMs === undefined || min < best.minMs)) {
+        best.minMs = min;
+    }
 }
 
 /**

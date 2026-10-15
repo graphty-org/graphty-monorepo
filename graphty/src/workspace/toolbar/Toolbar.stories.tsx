@@ -60,8 +60,8 @@ async function loadRings(canvasElement: HTMLElement): Promise<GraphtyElement> {
 async function press(canvasElement: HTMLElement, name: string): Promise<void> {
     // In the toolbar: the Graph place's "Analyze (Shift+A) to add results here" hint is a button
     // named Analyze too.
-    const toolbar = await within(canvasElement).findByRole("toolbar", { name: "Canvas tools" });
-    await userEvent.click(await within(toolbar).findByRole("button", { name }));
+    const toolbar = await within(canvasElement).findByRole("toolbar", { name: "Canvas tools" }, storyWaitOptions(1000));
+    await userEvent.click(await within(toolbar).findByRole("button", { name }, storyWaitOptions(1000)));
 }
 
 /** The body, where popovers render. */
@@ -110,7 +110,10 @@ export const AnalyzeFiltered: Story = {
     play: async ({ canvasElement }) => {
         await loadRings(canvasElement);
         await press(canvasElement, "Analyze");
-        await userEvent.type(await body().findByRole("searchbox", { name: "Filter analyses" }), "brokers");
+        await userEvent.type(
+            await body().findByRole("searchbox", { name: "Filter analyses" }, storyWaitOptions(1000)),
+            "brokers",
+        );
     },
 };
 
@@ -120,7 +123,7 @@ export const AnalyzeEssentials: Story = {
     play: async ({ canvasElement }) => {
         await loadRings(canvasElement);
         await press(canvasElement, "Analyze");
-        await userEvent.click(await body().findByRole("button", { name: /^PageRank/ }));
+        await userEvent.click(await body().findByRole("button", { name: /^PageRank/ }, storyWaitOptions(1000)));
     },
 };
 
@@ -132,7 +135,7 @@ export const AnalyzeRevise: Story = {
         await element.session.runs.start("pagerank");
         await element.waitForStableFrame();
         await press(canvasElement, "Analyze");
-        const recent = await body().findByRole("region", { name: "Recent" });
+        const recent = await body().findByRole("region", { name: "Recent" }, storyWaitOptions(1000));
         await userEvent.click(within(recent).getByRole("button", { name: /^PageRank/ }));
     },
 };
@@ -143,8 +146,8 @@ export const AfterLouvain: Story = {
     play: async ({ canvasElement }) => {
         const element = await loadRings(canvasElement);
         await press(canvasElement, "Analyze");
-        await userEvent.click(await body().findByRole("button", { name: /^Louvain/ }));
-        await userEvent.click(await body().findByRole("button", { name: "Run" }));
+        await userEvent.click(await body().findByRole("button", { name: /^Louvain/ }, storyWaitOptions(1000)));
+        await userEvent.click(await body().findByRole("button", { name: "Run" }, storyWaitOptions(1000)));
         await Promise.all(element.session.runs.list());
         await element.waitForStableFrame();
         // Run closes the popover and hands focus back to Analyze. The play's clicks are synthetic,

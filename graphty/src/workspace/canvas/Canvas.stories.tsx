@@ -88,7 +88,7 @@ export const Loading: Story = {
         </div>
     ),
     play: async ({ canvasElement }) => {
-        await within(canvasElement).findByRole("region", { name: "Reading Karate Club" });
+        await within(canvasElement).findByRole("region", { name: "Reading Karate Club" }, storyWaitOptions(1000));
     },
 };
 

@@ -1253,6 +1253,27 @@ function lifetimeAttrs(roles: RoleColumns, row: number, plan: ExportPlan): strin
 }
 
 /**
+ * The `start` and `end` attributes of one `<spell>`.
+ * @param s - the start, or a non-finite value for an unbounded start
+ * @param e - the end, or a non-finite value for an unbounded end
+ * @param open - the open-bound bits
+ * @param plan - the plan
+ * @returns the attribute text, each with a leading space
+ */
+function spellBounds(s: number, e: number, open: number, plan: ExportPlan): string {
+    let attrs = "";
+    if (Number.isFinite(s)) {
+        const name = (open & OPEN_START) === 0 ? "start" : "startopen";
+        attrs += ` ${name}="${escapeXmlAttribute(formatTimeValue(s, plan.timeFormat))}"`;
+    }
+    if (Number.isFinite(e)) {
+        const name = (open & OPEN_END) === 0 ? "end" : "endopen";
+        attrs += ` ${name}="${escapeXmlAttribute(formatTimeValue(e, plan.timeFormat))}"`;
+    }
+    return attrs;
+}
+
+/**
  * The `<spells>` element of one element: its spells column, plus (1.2) its timestamps as [t, t].
  * In 1.2 a spell whose spells.open bits mark a bound open writes that bound as `startopen` /
  * `endopen`; 1.3 has no open bounds, and check() reports the loss.
@@ -1281,16 +1302,7 @@ function spellsElement(roles: RoleColumns, row: number, plan: ExportPlan, indent
     }
     let out = `${indent}<spells>\n`;
     for (const [s, e, open] of pairs) {
-        let attrs = "";
-        if (Number.isFinite(s)) {
-            const name = (open & OPEN_START) === 0 ? "start" : "startopen";
-            attrs += ` ${name}="${escapeXmlAttribute(formatTimeValue(s, plan.timeFormat))}"`;
-        }
-        if (Number.isFinite(e)) {
-            const name = (open & OPEN_END) === 0 ? "end" : "endopen";
-            attrs += ` ${name}="${escapeXmlAttribute(formatTimeValue(e, plan.timeFormat))}"`;
-        }
-        out += `${indent}  <spell${attrs}/>\n`;
+        out += `${indent}  <spell${spellBounds(s, e, open, plan)}/>\n`;
     }
     return `${out}${indent}</spells>\n`;
 }
@@ -1690,6 +1702,52 @@ function metaElement(meta: GraphSnapshot["meta"], styled: GexfStyledExport | nul
 }
 
 /**
+ * The `idtype` attribute of the `<graph>` tag.
+ * @param snapshot - the snapshot
+ * @returns the attribute text with a leading space, or an empty string
+ */
+function graphIdTypeAttr(snapshot: GraphSnapshot): string {
+    let { idType } = snapshot.meta;
+    if (idType === null) {
+        const { kind } = snapshot.ids;
+        if (kind === "string") {
+            idType = "string";
+        } else if (kind !== "mixed") {
+            idType = "integer";
+        }
+    }
+    return idType === "integer" || idType === "string" ? ` idtype="${idType}"` : "";
+}
+
+/**
+ * The `start`, `end` and `timestamp` attributes of the `<graph>` tag.
+ * @param snapshot - the snapshot
+ * @param plan - the plan
+ * @returns the attribute text with leading spaces, or an empty string
+ */
+function graphHeaderAttrs(snapshot: GraphSnapshot, plan: ExportPlan): string {
+    const timestamp = graphExtraText(snapshot, "timestamp");
+    const header: Record<string, string | null> = {
+        start: graphExtraText(snapshot, "start"),
+        end: graphExtraText(snapshot, "end"),
+        timestamp,
+    };
+    if (plan.version === "1.2" && timestamp !== null) {
+        // GEXF 1.2 has no timestamp: the graph's becomes a closed interval, as an element's does
+        header.start ??= timestamp;
+        header.end ??= timestamp;
+        header.timestamp = null;
+    }
+    let attrs = "";
+    for (const [key, value] of Object.entries(header)) {
+        if (value !== null) {
+            attrs += ` ${key}="${escapeXmlAttribute(value)}"`;
+        }
+    }
+    return attrs;
+}
+
+/**
  * The `<graph>` start tag with its header attributes.
  * @param snapshot - the snapshot
  * @param plan - the plan
@@ -1706,18 +1764,7 @@ function graphStart(snapshot: GraphSnapshot, plan: ExportPlan): string {
         mode = "dynamic";
     }
     attrs += ` mode="${mode}"`;
-    let { idType } = meta;
-    if (idType === null) {
-        const { kind } = snapshot.ids;
-        if (kind === "string") {
-            idType = "string";
-        } else if (kind !== "mixed") {
-            idType = "integer";
-        }
-    }
-    if (idType === "integer" || idType === "string") {
-        attrs += ` idtype="${idType}"`;
-    }
+    attrs += graphIdTypeAttr(snapshot);
     if (plan.timeFormat !== null) {
         attrs += ` timeformat="${plan.timeFormat}"`;
     } else if (plan.temporal) {
@@ -1726,23 +1773,7 @@ function graphStart(snapshot: GraphSnapshot, plan: ExportPlan): string {
     if (plan.version === "1.3" && plan.timeRepresentation !== null) {
         attrs += ` timerepresentation="${plan.timeRepresentation}"`;
     }
-    const timestamp = graphExtraText(snapshot, "timestamp");
-    const header: Record<string, string | null> = {
-        start: graphExtraText(snapshot, "start"),
-        end: graphExtraText(snapshot, "end"),
-        timestamp,
-    };
-    if (plan.version === "1.2" && timestamp !== null) {
-        // GEXF 1.2 has no timestamp: the graph's becomes a closed interval, as an element's does
-        header.start ??= timestamp;
-        header.end ??= timestamp;
-        header.timestamp = null;
-    }
-    for (const [key, value] of Object.entries(header)) {
-        if (value !== null) {
-            attrs += ` ${key}="${escapeXmlAttribute(value)}"`;
-        }
-    }
+    attrs += graphHeaderAttrs(snapshot, plan);
     return `  <graph${attrs}>\n`;
 }
 

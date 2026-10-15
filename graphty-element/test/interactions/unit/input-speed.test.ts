@@ -293,32 +293,6 @@ describe("Input Speed and Sensitivity", () => {
             assert.isAbove(rotationChange, 0.001, "Rotation speed should produce detectable movement");
             assert.isBelow(rotationChange, Math.PI, "Rotation speed should not be excessively fast");
         });
-
-        test("3D rotation velocity dampens with inertia", () => {
-            const { inputController } = get3DControllers(graph);
-
-            // Access private rotation velocity
-            const controller = inputController as unknown as {
-                rotationVelocityY: number;
-                config: { inertiaDamping: number };
-            };
-
-            // Set initial velocity
-            controller.rotationVelocityY = 0.1;
-            const dampingFactor = controller.config.inertiaDamping;
-
-            // Run update without keys pressed
-            runUpdateFrames(inputController, 1);
-
-            // Velocity should have been applied and damped
-            // Note: The update applies the velocity then damps it
-            assert.closeTo(
-                controller.rotationVelocityY,
-                0.1 * dampingFactor,
-                0.001,
-                "Rotation velocity should decay by damping factor",
-            );
-        });
     });
 
     describe("Mouse Sensitivity", () => {

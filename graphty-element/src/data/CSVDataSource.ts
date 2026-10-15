@@ -422,25 +422,54 @@ export class CSVDataSource extends DataSource {
                 return { nodes: [], edges: [] };
             }
 
-            const pair = ENDPOINT_PAIRS.find(([source, target]) => header.includes(source) && header.includes(target));
-            const idColumn =
-                mayBeNodeList || nodeTable ? NODE_ID_COLUMNS.find((name) => header.includes(name)) : undefined;
-            if (edgeTable && pair !== undefined) {
-                imported = await this.importTable(content, { ...table, sourceColumn: pair[0], targetColumn: pair[1] });
-            } else if (idColumn !== undefined) {
-                imported = await this.importTable(content, { table: "nodes", idColumn });
-            } else if (nodeTable) {
-                // No id column: each row's number is its id, and every column stays an attribute --
-                // graph-io would otherwise take a `name`, `node` or `key` column as the id.
-                const numbered = await this.importTable(content, { table: "nodes", nodeIdFrom: "index" });
-                imported = { ...numbered, nodes: numbered.nodes.map(({ id, data }) => ({ id: String(id), data })) };
-            } else {
+            const guessed = await this.readByHeader(content, table, header, mayBeNodeList);
+            if (guessed === null) {
                 return null;
             }
+
+            imported = guessed;
         }
 
         aggregateErrors(imported.report, this.errorAggregator, true);
         return imported;
+    }
+
+    /**
+     * Read a table whose columns were not configured, by the columns its header holds: an edge
+     * table by the first pair of {@link ENDPOINT_PAIRS} it holds, a node table (or, where it may be
+     * one, any table) by its id column, and a node table without one by row number.
+     * @param content - the file's text
+     * @param table - the variant's table options
+     * @param header - the file's header
+     * @param mayBeNodeList - read a header with no endpoint pair and an `id` column as a node table
+     * @returns the records, or null when the header names nothing to read the rows by
+     */
+    private async readByHeader(
+        content: string,
+        table: CsvImportOptions,
+        header: readonly string[],
+        mayBeNodeList: boolean,
+    ): Promise<ImportedRecords | null> {
+        const edgeTable = table.table === "edges";
+        const nodeTable = table.table === "nodes";
+        const pair = ENDPOINT_PAIRS.find(([source, target]) => header.includes(source) && header.includes(target));
+        const idColumn = mayBeNodeList || nodeTable ? NODE_ID_COLUMNS.find((name) => header.includes(name)) : undefined;
+        if (edgeTable && pair !== undefined) {
+            return this.importTable(content, { ...table, sourceColumn: pair[0], targetColumn: pair[1] });
+        }
+
+        if (idColumn !== undefined) {
+            return this.importTable(content, { table: "nodes", idColumn });
+        }
+
+        if (nodeTable) {
+            // No id column: each row's number is its id, and every column stays an attribute --
+            // graph-io would otherwise take a `name`, `node` or `key` column as the id.
+            const numbered = await this.importTable(content, { table: "nodes", nodeIdFrom: "index" });
+            return { ...numbered, nodes: numbered.nodes.map(({ id, data }) => ({ id: String(id), data })) };
+        }
+
+        return null;
     }
 
     /**

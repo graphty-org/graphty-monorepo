@@ -627,13 +627,16 @@ export class NodeDragHandler {
     }
 
     /**
-     * Handle a click on this node - select it and emit node-click event.
+     * Handle a click on this node - select it (shift-click adds it to the selection, or takes it
+     * out) and emit node-click event.
      */
     private handleClick(): void {
         // Get the selection manager from the graph context
         const context = this.getContext();
         const selectionManager = context.getSelectionManager?.();
-        if (selectionManager) {
+        if (selectionManager && this.clickState?.pointerEvent?.shiftKey === true) {
+            selectionManager.toggle(this.node);
+        } else if (selectionManager) {
             selectionManager.select(this.node);
         }
 

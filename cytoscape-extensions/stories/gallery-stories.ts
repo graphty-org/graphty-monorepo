@@ -1,5 +1,5 @@
 /**
- * The gallery stories: every layout, algorithm, generator, bundled dataset and file format, one small Cytoscape per
+ * The gallery stories: every layout, algorithm, generator, small dataset and file format, one small Cytoscape per
  * tile. Each page of stories/catalog.ts's GALLERY_PAGES is a folder of stories (stories/gallery/, written by
  * test/demo-catalog.test.ts): an Overview with every tile of the page, and one story per tile showing it full size.
  *
@@ -30,7 +30,7 @@ import {
     presetWithSeed,
     SIMULATION_LAYOUTS,
 } from "./catalog.js";
-import { elementsOf, failureWords, GENERATE, markDirected, type Outcome, SIZES } from "./demo.js";
+import { datasetOptions, elementsOf, failureWords, GENERATE, markDirected, type Outcome, SIZES } from "./demo.js";
 import { EXAMPLES, spread } from "./examples.js";
 import { formatTile } from "./formats.js";
 import { renderGallery, type Tile } from "./gallery.js";
@@ -428,7 +428,7 @@ const generators: Page = {
     }),
 };
 
-/** Every bundled dataset, laid out and colored to show what it holds; a one-tile story names its source and license. */
+/** Every small dataset, laid out and colored to show what it holds; a one-tile story names its source and license. */
 const datasets: Page = {
     controls: () => pick("seed", "roundTrip"),
     intro: (every, key) => {
@@ -440,7 +440,7 @@ const datasets: Page = {
     tile: (name, a) => ({
         title: name,
         load: async (cy) => {
-            const { directed } = await cy.graphtyDataset(name);
+            const { directed } = await cy.graphtyDataset(name, datasetOptions());
             markDirected(cy, directed);
         },
         run: async (cy) => ({ ran: "", detail: null, note: await showDataset(cy, name, a.seed) }),

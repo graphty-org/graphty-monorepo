@@ -2,7 +2,7 @@
 // Source: https://raw.githubusercontent.com/cytoscape/cytoscape-tutorials/8d1f66e4cd12446f4a928ab72e3cf2660cd6c74a/protocols/data/galFiltered.cys
 // sha256: 3513217733656d964d683538a0591a2054c1270040a9f8702367275bedf53a6f
 
-import { type DatasetData } from "../build.js";
+import { type DatasetData } from "./build.js";
 
 export const DATA: DatasetData = {
     directed: true,

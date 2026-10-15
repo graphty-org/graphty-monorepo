@@ -24,31 +24,68 @@ export function rescaleLayout(
     scale: number = 1,
     center: number[] | null = null,
 ): PositionMap | number[][] {
-    // Check if pos is empty
-    if (Array.isArray(pos)) {
-        if (pos.length === 0) {
-            return [];
-        }
-    } else if (Object.keys(pos).length === 0) {
-        return {};
-    }
-
-    // Extract position values
     const posValues: number[][] = Array.isArray(pos) ? pos : Object.values(pos);
-    const dim = posValues[0].length;
-
-    // Fix Bug #1: Default center should match dimensionality
-    if (!center) {
-        center = new Array(dim).fill(0);
+    if (posValues.length === 0) {
+        return Array.isArray(pos) ? [] : {};
     }
 
+    const dim = posValues[0].length;
+    // Default center should match dimensionality
+    const target = center ?? new Array<number>(dim).fill(0);
     // Use the maximum dimension between positions and center
-    const targetDim = Math.max(dim, center.length);
+    const targetDim = Math.max(dim, target.length);
+    const posCenter = meanPosition(posValues, dim);
 
-    // Calculate center of positions, handling NaN values (Bug #3)
+    const centeredPos = mapRows(pos, (p) => centerRow(p, posCenter, targetDim));
+    const maxDistance = maxRowNorm(Array.isArray(centeredPos) ? centeredPos : Object.values(centeredPos));
+
+    if (maxDistance > 0) {
+        const scaleFactor = scale / maxDistance;
+        return mapRows(centeredPos, (p, key) => scaleRow(p, rowOf(pos, key).length, scaleFactor, target));
+    }
+    // All nodes at the same position - extend to target dimensionality
+    return mapRows(pos, (p) => collapseRow(p, target, targetDim));
+}
+
+/**
+ * Applies `fn` to every row of an array or a map, keeping its shape and keys.
+ * @param pos - Rows as an array or an id-keyed map
+ * @param fn - Builds the new row from a row and its index or key
+ * @returns The new rows, in the same shape as `pos`
+ */
+function mapRows(
+    pos: PositionMap | number[][],
+    fn: (p: number[], key: number | string) => number[],
+): PositionMap | number[][] {
+    if (Array.isArray(pos)) {
+        return pos.map((p, idx) => fn(p, idx));
+    }
+    const out: PositionMap = {};
+    for (const [node, p] of Object.entries(pos)) {
+        out[node] = fn(p, node);
+    }
+    return out;
+}
+
+/**
+ * Reads the row of an array or a map by its index or key.
+ * @param pos - Rows as an array or an id-keyed map
+ * @param key - Index or key of the row
+ * @returns The row
+ */
+function rowOf(pos: PositionMap | number[][], key: number | string): number[] {
+    return Array.isArray(pos) ? pos[key as number] : pos[key];
+}
+
+/**
+ * Mean of each of the first `dim` coordinates, skipping NaN and missing ones; 0 where none is present.
+ * @param posValues - Position rows
+ * @param dim - Number of coordinates to average
+ * @returns The mean position
+ */
+function meanPosition(posValues: number[][], dim: number): number[] {
     const posCenter: number[] = new Array(dim).fill(0);
     const counts: number[] = new Array(dim).fill(0);
-
     for (const p of posValues) {
         for (let i = 0; i < dim; i++) {
             // a position shorter than the first has no coordinate i: skip it like a NaN one
@@ -58,37 +95,36 @@ export function rescaleLayout(
             }
         }
     }
-
     // Average by actual count, not total length
     for (let i = 0; i < dim; i++) {
         posCenter[i] = counts[i] > 0 ? posCenter[i] / counts[i] : 0;
     }
+    return posCenter;
+}
 
-    // Center positions
-    let centeredPos: PositionMap | number[][] = {};
-    if (Array.isArray(pos)) {
-        centeredPos = pos.map((p) => {
-            const centered = new Array(targetDim).fill(0);
-            for (let i = 0; i < targetDim; i++) {
-                centered[i] = (i < p.length ? p[i] : 0) - (i < posCenter.length ? posCenter[i] : 0);
-            }
-            return centered;
-        });
-    } else {
-        for (const [node, p] of Object.entries(pos)) {
-            const centered = new Array(targetDim).fill(0);
-            for (let i = 0; i < targetDim; i++) {
-                centered[i] = (i < p.length ? p[i] : 0) - (i < posCenter.length ? posCenter[i] : 0);
-            }
-            centeredPos[node] = centered;
-        }
+/**
+ * Subtracts `posCenter` from a row, padded or cut to `targetDim` coordinates (missing ones count as 0).
+ * @param p - Position row
+ * @param posCenter - Mean position
+ * @param targetDim - Length of the returned row
+ * @returns The centered row
+ */
+function centerRow(p: number[], posCenter: number[], targetDim: number): number[] {
+    const centered = new Array(targetDim).fill(0);
+    for (let i = 0; i < targetDim; i++) {
+        centered[i] = (i < p.length ? p[i] : 0) - (i < posCenter.length ? posCenter[i] : 0);
     }
+    return centered;
+}
 
-    // Find maximum distance from center, handling NaN values (Bug #3)
+/**
+ * Largest Euclidean norm of the rows, treating NaN coordinates as 0.
+ * @param rows - Centered rows
+ * @returns The largest norm, 0 for none
+ */
+function maxRowNorm(rows: number[][]): number {
     let maxDistance = 0;
-    const centeredValues = Array.isArray(centeredPos) ? centeredPos : Object.values(centeredPos);
-    for (const p of centeredValues) {
-        // Calculate distance, treating NaN as 0 for distance calculation
+    for (const p of rows) {
         let sumSquares = 0;
         for (const val of p) {
             if (!Number.isNaN(val)) {
@@ -100,75 +136,43 @@ export function rescaleLayout(
             maxDistance = Math.max(maxDistance, distance);
         }
     }
+    return maxDistance;
+}
 
-    // Rescale
-    let scaledPos: PositionMap | number[][] = Array.isArray(pos) ? [] : {};
-
-    if (maxDistance > 0) {
-        const scaleFactor = scale / maxDistance;
-
-        if (Array.isArray(pos)) {
-            (scaledPos as number[][]) = (centeredPos as number[][]).map((p, idx) =>
-                p.map((val, i) => {
-                    // Check if this dimension existed in the original position
-                    const origPos = pos[idx];
-                    if (i >= origPos.length) {
-                        // This dimension was added, use center value
-                        return center[i];
-                    }
-                    // Preserve NaN values (Bug #3)
-                    if (Number.isNaN(val)) {
-                        return Number.NaN;
-                    }
-                    return val * scaleFactor + center[i];
-                }),
-            );
-        } else {
-            for (const [node, p] of Object.entries(centeredPos as PositionMap)) {
-                const origPos = pos[node];
-                (scaledPos as PositionMap)[node] = p.map((val, i) => {
-                    // Check if this dimension existed in the original position
-                    if (i >= origPos.length) {
-                        // This dimension was added, use center value
-                        return center[i];
-                    }
-                    // Preserve NaN values (Bug #3)
-                    if (Number.isNaN(val)) {
-                        return Number.NaN;
-                    }
-                    return val * scaleFactor + center[i];
-                });
-            }
+/**
+ * Scales a centered row and moves it to `center`; a coordinate the original row lacked takes the center's value,
+ * and a NaN one stays NaN.
+ * @param p - Centered row
+ * @param origLength - Length of the original row
+ * @param scaleFactor - Multiplier for each coordinate
+ * @param center - Target center
+ * @returns The scaled row
+ */
+function scaleRow(p: number[], origLength: number, scaleFactor: number, center: number[]): number[] {
+    return p.map((val, i) => {
+        if (i >= origLength) {
+            return center[i];
         }
-    } else if (Array.isArray(pos)) {
-        // All nodes at the same position - extend to target dimensionality
-        (scaledPos as number[][]) = pos.map((p) => {
-            const result = new Array(targetDim);
-            for (let i = 0; i < targetDim; i++) {
-                if (i < p.length) {
-                    result[i] = Number.isNaN(p[i]) ? Number.NaN : center[i];
-                } else {
-                    result[i] = center[i];
-                }
-            }
-            return result;
-        });
-    } else {
-        // All nodes at the same position, as a map - extend to target dimensionality
-        for (const [node, p] of Object.entries(pos)) {
-            const result = new Array(targetDim);
-            for (let i = 0; i < targetDim; i++) {
-                if (i < p.length) {
-                    result[i] = Number.isNaN(p[i]) ? Number.NaN : center[i];
-                } else {
-                    result[i] = center[i];
-                }
-            }
-            (scaledPos as PositionMap)[node] = result;
+        if (Number.isNaN(val)) {
+            return Number.NaN;
         }
+        return val * scaleFactor + center[i];
+    });
+}
+
+/**
+ * Puts a row of a layout with no spread at `center`, padded to `targetDim`; a NaN coordinate stays NaN.
+ * @param p - Position row
+ * @param center - Target center
+ * @param targetDim - Length of the returned row
+ * @returns The row at the center
+ */
+function collapseRow(p: number[], center: number[], targetDim: number): number[] {
+    const result = new Array(targetDim);
+    for (let i = 0; i < targetDim; i++) {
+        result[i] = i < p.length && Number.isNaN(p[i]) ? Number.NaN : center[i];
     }
-
-    return scaledPos;
+    return result;
 }
 
 /**

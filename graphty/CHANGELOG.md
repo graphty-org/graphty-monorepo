@@ -1,3 +1,20 @@
+## 0.8.77 (2026-10-15)
+
+### 🚀 Features
+
+- **graphty:** offer the node size mode in the Style tab ([#2495](https://github.com/graphty-org/graphty-monorepo/issues/2495))
+- **graphty:** pivot the camera on the selected nodes ([#2293](https://github.com/graphty-org/graphty-monorepo/issues/2293))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.55
+- Updated graphty-element to 3.27.0
+- Updated graph-samples to 0.1.33
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.8.76 (2026-10-14)
 
 ### 🩹 Fixes

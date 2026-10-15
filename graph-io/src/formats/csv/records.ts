@@ -410,22 +410,31 @@ export function sniffDelimiter(
         if (rows.length === 0) {
             continue;
         }
-        let total = 0;
-        let delta = 0;
-        for (let i = 0; i < rows.length; i++) {
-            const count = rows[i].length;
-            total += count;
-            if (i > 0) {
-                delta += Math.abs(count - rows[i - 1].length);
-            }
-        }
-        const average = total / rows.length;
+        const { average, delta } = rowWidths(rows);
         if (average > 1.99 && delta < bestDelta) {
             best = delimiter;
             bestDelta = delta;
         }
     }
     return best;
+}
+
+/**
+ * The average width of the rows and the sum of the width changes from each row to the next.
+ * @param rows - the rows (at least one)
+ * @returns the average and the delta
+ */
+function rowWidths(rows: readonly (readonly string[])[]): { average: number; delta: number } {
+    let total = 0;
+    let delta = 0;
+    for (let i = 0; i < rows.length; i++) {
+        const count = rows[i].length;
+        total += count;
+        if (i > 0) {
+            delta += Math.abs(count - rows[i - 1].length);
+        }
+    }
+    return { average: total / rows.length, delta };
 }
 
 /**

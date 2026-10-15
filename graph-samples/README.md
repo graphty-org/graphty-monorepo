@@ -1,3 +1,5 @@
+<img src="https://raw.githubusercontent.com/graphty-org/brand/main/guide/on-white/png/graphty-graph-samples-lockup-color-on-light-800w.png" alt="graphty graph-samples" width="403">
+
 # @graphty/graph-samples
 
 Graphs to try things on: seeded random-graph generators that produce the same graph on every

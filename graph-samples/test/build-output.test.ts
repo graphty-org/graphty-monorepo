@@ -2,10 +2,10 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
+import { type GraphSnapshot } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
 import { erdosRenyiGraph } from "../src/generators/index.js";
-import { type SampleGraph } from "../src/types.js";
 import { graphHash } from "./helpers/graph.js";
 
 const root = path.resolve(import.meta.dirname, "..");
@@ -39,6 +39,9 @@ describe("package.json", () => {
         }
         expect(packageJson.exports["./datasets/*"].import).toBe("./dist/datasets/*.js");
         expect(packageJson.files).toEqual(expect.arrayContaining(["dist/", "src/", "README.md", "LICENSE", "NOTICE"]));
+        // no dataset's data ships: the packed files under dist/data/ are for graphty.app, data/ is not listed
+        expect(packageJson.files).toContain("!dist/data/");
+        expect(packageJson.files).not.toContain("data/");
     });
 
     it("depends on graph-format as both a dependency and a peer", () => {
@@ -60,7 +63,7 @@ describe("plain ASCII", () => {
                 }
             }
         };
-        for (const dir of ["src", "test", "scripts"]) {
+        for (const dir of ["src", "data", "test", "scripts"]) {
             walk(path.join(root, dir));
         }
         for (const file of ["NOTICE", "README.md", "CLAUDE.md", "package.json"]) {
@@ -85,7 +88,11 @@ describe.runIf(existsSync(path.join(root, "dist/graph-samples.js")))("the built 
         const generators = (await import(url("dist/generators.js"))) as { erdosRenyiGraph: typeof erdosRenyiGraph };
         const options = { n: 500, p: 0.02, seed: 12 };
         expect(graphHash(generators.erdosRenyiGraph(options))).toBe(graphHash(erdosRenyiGraph(options)));
-        const karate = (await import(url("dist/datasets/karate.js"))) as { karate: () => SampleGraph };
-        expect(karate.karate().src.length).toBe(78);
+        const karate = (await import(url("dist/datasets/karate.js"))) as {
+            karate: (options: { fetch: typeof fetch }) => Promise<GraphSnapshot>;
+        };
+        const body = readFileSync(path.join(root, "dist/data/v1/karate.gsnp.gz"));
+        const snapshot = await karate.karate({ fetch: () => Promise.resolve(new Response(body)) });
+        expect(snapshot.edgeCount).toBe(78);
     });
 });

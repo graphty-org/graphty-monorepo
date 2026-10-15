@@ -1,6 +1,5 @@
 import Color from "colorjs.io";
 import { z } from "zod/v4";
-// import * as z4 from "zod/v4/core";
 
 /**
  * A record the element ingests: a node's or an edge's keys and values, as a reader yields them.
@@ -49,7 +48,6 @@ export const AdvancedColorStyle = z.discriminatedUnion("colorType", [
         opacity: z.number().min(0).max(1).optional(),
     }),
 ]);
-// const ColorScheme = z.array(ColorStyle);
 
 export const TextLocation = z.enum([
     "top",

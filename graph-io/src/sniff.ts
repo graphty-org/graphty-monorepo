@@ -557,5 +557,5 @@ function clamp(value: number): number {
     if (!(value > 0)) {
         return 0;
     }
-    return value > 1 ? 1 : value;
+    return Math.min(value, 1);
 }

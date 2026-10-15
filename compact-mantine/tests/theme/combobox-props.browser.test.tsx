@@ -25,7 +25,8 @@ function renderWithTheme(ui: React.ReactElement): ReturnType<typeof render> {
 }
 
 /**
- * Open a field's list and wait until floating-ui has placed it.
+ * Open a field's list and wait until it is visible. floating-ui places it asynchronously after
+ * that, so a test waits for the position it checks (vi.waitFor) rather than reading it at once.
  * @param container - the render container
  * @returns the field's box and the open list
  */
@@ -42,9 +43,6 @@ async function open(container: HTMLElement): Promise<{ field: DOMRect; list: HTM
         list = [...container.querySelectorAll<HTMLElement>(".cm-listbox")].find((el) => el.checkVisibility());
         expect(list).toBeDefined();
     });
-    for (let i = 0; i < 3; i++) {
-        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-    }
     return { field: wrapper.getBoundingClientRect(), list: list as HTMLElement };
 }
 
@@ -62,9 +60,11 @@ describe("comboboxProps merge over the theme's list defaults", () => {
         const { field, list } = await open(container);
         const selected = list.querySelector<HTMLElement>("[data-checked]");
         expect(selected).not.toBeNull();
-        const s = (selected as HTMLElement).getBoundingClientRect();
-        expect(Math.abs(s.top - field.top)).toBeLessThanOrEqual(1);
-        expect(Math.abs(list.getBoundingClientRect().left - (field.left - 8))).toBeLessThanOrEqual(1);
+        await vi.waitFor(() => {
+            const s = (selected as HTMLElement).getBoundingClientRect();
+            expect(Math.abs(s.top - field.top)).toBeLessThanOrEqual(1);
+            expect(Math.abs(list.getBoundingClientRect().left - (field.left - 8))).toBeLessThanOrEqual(1);
+        });
         expect(getComputedStyle(list).zIndex).toBe("1100");
     });
 
@@ -79,8 +79,10 @@ describe("comboboxProps merge over the theme's list defaults", () => {
             />,
         );
         const { field, list } = await open(container);
-        expect(list.getBoundingClientRect().top - field.bottom).toBeCloseTo(4, 0);
-        expect(Math.abs(list.getBoundingClientRect().left - field.left)).toBeLessThanOrEqual(1);
+        await vi.waitFor(() => {
+            expect(list.getBoundingClientRect().top - field.bottom).toBeCloseTo(4, 0);
+            expect(Math.abs(list.getBoundingClientRect().left - field.left)).toBeLessThanOrEqual(1);
+        });
     });
 
     it("a caller's own key still wins over the theme's", async () => {

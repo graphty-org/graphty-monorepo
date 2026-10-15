@@ -1,7 +1,7 @@
 import { type F64, type GraphSnapshot, type NodeSet, resolveNodeSet } from "@graphty/graph-format";
 
 import { type LayoutResult, rescaleInPlace } from "../positions.js";
-import { type CommonLayoutOptions, planar, resolve, result } from "./common.js";
+import { type CommonLayoutOptions, planar, refusal, resolve, result } from "./common.js";
 
 /** Whether the layers run left to right (`vertical`: each layer is a column) or top to bottom (`horizontal`). */
 export type LayerAlign = "vertical" | "horizontal";
@@ -28,7 +28,9 @@ export interface MultipartiteLayoutOptions extends CommonLayoutOptions {
  * @param align - the layer direction
  * @param scale - the distance of the farthest node from the centre
  * @param center - the centre, at least 2 components
+ * @param option - the option the layers came from, for a refusal's `params`
  * @returns `2 * n` values
+ * @throws `E_BAD_OPTION` for an unknown `align`, `E_BAD_NODE` for a layer index that is not a node
  */
 export function layeredRows(
     n: number,
@@ -37,16 +39,23 @@ export function layeredRows(
     align: LayerAlign,
     scale: number,
     center: readonly number[],
+    option = "subsets",
 ): F64 {
     if (align !== "vertical" && align !== "horizontal") {
-        throw new Error("align must be either vertical or horizontal");
+        throw refusal(new Error("align must be either vertical or horizontal"), "E_BAD_OPTION", {
+            option: "align",
+            value: align,
+        });
     }
     const rows = new Float64Array(2 * n).fill(Number.NaN);
     layers.forEach((layer, k) => {
         for (let j = 0; j < layer.length; j++) {
             const i = layer[j];
             if (!Number.isInteger(i) || i < 0 || i >= n) {
-                throw new Error(`layer node index ${String(i)} is not a node of the graph`);
+                throw refusal(new Error(`layer node index ${String(i)} is not a node of the graph`), "E_BAD_NODE", {
+                    option,
+                    index: i,
+                });
             }
             [rows[2 * i], rows[2 * i + 1]] = place(k, layers.length, j, layer.length);
         }
@@ -81,13 +90,33 @@ export const multipartitePlace = (k: number, count: number, j: number, size: num
  * out.
  * @param s - the snapshot
  * @param name - the column
- * @param what - what the column is for, for the error message
+ * @param option - the option that names the column, for the error
  * @returns node indices per value
+ * @throws `E_UNKNOWN_COLUMN` when the snapshot has no such node column, `E_COLUMN_TYPE` when it is not u32 or dict
  */
-export function groupsOfColumn(s: GraphSnapshot, name: string, what: string): number[][] {
-    const column = s.nodes.require(name);
+export function groupsOfColumn(s: GraphSnapshot, name: string, option: string): number[][] {
+    const column = s.nodes.get(name);
+    if (column === null) {
+        throw refusal(
+            new Error(`${option} names node column "${name}", which the snapshot does not hold`),
+            "E_UNKNOWN_COLUMN",
+            {
+                option,
+                column: name,
+            },
+        );
+    }
     if (column.dtype !== "u32" && column.dtype !== "dict") {
-        throw new Error(`${what} column "${name}" must be u32 or dict, not ${column.dtype}`);
+        throw refusal(
+            new Error(`${option} column "${name}" must be u32 or dict, not ${column.dtype}`),
+            "E_COLUMN_TYPE",
+            {
+                option,
+                column: name,
+                dtype: column.dtype,
+                expected: ["u32", "dict"],
+            },
+        );
     }
     const values = column.dtype === "u32" ? column.data : column.codes;
     const byValue = new Map<number, number[]>();
@@ -110,13 +139,16 @@ export function groupsOfColumn(s: GraphSnapshot, name: string, what: string): nu
  * @param s - the snapshot; only its node count and the named column are read
  * @param options - `scale` is the distance of the farthest node from the centre; `subsets` the layers
  * @returns the layout
+ * @throws an Error with `code` `E_UNKNOWN_COLUMN` or `E_COLUMN_TYPE` when `subsets` names a node column the snapshot
+ * does not hold or one that is not u32 or dict, `E_BAD_NODE` for a layer index that is not a node, and
+ * `E_BAD_OPTION` for an unknown `align`; `params` carry the facts
  */
 export function multipartite(s: GraphSnapshot, options: MultipartiteLayoutOptions = {}): LayoutResult {
     const { n, dim, scale, center } = resolve(s, options);
     const { subsets = "subset", align = "vertical" } = options;
     const layers =
         typeof subsets === "string"
-            ? groupsOfColumn(s, subsets, "subset")
+            ? groupsOfColumn(s, subsets, "subsets")
             : subsets.map((set) => resolveNodeSet(s, set));
     return result(planar(layeredRows(n, layers, multipartitePlace, align, scale, center), dim, center), dim, n);
 }

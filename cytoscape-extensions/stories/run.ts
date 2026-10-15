@@ -525,6 +525,8 @@ type Painter = (cy: Core, r: never, options: Record<string, unknown>) => string 
 
 /** The algorithms whose result needs a picture of its own; the rest are painted by the shape of their result. */
 const PAINTERS: Partial<Record<string, Painter>> = {
+    dijkstra: (cy, r: Paths, o) => paintPaths(cy.elements(), r, o.root as NodeSingular),
+    bellmanFord: (cy, r: Paths, o) => paintPaths(cy.elements(), r, o.root as NodeSingular),
     personalizedPageRank: (cy, r: AnyResult, o) => {
         paintByShape(cy, r);
         const start = o.personalization as Collection;
@@ -719,6 +721,53 @@ const PAINTERS: Partial<Record<string, Painter>> = {
         return `the same ${k} hidden links (dashed green) and non-links (dashed gray): Adamic-Adar ${metrics(r.adamicAdar)}; common neighbors ${metrics(r.commonNeighbors)}`;
     },
 };
+
+/** A single-source shortest-path result, as graphtyDijkstra and graphtyBellmanFord return it. */
+export interface Paths {
+    distanceTo(n: unknown): number;
+    pathTo(n: unknown): Collection;
+    hasNegativeWeightCycle?: boolean;
+}
+
+/** Above this many nodes the tree is left out: it takes one pathTo per node. */
+const TREE_MAX_NODES = 5_000;
+
+/**
+ * Shortest paths from one root: the nodes shaded by distance, the shortest-path tree (each reached node's last edge on
+ * its path from the root, its predecessor edge) in blue, and the path to the target (the farthest node) in red.
+ * @param eles - the graph the run was on
+ * @param r - the result
+ * @param root - the root
+ * @param target - the node whose path is drawn in red; default: the farthest one
+ * @returns the description
+ */
+export function paintPaths(eles: Collection, r: Paths, root: NodeSingular, target?: NodeSingular): string {
+    mark(root);
+    if (r.hasNegativeWeightCycle === true) {
+        root.data("color", BLUE);
+        return "a negative cycle is reachable from the blue node (hasNegativeWeightCycle: true): each time round it shortens a path again, so no shortest path through it exists";
+    }
+    const cy = root.cy();
+    colorByValue(cy, (id) => r.distanceTo(cy.getElementById(id)), eles.filter("node"));
+    root.data("color", BLUE);
+    const reached = eles.nodes().filter((n) => n.id() !== root.id() && Number.isFinite(r.distanceTo(n)));
+    if (reached.empty()) {
+        return "the blue node reaches no other node";
+    }
+    const far = target ?? (reached.max((n) => r.distanceTo(n)).ele as NodeSingular);
+    const tree = eles.nodes().length <= TREE_MAX_NODES;
+    if (tree) {
+        cy.batch(() => {
+            reached.forEach((n) => {
+                r.pathTo(n).edges().last().data("color", BLUE);
+            });
+        });
+    }
+    r.pathTo(far).edges().data({ color: RED, thick: 3.5 });
+    mark(far);
+    const treeWords = tree ? "the shortest-path tree from the blue node in blue (each node's edge toward it); " : "";
+    return `${treeWords}the shortest path to the farthest node (ringed) in red, length ${num(r.distanceTo(far))}; nodes darker red = farther`;
+}
 
 /** The condensed graph's arcs, as condensation returns them. */
 interface CondensedSnapshot {

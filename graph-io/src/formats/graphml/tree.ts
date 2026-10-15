@@ -273,7 +273,18 @@ function writeElements(name: string, value: unknown, indent: string | null, out:
         out.push(text.length === 0 ? `${brk}<${name}/>` : `${brk}<${name}>${escapeXmlText(text)}</${name}>`);
         return;
     }
-    const object = value as XmlTreeObject;
+    writeObjectElement(name, value as XmlTreeObject, indent, out);
+}
+
+/**
+ * Write one element whose value is a tree object: its attributes, its text and its children.
+ * @param name - the element name
+ * @param object - the element value
+ * @param indent - the indentation of this element, or null to write it with no line break or indentation
+ * @param out - receives the text parts
+ */
+function writeObjectElement(name: string, object: XmlTreeObject, indent: string | null, out: string[]): void {
+    const brk = indent === null ? "" : `\n${indent}`;
     const { attrs, text, hasChildren } = elementParts(object);
     if (!hasChildren) {
         out.push(

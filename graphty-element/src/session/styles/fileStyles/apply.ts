@@ -127,12 +127,15 @@ function baseValues(stack: readonly CompiledLayer[]): Record<"node" | "edge", Pa
  * @param command - The import.
  * @param outcome - What the load left.
  * @param ctx - The import's context.
+ * @returns The scene units one unit of the file's lengths was drawn as, which the file's stored
+ *     positions take too; null when no file styles were drawn, lengths were kept as the file has
+ *     them, or the load merged into a graph whose positions are in another unit.
  */
 export async function applyFileStyles(
     command: DataImportCommand,
     outcome: ImportOutcome | null,
     ctx: UndoableContext,
-): Promise<void> {
+): Promise<number | null> {
     const { styles, options } = choiceOf(command);
     const loaded = outcome !== null && command.measure === undefined;
     const replacing = loaded && command.mode !== "merge";
@@ -145,7 +148,7 @@ export async function applyFileStyles(
     }
 
     if (!loaded || styles !== "file") {
-        return;
+        return null;
     }
 
     const read =
@@ -156,10 +159,12 @@ export async function applyFileStyles(
     ctx.signal.throwIfAborted();
     const notes: FileStyleNote[] = [];
     const layers: LayerId[] = [];
+    let sceneScale: number | null = null;
     if (read !== null) {
         const applied = await applyRead(outcome, read, options, ctx, replacing);
         layers.push(...applied.layers);
         notes.push(...applied.notes);
+        sceneScale = replacing ? applied.sceneScale : null;
     }
 
     const report: LoadReport = Object.freeze({
@@ -167,6 +172,7 @@ export async function applyFileStyles(
         styles: Object.freeze({ layers: Object.freeze(layers), notes: Object.freeze(notes) }),
     });
     ctx.services.data?.values?.({ importReport: report }, ctx.draft);
+    return sceneScale;
 }
 
 /**
@@ -176,7 +182,7 @@ export async function applyFileStyles(
  * @param options - The load's choices.
  * @param ctx - The import's context.
  * @param replacing - Whether the load replaced the graph.
- * @returns The layers made and the notes.
+ * @returns The layers made, the notes and the scene units one file unit was drawn as.
  */
 async function applyRead(
     outcome: ImportOutcome,
@@ -184,7 +190,7 @@ async function applyRead(
     options: FileStyleOptions,
     ctx: UndoableContext,
     replacing: boolean,
-): Promise<LoadStyleReport> {
+): Promise<LoadStyleReport & { readonly sceneScale: number | null }> {
     const held = replacing ? [] : fileStyleValuesOf(asFileStyleStore(ctx.state.graph.values.get(FILE_STYLES_VALUE)));
     const namespace = fileStyleNamespace(read.format, new Set(held.map((load) => load.namespace)));
     const importId = namespace;
@@ -282,7 +288,7 @@ async function applyRead(
             });
     }
 
-    return { layers, notes };
+    return { layers, notes, sceneScale: translation.sceneScale };
 }
 
 /**

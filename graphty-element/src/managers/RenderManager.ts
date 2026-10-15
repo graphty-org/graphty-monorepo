@@ -285,6 +285,13 @@ export class RenderManager implements Manager {
     private lastFrameFence: WebGLSync | null = null;
     /** The time of the ticks skipped since the last frame drawn, for the GPU to catch up. */
     private skippedMs = 0;
+    /**
+     * What the loop's ticks have done since it started, outside a hold: drew a frame, rested on
+     * the picture already shown, or waited for the GPU. A count of the loop's chances to draw, for
+     * whoever must tell "it drew nothing" from "it had no chance to" -- a test of drawing on
+     * demand, on a machine whose frame rate it does not control.
+     */
+    readonly ticks = { drawn: 0, rested: 0, gpuBehind: 0 };
     /** See `RenderManagerConfig.pictureIsFinal`; null draws every tick. */
     private readonly pictureIsFinal: (() => boolean) | null;
     /** See `RenderManagerConfig.drawsOnDemand`. */
@@ -479,6 +486,7 @@ export class RenderManager implements Manager {
             // keeps to wall-clock pace would run slower by exactly the ticks skipped.
             if (this.gpuBehind()) {
                 this.skippedMs += this.engine.getDeltaTime();
+                this.ticks.gpuBehind++;
                 return;
             }
 
@@ -497,6 +505,7 @@ export class RenderManager implements Manager {
                 // this.camera.update();
 
                 if (this.mayRest()) {
+                    this.ticks.rested++;
                     return;
                 }
 
@@ -504,6 +513,7 @@ export class RenderManager implements Manager {
                 // next one.
                 this.drawOwed = false;
                 this.scene.render();
+                this.ticks.drawn++;
                 this.fenceFrame();
                 this.noteDrawnFrom();
             } catch (error) {
@@ -881,10 +891,12 @@ export class RenderManager implements Manager {
     private setupCameras(): void {
         const orbitCamera = new OrbitCameraController(this.canvas, this.scene, {
             trackballRotationSpeed: 0.005,
-            keyboardRotationSpeed: 0.03,
-            keyboardZoomSpeed: 0.2,
+            // Radians a frame while an arrow is held: the same angular speed as A and D
+            keyboardRotationSpeed: 0.02,
+            // A held W or S changes the distance tenfold in the 157 frames A or D take to spin
+            // half a turn (PI / keyboardYawSpeed): 0.985 ** 157 = 0.093
+            keyboardZoomSpeed: 0.015,
             keyboardYawSpeed: 0.02,
-            pinchZoomSensitivity: 10,
             twistYawSensitivity: 1.5,
             minZoomDistance: 2,
             maxZoomDistance: 2000, // The zoom-out ceiling for a small graph; a fit of a larger one raises it

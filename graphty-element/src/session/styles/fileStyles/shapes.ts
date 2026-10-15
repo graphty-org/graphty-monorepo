@@ -52,6 +52,18 @@ export const LINE_STYLES: ReadonlyMap<string, string> = new Map([
 /** The line styles drawn as the nearest pattern rather than exactly. */
 export const LINE_STYLES_NEAREST: ReadonlySet<string> = new Set(["double", "long-dash"]);
 
+/** The element's node border style for each border style of a file. */
+export const BORDER_STYLES: ReadonlyMap<string, string> = new Map([
+    ["solid", "solid"],
+    ["dashed", "dashed"],
+    ["dotted", "dotted"],
+    ["double", "double"],
+    ["dash-dot", "dashed"],
+]);
+
+/** The border styles drawn as the nearest style rather than exactly. */
+export const BORDER_STYLES_NEAREST: ReadonlySet<string> = new Set(["dash-dot"]);
+
 /** The element's arrow for each arrow shape of a file. */
 export const ARROW_SHAPES: ReadonlyMap<string, string> = new Map([
     ["none", "none"],

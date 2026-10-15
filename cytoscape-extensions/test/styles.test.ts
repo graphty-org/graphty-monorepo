@@ -165,7 +165,7 @@ describe("graphtyExport with styles", () => {
         expect(flat?.style).toEqual({ target: "node", property: "width" });
         const back = core();
         await back.graphtyImport(text, "json", { styles: true, applyStyles: true });
-        expect(back.nodes().map((n) => n.style("width"))).toEqual(["10px", "20px", "30px"]);
+        expect(back.nodes().map((n) => n.style("width") as string)).toEqual(["10px", "20px", "30px"]);
         cy.destroy();
         back.destroy();
     });

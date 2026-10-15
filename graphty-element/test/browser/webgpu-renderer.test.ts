@@ -21,6 +21,7 @@ import { commands } from "vitest/browser";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
 import { forgetShaderCompilers } from "../../src/managers/RenderManager";
+import { drawnFrames } from "../helpers/drawn-frames";
 
 /** Which Chromium flag set the run asked for; empty when it asked for none. */
 const ADAPTER = (import.meta.env as Record<string, string | undefined>).GRAPHTY_BROWSER_GPU ?? "";
@@ -115,25 +116,14 @@ async function animateEdges(graph: Graph): Promise<void> {
         set: { "edge.animationSpeed": 1, "edge.color": "#d62728" },
     });
     await operationQueueOf(graph).waitForCompletion();
-    await frames(8);
+    // Every mesh built and every shader compiled, and then a frame drawn with them: a shader that
+    // has not compiled yet reports no failure either.
+    await graph.scene.whenReadyAsync();
+    await drawnFrames(graph.scene, 1);
 }
 
 /**
- * Waits for the render loop to draw some frames; a paint lands on a frame.
- * @param count - How many.
- */
-async function frames(count: number): Promise<void> {
-    for (let at = 0; at < count; at++) {
-        await new Promise<void>((done) => {
-            requestAnimationFrame(() => {
-                done();
-            });
-        });
-    }
-}
-
-/**
- * Draws a few frames and takes a screenshot the way the element does.
+ * Waits for the picture to be final and takes a screenshot the way the element does.
  *
  * Babylon's own `CreateScreenshotAsync`, the call `captureScreenshot` makes, rather than
  * `captureScreenshot` itself: test/setup.ts replaces that call with a one-pixel stub for every
@@ -144,7 +134,7 @@ async function frames(count: number): Promise<void> {
  * @returns The RGBA pixels.
  */
 async function screenshot(graph: Graph, name: string): Promise<Uint8ClampedArray> {
-    await frames(8);
+    await graph.waitForStableFrame();
     const { CreateScreenshotAsync } = await vi.importActual<typeof import("@babylonjs/core")>("@babylonjs/core");
     const camera = graph.scene.activeCamera;
     assert.isNotNull(camera);
@@ -368,7 +358,7 @@ describe("the element's renderer attribute", () => {
         host.appendChild(element);
         await element.updateComplete;
         for (let wait = 0; wait < 600 && !(initialized && element.graph.initialized); wait++) {
-            await frames(1);
+            await new Promise((resolve) => requestAnimationFrame(resolve));
         }
 
         // Babylon imports each shader the first time it compiles it. Removing the element with

@@ -77,7 +77,7 @@ function NavRailRoot({ footer, children, className, onKeyDown, onFocus, ...other
  * @returns The separator
  */
 function NavRailSeparator(): React.JSX.Element {
-    return <div className="cm-nav-rail-separator" role="separator" />;
+    return <hr className="cm-nav-rail-separator" />;
 }
 
 /** The navigation rail, with `NavRail.Separator`. */

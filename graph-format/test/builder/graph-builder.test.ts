@@ -1228,6 +1228,27 @@ describe("GraphBuilder composition", () => {
         expect(Array.from(ext?.requireTyped("element", "u32").data ?? [])).toEqual([3, 3]);
     });
 
+    it("addGraph keeps an unset extension cell unset in the appended rows", () => {
+        const a = new GraphBuilder({ directed: true });
+        a.addEdge("p", "q");
+        const t = a.addExtensionTable("ext", [
+            { name: "element", dtype: "u32", refersTo: "node", nullable: true },
+            { name: "label", dtype: "string", nullable: true },
+        ]);
+        a.addExtensionRow(t, [null, "first"]);
+        a.addExtensionRow(t, [1, null]);
+        const donor = a.freeze();
+        const b = new GraphBuilder({ directed: true });
+        b.addEdge("m", "n");
+        b.addGraph(donor);
+        b.addGraph(donor);
+        const ext = b.freeze().extensions.get("ext");
+        expect(ext?.rowCount).toBe(4);
+        expect([0, 1, 2, 3].map((row) => ext?.require("element").isSet(row))).toEqual([false, true, false, true]);
+        expect([1, 3].map((row) => ext?.require("element").value(row))).toEqual([3, 3]);
+        expect([0, 1, 2, 3].map((row) => ext?.require("label").isSet(row))).toEqual([true, false, true, false]);
+    });
+
     it("widenNodeColumn / widenEdgeColumn widen an inferred column in the 5.1 order without changing values (io round 1)", () => {
         const b = new GraphBuilder({ directed: true });
         b.addEdge("a", "b");

@@ -45,14 +45,14 @@ export const SHARDS = [
     {
         shard: "graph-format",
         package: "graph-format",
-        "test-command": "pnpm exec nx run graph-format:coverage",
+        "test-command": "pnpm exec nx run graph-format:coverage --exclude-task-dependencies",
         "needs-browser": false,
     },
     // graph-io - single shard (Node.js, no browser); resolves @graphty/graph-format through graph-format/dist
     {
         shard: "graph-io",
         package: "graph-io",
-        "test-command": "pnpm exec nx run graph-io:coverage",
+        "test-command": "pnpm exec nx run graph-io:coverage --exclude-task-dependencies",
         "needs-browser": false,
     },
     // webgpu-graph-algorithms - two shards (design/webgpu/webgpu-acceleration-plan.md 12.5): the node
@@ -127,14 +127,14 @@ export const SHARDS = [
     {
         shard: "graph-samples",
         package: "graph-samples",
-        "test-command": "pnpm exec nx run graph-samples:coverage",
+        "test-command": "pnpm exec nx run graph-samples:coverage --exclude-task-dependencies",
         "needs-browser": false,
     },
     // cytoscape-extensions - single shard (Node.js, headless Cytoscape); resolves the graphty packages through their dist
     {
         shard: "cytoscape-extensions",
         package: "cytoscape-extensions",
-        "test-command": "pnpm exec nx run cytoscape-extensions:coverage",
+        "test-command": "pnpm exec nx run cytoscape-extensions:coverage --exclude-task-dependencies",
         "needs-browser": false,
     },
     // cytoscape-extensions against the oldest Cytoscape its peer range admits (3.31.0, the first that ships its own
@@ -164,7 +164,7 @@ export const SHARDS = [
     {
         shard: "layout",
         package: "layout",
-        "test-command": "pnpm exec nx run layout:coverage",
+        "test-command": "pnpm exec nx run layout:coverage --exclude-task-dependencies",
         "needs-browser": false,
     },
     // graphty - every project but the stories (uses Playwright for browser-based vitest)
@@ -186,7 +186,7 @@ export const SHARDS = [
     {
         shard: "remote-logger",
         package: "remote-logger",
-        "test-command": "pnpm exec nx run remote-logger:coverage",
+        "test-command": "pnpm exec nx run remote-logger:coverage --exclude-task-dependencies",
         "needs-browser": true,
     },
     // visual-review - single shard (Node.js, plus Chromium for the review page and capture tests;
@@ -194,21 +194,21 @@ export const SHARDS = [
     {
         shard: "visual-review",
         package: "visual-review",
-        "test-command": "pnpm exec nx run visual-review:coverage",
+        "test-command": "pnpm exec nx run visual-review:coverage --exclude-task-dependencies",
         "needs-browser": true,
     },
     // githerd - single shard (Node.js, no browser; coverage counts lib/)
     {
         shard: "githerd",
         package: "githerd",
-        "test-command": "pnpm exec nx run githerd:coverage",
+        "test-command": "pnpm exec nx run githerd:coverage --exclude-task-dependencies",
         "needs-browser": false,
     },
     // compact-mantine - single shard (uses Playwright for browser-based vitest)
     {
         shard: "compact-mantine",
         package: "compact-mantine",
-        "test-command": "pnpm exec nx run compact-mantine:coverage",
+        "test-command": "pnpm exec nx run compact-mantine:coverage --exclude-task-dependencies",
         "needs-browser": true,
     },
     // graphty-element default tests (Node.js, no browser)

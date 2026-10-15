@@ -1401,6 +1401,77 @@ class GexfReader implements XmlHandler {
     }
 
     /**
+     * Whether an attribute was already declared (warning that the first declaration is kept), and
+     * a warning when values that use it came before its declaration.
+     * @param domain - node or edge
+     * @param id - the attribute id
+     * @param where - the report location
+     * @returns true when the declaration is a duplicate and must be skipped
+     */
+    private isDuplicateAttribute(domain: "node" | "edge", id: string, where: IssueLocation): boolean {
+        const { report } = this;
+        const tracked = domain === "node" ? this.nodeAttrs : this.edgeAttrs;
+        if (tracked.has(id) || (domain === "edge" && this.weightAttr !== null && this.weightAttr.id === id)) {
+            report.warning(
+                "validation-error",
+                DUPLICATE_ATTRIBUTE_CODE,
+                `${domain} attribute "${id}" is declared twice; the first declaration is kept`,
+                where,
+            );
+            return true;
+        }
+        if (this.unknownAttributes.has(`${domain}:${id}`)) {
+            report.warning(
+                "missing-value",
+                UNKNOWN_ATTRIBUTE_CODE,
+                `${domain} attribute "${id}" is declared after values that use it; those values were dropped (declare <attributes> before <nodes>)`,
+                where,
+            );
+        }
+        return false;
+    }
+
+    /**
+     * Whether an edge attribute becomes THE weight: the first attribute of the weight's title does
+     * (declared here), a later one only warns and stays a plain column.
+     * @param attribute - the attribute's domain, id, display name, title and type
+     * @param attribute.domain - node or edge
+     * @param attribute.id - the attribute id
+     * @param attribute.name - the column name
+     * @param attribute.title - the declared title, or null
+     * @param attribute.type - the declared type, or null
+     * @param where - the report location
+     * @returns true when the attribute was declared as the weight
+     */
+    private claimsWeight(
+        attribute: { domain: "node" | "edge"; id: string; name: string; title: string | null; type: string | null },
+        where: IssueLocation,
+    ): boolean {
+        const { report, sink, options } = this;
+        const { domain, id, name, title, type } = attribute;
+        if (domain !== "edge" || !isWeightField(name, options.weightFrom)) {
+            return false;
+        }
+        if (this.weightAttr !== null) {
+            // the first attribute of that title stays THE weight; this one becomes a plain column
+            report.warning(
+                "validation-error",
+                DUPLICATE_ATTRIBUTE_CODE,
+                `edge attribute "${id}" is also titled ${name}; attribute "${this.weightAttr.id}" is the weight, "${id}" is kept as a column`,
+                where,
+            );
+            return false;
+        }
+        const declared = declareAttribute({ format: GEXF_FORMAT, id, title, type, long: options.long });
+        for (const issue of declared.issues) {
+            report.warning(issue.category, issue.code, issue.message, where);
+        }
+        this.weightAttr = { id, spec: declared.spec, table: INVALID_INDEX as ExtensionHandle };
+        sink.setMeta({ weightOrigin: { format: GEXF_FORMAT, id, title, type, namespace: null } });
+        return true;
+    }
+
+    /**
      * Declare one `<attribute id title type>` with its `<default>` and `<options>` (design
      * sections 5.1, 5.5, 5.6). The edge attribute titled `weightFrom` is the weight and gets no
      * column; its declaration is recorded in meta.weightOrigin.
@@ -1416,22 +1487,8 @@ class GexfReader implements XmlHandler {
             return;
         }
         const tracked = domain === "node" ? this.nodeAttrs : this.edgeAttrs;
-        if (tracked.has(id) || (domain === "edge" && this.weightAttr !== null && this.weightAttr.id === id)) {
-            report.warning(
-                "validation-error",
-                DUPLICATE_ATTRIBUTE_CODE,
-                `${domain} attribute "${id}" is declared twice; the first declaration is kept`,
-                where,
-            );
+        if (this.isDuplicateAttribute(domain, id, where)) {
             return;
-        }
-        if (this.unknownAttributes.has(`${domain}:${id}`)) {
-            report.warning(
-                "missing-value",
-                UNKNOWN_ATTRIBUTE_CODE,
-                `${domain} attribute "${id}" is declared after values that use it; those values were dropped (declare <attributes> before <nodes>)`,
-                where,
-            );
         }
         const title = attrs.get("title") ?? null;
         const type = attrs.get("type") ?? null;
@@ -1444,21 +1501,7 @@ class GexfReader implements XmlHandler {
             );
         }
         const name = title !== null && title.length > 0 ? title : id;
-        if (domain === "edge" && this.weightAttr !== null && isWeightField(name, options.weightFrom)) {
-            // the first attribute of that title stays THE weight; this one becomes a plain column
-            report.warning(
-                "validation-error",
-                DUPLICATE_ATTRIBUTE_CODE,
-                `edge attribute "${id}" is also titled ${name}; attribute "${this.weightAttr.id}" is the weight, "${id}" is kept as a column`,
-                where,
-            );
-        } else if (domain === "edge" && isWeightField(name, options.weightFrom)) {
-            const declared = declareAttribute({ format: GEXF_FORMAT, id, title, type, long: options.long });
-            for (const issue of declared.issues) {
-                report.warning(issue.category, issue.code, issue.message, where);
-            }
-            this.weightAttr = { id, spec: declared.spec, table: INVALID_INDEX as ExtensionHandle };
-            sink.setMeta({ weightOrigin: { format: GEXF_FORMAT, id, title, type, namespace: null } });
+        if (this.claimsWeight({ domain, id, name, title, type }, where)) {
             return;
         }
         const declaredNames = domain === "node" ? this.declaredNodeNames : this.declaredEdgeNames;
@@ -1780,6 +1823,14 @@ class GexfReader implements XmlHandler {
                 report.recordError(err, ref.where);
             }
         }
+        this.resolveParentsLists(lists);
+    }
+
+    /**
+     * Resolve the `<parents>` lists read so far into the parents column.
+     * @param lists - the queued `<parents>` lists
+     */
+    private resolveParentsLists(lists: readonly (typeof this.parentsRefs)[number][]): void {
         for (const ref of lists) {
             this.resolveParentsList(ref);
         }

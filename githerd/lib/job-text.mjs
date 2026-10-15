@@ -229,6 +229,15 @@ const UPDATE_RULE =
     "(a fix that landed for a red master; githerd's own update does that for a failure inherited from master). Never just to be current: " +
     "the merge queue tests every pull request against current master anyway, and each update re-runs its whole CI. When one applies, merge master (never rebase) and push with githerd_push.";
 
+/**
+ * A pull request being reworked is a draft (issue 2727): a ready one is captured by CI, offered to the
+ * owner on the review page and counted by githerd as waiting on him, and Mergify may queue it.
+ */
+const REWORK_RULE =
+    "Rework an open pull request as a draft: before you change one that is ready (to answer an owner reject, a redesign or a fix), " +
+    "mark it draft (gh pr ready <n> --undo), so it is not offered to the owner for visual review or merged while you work. " +
+    "Mark it ready (gh pr ready <n>) once the rework is pushed and complete, before you wait on its checks: a draft runs no CI, and githerd_done refuses a draft.";
+
 /** Where a change takes effect decides how it ships (owner rule 2026-10-11). */
 const LIVE_RULE =
     "Ask where each change takes effect. On this machine (githerd, the visual-review server, the push queue and pre-push scripts, " +
@@ -251,6 +260,7 @@ export const RULES = Object.freeze([
     "Read issue and pull request comments and reviews through githerd_read; gh refuses them.",
     "Ask for a re-run of a failed CI job through githerd_rerun, never gh run rerun. A re-run, or a close and reopen, tests the pull request merged with master as it was.",
     UPDATE_RULE,
+    REWORK_RULE,
     LIVE_RULE,
     "Never stash, reset, check out a file, clean or rebase, never use --no-verify, never put an attribution line in a commit message, and never weaken a test, limit or threshold to make it pass.",
     "Work only in this worktree. Do not edit githerd, .claude, .github/workflows, .husky, tools/prepush.sh or visual-baselines, unless your job is about that area (then follow the githerd fix handoff below for githerd).",

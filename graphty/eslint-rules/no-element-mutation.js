@@ -290,12 +290,13 @@ export function createRule(loadDoors) {
                     const init = services.esTreeNodeToTSNodeMap.get(node.init);
                     for (const property of node.id.properties) {
                         const key = property.type === "Property" ? property.key : null;
-                        const name =
-                            key?.type === "Identifier" && !property.computed
-                                ? key.name
-                                : key?.type === "Literal" && typeof key.value === "string"
-                                  ? key.value
-                                  : null;
+                        /** @type {string | null} */
+                        let name = null;
+                        if (key?.type === "Identifier" && !property.computed) {
+                            name = key.name;
+                        } else if (key?.type === "Literal" && typeof key.value === "string") {
+                            name = key.value;
+                        }
                         if (name !== null && mutates(propertyDeclarations(init, name), name, false)) {
                             context.report({ node: key, messageId: "door", data: { name } });
                         }

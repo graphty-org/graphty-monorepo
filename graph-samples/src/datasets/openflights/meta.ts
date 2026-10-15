@@ -1,4 +1,5 @@
 import { type DatasetMeta } from "../build.js";
+import { PACKED } from "../packed.js";
 
 /** What the openflights dataset is, where it came from and under which terms. */
 export const openflightsMeta: DatasetMeta = {
@@ -29,4 +30,6 @@ export const openflightsMeta: DatasetMeta = {
         "betweenness and degree of hub airports",
         "communities that roughly follow continents",
     ],
+    hosting: "remote",
+    ...PACKED.openflights,
 };

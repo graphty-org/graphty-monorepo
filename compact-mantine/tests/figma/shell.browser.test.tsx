@@ -24,6 +24,7 @@ import {
     ToolGroup,
     type ToolItem,
 } from "../../src";
+import { untilPasses } from "../../stories/helpers/settled";
 import {
     animationsSettled,
     drive,
@@ -515,9 +516,10 @@ describe.skipIf(!(await figmaAvailable()))("editor shell against Figma", () => {
             const tip = openTooltip();
             expect(tip).not.toBeNull();
             // floating-ui places the tooltip asynchronously after it mounts: wait for the placement,
-            // on the real clock so waiting steps no tooltip timer.
+            // on the real clock so waiting steps no tooltip timer, and on frames rather than a
+            // deadline that a stalled main thread runs out (#2719).
             vi.useRealTimers();
-            await vi.waitFor(() => {
+            await untilPasses(() => {
                 const t = (tip as HTMLElement).getBoundingClientRect();
                 const b = button.getBoundingClientRect();
                 const pill = part(button, ".cm-rail-pill").getBoundingClientRect();

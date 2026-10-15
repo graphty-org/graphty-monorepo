@@ -416,7 +416,8 @@ export class Graphty extends LitElement {
                     reason,
                     version: history.version,
                     position: history.position,
-                    steps: history.steps.length,
+                    // The count alone: the step list is rebuilt after every change.
+                    steps: dispatcherOf(session).history.length,
                     canUndo: session.canUndo,
                     canRedo: session.canRedo,
                 } satisfies GraphtyHistoryChangeDetail,
@@ -2003,7 +2004,9 @@ export class Graphty extends LitElement {
      * a reader drags stays where they put it. `labels.declutter` (off by default) hides a node
      * label whose words would be drawn over another label's, keeping a selected node's label
      * first and then the label of the node with more edges; it takes effect on the next frame.
-     * {@link Graphty.nodeLabelCounts} says how many it hid.
+     * {@link Graphty.nodeLabelCounts} says how many it hid. `camera.pivotOnSelection` (off by
+     * default) makes the selection the camera's pivot: one selected node, or the average position
+     * of several, is what the camera turns and zooms about, in 2D, 3D, VR and AR.
      *
      * Merged over what is already set, so naming one field leaves the others alone.
      * @since 2.0.0
@@ -2011,6 +2014,7 @@ export class Graphty extends LitElement {
      * ```typescript
      * element.layoutBehavior = { layout: { preSteps: 1000 } };
      * element.layoutBehavior = { labels: { declutter: true } };
+     * element.layoutBehavior = { camera: { pivotOnSelection: true } };
      * ```
      * @returns The view preferences set on this element, with the pacing settings saved in the
      *     project (`preSteps`, `stepMultiplier`, `minDelta`) as they are in effect
@@ -4031,7 +4035,8 @@ export class Graphty extends LitElement {
      * `x` and `y` are the node's centre in CSS pixels from the element's top-left corner, the
      * same pixels {@link worldToScreen} returns: a click there selects the node. `visible` is
      * false when the centre is outside the element, behind the camera, or the node is hidden by
-     * a filter. `radius` is how big the node is drawn, in pixels. Read it again after the camera
+     * a filter. `radius` is how big the node is drawn, in pixels; `bounds` is the rectangle it
+     * covers, which follows a box's corners or a tall node's height. Read it again after the camera
      * or the layout moves; it is not a live value. It reads where a frame drew the node, so a node
      * no frame has drawn yet reports its mesh template's position, off screen and not visible:
      * wait for {@link Graphty.waitForStableFrame} first.

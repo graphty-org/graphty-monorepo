@@ -11,7 +11,11 @@ import type { LayerItem } from "./shell/panel/StyleLayerList";
  * scene behind the element's back, so nothing it shows needs the frames. A view setting, not a
  * project one, so it is written on the tag and records no step.
  */
-const APP_LAYOUT_BEHAVIOR = { labels: { declutter: true }, rendering: { onDemand: true } } as const;
+const APP_LAYOUT_BEHAVIOR = {
+    labels: { declutter: true },
+    rendering: { onDemand: true },
+    camera: { pivotOnSelection: true },
+} as const;
 
 /** Event detail for selection-changed events */
 export interface SelectionChangedDetail {

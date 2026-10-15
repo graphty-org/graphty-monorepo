@@ -516,7 +516,7 @@ export function whyText(item, state, ledger, now) {
         const status = i.endedAt ? `ended ${when(i.endedAt)}` : "open";
         out.push(`owner item ${i.id} [${i.kind}], ${status}: ${i.question}`);
     }
-    out.push(...ledgerWhy(lines, item));
+    for (const line of ledgerWhy(lines, item)) out.push(line);
     return out.join("\n");
 }
 

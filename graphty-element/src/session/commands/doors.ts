@@ -1064,6 +1064,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             isPinned: READ,
             roundRadius: READ,
             drawnRadius: READ,
+            drawnHalfExtents: READ,
         },
     },
     {
@@ -1464,6 +1465,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             setPositionDirect: GESTURE,
             getNode: READ,
             sceneObservers: READ,
+            forgetSceneObservers: LIFECYCLE,
             select: SELECTION,
             dispose: LIFECYCLE,
         },
@@ -1973,6 +1975,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             ...SELECTION_API,
             applyNow: SELECTION,
             applyAtNextRead: SELECTION,
+            edgeRemovalChangesNothing: READ,
             nodeMembers: READ,
             edgeMembers: READ,
             remapNodes: SELECTION,
@@ -2176,6 +2179,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             requestFrame: RENDER,
             applyBackground: RENDER,
             getRenderStats: READ,
+            ticks: READ,
         },
     },
     {

@@ -442,7 +442,7 @@ export const ScrubAndType: Story = {
     render: (): React.JSX.Element => <ScrubbedField />,
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
-        const box = canvas.getByRole("spinbutton", { name: "X" });
+        const box = canvas.getByRole<HTMLInputElement>("spinbutton", { name: "X" });
         const slot = canvas.getByTestId("panel-field-slot");
         const { left, top } = slot.getBoundingClientRect();
         // Real pointer events on the handle: press, move 20px along the text, release.
@@ -463,6 +463,12 @@ export const ScrubAndType: Story = {
         at("pointermove", left + 32);
         at("pointerup", left + 32);
         await waitFor(() => expect(canvas.getByTestId("commits")).toHaveTextContent("50"));
+        // The scrub ends with focus in the field and, a frame later, its whole value selected.
+        // Type only once that selection is there, or it lands on the first keys and they are lost.
+        await waitFor(() => {
+            expect(box).toHaveFocus();
+            expect([box.selectionStart, box.selectionEnd]).toEqual([0, box.value.length]);
+        });
         await userEvent.click(box);
         await userEvent.keyboard("{Control>}a{/Control}40*2{Enter}");
         await waitFor(() => expect(canvas.getByTestId("commits")).toHaveTextContent("50, 80"));

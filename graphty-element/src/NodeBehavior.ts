@@ -609,76 +609,14 @@ export class NodeDragHandler {
             }
 
             switch (pointerInfo.type) {
-                case PointerEventTypes.POINTERDOWN: {
-                    // Check if we clicked on this node
-                    // nodeId from mesh metadata works with both regular and instanced meshes
-                    const pickedNodeId = pickNodeId(this.scene, this.scene.pointerX, this.scene.pointerY);
-
-                    if (pickedNodeId === this.node.id) {
-                        // Initialize click tracking
-                        this.clickState = {
-                            pointerDownTime: pointerEventTime(pointerInfo.event),
-                            pointerDownPosition: {
-                                x: this.scene.pointerX,
-                                y: this.scene.pointerY,
-                            },
-                            hasMoved: false,
-                            pointerEvent: pointerInfo.event as PointerEvent,
-                        };
-
-                        // Get world position from pointer
-                        const ray = this.scene.createPickingRay(
-                            this.scene.pointerX,
-                            this.scene.pointerY,
-                            Matrix.Identity(),
-                            this.scene.activeCamera,
-                        );
-                        const worldPosition = this.getWorldPositionFromRay(ray);
-                        this.onDragStart(worldPosition);
-                    }
-
+                case PointerEventTypes.POINTERDOWN:
+                    this.onPointerDown(pointerInfo);
                     break;
-                }
-
                 case PointerEventTypes.POINTERMOVE:
-                    if (this.dragState.dragging) {
-                        // Track movement for click detection
-                        if (this.clickState && !this.clickState.hasMoved) {
-                            const dx = this.scene.pointerX - this.clickState.pointerDownPosition.x;
-                            const dy = this.scene.pointerY - this.clickState.pointerDownPosition.y;
-                            const distance = Math.sqrt(dx * dx + dy * dy);
-                            if (distance > CLICK_MAX_MOVEMENT_PX) {
-                                this.clickState.hasMoved = true;
-                            }
-                        }
-
-                        const ray = this.scene.createPickingRay(
-                            this.scene.pointerX,
-                            this.scene.pointerY,
-                            Matrix.Identity(),
-                            this.scene.activeCamera,
-                        );
-                        const worldPosition = this.getWorldPositionFromRay(ray);
-                        this.onDragUpdate(worldPosition);
-                    }
-
+                    this.onPointerMove();
                     break;
-
                 case PointerEventTypes.POINTERUP:
-                    if (this.dragState.dragging) {
-                        // Check if this was a click (short duration, minimal movement)
-                        const wasClick = this.isClick(pointerEventTime(pointerInfo.event));
-
-                        this.onDragEnd();
-
-                        // If it was a click, select this node
-                        if (wasClick) {
-                            this.handleClick();
-                        }
-                    }
-
-                    // Reset click state
-                    this.clickState = null;
+                    this.onPointerUp(pointerInfo);
                     break;
                 default:
                     // Ignore other pointer events
@@ -686,6 +624,87 @@ export class NodeDragHandler {
             }
         };
         nodePointerHandlersOf(this.scene).add(this.pointerHandler);
+    }
+
+    /**
+     * A press: start a drag when it lands on this node.
+     * @param pointerInfo - The event.
+     */
+    private onPointerDown(pointerInfo: PointerInfoPre): void {
+        // Check if we clicked on this node
+        // nodeId from mesh metadata works with both regular and instanced meshes
+        const pickedNodeId = pickNodeId(this.scene, this.scene.pointerX, this.scene.pointerY);
+
+        if (pickedNodeId !== this.node.id) {
+            return;
+        }
+
+        // Initialize click tracking
+        this.clickState = {
+            pointerDownTime: pointerEventTime(pointerInfo.event),
+            pointerDownPosition: {
+                x: this.scene.pointerX,
+                y: this.scene.pointerY,
+            },
+            hasMoved: false,
+            pointerEvent: pointerInfo.event as PointerEvent,
+        };
+
+        this.onDragStart(this.pointerWorldPosition());
+    }
+
+    /** A move: carry this node along while it is being dragged. */
+    private onPointerMove(): void {
+        if (!this.dragState.dragging) {
+            return;
+        }
+
+        // Track movement for click detection
+        if (this.clickState && !this.clickState.hasMoved) {
+            const dx = this.scene.pointerX - this.clickState.pointerDownPosition.x;
+            const dy = this.scene.pointerY - this.clickState.pointerDownPosition.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            if (distance > CLICK_MAX_MOVEMENT_PX) {
+                this.clickState.hasMoved = true;
+            }
+        }
+
+        this.onDragUpdate(this.pointerWorldPosition());
+    }
+
+    /**
+     * A release: end this node's drag, and select it when the drag was a click.
+     * @param pointerInfo - The event.
+     */
+    private onPointerUp(pointerInfo: PointerInfoPre): void {
+        if (this.dragState.dragging) {
+            // Check if this was a click (short duration, minimal movement)
+            const wasClick = this.isClick(pointerEventTime(pointerInfo.event));
+
+            this.onDragEnd();
+
+            // If it was a click, select this node
+            if (wasClick) {
+                this.handleClick();
+            }
+        }
+
+        // Reset click state
+        this.clickState = null;
+    }
+
+    /**
+     * Where the pointer is in the world, on this node's drag plane.
+     * @returns The point.
+     */
+    private pointerWorldPosition(): Vector3 {
+        const ray = this.scene.createPickingRay(
+            this.scene.pointerX,
+            this.scene.pointerY,
+            Matrix.Identity(),
+            this.scene.activeCamera,
+        );
+        return this.getWorldPositionFromRay(ray);
     }
 
     /**

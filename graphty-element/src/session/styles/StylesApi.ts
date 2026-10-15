@@ -765,8 +765,12 @@ export interface StylesApi {
      * @param options.span - What the numeric bins span: `"domain"` (the default) cuts the
      *     binding's domain; `"data"` cuts the values' whole extent together with the domain, for an
      *     editor whose axis must stay put while the domain moves inside it (since 3.26.0).
+     * @param options.within - A layer: the bins count only the elements it selects, while the scale
+     *     is still the whole graph's, so each bin paints what the binding would paint written into
+     *     that layer. A layer of the other kind counts nothing (since 3.29.0).
      * @returns The preview.
      * @throws A `GraphtyError`: `E_UNKNOWN_CHANNEL` for a channel the element does not have,
+     *     `E_UNKNOWN_LAYER` for a `within` the stack does not hold,
      *     `E_BAD_COMMAND` for a binding that reads no value, `E_BAD_LAYER`, `E_UNKNOWN_SCALE`,
      *     `E_UNKNOWN_PALETTE` or `E_CAP_EXCEEDED` for one the channel cannot take, as writing it
      *     would.
@@ -774,7 +778,12 @@ export interface StylesApi {
      */
     preview(
         binding: RuleBinding,
-        options: { readonly channel: Channel; readonly bins?: number; readonly span?: PreviewSpan },
+        options: {
+            readonly channel: Channel;
+            readonly bins?: number;
+            readonly span?: PreviewSpan;
+            readonly within?: LayerId;
+        },
     ): BindingPreview;
     /**
      * How many elements one layer covers, and on how many it decides each channel it writes.
@@ -3533,13 +3542,14 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      * @param options - How many bins, and what they span.
      * @param options.bins - How many bins to cut a numeric domain into.
      * @param options.span - What the numeric bins span.
+     * @param options.counted - The values counted into the bins, when only some are.
      * @returns The preview.
      */
     const previewColumn = (
         binding: RuleBinding,
         channel: Channel,
         column: readonly unknown[],
-        options: { readonly bins?: number; readonly span?: PreviewSpan } = {},
+        options: { readonly bins?: number; readonly span?: PreviewSpan; readonly counted?: readonly unknown[] } = {},
     ): BindingPreview => {
         const descriptor = requireChannel(channel);
         const kind = descriptor.accepts === "color" ? paletteKindOf(binding) : null;
@@ -3554,6 +3564,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             asWritten: binding,
             ...(options.bins === undefined ? {} : { bins: options.bins }),
             ...(options.span === undefined ? {} : { span: options.span }),
+            ...(options.counted === undefined ? {} : { counted: options.counted }),
         });
     };
 
@@ -4241,7 +4252,12 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
 
         preview(
             binding: RuleBinding,
-            options: { readonly channel: Channel; readonly bins?: number; readonly span?: PreviewSpan },
+            options: {
+                readonly channel: Channel;
+                readonly bins?: number;
+                readonly span?: PreviewSpan;
+                readonly within?: LayerId;
+            },
         ): BindingPreview {
             const descriptor = requireChannel(options.channel);
             if (!("by" in binding) || typeof binding.by !== "string") {
@@ -4267,9 +4283,18 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
 
             const { nodes, edges } = elementsOf(WHOLE_GRAPH);
             const read = descriptor.target === "node" ? sources.elements.nodeValue : sources.elements.edgeValue;
-            const column = [...(descriptor.target === "node" ? nodes : edges)].map((index) => read(index, binding.by));
+            const indices = [...(descriptor.target === "node" ? nodes : edges)];
+            const column = indices.map((index) => read(index, binding.by));
+            if (options.within === undefined) {
+                return previewColumn(binding, descriptor.channel, column, options);
+            }
 
-            return previewColumn(binding, descriptor.channel, column, options);
+            const { layer, selector } = require(options.within);
+            const counted =
+                layer.target === descriptor.target
+                    ? column.filter((_, at) => selector.test === null || selector.test(indices[at]))
+                    : [];
+            return previewColumn(binding, descriptor.channel, column, { ...options, counted });
         },
 
         counts(id: LayerId): StyleCounts {

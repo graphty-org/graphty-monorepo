@@ -1915,6 +1915,12 @@ export interface PreviewBindingOptions {
     readonly binding: RuleBinding;
     /** The value of the bound path on every element of the channel's kind. */
     readonly column: readonly unknown[];
+    /**
+     * The values to count into the bins, when only some elements are counted: the scale is still
+     * prepared from `column`, so each bin paints what it paints over the whole graph. `column` when
+     * absent.
+     */
+    readonly counted?: readonly unknown[];
     /** The session's scales. */
     readonly scales: ScaleRegistry;
     /** How many bins to cut a numeric domain into. */
@@ -2050,6 +2056,7 @@ function previewEnds(
 export function previewBinding(options: PreviewBindingOptions): BindingPreview {
     const { channel, binding, column, scales } = options;
     const prepared = prepareBinding({ channel, binding, column, scales });
+    const tally = options.counted ?? column;
     const ends = previewEnds(column, prepared.domain);
     const scale = prepared.scale ?? "linear";
     const orNull = (value: EncodedValue | undefined): EncodedValue | null => value ?? null;
@@ -2069,7 +2076,7 @@ export function previewBinding(options: PreviewBindingOptions): BindingPreview {
 
     if (prepared.domain === null) {
         const counts = new Map<string, number>();
-        for (const value of column) {
+        for (const value of tally) {
             const name = readCategory(value);
             if (value === undefined || value === null) {
                 noValue++;
@@ -2125,7 +2132,7 @@ export function previewBinding(options: PreviewBindingOptions): BindingPreview {
     const cuts = prepared.steps ?? [];
     const stepCounts = stepped ? new Array<number>(cuts.length + 1).fill(0) : [];
 
-    for (const value of column) {
+    for (const value of tally) {
         if (value === undefined || value === null) {
             noValue++;
             continue;

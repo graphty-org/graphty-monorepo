@@ -7,10 +7,10 @@
 import "../../src/graphty-element";
 
 import { afterEach, assert, describe, it } from "vitest";
-import { userEvent } from "vitest/browser";
 
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
+import { click } from "../helpers/real-input";
 
 // Inside the test frame's 414-pixel-wide viewport: a point outside it receives no click.
 const WIDTH = 400;
@@ -91,9 +91,11 @@ async function answerAndClick(
         assert.strictEqual(hit.kind, "node", "only nodes are found today");
     }
 
-    // The points differ, so no two clicks in a row make a double-click. A copy: the browser driver
-    // rescales a `position` in place to the test frame's zoom.
-    await userEvent.click(element, { position: { ...point } });
+    // The points differ, so no two clicks in a row make a double-click. The mouse goes through the
+    // DevTools protocol, not `userEvent.click`: Playwright's click first waits for the element to
+    // hold still over several animation frames, about 13 frames a click, so 53 clicks on a machine
+    // drawing slow frames outran the test's time limit (issue #2760).
+    await click(element, point);
     return { answered: hit?.id ?? null, selected: element.getSelectedNode()?.id ?? null };
 }
 

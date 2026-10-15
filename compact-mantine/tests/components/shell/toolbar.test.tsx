@@ -63,6 +63,8 @@ describe("Toolbar", () => {
 
     it("is one Tab stop that lands on the selected tool", async () => {
         renderShell(<Editor />);
+        expect(screen.getByRole("separator")).toHaveAttribute("aria-orientation", "vertical");
+        expect(screen.getByRole("separator").tagName).toBe("HR");
         await userEvent.tab();
         expect(screen.getByRole("button", { name: "Move" })).toHaveFocus();
         await userEvent.tab();
@@ -135,7 +137,7 @@ const HIDDEN = { hidden: true } as const;
 describe("ToolGroup", () => {
     it("shows the selected face as pressed", () => {
         renderShell(<ToolGroup label="Shape tools" tools={SHAPES} activeTool="rectangle" />);
-        expect(screen.getByRole("group", { name: "Rectangle" })).toBeInTheDocument();
+        expect(screen.getByRole("group", { name: "Rectangle" }).tagName).toBe("FIELDSET");
         expect(screen.getByRole("button", { name: "Rectangle" })).toHaveAttribute("aria-pressed", "true");
     });
 
@@ -181,7 +183,9 @@ describe("SecondaryToolbar", () => {
         );
         const bar = screen.getByRole("toolbar", { name: "Vector editing" });
         expect(bar).toHaveAttribute("data-flush");
-        expect(screen.getByRole("separator")).toBeInTheDocument();
+        const separator = screen.getByRole("separator");
+        expect(separator.tagName).toBe("HR");
+        expect(separator).toHaveAttribute("aria-orientation", "vertical");
         expect(screen.getByRole("button", { name: "Move" })).toHaveAttribute("aria-pressed", "true");
         await userEvent.tab();
         expect(screen.getByRole("button", { name: "Move" })).toHaveFocus();

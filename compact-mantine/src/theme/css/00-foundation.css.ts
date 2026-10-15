@@ -136,6 +136,16 @@ ${FOCUSABLE_REST} {
     outline-offset: 1px;
 }
 
+/* A <fieldset> used as a plain group: none of the browser's border, padding, margin or
+   min-content floor, so it lays out exactly like a <div>. Zero specificity: a component's
+   own class still sets its padding, margin or border. */
+:where(.cm-fieldset) {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    min-inline-size: auto;
+}
+
 /* A subtree that renders dark in both themes: every token inside resolves dark. */
 .cm-dark-surface { color-scheme: dark; }
 

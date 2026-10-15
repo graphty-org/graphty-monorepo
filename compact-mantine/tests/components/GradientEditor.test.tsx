@@ -675,6 +675,7 @@ describe("GradientEditor", () => {
             renderGradientEditor(<GradientEditor stops={defaultStops} onChange={vi.fn()} />);
 
             const group = screen.getByRole("group", { name: "Color Stops" });
+            expect(group.tagName).toBe("FIELDSET");
             expect(group).toContainElement(screen.getByRole("slider", { name: "Stop 1 position" }));
         });
 
@@ -684,6 +685,7 @@ describe("GradientEditor", () => {
             );
 
             const group = screen.getByRole("group", { name: "Direction" });
+            expect(group.tagName).toBe("FIELDSET");
             expect(group).toContainElement(screen.getByRole("spinbutton", { name: "Gradient direction" }));
         });
 

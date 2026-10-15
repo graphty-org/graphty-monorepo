@@ -28,7 +28,7 @@ import type { LayerSpec } from "../../src/catalog/types";
 import { Graph, operationQueueOf } from "../../src/Graph";
 import type { Node } from "../../src/Node";
 import { assertPlaced } from "../helpers/placed-position";
-import { nextFrame } from "../helpers/real-input";
+import { hover, nextFrame } from "../helpers/real-input";
 
 /** Two nodes far enough apart that a pointer over one is nowhere near the other. */
 const NODES = [{ id: "alpha" }, { id: "omega" }];
@@ -36,11 +36,11 @@ const NODES = [{ id: "alpha" }, { id: "omega" }];
 /** The one edge between them. */
 const EDGES = [{ src: "alpha", dst: "omega" }];
 
-/** How wide the canvas the graph is drawn on is. */
-const WIDTH = 640;
+/** How wide the canvas the graph is drawn on is: inside the test frame's 414-pixel-wide viewport, where the real pointer reaches. */
+const WIDTH = 400;
 
 /** How tall it is. */
-const HEIGHT = 480;
+const HEIGHT = 300;
 
 /** How many frames to render before reading anything back. */
 const FRAMES = 20;
@@ -113,24 +113,7 @@ describe("a tooltip a layer asks for", () => {
      * @param at - where to move it, in canvas pixels
      */
     async function pointerTo(at: { x: number; y: number }): Promise<void> {
-        const { canvas } = graph;
-        const box = canvas.getBoundingClientRect();
-
-        canvas.dispatchEvent(
-            new PointerEvent("pointermove", {
-                clientX: box.left + at.x,
-                clientY: box.top + at.y,
-                bubbles: true,
-                pointerId: 1,
-                pointerType: "mouse",
-                // A real pointermove carries no button. A PointerEvent built by hand defaults to
-                // 0, which is the LEFT button, and Babylon's input manager reads that as a press
-                // -- so a hand-built move starts a drag, and a node that is being dragged stops
-                // reporting hover. Without this the second move in a test never reaches the
-                // hover handler at all.
-                button: -1,
-            }),
-        );
+        await hover(graph.canvas, at);
 
         await settle();
     }

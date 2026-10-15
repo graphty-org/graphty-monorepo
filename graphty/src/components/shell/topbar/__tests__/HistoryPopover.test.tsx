@@ -1,8 +1,9 @@
 import { PopoutManager } from "@graphty/compact-mantine";
 import React, { useRef } from "react";
 import { describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
-import { fireEvent, render, screen, within } from "../../../../test/test-utils";
+import { render, screen, within } from "../../../../test/test-utils";
 import { HistoryPopover, type HistoryPopoverProps } from "../HistoryPopover";
 import { historyRows } from "../historyRows";
 import { XR_VOICE_PROVENANCE } from "../topBarStrings";
@@ -74,10 +75,10 @@ describe("HistoryPopover", () => {
             expect(screen.getByText("12 entries, 6 undone")).toBeInTheDocument();
         });
 
-        it("carries the register's close X", () => {
+        it("carries the register's close X", async () => {
             const props = renderPopover();
 
-            fireEvent.click(screen.getByRole("button", { name: "Close (Esc)" }));
+            await userEvent.click(screen.getByRole("button", { name: "Close (Esc)" }));
 
             expect(props.onOpenChange).toHaveBeenCalledWith(false);
         });
@@ -134,36 +135,39 @@ describe("HistoryPopover", () => {
             expect(within(items[2]).getByText("14:02")).toBeInTheDocument();
         });
 
-        it("restores that point when the row is clicked", () => {
+        it("restores that point when the row is clicked", async () => {
             const props = renderPopover();
 
-            fireEvent.click(screen.getByRole("button", { name: "Import fraud-ring-synthetic.csv" }));
+            // The title opens its panel, so the reader restores by clicking the row beside it
+            const restore = screen.getByRole("button", { name: "Import fraud-ring-synthetic.csv" });
+            const { width, height } = restore.getBoundingClientRect();
+            await userEvent.click(restore, { position: { x: width - 4, y: height / 2 } });
 
             expect(props.onRestore).toHaveBeenCalledTimes(1);
             expect(props.onOpenOwningPanel).not.toHaveBeenCalled();
         });
 
-        it("opens the panel that owns the step when its title is clicked", () => {
+        it("opens the panel that owns the step when its title is clicked", async () => {
             const props = renderPopover();
 
-            fireEvent.click(screen.getByRole("button", { name: "Import fraud-ring-synthetic.csv. Opens Data" }));
+            await userEvent.click(screen.getByRole("button", { name: "Import fraud-ring-synthetic.csv. Opens Data" }));
 
             expect(props.onOpenOwningPanel).toHaveBeenCalledTimes(1);
             expect(props.onRestore).not.toHaveBeenCalled();
         });
 
-        it("previews that point while a row is hovered", () => {
+        it("previews that point while a row is hovered", async () => {
             const onPreview = vi.fn();
 
             renderPopover({ onPreview });
 
             const items = within(screen.getByRole("dialog", { name: "History" })).getAllByRole("listitem");
 
-            fireEvent.mouseEnter(items[0]);
+            await userEvent.hover(items[0]);
 
             expect(onPreview).toHaveBeenLastCalledWith(expect.objectContaining({ id: "hubs" }));
 
-            fireEvent.mouseLeave(items[0]);
+            await userEvent.unhover(items[0]);
 
             expect(onPreview).toHaveBeenLastCalledWith(null);
         });
@@ -193,10 +197,10 @@ describe("HistoryPopover", () => {
             expect(screen.getByText(XR_VOICE_PROVENANCE)).toBeInTheDocument();
         });
 
-        it("hides its steps when the group is collapsed", () => {
+        it("hides its steps when the group is collapsed", async () => {
             renderPopover({ rows: xrRows, entryCount: 2, undoneCount: 0 });
 
-            fireEvent.click(screen.getByRole("button", { expanded: true }));
+            await userEvent.click(screen.getByRole("button", { expanded: true }));
 
             expect(screen.queryByText("Note on acct-4471")).not.toBeInTheDocument();
         });

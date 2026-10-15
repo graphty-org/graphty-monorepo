@@ -42,6 +42,7 @@ export const GRAPHTY_XML_NAMESPACE = "https://graphty.app/ns/gexf";
  * @category Built-in formats
  */
 export const GEXF_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze({
+    tool: "gephi",
     node: Object.freeze(["fill", "fillOpacity", "width", "height", "shape", "image"] as const),
     edge: Object.freeze(["color", "opacity", "width", "lineStyle"] as const),
     block: "native",

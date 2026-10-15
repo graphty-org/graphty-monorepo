@@ -711,6 +711,7 @@ export function gmlStyles(snapshot: GraphSnapshot, context: StyleReadContext): I
  * @category Built-in formats
  */
 export const GML_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze({
+    tool: "yed",
     node: Object.freeze([
         "fill",
         "fillOpacity",

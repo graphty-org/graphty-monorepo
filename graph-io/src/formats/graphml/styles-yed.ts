@@ -558,6 +558,7 @@ export function readYedStyles(snapshot: GraphSnapshot, notes: StyleNotes, budget
  * @category Built-in formats
  */
 export const GRAPHML_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze({
+    tool: "yed",
     node: Object.freeze([
         "fill",
         "fillOpacity",

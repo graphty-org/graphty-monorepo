@@ -333,7 +333,7 @@ function CardViewToggle(props: CardViewToggleProps): React.JSX.Element {
 
                 return (
                     <Tooltip key={mode.value} label={mode.label} withinPortal>
-                        <button
+                        <button // NOSONAR(S6819): a segmented-button radio; a native radio needs a hidden input and label and would change how it draws
                             type="button"
                             role="radio"
                             aria-checked={chosen}

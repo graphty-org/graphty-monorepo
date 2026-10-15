@@ -95,9 +95,14 @@ function pageStory(request: DataPageRequest, after?: (canvas: ReturnType<typeof 
  * @param submit - whether to press Read.
  */
 async function enterUrl(canvas: ReturnType<typeof within>, address: string, submit: boolean): Promise<void> {
-    await userEvent.click(await canvas.findByRole("button", { name: "Add a table" }));
-    await userEvent.click(await within(document.body).findByRole("menuitem", { name: "From a URL..." }));
-    await userEvent.type(await within(document.body).findByRole("textbox", { name: "Address" }), address);
+    await userEvent.click(await canvas.findByRole("button", { name: "Add a table" }, storyWaitOptions(1000)));
+    await userEvent.click(
+        await within(document.body).findByRole("menuitem", { name: "From a URL..." }, storyWaitOptions(1000)),
+    );
+    await userEvent.type(
+        await within(document.body).findByRole("textbox", { name: "Address" }, storyWaitOptions(1000)),
+        address,
+    );
     if (submit) {
         await userEvent.click(within(document.body).getByRole("button", { name: "Read" }));
     }
@@ -125,8 +130,8 @@ export const Transfers: Story = pageStory({
 export const RoleMenu: Story = pageStory(
     { intent: "new", files: [new File([ACCOUNTS], "account.csv"), new File([TRANSFERS], "transfers.csv")] },
     async (canvas) => {
-        await userEvent.click(await canvas.findByRole("combobox", { name: "owner" }));
-        await within(document.body).findByRole("option", { name: "Name" });
+        await userEvent.click(await canvas.findByRole("combobox", { name: "owner" }, storyWaitOptions(1000)));
+        await within(document.body).findByRole("option", { name: "Name" }, storyWaitOptions(1000));
     },
 );
 
@@ -134,8 +139,10 @@ export const RoleMenu: Story = pageStory(
 export const UnmatchedRows: Story = pageStory(
     { intent: "new", files: [new File([ACCOUNTS], "account.csv"), new File([TRANSFERS], "transfers.csv")] },
     async (canvas) => {
-        await userEvent.click(await canvas.findByRole("button", { name: "Show the 1 unmatched row" }));
-        await canvas.findByText("1 unmatched row");
+        await userEvent.click(
+            await canvas.findByRole("button", { name: "Show the 1 unmatched row" }, storyWaitOptions(1000)),
+        );
+        await canvas.findByText("1 unmatched row", {}, storyWaitOptions(1000));
     },
 );
 
@@ -143,8 +150,8 @@ export const UnmatchedRows: Story = pageStory(
 export const FileSettings: Story = pageStory(
     { intent: "new", files: [new File([TRANSFERS], "transfers.csv")] },
     async (canvas) => {
-        await userEvent.click(await canvas.findByRole("button", { name: /^File settings/ }));
-        await within(document.body).findByRole("combobox", { name: "Format" });
+        await userEvent.click(await canvas.findByRole("button", { name: /^File settings/ }, storyWaitOptions(1000)));
+        await within(document.body).findByRole("combobox", { name: "Format" }, storyWaitOptions(1000));
     },
 );
 

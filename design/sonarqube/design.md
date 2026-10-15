@@ -580,6 +580,7 @@ changes the profile.
 | javascript:S2486 (exception caught and ignored)                      |                   5 | Keep                                            | All 5 are in example and benchmark pages (the XR pivot camera demo, the BFS browser benchmark), each with a comment saying why the error is ignored: a disposed controller, a hand-tracking glitch, a failed warm-up run.                                                                                                                                                                                                                                                                                                          |
 | css:S7924 (text contrast)                                            |                   1 | Keep                                            | The start button of the XR pivot camera example page. The example is a demo, not a published component; its colors are its author's.                                                                                                                                                                                                                                                                                                                                                                                               |
 | javascript:S7784 (`structuredClone` over a JSON round trip)          |                   1 | Keep                                            | visual-review's capture reads each story's `parameters.chromatic` through JSON on purpose, so functions and class instances never cross into Node; `structuredClone` throws on a function instead of dropping it.                                                                                                                                                                                                                                                                                                                  |
+| typescript:S1994 (`for` update skips the tested variable)            |                   9 | Fix                                             | Each loop searches with a counter its condition never reads: the next free id suffix (graphty-element's set store, graph-io's exporters and GraphML hubs), the level count of a frontier loop (algorithms' BFS, webgpu-graph-algorithms' closeness), a first-submit flag (betweenness). A `while` with the step at the end runs the same iterations. Fixed in the set store and closeness; 7 sites wait for open pull requests that edit their files.                                                                              |
 
 Closed on the server on 2026-10-13, so they stop counting as open: the sites the "Fix where ..."
 decisions above deliberately leave were accepted (S7755 56, S7764 43, S7781 8, S7780 8, S7763 5,
@@ -588,7 +589,8 @@ and the 3 S1135 TODOs that track open work (#2343, #2344, #2345); the stale TODO
 next scan of master. The 31 S1940 sites were closed as false positives: the rewrite the rule asks
 for changes the answer for `NaN`. S4323 is Fix everywhere since then: exporting a new alias only
 adds to the API (the owner's rule of 2026-10-08), and an exported one goes into the API report in
-the same pull request.
+the same pull request. The kept S6479 (4), S4144 (1) and S7924 (1) sites were accepted the same way on
+2026-10-15.
 
 ### Stages
 

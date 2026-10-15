@@ -85,6 +85,8 @@ export type {
     DefaultPalettes,
     ElementLayerSpec,
     HighlightSpec,
+    LayerPatch,
+    LayerReach,
     SessionStylesApi,
     StyleChange,
     StylesApi,
@@ -92,6 +94,7 @@ export type {
     StyleUpdateOptions,
     TemplateOptions,
     TemplateReport,
+    UpdateManyResult,
 } from "./StylesApi";
 export { createStylesApi } from "./StylesApi";
 export type { StyleRow, StyleRowId, StyleRowPin, StyleRowPlace } from "./tree";

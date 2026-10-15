@@ -1618,6 +1618,14 @@ export type LayerId = string;
 export type LayerKind = "base" | "encoding" | "highlight" | "custom";
 
 // @public
+export interface LayerPatch {
+    // (undocumented)
+    readonly id: LayerId;
+    // (undocumented)
+    readonly patch: Partial<LayerSpec>;
+}
+
+// @public
 export interface LayerPosition {
     readonly above?: LayerId;
     readonly below?: LayerId;
@@ -1630,6 +1638,15 @@ export interface LayerProblem {
     readonly message: string;
     readonly path?: string;
     readonly position?: number;
+}
+
+// @public
+export interface LayerReach {
+    readonly hidden: boolean;
+    readonly layers: readonly LayerId[];
+    readonly locked: boolean;
+    readonly row: StyleRowId;
+    readonly sets: readonly Channel[];
 }
 
 // @public
@@ -4010,6 +4027,7 @@ export interface StylesApi {
     hideRow(id: StyleRowId, hidden: boolean, options?: RunOptions): Run<StyleRow>;
     highlight(spec: HighlightSpec, options?: RunOptions): Run<readonly Layer[]>;
     highlightStyle(target: SelectorTarget): StaticStyle;
+    layersUnder(rowIds: readonly StyleRowId[]): readonly LayerReach[];
     legend(): readonly LegendBlock[];
     legendOf(id: LayerId): readonly LegendBlock[];
     list(): readonly Layer[];
@@ -4042,6 +4060,7 @@ export interface StylesApi {
     toDocument(): StyleDocument;
     tree(): readonly StyleRow[];
     update(id: LayerId, patch: Partial<LayerSpec>, options?: StyleUpdateOptions): Run<Layer>;
+    updateMany(patches: readonly LayerPatch[], options?: StyleUpdateOptions): Run<UpdateManyResult>;
     validate(spec: LayerSpec): ValidationResult;
     valueAt(target: ExplainTarget, path: Path): unknown;
     writeRow(id: LayerId, write: RowWrite, options?: RunOptions): Run<RowParts>;
@@ -4195,6 +4214,15 @@ export type UnboundLayerCode = "layer.detached" | "layer.unanswered";
 
 // @public
 export type UndrawnCode = "caption.noArrow";
+
+// @public
+export interface UpdateManyResult {
+    readonly skipped: readonly {
+        readonly id: LayerId;
+        readonly code: "E_LOCKED" | "E_PROTECTED";
+    }[];
+    readonly updated: readonly Layer[];
+}
 
 // @public
 export interface ValidationResult {

@@ -322,6 +322,45 @@ export interface StyleUpdateOptions extends RunOptions {
 }
 
 /**
+ * One layer row {@link StylesApi.layersUnder} reaches.
+ * @since 3.29.0
+ */
+export interface LayerReach {
+    /** The row: a layer row's id. */
+    readonly row: StyleRowId;
+    /** Its layers: one, or both parts of a two-kind row, bottom first. */
+    readonly layers: readonly LayerId[];
+    /** Whether it paints nothing because it, or a folder above it, is hidden. */
+    readonly hidden: boolean;
+    /** Whether the reader locked it, or a folder above it: an edit skips it. */
+    readonly locked: boolean;
+    /** The channels its layers set or encode. */
+    readonly sets: readonly Channel[];
+}
+
+/**
+ * One layer and what to change about it, for {@link StylesApi.updateMany}.
+ * @since 3.29.0
+ */
+export interface LayerPatch {
+    /** The layer to change. */
+    readonly id: LayerId;
+    /** What to change about it, as {@link StylesApi.update} takes it. */
+    readonly patch: Partial<LayerSpec>;
+}
+
+/**
+ * What {@link StylesApi.updateMany} changed and what it left alone.
+ * @since 3.29.0
+ */
+export interface UpdateManyResult {
+    /** The layers changed, as they now stand, in the order of the patches. */
+    readonly updated: readonly Layer[];
+    /** The layers left as they were: `E_LOCKED` (the reader's lock) or `E_PROTECTED` (the element's own). */
+    readonly skipped: readonly { readonly id: LayerId; readonly code: "E_LOCKED" | "E_PROTECTED" }[];
+}
+
+/**
  * The style stack, the verbs that change it, and the three questions a reader asks of it.
  *
  * Everything on this surface addresses a layer by its id. Nothing on it takes an index, and
@@ -483,6 +522,35 @@ export interface StylesApi {
      * @since 3.26.0
      */
     replaceColor(rowIds: readonly StyleRowId[], from: string, to: string, options?: RunOptions): Run<readonly Layer[]>;
+    /**
+     * The layer rows some rows of the tree reach, folders walked through at every depth: what an
+     * edit of "these rows" would write to, and what it would leave alone.
+     *
+     * ```ts
+     * const reach = session.styles.layersUnder([folder.id]);
+     * reach.filter((row) => row.locked).length; // how many an edit would skip
+     * ```
+     * @param rowIds - Rows of {@link StylesApi.tree}: layer rows and folders.
+     * @returns One entry per layer row, BOTTOM FIRST (paint order), each once.
+     * @throws A `GraphtyError` with code `E_UNKNOWN_LAYER` for an id the tree does not hold.
+     * @since 3.29.0
+     */
+    layersUnder(rowIds: readonly StyleRowId[]): readonly LayerReach[];
+    /**
+     * Change many layers as ONE undo step and one repaint: the patches of {@link StylesApi.update},
+     * each applied to its own layer. A layer the reader locked (or the element owns) is left as it
+     * is and reported in `skipped`; it never fails the others.
+     *
+     * ```ts
+     * await session.styles.updateMany(ids.map((id) => ({ id, patch: { set: { "node.color": "#0072b2" } } })));
+     * ```
+     * @param patches - Each layer and what to change about it, applied in order.
+     * @param options - A signal, a progress handler, and `keepEmpty` (for every patch).
+     * @returns A run that resolves with the layers changed and the ones skipped, and rejects with
+     *     `E_UNKNOWN_LAYER` or the refusal of a patch `update` would refuse; then nothing is written.
+     * @since 3.29.0
+     */
+    updateMany(patches: readonly LayerPatch[], options?: StyleUpdateOptions): Run<UpdateManyResult>;
     /**
      * Paint a run's measurement onto a channel. The one path an analysis layer takes.
      *
@@ -1302,6 +1370,8 @@ type StyleVerb = "encode" | "highlight" | "resolve" | "template" | RepaintReason
 /** Style commands worked out when the edit runs and recorded together as one step. */
 interface StyleBatch {
     readonly batch: () => readonly StyleCommand[];
+    /** What the run resolves with, from each member's result; the list of them when absent. */
+    readonly result?: (results: readonly unknown[]) => unknown;
 }
 
 /** Nothing qualifies a style edit's work: it is exact, it reads no weights, it samples nothing. */
@@ -2026,7 +2096,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      * @returns The layers, bottom first, once each.
      * @throws A `GraphtyError` with code `E_UNKNOWN_LAYER` when the tree holds no such row.
      */
-    const layersUnder = (ids: readonly StyleRowId[]): Layer[] => {
+    const layersOfRows = (ids: readonly StyleRowId[]): Layer[] => {
         const stack = current();
         const rows = rowsOf(stack);
         const wanted = new Set<LayerId>();
@@ -2362,17 +2432,19 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                     // Several layers written as one step: a transaction, joining the caller's own
                     // when there is one, since the dispatcher routes it there.
                     const members = command.batch();
-                    const outcomes = await dispatcher.transaction(label, async (scope) => {
-                        const each: EditOutcome<unknown>[] = [];
-                        for (const member of members) {
-                            each.push((await scope.dispatch(member)) as EditOutcome<unknown>);
-                        }
-
-                        return each;
-                    });
+                    // Dispatched together, not one after another: each member writes its draft as it is
+                    // dispatched, and awaiting each in turn would let a repaint pass run between them.
+                    const outcomes = await dispatcher.transaction(
+                        label,
+                        async (scope) =>
+                            (await Promise.all(
+                                members.map((member) => scope.dispatch(member)),
+                            )) as EditOutcome<unknown>[],
+                    );
                     await Promise.all(outcomes.map((outcome) => outcome.painted));
+                    const results = outcomes.map((outcome) => outcome.result);
 
-                    return { result: outcomes.map((outcome) => outcome.result) as T };
+                    return { result: (command.result === undefined ? results : command.result(results)) as T };
                 }
 
                 const outcome = (await dispatcher.dispatch(command)) as EditOutcome<T>;
@@ -3728,7 +3800,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         },
 
         colors(rowIds: readonly StyleRowId[]): readonly StyleColor[] {
-            return colorsOf(layersUnder(rowIds));
+            return colorsOf(layersOfRows(rowIds));
         },
 
         replaceColor(
@@ -3745,7 +3817,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
 
                 const rows = rowsOf(current());
                 const commands: StyleCommand[] = [];
-                for (const layer of layersUnder(rowIds)) {
+                for (const layer of layersOfRows(rowIds)) {
                     const patch = lockedByReader(rows, layer.row ?? layer.id)
                         ? null
                         : replaceColorPatch(layer, before.hex, to);
@@ -3758,6 +3830,93 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             };
 
             return edit<readonly Layer[]>("update", `Replace ${from} with ${to}`, { batch }, options);
+        },
+
+        layersUnder(rowIds: readonly StyleRowId[]): readonly LayerReach[] {
+            const stack = current();
+            const rows = rowsOf(stack);
+            const reached = new Map<LayerId, { hidden: boolean; locked: boolean }>();
+            const walk = (row: RowNode, hidden: boolean, locked: boolean): void => {
+                const off = hidden || row.hidden;
+                const held = locked || row.locked;
+                if (row.kind === "folder") {
+                    for (const child of row.children ?? []) {
+                        walk(child, off, held);
+                    }
+                } else if (!reached.has(row.id)) {
+                    reached.set(row.id, { hidden: off, locked: held });
+                }
+            };
+            for (const id of rowIds) {
+                const found = findRow(rows, id);
+                if (found === undefined) {
+                    throw unknownRow(id, rows);
+                }
+                walk(
+                    found.row,
+                    found.ancestors.some((row) => row.hidden),
+                    found.ancestors.some((row) => row.locked),
+                );
+            }
+
+            // Paint order: the order each row's first part sits in the stack.
+            const keys = [...new Set(stack.map(rowKeyOf))].filter((key) => reached.has(key));
+            return Object.freeze(
+                keys.map((key) => {
+                    const parts = rowParts(stack, key).map((entry) => entry.layer);
+                    const sets = new Set<Channel>(
+                        parts.flatMap((layer) => [
+                            ...(Object.keys(layer.set ?? {}) as Channel[]),
+                            ...(Object.keys(layer.encode ?? {}) as Channel[]),
+                        ]),
+                    );
+                    return Object.freeze({
+                        row: key,
+                        layers: Object.freeze(parts.map((layer) => layer.id)),
+                        ...(reached.get(key) as { hidden: boolean; locked: boolean }),
+                        sets: Object.freeze([...sets]),
+                    });
+                }),
+            );
+        },
+
+        updateMany(patches: readonly LayerPatch[], options: StyleUpdateOptions = {}): Run<UpdateManyResult> {
+            const { keepEmpty, ...run } = options;
+            let skipped: { id: LayerId; code: "E_LOCKED" | "E_PROTECTED" }[] = [];
+            const batch = (): StyleCommand[] => {
+                const rows = rowsOf(current());
+                skipped = [];
+                const commands: StyleCommand[] = [];
+                for (const { id, patch } of patches) {
+                    const { layer } = require(id);
+                    if (layer.locked || lockedByReader(rows, layer.row ?? layer.id)) {
+                        skipped.push({ id, code: layer.locked ? "E_PROTECTED" : "E_LOCKED" });
+                        continue;
+                    }
+                    commands.push({
+                        op: "style.patch",
+                        action: "update",
+                        id,
+                        patch,
+                        ...(keepEmpty === true ? { keepEmpty } : {}),
+                    });
+                }
+                return commands;
+            };
+
+            return edit<UpdateManyResult>(
+                "update",
+                `Update ${String(patches.length)} layers`,
+                {
+                    batch,
+                    result: (results) =>
+                        Object.freeze({
+                            updated: Object.freeze(results as Layer[]),
+                            skipped: Object.freeze(skipped.map((each) => Object.freeze(each))),
+                        }),
+                },
+                run,
+            );
         },
 
         encode(spec: EncodingSpec | ColumnEncodingSpec, options: RunOptions = {}): Run<Layer> {
@@ -4020,7 +4179,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             }
 
             // The row's elements: those of the scope some layer of the row matches, hidden or not.
-            const parts = layersUnder([over]).flatMap((layer) => byId().get(layer.id) ?? []);
+            const parts = layersOfRows([over]).flatMap((layer) => byId().get(layer.id) ?? []);
             const scoped = elementsOf(scope);
             const nodes = [...scoped.nodes];
             const edges = [...scoped.edges];

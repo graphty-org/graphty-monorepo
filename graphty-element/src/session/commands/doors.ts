@@ -604,6 +604,28 @@ const STYLES_API: Readonly<Record<string, Door>> = {
             },
         ],
     },
+    layersUnder: READ,
+    // Many layers patched in one step: here one, the layer the call sets up.
+    updateMany: {
+        kind: "dispatches",
+        op: "style.patch",
+        call: {
+            kind: "call",
+            args: [[{ id: "door-red_1", patch: { set: { "node.color": "#00ff00" } } }]],
+            around: async (target) => {
+                await (target as { add(spec: LayerSpec): PromiseLike<unknown> }).add(DOOR_RED);
+                return () => Promise.resolve();
+            },
+        },
+        expect: [
+            {
+                op: "style.patch",
+                action: "update",
+                id: "door-red_1",
+                patch: { set: { "node.color": "#00ff00" } },
+            },
+        ],
+    },
     encode: calls(
         [{ run: "no-such-run", field: "value", channel: "node.color" }],
         [{ op: "style.encode", spec: { run: "no-such-run", field: "value", channel: "node.color" } }],

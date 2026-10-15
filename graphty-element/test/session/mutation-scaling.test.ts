@@ -553,6 +553,17 @@ const CASES: readonly Case[] = [
         },
     },
     {
+        method: "StylesApi.updateMany",
+        growth: "linear",
+        prepare: async (session) => {
+            const id = await everyNodeLayer(session);
+            return async () => {
+                await session.styles.updateMany([{ id, patch: { set: { "node.color": "#00ff00" } } }]);
+                await session.styles.settled();
+            };
+        },
+    },
+    {
         method: "StylesApi.restoreStartingRows",
         growth: "linear",
         prepare: (session) =>

@@ -72,6 +72,7 @@ export const COUNTED_WORK_TESTS: Readonly<Record<string, readonly string[]>> = {
     "StylesApi.setValueEntry": ["test/session/mutation-scaling.test.ts"],
     "StylesApi.setValueHidden": ["test/session/mutation-scaling.test.ts"],
     "StylesApi.update": ["test/session/mutation-scaling.test.ts"],
+    "StylesApi.updateMany": ["test/session/mutation-scaling.test.ts"],
     "StylesApi.writeRow": ["test/session/mutation-scaling.test.ts"],
     "VisibilityApi.set": ["test/session/mutation-scaling.test.ts"],
     "VisibilityApi.setWindow": ["test/session/mutation-scaling.test.ts"],

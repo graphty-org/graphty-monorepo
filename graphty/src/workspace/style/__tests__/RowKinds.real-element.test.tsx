@@ -111,20 +111,17 @@ describe("folders, several rows and the draft on the real element", () => {
         await page.viewport(1440, 900);
     });
 
-    it("a folder lists its rows in paint order, a click opens one, and its Selection colors repaint every row in one Undo", async () => {
+    it("a folder's Style tab edits every row in it, says so, and its Selection colors repaint every row in one Undo", async () => {
         const { session, key, ring } = await openProject();
         const folder = await session.styles.addFolder("Annotations");
         for (const id of [key, ring]) {
             await session.styles.moveRow(id, { parent: folder.id, index: 0 });
         }
-        // Moved to the bottom one after the other: Ring sits under Key people.
         await userEvent.click(await row("Annotations"));
 
-        const list = await screen.findByRole("list", { name: "In Annotations" });
-        const names = within(list)
-            .getAllByRole("listitem")
-            .map((item) => item.textContent.trim());
-        assert.deepEqual(names, ["Key people", "Ring"], "top first, as the tree paints them");
+        // The tree lists the folder's rows; the panel says what an edit of the folder reaches.
+        await screen.findByText("2 layers in Annotations. Layers added later are not changed.");
+        assert.isNull(screen.queryByRole("list", { name: "In Annotations" }));
 
         const colors = screen.getByRole("button", { name: "Show 1 selection color" });
         await userEvent.click(colors);
@@ -146,12 +143,9 @@ describe("folders, several rows and the draft on the real element", () => {
             assert.equal(written(session, key, "node.color"), "#ff0000", "one Undo restores both");
             assert.equal(written(session, ring, "edge.color"), "#FF0000");
         });
-
-        await userEvent.click(within(await screen.findByRole("list", { name: "In Annotations" })).getByText("Ring"));
-        await screen.findByRole("heading", { level: 2, name: "Ring" });
     });
 
-    it("two rows of different sizes read Mixed; the minus takes it off both in one Undo; a locked row is named and left out", async () => {
+    it("two rows of different sizes read Mixed; the minus takes it off both in one Undo; a locked row is counted and left out", async () => {
         const { session, key, degree, ring } = await openProject();
         await session.styles.lockRow(ring, true);
         await session.styles.settled();
@@ -162,7 +156,7 @@ describe("folders, several rows and the draft on the real element", () => {
         await userEvent.click(await row("Ring"));
         await userEvent.keyboard("{/Control}");
         await screen.findByRole("heading", { level: 2, name: "3 layers" });
-        await screen.findByText("Locked, left unchanged: Ring");
+        await screen.findByText("3 layers: 1 locked and skipped.");
 
         const tab = await screen.findByTestId("style-tab");
         assert.isNull(within(tab).queryByRole("heading", { name: "Edges" }), "Ring is left out, so no Edges group");
@@ -171,8 +165,9 @@ describe("folders, several rows and the draft on the real element", () => {
             assert.isNotNull(found);
             return found;
         });
-        assert.equal(size.querySelector(".ws-field-control")?.textContent, "Mixed");
-        assert.isNull(size.querySelector("input"), "no value borrowed from either row");
+        const field = within(size).getByRole<HTMLInputElement>("combobox", { name: /^Node size/ });
+        assert.equal(field.value, "", "no value borrowed from either row");
+        assert.equal(field.placeholder, "Mixed");
 
         await userEvent.click(within(size).getByRole("button", { name: "Remove node size from every row" }));
         await waitFor(() => {
@@ -188,7 +183,7 @@ describe("folders, several rows and the draft on the real element", () => {
         });
     });
 
-    it("a label and a glow only one of two rows writes read 'Set on 1 of 2', never as shared; the minus takes them off", async () => {
+    it("a label and a glow only one of two rows writes read as set on one, never as shared; the minus takes them off", async () => {
         const { session, key, degree } = await openProject();
         await session.styles.update(key, {
             set: { "node.color": "#ff0000", "node.size": 3, "node.label": "Key", "node.glow": "#00FF00" },
@@ -207,7 +202,7 @@ describe("folders, several rows and the draft on the real element", () => {
         assert.isNull(text.querySelector("input"), "no label entry reads as shared");
         const effects = within(tab).getByRole("group", { name: "Node effects" });
         const glow = effects.querySelector<HTMLElement>('.ws-row[data-line="node.glow"]');
-        assert.equal(glow?.querySelector(".ws-field-control")?.textContent, "Set on 1 of 2");
+        assert.equal(glow?.querySelector("[data-breakdown]")?.textContent, "1 layer set glow; not set: Degree");
 
         await userEvent.click(within(effects).getByRole("button", { name: "Remove node glow from every row" }));
         await waitFor(() => {

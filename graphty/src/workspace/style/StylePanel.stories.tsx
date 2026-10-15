@@ -254,15 +254,15 @@ export const EverythingHidden: Story = sceneStory(async () => {
     await openStyle("Everything");
 });
 
-/** The Annotations folder: its rows in paint order and its Selection colors open. */
+/** The Annotations folder: the Style panel acting on its rows, under its scope line, and its Selection colors open. */
 export const FolderSelectionColors: Story = sceneStory(async () => {
     await clickRow("Annotations");
-    await page().findByRole("list", { name: "In Annotations" });
+    await page().findByText(/ in Annotations\b/);
     await userEvent.click(page().getByRole("button", { name: /^Show \d+ selection colors?$/ }));
     await page().findByRole("group", { name: /^#E8590C, from Key people/i });
 });
 
-/** Key people and Degree selected together: one panel for both, "Set on 1 of 2" where one sets a property. */
+/** Key people and Degree selected together: one panel for both, Mixed with who sets it where one sets a property. */
 export const TwoRows: Story = sceneStory(async ({ runs }) => {
     const user = userEvent.setup();
     await openAnnotations();

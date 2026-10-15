@@ -1,26 +1,22 @@
-import { ToggleIconButton } from "@graphty/compact-mantine";
-import { Group, Stack, UnstyledButton } from "@mantine/core";
+import { Stack } from "@mantine/core";
 import React from "react";
 
-import { GLYPHS } from "../glyphs";
-import { orNotice } from "../graph-place/actions";
-import { KindGlyph } from "../graph-place/KindGlyph";
 import { findTreeRow } from "../graph-place/rows";
 import { useWorkspace } from "../state/WorkspaceContext";
+import { MultiRowPanel } from "./MultiRowPanel";
 import { SelectionColors } from "./SelectionColors";
 import { StateLine } from "./StylePanel";
 import { useStyleVersion } from "./useStyleVersion";
 
 /**
- * A folder's panel (tier3 design, section 2.2): a folder paints nothing, so it shows its rows in
- * paint order, top first, each with its eye and opening itself on a click, then the Selection
- * colors of everything in it.
+ * A folder's panel: the Style panel acting on every layer in it, through nested folders at every
+ * depth (B4, bulk editing). The tree already lists the folder's rows, so the panel does not.
  * @param props - Component props
  * @param props.id - the folder's id
  * @returns The panel
  */
 export function FolderPanel({ id }: Readonly<{ id: string }>): React.JSX.Element | null {
-    const { session, element, store } = useWorkspace();
+    const { session, element } = useWorkspace();
     useStyleVersion(session, element);
     if (session === null) {
         return null;
@@ -29,46 +25,13 @@ export function FolderPanel({ id }: Readonly<{ id: string }>): React.JSX.Element
     if (found === undefined) {
         return <StateLine>This row is gone</StateLine>;
     }
-    const rows = [...found.row.children].reverse();
-    return (
-        <Stack gap={0}>
-            {rows.length === 0 ? (
+    if (found.row.children.length === 0) {
+        return (
+            <Stack gap={0}>
                 <StateLine>Empty: drag rows onto the folder to put them in it</StateLine>
-            ) : (
-                <Stack gap={0} py={4} role="list" aria-label={`In ${found.row.name}`}>
-                    {rows.map((row) => {
-                        return (
-                            <Group key={row.id} role="listitem" gap={0} wrap="nowrap" pr={8}>
-                                <UnstyledButton
-                                    className="ws-style-tree-foot-row cm-focus-inside"
-                                    style={{ flex: 1, opacity: row.hidden ? 0.5 : undefined }}
-                                    onClick={() => {
-                                        store.set({
-                                            inspected: {
-                                                kind: row.kind === "folder" ? "folder-row" : "layer-row",
-                                                id: row.id,
-                                            },
-                                        });
-                                    }}
-                                >
-                                    <KindGlyph session={session} row={row} /> {row.name}
-                                </UnstyledButton>
-                                <ToggleIconButton
-                                    variant="swap"
-                                    label={`Hide ${row.name}`}
-                                    checked={row.hidden}
-                                    icon={<GLYPHS.show size={14} />}
-                                    checkedIcon={<GLYPHS.hide size={14} />}
-                                    onChange={(hide) => {
-                                        void orNotice(store, `hide ${row.name}`, session.styles.hideRow(row.id, hide));
-                                    }}
-                                />
-                            </Group>
-                        );
-                    })}
-                </Stack>
-            )}
-            <SelectionColors rowIds={[id]} />
-        </Stack>
-    );
+                <SelectionColors rowIds={[id]} />
+            </Stack>
+        );
+    }
+    return <MultiRowPanel ids={[id]} />;
 }

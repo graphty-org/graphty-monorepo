@@ -93,6 +93,115 @@ export interface ManyRows {
     readonly write: (channel: Channel, write: LiteralWrite | { readonly binding: DataBinding }) => Promise<unknown>;
     /** Takes the channel off every row. */
     readonly clear: (channel: Channel) => Promise<unknown>;
+    /** Which rows set the channel, which do not, and how many values they set it to. */
+    readonly breakdown?: (channel: Channel) => {
+        readonly set: readonly string[];
+        readonly unset: readonly string[];
+        readonly values: number;
+    };
+    /** What the last write of the channel did, while it is the last write. */
+    readonly receipt?: (channel: Channel) => BulkReceipt | undefined;
+    /** Writes the last write again to the rows it left unset. */
+    readonly alsoSet?: (channel: Channel) => Promise<unknown>;
+    /** Puts the receipt away. */
+    readonly dismiss?: () => void;
+}
+
+/** What a write to several rows did: shown under the field it came from. */
+export interface BulkReceipt {
+    /** How many layers it changed. */
+    readonly changed: number;
+    /** The rows it left unset because they did not set the property, by name. */
+    readonly unset: readonly string[];
+    /** How many locked layers it skipped. */
+    readonly locked: number;
+}
+
+/**
+ * The words under a Mixed field: "3 layers set fill, to 3 values; not set: Top 10 labels".
+ * @param name - the property's name.
+ * @param breakdown - who sets it.
+ * @param breakdown.set - the rows that set it.
+ * @param breakdown.unset - the rows that do not.
+ * @param breakdown.values - how many values they set.
+ * @returns the words.
+ */
+function breakdownWords(
+    name: string,
+    {
+        set,
+        unset,
+        values,
+    }: { readonly set: readonly string[]; readonly unset: readonly string[]; readonly values: number },
+): string {
+    const plural = (n: number, noun: string): string => `${String(n)} ${noun}${n === 1 ? "" : "s"}`;
+    const setWords = `${plural(set.length, "layer")} set ${name.toLowerCase()}${values > 1 ? `, to ${plural(values, "value")}` : ""}`;
+    return unset.length === 0 ? setWords : `${setWords}; not set: ${namesWords(unset)}`;
+}
+
+/**
+ * Some row names, the first three and how many more.
+ * @param names - the names.
+ * @returns the words.
+ */
+function namesWords(names: readonly string[]): string {
+    return names.length <= 3
+        ? listWords(names)
+        : `${names.slice(0, 3).join(", ")} and ${String(names.length - 3)} more`;
+}
+
+/**
+ * The receipt under a field after a write to several rows: "Fill: 5 changed, 1 left unset, 1
+ * locked skipped", with "Also set those 1" and Undo.
+ * @param props - Component props
+ * @param props.ctx - the rows
+ * @param props.channel - the channel written
+ * @param props.name - the property's name
+ * @param props.receipt - what the write did
+ * @returns The receipt
+ */
+function Receipt({
+    ctx,
+    channel,
+    name,
+    receipt,
+}: Readonly<{ ctx: RowContext; channel: Channel; name: string; receipt: BulkReceipt }>): React.JSX.Element {
+    const { store } = useWorkspace();
+    const words = [
+        `${String(receipt.changed)} changed`,
+        ...(receipt.unset.length === 0 ? [] : [`${String(receipt.unset.length)} left unset`]),
+        ...(receipt.locked === 0 ? [] : [`${String(receipt.locked)} locked skipped`]),
+    ].join(", ");
+    return (
+        <div className="ws-bulk-receipt" role="status" data-receipt={channel}>
+            <Text size="xs" c="var(--cm-text-secondary)">
+                {name}: {words}
+            </Text>
+            {receipt.unset.length > 0 && (
+                <Button
+                    size="compact-xs"
+                    variant="subtle"
+                    title={`Set ${name.toLowerCase()} on ${namesWords(receipt.unset)} too`}
+                    onClick={() => {
+                        void ctx.many?.alsoSet?.(channel);
+                    }}
+                >
+                    {`Also set those ${String(receipt.unset.length)}`}
+                </Button>
+            )}
+            <Button
+                size="compact-xs"
+                variant="subtle"
+                onClick={() => {
+                    ctx.many?.dismiss?.();
+                    store.set({ announcement: `Undid changing ${name.toLowerCase()}` });
+                    void ctx.session.undo();
+                }}
+            >
+                Undo
+            </Button>
+        </div>
+    );
 }
 
 /**
@@ -166,6 +275,7 @@ export function Field({ ctx, descriptor, word }: Readonly<FieldProps>): React.JS
         return null;
     }
     const name = fieldName(channel);
+    const receipt = ctx.many?.receipt?.(channel);
     // A layer above covers this row's value on some of its elements (a shown row only).
     const over = own === undefined || !own.layer.enabled ? undefined : ctx.paintedOver?.(channel);
     const fail = (error: unknown): void => {
@@ -234,15 +344,19 @@ export function Field({ ctx, descriptor, word }: Readonly<FieldProps>): React.JS
 
     let control: React.ReactNode;
     if (own === undefined) {
-        // Several rows, only some of which set it (or all differently): no value is borrowed.
-        const words =
-            partly === undefined || partly.set < partly.of
-                ? `Set on ${String(partly?.set ?? 0)} of ${String(partly?.of ?? 0)}`
-                : "Mixed";
+        // Several rows, only some of which set it (or all differently): Mixed, with no value
+        // borrowed from any of them, and a typed or picked value writes to them.
         control = (
-            <Text size="xs" aria-label={`${name}, ${words.toLowerCase()}`}>
-                {words}
-            </Text>
+            <ValueField
+                descriptor={descriptor}
+                label={name}
+                value={undefined}
+                shown={undefined}
+                mixed
+                onChange={(value) => {
+                    write({ value });
+                }}
+            />
         );
     } else if (own.binding !== undefined) {
         control = (
@@ -399,6 +513,14 @@ export function Field({ ctx, descriptor, word }: Readonly<FieldProps>): React.JS
                 <Text size="xs" c="var(--cm-text-secondary)" className="ws-field-covered" data-covered-caption>
                     {coveredWords(over)}
                 </Text>
+            )}
+            {own === undefined && ctx.many?.breakdown !== undefined ? (
+                <Text size="xs" c="var(--cm-text-secondary)" className="ws-field-covered" data-breakdown>
+                    {breakdownWords(word ?? channelWord(channel), ctx.many.breakdown(channel))}
+                </Text>
+            ) : null}
+            {receipt === undefined ? null : (
+                <Receipt ctx={ctx} channel={channel} name={word ?? channelWord(channel)} receipt={receipt} />
             )}
         </div>
     );

@@ -453,7 +453,7 @@ describe("the Style tab's sections", () => {
         );
     });
 
-    it("reads 'Set on 1 of 2' for a property only some selected rows set, with no value", async () => {
+    it("reads Mixed, with who sets it, for a property only some selected rows set, with no value", async () => {
         const { session } = await openScene();
         const valjean = String(session.data.nodes().find((n) => n.name === "Valjean")?.id);
         await session.styles.add({
@@ -471,10 +471,14 @@ describe("the Style tab's sections", () => {
         await user.keyboard("{/Control}");
         await waitFor(() => {
             const color = section("node", "fill").querySelector<HTMLElement>('.ws-row[data-line="node.color"]');
-            assert.equal(color?.querySelector(".ws-field-control")?.textContent, "Set on 1 of 2");
-            assert.isNull(color?.querySelector("input"), "no value borrowed from either row");
+            assert.equal(color?.querySelector("[data-breakdown]")?.textContent, "1 layer set color; not set: Big");
             const size = section("node", "shape").querySelector<HTMLElement>('.ws-row[data-line="node.size"]');
-            assert.equal(size?.querySelector(".ws-field-control")?.textContent, "Set on 1 of 2");
+            assert.equal(size?.querySelector("[data-breakdown]")?.textContent, "1 layer set size; not set: Key people");
+            assert.equal(
+                size?.querySelector<HTMLInputElement>("input")?.value,
+                "",
+                "no value borrowed from either row",
+            );
         });
     });
 

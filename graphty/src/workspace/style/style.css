@@ -181,3 +181,12 @@
     display: flex;
     justify-content: space-between;
 }
+
+/* After a write to several layers: what it did, "Also set those N" and Undo, under the field. */
+.ws-bulk-receipt {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px 6px;
+    padding: 0 8px 4px var(--ws-label, 80px);
+}

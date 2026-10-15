@@ -1,0 +1,25 @@
+diff --git a/dist/src/tasks-runner/process-metrics-service.js b/dist/src/tasks-runner/process-metrics-service.js
+index 71c92ebcef00f4c833ffa7ed8911388aed06f81b..6705c620363fd62ffa7c614fa7e2ab9aa9811585 100644
+--- a/dist/src/tasks-runner/process-metrics-service.js
++++ b/dist/src/tasks-runner/process-metrics-service.js
+@@ -12,6 +12,11 @@ class ProcessMetricsService {
+     constructor() {
+         this.collector = null;
+         this.cleanupRegistered = false;
++        // graphty patch (issue #2558): the native collector refreshes every process on the machine
++        // through sysinfo, which keeps /proc/<pid>/stat and /proc/<pid>/task/<tid>/stat open for
++        // each one (about 11,000 handles per nx process here); a few nx runs at once fill the
++        // system file table. Nothing in this workspace reads the metrics, so never start it.
++        return;
+         try {
+             this.collector = new native_1.ProcessMetricsCollector();
+             // Register main nx process as CLI
+@@ -50,7 +55,7 @@ class ProcessMetricsService {
+      */
+     subscribe(callback) {
+         if (!this.collector) {
+-            throw new Error('Metrics collector not initialized');
++            return;
+         }
+         try {
+             // Start collection on first subscription (idempotent - safe to call multiple times)

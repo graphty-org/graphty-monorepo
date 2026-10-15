@@ -109,6 +109,24 @@ export const PATTERN_DEFINITIONS: Record<PatternType, PatternDefinition> = {
 // ==========================================
 
 /**
+ * The height of a continuous zigzag at one of its four corner phases.
+ * @param phase - The corner, 0 to 3: baseline, peak, baseline, valley.
+ * @param amplitude - The peak height.
+ * @returns The height at that corner.
+ */
+function zigzagZ(phase: number, amplitude: number): number {
+    if (phase === 1) {
+        return amplitude; // Peak
+    }
+
+    if (phase === 3) {
+        return -amplitude; // Valley
+    }
+
+    return 0; // Baseline (phases 0 and 2)
+}
+
+/**
  * Static utility class for creating mesh-based pattern geometries for line visualization
  */
 // eslint-disable-next-line @typescript-eslint/no-extraneous-class
@@ -608,19 +626,8 @@ export class PatternedLineRenderer {
                 const currPhase = i % 4;
 
                 // Get Z values for previous and current phase
-                let prevZ = 0;
-                if (prevPhase === 1) {
-                    prevZ = amplitude;
-                } else if (prevPhase === 3) {
-                    prevZ = -amplitude;
-                }
-
-                let currZ = 0;
-                if (currPhase === 1) {
-                    currZ = amplitude;
-                } else if (currPhase === 3) {
-                    currZ = -amplitude;
-                }
+                const prevZ = zigzagZ(prevPhase, amplitude);
+                const currZ = zigzagZ(currPhase, amplitude);
 
                 // Interpolate to find Z at exact lineLength
                 const t = (lineLength - prevX) / (x - prevX);
@@ -630,19 +637,7 @@ export class PatternedLineRenderer {
                 break;
             }
 
-            const phase = i % 4;
-            let z = 0;
-            if (phase === 0) {
-                z = 0; // Baseline
-            } else if (phase === 1) {
-                z = amplitude; // Peak
-            } else if (phase === 2) {
-                z = 0; // Baseline
-            } else if (phase === 3) {
-                z = -amplitude; // Valley
-            }
-
-            points.push([x, 0, z]);
+            points.push([x, 0, zigzagZ(i % 4, amplitude)]);
         }
 
         // Create quad strip with thickness

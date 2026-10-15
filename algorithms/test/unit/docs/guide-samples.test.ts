@@ -7,7 +7,7 @@
  * is otherwise silently ignored at run time) and then imported, so a sample that throws fails here. A
  * `console.log(...)` line with a trailing `// comment` must print what the comment starts with. In the guide pages
  * every script block must be marked; in the README, only the marked ones run. The block parser and the output check
- * are the same as layout/test/docs/readme-samples.test.ts.
+ * are the same as layout/test/docs/doc-samples.test.ts.
  */
 
 import assert from "node:assert";

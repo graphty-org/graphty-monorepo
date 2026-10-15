@@ -63,42 +63,8 @@ export class LifecycleManager implements Manager {
                     throw new Error(`Manager '${managerName}' not found in manager map`);
                 }
 
-                try {
-                    const managerStartTime = performance.now();
-                    this.logger.debug(`Initializing manager: ${managerName}`);
-                    await manager.init();
-                    // Disposed while this manager was initialising: the rest are disposed too.
-                    if (this.disposed) {
-                        this.initializing = false;
-                        return;
-                    }
-
-                    const managerDuration = performance.now() - managerStartTime;
-
-                    this.logger.debug(`Manager initialized: ${managerName}`, {
-                        duration: managerDuration.toFixed(2),
-                    });
-
-                    this.eventManager.emit("manager-initialized", {
-                        managerName,
-                        elapsedTime: performance.now() - startTime,
-                    });
-                } catch (error) {
-                    // Log the failure
-                    this.logger.error(
-                        `Manager initialization failed: ${managerName}`,
-                        error instanceof Error ? error : new Error(String(error)),
-                        { managerName },
-                    );
-
-                    // Clean up any managers that were already initialized
-                    this.cleanup(managerName);
-
-                    throw new Error(
-                        `Failed to initialize manager '${managerName}': ${
-                            error instanceof Error ? error.message : String(error)
-                        }`,
-                    );
+                if (!(await this.initManager(managerName, manager, startTime))) {
+                    return;
                 }
             }
 
@@ -123,6 +89,54 @@ export class LifecycleManager implements Manager {
             this.eventManager.emitGraphError(null, err, "init", { component: "LifecycleManager" });
 
             throw error;
+        }
+    }
+
+    /**
+     * Initialize one manager, in order, for `init`.
+     * @param managerName - The manager's name.
+     * @param manager - The manager.
+     * @param startTime - When `init` started, for the event's elapsed time.
+     * @returns False when the lifecycle was disposed while the manager initialized: stop there.
+     */
+    private async initManager(managerName: string, manager: Manager, startTime: number): Promise<boolean> {
+        try {
+            const managerStartTime = performance.now();
+            this.logger.debug(`Initializing manager: ${managerName}`);
+            await manager.init();
+            // Disposed while this manager was initialising: the rest are disposed too.
+            if (this.disposed) {
+                this.initializing = false;
+                return false;
+            }
+
+            const managerDuration = performance.now() - managerStartTime;
+
+            this.logger.debug(`Manager initialized: ${managerName}`, {
+                duration: managerDuration.toFixed(2),
+            });
+
+            this.eventManager.emit("manager-initialized", {
+                managerName,
+                elapsedTime: performance.now() - startTime,
+            });
+            return true;
+        } catch (error) {
+            // Log the failure
+            this.logger.error(
+                `Manager initialization failed: ${managerName}`,
+                error instanceof Error ? error : new Error(String(error)),
+                { managerName },
+            );
+
+            // Clean up any managers that were already initialized
+            this.cleanup(managerName);
+
+            throw new Error(
+                `Failed to initialize manager '${managerName}': ${
+                    error instanceof Error ? error.message : String(error)
+                }`,
+            );
         }
     }
 
@@ -249,8 +263,7 @@ export class LifecycleManager implements Manager {
     }
 
     /**
-     * Add a new manager to the lifecycle
-     * TODO: This should only be done before init() is called
+     * Add a new manager to the lifecycle. Only before init() starts: it throws after.
      * @param name - Unique name for the manager
      * @param manager - Manager instance to add
      * @param position - Optional position in initialization order (defaults to end)

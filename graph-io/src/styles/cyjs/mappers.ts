@@ -117,7 +117,16 @@ const CURVES = [
     "round-segments",
     "round-taxi",
 ];
-const STRAIGHT: ReadonlySet<string> = new Set(["haystack", "straight", "straight-triangle"]);
+/** The curve styles Cytoscape.js draws as straight lines or straight pieces: only the beziers bow. */
+const STRAIGHT: ReadonlySet<string> = new Set([
+    "haystack",
+    "straight",
+    "straight-triangle",
+    "segments",
+    "taxi",
+    "round-segments",
+    "round-taxi",
+]);
 
 const LABEL: [string, CyjsPropertySpec][] = [
     ["label", { property: "label", type: "text" }],

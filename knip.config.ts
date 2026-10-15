@@ -21,6 +21,8 @@ const config: KnipConfig = {
             entry: [
                 "vite.shared.config.ts",
                 "vitest.shared.config.ts",
+                // First setup file of the packages' browser test projects (named in their vitest configs)
+                "vitest.browser-coverage-setup.ts",
                 "docs/.vitepress/config.ts",
                 "tools/*.mjs",
                 "tools/changelog-renderer.cjs",
@@ -63,11 +65,12 @@ const config: KnipConfig = {
         },
 
         // graph-io package (src/index.ts re-exports every per-format subpath barrel; src/styles/index.ts is
-        // the format-independent @graphty/graph-io/styles entry)
+        // the format-independent @graphty/graph-io/styles entry and src/positions/index.ts the ./positions one)
         "graph-io": {
             entry: [
                 "src/index.ts!",
                 "src/styles/index.ts!",
+                "src/positions/index.ts!",
                 // the unpublished barrel of the whole style engine, for graph-io's own tests and scripts
                 "src/styles/internal.ts",
                 "test/**/*.test.ts",
@@ -105,7 +108,8 @@ const config: KnipConfig = {
             ignoreDependencies: production ? ["webgpu", "cytoscape"] : [],
         },
 
-        // graph-samples package: the root, generators and every dataset subpath are entries
+        // graph-samples package: the root, generators and every dataset subpath are entries; data/ is the
+        // repository's copy of the small datasets, read by scripts/pack-datasets.mjs and the tests, never shipped
         "graph-samples": {
             // "!" marks what ships: the only patterns knip reads in --production (lint:knip:prod)
             entry: [
@@ -114,8 +118,9 @@ const config: KnipConfig = {
                 "src/datasets/*/index.ts!",
                 "test/**/*.test.ts",
                 "scripts/**/*.{ts,js,mjs}",
+                "data/*.ts",
             ],
-            project: ["src/**/*.ts!", "test/**/*.ts", "scripts/**/*.{ts,js,mjs}"],
+            project: ["src/**/*.ts!", "data/**/*.ts", "test/**/*.ts", "scripts/**/*.{ts,js,mjs}"],
         },
 
         // webgpu-graph-algorithms package: the root barrel re-exports neither subpath, so both are entries; the test

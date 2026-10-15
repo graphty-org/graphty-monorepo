@@ -1,4 +1,4 @@
-import { afterEach, assert, describe, it } from "vitest";
+import { afterEach, assert, describe, it, vi } from "vitest";
 
 import type { Graph } from "../../src/Graph";
 import type { NGraphEngine } from "../../src/layout/NGraphLayoutEngine";
@@ -54,9 +54,18 @@ describe("layout pace", () => {
         const engine = layoutManager.layoutEngine as NGraphEngine | SimulationLayoutEngine;
         let passes = 0;
 
-        while (layoutManager.running && !engine.isSettled && passes < 5000) {
-            inner.updateManager.update(frameMs);
-            passes++;
+        // The catch-up loop also stops a frame's rounds once REAL time passes half the frame, a
+        // guard for real users. Here the frame time is stated, so the real clock is held still while
+        // frames are pumped; otherwise a slow runner cuts frames short and the pass count measures
+        // the machine (issue #2261).
+        const clock = vi.spyOn(performance, "now").mockReturnValue(performance.now());
+        try {
+            while (layoutManager.running && !engine.isSettled && passes < 5000) {
+                inner.updateManager.update(frameMs);
+                passes++;
+            }
+        } finally {
+            clock.mockRestore();
         }
 
         const steps = "_stepCount" in engine ? engine._stepCount : engine.iterationsDone;

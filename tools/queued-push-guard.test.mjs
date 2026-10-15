@@ -4,10 +4,14 @@
 //   node --test tools/queued-push-guard.test.mjs
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { chmodSync, mkdtempSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, it } from "node:test";
+import { after, describe, it } from "node:test";
+
+// The temporary directories this file makes go inside this one, removed when the file finishes.
+const TMP = mkdtempSync(join(tmpdir(), "queued-push-guard-"));
+after(() => rmSync(TMP, { recursive: true, force: true }));
 
 const GUARD = new URL("./queued-push-guard.mjs", import.meta.url).pathname;
 const queued = { number: 7, state: "OPEN", labels: [{ name: "queued" }] };
@@ -15,7 +19,7 @@ const unqueued = { number: 7, state: "OPEN", labels: [{ name: "hold" }] };
 
 // A gh stub: prints `answer` as JSON, or fails like gh does for a branch without a pull request.
 function stubGh(answer) {
-    const dir = mkdtempSync(join(tmpdir(), "queued-push-guard-"));
+    const dir = mkdtempSync(join(TMP, "queued-push-guard-"));
     const gh = join(dir, "gh");
     const body = answer ? `echo '${JSON.stringify(answer)}'` : `echo 'no pull requests found' >&2; exit 1`;
     writeFileSync(gh, `#!/bin/sh\n${body}\n`);

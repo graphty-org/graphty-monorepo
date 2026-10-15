@@ -68,6 +68,7 @@ import {
     type ImportInput,
     type ImportReport,
 } from "../../types.js";
+import { gmlPositions } from "./positions.js";
 import { gmlStyles } from "./styles.js";
 import {
     EMPTY_LIST_TEXT,
@@ -98,6 +99,12 @@ export interface GmlImportOptions extends GraphChoiceOptions, CommonImportOption
      * @defaultValue true
      */
     positions?: boolean | undefined;
+    /**
+     * With `positions`, also keep the whole `graphics` record, x / y / z included, as the JSON
+     * attribute named `graphics`, so a reader gets both the position and the record as written.
+     * @defaultValue false
+     */
+    keepPositionSource?: boolean | undefined;
     /**
      * Store a text attribute whose values repeat a lot (fewer distinct values than half the rows)
      * as a dictionary column, which uses less memory and reads the same. Such a column reports
@@ -379,6 +386,8 @@ class GmlImport {
 
     private readonly positions: boolean;
 
+    private readonly keepPositionSource: boolean;
+
     private readonly dictionaries: boolean;
 
     private readonly coercer: IdCoercer;
@@ -471,6 +480,7 @@ class GmlImport {
         this.report = report;
         this.options = options;
         this.positions = format?.positions ?? true;
+        this.keepPositionSource = format?.keepPositionSource ?? false;
         this.dictionaries = format?.dictionaries ?? true;
         this.coercer = new IdCoercer(options.ids);
     }
@@ -510,29 +520,48 @@ class GmlImport {
             if (key === "graph" && !record && scalarGraph < 0) {
                 scalarGraph = v;
             }
-            if (key === "graph" && record) {
-                if (this.graphCount++ === this.which) {
-                    this.graphOpen = v;
-                    this.scanGraph(v);
-                }
-            } else if (key === "Creator" && !record && this.creatorToken < 0) {
-                this.creatorToken = v;
-            } else if (key === "Version" && !record && this.versionToken < 0) {
-                this.versionToken = v;
-            } else {
-                this.observe(this.topSchema, "graph", key, v, TOP_SEQ);
-            }
+            this.scanTopPair(key, record, v);
         }
         if (this.graphOpen < 0) {
-            if (scalarGraph >= 0) {
-                this.report.fail(
-                    NO_GRAPH_CODE,
-                    `the graph key at line ${t.line[scalarGraph]} holds ${describeValue(t, scalarGraph)}, not a [ ... ] block; the input contains no graph block`,
-                    { line: t.line[scalarGraph] },
-                );
-            }
-            this.report.fail(NO_GRAPH_CODE, "the input contains no graph [ ... ] block", { line: null });
+            this.failNoGraph(t, scalarGraph);
         }
+    }
+
+    /**
+     * Handle one top-level pair other than a scalar `graph`.
+     * @param key - the key
+     * @param record - whether the value is a `[ ... ]` block
+     * @param v - the value token
+     */
+    private scanTopPair(key: string, record: boolean, v: number): void {
+        if (key === "graph" && record) {
+            if (this.graphCount++ === this.which) {
+                this.graphOpen = v;
+                this.scanGraph(v);
+            }
+        } else if (key === "Creator" && !record && this.creatorToken < 0) {
+            this.creatorToken = v;
+        } else if (key === "Version" && !record && this.versionToken < 0) {
+            this.versionToken = v;
+        } else {
+            this.observe(this.topSchema, "graph", key, v, TOP_SEQ);
+        }
+    }
+
+    /**
+     * Fail because the input holds no graph block.
+     * @param t - the tokens
+     * @param scalarGraph - the token of a scalar `graph` key, or -1
+     */
+    private failNoGraph(t: ReturnType<GmlImport["requireTokens"]>, scalarGraph: number): void {
+        if (scalarGraph >= 0) {
+            this.report.fail(
+                NO_GRAPH_CODE,
+                `the graph key at line ${t.line[scalarGraph]} holds ${describeValue(t, scalarGraph)}, not a [ ... ] block; the input contains no graph block`,
+                { line: t.line[scalarGraph] },
+            );
+        }
+        this.report.fail(NO_GRAPH_CODE, "the input contains no graph [ ... ] block", { line: null });
     }
 
     /**
@@ -584,29 +613,41 @@ class GmlImport {
         const close = t.match[open];
         const seq = this.seq++;
         const schema = domain === "node" ? this.nodeSchema : this.edgeSchema;
-        const { weightFrom, restoreMangledIds } = this.options;
         for (let p = open + 1; p < close; p = t.nextPair(p)) {
             const key = t.textOf(p);
             const v = p + 1;
-            if (domain === "node") {
-                if (key === "id") {
-                    continue;
-                }
-                if (key === ORIGINAL_ID_KEY && restoreMangledIds) {
-                    this.hasOriginalId = true;
-                    continue;
-                }
-            } else {
-                if (key === "source" || key === "target" || key === "directed") {
-                    continue;
-                }
-                if (key === weightFrom) {
-                    this.weightKinds |= kindBit(t, v);
-                    continue;
-                }
+            if (this.skipsKey(domain, key, v)) {
+                continue;
             }
             this.observe(schema, domain, key, v, seq);
         }
+    }
+
+    /**
+     * Whether a key of a node or edge block is structural (id, endpoints, weight, original id), not
+     * a column; notes the original id and the weight's kinds on the way.
+     * @param domain - node or edge
+     * @param key - the key
+     * @param v - the value token
+     * @returns true when the key is not a column
+     */
+    private skipsKey(domain: "node" | "edge", key: string, v: number): boolean {
+        const { weightFrom, restoreMangledIds } = this.options;
+        if (domain === "node") {
+            if (key === ORIGINAL_ID_KEY && restoreMangledIds) {
+                this.hasOriginalId = true;
+                return true;
+            }
+            return key === "id";
+        }
+        if (key === "source" || key === "target" || key === "directed") {
+            return true;
+        }
+        if (key === weightFrom) {
+            this.weightKinds |= kindBit(this.requireTokens(), v);
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -756,7 +797,8 @@ class GmlImport {
         }
         const positioned = x && y;
         entry.position ||= positioned;
-        entry.rest ||= positioned ? other : true;
+        // with keepPositionSource the whole record, x / y / z included, goes to the json column too
+        entry.rest ||= positioned ? other || this.keepPositionSource : true;
     }
 
     // ============================================================ pass 2: the push
@@ -807,26 +849,12 @@ class GmlImport {
     }
 
     /**
-     * The plan of one schema entry.
+     * Warn about a key that mixes numbers and strings, or holds integers beyond 2^53.
      * @param domain - the table
      * @param entry - the schema entry
-     * @param top - whether the key is a top-level one (graph table)
-     * @returns the plan
+     * @param asText - whether the integers are kept as text
      */
-    private planOf(domain: "node" | "edge" | "graph", entry: KeySchema, top = false): ColumnPlan {
-        // long: "string" keeps every digit of an integer key that holds values beyond 2^53, as text
-        const asText = entry.unsafe && this.options.long === "string" && kindOf(entry) === "int";
-        const kind = asText ? "string" : kindOf(entry);
-        let scalar: ScalarDtype = dtypeOfKind(kind, entry);
-        if (
-            scalar === "string" &&
-            !entry.list &&
-            entry.dict !== null &&
-            entry.kinds === KIND_STRING &&
-            entry.dict.decide() === "dict"
-        ) {
-            scalar = "dict";
-        }
+    private warnKinds(domain: "node" | "edge" | "graph", entry: KeySchema, asText: boolean): void {
         if (
             (entry.kinds & KIND_STRING) !== 0 &&
             (entry.kinds & (KIND_INT | KIND_REAL)) !== 0 &&
@@ -849,6 +877,54 @@ class GmlImport {
                 `${PRECISION_CODE}:${domain}:${entry.key}`,
             );
         }
+    }
+
+    /**
+     * The plan of a node `graphics` record: the plan plus its position and rest columns.
+     * @param plan - the record's plan
+     * @param entry - the schema entry
+     * @returns the plan with its position (and rest) plans
+     */
+    private graphicsPlan(plan: ColumnPlan, entry: KeySchema): ColumnPlan {
+        const taken = (candidate: string): boolean =>
+            this.nodeSchema.has(candidate) || this.sink.nodeColumn(candidate) !== INVALID_INDEX;
+        const position: ColumnPlan = {
+            ...plan,
+            name: uniqueColumnName("position", "graphics", taken),
+            dtype: "f64",
+            itemDtype: null,
+            kind: "real",
+            list: false,
+            role: "position",
+        };
+        const rest: ColumnPlan | null = entry.rest
+            ? { ...plan, dtype: "json", itemDtype: null, kind: "record", list: false }
+            : null;
+        return { ...plan, position, rest };
+    }
+
+    /**
+     * The plan of one schema entry.
+     * @param domain - the table
+     * @param entry - the schema entry
+     * @param top - whether the key is a top-level one (graph table)
+     * @returns the plan
+     */
+    private planOf(domain: "node" | "edge" | "graph", entry: KeySchema, top = false): ColumnPlan {
+        // long: "string" keeps every digit of an integer key that holds values beyond 2^53, as text
+        const asText = entry.unsafe && this.options.long === "string" && kindOf(entry) === "int";
+        const kind = asText ? "string" : kindOf(entry);
+        let scalar: ScalarDtype = dtypeOfKind(kind, entry);
+        if (
+            scalar === "string" &&
+            !entry.list &&
+            entry.dict !== null &&
+            entry.kinds === KIND_STRING &&
+            entry.dict.decide() === "dict"
+        ) {
+            scalar = "dict";
+        }
+        this.warnKinds(domain, entry, asText);
         const name = domain === "graph" ? this.uniqueGraphName(entry.key) : entry.key;
         let itemDtype: ScalarDtype | null = null;
         if (entry.list) {
@@ -871,21 +947,7 @@ class GmlImport {
             seq: Number.NEGATIVE_INFINITY,
         };
         if (domain === "node" && entry.key === "graphics" && this.positions && (entry.kinds & KIND_RECORD) !== 0) {
-            const taken = (candidate: string): boolean =>
-                this.nodeSchema.has(candidate) || this.sink.nodeColumn(candidate) !== INVALID_INDEX;
-            const position: ColumnPlan = {
-                ...plan,
-                name: uniqueColumnName("position", "graphics", taken),
-                dtype: "f64",
-                itemDtype: null,
-                kind: "real",
-                list: false,
-                role: "position",
-            };
-            const rest: ColumnPlan | null = entry.rest
-                ? { ...plan, dtype: "json", itemDtype: null, kind: "record", list: false }
-                : null;
-            return { ...plan, position, rest };
+            return this.graphicsPlan(plan, entry);
         }
         return plan;
     }
@@ -1542,7 +1604,8 @@ class GmlImport {
         const positionPlan = plan.position;
         let rest: unknown = first;
         if (isRecord(first) && positionPlan !== null) {
-            rest = this.writePosition(positionPlan, index, first, where);
+            const left = this.writePosition(positionPlan, index, this.keepPositionSource ? { ...first } : first, where);
+            rest = this.keepPositionSource ? first : left;
         } else if (!isRecord(first)) {
             this.graphicsWarning("scalar", `node ${where.element}'s graphics is not a record`, where);
         }
@@ -1925,11 +1988,12 @@ function sniffGml(head: Uint8Array): number {
  */
 export const gmlImporter: GraphImporter<GmlImportOptions> = Object.freeze({
     format: "gml",
-    options: Object.freeze(["dictionaries", "positions"]),
+    options: Object.freeze(["dictionaries", "keepPositionSource", "positions"]),
     extensions: Object.freeze([".gml"]),
     mimeTypes: Object.freeze(["text/x-gml", "text/plain"]),
     sniff: sniffGml,
     styles: gmlStyles,
+    positions: gmlPositions,
     /**
      * Read a GML text into a sink.
      * @param input - the text, bytes or stream

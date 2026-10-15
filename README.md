@@ -54,7 +54,7 @@ and link prediction. [View package](./algorithms)
 #### @graphty/layout
 
 [![npm version](https://img.shields.io/npm/v/@graphty/layout.svg)](https://www.npmjs.com/package/@graphty/layout)
-[![Documentation](https://img.shields.io/badge/docs-vitepress-blue)](https://graphty.app/docs/layout/api/generated/)
+[![Documentation](https://img.shields.io/badge/docs-vitepress-blue)](https://graphty.app/docs/layout/)
 [![Storybook](https://img.shields.io/badge/storybook-demos-ff4785)](https://graphty.app/storybook/layout/)
 
 2D and 3D graph layouts ported from NetworkX (force-directed, circular, shell, spiral, bipartite, planar and more),

@@ -12,7 +12,7 @@ export { arf } from "./arf.js";
 export { bfs, type BfsLayoutOptions } from "./bfs.js";
 export { bipartite, type BipartiteLayoutOptions } from "./bipartite.js";
 export { circular } from "./circular.js";
-export type { CommonLayoutOptions } from "./common.js";
+export type { CommonLayoutOptions, LayoutErrorCode } from "./common.js";
 export type { IndexedForceAtlas2Options, IndexedFruchtermanReingoldOptions } from "./force.js";
 export { forceAtlas2, fruchtermanReingold } from "./force.js";
 export { grid, type GridLayoutOptions } from "./grid.js";

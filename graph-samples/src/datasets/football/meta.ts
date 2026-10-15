@@ -1,4 +1,5 @@
 import { type DatasetMeta } from "../build.js";
+import { PACKED } from "../packed.js";
 
 /** What the football dataset is, where it came from and under which terms. */
 export const footballMeta: DatasetMeta = {
@@ -17,4 +18,6 @@ export const footballMeta: DatasetMeta = {
     attributes: { label: "string: the team", conference: "dict: the team's 2000 conference (ground truth)" },
     groundTruth: "conference",
     showcases: ["community detection scored against the conferences", "spring layout colored by conference"],
+    hosting: "remote",
+    ...PACKED.football,
 };

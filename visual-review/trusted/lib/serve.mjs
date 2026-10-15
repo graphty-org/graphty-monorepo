@@ -59,6 +59,7 @@
  * `<tmp>/state/groups.jsonl`, to count approvals per group.
  */
 
+import { execFile } from "node:child_process";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import {
     appendFileSync,
@@ -73,6 +74,9 @@ import {
 import { readFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
+
+import { contentHash } from "../gate.mjs";
 
 import {
     AcceptError,
@@ -95,7 +99,6 @@ import {
     exec,
     getRun,
     hurry,
-    newestCiRun,
     openPullRequests,
     pullRequestContext,
     retrying,
@@ -168,6 +171,8 @@ const POLL = 2 * 60000;
  */
 const networkTrouble = () => [...retrying].at(-1) ?? null;
 
+const execFileAsync = promisify(execFile);
+
 /**
  * The image a decision was taken on: the capture, or for a removed item its baseline.
  * @param {{ capture: string | null, baseline: string | null }} item the results.json item
@@ -203,6 +208,33 @@ async function earlierAccepts(repo, head, pr, baselines) {
             for (const item of record.items) {
                 out.set(item.path, item.to);
             }
+        }
+    }
+    return out;
+}
+
+/**
+ * The accepts of `records` the files at `tip` still hold. An update from the default branch can
+ * take that branch's side of a baseline and leave the record behind: the gate then sees the change
+ * unaccepted, so the accept is not published, whatever the record says.
+ * @param {string} repo the repository
+ * @param {string} tip the branch's commit
+ * @param {Map<string, string | null>} records `to` by baseline path (earlierAccepts)
+ * @returns {Promise<Map<string, string | null>>} those whose file at `tip` has that content
+ */
+async function heldAt(repo, tip, records) {
+    const out = new Map();
+    for (const [path, to] of records) {
+        const held = await execFileAsync("git", ["show", `${tip}:${path}`], {
+            cwd: repo,
+            encoding: "buffer",
+            maxBuffer: 64 << 20,
+        }).then(
+            ({ stdout }) => contentHash(stdout),
+            () => null,
+        );
+        if (held === (to ?? null)) {
+            out.set(path, to);
         }
     }
     return out;
@@ -338,6 +370,13 @@ export function createApp({
     let recordsAt = new Map();
     /** What the last refresh could not read from GitHub (the pull request list, a git fetch). */
     let listWarnings = [];
+    /**
+     * Each pull request run REST answered, by run id, with the list's status, conclusion and update
+     * time it was read at: a run whose three are unchanged is not asked for again, so a steady
+     * refresh costs GitHub one GraphQL query.
+     * @type {Map<number, { stamp: string, run: object }>}
+     */
+    let runsRead = new Map();
     /** The images the owner approved, by `<baseline path> <hash>` (filters.mjs approvalIndex). */
     let approved = new Map();
     /** Review records by blob id: a blob never changes, so each is read once. */
@@ -704,8 +743,15 @@ export function createApp({
         let evidence = [];
         try {
             evidence = JSON.parse(readFileSync(evidenceFile, "utf8"));
-        } catch {
-            // None kept yet, or unreadable: start again.
+        } catch (err) {
+            // None kept yet, or not JSON: start again. A file that cannot be read is kept as it
+            // is, never overwritten with this refresh's evidence alone.
+            if (err.code && err.code !== "ENOENT") {
+                const warning = `could not read the capture noise evidence (${evidenceFile}): ${err.message}`;
+                console.error(`visual-review: ${warning}`);
+                listWarnings.push(warning);
+                return;
+            }
         }
         const id = (o) => `${o.key} ${o.pr} ${o.baseline} ${o.capture}`;
         const have = new Set(evidence.map(id));
@@ -775,6 +821,28 @@ export function createApp({
         }
         return answer;
     };
+
+    /**
+     * A listed pull request's CI run as REST answers it: the attempt is only there, so REST is
+     * asked only when the list shows the run changed since the last refresh.
+     * @param {{ run: { id: number, status: string, conclusion: string | null, updatedAt: string } | null }} pr
+     *     the listed pull request
+     * @param {Map<number, { stamp: string, run: object }>} read collects this refresh's runs
+     * @returns {Promise<object | null>} the run, or null when CI never ran on the head
+     */
+    async function runOf({ run }, read) {
+        if (!run) {
+            return null;
+        }
+        const stamp = `${run.status} ${run.conclusion} ${run.updatedAt}`;
+        const was = runsRead.get(run.id);
+        const got = was?.stamp === stamp ? was.run : await getRun(gh, run.id);
+        // Kept only when REST agrees with the list, so an answer that lags it is asked again.
+        if (got.status === run.status && got.conclusion === run.conclusion) {
+            read.set(run.id, { stamp, run: got });
+        }
+        return got;
+    }
 
     async function build(info, run) {
         const g = run.status === "completed" ? kept(run) : gh;
@@ -930,7 +998,7 @@ export function createApp({
     const keptOr = (info, err) => {
         const old = targets.get(info.id);
         return old?.runId
-            ? { ...old, warnings: [retryLater("could not refresh", err.message)] }
+            ? { ...old, draft: info.draft, warnings: [retryLater("could not refresh", err.message)] }
             : blank(info, retryLater("failed to load", err.message));
     };
 
@@ -996,7 +1064,9 @@ export function createApp({
             listWarnings = [];
             const kept = [...targets.values()].filter((t) => t.pr !== null);
             step("listing pull requests");
-            const prs = await openPullRequests(gh).catch((err) => {
+            // This refresh's runs (runOf); a failed list keeps what the last one learned.
+            let read = new Map();
+            const prs = await openPullRequests(gh, config).catch((err) => {
                 if (!masterRun && kept.length === 0) {
                     throw err;
                 }
@@ -1006,6 +1076,7 @@ export function createApp({
                 for (const t of kept) {
                     next.set(t.id, { ...t, warnings: [warning] });
                 }
+                read = runsRead;
                 return [];
             });
             // Best effort: the default branch and the pull requests' branches, so the badge below
@@ -1047,9 +1118,10 @@ export function createApp({
                         url: pr.url,
                         branch: pr.branch,
                         head: pr.headSha,
+                        draft: pr.draft,
                     };
                     try {
-                        const run = await newestCiRun(gh, pr.headSha, config);
+                        const run = await runOf(pr, read);
                         return run
                             ? await build(info, run)
                             : await withPreviews(blank(info, `waiting for CI on ${pr.headSha.slice(0, 10)}`));
@@ -1060,6 +1132,7 @@ export function createApp({
                     }
                 }),
             );
+            runsRead = read;
             step("fetching branches");
             await fetched;
             await readPasskeys();
@@ -1231,19 +1304,18 @@ export function createApp({
     }
 
     // What this pull request's review records at its branch's fetched tip publish: the newest `to`
-    // per path. The captured head's (`earlier`) when the tip is that head, so the usual case reads
-    // nothing more; null when the branch was never fetched, so nothing is known about it.
+    // per path, where the file at the tip still holds it (heldAt). The records are the captured
+    // head's (`earlier`) when the tip is that head; null when the branch was never fetched, so
+    // nothing is known about it.
     async function publishedOn(t) {
         const tip = t.branch ? tips.get(t.branch) : undefined;
         if (tip === undefined) {
             return null;
         }
-        if (tip === t.headSha) {
-            return t.earlier;
-        }
         const key = `${tip} ${t.pr}`;
         if (!recordsAt.has(key)) {
-            recordsAt.set(key, await earlierAccepts(repo, tip, t.pr, config.baselines));
+            const records = tip === t.headSha ? t.earlier : await earlierAccepts(repo, tip, t.pr, config.baselines);
+            recordsAt.set(key, await heldAt(repo, tip, records));
         }
         return recordsAt.get(key);
     }
@@ -1328,6 +1400,8 @@ export function createApp({
             title: t.title,
             url: t.url,
             branch: t.branch,
+            // Its author is still working on it: the inbox never offers it (inbox.mjs).
+            draft: t.draft === true,
             runId: t.runId,
             runAttempt: t.runAttempt,
             runUrl: t.runUrl,

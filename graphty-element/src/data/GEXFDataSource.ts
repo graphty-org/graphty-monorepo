@@ -114,6 +114,74 @@ function timeText(value: number, text: string | null, timeFormat: string | null)
 }
 
 /**
+ * The columns of one row that state an interval: its bounds (start / end / timestamp roles), the
+ * original text of each bound by the bound's name, and its open bits.
+ * @param table - the node or edge table, or an extension table of attribute slices
+ * @param row - the row
+ * @returns the set bound columns, their texts and the open bits (0 when none)
+ */
+function intervalColumns(
+    table: Iterable<Column>,
+    row: number,
+): { bounds: Column[]; texts: Map<string, Column>; open: number } {
+    const texts = new Map<string, Column>();
+    const bounds: Column[] = [];
+    let open = 0;
+    for (const column of table) {
+        if (!column.isSet(row)) {
+            continue;
+        }
+
+        const { role, extra } = column.meta;
+        if (role === "start" || role === "end" || role === "timestamp") {
+            bounds.push(column);
+        } else if (role === "open") {
+            open = column.value(row) as number;
+        } else if (typeof extra.for === "string" && column.dtype === "string") {
+            texts.set(extra.for, column);
+        }
+    }
+
+    return { bounds, texts, open };
+}
+
+/**
+ * Read one interval's time keys from a row of a table's start / end / timestamp / open roles.
+ * @param table - the node or edge table, or an extension table of attribute slices
+ * @param row - the row
+ * @param timeFormat - the file's time format
+ * @returns only the keys the row carries
+ */
+function intervalKeys(table: Iterable<Column>, row: number, timeFormat: string | null): Record<string, unknown> {
+    const out: Record<string, unknown> = {};
+    const { bounds, texts, open } = intervalColumns(table, row);
+    for (const column of bounds) {
+        const text = texts.get(column.meta.name);
+        const value = column.value(row) as number;
+        // A slice with only one bound stores the other as an infinity: leave it out, as spells do.
+        if (text === undefined && !Number.isFinite(value)) {
+            continue;
+        }
+
+        out[column.meta.role as string] = timeText(
+            value,
+            text === undefined ? null : (text.value(row) as string),
+            timeFormat,
+        );
+    }
+
+    if ((open & OPEN_START) !== 0 && "start" in out) {
+        out.startOpen = true;
+    }
+
+    if ((open & OPEN_END) !== 0 && "end" in out) {
+        out.endOpen = true;
+    }
+
+    return out;
+}
+
+/**
  * The record mapping for GEXF: the keys the element has always given a GEXF node and edge.
  *
  * - `label`; `position` `{x, y, z}`, `color` `{r, g, b, a}` with 0-255 channels, and `size` from
@@ -137,57 +205,8 @@ function gexfMapping(snapshot: GraphSnapshot, graphDirected: boolean, fileStyles
     const vizKeys = fileStyles ? VIZ_POSITION : VIZ_KEYS;
     const { timeFormat } = snapshot.meta;
 
-    /**
-     * Read one interval's time keys from a row of a table's start / end / timestamp / open roles.
-     * @param table - the node or edge table, or an extension table of attribute slices
-     * @param row - the row
-     * @returns only the keys the row carries
-     */
-    const interval = (table: Iterable<Column>, row: number): Record<string, unknown> => {
-        const out: Record<string, unknown> = {};
-        const texts = new Map<string, Column>();
-        const bounds: Column[] = [];
-        let open = 0;
-        for (const column of table) {
-            if (!column.isSet(row)) {
-                continue;
-            }
-
-            const { role, extra } = column.meta;
-            if (role === "start" || role === "end" || role === "timestamp") {
-                bounds.push(column);
-            } else if (role === "open") {
-                open = column.value(row) as number;
-            } else if (typeof extra.for === "string" && column.dtype === "string") {
-                texts.set(extra.for, column);
-            }
-        }
-
-        for (const column of bounds) {
-            const text = texts.get(column.meta.name);
-            const value = column.value(row) as number;
-            // A slice with only one bound stores the other as an infinity: leave it out, as spells do.
-            if (text === undefined && !Number.isFinite(value)) {
-                continue;
-            }
-
-            out[column.meta.role as string] = timeText(
-                value,
-                text === undefined ? null : (text.value(row) as string),
-                timeFormat,
-            );
-        }
-
-        if ((open & OPEN_START) !== 0 && "start" in out) {
-            out.startOpen = true;
-        }
-
-        if ((open & OPEN_END) !== 0 && "end" in out) {
-            out.endOpen = true;
-        }
-
-        return out;
-    };
+    const interval = (table: Iterable<Column>, row: number): Record<string, unknown> =>
+        intervalKeys(table, row, timeFormat);
 
     /**
      * The slices of each time-sliced attribute, by the row of the element they belong to.
@@ -282,11 +301,6 @@ function gexfMapping(snapshot: GraphSnapshot, graphDirected: boolean, fileStyles
                 }
 
                 switch (column.meta.role) {
-                    case "position": {
-                        const [x, y, z] = components(column, row);
-                        record.position = { x, y, z };
-                        break;
-                    }
                     case "color": {
                         if (fileStyles) {
                             break;

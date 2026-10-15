@@ -1,3 +1,46 @@
+## 0.2.29 (2026-10-15)
+
+### 🩹 Fixes
+
+- **visual-review:** list pull requests and their CI runs in one GraphQL query ([#2682](https://github.com/graphty-org/graphty-monorepo/issues/2682))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.2.28 (2026-10-14)
+
+### 🩹 Fixes
+
+- **workspace:** keep core files off in the update check and heap the root builds ([#2562](https://github.com/graphty-org/graphty-monorepo/issues/2562))
+- **workspace:** build with CI's 8 GB heap in the visual-review update check ([#2475](https://github.com/graphty-org/graphty-monorepo/issues/2475))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.2.27 (2026-10-13)
+
+### 🩹 Fixes
+
+- **visual-review:** check an update's merge before pushing it ([#2296](https://github.com/graphty-org/graphty-monorepo/issues/2296))
+- **visual-review:** an accept counts as published only while the branch's baseline holds it ([bab1e4cfc](https://github.com/graphty-org/graphty-monorepo/commit/bab1e4cfc))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.2.26 (2026-10-13)
+
+### 🩹 Fixes
+
+- **visual-review:** ask for the session token when the page has none ([affee9300](https://github.com/graphty-org/graphty-monorepo/commit/affee9300))
+- **visual-review:** keep a screenshot approval across a merge of master ([#2272](https://github.com/graphty-org/graphty-monorepo/issues/2272))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.2.25 (2026-10-13)
 
 ### 🩹 Fixes

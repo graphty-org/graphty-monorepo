@@ -7,7 +7,7 @@ import { type EdgePosition, LayoutEngine, type Position } from "../../../src/lay
 import { layoutManagerInternals } from "../../../src/managers/LayoutManager";
 import type { Node } from "../../../src/Node";
 import { SCREENSHOT_CONSTANTS } from "../../../src/screenshot/constants";
-import { nextFrame } from "../../helpers/real-input";
+import { drawnFrames } from "../../helpers/drawn-frames";
 import { cleanupTestGraphWithData, createTestGraphWithData } from "./test-setup.js";
 
 let graph: Graph;
@@ -236,10 +236,9 @@ test("waitForOperations waits for pending operations", async () => {
             captured = true;
         });
 
-    // Should not capture while the operation is pending, however many frames are drawn
-    for (let frame = 0; frame < 5; frame++) {
-        await nextFrame();
-    }
+    // Should not capture while the operation is pending, however many frames are drawn; five drawn frames, any of which a
+    // capture that did not wait would have been taken from
+    await drawnFrames(graph.getScene(), 5);
     assert.equal(captured, false, "Should not capture before operations complete");
 
     // Let the operation complete

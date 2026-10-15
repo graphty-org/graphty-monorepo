@@ -433,8 +433,21 @@ function readEdgeGraphics(g: Rec, writer: GmlWriter, put: Put, at: At): void {
                 : canonEnum("arrow", raw, writer.spelling, at(property)),
         );
     }
-    if (v === "yed" && g.smoothBends !== undefined) {
-        put("curved", Number(g.smoothBends) === 1);
+    if (v === "yed") {
+        readYedCurve(g, put);
+    }
+}
+
+/**
+ * Reads whether yEd draws an edge curved: `smoothBends` rounds the bends of its `Line`, whose points run from the
+ * source through the bends to the target, so a line of two points (or none) stays straight.
+ * @param g - the edge's `graphics` record
+ * @param put - receives the value
+ */
+function readYedCurve(g: Rec, put: Put): void {
+    if (g.smoothBends !== undefined) {
+        const points = isRec(g.Line) ? g.Line.point : undefined;
+        put("curved", Number(g.smoothBends) === 1 && Array.isArray(points) && points.length > 2);
     }
 }
 

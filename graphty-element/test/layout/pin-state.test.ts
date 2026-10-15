@@ -28,7 +28,7 @@ import "../../src/layout/index";
 
 import { NullEngine, type Scene as BabylonScene, Scene } from "@babylonjs/core";
 import { INVALID_INDEX } from "@graphty/graph-format";
-import { afterEach, assert, describe, it } from "vitest";
+import { afterEach, assert, describe, it, vi } from "vitest";
 
 import type { AuthoredLayoutDescriptor } from "../../src/catalog/types";
 import type { NodeStyleConfig } from "../../src/config";
@@ -526,6 +526,58 @@ describe("a static layout after the graph grows", () => {
             held,
             "no held node moved",
         );
+    });
+});
+
+describe("carrying a re-run into the held frame", () => {
+    let harness: Harness | undefined;
+
+    afterEach(() => {
+        vi.restoreAllMocks();
+        harness?.dispose();
+        harness = undefined;
+    });
+
+    it("never calls an engine-approximated Math function, and places the new node where it did before", async () => {
+        // Math.hypot is not required to be correctly rounded, and it decides whether the re-run mirrors and how far
+        // the newcomers turn. The coordinates were recorded with Math.hypot, before the change.
+        const placements: { x: number; y: number; z: number }[] = [];
+        for (const [layout, ids] of [
+            ["test-mirroring-star", ["hub", "l0", "l1", "l2", "l3", "l4"]],
+            ["circular", ["n0", "n1", "n2", "n3", "n4", "n5", "n6", "n7", "n8"]],
+        ] as const) {
+            harness?.dispose();
+            harness = createHarness();
+            for (const id of ids) {
+                harness.add(id);
+            }
+            await layoutManagerInternals.setLayout(
+                harness.layoutManager,
+                layout,
+                layout === "circular" ? { dim: 2 } : {},
+            );
+            const arrival = harness.add(layout === "circular" ? "n9" : "l5");
+            // The test's own mirroring star draws with Math.cos and Math.sin; the element's alignment needs none.
+            const stubbed =
+                layout === "circular"
+                    ? (["hypot", "cos", "sin", "atan2", "log", "exp", "pow"] as const)
+                    : (["hypot"] as const);
+            for (const name of stubbed) {
+                vi.spyOn(Math, name).mockImplementation(() => {
+                    throw new Error(`Math.${name} called`);
+                });
+            }
+            try {
+                await harness.layoutManager.updatePositions([arrival]);
+            } finally {
+                vi.restoreAllMocks();
+            }
+            placements.push(harness.coordsOf(arrival));
+        }
+        assert.deepStrictEqual(placements, [
+            { x: 809.0169677734375, y: 587.78521728515625, z: 0 },
+            { x: 84.04866027832031, y: -30.591209411621094, z: 0 },
+        ]);
     });
 });
 

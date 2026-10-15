@@ -88,7 +88,35 @@ import {
 } from "./constants.js";
 import { graphmlStyles } from "./styles-plain.js";
 import { writeXmlTree, XmlTreeBuilder } from "./tree.js";
-import { graphicsDecl, graphicsValues } from "./yfiles.js";
+import { graphicsDecl, graphicsValues, yfilesPositions } from "./yfiles.js";
+
+/**
+ * Whether an XML attribute is not data and passes silently: a namespace declaration, an `xml:` or
+ * `xsi:` attribute, or a namespace URI where one is allowed.
+ * @param kind - the element name
+ * @param name - the attribute's name
+ * @returns true when it is never reported
+ */
+function isPassedAttribute(kind: string, name: string): boolean {
+    return name === "xmlns" || /^(xmlns|xml|xsi):/.test(name) || isAttributeUri(kind, name);
+}
+
+/**
+ * The warning for an attribute the importer does not read.
+ * @param kind - the element name
+ * @param name - the attribute's name
+ * @param hint - whether it is a `parse.*` hint
+ * @returns the message
+ */
+function unreadAttributeMessage(kind: string, name: string, hint: boolean): string {
+    if (hint) {
+        return `the <${kind}> parse hint ${name} is ignored`;
+    }
+    if (SCHEMA_ATTRIBUTES.has(name)) {
+        return `the <${kind}> attribute ${name} is not kept`;
+    }
+    return `the <${kind}> attribute ${name} is not a GraphML attribute; it is not kept`;
+}
 
 /** The XML attributes the importer reads on each element; any other is reported (once per element and name). */
 const GRAPH_ATTRIBUTES: ReadonlySet<string> = new Set(["id", "edgedefault", "parse.nodes", "parse.edges"]);
@@ -1155,40 +1183,39 @@ class GraphmlReader implements XmlHandler {
         known: ReadonlySet<string>,
         line: number,
     ): void {
-        if (attrs.size === 0) {
+        for (const name of attrs.keys()) {
+            if (!known.has(name) && !isPassedAttribute(kind, name)) {
+                this.reportUnreadAttribute(kind, name, line);
+            }
+        }
+    }
+
+    /**
+     * Report one attribute reportUnreadAttributes() found, unless its name was reported for this
+     * element kind already or the kind is past MAX_UNKNOWN_ATTRIBUTE_NAMES names (then it is counted).
+     * @param kind - the element name
+     * @param name - the attribute's name
+     * @param line - the line
+     */
+    private reportUnreadAttribute(kind: string, name: string, line: number): void {
+        const hint = name.startsWith("parse.");
+        let names = this.unknownNames.get(kind);
+        if (names === undefined) {
+            names = new Set();
+            this.unknownNames.set(kind, names);
+        }
+        if (names.has(name)) {
             return;
         }
-        for (const name of attrs.keys()) {
-            if (known.has(name) || name === "xmlns" || /^(xmlns|xml|xsi):/.test(name) || isAttributeUri(kind, name)) {
-                continue;
-            }
-            const hint = name.startsWith("parse.");
-            const code = hint ? GRAPHML_ISSUE.PARSE_HINT_IGNORED : GRAPHML_ISSUE.UNKNOWN_XML_ATTRIBUTE;
-            let names = this.unknownNames.get(kind);
-            if (names === undefined) {
-                names = new Set();
-                this.unknownNames.set(kind, names);
-            }
-            if (names.has(name)) {
-                continue;
-            }
-            if (names.size >= MAX_UNKNOWN_ATTRIBUTE_NAMES && !hint) {
-                this.unknownOverflow.set(kind, (this.unknownOverflow.get(kind) ?? 0) + 1);
-            }
-            names.add(name);
-            if (names.size > MAX_UNKNOWN_ATTRIBUTE_NAMES && !hint) {
-                continue;
-            }
-            let message: string;
-            if (hint) {
-                message = `the <${kind}> parse hint ${name} is ignored`;
-            } else if (SCHEMA_ATTRIBUTES.has(name)) {
-                message = `the <${kind}> attribute ${name} is not kept`;
-            } else {
-                message = `the <${kind}> attribute ${name} is not a GraphML attribute; it is not kept`;
-            }
-            this.report.warning("unsupported", code, message, { line, element: name });
+        if (names.size >= MAX_UNKNOWN_ATTRIBUTE_NAMES && !hint) {
+            this.unknownOverflow.set(kind, (this.unknownOverflow.get(kind) ?? 0) + 1);
         }
+        names.add(name);
+        if (names.size > MAX_UNKNOWN_ATTRIBUTE_NAMES && !hint) {
+            return;
+        }
+        const code = hint ? GRAPHML_ISSUE.PARSE_HINT_IGNORED : GRAPHML_ISSUE.UNKNOWN_XML_ATTRIBUTE;
+        this.report.warning("unsupported", code, unreadAttributeMessage(kind, name, hint), { line, element: name });
     }
 
     /**
@@ -2510,9 +2537,10 @@ class GraphmlReader implements XmlHandler {
      */
     private expandStar(hyperedge: HyperedgeState, where: Where): void {
         this.hyperedgeCount++;
-        let hubId = hyperedge.id ?? `hyperedge${this.hyperedgeCount}`;
+        const baseId = hyperedge.id ?? `hyperedge${this.hyperedgeCount}`;
+        let hubId = baseId;
         for (let n = 2; this.sink.indexOf(hubId) !== INVALID_INDEX; n++) {
-            hubId = `${hyperedge.id ?? `hyperedge${this.hyperedgeCount}`}#${n}`;
+            hubId = `${baseId}#${n}`;
         }
         const hub = this.sink.addNode(hubId);
         this.declared.add(hub);
@@ -2749,6 +2777,7 @@ export const graphmlImporter: GraphImporter<GraphmlImportOptions> = Object.freez
     mimeTypes: MIME_TYPES,
     sniff: sniffGraphml,
     styles: graphmlStyles,
+    positions: yfilesPositions,
     import: importGraphml,
 });
 

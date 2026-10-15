@@ -1,10 +1,10 @@
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { backPressure, testSlots } from "../lib/pressure.mjs";
 import { pushQueueSlots, pushQueueTickets } from "../lib/proc.mjs";
+import { tempDir } from "./helpers/temp-dir.mjs";
 
 /** A pid above Linux's largest pid_max (2^22), so no process ever has it. */
 const DEAD = 4_194_305;
@@ -13,7 +13,7 @@ describe("back-pressure on new work", () => {
     /** @type {string} */
     let root;
     beforeEach(() => {
-        root = mkdtempSync(join(tmpdir(), "githerd-pressure-"));
+        root = tempDir("githerd-pressure-");
         mkdirSync(join(root, "tools"));
         writeFileSync(join(root, "tools", "push-queue.sh"), "#!/bin/bash\nSLOTS=${PUSH_QUEUE_SLOTS:-2}\n");
         mkdirSync(join(root, "tmp", "push-queue"), { recursive: true });
@@ -45,6 +45,13 @@ describe("back-pressure on new work", () => {
         const dead = ticket(6, DEAD);
         expect(await backPressure({ root, repo: "o/r", ...idle })).toEqual(["3 pushes waiting for 2 gate slots"]);
         expect(existsSync(dead)).toBe(false);
+    });
+
+    it("follows a wrapper that execs the real queue script to its gate slots", () => {
+        const real = join(root, "tools", "push-queue.sh");
+        const wrapper = join(root, "wrapper.sh");
+        writeFileSync(wrapper, `#!/bin/bash\n# runs the live copy\nexec bash ${real} "$@"\n`);
+        expect(pushQueueSlots(wrapper)).toBe(2);
     });
 
     it("reads the gate slots from the queue script, overridden by PUSH_QUEUE_SLOTS", () => {

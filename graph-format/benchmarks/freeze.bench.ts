@@ -49,7 +49,8 @@ export function runFreezeBenchmarks(): BenchResult[] {
     const results: BenchResult[] = [];
     for (const [nodeCount, edgeCount] of SIZES) {
         const edges = randomEdges(nodeCount, edgeCount);
-        const label = `${nodeCount / 1000}k/${edgeCount >= 1_000_000 ? `${edgeCount / 1_000_000}M` : `${edgeCount / 1000}k`}`;
+        const edgeLabel = edgeCount >= 1_000_000 ? `${edgeCount / 1_000_000}M` : `${edgeCount / 1000}k`;
+        const label = `${nodeCount / 1000}k/${edgeLabel}`;
         for (const directed of [true, false]) {
             const dir = directed ? "directed" : "undirected";
             results.push(

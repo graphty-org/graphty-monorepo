@@ -1,5 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -8,6 +7,7 @@ import { statusStep } from "../lib/asks.mjs";
 import { move, newJob } from "../lib/board.mjs";
 import { createMcpServer, TOOL_PROTOCOL, TOOLS } from "../lib/mcp.mjs";
 import { CLAIMED, sessionToolSet } from "../lib/session-tools.mjs";
+import { tempDir } from "./helpers/temp-dir.mjs";
 
 const NOW = new Date("2026-10-04T12:00:00Z");
 const HEAD = "a".repeat(40);
@@ -112,7 +112,7 @@ describe("sessionToolSet", () => {
     });
 
     it("githerd_mine keeps a failed pull request for the answering session, named as its registry names it", async () => {
-        const home = mkdtempSync(join(tmpdir(), "githerd-mine-"));
+        const home = tempDir("githerd-mine-");
         try {
             mkdirSync(join(home, ".claude", "sessions"), { recursive: true });
             writeFileSync(
@@ -162,7 +162,7 @@ describe("sessionToolSet", () => {
     });
 
     it("githerd_offers pauses and resumes job offers to the calling session, by its registry name", async () => {
-        const home = mkdtempSync(join(tmpdir(), "githerd-offers-"));
+        const home = tempDir("githerd-offers-");
         try {
             mkdirSync(join(home, ".claude", "sessions"), { recursive: true });
             writeFileSync(
@@ -195,7 +195,7 @@ describe("sessionToolSet", () => {
     });
 
     it("records where an owner session works: from its MCP server, else from Claude Code's registry", async () => {
-        const home = mkdtempSync(join(tmpdir(), "githerd-home-"));
+        const home = tempDir("githerd-home-");
         try {
             mkdirSync(join(home, ".claude", "sessions"), { recursive: true });
             // The registry entry of an owner session, with the fields githerd reads.

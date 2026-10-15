@@ -226,6 +226,9 @@ export class Node {
      */
     shapeType?: NonNullable<NodeStyleConfig["shape"]>["type"];
 
+    /** The node's border, a child of its mesh, or null when its style draws none. */
+    private border: AbstractMesh | null = null;
+
     /** The mesh {@link Node.roundRadius} was last measured from, so a reshape re-measures. */
     private roundRadiusMesh: AbstractMesh | null = null;
 
@@ -330,8 +333,7 @@ export class Node {
 
         this.meshKey = paint.meshKey;
 
-        // create graph node
-        // TODO: Node is added to layout engine by DataManager, not here
+        // The layout engine gets this node from DataManager, not from here.
 
         // create mesh
         const o = paint.style;
@@ -361,6 +363,8 @@ export class Node {
             styleId: paint.meshKey,
             nodeId: this.id,
         };
+
+        this.syncBorder(paint.meshKey, o);
 
         // create label
         this.syncLabel(o, true);
@@ -397,6 +401,78 @@ export class Node {
         this.roundRadiusValue = this.measureRoundRadius();
 
         return this.roundRadiusValue;
+    }
+
+    /**
+     * How far this node's border reaches past its outline, in the units its position is laid out
+     * in: zero for a node with no border. An edge stops this much further out than the node's
+     * surface, so its line meets the border rather than running across it.
+     * @returns The border's width.
+     * @internal
+     */
+    get borderReach(): number {
+        return this.border === null
+            ? 0
+            : (this.drawnStyle?.border?.width ?? 0) * NodeMesh.extentPerSize(this.drawnStyle?.shape);
+    }
+
+    /**
+     * How far this node reaches along one axis, for framing the graph: its drawn half-extent and
+     * its border, in the units of `node.size` (half the size for a node of one size, as before).
+     *
+     * ponytail: in node-size units rather than world units, so every graph without a border or a
+     * width is framed exactly as it always was; framing by the true drawn extent would re-frame
+     * every graph a little looser.
+     * @param axis - The axis.
+     * @returns The half-extent.
+     * @internal
+     */
+    framingHalf(axis: "x" | "y" | "z"): number {
+        if (this.mesh.isDisposed()) {
+            return this.size / 2;
+        }
+
+        const extent = this.mesh.getBoundingInfo().boundingBox.extendSize[axis] * Math.abs(this.mesh.scaling[axis]);
+
+        return (extent + this.borderReach) / NodeMesh.extentPerSize(this.drawnStyle?.shape);
+    }
+
+    /**
+     * Send every edge on this node back to find its surface, and wake a layout that keeps nodes
+     * apart by their drawn size (`nodeGap`): called when the node's geometry has changed.
+     */
+    private reattachEdges(): void {
+        const engine = this.context.getLayoutManager().layoutEngine;
+        if (engine instanceof NGraphEngine) {
+            engine.wakeForResize();
+        }
+
+        for (const edge of this.context.getDataManager().edges.values()) {
+            if (edge.srcNode === this || edge.dstNode === this) {
+                edge.invalidatePositionCache();
+            }
+        }
+    }
+
+    /**
+     * Build this node's border from its style, as a child of its mesh so it moves, hides and is
+     * disposed with the node. Called after every new mesh: the old border went with the old mesh.
+     * @param meshKey - The source mesh key the node is drawn under.
+     * @param style - The resolved style.
+     */
+    private syncBorder(meshKey: string, style: NodeStyleConfig): void {
+        this.border = NodeMesh.createBorder(
+            this.context.getMeshCache(),
+            { styleId: meshKey, is2D: this.context.is2D(), size: this.size },
+            { shape: style.shape, border: style.border },
+            this.mesh,
+            this.context.getScene(),
+        );
+
+        if (this.border !== null) {
+            this.border.parent = this.mesh;
+            this.border.position.setAll(0);
+        }
     }
 
     /**
@@ -459,10 +535,10 @@ export class Node {
         // A DELIBERATELY disposed node must never be resurrected here. The recreate-on-disposed
         // branch below exists for the 2D/3D mode switch, which disposes meshes out from under
         // live nodes; it cannot tell that case apart from a node this graph has finished with.
-        // Both the layout engine (which DataManager.clear does not notify -- see its TODO) and
-        // SelectionManager.selectedNode keep hard references to Nodes after a dataset is dropped,
-        // and both of them call update(), so without this guard clearing a dataset would silently
-        // rebuild every node's mesh on the next frame or the next deselect.
+        // SelectionManager.selectedNode keeps a hard reference to a Node after its dataset is
+        // dropped, and the layout engine keeps them after DataManager.dispose() (clear() takes
+        // them out of it, #121); both call update(), so without this guard a dropped node's mesh
+        // would silently be rebuilt on the next frame or the next deselect.
         if (this.disposed) {
             return;
         }
@@ -675,6 +751,11 @@ export class Node {
             return;
         }
 
+        // Width, height, depth, flatness and a border move a node's surface as surely as its size
+        // and shape do, so any of them sends the edges back to find it.
+        const geometryChanged =
+            !isEqual(this.drawnStyle?.shape, o.shape) || !isEqual(this.drawnStyle?.border, o.border);
+
         this.meshKey = meshKey;
         this.drawnStyle = o;
         this.drawnColor = color;
@@ -693,8 +774,6 @@ export class Node {
             this.mesh.dispose();
         }
 
-        const oldSize = this.size;
-        const oldShapeType = this.shapeType;
         this.size = o.shape?.size ?? 0;
         this.shapeType = o.shape?.type;
 
@@ -738,20 +817,8 @@ export class Node {
         // is unchanged for the size case and newly reachable for the shape case; if a repaint
         // that changes every node's shape ever hitches, the answer is a per-node edge index, not
         // removing the guard.
-        if (this.size !== oldSize || this.shapeType !== oldShapeType) {
-            // A layout that keeps nodes apart by their drawn size (`nodeGap`) has to look again;
-            // the frame loop steps it while it is not settled.
-            const engine = this.context.getLayoutManager().layoutEngine;
-            if (engine instanceof NGraphEngine) {
-                engine.wakeForResize();
-            }
-
-            const dataManager = this.context.getDataManager();
-            for (const edge of dataManager.edges.values()) {
-                if (edge.srcNode === this || edge.dstNode === this) {
-                    edge.invalidatePositionCache();
-                }
-            }
+        if (geometryChanged) {
+            this.reattachEdges();
         }
 
         this.mesh = NodeMesh.create(
@@ -763,6 +830,7 @@ export class Node {
 
         // Restore the saved position to the new mesh
         this.setMeshPosition(savedPosition.x, savedPosition.y, savedPosition.z);
+        this.syncBorder(meshKey, o);
 
         // Parent to graph-root for XR gesture support
         const graphRoot = this.context.getScene().getTransformNodeByName("graph-root");
@@ -839,12 +907,12 @@ export class Node {
      * instanced node the layer never held.
      *
      * A DISPOSED NODE STILL RECEIVES CALLS, which is why the private `disposed` flag exists rather than
-     * this method simply freeing things. `DataManager.clear()` does not notify the layout engine
-     * (its own standing TODO), so `UpdateManager` keeps iterating the engine's node and edge
-     * lists; and `SelectionManager.selectedNode` holds a Node across a dataset boundary and calls
-     * `updateStyle` + `update` on it when the selection is finally cleared. Both paths would have
-     * hit `update()`'s recreate-if-disposed branch and rebuilt the mesh of a node nobody owns.
-     * Calling this twice is safe.
+     * this method simply freeing things. `DataManager.dispose()` does not take nodes out of the
+     * layout engine (`clear()` does, #121), so `UpdateManager` can keep iterating the engine's
+     * node and edge lists; and `SelectionManager.selectedNode` holds a Node across a dataset
+     * boundary and calls `updateStyle` + `update` on it when the selection is finally cleared.
+     * Both paths would have hit `update()`'s recreate-if-disposed branch and rebuilt the mesh of a
+     * node nobody owns. Calling this twice is safe.
      */
     dispose(): void {
         if (this.disposed) {
@@ -1118,7 +1186,9 @@ export class Node {
 
         // A mesh whose bounds have not been computed yet answers zero. Falling back to the
         // style's own size keeps the answer roughly right until the mesh is measured.
-        return this.drawnRadiusValue > 0 ? this.drawnRadiusValue : Math.max(this.size, MIN_OVERLAY_SIZE) / 2;
+        const radius = this.drawnRadiusValue > 0 ? this.drawnRadiusValue : Math.max(this.size, MIN_OVERLAY_SIZE) / 2;
+
+        return radius + this.borderReach;
     }
 
     /**
@@ -1433,7 +1503,7 @@ export class Node {
         // Labels that would overlap on screen are thinned out when `labels.declutter` is on; see
         // LabelDeclutter.
         LabelDeclutter.track(scene, this.context, this);
-        // Its animation starts on the next frame the layout is at rest, or when it settles.
+        // Its animation starts on the first frame at rest with no style paint left to draw.
         oweLabelAnimations(scene);
         return new RichTextLabel(scene, labelOptions);
     }

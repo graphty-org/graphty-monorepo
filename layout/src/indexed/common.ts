@@ -14,6 +14,47 @@ export interface CommonLayoutOptions {
     readonly seed?: number | null | undefined;
 }
 
+/**
+ * The stable `code` a layout's refusal carries, beside `params` holding its facts, so a caller can tell the cases
+ * apart without matching message text (which may change):
+ *
+ * - `E_BAD_OPTION`: an option is out of range or not one of its values; `params` `{ option, value }`, or for an
+ *   array of the wrong length `{ option, length, expected }`.
+ * - `E_BAD_NODE`: an option names a node index (or id) that is not a node of the graph; `params` `{ option, index }`.
+ * - `E_UNKNOWN_COLUMN`: an option names a node column the snapshot does not hold; `params` `{ option, column }`.
+ * - `E_BAD_WEIGHT`: an edge weight the layout cannot use (kamadaKawai's weights are distances, so >= 0); `params`
+ *   `{ weight }`.
+ * - `E_COLUMN_TYPE`: an option names a node column of a dtype the layout cannot read; `params`
+ *   `{ option, column, dtype, expected }`.
+ * - `E_NOT_PLANAR`, `E_NOT_CONNECTED`, `E_TOO_LARGE`: the graph lacks a property the layout needs, or is too large.
+ *
+ * The thrown object stays the `Error` it was before codes existed.
+ */
+export type LayoutErrorCode =
+    | "E_BAD_OPTION"
+    | "E_BAD_NODE"
+    | "E_UNKNOWN_COLUMN"
+    | "E_COLUMN_TYPE"
+    | "E_BAD_WEIGHT"
+    | "E_NOT_PLANAR"
+    | "E_NOT_CONNECTED"
+    | "E_TOO_LARGE";
+
+/**
+ * Attach a code and its facts to an error about to be thrown.
+ * @param error - the error
+ * @param code - its code
+ * @param params - the facts behind it
+ * @returns the same error, with `code` and `params` set
+ */
+export function refusal<E extends Error>(
+    error: E,
+    code: LayoutErrorCode,
+    params: Readonly<Record<string, unknown>>,
+): E & { readonly code: LayoutErrorCode; readonly params: Readonly<Record<string, unknown>> } {
+    return Object.assign(error, { code, params });
+}
+
 /** The resolved common options: `center` has exactly `dim` components. */
 interface Resolved {
     readonly n: number;
@@ -31,7 +72,10 @@ interface Resolved {
 export function resolve(s: GraphSnapshot, options: CommonLayoutOptions): Resolved {
     const dim = options.dim ?? 2;
     if (dim !== 2 && dim !== 3) {
-        throw new Error(`dim must be 2 or 3, got ${String(dim)}`);
+        throw refusal(new Error(`dim must be 2 or 3, got ${String(dim)}`), "E_BAD_OPTION", {
+            option: "dim",
+            value: dim,
+        });
     }
     const center = Array.from({ length: dim }, (_, k) => options.center?.[k] ?? 0);
     return { n: s.nodeCount, dim, scale: options.scale ?? 1, center };

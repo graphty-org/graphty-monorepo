@@ -554,8 +554,7 @@ export class Edge {
 
         this.meshKey = paint.meshKey;
 
-        // create ngraph link
-        // TODO: Edge is added to layout engine by DataManager, not here
+        // The layout engine gets this edge from DataManager, not from here.
 
         // create mesh
         const { style } = paint;
@@ -630,10 +629,11 @@ export class Edge {
      */
     update(): void {
         // A DELIBERATELY disposed edge must never rebuild itself. UpdateManager iterates the
-        // LAYOUT ENGINE's edge list every frame, and DataManager.clear() does not notify the
-        // layout engine (its own standing TODO), so this method keeps being called on edges whose
-        // dataset was dropped. Without this guard the style branch below would take a brand new
-        // slot (or build a patterned line) for an edge nobody owns.
+        // LAYOUT ENGINE's edge list every frame. DataManager.clear() takes a dropped dataset's
+        // edges out of the engine before disposing them (#121), but DataManager.dispose() does
+        // not, so this method can still be called on an edge whose dataset is gone. Without this
+        // guard the style branch below would take a brand new slot (or build a patterned line)
+        // for an edge nobody owns.
         if (this.disposed) {
             return;
         }
@@ -1511,6 +1511,7 @@ export class Edge {
         }
 
         if (srcPoint !== null && dstPoint !== null) {
+            this.pastBorders(srcPoint, dstPoint);
             newEndPoint = this.lineEndBefore(srcPoint, dstPoint);
         }
 
@@ -1519,6 +1520,33 @@ export class Edge {
             dstPoint,
             newEndPoint,
         };
+    }
+
+    /**
+     * Move the line's two ends out past the borders of the nodes they meet, so the line meets a
+     * border rather than running across it. Along the line, so at a slant it stops a little inside
+     * the border's outer edge, never outside it.
+     * @param srcPoint - Where the line leaves the source node's surface; moved in place.
+     * @param dstPoint - Where it meets the destination node's surface; moved in place.
+     */
+    private pastBorders(srcPoint: Vector3, dstPoint: Vector3): void {
+        const srcReach = this.srcNode.borderReach;
+        const dstReach = this.dstNode.borderReach;
+
+        if (srcReach === 0 && dstReach === 0) {
+            return;
+        }
+
+        const direction = dstPoint.subtract(srcPoint);
+        const span = direction.length();
+
+        if (span <= srcReach + dstReach) {
+            return;
+        }
+
+        direction.scaleInPlace(1 / span);
+        srcPoint.addInPlace(direction.scale(srcReach));
+        dstPoint.subtractInPlace(direction.scale(dstReach));
     }
 
     /**

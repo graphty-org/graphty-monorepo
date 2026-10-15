@@ -8,9 +8,10 @@
  *   for a `pr` job's pull request): Claude's judgment, so one
  *   verdict only makes an `unconfirmed` proposal. A second verdict from a different session that
  *   agrees (same kind, same `of`) confirms it; one that disagrees, or a `keep`, drops it.
- * - `already-merged` (a pull request whose every commit is on master, merged through `of`) and
- *   `duplicate-pr` (a newer pull request for the same issue as the older `of`): mechanical signals,
- *   confirmed at once.
+ * - `already-merged` (a pull request whose every commit is on master, merged through `of`),
+ *   `duplicate-pr` (a newer pull request for the same issue as the older `of`) and `split` (an issue
+ *   an issue job split into child issues, once every child is closed: `proposeSplitParents`):
+ *   mechanical signals, confirmed at once.
  *
  * A confirmed proposal gets one comment on its target, then waits a grace period counted in days on
  * which the owner was present (section 11.3), not counting the day of the comment: 7 for an issue,
@@ -50,10 +51,12 @@ const KINDS = {
     "not-needed-pr": "pr",
     "already-merged": "pr",
     "duplicate-pr": "pr",
+    split: "issue",
 };
-const MECHANICAL = new Set(["already-merged", "duplicate-pr"]);
+const MECHANICAL = new Set(["already-merged", "duplicate-pr", "split"]);
 const NEEDS_OF = new Set(["duplicate", "already-merged", "duplicate-pr"]);
-const TERMINAL = new Set(["closed", "vetoed", "dropped", "ended", "voided"]);
+/** The proposal states that have ended. */
+export const TERMINAL = new Set(["closed", "vetoed", "dropped", "ended", "voided"]);
 const GROUP = "proposals";
 /** How long a target githerd closed is watched for the owner reopening it. */
 const WATCH_MS = 30 * 86_400_000;
@@ -64,7 +67,7 @@ const OWN_MARK = "<!-- githerd";
 
 /**
  * @typedef {"duplicate" | "obsolete" | "fixed" | "not-needed" | "not-needed-pr" | "already-merged"
- *   | "duplicate-pr"} Kind
+ *   | "duplicate-pr" | "split"} Kind
  * @typedef {{verdict: Kind | "keep", number: number, of?: number, evidence?: string, session: string,
  *   at: string}} Verdict one verdict on an issue or pull request; `session` is who judged it
  * @typedef {{id: string, target: string, kind: Kind, of: number | null, evidence: string | null,
@@ -177,6 +180,31 @@ function secondVerdict(p, v) {
 }
 
 /**
+ * Proposes closing each issue an issue job split into child issues (outcome `split`, done.mjs) once
+ * every child is closed (issue #2557): the job ended, so nothing else ever would. A child githerd
+ * does not know as closed (`state.issues.byNumber`; issues.mjs keeps the children of a kept job)
+ * holds it back, and a parent proposed once is never proposed again this way.
+ * @param {any} state the daemon state
+ * @param {string} at the time, ISO
+ * @returns {Proposal[]} the proposals it made
+ */
+export function proposeSplitParents(state, at) {
+    const issues = state.issues?.byNumber ?? {};
+    const made = [];
+    for (const j of Object.values(state.jobs ?? {})) {
+        const n = /^#(\d+)$/.exec(j.target ?? "")?.[1];
+        if (j.kind !== "issue" || j.state !== "done" || !j.children?.length || !n) continue;
+        if (issues[n]?.state !== "open" || state.proposals?.[`issue:${n}`]?.kind === "split") continue;
+        if (!j.children.every((/** @type {number} */ c) => issues[c]?.state === "closed")) continue;
+        const names = j.children.map((/** @type {number} */ c) => `#${c}`).join(", ");
+        const evidence = `every one of them is closed: ${names}`;
+        const r = recordVerdict(state, { verdict: "split", number: Number(n), evidence, session: "githerd", at });
+        if (r.proposal?.kind === "split") made.push(r.proposal);
+    }
+    return made;
+}
+
+/**
  * Vetoes a target: never proposed or closed again, and its open proposal ends.
  * @param {any} state the daemon state
  * @param {string} target `issue:<n>` or `pr:<n>`
@@ -205,6 +233,7 @@ export function proposalComment(p) {
         "not-needed-pr": `The change this pull request makes looks not needed; two separate sessions agreed. Evidence: ${p.evidence}`,
         "already-merged": `Every commit of this pull request is already on master, merged through #${p.of}.`,
         "duplicate-pr": `This pull request duplicates #${p.of}, which is older and is kept.`,
+        split: `This issue was split into child issues, and ${p.evidence}.`,
     }[p.kind];
     const days = GRACE_DAYS[/** @type {"issue" | "pr"} */ (p.target.split(":")[0])];
     return [
@@ -379,7 +408,7 @@ async function closeAfterGrace(state, p, ctx) {
     const close =
         type === "pr"
             ? { state: "closed" }
-            : { state: "closed", state_reason: p.kind === "fixed" ? "completed" : "not_planned" };
+            : { state: "closed", state_reason: ["fixed", "split"].includes(p.kind) ? "completed" : "not_planned" };
     const repo = ctx.repo;
     const res = await ctx.gitHub.write("PATCH", `repos/${repo}/${type === "pr" ? "pulls" : "issues"}/${n}`, close, {
         group: GROUP,
@@ -485,4 +514,40 @@ async function objected(state, p, ctx, fresh) {
     if (!objection) return false;
     veto(state, p.target, { by: "owner", reason: `the owner commented on ${p.target}`, at: objection.created_at });
     return true;
+}
+
+/** The job states after which a job never reports again. */
+const FINISHED_JOB = new Set(["done", "cancelled"]);
+
+/**
+ * The ended proposals nothing reads any more (issue #2552), by target, which the daemon drops from
+ * the state once their whole record is in the ledger (a `proposal-dropped` line). A new verdict, a
+ * veto and `closedTargets` only look at open proposals, and the stats read a closed one's record
+ * from that line (`githerdClosedIssues`). An ended proposal is still read while a job on its target
+ * has not finished (a `not-needed` report holds on a proposal that closed or ended, done.mjs), and a
+ * closed one while `watchReopen` still watches it (until the watch ends, `watched: false`). One on
+ * a split parent stays while the job that split it is in the state: `proposeSplitParents` proposes
+ * a parent only once, by finding its earlier split proposal.
+ * Entries in an older shape are not this module's and stay.
+ * @param {any} state the daemon state
+ * @returns {string[]} the targets to drop
+ */
+export function droppableProposals(state) {
+    const working = new Set(
+        Object.values(state.jobs ?? {})
+            .filter(
+                (/** @type {any} */ j) =>
+                    (j.kind === "issue" || j.kind === "pr") && (!FINISHED_JOB.has(j.state) || j.children?.length),
+            )
+            .map((/** @type {any} */ j) => `${j.kind}:${/^#(\d+)$/.exec(String(j.target ?? ""))?.[1]}`),
+    );
+    return Object.entries(state.proposals ?? {})
+        .filter(
+            ([target, /** @type {any} */ p]) =>
+                p.kind in KINDS &&
+                TERMINAL.has(p.status) &&
+                !working.has(target) &&
+                !(p.status === "closed" && !p.dryRun && p.watched !== false && p.closedAt),
+        )
+        .map(([target]) => target);
 }

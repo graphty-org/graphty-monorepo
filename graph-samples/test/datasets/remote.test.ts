@@ -1,8 +1,8 @@
 import { equalsTopology, fromEdgeArrays } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import { karate } from "../../src/datasets/karate/index.js";
 import { DEFAULT_DATASET_BASE_URL, fetchDataset } from "../../src/datasets/remote.js";
+import { karate } from "../helpers/datasets.js";
 
 /**
  * Gzip bytes the way the hosted files are written.

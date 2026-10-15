@@ -1,5 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -18,6 +17,7 @@ import {
     statsReport,
     statsText,
 } from "../lib/stats.mjs";
+import { tempDir } from "./helpers/temp-dir.mjs";
 
 const fixture = (/** @type {string} */ name) =>
     JSON.parse(readFileSync(new URL(`fixtures/stats/${name}.json`, import.meta.url), "utf8"));
@@ -30,7 +30,7 @@ const byNumber = (/** @type {number} */ n) => items.find((/** @type {any} */ i) 
 let dir;
 beforeAll(() => isolateGit());
 beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "githerd-stats-"));
+    dir = tempDir("githerd-stats-");
 });
 afterEach(() => rmSync(dir, { recursive: true, force: true }));
 

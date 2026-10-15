@@ -146,7 +146,9 @@ graph-io reads:
 A file from any other writer has no styles (`styles: null`).
 
 A save with styles writes yEd graphics (`y:ShapeNode` and `y:PolyLineEdge`), which yEd draws, and
-keeps the rules for graphty as the graph `<data>` key `graphty.styles`. See [Styles](../styles.md).
+keeps the rules for graphty as the graph `<data>` key `graphty.styles`. Each node's position goes
+into its `y:Geometry` too (the box's top-left corner, y down, as yEd places it), so a styled save
+keeps where the nodes are and reports no `W_POSITIONS_DROPPED`. See [Styles](../styles.md).
 
 <!-- generated:begin styles:graphml -->
 

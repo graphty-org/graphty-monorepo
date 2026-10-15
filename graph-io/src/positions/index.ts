@@ -5,7 +5,7 @@
  */
 
 export { POSITION_ISSUE, type PositionNoteCode } from "./codes.js";
-export { flipY, toFilePositions } from "./convert.js";
+export { flipY, toFilePositions, writtenPositions } from "./convert.js";
 export { extractPositions } from "./extract.js";
 export type {
     ExtractPositionsOptions,

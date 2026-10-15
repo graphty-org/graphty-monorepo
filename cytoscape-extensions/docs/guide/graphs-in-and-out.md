@@ -282,10 +282,15 @@ first, or append them yourself:
 
 ```js
 const { stylesheet } = await cy.graphtyImport(text, "auto", { styles: true });
-cy.style()
-    .fromJson([...cy.style().json(), ...stylesheet])
-    .update();
+for (const rule of stylesheet) {
+    cy.style().selector(rule.selector).style(rule.style);
+}
+cy.style().update();
 ```
+
+Append the rules one by one like this rather than through `cy.style().fromJson([...cy.style().json(),
+...stylesheet])`: `json()` writes a function-valued property of the core's own stylesheet as the
+string `"fn"`, which Cytoscape.js then rejects.
 
 The stylesheet alone draws what the file's rules say; an element the rules cannot describe exactly
 (a file that sets one node's color by hand, for example) looks right only with `applyStyles`.

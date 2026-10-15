@@ -553,12 +553,16 @@ describe("waitForStableFrame waits for the label counts to be announced", () => 
                 set: { "node.label": "A LONG LABEL FOR THIS NODE" },
             });
 
-            // The counts are published QUIET_FRAMES after the last pass, which is after the
-            // first stable frame: a page reading them on that frame read zeros.
+            // The counts are published after the last pass, which is after the first stable
+            // frame: a page reading them on that frame without the wait read zeros.
             await tag.waitForStableFrame();
 
             assert.notDeepEqual(tag.nodeLabelCounts, { labeled: 0, nodeHidden: 0, hiddenByOverlap: 0 });
             assert.deepEqual(heard.at(-1), tag.nodeLabelCounts);
+            // Announced on the first still frame after the last pass, not after the ten-frame
+            // debounce a gesture gets: each of those frames is most of a second on a software GPU.
+            const declutter = g.scene.metadata?.labelDeclutter as unknown as { quiet: number };
+            assert.isBelow(declutter.quiet, 10);
         } finally {
             tag.remove();
         }

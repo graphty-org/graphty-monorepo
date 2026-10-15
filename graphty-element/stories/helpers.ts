@@ -819,3 +819,25 @@ export const arrowTypes = [
     "half-open",
     "vee",
 ] as const;
+
+/**
+ * Real (browser-trusted) pointer input for play functions.
+ *
+ * A page's own script can only dispatch untrusted events, which skip the browser's hit testing,
+ * pointer capture and event ordering. The storybook test project's setup (.storybook/vitest.setup.ts)
+ * hands test/helpers/real-input.ts to every story as the `realInput` parameter, so a play function
+ * run as a test drives the browser itself. Storybook's own UI has no such input.
+ */
+export interface RealInput {
+    /** Move the mouse, no button held, to a point in CSS pixels from the element's top-left corner. */
+    hover(element: Element, point: { x: number; y: number }): Promise<void>;
+}
+
+/**
+ * The real input the test runner supplied, if any.
+ * @param parameters - The story context's parameters.
+ * @returns The real input, or undefined in Storybook's own UI.
+ */
+export function realInput(parameters: Record<string, unknown>): RealInput | undefined {
+    return parameters.realInput as RealInput | undefined;
+}

@@ -270,6 +270,22 @@ describe("Tree: keyboard", () => {
         expect(row("Leaf")).toHaveAttribute("aria-selected", "true");
     });
 
+    it("extends the selection with Shift+ArrowDown and Shift+ArrowUp from the selected row", async () => {
+        const onSelect = vi.fn();
+        await renderThemed(<Tree items={ITEMS} defaultExpanded={["frame"]} onSelect={onSelect} />);
+        await tabIn();
+
+        await userEvent.keyboard("{ArrowDown}{Enter}{Shift>}{ArrowDown}{ArrowDown}{/Shift}");
+        expect(onSelect).toHaveBeenLastCalledWith(["rect", "group", "other"], expect.anything());
+        expect(focused()).toBe("other");
+        await userEvent.keyboard("{Shift>}{ArrowUp}{/Shift}");
+        expect(onSelect).toHaveBeenLastCalledWith(["rect", "group"], expect.anything());
+        // A plain arrow moves focus and leaves the selection alone.
+        await userEvent.keyboard("{ArrowDown}");
+        expect(row("Group")).toHaveAttribute("aria-selected", "true");
+        expect(row("Other")).toHaveAttribute("aria-selected", "false");
+    });
+
     it("keeps one selected row when multiselect is off", async () => {
         const onSelect = vi.fn();
         await renderThemed(<Tree items={ITEMS} multiselect={false} onSelect={onSelect} />);
@@ -574,6 +590,19 @@ describe("Tree: pointer", () => {
         expect(onSelect).toHaveBeenLastCalledWith(["rect", "group", "other"], expect.anything());
         await userEvent.click(row("Group"), { modifiers: ["Control"] });
         expect(onSelect).toHaveBeenLastCalledWith(["rect", "other"], expect.anything());
+    });
+
+    it("in checkbox mode, draws a checkbox per row and a plain click adds or takes out a row", async () => {
+        const onSelect = vi.fn();
+        await renderThemed(<Tree items={ITEMS} defaultExpanded={["frame"]} checkboxes onSelect={onSelect} />);
+
+        expect(within(row("Rect")).getByTestId("tree-check")).toBeInTheDocument();
+        await userEvent.click(row("Rect"));
+        await userEvent.click(row("Leaf"));
+        expect(onSelect).toHaveBeenLastCalledWith(["rect", "leaf"], expect.anything());
+        expect(within(row("Leaf")).getByRole("checkbox", { hidden: true })).toBeChecked();
+        await userEvent.click(row("Rect"));
+        expect(onSelect).toHaveBeenLastCalledWith(["leaf"], expect.anything());
     });
 
     it("opens and closes one row from the caret without selecting it", async () => {

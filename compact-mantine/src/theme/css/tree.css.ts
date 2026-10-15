@@ -114,6 +114,12 @@ const css = `
 .cm-tree-row:hover .cm-tree-caret,
 .cm-tree-row[data-state="hover"] .cm-tree-caret,
 .cm-tree-row[aria-expanded="true"] .cm-tree-caret { visibility: visible; }
+.cm-tree-check {
+    flex: none;
+    display: flex;
+    align-items: center;
+    margin-right: 4px;
+}
 .cm-tree-icon {
     flex: none;
     display: flex;

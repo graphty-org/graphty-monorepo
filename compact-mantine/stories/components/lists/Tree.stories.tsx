@@ -199,6 +199,33 @@ export const Default: Story = {
 };
 
 /**
+ * Checkbox mode, for selecting several rows by touch: every row draws a checkbox, and a plain tap
+ * adds a row to the selection or takes it out. Here Button and Card were tapped.
+ */
+export const Checkboxes: Story = {
+    args: {
+        items: LAYERS,
+        label: "Layers",
+        defaultExpanded: ["frame"],
+        checkboxes: true,
+        onSelect: fn(),
+    },
+    render: (args) => (
+        <Panel>
+            <Tree {...args} />
+        </Panel>
+    ),
+    play: async ({ canvasElement, args }) => {
+        const canvas = within(canvasElement);
+        const rows = canvas.getAllByRole("treeitem");
+        await userEvent.click(rows[1]);
+        await userEvent.click(rows[2]);
+        await waitFor(() => expect(args.onSelect).toHaveBeenCalledTimes(2));
+        await expect(canvas.getAllByRole("treeitem", { selected: true })).toHaveLength(2);
+    },
+};
+
+/**
  * The optional row parts: a swatch after the glyph, an always-visible count, a progress line
  * under a running row, and a description (here "Running" and "Failed: the graph has no edges")
  * that only a screen reader hears.
@@ -508,6 +535,7 @@ const KEYS: [string[], string][] = [
     [["Home", "End"], "First or last visible row"],
     [["a-z"], "Type-ahead: the next row whose name starts with the letters"],
     [["Enter", "Space"], "Select; with Shift extend a range, with Control / Command toggle"],
+    [["Shift+ArrowUp", "Shift+ArrowDown"], "Extend the selection to the row above or below"],
     [["*"], "Open every sibling of the focused row"],
     [["Alt+L"], "Close everything"],
     [["F2"], "Rename the focused row (with onRename)"],

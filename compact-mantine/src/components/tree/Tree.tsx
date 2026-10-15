@@ -1,4 +1,4 @@
-import { VisuallyHidden } from "@mantine/core";
+import { Checkbox, VisuallyHidden } from "@mantine/core";
 import { useUncontrolled } from "@mantine/hooks";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import React, { forwardRef, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -105,6 +105,8 @@ export interface TreeItemProps extends Omit<React.HTMLAttributes<HTMLDivElement>
     descriptionVisible?: boolean;
     /** Drawn in place of the name, e.g. an InlineRename. */
     nameSlot?: React.ReactNode;
+    /** Draw a checkbox that shows `selected`, before the glyph (the Tree's `checkboxes` mode). */
+    checkbox?: boolean;
     /** Called when the caret is clicked. */
     onExpandToggle?: (event: React.MouseEvent) => void;
 }
@@ -140,6 +142,7 @@ export const TreeItem = forwardRef<HTMLDivElement, TreeItemProps>(function TreeI
         progress,
         description,
         descriptionVisible = false,
+        checkbox = false,
         onExpandToggle,
         className,
         onClick,
@@ -224,6 +227,11 @@ export const TreeItem = forwardRef<HTMLDivElement, TreeItemProps>(function TreeI
             <span className="cm-tree-caret" aria-hidden="true" data-testid="tree-caret">
                 {hasChildren && <UiGlyph name={expanded ? "caretDown" : "caretRight"} size={PANEL_GRID.CHEVRON} />}
             </span>
+            {checkbox && (
+                <span className="cm-tree-check" aria-hidden="true" data-testid="tree-check">
+                    <Checkbox size="xs" checked={selected} readOnly tabIndex={-1} />
+                </span>
+            )}
             <span className="cm-tree-icon" aria-hidden="true">
                 {icon}
             </span>
@@ -318,6 +326,12 @@ export interface TreeProps {
     /** Allow several selected rows (Shift and Control/Command). Default true. */
     multiselect?: boolean;
     /**
+     * Draw a checkbox on every row, and let a plain click, Enter or Space add a row to the
+     * selection or take it out, with no modifier key: the way to select several rows by touch.
+     * Needs `multiselect`.
+     */
+    checkboxes?: boolean;
+    /**
      * Called with a new name. Giving it turns on renaming: F2 or a double-click opens an
      * InlineRename in place of the name.
      */
@@ -402,6 +416,7 @@ export interface TreeProps {
  * @param props.defaultExpanded - Expanded ids to start with
  * @param props.onExpandedChange - Called with the expanded ids
  * @param props.multiselect - Allow several selected rows
+ * @param props.checkboxes - A checkbox per row, and plain clicks that add or take out a row
  * @param props.onRename - Called with a new name; turns renaming on
  * @param props.renaming - The row being renamed (controlled)
  * @param props.onRenamingChange - Called when a rename opens or closes
@@ -438,6 +453,7 @@ export function Tree({
     defaultExpanded,
     onExpandedChange,
     multiselect = true,
+    checkboxes = false,
     onRename,
     renaming: renamingProp,
     onRenamingChange,
@@ -618,7 +634,7 @@ export function Tree({
         if (event.shiftKey) {
             return "range";
         }
-        return event.metaKey || event.ctrlKey ? "toggle" : "replace";
+        return event.metaKey || event.ctrlKey || (checkboxes && multiselect) ? "toggle" : "replace";
     };
 
     const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>): void => {
@@ -647,11 +663,18 @@ export function Tree({
         let handled = true;
         switch (event.key) {
             case "ArrowDown":
-                moveFocus(rows[i + 1]?.node.id);
+            case "ArrowUp": {
+                const next = rows[event.key === "ArrowDown" ? i + 1 : i - 1]?.node.id;
+                moveFocus(next);
+                // Shift+Arrow extends the selection from its anchor, as Shift+click does.
+                if (event.shiftKey && multiselect && next !== undefined) {
+                    if (anchor.current === null || !selectedSet.has(anchor.current)) {
+                        anchor.current = row.node.id;
+                    }
+                    select(next, "range", event);
+                }
                 break;
-            case "ArrowUp":
-                moveFocus(rows[i - 1]?.node.id);
-                break;
+            }
             case "ArrowRight":
                 if (row.hasChildren && !row.expanded) {
                     setExpanded(row.node.id, true);
@@ -877,6 +900,7 @@ export function Tree({
                 hasChildren={row.hasChildren}
                 expanded={row.expanded}
                 selected={selectedSet.has(id)}
+                checkbox={checkboxes && multiselect}
                 tint={tints[i]}
                 tone={row.node.tone}
                 dimmed={row.node.dimmed}

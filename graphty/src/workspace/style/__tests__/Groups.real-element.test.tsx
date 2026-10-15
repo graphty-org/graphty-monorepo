@@ -342,6 +342,35 @@ describe("per-group settings", () => {
         assert.equal(drawn(session, node, "node.shape"), "box");
     });
 
+    it("Les Miserables: New layer for two groups keeps each group's own color", async () => {
+        await page.viewport(1440, 900);
+        const { session, store } = await openSample("Les Miserables", 77);
+        const { layer, path } = await runGroups(session, "louvain");
+        const [one, two] = session.styles.groups(layer.id, path);
+        const a = nodeOf(session, path, String(one.value));
+        const b = nodeOf(session, path, String(two.value));
+        const colors = [drawn(session, a, "node.color"), drawn(session, b, "node.color")];
+        assert.notEqual(colors[0], colors[1]);
+        const popover = await openBinding(store, layer);
+        await userEvent.keyboard("{Control>}");
+        await userEvent.click(nameCell(gridRows(popover)[0]));
+        await userEvent.click(nameCell(gridRows(popover)[1]));
+        await userEvent.keyboard("{/Control}");
+        await userEvent.click(within(popover).getByRole("button", { name: "Set properties for 2 groups" }));
+        const detail = await screen.findByRole("group", { name: "2 groups properties" });
+        await userEvent.click(within(detail).getByRole("button", { name: "New layer for 2 groups" }));
+        await waitFor(() => {
+            const stack = session.styles.list();
+            assert.equal(stack[stack.findIndex((l) => l.id === layer.id) + 1]?.name, "Louvain 2 groups");
+        });
+        await session.styles.settled();
+        assert.deepEqual(
+            [drawn(session, a, "node.color"), drawn(session, b, "node.color")],
+            colors,
+            "each group keeps its color: the drawing does not change",
+        );
+    });
+
     it("College football: the largest 8, N more, search, sort, fold, the selected node's group, Select these", async () => {
         await page.viewport(1440, 900);
         const { session, store } = await openSample("College football", 115);

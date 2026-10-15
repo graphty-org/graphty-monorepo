@@ -192,8 +192,9 @@ function selectGroups(session: GraphSession, target: Layer["target"], path: stri
 
 /**
  * "New layer for <group>": a layer whose rule is the groups, carrying every setting they have --
- * the layer's own values and what each varied property paints them -- placed directly above its
- * source, so the drawing does not change until the reader edits it.
+ * the layer's own values, what each varied property paints them as one value where they agree,
+ * and the source's binding where they differ -- placed directly above its source, so the drawing
+ * does not change until the reader edits it.
  * @param session - the element's session.
  * @param layer - the source layer.
  * @param path - the category path.
@@ -209,11 +210,20 @@ async function layerForGroups(
     name: string,
 ): Promise<LayerId> {
     const set: Partial<Record<Channel, ChannelValue>> = { ...layer.set };
-    const [first] = keys;
+    const encode: Partial<Record<Channel, DataBinding>> = {};
     for (const [channel, values] of paintsOf(session, layer, path)) {
-        const value = literalOf(values.get(first ?? ""));
-        if (value !== undefined) {
+        const looks = keys.map((key) => literalOf(values.get(key)));
+        const [value] = looks;
+        if (looks.every((look) => JSON.stringify(look) === JSON.stringify(value)) && value !== undefined) {
+            // One value for every group: the new layer holds it as a plain value, easy to change.
             set[channel] = value;
+        } else {
+            // The groups paint it differently: the new layer keeps the source's binding, so
+            // each group still paints what it did.
+            const binding = layer.encode?.[channel];
+            if (binding !== undefined && "by" in binding) {
+                encode[channel] = binding;
+            }
         }
     }
     const added = await session.styles.add(
@@ -222,6 +232,7 @@ async function layerForGroups(
             target: layer.target,
             selector: { match: "rule", where: { kind: "categories", attribute: path, values: [...keys] } },
             set,
+            ...(Object.keys(encode).length === 0 ? {} : { encode }),
         },
         { above: layer.id },
     );

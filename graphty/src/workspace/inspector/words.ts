@@ -56,6 +56,7 @@ export const PATH_WORD = "Path";
 const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.color": "Color",
     "node.size": "Size",
+    "node.sizeMode": "Size mode",
     "node.shape": "Shape",
     "node.label": "Label",
     "node.labelStyle": "Label",

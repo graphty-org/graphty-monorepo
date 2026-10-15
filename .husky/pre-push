@@ -23,9 +23,17 @@
 # the current gate (CLAUDE.md, "Where a change takes effect").
 GATE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
+# git's ref lines: "<local ref> <local sha> <remote ref> <remote sha>", one per ref pushed.
+PUSH_REFS=$(cat)
+
 # Git LFS first: upload the baseline images this push points at (tools/lfs-pre-push.sh says why
-# it is here and not in git-lfs's own hook). It reads git's ref lines on stdin; nothing below does.
-"$GATE_DIR/tools/lfs-pre-push.sh" "$@" || exit 1
+# it is here and not in git-lfs's own hook).
+printf '%s\n' "$PUSH_REFS" | "$GATE_DIR/tools/lfs-pre-push.sh" "$@" || exit 1
+
+# What GitHub has now for the branch this push sends HEAD to (all zeros: a new branch), so the
+# SonarQube step judges complexity on this push's own changes (tools/sonar-gate.mjs, step 4).
+PUSH_REMOTE_SHA=$(printf '%s\n' "$PUSH_REFS" | awk -v head="$(git rev-parse HEAD)" '$2 == head { print $4; exit }')
+export PUSH_REMOTE_SHA
 
 # The branch this push merges into (origin/master, or a stacked pull request's parent branch), asked
 # once and exported, so every step below measures "this push's changes" from the same base without

@@ -2,7 +2,7 @@
 // Source: https://raw.githubusercontent.com/networkx/networkx/networkx-3.1/networkx/generators/social.py
 // sha256: 82168365585cb949de6753d2ea690c111824f323c600e194f5f1c9832ee5016a
 
-import { type DatasetData } from "../build.js";
+import { type DatasetData } from "./build.js";
 
 export const DATA: DatasetData = {
     directed: false,

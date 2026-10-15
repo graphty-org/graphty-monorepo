@@ -14,6 +14,7 @@ import {
 } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
+import { untilPasses } from "../../helpers/settled";
 import { LAYERS, Panel, STYLE_LAYERS } from "./fixtures";
 
 /**
@@ -616,8 +617,13 @@ export const StickyRoots: Story = {
         // Header's block is 13 rows of 32: 560 is five rows into Body.
         scroller.scrollTop = 560;
         const body = within(canvasElement).getByRole("treeitem", { name: "Body" });
-        await waitFor(() =>
-            expect(Math.round(body.getBoundingClientRect().top)).toBe(Math.round(scroller.getBoundingClientRect().top)),
+        // The row sticks once the scroll has been laid out, on a later frame: wait on that, not a
+        // deadline (#2719).
+        const stuck = (): boolean =>
+            Math.round(body.getBoundingClientRect().top) === Math.round(scroller.getBoundingClientRect().top);
+        await untilPasses(stuck);
+        await expect(Math.round(body.getBoundingClientRect().top)).toBe(
+            Math.round(scroller.getBoundingClientRect().top),
         );
     },
 };

@@ -736,6 +736,16 @@ export class NodeDragHandler {
     }
 
     /**
+     * Forget the scene pointer observers without searching the scene for them: a bulk teardown has
+     * already taken them out of the scene's list, so `dispose` has nothing left to remove (issue
+     * #2732).
+     */
+    forgetSceneObservers(): void {
+        this.pointerObserver = null;
+        this.hoverObserver = null;
+    }
+
+    /**
      * Cleans up event observers and releases resources.
      */
     public dispose(): void {

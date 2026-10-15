@@ -317,6 +317,13 @@ export interface SelectionOwner extends SelectionApi {
      */
     applyAtNextRead(target: SelectionTarget, op: SelectionOp, cause: SelectionCause): void;
     /**
+     * Whether taking edges out of the selection would change nothing: no edge is selected, no
+     * change is waiting, and the cap has truncated nothing. Answered without reading the graph,
+     * so a removal that selects no edge does not freeze it to find that out.
+     * @returns True when it would change nothing.
+     */
+    edgeRemovalChangesNothing(): boolean;
+    /**
      * The node mask itself, for the scope resolver's `selection` source.
      * @returns The live mask, which the caller must not mutate.
      */
@@ -814,6 +821,10 @@ class Selection implements SelectionOwner {
 
     applyAtNextRead(target: SelectionTarget, op: SelectionOp, cause: SelectionCause): void {
         this.#pending = { target, op, cause };
+    }
+
+    edgeRemovalChangesNothing(): boolean {
+        return this.#pending === null && this.#edges.size === 0 && !this.#truncated;
     }
 
     /**

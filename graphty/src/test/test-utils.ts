@@ -54,6 +54,32 @@ export function mouseDrag(source: HTMLElement, x: number, y: number): void {
     send("pointerup", x, y);
 }
 
+/**
+ * Waits until `check` passes, testing it once now and then once per animation frame, with no
+ * deadline of its own: the test's timeout is the backstop. `check` passes when it returns
+ * anything but `false` without throwing, so it can be a boolean test or a block of assertions.
+ *
+ * Use it for state that arrives on a later frame, such as a floating-ui placement. A `waitFor`
+ * with its 1000 ms deadline fails such a check when the main thread stalls past the deadline,
+ * though the state arrives a few frames later (#2705, #2754).
+ *
+ * A copy of `untilPasses` in compact-mantine/stories/helpers/settled.ts, which is test-only code
+ * that compact-mantine does not publish; keep the two in step.
+ * @param check - the condition, as a boolean test or as assertions that throw until it holds
+ */
+export async function untilPasses(check: () => unknown): Promise<void> {
+    const passes = (): boolean => {
+        try {
+            return check() !== false;
+        } catch {
+            return false;
+        }
+    };
+    while (!passes()) {
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    }
+}
+
 // Re-export everything
 export * from "@testing-library/react";
 export { customRender as render };

@@ -1326,7 +1326,8 @@ export function projectOf(
     let seq = 0;
     let top: string | null = null;
     let last: ProjectStatus = { name: null, dirty: false };
-    const topNow = (): string | null => session.history.steps[session.history.position - 1]?.id ?? null;
+    // One step, not the published list, which every change rebuilds.
+    const topNow = (): string | null => dispatcher.history.stepAt(dispatcher.history.position - 1)?.id ?? null;
     const isDirty = (): boolean => point.lost || topNow() !== point.step;
     const nameNow = (): string | null => session.config.name ?? null;
     const tell = (): void => {

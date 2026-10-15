@@ -565,7 +565,7 @@ class Session implements ElementSession {
      * @returns True when a step has been undone and not recorded over.
      */
     get canRedo(): boolean {
-        return this.dispatcher.history.position < this.dispatcher.history.steps.length;
+        return this.dispatcher.history.position < this.dispatcher.history.length;
     }
 
     /**

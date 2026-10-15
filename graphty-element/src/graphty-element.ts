@@ -496,7 +496,8 @@ export class Graphty extends LitElement {
                     reason,
                     version: history.version,
                     position: history.position,
-                    steps: history.steps.length,
+                    // The count alone: the step list is rebuilt after every change.
+                    steps: dispatcherOf(session).history.length,
                     canUndo: session.canUndo,
                     canRedo: session.canRedo,
                 } satisfies GraphtyHistoryChangeDetail,
@@ -3876,7 +3877,8 @@ export class Graphty extends LitElement {
      * `x` and `y` are the node's centre in CSS pixels from the element's top-left corner, the
      * same pixels {@link worldToScreen} returns: a click there selects the node. `visible` is
      * false when the centre is outside the element, behind the camera, or the node is hidden by
-     * a filter. `radius` is how big the node is drawn, in pixels. Read it again after the camera
+     * a filter. `radius` is how big the node is drawn, in pixels; `bounds` is the rectangle it
+     * covers, which follows a box's corners or a tall node's height. Read it again after the camera
      * or the layout moves; it is not a live value. It reads where a frame drew the node, so a node
      * no frame has drawn yet reports its mesh template's position, off screen and not visible:
      * wait for {@link Graphty.waitForStableFrame} first.

@@ -74,6 +74,13 @@ export interface RendererStatus {
      * the one asked for, and under `"webgl"`.
      */
     readonly reason: string | null;
+    /**
+     * Whether anything is drawn. False when the browser gave the page no working WebGL context:
+     * the graph's data, its session and autosave still work, and the canvas stays empty. The log
+     * records it as `E_NO_WEBGL`.
+     * @since 3.28.0
+     */
+    readonly drawing: boolean;
 }
 
 /** The two modules Babylon compiles a GLSL shader for WebGPU with. */

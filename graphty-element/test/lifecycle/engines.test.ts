@@ -396,5 +396,9 @@ describe("No WebGL", () => {
         assert.isNotNull(restored, "the saved work was restored");
         assert.strictEqual(restored?.revision, edit, "the restored revision is the last one saved");
         assert.deepEqual((await check(again)).probes, [edit], "every node's probe is the saved edit");
+        assert.isFalse(
+            await again.evaluate<boolean>("document.querySelector('graphty-element').rendererStatus.drawing"),
+            "the element says nothing is drawn",
+        );
     });
 });

@@ -4184,6 +4184,7 @@ export type RendererRequest = "webgl" | "webgpu" | "auto";
 // @public
 export interface RendererStatus {
     readonly active: ActiveRenderer;
+    readonly drawing: boolean;
     readonly reason: string | null;
     readonly requested: RendererRequest;
 }

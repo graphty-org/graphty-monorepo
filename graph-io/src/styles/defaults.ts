@@ -101,6 +101,7 @@ const GV = "graphviz.org/docs/attrs";
 const YED_QA = "yEd Q&A, How can I change the default nodes and/or default edges";
 const YED_CORPUS = "yEd GraphML corpus, most frequent value";
 const YED_EDGE = "yFiles for Java 2.19 EdgeRealizer API docs";
+const YED_BG = "yFiles for Java 2.19 DefaultBackgroundRenderer API docs";
 const Y3 = "yFiles for HTML API docs,";
 const GEPHI = "gephi master 92e503df61a7";
 const VIS = "vis-network 10.1.2 vis-network.esm.js";
@@ -297,7 +298,12 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     labelFont: v("Dialog", `${YED_CORPUS} of y:EdgeLabel`),
                     labelSize: v(12, `${YED_CORPUS} of y:EdgeLabel`),
                 },
-                graph: {},
+                graph: {
+                    background: v(
+                        "#ffffff",
+                        `${YED_BG} (setColor: "By default the background color is white"); yEd manual, Preferences, Background tab`,
+                    ),
+                },
                 derived: [],
             },
             {

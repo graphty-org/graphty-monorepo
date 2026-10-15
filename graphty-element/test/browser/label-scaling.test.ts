@@ -132,3 +132,70 @@ describe("a label on every element", () => {
         });
     }
 });
+
+describe("removing labelled elements", () => {
+    const scope = globalThis as { __GRAPHTY_STRICT_STATE__?: boolean };
+    let strict: boolean | undefined;
+
+    beforeAll(() => {
+        strict = scope.__GRAPHTY_STRICT_STATE__;
+        scope.__GRAPHTY_STRICT_STATE__ = false;
+    });
+
+    afterAll(() => {
+        scope.__GRAPHTY_STRICT_STATE__ = strict;
+    });
+
+    // Each removed label's material and texture used to leave Babylon's scene and engine lists by
+    // a search of each, one label at a time, so removing labelled nodes cost the scene per label
+    // (issue #2804).
+    for (const target of ["node", "edge"] as const) {
+        it(`removes half the nodes, then clears, with ${target} labels in proportion to the graph`, async () => {
+            const cleared: number[] = [];
+            await assertScalesLinearly(
+                async (size) => {
+                    const element = await mount(size);
+                    try {
+                        await element.graph.getSession().styles.add({
+                            name: "labels",
+                            target,
+                            selector: { match: "everything" },
+                            set: { [`${target}.label`]: "WORDS" },
+                        });
+                        await settled(element);
+                        element.graph.update();
+                        assert.isAbove(labelled(element, target), size / 2, `the ${target}s have labels`);
+
+                        const half = Array.from({ length: size / 2 }, (_, at) => `n${String(2 * at)}`);
+                        const visits = await visitsDuring(async () => {
+                            await element.graph.removeNodes(half);
+                            await settled(element);
+                        });
+                        assert.strictEqual(element.graph.getDataManager().nodes.size, size / 2);
+
+                        cleared.push(
+                            await visitsDuring(async () => {
+                                element.graph.clearData();
+                                await settled(element);
+                            }),
+                        );
+                        assert.strictEqual(element.graph.getDataManager().nodes.size, 0);
+                        return visits;
+                    } finally {
+                        element.remove();
+                    }
+                },
+                {
+                    sizes: SIZES,
+                    growth: "linear",
+                    counter: `elements visited removing half of the ${target}-labelled nodes`,
+                },
+            );
+            await assertScalesLinearly((size) => cleared[SIZES.indexOf(size as (typeof SIZES)[number])], {
+                sizes: SIZES,
+                growth: "linear",
+                counter: `elements visited clearing a ${target}-labelled graph`,
+            });
+        });
+    }
+});

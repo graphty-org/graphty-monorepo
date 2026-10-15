@@ -19,6 +19,21 @@ import { bends, clipPath, finishScene, labelPosition, parseColor, sha256File } f
 const here = dirname(fileURLToPath(import.meta.url));
 
 /**
+ * A draw.io label's text: its HTML line breaks as newlines and every tag removed, repeated until
+ * no tag is left (removing one tag can join the pieces of another, `<scr<b>ipt>`).
+ * @param html - the label's value
+ * @returns the text
+ */
+export function plainText(html) {
+    let text = html.replace(/<br\s*\/?>/gi, "\n");
+    for (let before = ""; before !== text;) {
+        before = text;
+        text = text.replace(/<[^>]*>/g, "");
+    }
+    return text.trim();
+}
+
+/**
  * The scene of draw.io cells, as the page returns them.
  * @param cells - { id, parent, vertex, edge, source, target, value, style, geometry, points }
  * @returns nodes, edges, groups and gaps
@@ -47,10 +62,7 @@ export function sceneFromDrawioCells(cells) {
         const { width: w = 0, height: h = 0 } = c.geometry;
         const label = children(c.id).find((k) => !gid(k) && k.vertex && (k.style.text !== undefined || k.value));
         const ls = label?.style ?? {};
-        const text = (label?.value ?? c.value ?? "")
-            .replace(/<br\s*\/?>/gi, "\n")
-            .replace(/<[^>]+>/g, "")
-            .trim();
+        const text = plainText(label?.value ?? c.value ?? "");
         const fill = parseColor(c.style.fillColor);
         const stroke = parseColor(c.style.strokeColor);
         const base =
@@ -148,12 +160,7 @@ export function sceneFromDrawioCells(cells) {
             width: +(c.style.strokeWidth ?? 1),
             style: c.style.dashed === "1" ? (c.style.dashPattern === "1 1" ? "dotted" : "dashed") : "solid",
             arrow: { source: c.style.startArrow ?? "none", target: c.style.endArrow ?? "classic" },
-            label: label
-                ? String(label.value)
-                      .replace(/<br\s*\/?>/gi, "\n")
-                      .replace(/<[^>]+>/g, "")
-                      .trim() || null
-                : null,
+            label: label ? plainText(String(label.value)) || null : null,
         });
     }
     const strip = (o) => {

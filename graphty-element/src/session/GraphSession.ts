@@ -196,6 +196,15 @@ export interface LaneStore extends Omit<SessionGraphStore, "positions"> {
      * data manager's, the same across a Clear. Absent, the store's own.
      */
     readonly inputs?: InputCounters;
+    /**
+     * Deliver every freeze that renumbers rows to `follower` until the returned function is
+     * called, across every store its builder builds. A store built elsewhere has to offer this for
+     * a session's selection to follow its compactions; without it the selection keeps the rows it
+     * was given and drifts off its members.
+     * @param follower - where each renumbering is delivered
+     * @returns stops the delivery
+     */
+    readonly followRenumbering?: (follower: FreezeFollower) => () => void;
 }
 
 /**
@@ -282,6 +291,8 @@ interface SessionParts {
     readonly catalog: SessionCatalogApi;
     /** The store when this session built it, so that disposal releases it. */
     readonly ownedStore: GraphStore | null;
+    /** Stops the renumbering delivery from a store someone else built. */
+    readonly unfollowStore: () => void;
     /** The data surface over that store. */
     readonly data: SessionData;
     /** Reads the project settings, live. */
@@ -425,6 +436,8 @@ class Session implements ElementSession {
     private readonly ownedAcceleration: AccelerationController | null;
     /** Stops the controller subscription `capabilities:changed` is published from. */
     private readonly unwatchController: () => void;
+    /** Stops the renumbering delivery from a store someone else built. */
+    private readonly unfollowStore: () => void;
     /** The one path every change to project state takes, and the history it records. */
     private readonly dispatcher: Dispatcher;
     private disposed = false;
@@ -439,6 +452,7 @@ class Session implements ElementSession {
     constructor(parts: SessionParts) {
         this.store = parts.store;
         this.ownedStore = parts.ownedStore;
+        this.unfollowStore = parts.unfollowStore;
         this.sessionData = parts.data;
         this.data = parts.data;
         this.catalog = parts.catalog;
@@ -889,6 +903,7 @@ class Session implements ElementSession {
         this.dispatcher.arrangement.bind(null);
         this.dispatcher.clear();
         this.unwatchController();
+        this.unfollowStore();
         // Runs first: a run still in flight holds a reference to the data it is reading, and
         // disposing the store under it would have it finish against a graph that no longer exists.
         this.sessionRuns.dispose();
@@ -1251,8 +1266,9 @@ function resolveDataConfig(
  *
  * The selection is addressed by dense index, so a mask that did not follow a compacting freeze
  * would go on selecting whatever now sits at the old index -- silently, and with the right count.
+ * @internal
  */
-interface FreezeFollower {
+export interface FreezeFollower {
     /**
      * The nodes were renumbered.
      * @param remap - Old index to new index, or the absent marker for a node the freeze dropped.
@@ -1270,20 +1286,22 @@ interface FreezeFollower {
 /**
  * Settle which store the session reads, and whether it is the session's to dispose.
  *
- * A store handed in belongs to whoever built it, and so do its freeze callbacks: that builder is
- * what delivers a remap to everything it holds, this session's selection included.
+ * A store handed in belongs to whoever built it, and so do its freeze callbacks: that builder
+ * delivers a remap to everything it holds, and this session's selection follows it through
+ * `followRenumbering`.
  * @param given - the store a caller handed in, if any
  * @param readData - reads the data configuration a store built here runs under
- * @param follow - where a freeze of a store built here is delivered
- * @returns the store, and the same object again when this call allocated it
+ * @param follow - where a freeze of the store is delivered
+ * @returns the store, the same object again when this call allocated it, and what stops the
+ *     delivery from a store handed in
  */
 function resolveStore(
     given: LaneStore | undefined,
     readData: () => SessionDataConfig,
     follow: FreezeFollower,
-): { store: LaneStore; owned: GraphStore | null } {
+): { store: LaneStore; owned: GraphStore | null; unfollow: () => void } {
     if (given !== undefined) {
-        return { store: given, owned: null };
+        return { store: given, owned: null, unfollow: given.followRenumbering?.(follow) ?? (() => undefined) };
     }
 
     const owned: GraphStore = new GraphStore({
@@ -1309,7 +1327,7 @@ function resolveStore(
         onReplaced: () => undefined,
     });
 
-    return { store: owned, owned };
+    return { store: owned, owned, unfollow: () => undefined };
 }
 
 /**
@@ -2687,6 +2705,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     const session = new Session({
         store: store.store,
         ownedStore: store.owned,
+        unfollowStore: store.unfollow,
         data,
         // THE SAME COST MODEL THE BUTTON ASKS. A metric listing quotes the number a run of that
         // metric would be estimated at, so it is produced by the estimate rather than by a second

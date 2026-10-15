@@ -151,6 +151,22 @@ function visibleIssues(
 }
 
 /**
+ * Where the bar draws a divider: between counts and zoom when both are drawn, and
+ * between zoom and layout when both are drawn.
+ * @param nodes - The slots being drawn.
+ * @returns Whether each divider is drawn.
+ */
+function slotDividers(nodes: ReadonlyMap<StatusBarSlotId, React.ReactNode>): {
+    dividesAfterCounts: boolean;
+    dividesBeforeLayout: boolean;
+} {
+    return {
+        dividesAfterCounts: nodes.has("counts") && nodes.has("zoom"),
+        dividesBeforeLayout: nodes.has("zoom") && nodes.has("layout"),
+    };
+}
+
+/**
  * The shell's status bar.
  *
  * An absent slot member does not render, which is what makes the bar's density a
@@ -237,8 +253,7 @@ export function StatusBar(props: StatusBarRegionProps): React.JSX.Element {
     }
 
     const rendered = STATUS_BAR_SLOT_ORDER.filter((slot) => nodes.has(slot));
-    const dividesAfterCounts = nodes.has("counts") && nodes.has("zoom");
-    const dividesBeforeLayout = nodes.has("zoom") && nodes.has("layout");
+    const { dividesAfterCounts, dividesBeforeLayout } = slotDividers(nodes);
 
     const drawSlot = (slot: StatusBarSlotId): React.JSX.Element => {
         const measured = slot !== "layout" && DROPPABLE.has(slot);

@@ -152,23 +152,9 @@ function checkListItem(meta: ColumnMeta, row: number, item: unknown): void {
         case "f64":
         case "i32":
         case "u32":
-        case "u8": {
-            if (components === 1) {
-                if (typeof item !== "number" || !representableNumber(itemDtype, item)) {
-                    throw cellError(meta, row, `list item is not a representable ${itemDtype}`, typeof item);
-                }
-                return;
-            }
-            if (!Array.isArray(item) || item.length !== components) {
-                throw cellError(meta, row, `list item is not ${components} numbers`, typeof item);
-            }
-            for (const k of item as unknown[]) {
-                if (typeof k !== "number" || !representableNumber(itemDtype, k)) {
-                    throw cellError(meta, row, `list item component is not a representable ${itemDtype}`, typeof k);
-                }
-            }
+        case "u8":
+            checkNumericListItem(meta, row, item, itemDtype, components);
             return;
-        }
         case "bool":
             if (typeof item !== "boolean") {
                 throw cellError(meta, row, "list item is not a boolean", typeof item);
@@ -187,6 +173,38 @@ function checkListItem(meta: ColumnMeta, row: number, item: unknown): void {
         default: {
             const name: string = itemDtype;
             throw new GraphFormatError("E_COLUMN_TYPE", `unknown dtype ${name}`, { dtype: name });
+        }
+    }
+}
+
+/**
+ * Check one list item of a numeric list column: a representable number, or for a multi-component
+ * item an array of exactly `components` representable numbers.
+ * @param meta - the list column
+ * @param row - the row
+ * @param item - the item
+ * @param itemDtype - the numeric item dtype
+ * @param components - the item components
+ */
+function checkNumericListItem(
+    meta: ColumnMeta,
+    row: number,
+    item: unknown,
+    itemDtype: "f32" | "f64" | "i32" | "u32" | "u8",
+    components: number,
+): void {
+    if (components === 1) {
+        if (typeof item !== "number" || !representableNumber(itemDtype, item)) {
+            throw cellError(meta, row, `list item is not a representable ${itemDtype}`, typeof item);
+        }
+        return;
+    }
+    if (!Array.isArray(item) || item.length !== components) {
+        throw cellError(meta, row, `list item is not ${components} numbers`, typeof item);
+    }
+    for (const k of item as unknown[]) {
+        if (typeof k !== "number" || !representableNumber(itemDtype, k)) {
+            throw cellError(meta, row, `list item component is not a representable ${itemDtype}`, typeof k);
         }
     }
 }

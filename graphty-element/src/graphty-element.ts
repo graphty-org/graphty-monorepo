@@ -792,7 +792,7 @@ export class Graphty extends LitElement {
      * Off by default. Read in the task after the element connects; `autosaveOptions.key` wins
      * over it. See the autosave guide.
      * @returns The key, `""` for a bare attribute, or null when autosave is off.
-     * @since 3.28.0
+     * @since 3.29.0
      * @example
      * ```html
      * <graphty-element autosave="acme.org-chart"></graphty-element>
@@ -823,7 +823,7 @@ export class Graphty extends LitElement {
      * reports it with `graphty-autosave-available` (`"manual"`), for the page to call
      * `autosaver.restore(id)`.
      * @returns The mode.
-     * @since 3.28.0
+     * @since 3.29.0
      */
     @property({ attribute: "autosave-restore" })
     get autosaveRestore(): "auto" | "manual" {
@@ -842,7 +842,7 @@ export class Graphty extends LitElement {
      * How autosave writes: its key, schedule, retention, the unload guard, persistent storage and
      * the store. Read when autosave starts (the guard, when it is first needed).
      * @returns The options as set.
-     * @since 3.28.0
+     * @since 3.29.0
      */
     @property({ attribute: false })
     get autosaveOptions(): Partial<AutosaveOptions> {
@@ -863,7 +863,7 @@ export class Graphty extends LitElement {
      * `requestPersistence()`. Present whether autosave is on or not; off, its status is `"off"`
      * and `ready` resolves null.
      * @returns The API.
-     * @since 3.28.0
+     * @since 3.29.0
      */
     get autosaver(): AutosaveApi {
         return this.#autosaveControl.api;

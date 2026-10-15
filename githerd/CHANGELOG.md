@@ -1,3 +1,17 @@
+## 0.1.10 (2026-10-15)
+
+### 🩹 Fixes
+
+- **githerd:** tell workers to rework a pull request as a draft ([#2727](https://github.com/graphty-org/graphty-monorepo/issues/2727))
+
+### 🧱 Updated Dependencies
+
+- Updated visual-review to 0.2.30
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.1.9 (2026-10-15)
 
 ### 🩹 Fixes

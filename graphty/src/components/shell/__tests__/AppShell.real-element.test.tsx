@@ -22,7 +22,10 @@ import { COMMAND_PALETTE_PLACEHOLDER } from "../CommandPalette";
 /** The element itself, by its own published type; the import above registers it. */
 type ElementUnderTest = import("@graphty/graphty-element").Graphty;
 
-/** A hang guard for loading a sample, laying it out and drawing it; not a pass/fail timing. */
+/**
+ * How long a poll on a run's result may keep polling: past the test's own limit, so the test's
+ * limit, not the poll's, is what ends a hang. Not a pass/fail timing.
+ */
 const LOAD_TEST_TIMEOUT_MS = 120_000;
 
 /** What the element reported once the load ended and the picture settled. */
@@ -193,14 +196,9 @@ describe("AppShell with the real graphty-element", () => {
     });
 
     for (const record of SAMPLE_MANIFEST) {
-        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-        it(
-            `loads ${record.name} with the manifest's counts and draws it`,
-            async () => {
-                await expectSampleLoads(record);
-            },
-            LOAD_TEST_TIMEOUT_MS,
-        );
+        it(`loads ${record.name} with the manifest's counts and draws it`, async () => {
+            await expectSampleLoads(record);
+        });
     }
 
     it("fails when a sample's file is not the format it claims", async () => {

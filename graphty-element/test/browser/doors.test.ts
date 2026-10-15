@@ -11,10 +11,6 @@
  */
 
 import "../../src/graphty-element";
-// Loaded up front: `loadFromFile` imports it dynamically before it dispatches, and on a cold
-// dev server serving that import can outlast the harness's settle bound, so the door would be
-// read as dispatching nothing.
-import "../../src/data/format-detection";
 
 import { afterEach, assert, describe, expectTypeOf, it, vi } from "vitest";
 

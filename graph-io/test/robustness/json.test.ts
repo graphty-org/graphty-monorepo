@@ -945,9 +945,10 @@ describe("JSON robustness: NetworkX adjacency and tree data", () => {
         expect(codes(report)).toEqual([JSON_ISSUE.DUPLICATE_NODE]);
     });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it("json-tree-deep-chain: a 1M-node path written as nested children imports", async () => {
-        const depth = 1_000_000;
+    // 100,000 levels is ten times the depth at which a recursive walk overflows V8's stack, so
+    // it still proves the walk is iterative, at a tenth of the cost of a million
+    it("json-tree-deep-chain: a 100,000-node path written as nested children imports", async () => {
+        const depth = 100_000;
         const text =
             '{"id":0,"children":['.repeat(1) +
             Array.from({ length: depth - 1 }, (_, i) => `{"id":${i + 1},"children":[`).join("") +
@@ -956,7 +957,7 @@ describe("JSON robustness: NetworkX adjacency and tree data", () => {
         expect(s.nodeCount).toBe(depth);
         expect(s.edgeCount).toBe(depth - 1);
         expect(codes(report)).toEqual([]);
-    }, 120_000);
+    });
 });
 
 // ============================================================ OBO Graphs

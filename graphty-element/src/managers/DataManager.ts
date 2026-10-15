@@ -127,7 +127,7 @@ export function disposeReleased<T>(nodes: Iterable<Node>, edges: Iterable<Edge>,
     }
 
     // A disposed mesh leaves its parent by an `indexOf` over the parent's child list, and every
-    // node mesh shares one parent, the graph root: that list is set aside too (issue #2749).
+    // node mesh shares one parent, the graph root: that list is set aside too (issues #2733, #2749).
     const families: [SceneNode, SceneNode[], SceneNode[]][] = [];
     for (const parent of parents) {
         // Babylon has no public way to edit a node's child list in place; `getChildren()` copies it.
@@ -309,6 +309,8 @@ export const dataManagerInternals = {} as {
     adoptNode(manager: DataManager, node: Node): void;
     /** Register an edge under its id, its endpoint pair and, when it has one, its row. */
     adoptEdge(manager: DataManager, edge: Edge): void;
+    /** Free the meshes of removed nodes still waiting for the end of their run; see `releaseLater`. */
+    flushReleasing(manager: DataManager): void;
 };
 
 /**
@@ -362,6 +364,9 @@ export class DataManager implements Manager {
         dataManagerInternals.adoptNode = (manager, node) => {
             manager.nodeMap.set(node.id, node);
         };
+        dataManagerInternals.flushReleasing = (manager) => {
+            manager.flushReleasing();
+        };
         dataManagerInternals.adoptEdge = (manager, edge) => {
             manager.edgeMap.set(edge.id, edge);
             if (edge.index !== INVALID_INDEX) {
@@ -413,6 +418,9 @@ export class DataManager implements Manager {
 
     /** The one graph-format builder and its cached snapshot; replaced only by `clear()`/`dispose()`. */
     private store: GraphStore;
+
+    /** Removed nodes whose meshes leave the scene at the end of the run; see `releaseLater`. */
+    private releasing: Node[] = [];
 
     /**
      * The edge counter every store this manager builds draws from, so a Clear or a replacing
@@ -908,8 +916,10 @@ export class DataManager implements Manager {
      * @param edges - The edge ids removed, including every edge attached to a removed node.
      */
     private dropRendered(nodes: readonly NodeIdType[], edges: readonly EdgeId[]): void {
+        // The edges go now. The nodes leave every map now too, but their meshes leave the scene at
+        // the end of the run, with every other node removed in it: see `releaseLater`.
         disposeReleased(
-            nodes.flatMap((id) => this.nodes.get(id) ?? []),
+            [],
             edges.flatMap((id) => this.edges.get(id) ?? []),
             () => {
                 for (const id of edges) {
@@ -926,15 +936,15 @@ export class DataManager implements Manager {
                         this.pendingEdges.splice(pending, 1);
                     }
                 }
-
-                for (const id of nodes) {
-                    const node = this.nodes.get(id);
-                    if (node !== undefined) {
-                        this.disposeRenderNode(node);
-                    }
-                }
             },
         );
+        for (const id of nodes) {
+            const node = this.nodes.get(id);
+            if (node !== undefined) {
+                this.disposeRenderNode(node, true);
+            }
+        }
+
         this.removedEdges = edges;
         if (nodes.length > 0 || edges.length > 0) {
             this.eventManager.emitElementsRemoved([...nodes], [...edges], this.cause);
@@ -989,15 +999,56 @@ export class DataManager implements Manager {
      * Take one node's render object out of every structure that holds it and free it. Its edges
      * must already be gone.
      * @param node - The node.
+     * @param later - Free its meshes at the end of the run rather than now; see `releaseLater`.
      */
-    private disposeRenderNode(node: Node): void {
+    private disposeRenderNode(node: Node, later = false): void {
         this.nodeMap.delete(node.id);
         this.nodeCache.delete(node.id);
         placeNodeRow(node, INVALID_INDEX);
         if (this.layoutEngine) {
             layoutEngineInternals.removeNode(this.layoutEngine, node);
         }
-        node.dispose();
+
+        if (later) {
+            this.releaseLater(node);
+        } else {
+            node.dispose();
+        }
+    }
+
+    /**
+     * Free a node's meshes with the other nodes removed in the same synchronous run, at its end.
+     *
+     * Setting the scene's lists aside for a teardown costs a pass over them however few elements
+     * go, so a consumer removing nodes one call at a time -- `removeNodeAndIncidentEdges` in a
+     * loop -- paid a pass over the whole scene per node (issue #2733). Batched, the run pays one.
+     * The node has already left every map and the layout; only its meshes wait, and no frame is
+     * drawn before a microtask runs. Whatever tears every node down, or the mesh cache, frees the
+     * waiting ones first (`flushReleasing`).
+     * @param node - The node.
+     */
+    private releaseLater(node: Node): void {
+        this.releasing.push(node);
+        if (this.releasing.length === 1) {
+            queueMicrotask(() => {
+                this.flushReleasing();
+            });
+        }
+    }
+
+    /** Free every node waiting in `releaseLater`, in one pass over the scene. */
+    private flushReleasing(): void {
+        const nodes = this.releasing;
+        if (nodes.length === 0) {
+            return;
+        }
+
+        this.releasing = [];
+        disposeReleased(nodes, [], () => {
+            for (const node of nodes) {
+                node.dispose();
+            }
+        });
     }
 
     /**
@@ -1341,6 +1392,7 @@ export class DataManager implements Manager {
      * meshes this method just freed.
      */
     private disposeNodesAndEdges(): void {
+        this.flushReleasing();
         disposeReleased(this.nodes.values(), this.edges.values(), () => {
             for (const edge of this.edges.values()) {
                 edge.dispose();

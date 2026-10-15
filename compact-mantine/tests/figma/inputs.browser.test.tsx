@@ -24,6 +24,7 @@ import { VariablePill } from "../../src/components/inputs/VariablePill";
 import { PanelField } from "../../src/components/rows/PanelField";
 import { StyleNumberInput } from "../../src/components/StyleNumberInput";
 import { createCompactTheme } from "../../src/theme";
+import { untilPasses } from "../../stories/helpers/settled";
 import {
     computed,
     drive,
@@ -856,7 +857,8 @@ describe.skipIf(!available)("6.5 dark listbox", () => {
         expect(computed(dropdown, "::after").height).toBe("24px");
         const box = dropdown.getBoundingClientRect();
         await userEvent.hover(dropdown, { position: { x: box.width / 2, y: box.height - 8 } });
-        await vi.waitFor(() => {
+        // The hover scrolls the list on later frames: wait on the scroll, not a deadline (#2719).
+        await untilPasses(() => {
             expect(dropdown.scrollTop).toBeGreaterThan(0);
         });
         await vi.waitFor(() => {

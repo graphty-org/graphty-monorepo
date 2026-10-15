@@ -170,7 +170,6 @@ const CASES: readonly Case[] = [
     {
         methods: ["Graph.addNode", "DataManager.addNode"],
         growth: "linear",
-        superlinear: 2733,
         prepare: async (element, size) => {
             await fill(element, size);
             return () => Promise.all(nodesOf(size / 4, size).map((node) => element.graph.addNode(node as never)));
@@ -182,7 +181,6 @@ const CASES: readonly Case[] = [
     {
         methods: ["Graphty.addNode"],
         growth: "linear",
-        superlinear: 2733,
         prepare: async (element, size) => {
             await fill(element, size);
             return () => Promise.all(nodesOf(size / 4, size).map((node) => element.addNode(node as never)));
@@ -218,7 +216,6 @@ const CASES: readonly Case[] = [
     {
         methods: ["Graphty.addEdge", "DataManager.addEdge"],
         growth: "linear",
-        superlinear: 2733,
         prepare: async (element, size) => {
             await fill(element, size);
             const chords = Array.from({ length: size / 4 }, (_, at) => ({
@@ -284,7 +281,6 @@ const CASES: readonly Case[] = [
     {
         methods: ["DataManager.removeNodeAndIncidentEdges"],
         growth: "linear",
-        superlinear: 2733,
         prepare: async (element, size) => {
             await fill(element, size);
             const data = element.graph.getDataManager();

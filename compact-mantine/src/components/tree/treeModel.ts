@@ -134,6 +134,35 @@ export function flattenTree(items: readonly TreeNodeData[], expanded: ReadonlySe
 export type TreeRowTint = "none" | "selected" | "first" | "middle" | "last" | "parent" | "child" | "child-last";
 
 /**
+ * The fill of a selected, collapsed row: alone, or its place in a run of adjacent selected rows.
+ * @param rows - the visible rows
+ * @param i - the row's index
+ * @param tints - the fills of the rows before it
+ * @param selected - the selected ids
+ * @param childBand - whether a selected, expanded parent draws as a `parent` (see `rowTints`)
+ * @returns the row's tint
+ */
+function selectedRunTint(
+    rows: readonly FlatTreeRow[],
+    i: number,
+    tints: readonly TreeRowTint[],
+    selected: ReadonlySet<string>,
+    childBand: boolean,
+): TreeRowTint {
+    const prev = rows[i - 1] as FlatTreeRow | undefined;
+    const next = rows[i + 1] as FlatTreeRow | undefined;
+    const prevJoins = prev !== undefined && selected.has(prev.node.id) && tints[i - 1] !== "parent";
+    const nextJoins = next !== undefined && selected.has(next.node.id) && !(childBand && next.expanded);
+    if (prevJoins && nextJoins) {
+        return "middle";
+    }
+    if (nextJoins) {
+        return "first";
+    }
+    return prevJoins ? "last" : "selected";
+}
+
+/**
  * Work out every row's fill.
  * @param rows - the visible rows
  * @param selected - the selected ids
@@ -153,22 +182,7 @@ export function rowTints(rows: readonly FlatTreeRow[], selected: ReadonlySet<str
         const isSelected = selected.has(row.node.id);
         const next = rows[i + 1] as FlatTreeRow | undefined;
         if (isSelected) {
-            if (childBand && row.expanded) {
-                tints.push("parent");
-            } else {
-                const prev = rows[i - 1] as FlatTreeRow | undefined;
-                const prevJoins = prev !== undefined && selected.has(prev.node.id) && tints[i - 1] !== "parent";
-                const nextJoins = next !== undefined && selected.has(next.node.id) && !(childBand && next.expanded);
-                if (prevJoins && nextJoins) {
-                    tints.push("middle");
-                } else if (nextJoins) {
-                    tints.push("first");
-                } else if (prevJoins) {
-                    tints.push("last");
-                } else {
-                    tints.push("selected");
-                }
-            }
+            tints.push(childBand && row.expanded ? "parent" : selectedRunTint(rows, i, tints, selected, childBand));
         } else if (band) {
             tints.push(next === undefined || next.level <= band.level ? "child-last" : "child");
         } else {

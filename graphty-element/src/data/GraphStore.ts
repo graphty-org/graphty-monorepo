@@ -279,60 +279,60 @@ function mergeAt<R extends { readonly index: number }>(list: readonly Row<R>[], 
 }
 
 /**
- * Where a builder row lands once the rows taken out before it are compacted away: the row less
- * how many of those sit below it.
- * @param row - The builder row, itself not taken out.
- * @param taken - The builder rows taken out, ascending.
- * @returns The row in the compacted graph.
+ * The builder rows a run of removals has taken out, as a Fenwick tree over the rows the builder
+ * had when the run began: marking a row and counting the marked rows below one are both
+ * O(log rows), so a run of k one-row removals costs O(k log rows) rather than the O(k^2) of
+ * keeping a sorted list and inserting into it (issue #2788).
  */
-function compacted(row: number, taken: readonly number[]): number {
-    return row - rowsBelow(row, taken);
-}
+class RowsTaken {
+    /** One-based: entry i covers the rows (i - lowbit(i), i]. */
+    private readonly tree: Int32Array;
 
-/**
- * How many rows of an ascending list are below a row: a binary search.
- * @param row - The row.
- * @param taken - The ascending list.
- * @returns The count.
- */
-function rowsBelow(row: number, taken: readonly number[]): number {
-    let low = 0;
-    let high = taken.length;
-    while (low < high) {
-        const middle = (low + high) >>> 1;
-        if (taken[middle] < row) {
-            low = middle + 1;
-        } else {
-            high = middle;
+    /**
+     * An empty set over the rows below a bound.
+     * @param bound - One past the highest row the run can take out.
+     */
+    constructor(bound: number) {
+        // ponytail: allocated once per run, O(rows); the freeze that starts a run is O(rows) too.
+        this.tree = new Int32Array(bound + 1);
+    }
+
+    /**
+     * Mark rows taken out.
+     * @param rows - The rows; none marked before.
+     */
+    add(rows: readonly number[]): void {
+        for (const row of rows) {
+            for (let at = row + 1; at < this.tree.length; at += at & -at) {
+                this.tree[at]++;
+            }
         }
     }
 
-    return low;
-}
+    /**
+     * Where a builder row lands once the rows taken out before it are compacted away: the row less
+     * how many of those sit below it.
+     * @param row - The builder row, itself not taken out.
+     * @returns The row in the compacted graph.
+     */
+    compacted(row: number): number {
+        let below = 0;
+        for (let at = row; at > 0; at -= at & -at) {
+            below += this.tree[at];
+        }
 
-/**
- * Two ascending lists of distinct rows as one. `other` is inserted into `one` in place, each row
- * found by a binary search, so a run of one-row removals does not sort the whole run each time.
- * @param one - One list; the caller gives it up.
- * @param other - The other.
- * @returns Both, ascending: `one`, grown.
- */
-function mergeSorted(one: number[], other: readonly number[]): number[] {
-    for (let at = 0; at < other.length; at++) {
-        one.splice(rowsBelow(other[at], one), 0, other[at]);
+        return row - below;
     }
-
-    return one;
 }
 
 /** The removals {@link GraphStore.removeRows} has run since the last freeze, and what they read. */
 interface RemovalRun {
     readonly revision: number;
     readonly snapshot: GraphSnapshot;
-    /** Ascending; the next removal of the run grows it in place. */
-    readonly nodes: number[];
-    /** Ascending; likewise. */
-    readonly edges: number[];
+    /** The node rows taken out; the next removal of the run adds to it in place. */
+    readonly nodes: RowsTaken;
+    /** The edge rows taken out; likewise. */
+    readonly edges: RowsTaken;
 }
 
 /**
@@ -1083,6 +1083,17 @@ export class GraphStore {
     }
 
     /**
+     * The element-assigned ids of every live edge attached to the given nodes, read from the
+     * builder's incidence lists: O(degree), never a walk of every edge.
+     * @param nodeIds - The node ids; one the graph does not hold is skipped.
+     * @returns The edge ids.
+     */
+    incidentEdgeIds(nodeIds: readonly NodeId[]): number[] {
+        this.settle();
+        return Array.from(this.edgeRowsOf([], this.nodeRowsOf(nodeIds)), (row) => this.edgeIdAt(row));
+    }
+
+    /**
      * The builder rows of the edges asked for, and of every edge attached to the given nodes.
      * @param edgeIds - The element-assigned edge ids; one the graph does not hold is skipped.
      * @param nodeRows - The rows of nodes being removed.
@@ -1131,9 +1142,9 @@ export class GraphStore {
         // every row of the graph, which at the render ceiling is most of what a one-node removal
         // costs. Anything else written, or any freeze, ends the run.
         const chain = this.continuedRemovalRun();
-        const earlierNodes = chain?.nodes ?? [];
-        const earlierEdges = chain?.edges ?? [];
         const builder = this.current;
+        const earlierNodes = chain?.nodes ?? new RowsTaken(builder.nodeBound);
+        const earlierEdges = chain?.edges ?? new RowsTaken(builder.edgeBound);
         const nodeRows = this.nodeRowsOf(nodeIds);
         const edgeRows = this.edgeRowsOf(edgeIds, nodeRows);
 
@@ -1143,7 +1154,7 @@ export class GraphStore {
                 const [source, target] = builder.edgeEndpoints(row);
                 return {
                     edgeId: this.edgeIdAt(row),
-                    index: compacted(row, earlierEdges),
+                    index: earlierEdges.compacted(row),
                     source: builder.idOf(source),
                     target: builder.idOf(target),
                     weight: builder.edgeWeight(row),
@@ -1154,7 +1165,7 @@ export class GraphStore {
             .sort((a, b) => a - b)
             .map((row): RemovedNode => ({
                 id: builder.idOf(row),
-                index: compacted(row, earlierNodes),
+                index: earlierNodes.compacted(row),
                 values: this.rowValues(this.frozenColumns.node, row),
             }));
         const nodeRowList = [...nodeRows].sort((a, b) => a - b);
@@ -1176,11 +1187,13 @@ export class GraphStore {
             this.touch();
         }
 
+        earlierNodes.add(nodeRowList);
+        earlierEdges.add(edgeRowList);
         this.removedSinceFreeze = {
             revision: this.revision,
             snapshot: this.cache as GraphSnapshot,
-            nodes: mergeSorted(earlierNodes, nodeRowList),
-            edges: mergeSorted(earlierEdges, edgeRowList),
+            nodes: earlierNodes,
+            edges: earlierEdges,
         };
 
         const removed = { nodes, edges };

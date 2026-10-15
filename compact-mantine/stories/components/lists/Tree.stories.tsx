@@ -13,6 +13,7 @@ import {
     UiGlyph,
 } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";
+import { realInput } from "../../helpers/real-input";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
 import { untilPasses } from "../../helpers/settled";
 import { LAYERS, Panel, STYLE_LAYERS } from "./fixtures";
@@ -671,8 +672,49 @@ export const Dragging: Story = {
             </Panel>
         </Group>
     ),
-    play: async ({ canvasElement }) => {
+    play: async ({ canvasElement, parameters }) => {
         const canvas = within(canvasElement);
+        const real = realInput(parameters);
+        if (real) {
+            // As a test: the browser's own pointer. Press on the source row, move onto the target row
+            // and look at the indicator while the button is still held, then drop (onMove does nothing).
+            // One drag at a time, so each tree is checked in turn.
+            const drag = async (
+                tree: string,
+                source: string,
+                target: string,
+                fraction: number,
+                mark: string,
+            ): Promise<void> => {
+                const scope = within(canvas.getByRole("tree", { name: tree }));
+                const from = scope.getByRole("treeitem", { name: source });
+                const to = scope.getByRole("treeitem", { name: target });
+                const trusted: boolean[] = [];
+                const record = (event: PointerEvent): void => {
+                    trusted.push(event.isTrusted);
+                };
+                from.addEventListener("pointerdown", record);
+                const start = from.getBoundingClientRect();
+                await real.userEvent.hover(from);
+                await real.commands.mouseDown();
+                // As a hand does, in several moves: the row lifts on the first move past the tree's
+                // threshold, and the drop follows the moves after that.
+                await real.userEvent.hover(from, { position: { x: start.width / 2 + 16, y: start.height / 2 } });
+                const box = to.getBoundingClientRect();
+                const y = box.height * fraction;
+                await real.userEvent.hover(to, { position: { x: box.width / 2 - 8, y } });
+                await real.userEvent.hover(to, { position: { x: box.width / 2, y } });
+                await expect(await scope.findByTestId(mark)).toBeVisible();
+                await real.commands.mouseUp();
+                from.removeEventListener("pointerdown", record);
+                expect(trusted).toEqual([true]);
+            };
+            await drag("Into", "Sticky note", "Card", 0.5, "tree-drop-box");
+            await drag("Between", "Sticky note", "Background", 0.1, "tree-drop-line");
+            return;
+        }
+        // In Storybook's own UI a page script cannot make a trusted press, so the drag is replayed,
+        // which also leaves both indicators showing at once for the snapshot.
         // A mouse press on the source, moved over the target and held there (no release). Each
         // tree gets its own pointer, so both drags stay under way.
         const hover = (tree: string, source: string, target: string, fraction: number, pointerId: number): void => {

@@ -350,57 +350,88 @@ export function parseSectionHeader(line: string): SectionHeader | null {
     }
     const keyword = tokens[0];
     const kind = SECTION_KINDS.get(keyword.toLowerCase()) ?? "unsupported";
-    let count: number | null = null;
-    let secondCount: number | null = null;
-    let relation: number | null = null;
-    let name: string | null = null;
-    const extra: string[] = [];
-    let i = 1;
+    let args: HeaderArgs;
     switch (kind) {
         case "vertices":
-            if (i < tokens.length && INTEGER_TEXT.test(tokens[i])) {
-                count = Number(tokens[i]);
-                i++;
-                if (i < tokens.length && INTEGER_TEXT.test(tokens[i])) {
-                    secondCount = Number(tokens[i]);
-                    i++;
-                }
-            }
+            args = verticesArgs(tokens);
             break;
         case "arcs":
         case "edges":
         case "arcslist":
         case "edgeslist":
         case "matrix":
-            if (i < tokens.length && tokens[i].startsWith(":") && INTEGER_TEXT.test(tokens[i].slice(1))) {
-                relation = Number(tokens[i].slice(1));
-                i++;
-                if (i < tokens.length) {
-                    name = tokens[i];
-                    i++;
-                }
-            }
+            args = relationArgs(tokens);
             break;
         case "network":
         case "partition":
         case "vector":
-            if (i < tokens.length) {
-                name = tokens.slice(i).join(" ");
-                i = tokens.length;
-            }
+            args = nameArgs(tokens);
             break;
         case "unsupported":
-            i = tokens.length;
+            args = { ...NO_ARGS, next: tokens.length };
             break;
         default: {
             const unknown: string = kind;
             throw new Error(`unknown section kind ${unknown}`);
         }
     }
-    for (; i < tokens.length; i++) {
-        extra.push(tokens[i]);
+    const { count, secondCount, relation, name, next } = args;
+    return { kind, keyword, count, secondCount, relation, name, extra: tokens.slice(next) };
+}
+
+/** The arguments a section header's keyword takes, and the index of the first token after them. */
+interface HeaderArgs {
+    readonly count: number | null;
+    readonly secondCount: number | null;
+    readonly relation: number | null;
+    readonly name: string | null;
+    readonly next: number;
+}
+
+const NO_ARGS: HeaderArgs = { count: null, secondCount: null, relation: null, name: null, next: 1 };
+
+/**
+ * `*Vertices N [N1]`: the vertex count and the optional first-mode count.
+ * @param tokens - the header tokens, the keyword first
+ * @returns the arguments
+ */
+function verticesArgs(tokens: readonly string[]): HeaderArgs {
+    if (tokens.length < 2 || !INTEGER_TEXT.test(tokens[1])) {
+        return NO_ARGS;
     }
-    return { kind, keyword, count, secondCount, relation, name, extra };
+    const count = Number(tokens[1]);
+    if (tokens.length < 3 || !INTEGER_TEXT.test(tokens[2])) {
+        return { ...NO_ARGS, count, next: 2 };
+    }
+    return { ...NO_ARGS, count, secondCount: Number(tokens[2]), next: 3 };
+}
+
+/**
+ * `*Arcs [:k ["name"]]` and the other line sections: the relation number and its name.
+ * @param tokens - the header tokens, the keyword first
+ * @returns the arguments
+ */
+function relationArgs(tokens: readonly string[]): HeaderArgs {
+    if (tokens.length < 2 || !tokens[1].startsWith(":") || !INTEGER_TEXT.test(tokens[1].slice(1))) {
+        return NO_ARGS;
+    }
+    const relation = Number(tokens[1].slice(1));
+    if (tokens.length < 3) {
+        return { ...NO_ARGS, relation, next: 2 };
+    }
+    return { ...NO_ARGS, relation, name: tokens[2], next: 3 };
+}
+
+/**
+ * `*Network name`, `*Partition name`, `*Vector name`: every token after the keyword is the name.
+ * @param tokens - the header tokens, the keyword first
+ * @returns the arguments
+ */
+function nameArgs(tokens: readonly string[]): HeaderArgs {
+    if (tokens.length < 2) {
+        return NO_ARGS;
+    }
+    return { ...NO_ARGS, name: tokens.slice(1).join(" "), next: tokens.length };
 }
 
 /**
@@ -447,36 +478,46 @@ export function parseIntervals(token: string): [number, number][] {
     }
     const spells: [number, number][] = [];
     for (const part of body.split(",")) {
-        const match = TIME_POINT.exec(part.replaceAll(/\s+/g, ""));
-        if (match === null) {
-            throw new Error(`malformed time interval ${token}: "${part}" is not a-b, a-* or a`);
-        }
-        const [, startText, endText] = match;
-        if (startText === "*" && endText === undefined) {
-            throw new Error(`malformed time interval ${token}: "*" alone is not a time point`);
-        }
-        const start = startText === "*" ? -Infinity : Number(startText);
-        let end: number;
-        if (endText === undefined) {
-            end = start;
-        } else if (endText === "*") {
-            end = Infinity;
-        } else {
-            end = Number(endText);
-        }
-        // only `*` means an open end: a numeral beyond the f64 range is not a time
-        if (
-            (startText !== "*" && !Number.isFinite(start)) ||
-            (endText !== undefined && endText !== "*" && !Number.isFinite(end))
-        ) {
-            throw new Error(`malformed time interval ${token}: "${part}" is beyond the number range`);
-        }
-        if (start > end) {
-            throw new Error(`malformed time interval ${token}: ${startText} is after ${endText ?? ""}`);
-        }
-        spells.push([start, end]);
+        spells.push(parseSpell(token, part));
     }
     return spells;
+}
+
+/**
+ * One part of a Pajek time interval token: `a-b`, `a-*`, `*-b` or a single time point `a`.
+ * @param token - the whole token, for the error message
+ * @param part - the part between commas
+ * @returns the spell as a [start, end] pair
+ */
+function parseSpell(token: string, part: string): [number, number] {
+    const match = TIME_POINT.exec(part.replaceAll(/\s+/g, ""));
+    if (match === null) {
+        throw new Error(`malformed time interval ${token}: "${part}" is not a-b, a-* or a`);
+    }
+    const [, startText, endText] = match;
+    if (startText === "*" && endText === undefined) {
+        throw new Error(`malformed time interval ${token}: "*" alone is not a time point`);
+    }
+    const start = startText === "*" ? -Infinity : Number(startText);
+    let end: number;
+    if (endText === undefined) {
+        end = start;
+    } else if (endText === "*") {
+        end = Infinity;
+    } else {
+        end = Number(endText);
+    }
+    // only `*` means an open end: a numeral beyond the f64 range is not a time
+    if (
+        (startText !== "*" && !Number.isFinite(start)) ||
+        (endText !== undefined && endText !== "*" && !Number.isFinite(end))
+    ) {
+        throw new Error(`malformed time interval ${token}: "${part}" is beyond the number range`);
+    }
+    if (start > end) {
+        throw new Error(`malformed time interval ${token}: ${startText} is after ${endText ?? ""}`);
+    }
+    return [start, end];
 }
 
 // any length, so a reference beyond U+10FFFF is seen (and kept as written with a warning)

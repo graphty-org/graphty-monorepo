@@ -3,7 +3,7 @@ import { type DerivedGraph, type GraphSnapshot, INVALID_INDEX, type U32 } from "
 
 import type { EdgeId } from "../catalog/types";
 import type { AdHocData } from "../config";
-import { createEdgeCounter, edgeCounterOf } from "../data/edgeIdentity";
+import { createEdgeCounter, edgeCounterOf, edgeIdOf } from "../data/edgeIdentity";
 import { GraphStore } from "../data/GraphStore";
 import { readonlyPositions, WRITABLE_LANE } from "../data/lane";
 import { otherIdSpelling } from "../data/nodeIdSpelling";
@@ -23,7 +23,7 @@ import {
     replaceEdgesCommand,
     replaceNodesCommand,
 } from "../session/commands/data";
-import type { LaneStore } from "../session/GraphSession";
+import type { FreezeFollower, LaneStore } from "../session/GraphSession";
 import type { Dispatcher, UndoableContext } from "../session/project/Dispatcher";
 import { GraphOps, type GraphWriter } from "../session/project/graphOps";
 import {
@@ -83,7 +83,7 @@ export type { AddEdgesOptions } from "../session/project/ingest";
  * @param teardown - Disposes them.
  * @returns What `teardown` returns.
  */
-function disposeReleased<T>(nodes: Iterable<Node>, edges: Iterable<Edge>, teardown: () => T): T {
+export function disposeReleased<T>(nodes: Iterable<Node>, edges: Iterable<Edge>, teardown: () => T): T {
     const doomed = new Set<AbstractMesh>();
     const handlers: NodeDragHandler[] = [];
     collectDoomed(nodes, edges, doomed, handlers);
@@ -126,15 +126,15 @@ function disposeReleased<T>(nodes: Iterable<Node>, edges: Iterable<Edge>, teardo
         handler.forgetSceneObservers();
     }
 
-    // The parents' child lists are set aside too: a doomed mesh leaving its parent searches them,
-    // and a parent such as the graph's root holds every node (issue #2733).
-    const siblings: [list: SceneNode[], survivors: SceneNode[]][] = [];
+    // A disposed mesh leaves its parent by an `indexOf` over the parent's child list, and every
+    // node mesh shares one parent, the graph root: that list is set aside too (issues #2733, #2749).
+    const families: [SceneNode, SceneNode[], SceneNode[]][] = [];
     for (const parent of parents) {
         // Babylon has no public way to edit a node's child list in place; `getChildren()` copies it.
         const children = (parent as unknown as { _children: SceneNode[] | null })._children;
         if (children) {
             dropAll(children, doomed);
-            siblings.push([children, children.splice(0)]);
+            families.push([parent, children, children.splice(0)]);
         }
     }
 
@@ -145,8 +145,8 @@ function disposeReleased<T>(nodes: Iterable<Node>, edges: Iterable<Edge>, teardo
     } finally {
         restore(scene.meshes, meshes, (mesh) => !mesh.isDisposed());
         restore(actionManagers, owned, () => true);
-        for (const [list, survivors] of siblings) {
-            restore(list, survivors, (child) => !child.isDisposed());
+        for (const [parent, children, kept] of families) {
+            restore(children, kept, (child) => child.parent === parent && !child.isDisposed());
         }
     }
 }
@@ -279,6 +279,7 @@ export function laneStoreOf(manager: DataManager): LaneStore {
         get inputs() {
             return inputCountersOf(manager);
         },
+        followRenumbering: (follower) => dataManagerInternals.followRenumbering(manager, follower),
     };
 }
 
@@ -311,6 +312,8 @@ export const dataManagerInternals = {} as {
     adoptEdge(manager: DataManager, edge: Edge): void;
     /** Free the meshes of removed nodes still waiting for the end of their run; see `releaseLater`. */
     flushReleasing(manager: DataManager): void;
+    /** Deliver every renumbering freeze of this manager's stores to `follower`; see `laneStoreOf`. */
+    followRenumbering(manager: DataManager, follower: FreezeFollower): () => void;
 };
 
 /**
@@ -359,8 +362,16 @@ export class DataManager implements Manager {
     private readonly nodeMap = new Map<string | number, Node>();
     private readonly edgeMap = new Map<string, Edge>();
     private readonly edgeRows: (Edge | undefined)[] = [];
+    /** Who else holds rows by index (the session's selection), told after the render objects. */
+    private readonly renumberFollowers = new Set<FreezeFollower>();
 
     static {
+        dataManagerInternals.followRenumbering = (manager, follower) => {
+            manager.renumberFollowers.add(follower);
+            return () => {
+                manager.renumberFollowers.delete(follower);
+            };
+        };
         dataManagerInternals.adoptNode = (manager, node) => {
             manager.nodeMap.set(node.id, node);
         };
@@ -1193,11 +1204,19 @@ export class DataManager implements Manager {
             positionScale: () => this.styles.config.data.knownFields.positionScale,
             edgeCounter: this.edgeCounter,
             inputs: this.inputs,
+            // The count is read from the store, as the headless session does: a freeze in delivery
+            // answers `getSnapshot()` from the snapshot it is delivering.
             onNodeRemap: (remap) => {
                 this.walkNodeRemap(remap);
+                for (const follower of this.renumberFollowers) {
+                    follower.nodes(remap, this.store.getSnapshot().nodeCount);
+                }
             },
             onEdgeRemap: (remap) => {
                 this.walkEdgeRemap(remap);
+                for (const follower of this.renumberFollowers) {
+                    follower.edges(remap, this.store.getSnapshot().edgeCount);
+                }
             },
             onReplaced: (replacement) => {
                 // Before the graph context is set there is nobody to emit to, and nothing has been
@@ -1626,6 +1645,25 @@ export class DataManager implements Manager {
 
         const other = otherIdSpelling(nodeId);
         return other === undefined ? undefined : this.nodes.get(other);
+    }
+
+    /**
+     * The edges attached to a node that have render objects, found through the store's incidence
+     * lists in O(degree) rather than by walking every edge.
+     * @param node - The node.
+     * @returns Their ids.
+     * @internal
+     */
+    incidentEdgeIds(node: Node): EdgeId[] {
+        const ids: EdgeId[] = [];
+        for (const counter of this.store.incidentEdgeIds([node.id])) {
+            const id = edgeIdOf(counter);
+            if (this.edgeMap.has(id)) {
+                ids.push(id);
+            }
+        }
+
+        return ids;
     }
 
     /**

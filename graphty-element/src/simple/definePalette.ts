@@ -60,33 +60,7 @@ export function definePalette(definition: PaletteDefinition, options?: RegisterO
     }
 
     for (const color of colors as unknown[]) {
-        if (typeof color === "string" && color.trim() === "") {
-            throw badDefinition(
-                "definePalette",
-                id,
-                "colors",
-                `a colour is an empty string, which is what a design token reads as before its stylesheet has loaded. ${READ_THE_TOKEN}`,
-            );
-        }
-
-        if (typeof color === "string" && /var\s*\(/i.test(color)) {
-            throw badDefinition(
-                "definePalette",
-                id,
-                "colors",
-                `${JSON.stringify(color)} is a CSS variable, which a palette cannot hold. ${READ_THE_TOKEN}`,
-            );
-        }
-
-        if (typeof color !== "string" || normalizeHexAnchor(color) === null) {
-            throw badDefinition(
-                "definePalette",
-                id,
-                "colors",
-                `${typeof color === "string" ? JSON.stringify(color) : describeValue(color)} is not a colour. ` +
-                    'Write any CSS colour: "#0B1D51", "rgb(27, 127, 121)", "oklch(0.7 0.15 30)" or a colour name.',
-            );
-        }
+        checkColor(id, color);
     }
 
     const claims: unknown = checked.colorblindSafe ?? [];
@@ -113,4 +87,40 @@ export function definePalette(definition: PaletteDefinition, options?: RegisterO
     };
 
     registerPalette(registration, options);
+}
+
+/**
+ * Refuse one member of `colors` that is not a colour, with the message for the mistake it shows.
+ * @param id - The palette's id, for the message.
+ * @param color - The member to check.
+ * @throws A `GraphtyError` with `E_BAD_COMMAND` on the `colors` field.
+ */
+function checkColor(id: string, color: unknown): void {
+    if (typeof color === "string" && color.trim() === "") {
+        throw badDefinition(
+            "definePalette",
+            id,
+            "colors",
+            `a colour is an empty string, which is what a design token reads as before its stylesheet has loaded. ${READ_THE_TOKEN}`,
+        );
+    }
+
+    if (typeof color === "string" && /var\s*\(/i.test(color)) {
+        throw badDefinition(
+            "definePalette",
+            id,
+            "colors",
+            `${JSON.stringify(color)} is a CSS variable, which a palette cannot hold. ${READ_THE_TOKEN}`,
+        );
+    }
+
+    if (typeof color !== "string" || normalizeHexAnchor(color) === null) {
+        throw badDefinition(
+            "definePalette",
+            id,
+            "colors",
+            `${typeof color === "string" ? JSON.stringify(color) : describeValue(color)} is not a colour. ` +
+                'Write any CSS colour: "#0B1D51", "rgb(27, 127, 121)", "oklch(0.7 0.15 30)" or a colour name.',
+        );
+    }
 }

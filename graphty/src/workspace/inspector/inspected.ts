@@ -131,6 +131,21 @@ function idOf(value: unknown): string | number | undefined {
     return typeof value === "string" || typeof value === "number" ? value : undefined;
 }
 
+/**
+ * A group row, when its key parses as `[run, group]`.
+ * @param key - the row's key.
+ * @returns what to draw, or undefined when the key is not a group row's.
+ */
+function groupRowOf(key: string | undefined): Resolved | undefined {
+    const parsed = parse(key);
+    const run: unknown = Array.isArray(parsed) ? parsed[0] : undefined;
+    const group = Array.isArray(parsed) ? idOf(parsed[1]) : undefined;
+    if (typeof run === "string" && group !== undefined) {
+        return { kind: "group-row", run, group };
+    }
+    return undefined;
+}
+
 /** The selection as the inspector reads it. */
 interface SelectionView {
     readonly nodes: readonly NodeId[];
@@ -169,11 +184,9 @@ function fromRow(inspected: WorkspaceState["inspected"]): Resolved | undefined {
             }
             break;
         case "group-row": {
-            const parsed = parse(inspected.id);
-            const run: unknown = Array.isArray(parsed) ? parsed[0] : undefined;
-            const group = Array.isArray(parsed) ? idOf(parsed[1]) : undefined;
-            if (typeof run === "string" && group !== undefined) {
-                return { kind: "group-row", run, group };
+            const row = groupRowOf(inspected.id);
+            if (row !== undefined) {
+                return row;
             }
             break;
         }

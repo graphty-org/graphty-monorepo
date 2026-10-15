@@ -6,6 +6,7 @@ import React from "react";
 import { LabelsProvider, PANEL_GRID, PANEL_INK, PanelField, PanelLabelsProvider } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";
 import { StateGrid } from "../../helpers/input-states";
+import { realInput } from "../../helpers/real-input";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
 // Imported from "../../../src", the package's published entry point, so the stories exercise
 // exactly what a consumer gets from `@graphty/compact-mantine`.
@@ -440,28 +441,46 @@ export const WithLabels: Story = {
  */
 export const ScrubAndType: Story = {
     render: (): React.JSX.Element => <ScrubbedField />,
-    play: async ({ canvasElement }) => {
+    play: async ({ canvasElement, parameters }) => {
         const canvas = within(canvasElement);
         const box = canvas.getByRole<HTMLInputElement>("spinbutton", { name: "X" });
         const slot = canvas.getByTestId("panel-field-slot");
-        const { left, top } = slot.getBoundingClientRect();
-        // Real pointer events on the handle: press, move 20px along the text, release.
-        const at = (type: string, x: number): void => {
-            slot.dispatchEvent(
-                new PointerEvent(type, {
-                    bubbles: true,
-                    cancelable: true,
-                    button: 0,
-                    pointerId: 1,
-                    clientX: x,
-                    clientY: top + 12,
-                }),
-            );
-        };
-        at("pointerdown", left + 12);
-        at("pointermove", left + 22);
-        at("pointermove", left + 32);
-        at("pointerup", left + 32);
+        const real = realInput(parameters);
+        // Press on the handle, move 20px along the text, release.
+        if (real) {
+            // As a test: the browser's own pointer, so capture, hit testing and event order are real.
+            const trusted: boolean[] = [];
+            const record = (event: PointerEvent): void => {
+                trusted.push(event.isTrusted);
+            };
+            slot.addEventListener("pointerdown", record);
+            await real.userEvent.hover(slot, { position: { x: 12, y: 12 } });
+            await real.commands.mouseDown();
+            await real.userEvent.hover(slot, { position: { x: 22, y: 12 } });
+            await real.userEvent.hover(slot, { position: { x: 32, y: 12 } });
+            await real.commands.mouseUp();
+            slot.removeEventListener("pointerdown", record);
+            expect(trusted).toEqual([true]);
+        } else {
+            // In Storybook's own UI a page script cannot make trusted input, so the scrub is replayed.
+            const { left, top } = slot.getBoundingClientRect();
+            const at = (type: string, x: number): void => {
+                slot.dispatchEvent(
+                    new PointerEvent(type, {
+                        bubbles: true,
+                        cancelable: true,
+                        button: 0,
+                        pointerId: 1,
+                        clientX: x,
+                        clientY: top + 12,
+                    }),
+                );
+            };
+            at("pointerdown", left + 12);
+            at("pointermove", left + 22);
+            at("pointermove", left + 32);
+            at("pointerup", left + 32);
+        }
         await waitFor(() => expect(canvas.getByTestId("commits")).toHaveTextContent("50"));
         // The scrub ends with focus in the field and, a frame later, its whole value selected.
         // Type only once that selection is there, or it lands on the first keys and they are lost.
@@ -469,8 +488,9 @@ export const ScrubAndType: Story = {
             expect(box).toHaveFocus();
             expect([box.selectionStart, box.selectionEnd]).toEqual([0, box.value.length]);
         });
-        await userEvent.click(box);
-        await userEvent.keyboard("{Control>}a{/Control}40*2{Enter}");
+        const keys = real?.userEvent ?? userEvent;
+        await keys.click(box);
+        await keys.keyboard("{Control>}a{/Control}40*2{Enter}");
         await waitFor(() => expect(canvas.getByTestId("commits")).toHaveTextContent("50, 80"));
     },
 };

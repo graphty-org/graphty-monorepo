@@ -603,6 +603,8 @@ export class DataManager implements Manager {
     };
     // @internal
     get holdsNoRows(): boolean;
+    // @internal
+    incidentEdgeIds(node: Node_2): EdgeId[];
     init(): Promise<void>;
     get isLoading(): boolean;
     get lastImport(): LoadReport | null;

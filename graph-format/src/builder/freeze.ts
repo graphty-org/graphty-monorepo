@@ -419,16 +419,7 @@ function weightShadowColumn(staging: Staging, edgeCount: number, weightDtype: "f
         return null;
     }
     const values = weight.view();
-    let inexact = false;
-    if (weightDtype === "f64") {
-        for (let e = 0; e < edgeCount; e++) {
-            const w = values[e];
-            if (Math.fround(w) !== w) {
-                inexact = true;
-                break;
-            }
-        }
-    }
+    const inexact = weightDtype === "f64" && hasNonF32Value(values, edgeCount);
     const needValidity = staging.weightSet !== null || staging.weightMode === "omitted";
     if (!inexact && !needValidity) {
         return null;
@@ -437,16 +428,40 @@ function weightShadowColumn(staging: Staging, edgeCount: number, weightDtype: "f
     const meta = resolveColumnMeta(WEIGHT_COLUMN_NAME, "edge", { dtype, role: "weight", nullable: needValidity });
     const data = dtype === "f64" ? new Float64Array(edgeCount) : new Float32Array(edgeCount);
     data.set(values.subarray(0, edgeCount));
-    let validity: U32 | null = null;
-    if (needValidity) {
-        validity = new Uint32Array(bitmapWordCount(edgeCount));
-        for (let e = 0; e < edgeCount; e++) {
-            if (staging.weightExplicit(e)) {
-                bitmapSet(validity, e);
-            }
+    const validity = needValidity ? explicitWeightBitmap(staging, edgeCount) : null;
+    return createColumn({ ...emptyParts(meta, edgeCount, validity), data });
+}
+
+/**
+ * Whether some of the first `edgeCount` weights is not exactly representable as an f32.
+ * @param values - the staging weights
+ * @param edgeCount - the logical edge count
+ * @returns true when an f64 shadow is needed
+ */
+function hasNonF32Value(values: ArrayLike<number>, edgeCount: number): boolean {
+    for (let e = 0; e < edgeCount; e++) {
+        const w = values[e];
+        if (Math.fround(w) !== w) {
+            return true;
         }
     }
-    return createColumn({ ...emptyParts(meta, edgeCount, validity), data });
+    return false;
+}
+
+/**
+ * The bitmap of the edges whose weight was given explicitly.
+ * @param staging - the final staging
+ * @param edgeCount - the logical edge count
+ * @returns the bitmap
+ */
+function explicitWeightBitmap(staging: Staging, edgeCount: number): U32 {
+    const validity = new Uint32Array(bitmapWordCount(edgeCount));
+    for (let e = 0; e < edgeCount; e++) {
+        if (staging.weightExplicit(e)) {
+            bitmapSet(validity, e);
+        }
+    }
+    return validity;
 }
 
 /**

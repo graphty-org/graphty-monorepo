@@ -119,6 +119,35 @@ export interface ControlSectionProps extends DisclosureProps {
 }
 
 /**
+ * The section's name: the plain-then-technical pair, as one label, in the group's accessible
+ * name. While the header cuts it short, the shared tooltip shows it whole, as a cut tree row's
+ * name does.
+ * @param id - The id the group's aria-labelledby points at
+ * @param label - The plain name
+ * @param technicalName - The technical name drawn after it, if any
+ * @returns The name element
+ */
+function sectionName(id: string, label: string, technicalName: string | undefined): React.JSX.Element {
+    return (
+        <EllipsizedName
+            id={id}
+            testId="control-section-name"
+            className="cm-section-title"
+            name={
+                <>
+                    {label}
+                    {technicalName === undefined ? null : (
+                        <Box component="span" data-testid="control-section-technical-name" className="cm-section-technical">
+                            {` (${technicalName})`}
+                        </Box>
+                    )}
+                </>
+            }
+        />
+    );
+}
+
+/**
  * A named, collapsible group of controls for a dense property panel.
  *
  * A section is drawn as a 40px header carrying the section's name, the rows it
@@ -261,29 +290,7 @@ export function ControlSection(props: ControlSectionProps): React.JSX.Element {
     const toggleName = isOpen ? labels.collapseSection(label) : labels.expandSection(label);
     const addName = labels.addToSection(label);
 
-    // The plain-then-technical pair, as one label, in the group's accessible name. While the
-    // header cuts it short, the shared tooltip shows it whole, as a cut tree row's name does.
-    const name = (
-        <EllipsizedName
-            id={nameId}
-            testId="control-section-name"
-            className="cm-section-title"
-            name={
-                <>
-                    {label}
-                    {technicalName === undefined ? null : (
-                        <Box
-                            component="span"
-                            data-testid="control-section-technical-name"
-                            className="cm-section-technical"
-                        >
-                            {` (${technicalName})`}
-                        </Box>
-                    )}
-                </>
-            }
-        />
-    );
+    const name = sectionName(nameId, label, technicalName);
 
     // Accessibility: the APG "Disclosure (Show/Hide)" pattern. The header is a
     // button carrying aria-expanded and aria-controls, and the section around

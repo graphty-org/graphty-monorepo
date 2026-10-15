@@ -371,17 +371,27 @@ const CASES: readonly Case[] = [
     {
         method: "NotesApi.update",
         growth: "constant",
-        prepare: (session, size) => {
+        prepare: async (session, size) => {
             const notes = ids(size).map((node) => session.notes.add({ text: node, targets: [{ node }] }));
-            return Promise.resolve(() => session.notes.update(notes[0], { text: "edited" }));
+            // The setup's pass finishes first, so the write is not charged for it (#2844).
+            await session.styles.settled();
+            return async () => {
+                session.notes.update(notes[0], { text: "edited" });
+                await session.styles.settled();
+            };
         },
     },
     {
         method: "NotesApi.remove",
         growth: "constant",
-        prepare: (session, size) => {
+        prepare: async (session, size) => {
             const notes = ids(size).map((node) => session.notes.add({ text: node, targets: [{ node }] }));
-            return Promise.resolve(() => session.notes.remove(notes[0]));
+            // The setup's pass finishes first, so the write is not charged for it (#2844).
+            await session.styles.settled();
+            return async () => {
+                session.notes.remove(notes[0]);
+                await session.styles.settled();
+            };
         },
     },
     {

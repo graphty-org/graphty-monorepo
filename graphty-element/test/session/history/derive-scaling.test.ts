@@ -72,6 +72,28 @@ describe("derivation pass cost", () => {
         );
     });
 
+    it("charges a large write's copying to its own pass, not to the next small write's (#2844)", async () => {
+        await assertScalesLinearly(
+            async (size) => {
+                const { state, live } = stateOf(0);
+                const lane = new DerivationLane(state);
+                // The setup: one note per key, derived in one pass that finishes before the write.
+                for (let at = 0; at < size; at++) {
+                    live.notes.set(`k${String(at)}`, { at });
+                    lane.touch("notes", `k${String(at)}`);
+                }
+                await lane.settled();
+
+                return visitsDuring(async () => {
+                    live.notes.set("k0", { note: "edited" });
+                    lane.touch("notes", "k0");
+                    await lane.settled();
+                });
+            },
+            { sizes: [200, 800], growth: "constant", counter: "elements visited by the write after a large one" },
+        );
+    });
+
     it("hands each pass the state live held when it began, slice by slice", async () => {
         const { state, live } = stateOf(3);
         const lane = new DerivationLane(state);

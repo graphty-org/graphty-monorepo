@@ -8,7 +8,7 @@
 import { cdp } from "vitest/browser";
 
 /** A point in CSS pixels, from an element's top-left corner or the test frame's viewport. */
-export interface Offset {
+interface Offset {
     x: number;
     y: number;
 }

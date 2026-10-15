@@ -1059,6 +1059,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             isPinned: READ,
             roundRadius: READ,
             drawnRadius: READ,
+            drawnHalfExtents: READ,
         },
     },
     {

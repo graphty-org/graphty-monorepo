@@ -15,8 +15,8 @@
  * whole point of (1) is that a ray hits an icosphere and a box at different distances, and the
  * whole point of (2) is which Babylon mesh ends up in the effect layer's inclusion list.
  */
-import { InstancedMesh, NullEngine, type Scene as BabylonScene, Scene, Vector3 } from "@babylonjs/core";
-import { afterEach, assert, describe, it } from "vitest";
+import { InstancedMesh, NullEngine, type Scene as BabylonScene, Scene, TransformNode, Vector3 } from "@babylonjs/core";
+import { afterEach, assert, describe, it, vi } from "vitest";
 
 import type { EdgeStyleConfig, NodeStyleConfig } from "../src/config";
 import { Edge } from "../src/Edge";
@@ -27,6 +27,7 @@ import { DefaultGraphContext, type GraphContext } from "../src/managers/GraphCon
 import { LayoutManager, layoutManagerInternals } from "../src/managers/LayoutManager";
 import { StatsManager } from "../src/managers/StatsManager";
 import type { EdgePaint, NodePaint } from "../src/managers/StylePainter";
+import { EdgeMesh } from "../src/meshes/EdgeMesh";
 import { MeshCache } from "../src/meshes/MeshCache";
 import { Node } from "../src/Node";
 import { Styles } from "../src/Styles";
@@ -266,6 +267,110 @@ describe("Node shape changes and connected edges", () => {
             edge.arrowCap?.position.equalsWithEpsilon(sentinel, 0.001),
             "a colour-only change must not invalidate the edge position cache",
         );
+    });
+});
+
+describe("Edge ends on a non-round node under a moved graph root", () => {
+    let harness: Harness | undefined;
+
+    afterEach(() => {
+        harness?.dispose();
+        harness = undefined;
+    });
+
+    /**
+     * Where a box-to-box edge's ends land, in graph-root space, with the root moved and scaled
+     * the way an XR gesture leaves it (or left alone).
+     * @param transformed - Whether to move and scale the root.
+     * @returns The two surface points.
+     */
+    function boxEnds(transformed: boolean): { src: Vector3; dst: Vector3 } {
+        harness = createHarness();
+        const root = new TransformNode("graph-root", harness.scene);
+        if (transformed) {
+            root.position.set(10, -3, 4);
+            root.scaling.setAll(2.5);
+        }
+
+        addNode(harness, "src", nodeStyle({ shape: { type: "box", size: 1 } }));
+        addNode(harness, "dst", nodeStyle({ shape: { type: "box", size: 1 } }));
+        const edge = addEdge(harness, ARROW_EDGE_STYLE);
+        const { srcPoint, dstPoint } = edge.getInterceptPoints();
+        assert.isNotNull(srcPoint, "the ray must hit the source box");
+        assert.isNotNull(dstPoint, "the ray must hit the destination box");
+        const ends = { src: srcPoint.clone(), dst: dstPoint.clone() };
+        harness.dispose();
+        harness = undefined;
+
+        return ends;
+    }
+
+    it("trims to the same graph-root points whatever the root's transform", () => {
+        const plain = boxEnds(false);
+        const moved = boxEnds(true);
+
+        // The line is drawn in graph-root space, so its ends must not move with the root. Before
+        // the fix the ray was cast from graph-root positions against world-space geometry and its
+        // world-space hits were used as graph-root points.
+        assert.isBelow(Vector3.Distance(plain.src, moved.src), 1e-4, `source end moved: ${moved.src.toString()}`);
+        assert.isBelow(Vector3.Distance(plain.dst, moved.dst), 1e-4, `destination end moved: ${moved.dst.toString()}`);
+    });
+});
+
+describe("A self-loop clears its node", () => {
+    let harness: Harness | undefined;
+
+    afterEach(() => {
+        harness?.dispose();
+        harness = undefined;
+        vi.restoreAllMocks();
+    });
+
+    /**
+     * Draw a curved self-loop on one node and return how close the loop comes to its centre.
+     * @param shape - The node's shape.
+     * @returns The nearest loop point's distance from the centre in x-y, and the node's reach there.
+     */
+    function loopAround(shape: NonNullable<NodeStyleConfig["shape"]>): { nearest: number; reach: number } {
+        harness = createHarness();
+        const node = addNode(harness, "src", nodeStyle({ shape }));
+        const curves: number[][] = [];
+        const original = EdgeMesh.createBezierLine.bind(EdgeMesh);
+        vi.spyOn(EdgeMesh, "createBezierLine").mockImplementation((...args) => {
+            const points = original(...args);
+            curves.push(points);
+            return points;
+        });
+        const style: EdgeStyleConfig = { line: { type: "solid", color: "#AAAAAA", width: 0.5, bezier: true } };
+        const edge = new Edge(harness.context, "src", "src", 0, edgePaintOf(style), {});
+        dataManagerInternals.adoptEdge(harness.dataManager, edge);
+        harness.layoutEngine.addEdge(edge);
+        edge.update();
+
+        assert.isAbove(curves.length, 0, "the self-loop was drawn as a curve");
+        const points = curves[curves.length - 1];
+        const centre = node.mesh.position;
+        let nearest = Infinity;
+        for (let i = 0; i < points.length; i += 3) {
+            nearest = Math.min(nearest, Math.hypot(points[i] - centre.x, points[i + 1] - centre.y));
+        }
+
+        const { extendSize } = node.mesh.getBoundingInfo().boundingBox;
+        const { scaling } = node.mesh;
+        const reach = Math.hypot(extendSize.x * scaling.x, extendSize.y * scaling.y);
+        return { nearest, reach };
+    }
+
+    it("runs outside a node bigger than the usual loop", () => {
+        const { nearest, reach } = loopAround({ type: "box", size: 6 });
+
+        assert.isAbove(nearest, reach, "the loop is drawn inside the node, where it cannot be seen");
+    });
+
+    it("keeps the usual radius around a default-sized node", () => {
+        const { nearest } = loopAround({ type: "sphere", size: 1 });
+
+        assert.closeTo(nearest, EdgeMesh.SELF_LOOP_RADIUS, 1e-6);
     });
 });
 

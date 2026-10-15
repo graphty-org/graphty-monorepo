@@ -242,8 +242,10 @@ export class SetsStore implements RecordView {
 
         const base = `set_${slugOf(name)}`;
         let id = base;
-        for (let suffix = 2; this.issued.has(id) || this.records.has(id) || this.pending.has(id); suffix++) {
+        let suffix = 2;
+        while (this.issued.has(id) || this.records.has(id) || this.pending.has(id)) {
             id = `${base}_${suffix}`;
+            suffix++;
         }
 
         this.pending.add(id);

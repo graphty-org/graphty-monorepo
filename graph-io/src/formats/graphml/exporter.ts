@@ -1325,11 +1325,13 @@ function* writeGraphml(snapshot: GraphSnapshot, plan: Plan): Generator<string, v
     // nodes in containment order, children nested under their parent
     const { hierarchy } = plan;
     const nested = hierarchy.childList.length > 0;
-    const stackNode: number[] = [];
-    const stackCursor: number[] = [];
-    const written = nested ? new Uint8Array(snapshot.nodeCount) : null;
+    const walk: SubtreeWalk = {
+        stackNode: [],
+        stackCursor: [],
+        written: nested ? new Uint8Array(snapshot.nodeCount) : null,
+    };
     for (const rootNode of hierarchy.roots) {
-        yield* writeNodeSubtree(rootNode, plan, ids, i2, step, stackNode, stackCursor, written);
+        yield* writeNodeSubtree(rootNode, plan, ids, i2, step, walk);
     }
 
     // edges: primaries only, in index order
@@ -1458,6 +1460,16 @@ function portText(column: Column | null, e: number): string | null {
     return typeof value === "string" ? value : String(value);
 }
 
+/** The state a subtree walk reuses from one top-level node to the next. */
+interface SubtreeWalk {
+    /** A reusable stack of open nodes. */
+    readonly stackNode: number[];
+    /** A reusable stack of child cursors. */
+    readonly stackCursor: number[];
+    /** Nodes already written (null when nothing is nested). */
+    readonly written: Uint8Array | null;
+}
+
 /**
  * Write a top-level node and, nested, every node contained in it (iteratively, so a deep chain
  * cannot overflow the call stack).
@@ -1466,9 +1478,7 @@ function portText(column: Column | null, e: number): string | null {
  * @param ids - the sanitised ids
  * @param indent - the indentation of top-level nodes
  * @param step - one indentation step
- * @param stackNode - a reusable stack of open nodes
- * @param stackCursor - a reusable stack of child cursors
- * @param written - nodes already written (null when nothing is nested)
+ * @param walk - the reusable walk state
  * @yields the node elements
  * @returns nothing
  */
@@ -1478,10 +1488,9 @@ function* writeNodeSubtree(
     ids: SanitizedIds,
     indent: string,
     step: string,
-    stackNode: number[],
-    stackCursor: number[],
-    written: Uint8Array | null,
+    walk: SubtreeWalk,
 ): Generator<string, void, undefined> {
+    const { stackNode, stackCursor, written } = walk;
     const { hierarchy } = plan;
     const hasChildren = (u: number): boolean => hierarchy.childStart[u + 1] > hierarchy.childStart[u];
     const openNode = (u: number, depth: number): string => {

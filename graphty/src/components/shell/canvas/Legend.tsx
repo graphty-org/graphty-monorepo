@@ -300,7 +300,7 @@ export function Legend(props: LegendProps): React.JSX.Element | null {
     }
 
     return (
-        <div
+        <div // NOSONAR(S6819): a legend of static text, not form controls; a fieldset also lays out a min-height flex column differently
             role="group"
             aria-label={LEGEND_LABEL}
             data-canvas-overlay="legend"

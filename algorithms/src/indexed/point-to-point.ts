@@ -162,6 +162,43 @@ export function bidirectionalDijkstra(
 }
 
 /**
+ * Relax every arc out of the just-closed node `u` to a node not yet closed, lowering its cost so far,
+ * its score and its queue key when the arc improves on them.
+ * @param g - The adjacency being searched
+ * @param u - The node just taken from the queue
+ * @param weights - Per-arc weights, or null for all ones
+ * @param estimate - Estimated remaining cost from a node index to the target
+ * @param st - The search state, updated in place
+ * @param st.gScore - Cost so far per node
+ * @param st.fScore - Cost so far plus the estimate, per node
+ * @param st.predArc - The relaxing arc per node
+ * @param st.closed - 1 for every expanded node
+ * @param st.heap - The queue, keyed by `fScore`
+ */
+function relaxAstarArcs(
+    g: AdjacencyView,
+    u: number,
+    weights: NumericVector | null,
+    estimate: (node: number) => number,
+    st: { gScore: Float64Array; fScore: Float64Array; predArc: Uint32Array; closed: Uint8Array; heap: IndexedMinHeap },
+): void {
+    const { gScore, fScore, predArc, closed, heap } = st;
+    for (let a = g.rowPtr[u]; a < g.rowPtr[u + 1]; a++) {
+        const v = g.colIdx[a];
+        if (closed[v] === 1) {
+            continue;
+        }
+        const tentative = gScore[u] + (weights === null ? 1 : weights[a]);
+        if (tentative < gScore[v]) {
+            gScore[v] = tentative;
+            fScore[v] = tentative + estimate(v);
+            predArc[v] = a;
+            heap.pushOrDecrease(v, fScore[v]);
+        }
+    }
+}
+
+/**
  * A* between two nodes: Dijkstra keyed by cost so far plus `heuristic(node, target)`, stopping when
  * the target is taken from the queue. An expanded node is never reopened, as in legacy `astar`, so
  * the path is shortest when the heuristic is consistent. The predecessor is the relaxing ARC, so a
@@ -207,19 +244,7 @@ export function astar(
         }
         closed[u] = 1;
         visited.push(u);
-        for (let a = g.rowPtr[u]; a < g.rowPtr[u + 1]; a++) {
-            const v = g.colIdx[a];
-            if (closed[v] === 1) {
-                continue;
-            }
-            const tentative = gScore[u] + (weights === null ? 1 : weights[a]);
-            if (tentative < gScore[v]) {
-                gScore[v] = tentative;
-                fScore[v] = tentative + heuristic(v, target);
-                predArc[v] = a;
-                heap.pushOrDecrease(v, fScore[v]);
-            }
-        }
+        relaxAstarArcs(g, u, weights, (v) => heuristic(v, target), { gScore, fScore, predArc, closed, heap });
     }
     const state = { gScore, fScore, visited: Uint32Array.from(visited) };
     if (gScore[target] === Infinity) {

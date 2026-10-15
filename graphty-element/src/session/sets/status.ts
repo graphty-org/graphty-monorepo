@@ -330,7 +330,18 @@ class StatusWalk {
             builder.reason({ kind: "invalid", message: error.message });
         }
 
-        const outcome = record === undefined ? undefined : sources.outcome?.(record);
+        this.reportOutcome(record, builder);
+
+        return builder.done();
+    }
+
+    /**
+     * What the last pass reported for a kept set: a problem it hit, and named edges two edges carry.
+     * @param record - The kept set, when the definition is kept.
+     * @param builder - Where the status is collected.
+     */
+    private reportOutcome(record: ElementSet | undefined, builder: Builder): void {
+        const outcome = record === undefined ? undefined : this.sources.outcome?.(record);
         if (outcome?.problem !== undefined && RANK[builder.freshness] < RANK.detached) {
             builder.worsen("unresolvable");
             builder.reason(reasonOfProblem(outcome.problem));
@@ -339,8 +350,6 @@ class StatusWalk {
         if (outcome !== undefined && outcome.ambiguousEdges > 0) {
             builder.reason({ kind: "ambiguous-parallel-edge", count: outcome.ambiguousEdges });
         }
-
-        return builder.done();
     }
 
     /**

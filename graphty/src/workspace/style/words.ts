@@ -116,6 +116,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.height": "Height",
     "node.depth": "Depth",
     "node.planar": "Planar",
+    "node.zIndex": "Z-index",
     "node.borderColor": "Border color",
     "node.borderWidth": "Border width",
     "node.borderStyle": "Border style",

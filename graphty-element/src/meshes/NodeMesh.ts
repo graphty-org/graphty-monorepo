@@ -5,6 +5,7 @@ import {
     type ICanvasGradient,
     type ICanvasRenderingContext,
     type InstancedMesh,
+    Matrix,
     Mesh,
     MeshBuilder,
     Scene,
@@ -42,6 +43,34 @@ export const NODE_EXTENT_PER_SIZE = 1.5;
 
 /** How deep a node drawn flat is, as a fraction of its smaller side: thin, but never zero. */
 const THIN_DEPTH_RATIO = 0.02;
+
+/**
+ * How far apart along the 2D camera's view, in scene units, the front faces of two neighbouring
+ * `zIndex` levels are drawn. Far above the depth buffer's resolution at the 2D camera's range,
+ * and far below anything a reader could see in an orthographic view.
+ */
+const Z_INDEX_STEP = 0.05;
+
+/**
+ * In a 2D view, move a node mesh's geometry back so its front face sits `-zIndex` steps behind
+ * the plane every edge and every node at `zIndex` 0 is drawn on (the 2D camera looks along +z).
+ * Its position stays the node's own, so edges, picking and the layout see no difference; only the
+ * depth test does. A 3D view, and a node at 0 or with no `zIndex`, are left exactly as they were.
+ * @param mesh - The source mesh, before any instance is made of it.
+ * @param shape - The node's shape block.
+ * @param is2D - Whether the graph is drawn in 2D.
+ */
+function placeByZIndex(mesh: Mesh, shape: NodeStyleConfig["shape"], is2D: boolean): void {
+    const zIndex = shape?.zIndex ?? 0;
+    if (!is2D || zIndex >= 0) {
+        return;
+    }
+
+    mesh.refreshBoundingInfo();
+    const front = mesh.getBoundingInfo().boundingBox.minimum.z;
+    mesh.bakeTransformIntoVertices(Matrix.Translation(0, 0, -zIndex * Z_INDEX_STEP - front));
+    mesh.refreshBoundingInfo();
+}
 
 type ShapeCreator = (size: number, scene?: Scene) => Mesh;
 
@@ -224,6 +253,7 @@ export class NodeMesh {
 
         return cache.get(cacheKey, () => {
             const mesh = this.createMeshWithoutCache(options, createOptions, scene);
+            placeByZIndex(mesh, createOptions.shape, options.is2D);
 
             // `node.flat`: one normal per triangle, so every face is lit as one plane and a sphere
             // reads as a faceted ball. Done on the SOURCE mesh before the cache instances it, so
@@ -380,6 +410,7 @@ export class NodeMesh {
             const outline = flat ? this.flatOutline(shape.type ?? "", extents) : this.solidOutline(fill);
             const depth = flat ? (extents.z ?? extents.across) : THIN_DEPTH_RATIO * extents.across;
             const mesh = ringSlab("node-border", borderRing(outline, width, border?.style ?? "solid"), depth, scene);
+            placeByZIndex(mesh, shape, options.is2D);
             mesh.material = this.createBorderMaterial(border?.color ?? "#000000", scene);
 
             return mesh;

@@ -24,6 +24,7 @@ import type { GraphContext } from "./managers/GraphContext";
 import { LabelDeclutter } from "./managers/LabelDeclutter";
 import { bootstrapNodePaint, type NodePaint } from "./managers/StylePainter";
 import { oweLabelAnimations } from "./meshes/labelAnimationDebt";
+import { unfreezeFor } from "./meshes/LabelBatch";
 import { NodeEffects } from "./meshes/NodeEffects";
 import { NodeMesh } from "./meshes/NodeMesh";
 import { readColor } from "./meshes/readColor";
@@ -640,7 +641,12 @@ export class Node {
         const source = this.mesh.sourceMesh;
 
         if (source.instancedBuffers?.color === undefined) {
-            source.material?.unfreeze();
+            // Only the source draws with its material (one per cache entry), so only its submeshes
+            // are marked dirty, not every mesh in the scene (issue #2894).
+            if (source.material) {
+                unfreezeFor(source, source.material);
+            }
+
             source.registerInstancedBuffer("color", 4);
             source.instancedBuffers.color = new Color4(1, 1, 1, 1);
         }

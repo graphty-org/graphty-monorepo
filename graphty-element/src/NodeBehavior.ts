@@ -2,10 +2,10 @@
 import "@babylonjs/core/Culling/ray";
 
 import {
+    type ActionEvent,
     ActionManager,
     ExecuteCodeAction,
     Matrix,
-    type Observer,
     PointerEventTypes,
     type PointerInfoPre,
     Ray,
@@ -92,6 +92,145 @@ interface ClickState {
     pointerEvent: PointerEvent | null;
 }
 
+/** A node's pre-pointer callback. */
+type PointerHandler = (pointerInfo: PointerInfoPre) => void;
+
+/** The pointer callbacks of every node of a scene, behind the one observer they share. */
+const nodePointerHandlers = new WeakMap<Scene, Set<PointerHandler>>();
+
+/**
+ * The pointer callbacks of a scene's nodes, which one `onPrePointerObservable` observer calls in
+ * the order they were added. A node joins and leaves this set instead of adding and removing
+ * observers of its own: Babylon's `remove` searches every observer the scene holds -- two per
+ * node -- so repainting or disposing one node cost the size of the graph (issue #2894). A callback
+ * added while an event is being delivered gets that event too, and one deleted before its turn
+ * does not, as with Babylon's own list. The graph creates the set when it sets up its scene, so
+ * the shared observer sits where the first node's own observers used to.
+ * @param scene - The scene.
+ * @returns The scene's set, created with its observer on first use.
+ */
+export function nodePointerHandlersOf(scene: Scene): Set<PointerHandler> {
+    let handlers = nodePointerHandlers.get(scene);
+    if (!handlers) {
+        const created = new Set<PointerHandler>();
+        scene.onPrePointerObservable.add((pointerInfo) => {
+            for (const handler of created) {
+                handler(pointerInfo);
+            }
+        });
+        nodePointerHandlers.set(scene, created);
+        handlers = created;
+    }
+
+    return handlers;
+}
+
+/** The one action manager the nodes of each scene share; see {@link nodeActionManagerOf}. */
+const nodeActionManagers = new WeakMap<Scene, ActionManager>();
+
+/**
+ * The action manager every node mesh of a scene carries, with the double-click that expands a node.
+ *
+ * ONE PER SCENE, NOT ONE PER NODE. Babylon keeps every action manager in `scene.actionManagers`, and
+ * disposing a mesh disposes its own manager, which takes it out of that list by `indexOf` and
+ * walks `scene.meshes` twice for other owners: repainting or disposing one node cost the size of the
+ * graph (issue #2894). The shared manager is never disposed with a mesh (`disposeWhenUnowned` is
+ * off, which also skips the owner search); it goes with the scene. Which node was double-clicked
+ * is read from the picked mesh, whose metadata names it.
+ *
+ * REGISTERED UNCONDITIONALLY, and the pair of fetchers is looked up when the reader double-clicks
+ * rather than when the node is built. A consumer switches expansion on by setting
+ * `element.layoutBehavior`, which can happen at any moment -- before the data arrives, after it, or
+ * from a settings panel while the graph is on screen. Deciding at construction meant every node
+ * already drawn kept the answer it was born with, so a consumer who loaded a graph and THEN turned
+ * expansion on had a graph of nodes that ignored a double-click for ever.
+ * @param scene - The scene.
+ * @returns The scene's node action manager, created on first use.
+ */
+export function nodeActionManagerOf(scene: Scene): ActionManager {
+    let manager = nodeActionManagers.get(scene);
+    if (!manager) {
+        manager = new ActionManager(scene);
+        manager.disposeWhenUnowned = false;
+        manager.registerAction(
+            new ExecuteCodeAction({ trigger: ActionManager.OnDoublePickTrigger }, (event?: ActionEvent) => {
+                const metadata = (event?.source as { metadata?: { graphNode?: GraphNode } } | undefined)?.metadata;
+                const node = metadata?.graphNode;
+                if (node && !node.isDisposed()) {
+                    expandNode(node);
+                }
+            }),
+        );
+        nodeActionManagers.set(scene, manager);
+    }
+
+    return manager;
+}
+
+/**
+ * Expand a double-clicked node: fetch its neighbourhood through the layout behaviour's fetchers
+ * and add it as one step.
+ * @param node - The node.
+ */
+function expandNode(node: GraphNode): void {
+    const context: GraphContext = node.parentGraph;
+    // Only Graph has fetchNodes/fetchEdges, not GraphContext
+    const graph = node.parentGraph as Graph & { fetchNodes?: unknown; fetchEdges?: unknown };
+
+    const { fetchNodes, fetchEdges } = graph;
+
+    // No fetchers means no on-demand expansion, which is the default and is not
+    // an error: a graph that holds everything it is ever going to hold has
+    // nothing to expand.
+    if (!fetchNodes || !fetchEdges) {
+        return;
+    }
+
+    // make sure the graph is running, unless the consumer paused it
+    context.getLayoutManager().running = true;
+
+    // fetch all edges for current node
+    const edgeSet = fetchEdges(node, graph);
+    const edges = Array.from(edgeSet);
+
+    // Which keys name this batch's endpoints is decided ONCE, by the same
+    // resolver the data manager uses, and the answer is then passed to
+    // `addEdges` so both halves of the expansion read the same columns.
+    //
+    // Reading `e.src` and `e.dst` here, as this handler used to, made the
+    // expansion work for exactly one spelling -- and not the canonical one. A
+    // `fetchEdges` written the way every guide teaches, returning
+    // `{source, target}`, yielded a set of `undefined` neighbours: nothing was
+    // fetched, and the edges queued as pending for ever.
+    const endpoints = resolveEndpoints(edges, { source: null, target: null });
+    const nodeIds = new Set<NodeIdType>();
+    edges.forEach((e) => {
+        nodeIds.add(readEndpoint(e, endpoints.source) as NodeIdType);
+        nodeIds.add(readEndpoint(e, endpoints.target) as NodeIdType);
+    });
+    nodeIds.delete(node.id);
+
+    // fetch all nodes from associated edges
+    const nodes = fetchNodes(nodeIds, graph);
+
+    // Add what was fetched as one step. The records ride in the command, so a
+    // redo puts them back without asking the consumer again; the command adds
+    // the edges under `repeated: "first"`, because a neighbourhood legitimately
+    // names edges the graph already holds.
+    void dispatcherOf(graph.getSession())
+        .dispatch({
+            op: "data.expand",
+            seed: node.id,
+            nodes: [...nodes],
+            edges,
+            source: endpoints.source,
+            target: endpoints.target,
+        })
+        .catch((error: unknown) => {
+            console.error("[graphty] Expanding a node failed:", error);
+        });
+}
+
 // Click detection thresholds
 const CLICK_MAX_DURATION_MS = 300; // Maximum time for a click (vs long press/drag)
 const CLICK_MAX_MOVEMENT_PX = 5; // Maximum pixels of movement for a click
@@ -105,8 +244,8 @@ export class NodeDragHandler {
     private clickState: ClickState | null = null;
     private gesture: DragGesture | null = null;
     private readonly scene: Scene;
-    private pointerObserver: Observer<PointerInfoPre> | null = null;
-    private hoverObserver: Observer<PointerInfoPre> | null = null;
+    private pointerHandler: PointerHandler | null = null;
+    private hoverHandler: PointerHandler | null = null;
     private isHovered = false;
     private readonly zAxisAmplification: number;
     private readonly enableZAmplificationInDesktop: boolean;
@@ -461,7 +600,7 @@ export class NodeDragHandler {
     // Internal methods
     private setupPointerEvents(): void {
         // Listen to pointer events for node dragging and clicking
-        this.pointerObserver = this.scene.onPrePointerObservable.add((pointerInfo) => {
+        this.pointerHandler = (pointerInfo) => {
             // Skip desktop pointer handling in XR mode - XRInputHandler handles it
             // This prevents conflicts where XR generates pointer events that the
             // desktop handler would misinterpret with wrong world position calculations
@@ -545,14 +684,15 @@ export class NodeDragHandler {
                     // Ignore other pointer events
                     break;
             }
-        });
+        };
+        nodePointerHandlersOf(this.scene).add(this.pointerHandler);
     }
 
     /**
      * Setup hover detection for emitting node-hover events.
      */
     private setupHoverEvents(): void {
-        this.hoverObserver = this.scene.onPrePointerObservable.add((pointerInfo) => {
+        this.hoverHandler = (pointerInfo) => {
             // Skip in XR mode
             if (this.isXRMode()) {
                 return;
@@ -597,7 +737,8 @@ export class NodeDragHandler {
                 this.isHovered = false;
                 this.node.hideTooltip();
             }
-        });
+        };
+        nodePointerHandlersOf(this.scene).add(this.hoverHandler);
     }
 
     /**
@@ -719,40 +860,22 @@ export class NodeDragHandler {
     }
 
     /**
-     * The scene pointer observers this handler holds. A bulk teardown drops many handlers' observers
-     * from the scene in one pass before disposing them, because removing one at a time searches the
-     * scene's whole observer list for each (issue #543).
-     * @returns The observers, none once disposed.
-     */
-    get sceneObservers(): Observer<PointerInfoPre>[] {
-        return [this.pointerObserver, this.hoverObserver].filter((observer) => observer !== null);
-    }
-
-    /**
-     * Forget the scene pointer observers without searching the scene for them: a bulk teardown has
-     * already taken them out of the scene's list, so `dispose` has nothing left to remove (issue
-     * #2732).
-     */
-    forgetSceneObservers(): void {
-        this.pointerObserver = null;
-        this.hoverObserver = null;
-    }
-
-    /**
      * Cleans up event observers and releases resources.
      */
     public dispose(): void {
         // A node removed mid-drag: its drag records nothing more, and leaves nothing pending.
         this.gesture?.finish();
         this.gesture = null;
-        if (this.pointerObserver) {
-            this.scene.onPrePointerObservable.remove(this.pointerObserver);
-            this.pointerObserver = null;
+        // Leaving a set, not searching the scene's observers: see nodePointerHandlersOf.
+        const handlers = nodePointerHandlersOf(this.scene);
+        if (this.pointerHandler) {
+            handlers.delete(this.pointerHandler);
+            this.pointerHandler = null;
         }
 
-        if (this.hoverObserver) {
-            this.scene.onPrePointerObservable.remove(this.hoverObserver);
-            this.hoverObserver = null;
+        if (this.hoverHandler) {
+            handlers.delete(this.hoverHandler);
+            this.hoverHandler = null;
         }
     }
 }
@@ -782,97 +905,12 @@ export class NodeBehavior {
     }
 
     /**
-     * Add click behavior for node expansion
-     *
-     * REGISTERED UNCONDITIONALLY, and the pair of fetchers is looked up when the reader
-     * double-clicks rather than when the node is built. A consumer switches expansion on by
-     * setting `element.layoutBehavior`, which can happen at any moment -- before the data
-     * arrives, after it, or from a settings panel while the graph is on screen. Deciding at
-     * construction meant every node already drawn kept the answer it was born with, so a
-     * consumer who loaded a graph and THEN turned expansion on had a graph of nodes that ignored
-     * a double-click for ever.
+     * Add click behavior for node expansion: the scene's shared action manager, see
+     * {@link nodeActionManagerOf}.
      * @param node - The graph node to add click behavior to
      */
     private static addClickBehavior(node: GraphNode): void {
-        // click behavior setup
-        const context = this.getContext(node);
-        const scene = context.getScene();
-        node.mesh.actionManager = node.mesh.actionManager ?? new ActionManager(scene);
-
-        // Available triggers:
-        // ActionManager.OnDoublePickTrigger
-        // ActionManager.OnRightPickTrigger
-        // ActionManager.OnCenterPickTrigger
-        // ActionManager.OnLongPressTrigger
-
-        // Only Graph has fetchNodes/fetchEdges, not GraphContext
-        // For now, check if parentGraph is the full Graph instance
-        const graph = node.parentGraph as Graph & { fetchNodes?: unknown; fetchEdges?: unknown };
-
-        node.mesh.actionManager.registerAction(
-            new ExecuteCodeAction(
-                {
-                    trigger: ActionManager.OnDoublePickTrigger,
-                    // trigger: ActionManager.OnLongPressTrigger,
-                },
-                () => {
-                    const { fetchNodes, fetchEdges } = graph;
-
-                    // No fetchers means no on-demand expansion, which is the default and is not
-                    // an error: a graph that holds everything it is ever going to hold has
-                    // nothing to expand.
-                    if (!fetchNodes || !fetchEdges) {
-                        return;
-                    }
-
-                    // make sure the graph is running, unless the consumer paused it
-                    context.getLayoutManager().running = true;
-
-                    // fetch all edges for current node
-                    const edgeSet = fetchEdges(node, graph);
-                    const edges = Array.from(edgeSet);
-
-                    // Which keys name this batch's endpoints is decided ONCE, by the same
-                    // resolver the data manager uses, and the answer is then passed to
-                    // `addEdges` so both halves of the expansion read the same columns.
-                    //
-                    // Reading `e.src` and `e.dst` here, as this handler used to, made the
-                    // expansion work for exactly one spelling -- and not the canonical one. A
-                    // `fetchEdges` written the way every guide teaches, returning
-                    // `{source, target}`, yielded a set of `undefined` neighbours: nothing was
-                    // fetched, and the edges queued as pending for ever.
-                    const endpoints = resolveEndpoints(edges, { source: null, target: null });
-                    const nodeIds = new Set<NodeIdType>();
-                    edges.forEach((e) => {
-                        nodeIds.add(readEndpoint(e, endpoints.source) as NodeIdType);
-                        nodeIds.add(readEndpoint(e, endpoints.target) as NodeIdType);
-                    });
-                    nodeIds.delete(node.id);
-
-                    // fetch all nodes from associated edges
-                    const nodes = fetchNodes(nodeIds, graph);
-
-                    // Add what was fetched as one step. The records ride in the command, so a
-                    // redo puts them back without asking the consumer again; the command adds
-                    // the edges under `repeated: "first"`, because a neighbourhood legitimately
-                    // names edges the graph already holds.
-                    void dispatcherOf(graph.getSession())
-                        .dispatch({
-                            op: "data.expand",
-                            seed: node.id,
-                            nodes: [...nodes],
-                            edges,
-                            source: endpoints.source,
-                            target: endpoints.target,
-                        })
-                        .catch((error: unknown) => {
-                            console.error("[graphty] Expanding a node failed:", error);
-                        });
-
-                    // TODO: fetch and add secondary edges
-                },
-            ),
-        );
+        node.mesh.actionManager = nodeActionManagerOf(this.getContext(node).getScene());
     }
 
     /**

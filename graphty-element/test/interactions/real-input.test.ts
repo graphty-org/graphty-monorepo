@@ -11,7 +11,7 @@
 
 import "../../src/graphty-element";
 
-import { afterEach, assert, describe, it } from "vitest";
+import { afterEach, assert, describe, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
 import type { Graphty } from "../../index.js";
@@ -191,6 +191,27 @@ describe("the mouse", () => {
             assert.closeTo(now.x, to.x, 3, "the node followed the pointer across");
             assert.closeTo(now.y, to.y, 3, "the node followed the pointer down");
             assert.isTrue(element.isPinned("c"), "a node the pointer placed is pinned");
+        });
+
+        it("a double-click on a node asks the layout behaviour for its neighbourhood", async () => {
+            const element = await mounted(viewMode);
+            const asked: unknown[] = [];
+            element.graph.setLayoutBehavior({
+                fetchEdges: (node: { id: unknown }) => {
+                    asked.push(node.id);
+                    return new Set([{ source: "b", target: "x" }]);
+                },
+                fetchNodes: () => [{ id: "x" }],
+            });
+
+            const point = at(element, "b");
+            await click(element, point);
+            await click(element, point);
+            await vi.waitFor(() => {
+                assert.isDefined(element.getNode("x"), "the fetched neighbour was added");
+            });
+
+            assert.deepStrictEqual(asked, ["b"], "the node under the pointer was expanded, once");
         });
 
         it("pointing at a node reports the hover", async () => {

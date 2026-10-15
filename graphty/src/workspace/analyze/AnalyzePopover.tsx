@@ -234,9 +234,15 @@ export function AnalyzePopover({
                     pick(undefined);
                 }}
                 onRun={() => {
-                    // The layers it adds go by the algorithm's name as the reader picked it ("Closeness").
+                    // The layers it adds go by the algorithm's name as the reader picked it ("Closeness");
+                    // a grouping run's groups each become a layer in a folder of that name, named
+                    // "Group 1" for the largest (the reader renames them in the tree).
                     const run = session.runs.start(picked.key, paramsFor(session, picked, values), {
-                        style: { name: wordsFor(picked).name },
+                        style: {
+                            name: wordsFor(picked).name,
+                            groups: "layers",
+                            groupName: (group) => `Group ${String(group.rank)}`,
+                        },
                         restoreLayer: runPlan(session, picked.key, wordsFor(picked).name).restoreLayer,
                     });
                     // A failed run is reported on its row and in the inspector, from the run itself.

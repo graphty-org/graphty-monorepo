@@ -69,6 +69,30 @@ function pinCommand(pin: StyleRowPin, label: string, icon: keyof typeof GLYPHS):
     };
 }
 
+/**
+ * The run whose layers a folder holds, when one run made them (a grouping run's folder of
+ * groups), read from each layer's source.
+ * @param session - the element's session.
+ * @param row - the folder.
+ * @returns the run's id, or undefined.
+ */
+function runOfFolder(session: GraphSession | null, row: StyleRow): string | undefined {
+    if (session === null) {
+        return undefined;
+    }
+    // A layer the reader added to the folder belongs to no run and does not count.
+    const runs = new Set(
+        session.styles.layersUnder([row.id]).flatMap((reach) =>
+            reach.layers.flatMap((id) => {
+                const source = session.styles.get(id)?.source;
+                return source?.by === "run" ? [source.runId] : [];
+            }),
+        ),
+    );
+    const [only] = runs;
+    return runs.size === 1 ? only : undefined;
+}
+
 /** The row commands, in menu order. */
 export const ROW_COMMANDS: readonly RowCommand[] = [
     {
@@ -107,6 +131,22 @@ export const ROW_COMMANDS: readonly RowCommand[] = [
             } catch (error) {
                 const why = error instanceof Error ? ` ${error.message}` : "";
                 workspace.set({ notice: { message: `Could not duplicate ${row.name}.${why}`, error: true } });
+            }
+        },
+    },
+    {
+        // A run's group folder: its settings and Rerun are on the run's own page.
+        id: "row.open-run",
+        label: "Run settings",
+        icon: "analyze",
+        group: "edit",
+        rowKeys: [],
+        applies: (row) => row.kind === "folder",
+        disabled: (row, session) => (runOfFolder(session, row) === undefined ? "Not made by a run" : null),
+        run: ({ session, workspace }, row) => {
+            const runId = runOfFolder(session, row);
+            if (runId !== undefined) {
+                workspace.set({ inspected: { kind: "run-row", id: runId } });
             }
         },
     },

@@ -27,17 +27,6 @@ import { CANVAS_TOOLBAR_DESKTOP, CANVAS_TOOLBAR_NARROW, type CanvasToolbarProfil
 export const TOOLTIP_KEY_CHIP_GAP = 6;
 
 /**
- * The 2D / 3D labels' type size and weight, the one place the bar prints words.
- * ART-TB: `font-size: 11px; font-weight: 500`.
- */
-export const SEGMENT_FONT_SIZE = 11;
-
-/**
- * Weight of the 2D / 3D labels. ART-TB.
- */
-export const SEGMENT_FONT_WEIGHT = 500;
-
-/**
  * The size profile in force, by the id the shell passes.
  *
  * Nothing changes between the two profiles except the sizes they carry (build spec 01

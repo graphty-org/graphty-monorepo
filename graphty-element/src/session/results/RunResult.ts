@@ -442,21 +442,34 @@ function valueAt(table: ElementTable, field: string, position: number): unknown 
 }
 
 /**
+ * Where a table holds an element, trying the id's other spelling when the first finds nothing.
+ * @param table - The table.
+ * @param id - The element's id.
+ * @returns The element's position, or undefined when the table holds no such id.
+ */
+function heldPositionOf(table: ElementTable, id: NodeId): number | undefined {
+    const held = (at: number): boolean => at >= 0 && at < table.length;
+    const position = table.index.indexOf(id);
+    if (held(position)) {
+        return position;
+    }
+
+    // An integer id may be written either way: `"34"` finds node `34`, `17` finds edge `"17"`.
+    const other = otherIdSpelling(id);
+    const otherPosition = other === undefined ? -1 : table.index.indexOf(other);
+    return held(otherPosition) ? otherPosition : undefined;
+}
+
+/**
  * One element's fields, built from the columns.
  * @param table - The table.
  * @param id - The element's id.
  * @returns A frozen record, or undefined when the table holds no such id.
  */
 function recordOf(table: ElementTable, id: NodeId): Readonly<Record<string, unknown>> | undefined {
-    const held = (at: number): boolean => at >= 0 && at < table.length;
-    let position = table.index.indexOf(id);
-    if (!held(position)) {
-        // An integer id may be written either way: `"34"` finds node `34`, `17` finds edge `"17"`.
-        const other = otherIdSpelling(id);
-        position = other === undefined ? -1 : table.index.indexOf(other);
-        if (!held(position)) {
-            return undefined;
-        }
+    const position = heldPositionOf(table, id);
+    if (position === undefined) {
+        return undefined;
     }
 
     const pending = table.pendingRanks;

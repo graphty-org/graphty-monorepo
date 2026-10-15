@@ -15,6 +15,7 @@ import {
 import { BadgeStyleManager } from "../BadgeStyleManager";
 import { type RichTextStyleType } from "../config";
 import { drawAboveOutlines, RENDERING_GROUPS } from "../constants/meshConstants";
+import { buildMaterial, deferLabelRelease, giveAlphaQuietly, setUpQuietly } from "./LabelBatch";
 import { type ContentArea as PointerContentArea, type PointerDirection, PointerRenderer } from "./PointerRenderer";
 import { RichTextAnimator } from "./RichTextAnimator";
 import { measureLine, RichTextParser } from "./RichTextParser";
@@ -574,7 +575,8 @@ export class RichTextLabel {
         canvas.getContext("2d", { willReadFrequently: true });
         this.texture = new DynamicTexture(`richTextTexture_${this.id}`, canvas, this.scene, true);
 
-        this.texture.hasAlpha = true;
+        // Nothing uses the texture yet; see LabelBatch (issue #2762).
+        giveAlphaQuietly(this.scene, this.texture);
         this.texture.updateSamplingMode(Texture.TRILINEAR_SAMPLINGMODE);
 
         this._drawContent();
@@ -977,30 +979,38 @@ export class RichTextLabel {
     }
 
     private _createMaterial(): void {
-        this.material = new StandardMaterial(`richTextMaterial_${this.id}`, this.scene);
-        if (this.texture) {
-            this.material.diffuseTexture = this.texture;
-        }
+        // Built and set up without the scene-wide searches and walks Babylon makes for a material
+        // that nothing draws yet; see LabelBatch (issue #2762).
+        const material = buildMaterial(
+            this.scene,
+            () => new StandardMaterial(`richTextMaterial_${this.id}`, this.scene),
+        );
+        this.material = material;
+        setUpQuietly(material, () => {
+            if (this.texture) {
+                material.diffuseTexture = this.texture;
+            }
 
-        this.material.specularColor = new Color3(0, 0, 0);
-        // A LABEL LEAVES THE STENCIL ALONE. A node's outline is a highlight layer, which paints its
-        // blurred silhouette everywhere the stencil does not hold the outlined node's mark. A label
-        // drawn over its node wrote the ordinary mark in its place, so the outline was painted over
-        // the words in the outline's color: a centered label on an outlined node was a black disc
-        // (issue #2323). With writes masked off, the node's mark stays under the label.
-        this.material.stencil.enabled = true;
-        this.material.stencil.mask = 0x00;
-        // Only set emissiveColor if we're not using glow animation
-        if (this.options.animation !== "glow") {
-            this.material.emissiveColor = new Color3(1, 1, 1);
-        } else {
-            // Start with a neutral emissive for glow animation
-            this.material.emissiveColor = new Color3(0.65, 0.65, 0.65);
-        }
+            material.specularColor = new Color3(0, 0, 0);
+            // A LABEL LEAVES THE STENCIL ALONE. A node's outline is a highlight layer, which paints
+            // its blurred silhouette everywhere the stencil does not hold the outlined node's mark. A
+            // label drawn over its node wrote the ordinary mark in its place, so the outline was
+            // painted over the words in the outline's color: a centered label on an outlined node was
+            // a black disc (issue #2323). With writes masked off, the node's mark stays under the label.
+            material.stencil.enabled = true;
+            material.stencil.mask = 0x00;
+            // Only set emissiveColor if we're not using glow animation
+            if (this.options.animation !== "glow") {
+                material.emissiveColor = new Color3(1, 1, 1);
+            } else {
+                // Start with a neutral emissive for glow animation
+                material.emissiveColor = new Color3(0.65, 0.65, 0.65);
+            }
 
-        this.material.backFaceCulling = false;
-        this.material.useAlphaFromDiffuseTexture = true;
-        this.material.alphaMode = Engine.ALPHA_COMBINE;
+            material.backFaceCulling = false;
+            material.useAlphaFromDiffuseTexture = true;
+            material.alphaMode = Engine.ALPHA_COMBINE;
+        });
     }
 
     /**
@@ -1270,6 +1280,12 @@ export class RichTextLabel {
 
         if (this.animator) {
             this.animator.dispose();
+        }
+
+        // A repaint that disposes many labels releases them all at once when it ends; see
+        // LabelBatch (issue #2762).
+        if (deferLabelRelease({ mesh: this.mesh, material: this.material, texture: this.texture })) {
+            return;
         }
 
         if (this.mesh) {

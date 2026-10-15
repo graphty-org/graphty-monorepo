@@ -150,6 +150,9 @@ export const NodeStyle = z.strictObject({
             depth: z.number().nonnegative().optional(),
             // Draw the node thin along z, as a flat shape facing a 2D camera, even in a 3D view.
             planar: z.boolean().optional(),
+            // Drawing order in a 2D view: below 0 draws the node behind every edge and every node
+            // with a higher value (a group behind its members). 3D views ignore it.
+            zIndex: z.number().min(-1000).max(0).optional(),
             // custom mesh https://doc.babylonjs.com/features/featuresDeepDive/mesh/creation/custom/custom
             // import mesh https://doc.babylonjs.com/typedoc/functions/BABYLON.ImportMeshAsync
         })

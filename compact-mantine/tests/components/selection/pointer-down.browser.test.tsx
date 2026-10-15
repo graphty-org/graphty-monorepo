@@ -3,11 +3,25 @@
  * that must not change what click-only code and keyboard users see: one change per activation.
  */
 import { MantineProvider, SegmentedControl, Tabs } from "@mantine/core";
-import { fireEvent, render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { commands, userEvent } from "vitest/browser";
 
 import { compactTheme } from "../../../src/theme";
+
+// A test that fails while the button is held must not leave it held for the next one.
+afterEach(async () => {
+    await commands.mouseUp();
+});
+
+/**
+ * Press the primary mouse button over an element and keep it held.
+ * @param element - what the press lands on
+ */
+async function pressOn(element: Element): Promise<void> {
+    await userEvent.hover(element);
+    await commands.mouseDown();
+}
 
 function renderTabs(onChange: (value: string | null) => void): void {
     render(
@@ -26,16 +40,16 @@ function renderTabs(onChange: (value: string | null) => void): void {
 }
 
 describe("pill tabs", () => {
-    it("select on mouse-down, before the button comes up", () => {
+    it("select on mouse-down, before the button comes up", async () => {
         const onChange = vi.fn();
         renderTabs(onChange);
         const tab = screen.getByRole("tab", { name: "Prototype" });
 
-        fireEvent.mouseDown(tab, { button: 0 });
+        await pressOn(tab);
 
         expect(tab).toHaveAttribute("aria-selected", "true");
         expect(onChange).toHaveBeenCalledTimes(1);
-        fireEvent.click(tab);
+        await commands.mouseUp();
         expect(onChange).toHaveBeenCalledTimes(1);
     });
 
@@ -50,36 +64,41 @@ describe("pill tabs", () => {
         expect(onChange).toHaveBeenCalledWith("prototype");
     });
 
-    it("still work for a click with no mouse-down (click-only tests, assistive technology)", () => {
+    it("still work for a click with no mouse-down (click-only tests, assistive technology)", async () => {
         const onChange = vi.fn();
         renderTabs(onChange);
 
-        fireEvent.click(screen.getByRole("tab", { name: "Prototype" }));
+        // Enter on a focused button is the browser's own click with no mouse-down before it.
+        screen.getByRole("tab", { name: "Prototype" }).focus();
+        await userEvent.keyboard("{Enter}");
 
         expect(onChange).toHaveBeenCalledTimes(1);
     });
 
-    it("ignore the other mouse buttons and a disabled tab", () => {
+    it("ignore the other mouse buttons and a disabled tab", async () => {
         const onChange = vi.fn();
         renderTabs(onChange);
 
-        fireEvent.mouseDown(screen.getByRole("tab", { name: "Prototype" }), { button: 2 });
-        fireEvent.mouseDown(screen.getByRole("tab", { name: "Off" }), { button: 0 });
+        await userEvent.click(screen.getByRole("tab", { name: "Prototype" }), { button: "right" });
+        // force: a disabled control fails Playwright's actionability check, but a reader can still press it.
+        await userEvent.click(screen.getByRole("tab", { name: "Off" }), { force: true });
 
         expect(onChange).not.toHaveBeenCalled();
     });
 
-    it("forget a press that never became a click, so the next activation is not swallowed", () => {
+    it("forget a press that never became a click, so the next activation is not swallowed", async () => {
         const onChange = vi.fn();
         renderTabs(onChange);
         const design = screen.getByRole("tab", { name: "Design" });
         const prototype = screen.getByRole("tab", { name: "Prototype" });
 
-        fireEvent.mouseDown(prototype, { button: 0 });
-        fireEvent.mouseLeave(prototype);
-        fireEvent.click(design);
-        fireEvent.keyDown(prototype, { key: "Enter" });
-        fireEvent.click(prototype);
+        // Pressed on Prototype, dragged off it and released elsewhere: no click.
+        await pressOn(prototype);
+        await commands.mouseAway();
+        await commands.mouseUp();
+        await userEvent.click(design);
+        prototype.focus();
+        await userEvent.keyboard("{Enter}");
 
         expect(onChange.mock.calls.map((call) => call[0])).toEqual(["prototype", "design", "prototype"]);
     });
@@ -119,15 +138,15 @@ describe("segmented options", () => {
         );
     }
 
-    it("select on mouse-down, and the click that follows changes nothing more", () => {
+    it("select on mouse-down, and the click that follows changes nothing more", async () => {
         const onChange = vi.fn();
         renderGroup(onChange);
         const label = screen.getByText("Dynamic").closest("label") as HTMLElement;
 
-        fireEvent.mouseDown(label, { button: 0 });
+        await pressOn(label);
         expect(onChange).toHaveBeenCalledTimes(1);
         expect(screen.getByRole("radio", { name: "Dynamic" })).toBeChecked();
-        fireEvent.click(label);
+        await commands.mouseUp();
         expect(onChange).toHaveBeenCalledTimes(1);
     });
 
@@ -153,7 +172,7 @@ describe("segmented options", () => {
         expect(onChange).toHaveBeenLastCalledWith("Dynamic");
     });
 
-    it("leave a group the caller gave its own onMouseDown alone", () => {
+    it("leave a group the caller gave its own onMouseDown alone", async () => {
         const onChange = vi.fn();
         const onMouseDown = vi.fn();
         render(
@@ -162,7 +181,7 @@ describe("segmented options", () => {
             </MantineProvider>,
         );
 
-        fireEvent.mouseDown(screen.getByText("B"), { button: 0 });
+        await pressOn(screen.getByText("B"));
 
         expect(onMouseDown).toHaveBeenCalledTimes(1);
         expect(onChange).not.toHaveBeenCalled();

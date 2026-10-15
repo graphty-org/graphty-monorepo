@@ -1,5 +1,6 @@
 import {
     Color3,
+    Constants,
     Effect,
     Mesh,
     MeshBuilder,
@@ -23,6 +24,9 @@ interface LineGeometry {
     segmentStarts: number[]; // Segment start positions (for consistent perpendicular calculation)
     segmentEnds: number[]; // Segment end positions (for consistent perpendicular calculation)
 }
+
+/** The per-vertex arrays addVertexPair appends to: every LineGeometry array but the indices. */
+type VertexPairBuffers = Omit<LineGeometry, "indices">;
 
 interface CustomLineOptions {
     points: Vector3[]; // Path points
@@ -119,6 +123,7 @@ uniform float width;
 varying vec2 vUV;
 varying float vDistance;
 varying float vWorldSpaceLineWidth;  // World-space line width for circular dots
+varying float vCoverage;  // How much of the one pixel a sub-pixel line is widened to it covers
 
 // Instance support - BabylonJS include provides finalWorld matrix
 #include<instancesDeclaration>
@@ -156,9 +161,21 @@ void main() {
         perpendicular = vec2(-screenDir.y, screenDir.x);
     }
 
+    // A LINE THINNER THAN ONE PIXEL IS DRAWN ONE PIXEL WIDE AND FAINTER, the way a canvas or SVG
+    // renderer draws a hairline: its stroke covers a fraction of each pixel it crosses, and
+    // antialiasing paints that fraction. Rasterized at its own width, a sub-pixel triangle covers
+    // a pixel centre only here and there, and the line breaks into dots. The line's width on
+    // screen is 'width / 2' pixels over the clip w (see the offset below); under one pixel, the
+    // offset grows to one pixel and the fragment's alpha takes the fraction it stands for. A
+    // line of one pixel or more is untouched, and a width of 0 still draws nothing.
+    float drawnPx = width * 0.5 / vertexClip.w;
+    bool subPixel = drawnPx > 0.0 && drawnPx < 1.0;
+    float grow = subPixel ? 1.0 / drawnPx : 1.0;
+    vCoverage = subPixel ? drawnPx : 1.0;
+
     // Calculate offset in screen space
     // Half-width because we offset in both directions
-    vec2 offset = perpendicular * width * 0.5 * side;
+    vec2 offset = perpendicular * width * 0.5 * side * grow;
 
     // Apply screen-space sizing with perspective tapering
     // NOTE: Removed * vertexClip.w to enable perspective tapering
@@ -203,6 +220,7 @@ precision highp float;
 varying vec2 vUV;
 varying float vDistance;
 varying float vWorldSpaceLineWidth;  // World-space line width for patterns
+varying float vCoverage;
 
 // Uniforms
 uniform vec3 color;
@@ -213,7 +231,7 @@ void main() {
     // CustomLineRenderer only renders solid lines.
 
     // Simple solid line rendering
-    gl_FragColor = vec4(color, opacity);
+    gl_FragColor = vec4(color, opacity * vCoverage);
 }
 `;
         // Register in both stores
@@ -408,6 +426,7 @@ void main(void) {
         const indices: number[] = [];
         const segmentStarts: number[] = [];
         const segmentEnds: number[] = [];
+        const buffers: VertexPairBuffers = { positions, directions, sides, distances, uvs, segmentStarts, segmentEnds };
 
         let cumulativeDistance = 0;
 
@@ -423,37 +442,11 @@ void main(void) {
             const segmentLength = direction.length();
 
             // Add start vertices (at p0)
-            this.addVertexPair(
-                positions,
-                directions,
-                sides,
-                distances,
-                uvs,
-                segmentStarts,
-                segmentEnds,
-                p0,
-                direction,
-                cumulativeDistance,
-                p0,
-                p1,
-            );
+            this.addVertexPair(buffers, p0, direction, cumulativeDistance, p0, p1);
 
             // Add end vertices (at p1)
             cumulativeDistance += segmentLength;
-            this.addVertexPair(
-                positions,
-                directions,
-                sides,
-                distances,
-                uvs,
-                segmentStarts,
-                segmentEnds,
-                p1,
-                direction,
-                cumulativeDistance,
-                p0,
-                p1,
-            );
+            this.addVertexPair(buffers, p1, direction, cumulativeDistance, p0, p1);
 
             // Add indices for two triangles forming a quad
             const baseIndex = i * 4; // 4 vertices per segment
@@ -600,13 +593,7 @@ void main(void) {
      * Vertices are positioned along the segment at the specified position
      * Both vertices store segment start/end to ensure consistent perpendicular calculation
      * Shader will offset them perpendicular based on 'side' attribute
-     * @param positions - Array to append vertex position data
-     * @param directions - Array to append vertex direction vectors
-     * @param sides - Array to append side indicators (-1 or +1)
-     * @param distances - Array to append cumulative distances along path
-     * @param uvs - Array to append UV coordinates
-     * @param segmentStarts - Array to append segment start positions
-     * @param segmentEnds - Array to append segment end positions
+     * @param buffers - The vertex arrays to append to
      * @param actualPosition - Actual 3D position of this vertex
      * @param direction - Direction vector for this segment
      * @param distance - Cumulative distance at this position
@@ -614,19 +601,14 @@ void main(void) {
      * @param segmentEnd - End position of the current segment
      */
     private static addVertexPair(
-        positions: number[],
-        directions: number[],
-        sides: number[],
-        distances: number[],
-        uvs: number[],
-        segmentStarts: number[],
-        segmentEnds: number[],
+        buffers: VertexPairBuffers,
         actualPosition: Vector3, // Actual 3D position (start or end)
         direction: Vector3,
         distance: number,
         segmentStart: Vector3, // Segment start for consistent perpendicular
         segmentEnd: Vector3, // Segment end for consistent perpendicular
     ): void {
+        const { positions, directions, sides, distances, uvs, segmentStarts, segmentEnds } = buffers;
         // Left vertex (side = -1)
         positions.push(actualPosition.x, actualPosition.y, actualPosition.z);
         directions.push(direction.x, direction.y, direction.z);
@@ -644,6 +626,27 @@ void main(void) {
         uvs.push(0, 1); // UV.y = 1 for right side (changed from 0)
         segmentStarts.push(segmentStart.x, segmentStart.y, segmentStart.z);
         segmentEnds.push(segmentEnd.x, segmentEnd.y, segmentEnd.z);
+    }
+
+    /**
+     * Blend a line over what is already drawn, in whichever pass draws it.
+     *
+     * A sub-pixel line is drawn one pixel wide at a fraction of its opacity (the vertex shader),
+     * and that fraction only shows if the fragment blends. An opaque line stays in the opaque
+     * pass, where Babylon draws with blending off, so this turns blending on for this mesh's own
+     * draw and off again after it. Moving the line to the transparent pass instead would reorder
+     * it against labels and every other transparent mesh. A fragment of alpha 1 -- every line of
+     * one pixel or more at full opacity -- blends to exactly the colour it wrote before.
+     * @param mesh - The line mesh.
+     */
+    private static blendInPlace(mesh: Mesh): void {
+        const engine = mesh.getScene().getEngine();
+        mesh.onBeforeBindObservable.add(() => {
+            engine.setAlphaMode(Constants.ALPHA_COMBINE, true);
+        });
+        mesh.onAfterRenderObservable.add(() => {
+            engine.setAlphaMode(Constants.ALPHA_DISABLE, true);
+        });
     }
 
     /**
@@ -733,6 +736,7 @@ void main(void) {
         // Line meshes can have incorrect bounding boxes due to screen-space expansion,
         // causing frustum culling to incorrectly hide lines that are actually on screen
         mesh.alwaysSelectAsActiveMesh = true;
+        this.blendInPlace(mesh);
 
         return mesh;
     }
@@ -848,6 +852,7 @@ void main(void) {
         // Line meshes can have incorrect bounding boxes due to screen-space expansion,
         // causing frustum culling to incorrectly hide lines that are actually on screen
         mesh.alwaysSelectAsActiveMesh = true;
+        this.blendInPlace(mesh);
 
         return mesh;
     }

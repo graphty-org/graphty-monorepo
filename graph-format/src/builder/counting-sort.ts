@@ -324,9 +324,10 @@ function scatterDirectedBySource(
  * `edgeToArc[e] = a` for the arc whose stored orientation is the declared one (for a self-loop the
  * single arc), which the pass-1 bitmap identifies.
  * @param nodeCount - n
- * @param targetStart - the target bucket starts (pass-1 layout)
- * @param byTarget - the pass-1 (source, edge) pairs
- * @param declared - bit p set when pass-1 position p holds a declared arc
+ * @param pass1 - the pass-1 layout
+ * @param pass1.targetStart - the target bucket starts
+ * @param pass1.byTarget - the pass-1 (source, edge) pairs
+ * @param pass1.declared - bit p set when pass-1 position p holds a declared arc
  * @param cursor - the row starts (a copy of rowPtr); advanced in place
  * @param colIdx - receives the targets
  * @param arcToEdge - receives the edges
@@ -334,14 +335,13 @@ function scatterDirectedBySource(
  */
 function scatterUndirectedBySource(
     nodeCount: number,
-    targetStart: U32,
-    byTarget: U32,
-    declared: U32,
+    pass1: { readonly targetStart: U32; readonly byTarget: U32; readonly declared: U32 },
     cursor: U32,
     colIdx: U32,
     arcToEdge: U32,
     edgeToArc: U32,
 ): void {
+    const { targetStart, byTarget, declared } = pass1;
     for (let v = 0; v < nodeCount; v++) {
         const end = targetStart[v + 1];
         for (let p = targetStart[v]; p < end; p++) {
@@ -479,7 +479,14 @@ export function sortIntoCore(input: SortInput, useArena: boolean): SortResult {
             scatterDirectedBySource(nodeCount, targetStart, byTarget, cursor, colIdx, arcToEdge);
             invertPermutation(arcToEdge, edgeToArc);
         } else {
-            scatterUndirectedBySource(nodeCount, targetStart, byTarget, declared, cursor, colIdx, arcToEdge, edgeToArc);
+            scatterUndirectedBySource(
+                nodeCount,
+                { targetStart, byTarget, declared },
+                cursor,
+                colIdx,
+                arcToEdge,
+                edgeToArc,
+            );
         }
         if (weights !== null && edgeWeights !== null) {
             gatherWeights(arcToEdge, edgeWeights, weights);

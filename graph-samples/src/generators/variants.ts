@@ -74,6 +74,28 @@ export interface PathologicalEdgeOptions {
 }
 
 /**
+ * Check the counts of {@link addPathologicalEdges} against the graph.
+ * @param graph - the graph
+ * @param loops - the self-loop count
+ * @param parallel - the parallel edge count
+ * @param anti - the anti-parallel edge count
+ */
+function checkPathological(graph: SampleGraph, loops: number, parallel: number, anti: number): void {
+    checkInt("selfLoops", loops, 0);
+    checkInt("parallelEdges", parallel, 0);
+    checkInt("antiParallelEdges", anti, 0);
+    if (anti > 0 && !graph.directed) {
+        throw new RangeError("antiParallelEdges needs a directed graph");
+    }
+    if (loops > 0 && graph.nodeCount === 0) {
+        throw new RangeError("selfLoops needs a graph with at least one node");
+    }
+    if (parallel + anti > 0 && graph.src.length === 0) {
+        throw new RangeError("parallelEdges and antiParallelEdges need a graph with at least one edge");
+    }
+}
+
+/**
  * A copy of `graph` with pathological edges appended after its own, in this order: `selfLoops`
  * self-loops (v, v) at v = nextBelow(nodeCount); `parallelEdges` copies of edge e =
  * nextBelow(original edge count); `antiParallelEdges` reversed copies (dst[e], src[e]) of
@@ -89,19 +111,8 @@ export function addPathologicalEdges(graph: SampleGraph, options: PathologicalEd
     const loops = options.selfLoops ?? 0;
     const parallel = options.parallelEdges ?? 0;
     const anti = options.antiParallelEdges ?? 0;
-    checkInt("selfLoops", loops, 0);
-    checkInt("parallelEdges", parallel, 0);
-    checkInt("antiParallelEdges", anti, 0);
-    if (anti > 0 && !graph.directed) {
-        throw new RangeError("antiParallelEdges needs a directed graph");
-    }
+    checkPathological(graph, loops, parallel, anti);
     const m = graph.src.length;
-    if (loops > 0 && graph.nodeCount === 0) {
-        throw new RangeError("selfLoops needs a graph with at least one node");
-    }
-    if (parallel + anti > 0 && m === 0) {
-        throw new RangeError("parallelEdges and antiParallelEdges need a graph with at least one edge");
-    }
     const total = m + loops + parallel + anti;
     checkEdgeCount(total);
     const stream = new RandomStream(resolveSeed(options.seed), "pathological", 0);

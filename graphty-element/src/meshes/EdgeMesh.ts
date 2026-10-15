@@ -253,12 +253,14 @@ void main() {
             style.line?.type as "dot" | "star" | "box" | "dash" | "diamond" | "dash-dot" | "sinewave" | "zigzag",
             new Vector3(0, 0, -0.5), // Placeholder start (Edge.update() will set real positions)
             new Vector3(0, 0, 0.5), // Placeholder end (Edge.update() will set real positions)
-            lineWidthInWorldUnits(options.width),
-            options.color,
-            style.line?.opacity ?? 1,
             scene,
-            this.is2DMode(scene), // Pass 2D mode detection flag
-            style.line?.patternCount, // undefined means follow the spacing rule
+            {
+                width: lineWidthInWorldUnits(options.width),
+                color: options.color,
+                opacity: style.line?.opacity ?? 1,
+                is2DMode: this.is2DMode(scene), // Pass 2D mode detection flag
+                patternCount: style.line?.patternCount, // undefined means follow the spacing rule
+            },
         );
     }
 

@@ -824,6 +824,14 @@ export function GroupDetail({
     const title = single === undefined ? `${String(groups.length)} groups` : (names.get(String(single.value)) ?? "");
     const { target } = layer;
 
+    // Opened from the list, the detail takes focus (its Back button): the row that was clicked
+    // is gone, and focus left on the page would let Escape close the whole popover.
+    const fromList = onBack !== undefined;
+    useEffect(() => {
+        if (fromList) {
+            box.current?.querySelector<HTMLElement>("[data-group-back]")?.focus();
+        }
+    }, [fromList]);
     // Focus moves to a property just added, once its field is drawn.
     useEffect(() => {
         if (focusChannel === null) {
@@ -890,7 +898,13 @@ export function GroupDetail({
             <Group gap={4} wrap="nowrap">
                 {onBack === undefined ? null : (
                     <Tooltip label="Back to the groups">
-                        <ActionIcon variant="subtle" size="sm" aria-label="Back to the groups" onClick={onBack}>
+                        <ActionIcon
+                            variant="subtle"
+                            size="sm"
+                            aria-label="Back to the groups"
+                            data-group-back
+                            onClick={onBack}
+                        >
                             <GLYPHS.back size={14} aria-hidden />
                         </ActionIcon>
                     </Tooltip>

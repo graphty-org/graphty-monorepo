@@ -160,8 +160,24 @@ describe("per-group settings", () => {
         const [row] = gridRows(popover);
         const name = nameCell(row).firstChild?.textContent ?? "";
         await userEvent.click(nameCell(row));
+        const opened = await screen.findByRole("group", { name: `${name} properties` });
+        assert.isNotNull(within(opened).queryByRole("textbox", { name: new RegExp(`^Name of .* ${name}$`) }));
+        await waitFor(() => {
+            assert.equal(document.activeElement, within(opened).getByRole("button", { name: "Back to the groups" }));
+        });
+        // Escape right away goes back to the list, not out of the popover.
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("group", { name: `${name} properties` }));
+        });
+        assert.isNotNull(screen.queryByRole("group", { name: "Color binding" }), "the popover stays open");
+        // Back on the list, focus lands on the row it left; then the row opens again.
+        await waitFor(() => {
+            assert.equal(document.activeElement?.getAttribute("role"), "gridcell");
+        });
+        // Enter on the focused row opens it again, as a click does.
+        await userEvent.keyboard("{Enter}");
         const detail = await screen.findByRole("group", { name: `${name} properties` });
-        assert.isNotNull(within(detail).queryByRole("textbox", { name: new RegExp(`^Name of .* ${name}$`) }));
 
         // "+ Set another property": Shape, then a shape picked from its own glyph grid.
         await userEvent.click(within(detail).getByRole("button", { name: `Set another property for ${name}` }));

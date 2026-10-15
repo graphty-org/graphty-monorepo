@@ -7,6 +7,7 @@
  * @module autosave
  */
 
+import { GraphtyError } from "../errors/GraphtyError";
 import type { CodedFact } from "../session/shared";
 import type { GraphSession } from "../session/types";
 import {
@@ -359,12 +360,18 @@ export class ElementAutosave {
     }
 
     /**
-     * Throws when autosave is not running.
+     * The writer, which exists only while autosave runs.
      * @returns The writer.
+     * @throws {GraphtyError} `E_UNSUPPORTED` (`details.reason: "autosave-off"`) when autosave is off.
      */
     #need(): Autosaver {
         if (this.#saver === null) {
-            throw new Error("autosave is off");
+            throw new GraphtyError({
+                code: "E_UNSUPPORTED",
+                message: "Autosave is off for this element, so it has no entries to restore or remove.",
+                source: "data",
+                details: { reason: "autosave-off" },
+            });
         }
 
         return this.#saver;

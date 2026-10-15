@@ -15,6 +15,7 @@ import {
 } from "../../src/autosave/elementAutosave";
 import { memoryAutosaveStore } from "../../src/autosave/memoryStore";
 import type { AutosaveStore } from "../../src/autosave/types";
+import { type GraphtyError, isGraphtyError } from "../../src/errors/GraphtyError";
 import { baseSession } from "../helpers/project-session";
 import { FakeClock, FakeLocks } from "./fakes";
 
@@ -145,5 +146,28 @@ describe("persist: true", () => {
         await Promise.resolve();
         assert.strictEqual(persistCalls(), 0);
         autosave.depart();
+    });
+});
+
+describe("autosave off", () => {
+    it("restore and remove refuse with a coded error, and the rest answer as empty", async () => {
+        const { env } = page();
+        const control = new ElementAutosave(() => undefined, env);
+        control.off();
+        assert.isNull(await control.api.ready);
+        assert.strictEqual(control.api.status.state, "off");
+        assert.deepStrictEqual(await control.api.list(), []);
+        for (const call of [() => control.api.restore("any"), () => control.api.remove("any")]) {
+            let refused: unknown = null;
+            try {
+                await call();
+            } catch (error) {
+                refused = error;
+            }
+
+            assert.isTrue(isGraphtyError(refused), "a GraphtyError");
+            assert.strictEqual((refused as GraphtyError).code, "E_UNSUPPORTED");
+            assert.deepStrictEqual((refused as GraphtyError).details, { reason: "autosave-off" });
+        }
     });
 });

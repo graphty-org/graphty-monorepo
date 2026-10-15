@@ -2096,7 +2096,7 @@ export class Graphty extends LitElement {
      *
      * A preference of this view, not part of the project: switching it records no undo step and
      * is not saved in a project file. The same switch as `layoutBehavior.rendering.onDemand`.
-     * @since 3.26.0
+     * @since 3.22.0
      * @example
      * ```html
      * <graphty-element render-on-demand></graphty-element>

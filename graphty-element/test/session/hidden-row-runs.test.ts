@@ -132,7 +132,7 @@ describe("a hidden row under a run", () => {
         await session.styles.settled();
         const painting = session.runs.painting(run.id);
         assert.notInclude(
-            painting?.suggestions.map((outcome) => outcome.outcome),
+            painting?.suggestions.map((outcome) => outcome.outcome) ?? [],
             "suppressed",
             "the hidden row held nothing back",
         );

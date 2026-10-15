@@ -357,7 +357,9 @@ async function levelRoute(
             const sums = new Float64Array(count);
             const reciprocal = new Float64Array(count);
             const reached = new Uint32Array(count);
-            for (let firstLevel = 0, done = false; !done; firstLevel += levelsPerSubmit) {
+            let done = false;
+            let firstLevel = 0;
+            while (!done) {
                 if (firstLevel > n + 1) {
                     // a batch claims at most n - 1 levels deep, then one level claims nothing
                     throw new WebGpuGraphError(
@@ -420,6 +422,7 @@ async function levelRoute(
                         totals[v] += sum;
                     });
                 }
+                firstLevel += levelsPerSubmit;
             }
             if (sources === null) {
                 for (let lane = 0; lane < count; lane++) {

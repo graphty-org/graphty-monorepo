@@ -11,6 +11,19 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-15) **Bulk edit built (plan `tier3/bulk-edit-plan.md`).** Element: `styles.layersUnder`,
+  `styles.updateMany` (one step, ONE repaint: a batched style edit now dispatches its members
+  together -- awaiting each let a pass run between them, 12 layers were 12 passes),
+  `RunStyle.groups: "layers"` + `groupName` (community shape only; a re-run without the option
+  keeps the folder), `preview(..., { within })`, legend folds identical copies (`layers`). App:
+  Shift+Arrow and Select... checkbox mode in the tree; MultiRowPanel is the bulk panel for a
+  folder or several rows (scope line, writable Mixed via ValueField, breakdown, write rule,
+  receipt with Also set those / Undo); Vary on several layers shows a per-layer preview before
+  Apply and is off when the layers do not each hold one value of a field their rule selects by;
+  Analyze passes groups "layers" with "Group N" names; a run's folder menu has Run settings.
+  Not built: Distribute, edge layers per group, the receipt's per-field placement beyond the
+  field row. The app reads compact-mantine from its dist: build it before an app test.
+
 - (2026-10-13) **Paused for the owner's review before iteration 4 is built.** Built and frozen:
   iteration 3 (build tier3-i3-617b43b270, served by servherd `design-studio-tier3`), its review
   stories, the three element guides, and the screenshot audit. Nothing of iteration 4 is built;

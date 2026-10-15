@@ -176,7 +176,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         });
     });
 
-    it("a run whose layer was deleted: the notice keeps its results, and Add Louvain layer puts it back without a rerun", async () => {
+    it("a run whose folder of groups was deleted: the notice keeps its results, and Add Louvain layer puts it back without a rerun", async () => {
         const session = await openKarate();
         await analyze("communities", "Louvain");
         const louvain = await finished(session, "louvain");
@@ -187,17 +187,14 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
             await userEvent.click(screen.getByRole("button", { name: "Graph" }));
         }
         const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
-        await userEvent.click(
-            await within(tree).findByRole("treeitem", { name: /^Louvain, (node |edge |node and edge )?layer/ }),
-        );
+        // A grouping run's groups are layers in a folder named for it.
+        await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Louvain, folder, / }));
         await userEvent.keyboard("{Delete}");
         await waitFor(() => {
-            assert.isNull(
-                within(tree).queryByRole("treeitem", { name: /^Louvain, (node |edge |node and edge )?layer/ }),
-            );
+            assert.isNull(within(tree).queryByRole("treeitem", { name: /^Louvain, folder, / }));
             assert.lengthOf(session.runs.bindings(louvain), 0);
         });
-        await screen.findByText("Deleted Louvain layer. Its results are kept.");
+        await screen.findByText("Deleted Louvain. Its results are kept.");
         const computedAt = session.runs.get(louvain)?.startedAt;
 
         await userEvent.click(analyzeTool());
@@ -213,11 +210,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         await session.styles.settled();
         assert.isAbove(session.runs.bindings(louvain).length, 0, "the run painted its layer again");
         assert.equal(session.runs.get(louvain)?.startedAt, computedAt, "restored from the stored result");
-        await within(tree).findByRole(
-            "treeitem",
-            { name: /^Louvain, (node |edge |node and edge )?layer/ },
-            { timeout: TIMEOUT_MS },
-        );
+        await within(tree).findByRole("treeitem", { name: /^Louvain, folder, / }, { timeout: TIMEOUT_MS });
     });
 
     it("a run's layer, its key entry and its values go by the algorithm's name: Closeness, not Reach", async () => {

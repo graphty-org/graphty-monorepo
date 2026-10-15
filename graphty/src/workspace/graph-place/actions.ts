@@ -134,7 +134,9 @@ export async function deleteRow(session: GraphSession, store: WorkspaceStore, ro
         return step !== undefined && now?.kind === "undo" && now.step.id === step;
     };
     const notice: Notice = {
-        message: fromRun ? `Deleted ${row.name} layer. Its results are kept.` : `Deleted ${row.name}.`,
+        message: fromRun
+            ? `Deleted ${row.name}${row.kind === "folder" ? "" : " layer"}. Its results are kept.`
+            : `Deleted ${row.name}.`,
         action: {
             label: "Undo",
             run: () => {

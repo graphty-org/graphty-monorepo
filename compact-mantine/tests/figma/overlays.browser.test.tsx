@@ -690,7 +690,7 @@ describe("8.3 tooltip dismiss and focus delay", () => {
         const one = getByRole("button", { name: "1" });
         await userEvent.hover(one);
         await waitFor(visibleTip);
-        one.dispatchEvent(new WheelEvent("wheel", { bubbles: true, deltaY: 10 }));
+        await userEvent.wheel(one, { delta: { y: 10 } });
         await waitFor(hiddenTip, 50);
     });
 
@@ -702,7 +702,9 @@ describe("8.3 tooltip dismiss and focus delay", () => {
         );
         await waitFor(visibleTip);
         await userEvent.keyboard("a");
-        document.body.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+        // A press away from the tooltip; the afterEach releases it.
+        await commands.mouseAway();
+        await commands.mouseDown();
         expect(visibleTip()).not.toBeNull();
     });
 

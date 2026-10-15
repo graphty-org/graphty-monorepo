@@ -93,7 +93,12 @@ describe("CanvasToolbar", () => {
         it("draws one divider after the segmented control and one before Views", () => {
             render(<CanvasToolbar {...props()} />);
 
-            expect(within(bar()).getAllByRole("separator")).toHaveLength(2);
+            const separators = within(bar()).getAllByRole("separator");
+            expect(separators).toHaveLength(2);
+            for (const separator of separators) {
+                expect(separator.tagName).toBe("HR");
+                expect(separator).toHaveAttribute("aria-orientation", "vertical");
+            }
         });
 
         it("draws no zoom percentage: the status bar owns that fact", () => {

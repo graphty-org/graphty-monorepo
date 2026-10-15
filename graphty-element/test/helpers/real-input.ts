@@ -8,10 +8,11 @@
  * Points are CSS pixels from the target element's top-left corner, the pixels
  * `nodeScreenPosition` and `worldToScreen` return. The test page runs in an iframe of the vitest
  * page, possibly scaled to fit, so each point is mapped into the top page's coordinates first.
- * The keyboard needs nothing here: `userEvent.keyboard` already presses real keys.
+ * The keyboard needs no protocol: `userEvent.keyboard` already presses real keys, and `holdKey` and
+ * `releaseKey` only name the hold and the release.
  */
 
-import { cdp } from "vitest/browser";
+import { cdp, userEvent } from "vitest/browser";
 
 /** A point in CSS pixels from an element's top-left corner. */
 export interface Point {
@@ -134,6 +135,34 @@ export async function click(element: Element, point: Point, modifiers?: Modifier
 }
 
 /**
+ * Move the mouse to a point and press the left button there, holding it.
+ * @param element - The element the point is on.
+ * @param point - Where.
+ */
+export async function press(element: Element, point: Point): Promise<void> {
+    await mouseEvent("mouseMoved", element, point, 0);
+    await mouseEvent("mousePressed", element, point, 1);
+}
+
+/**
+ * Move the mouse in one step with the left button held, as after `press`.
+ * @param element - The element the point is on.
+ * @param point - Where to.
+ */
+export async function moveHeld(element: Element, point: Point): Promise<void> {
+    await mouseEvent("mouseMoved", element, point, 1);
+}
+
+/**
+ * Release the left button at a point, as after `press`.
+ * @param element - The element the point is on.
+ * @param point - Where.
+ */
+export async function release(element: Element, point: Point): Promise<void> {
+    await mouseEvent("mouseReleased", element, point, 0);
+}
+
+/**
  * Press the left button at one point, move to another in steps, and release there.
  * @param element - The element the points are on.
  * @param from - Where the press is.
@@ -231,6 +260,37 @@ export async function pinch(element: Element, center: Point, fromGap: number, to
     }
 
     await send()("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+}
+
+/** Keys `holdKey` pressed and nothing has released yet. */
+const heldKeys = new Set<string>();
+
+/**
+ * Press a key and hold it, on whatever has focus: a real key press, through `userEvent`.
+ * @param key - The key, as `KeyboardEvent.key` names it ("w", "ArrowLeft", "+").
+ */
+export async function holdKey(key: string): Promise<void> {
+    await userEvent.keyboard(`{${key}>}`);
+    heldKeys.add(key);
+}
+
+/**
+ * Release a key `holdKey` pressed.
+ * @param key - The key.
+ */
+export async function releaseKey(key: string): Promise<void> {
+    await userEvent.keyboard(`{/${key}}`);
+    heldKeys.delete(key);
+}
+
+/**
+ * Release every key still held, so a key a test left down does not carry into the next test.
+ * Call it from `afterEach`.
+ */
+export async function releaseHeldKeys(): Promise<void> {
+    for (const key of [...heldKeys]) {
+        await releaseKey(key);
+    }
 }
 
 /**

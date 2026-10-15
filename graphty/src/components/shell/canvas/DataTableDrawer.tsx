@@ -121,7 +121,7 @@ export function GraphTableSegment(props: GraphTableSegmentProps): React.JSX.Elem
                 const checked = surface.value === value;
 
                 return (
-                    <button
+                    <button // NOSONAR(S6819): a segmented-button radio; a native radio needs a hidden input and label and would change how it draws
                         key={surface.value}
                         type="button"
                         role="radio"
@@ -350,7 +350,7 @@ export function DataTableDrawer<TRow extends object>(props: DataTableDrawerProps
                             const checked = entry.value === tab;
 
                             return (
-                                <button
+                                <button // NOSONAR(S6819): a segmented-button radio; a native radio needs a hidden input and label and would change how it draws
                                     key={entry.value}
                                     type="button"
                                     role="radio"

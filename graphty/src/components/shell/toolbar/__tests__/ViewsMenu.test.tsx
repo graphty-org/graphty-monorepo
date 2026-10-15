@@ -113,7 +113,9 @@ describe("ViewsMenu", () => {
         it("separates the four groups", async () => {
             render(<ViewsMenu {...props({ xr: XR_READY })} />);
 
-            expect(within(await menu()).getAllByRole("separator")).toHaveLength(3);
+            const separators = within(await menu()).getAllByRole("separator");
+            expect(separators).toHaveLength(3);
+            expect(separators.every((separator) => separator.tagName === "HR")).toBe(true);
         });
 
         it("prints each shipped row's binding and leaves the Toolbar row without one", async () => {

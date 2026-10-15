@@ -1050,8 +1050,7 @@ export class Dispatcher {
                 status: "open",
                 controller,
             },
-            options.setup === true,
-            options.compound === true,
+            { setup: options.setup === true, compound: options.compound === true },
         );
         this.enter(group);
         if (options.moves === true) {
@@ -1659,7 +1658,7 @@ export class Dispatcher {
                 origin?.step ?? null,
                 this.tick,
                 null,
-                isSetup(concrete) || origin?.setup === true,
+                { setup: isSetup(concrete) || origin?.setup === true },
             );
         const job = this.job(concrete, keys, undoable, group, queuedKey);
         for (const key of keys) {
@@ -2625,8 +2624,9 @@ export class Dispatcher {
      * @param after - The step it is a deferred member of, or null.
      * @param seq - Its dispatch order.
      * @param tx - Its transaction state, for a transaction's group.
-     * @param setup - Declared at construction.
-     * @param compound - A batch's transaction.
+     * @param flags - What kind of group it is.
+     * @param flags.setup - Declared at construction.
+     * @param flags.compound - A batch's transaction.
      * @returns The group.
      */
     private group(
@@ -2636,8 +2636,7 @@ export class Dispatcher {
         after: string | null,
         seq: number,
         tx: Group["tx"],
-        setup = false,
-        compound = false,
+        { setup = false, compound = false }: { readonly setup?: boolean; readonly compound?: boolean } = {},
     ): Group {
         return {
             seq,

@@ -996,11 +996,7 @@ export function estimateCost(input: CostInput): CostEstimate {
         modelFromRates(
             descriptor,
             costClass,
-            nodes,
-            edges,
-            units,
-            iterations,
-            sampleFactor,
+            { nodes, edges, units, iterations, sampleFactor },
             calibration,
             ownUnits !== undefined,
             statistics,
@@ -1056,11 +1052,12 @@ export function estimateCost(input: CostInput): CostEstimate {
  * one is calibrated.
  * @param descriptor - The algorithm's descriptor.
  * @param costClass - The class it declares.
- * @param nodes - Nodes in scope.
- * @param edges - Edges in scope.
- * @param units - The work term already computed.
- * @param iterations - The iteration bound the run would use.
- * @param sampleFactor - The share of the graph a sampled run would cover, or 1 for an exact run.
+ * @param work - The size of the run.
+ * @param work.nodes - Nodes in scope.
+ * @param work.edges - Edges in scope.
+ * @param work.units - The work term already computed.
+ * @param work.iterations - The iteration bound the run would use.
+ * @param work.sampleFactor - The share of the graph a sampled run would cover, or 1 for an exact run.
  * @param calibration - This machine's calibration, when it has one.
  * @param ownUnits - Whether `units` came from the plugin's `static costUnits`, which supersedes a
  *   seconds model.
@@ -1070,15 +1067,18 @@ export function estimateCost(input: CostInput): CostEstimate {
 function modelFromRates(
     descriptor: AlgorithmDescriptor,
     costClass: CostClass,
-    nodes: number,
-    edges: number,
-    units: number,
-    iterations: number,
-    sampleFactor: number,
+    work: {
+        readonly nodes: number;
+        readonly edges: number;
+        readonly units: number;
+        readonly iterations: number;
+        readonly sampleFactor: number;
+    },
     calibration: MachineCalibration | undefined,
     ownUnits: boolean,
     statistics: GraphStatistics,
 ): ModelledSeconds {
+    const { nodes, edges, units, iterations, sampleFactor } = work;
     /* THE REGISTRATION IS ASKED FIRST, AND IT IS THE ONLY PLACE A PLUGIN CAN PUT ONE. A cost
        model is a function, and a function stops a descriptor surviving `JSON.stringify` and a
        `postMessage` -- so the model lives beside the class reference in the registry, read from

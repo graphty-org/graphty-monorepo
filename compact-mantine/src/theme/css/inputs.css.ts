@@ -268,8 +268,9 @@ const css = `
 }
 .cm-listbox .cm-listbox-group + .cm-listbox-group,
 .cm-listbox .cm-listbox-separator {
-    margin-top: 8px;
+    margin: 8px 0 0;
     padding-top: 8px;
+    border: 0;
     border-top: 1px solid var(--cm-border-translucent);
 }
 .cm-listbox .cm-listbox-separator {

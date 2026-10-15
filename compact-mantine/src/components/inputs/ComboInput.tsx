@@ -353,7 +353,7 @@ export const ComboInput = forwardRef<HTMLInputElement, ComboInputProps>(function
                 <Combobox.Options id={listId} aria-label={label}>
                     {options.map((item, index) =>
                         isSeparator(item) ? (
-                            <div key={`separator-${String(index)}`} role="separator" className="cm-listbox-separator" />
+                            <hr key={`separator-${String(index)}`} className="cm-listbox-separator" />
                         ) : (
                             <Combobox.Option
                                 key={item.value}

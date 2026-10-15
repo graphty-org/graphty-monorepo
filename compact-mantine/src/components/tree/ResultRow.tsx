@@ -59,7 +59,7 @@ export const ResultRow = forwardRef<HTMLDivElement, ResultRowProps>(function Res
 ) {
     useCompactStyles();
     return (
-        <div
+        <div // NOSONAR(S6819): an option of a listbox driven by aria-activedescendant with rich rows; a native option holds text only
             ref={ref}
             role="option"
             aria-selected={current}

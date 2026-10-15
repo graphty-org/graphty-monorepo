@@ -6,6 +6,7 @@ import { PANEL_INK, UiGlyph } from "../../src";
 import { expectStatesApply } from "../helpers/assert-states";
 import { StateGrid } from "../helpers/input-states";
 import { BOTH_SCHEMES } from "../helpers/schemes";
+import { storyWaitOptions } from "../helpers/settled";
 
 /**
  * How the theme shows keyboard focus, and what moves.
@@ -149,7 +150,7 @@ export const Motion: Story = {
         await userEvent.hover(canvas.getByRole("button", { name: "Hover me" }));
         await new Promise((resolve) => setTimeout(resolve, 500));
         await expect(within(doc.body).queryByRole("tooltip")).toBeNull();
-        await expect(await within(doc.body).findByRole("tooltip", {}, { timeout: 2000 })).toBeVisible();
+        await expect(await within(doc.body).findByRole("tooltip", {}, storyWaitOptions(2000))).toBeVisible();
         await userEvent.unhover(canvas.getByRole("button", { name: "Hover me" }));
         // The tooltip closes after its close delay; the story is finished once it has, so a
         // screenshot never catches it half the time.

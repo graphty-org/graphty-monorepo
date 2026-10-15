@@ -4,6 +4,7 @@ import "@graphty/graphty-element";
 import type { Meta, StoryObj } from "@storybook/react";
 import { userEvent, within } from "storybook/test";
 
+import { storyWaitOptions } from "../../stories/wait";
 import { Workspace } from "../Workspace";
 
 type GraphtyElement = HTMLElementTagNameMap["graphty-element"];
@@ -149,7 +150,7 @@ export const AfterLouvain: Story = {
         // Run closes the popover and hands focus back to Analyze. The play's clicks are synthetic,
         // so the browser counts that focus as keyboard focus, and Analyze's tooltip shows after
         // its 1000 ms keyboard-focus delay: wait for it, or the capture lands either side of it.
-        await body().findByRole("tooltip", { name: /^Analyze/ }, { timeout: 5000 });
+        await body().findByRole("tooltip", { name: /^Analyze/ }, storyWaitOptions(5000));
     },
 };
 

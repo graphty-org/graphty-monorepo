@@ -2,8 +2,9 @@
  * Tests for dimension radio functionality in RunLayoutsModal.
  * Phase 3: Dimension Radio and 2D/3D Mode Integration
  */
-import { fireEvent, waitFor } from "@testing-library/react";
+import { waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { render, screen } from "../../test/test-utils";
 import { RunLayoutsModal } from "../RunLayoutsModal";
@@ -22,11 +23,11 @@ describe("RunLayoutsModal - Dimension Radio", () => {
 
             // Select Spiral (2D only layout)
             const dropdown = screen.getByRole("combobox", { name: /layout/i });
-            fireEvent.click(dropdown);
+            await userEvent.click(dropdown);
             await waitFor(() => {
                 expect(screen.getByText("Spiral")).toBeInTheDocument();
             });
-            fireEvent.click(screen.getByText("Spiral"));
+            await userEvent.click(screen.getByText("Spiral"));
 
             // Dimension radio should be hidden for 2D-only layouts
             expect(screen.queryByRole("radiogroup", { name: /dimensions/i })).not.toBeInTheDocument();
@@ -70,24 +71,24 @@ describe("RunLayoutsModal - Dimension Radio", () => {
     });
 
     describe("Dim value in config on apply", () => {
-        it("should include dim=3 in config when 3D is selected", () => {
+        it("should include dim=3 in config when 3D is selected", async () => {
             const onApply = vi.fn();
             render(<RunLayoutsModal opened={true} is2DMode={false} onClose={vi.fn()} onApply={onApply} />);
 
             // 3D should be default when is2DMode=false
-            fireEvent.click(screen.getByText("Apply Layout"));
+            await userEvent.click(screen.getByText("Apply Layout"));
             expect(onApply).toHaveBeenCalledWith("d3", expect.objectContaining({ dim: 3 }));
         });
 
-        it("should include dim=2 in config when 2D is selected", () => {
+        it("should include dim=2 in config when 2D is selected", async () => {
             const onApply = vi.fn();
             render(<RunLayoutsModal opened={true} is2DMode={false} onClose={vi.fn()} onApply={onApply} />);
 
             // Click 2D radio
             const radio2D = screen.getByRole("radio", { name: /2d/i });
-            fireEvent.click(radio2D);
+            await userEvent.click(radio2D);
 
-            fireEvent.click(screen.getByText("Apply Layout"));
+            await userEvent.click(screen.getByText("Apply Layout"));
             expect(onApply).toHaveBeenCalledWith("d3", expect.objectContaining({ dim: 2 }));
         });
 
@@ -97,13 +98,13 @@ describe("RunLayoutsModal - Dimension Radio", () => {
 
             // Select Spiral (2D only layout)
             const dropdown = screen.getByRole("combobox", { name: /layout/i });
-            fireEvent.click(dropdown);
+            await userEvent.click(dropdown);
             await waitFor(() => {
                 expect(screen.getByText("Spiral")).toBeInTheDocument();
             });
-            fireEvent.click(screen.getByText("Spiral"));
+            await userEvent.click(screen.getByText("Spiral"));
 
-            fireEvent.click(screen.getByText("Apply Layout"));
+            await userEvent.click(screen.getByText("Apply Layout"));
             expect(onApply).toHaveBeenCalledWith("spiral", expect.objectContaining({ dim: 2 }));
         });
     });
@@ -114,18 +115,18 @@ describe("RunLayoutsModal - Dimension Radio", () => {
 
             // First select a 2D layout
             const dropdown = screen.getByRole("combobox", { name: /layout/i });
-            fireEvent.click(dropdown);
+            await userEvent.click(dropdown);
             await waitFor(() => {
                 expect(screen.getByText("Spiral")).toBeInTheDocument();
             });
-            fireEvent.click(screen.getByText("Spiral"));
+            await userEvent.click(screen.getByText("Spiral"));
 
             // Now select a 3D layout (Circular)
-            fireEvent.click(dropdown);
+            await userEvent.click(dropdown);
             await waitFor(() => {
                 expect(screen.getByText("Circular")).toBeInTheDocument();
             });
-            fireEvent.click(screen.getByText("Circular"));
+            await userEvent.click(screen.getByText("Circular"));
 
             // Should show dimension radio with 3D selected
             const radio3D = screen.getByRole("radio", { name: /3d/i });
@@ -137,11 +138,11 @@ describe("RunLayoutsModal - Dimension Radio", () => {
 
             // D3 is default, select Circular (another 3D-capable layout)
             const dropdown = screen.getByRole("combobox", { name: /layout/i });
-            fireEvent.click(dropdown);
+            await userEvent.click(dropdown);
             await waitFor(() => {
                 expect(screen.getByText("Circular")).toBeInTheDocument();
             });
-            fireEvent.click(screen.getByText("Circular"));
+            await userEvent.click(screen.getByText("Circular"));
 
             // Should still have 2D selected (since is2DMode=true)
             const radio2D = screen.getByRole("radio", { name: /2d/i });

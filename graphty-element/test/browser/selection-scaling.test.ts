@@ -1,19 +1,15 @@
 /**
- * @file Counted-work scaling of selection: selecting and deselecting through the
- * `<graphty-element>` element, `Graph` and the `SelectionManager` both reach, the selection style,
- * the per-element selected state and halo, and how the selection hears about removals. Each runs
- * on a graph of n and of 4n nodes, and the elements it visits (Map, Set and Array iterator steps
- * and array scans, see `visitsDuring`) may grow no faster than the call's own reach: one selection
- * change about the same at any size, a removal notification in proportion to the removal. Counted,
- * never timed (issue #1643).
+ * @file Counted-work scaling of selection: the selection style, the per-element selected state and
+ * halo, how the selection hears about removals, and rebinding the `SelectionManager`. Each runs on
+ * a graph of n and of 4n nodes, and the elements it visits (Map, Set and Array iterator steps and
+ * array scans, see `visitsDuring`) may grow no faster than the call's own reach: a rebind about the
+ * same at any size, a removal notification in proportion to the removal. Counted, never timed
+ * (issue #1643). Selecting and deselecting one node is counted in `selection-mask-scaling.test.ts`.
  *
  * The render loop is stopped, as in `data-path-scaling.test.ts`, so no frame runs on its own. A
  * selection is not on screen until a frame's mask pass has drawn it, so each call is counted
  * together with that pass (`UpdateManager.syncViewMasks`), which is the part of a frame a
  * selection change starts; the rest of a frame walks every node whatever changed.
- *
- * A call whose work grows faster than its reach today is an expected failure naming the issue
- * that records it, so the fix turns it green and its methods move into the registry.
  */
 import "../../src/graphty-element";
 
@@ -108,11 +104,6 @@ interface Case {
     /** `linear` when the call reaches every node, `constant` when it reaches one record. */
     readonly growth: Growth;
     /**
-     * The issue recording that the call does more work than its reach today. Its test is expected
-     * to fail until the issue is fixed, and its methods stay out of the registry.
-     */
-    readonly superlinear?: number;
-    /**
      * Build the state the call needs and return the call.
      * @param element - A mounted element holding a drawn path of `size` nodes.
      * @param size - The graph size.
@@ -128,96 +119,6 @@ interface Case {
 }
 
 const CASES: readonly Case[] = [
-    {
-        methods: ["Graph.select"],
-        growth: "constant",
-        // The next frame's mask pass visits every node to redraw one halo (issue #2899).
-        superlinear: 2899,
-        prepare: (element) =>
-            Promise.resolve(async () => {
-                await element.graph.select({ nodes: ["n1"] });
-                await drawn(element);
-            }),
-        check: (element) => {
-            assert.deepStrictEqual(haloed(element), ["n1"]);
-        },
-    },
-    {
-        methods: ["Graphty.select"],
-        growth: "constant",
-        // The next frame's mask pass visits every node to redraw one halo (issue #2899).
-        superlinear: 2899,
-        prepare: (element) =>
-            Promise.resolve(async () => {
-                await element.select({ nodes: ["n1"] });
-                await drawn(element);
-            }),
-        check: (element) => {
-            assert.deepStrictEqual(haloed(element), ["n1"]);
-        },
-    },
-    {
-        methods: ["Graph.selectNode", "SelectionManager.selectById", "SelectionManager.select"],
-        growth: "constant",
-        // The next frame's mask pass visits every node to redraw one halo (issue #2899).
-        superlinear: 2899,
-        prepare: (element) =>
-            Promise.resolve(async () => {
-                assert.isTrue(element.graph.selectNode("n1"));
-                await drawn(element);
-            }),
-        check: (element) => {
-            assert.deepStrictEqual(haloed(element), ["n1"]);
-        },
-    },
-    {
-        methods: ["Graphty.selectNode"],
-        growth: "constant",
-        // The next frame's mask pass visits every node to redraw one halo (issue #2899).
-        superlinear: 2899,
-        prepare: (element) =>
-            Promise.resolve(async () => {
-                assert.isTrue(element.selectNode("n1"));
-                await drawn(element);
-            }),
-        check: (element) => {
-            assert.deepStrictEqual(haloed(element), ["n1"]);
-        },
-    },
-    {
-        methods: ["Graph.deselectNode", "SelectionManager.deselect"],
-        growth: "constant",
-        // The next frame's mask pass visits every node to redraw one halo (issue #2899).
-        superlinear: 2899,
-        prepare: async (element) => {
-            element.graph.selectNode("n1");
-            await drawn(element);
-            return async () => {
-                element.graph.deselectNode();
-                await drawn(element);
-            };
-        },
-        check: (element) => {
-            assert.deepStrictEqual(haloed(element), []);
-        },
-    },
-    {
-        methods: ["Graphty.deselectNode"],
-        growth: "constant",
-        // The next frame's mask pass visits every node to redraw one halo (issue #2899).
-        superlinear: 2899,
-        prepare: async (element) => {
-            element.selectNode("n1");
-            await drawn(element);
-            return async () => {
-                element.deselectNode();
-                await drawn(element);
-            };
-        },
-        check: (element) => {
-            assert.deepStrictEqual(haloed(element), []);
-        },
-    },
     {
         // Selecting half the graph sets half the nodes' and half the edges' selected state.
         methods: ["Node.setSelected", "Edge.setSelected"],
@@ -317,12 +218,9 @@ describe("selection does work in proportion to its reach", () => {
         scope.__GRAPHTY_STRICT_STATE__ = strict;
     });
 
-    for (const { methods, growth, superlinear, prepare, check } of CASES) {
+    for (const { methods, growth, prepare, check } of CASES) {
         const reach = growth === "linear" ? "no more than linear in the graph" : "about the same at any size";
-        // A call with an open superlinear issue is expected to fail, so the fix turns it green.
-        const test = superlinear === undefined ? it : it.fails;
-        const name = `${methods.join(", ")}: ${reach}`;
-        test(superlinear === undefined ? name : `${name} (not yet: #${String(superlinear)})`, async () => {
+        it(`${methods.join(", ")}: ${reach}`, async () => {
             await assertScalesLinearly(
                 async (size) => {
                     const element = await mount(size);

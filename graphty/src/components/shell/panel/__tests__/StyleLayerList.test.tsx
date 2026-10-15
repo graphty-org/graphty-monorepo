@@ -1,8 +1,8 @@
-import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { makeLayer } from "../../../../test/layerFixture";
-import { fireEvent, render, screen, within } from "../../../../test/test-utils";
+import { render, screen, within } from "../../../../test/test-utils";
 import { readLayerRowFacts } from "../layerRowFacts";
 import { BASE_LAYER_DELETE_REASON, BASE_LAYER_HIDE_REASON, type LayerItem, StyleLayerList } from "../StyleLayerList";
 
@@ -23,19 +23,17 @@ const row = (name: string): HTMLElement => screen.getByRole("treeitem", { name }
 const names = (layers: LayerItem[]): string[] => layers.map((layer) => layer.name);
 
 /**
- * Drag one row onto the top or bottom quarter of another with the HTML5 drag events the
- * Tree listens for.
+ * Drag one row onto the top or bottom tenth of another with the real mouse: the browser makes
+ * the HTML5 drag events the Tree listens for.
  * @param from - the name of the row to drag.
  * @param to - the name of the row to drop on.
  * @param edge - drop above or below the target row's middle.
  */
-function drag(from: string, to: string, edge: "above" | "below"): void {
-    const dataTransfer = new DataTransfer();
+async function drag(from: string, to: string, edge: "above" | "below"): Promise<void> {
     const box = row(to).getBoundingClientRect();
-    const clientY = box.top + box.height * (edge === "above" ? 0.1 : 0.9);
-    fireEvent.dragStart(row(from), { dataTransfer });
-    fireEvent.dragOver(row(to), { dataTransfer, clientY });
-    fireEvent.drop(row(to), { dataTransfer, clientY });
+    await userEvent.dragAndDrop(row(from), row(to), {
+        targetPosition: { x: box.width / 2, y: box.height * (edge === "above" ? 0.1 : 0.9) },
+    });
 }
 
 describe("StyleLayerList", () => {
@@ -72,10 +70,10 @@ describe("StyleLayerList", () => {
     });
 
     describe("rename", () => {
-        it("opens on double-click holding the current name", () => {
+        it("opens on double-click holding the current name", async () => {
             render(<StyleLayerList {...defaultProps} />);
 
-            fireEvent.doubleClick(row("Second"));
+            await userEvent.dblClick(row("Second"));
 
             expect(screen.getByRole("textbox", { name: "Layer name" })).toHaveValue("Second");
         });
@@ -98,11 +96,12 @@ describe("StyleLayerList", () => {
             const onLayersChange = vi.fn();
             render(<StyleLayerList {...defaultProps} onLayersChange={onLayersChange} />);
 
-            fireEvent.doubleClick(row("First"));
+            await userEvent.dblClick(row("First"));
             const input = screen.getByRole("textbox", { name: "Layer name" });
             await userEvent.clear(input);
             await userEvent.type(input, "Bottom");
-            fireEvent.blur(input);
+            // Focus leaves the field for the page
+            await userEvent.click(document.body);
 
             expect(names(onLayersChange.mock.calls[0][0] as LayerItem[])).toEqual(["Bottom", "Second", "Third"]);
         });
@@ -111,7 +110,7 @@ describe("StyleLayerList", () => {
             const onLayersChange = vi.fn();
             render(<StyleLayerList {...defaultProps} onLayersChange={onLayersChange} />);
 
-            fireEvent.doubleClick(row("Second"));
+            await userEvent.dblClick(row("Second"));
             const input = screen.getByRole("textbox", { name: "Layer name" });
             await userEvent.clear(input);
             await userEvent.type(input, "Changed{Escape}");
@@ -127,7 +126,7 @@ describe("StyleLayerList", () => {
             const onLayersChange = vi.fn();
             render(<StyleLayerList {...defaultProps} onLayersChange={onLayersChange} />);
 
-            fireEvent.doubleClick(row("Second"));
+            await userEvent.dblClick(row("Second"));
             const input = screen.getByRole("textbox", { name: "Layer name" });
             await userEvent.clear(input);
             await userEvent.type(input, keys);
@@ -149,11 +148,11 @@ describe("StyleLayerList", () => {
                 expected: ["First", "Third", "Second"],
             },
             { moved: "down by two", from: "Third", to: "First", edge: "below", expected: ["Third", "First", "Second"] },
-        ] as const)("moves the dragged layer $moved", ({ from, to, edge, expected }) => {
+        ] as const)("moves the dragged layer $moved", async ({ from, to, edge, expected }) => {
             const onLayersChange = vi.fn();
             render(<StyleLayerList {...defaultProps} onLayersChange={onLayersChange} />);
 
-            drag(from, to, edge);
+            await drag(from, to, edge);
 
             expect(onLayersChange).toHaveBeenCalledTimes(1);
             expect(names(onLayersChange.mock.calls[0][0] as LayerItem[])).toEqual(expected);
@@ -262,22 +261,23 @@ describe("StyleLayerList", () => {
             expect(inRow("Node defaults", "Hide layer")).toBeDisabled();
             expect(inRow("Node defaults", "Hide layer")).toHaveAttribute("title", BASE_LAYER_HIDE_REASON);
 
-            await userEvent.click(remove);
+            // A real click on the disabled control, past the browser's wait for it to be enabled
+            await userEvent.click(remove, { force: true });
 
             expect(onLayerDelete).not.toHaveBeenCalled();
             expect(onLayerEnabledChange).not.toHaveBeenCalled();
         });
 
-        it("draws the base layer at the bottom and reports only the reader's layers on a reorder", () => {
+        it("draws the base layer at the bottom and reports only the reader's layers on a reorder", async () => {
             const onLayersChange = vi.fn();
             render(<StyleLayerList {...defaultProps} layers={WITH_BASE} onLayersChange={onLayersChange} />);
 
             expect(screen.getAllByRole("treeitem").at(-1)).toHaveAccessibleName("Node defaults");
 
-            drag("Node defaults", "Third", "above");
+            await drag("Node defaults", "Third", "above");
             expect(onLayersChange).not.toHaveBeenCalled();
 
-            drag("Third", "First", "below");
+            await drag("Third", "First", "below");
             expect(names(onLayersChange.mock.calls[0][0] as LayerItem[])).toEqual([
                 "Third",
                 "First",

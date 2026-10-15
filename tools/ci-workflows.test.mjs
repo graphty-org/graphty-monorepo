@@ -82,6 +82,14 @@ describe("the test matrix", () => {
         assert.equal(include.length, 17);
     });
 
+    // A shard's nx target can depend on builds (cytoscape-extensions:coverage dependsOn ^build), and
+    // running them would rewrite another package's dist while the shards beside it read it (#2858).
+    it("never lets a shard's nx command rebuild what the Build step built", () => {
+        const nx = SHARDS.filter((s) => /\bnx run\b/.test(s["test-command"]));
+        assert.ok(nx.length > 0);
+        for (const s of nx) assert.match(s["test-command"], /--exclude-task-dependencies\b/, s.shard);
+    });
+
     it("puts only the affected members into a group's job", () => {
         const include = plan(["graph-io"]);
         assert.equal(include.length, 1);

@@ -15,6 +15,7 @@
         "./src/formats/obo/index.ts",
         "./src/formats/cys/index.ts",
         "./src/styles/index.ts",
+        "./src/positions/index.ts",
         "./src/index.ts"
     ],
     "entryPointStrategy": "resolve",

@@ -1,4 +1,4 @@
-import { type F64, type GraphSnapshot, renumberPartition, type U32 } from "@graphty/graph-format";
+import { detExp, type F64, type GraphSnapshot, renumberPartition, type U32 } from "@graphty/graph-format";
 
 import { withCode } from "../errors.js";
 import { mulberry32 } from "../utils/math-utilities.js";
@@ -272,7 +272,7 @@ function refine(level: Level, comm: U32, rand: () => number, resolution: number,
         if (kept === 0) {
             continue;
         }
-        const weight = (r: number): number => Math.exp(((gainOf(r) - maxGain) * 2) / m2 / THETA);
+        const weight = (r: number): number => detExp(((gainOf(r) - maxGain) * 2) / m2 / THETA);
         let total = 0;
         for (let j = 0; j < kept; j++) {
             total += weight(touched[j]);

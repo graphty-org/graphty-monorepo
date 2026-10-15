@@ -4,7 +4,6 @@ import {
     cpSync,
     existsSync,
     mkdirSync,
-    mkdtempSync,
     readdirSync,
     readFileSync,
     readlinkSync,
@@ -15,7 +14,6 @@ import {
     writeFileSync,
 } from "node:fs";
 import { createServer } from "node:http";
-import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { PassThrough } from "node:stream";
 import { fileURLToPath } from "node:url";
@@ -44,6 +42,7 @@ import { gateTree, readSelfUpdate, stopGating, writeSelfUpdate } from "../lib/se
 import { repoIdentity } from "../lib/store.mjs";
 import { run } from "../lib/worktrees.mjs";
 import { PACKAGE_DIR } from "../lib/version.mjs";
+import { tempDir } from "./helpers/temp-dir.mjs";
 
 const FAKE_SERVHERD = fileURLToPath(new URL("helpers/fake-servherd.mjs", import.meta.url));
 const FAKE_NOTIFY = fileURLToPath(new URL("helpers/fake-notify.mjs", import.meta.url));
@@ -117,21 +116,26 @@ function calls() {
 const starts = () => calls().filter((c) => c.argv[1] === "start");
 const registry = () => JSON.parse(readFileSync(join(fake, "registry.json"), "utf8"));
 /**
- * Every live process running the state directory's daemon.
+ * Every live process running the state directory's daemon. A child the daemon spawns (git, gh)
+ * shows the daemon's command line between its fork and its exec, so a process whose parent is one
+ * of them is the daemon's child, never a second daemon: servherd starts every daemon.
  * @returns {number[]} their pids
  */
 function daemonPids() {
     const script = join(stateDir(), "current", "bin", "githerd-daemon.mjs");
-    return readdirSync("/proc")
-        .filter((name) => /^\d+$/.test(name))
-        .filter((pid) => {
-            try {
-                return readFileSync(`/proc/${pid}/cmdline`, "utf8").split("\0").includes(script) && alive(Number(pid));
-            } catch {
-                return false; // gone meanwhile
-            }
-        })
-        .map(Number);
+    /** @type {Map<number, number>} pid to parent pid */
+    const found = new Map();
+    for (const name of readdirSync("/proc").filter((n) => /^\d+$/.test(n))) {
+        try {
+            if (!readFileSync(`/proc/${name}/cmdline`, "utf8").split("\0").includes(script)) continue;
+            const stat = readFileSync(`/proc/${name}/stat`, "utf8");
+            const [state, ppid] = stat.slice(stat.lastIndexOf(")") + 2).split(" ");
+            if (state !== "Z") found.set(Number(name), Number(ppid));
+        } catch {
+            // gone meanwhile
+        }
+    }
+    return [...found].filter(([, ppid]) => !found.has(ppid)).map(([pid]) => pid);
 }
 
 /**
@@ -291,7 +295,7 @@ function spawnLauncher(extra = {}, cwd = root) {
 }
 
 beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "githerd-launcher-"));
+    dir = tempDir("githerd-launcher-");
     root = join(dir, "main");
     fake = join(dir, "servherd");
     mkdirSync(fake);
@@ -443,7 +447,7 @@ describe("startup", () => {
     });
 
     it("exits quietly outside a git repository", async () => {
-        const outside = mkdtempSync(join(tmpdir(), "githerd-outside-"));
+        const outside = tempDir("githerd-outside-");
         /** @type {string[]} */
         const written = [];
         const input = new PassThrough();
@@ -545,6 +549,20 @@ describe("one daemon", () => {
         expect(starts().map((c) => c.cwd)).toEqual([stateDir(), stateDir()]);
         expect(Object.keys(registry())).toEqual([daemonName()]);
         expect(daemonPids()).toHaveLength(1);
+    });
+
+    it("counts no child of the daemon as a second daemon, though it shows the daemon's command line", async () => {
+        // Between fork and exec, a child the daemon spawns (git, gh) still shows the daemon's
+        // command line. A shell's subshell is such a child that stays: it forks and never execs.
+        const script = join(stateDir(), "current", "bin", "githerd-daemon.mjs");
+        const stand = spawn("sh", ["-c", "(sleep 30; :) & echo up; wait", "sh", script], {
+            detached: true,
+            stdio: ["ignore", "pipe", "ignore"],
+        });
+        launchers.push(stand);
+        // The shell prints only after it forked the subshell.
+        await new Promise((r) => stand.stdout.once("data", r));
+        expect(daemonPids()).toEqual([stand.pid]);
     });
 });
 
@@ -770,6 +788,29 @@ describe("restarts and upgrades", () => {
             /the daemon is running but does not answer: no daemon.json/,
         );
         expect(calls()).toEqual([]);
+    });
+
+    it("starts the daemon when its process exits while a restarter waits for it to answer", async () => {
+        // The restart rule is judged while the old daemon's process still lives (killed, not yet
+        // reaped); it is gone by the time /health fails. Its alive file is stale, so it is down now.
+        const dying = spawn("sleep", ["300"], { stdio: "ignore" });
+        const exited = new Promise((r) => dying.once("exit", r));
+        const server = createServer(async (req) => {
+            dying.kill("SIGKILL");
+            await exited;
+            req.socket.destroy();
+        });
+        servers.push(server);
+        await new Promise((r) => server.listen(0, "127.0.0.1", () => r(undefined)));
+        const port = /** @type {any} */ (server.address()).port;
+        pretendAlive();
+        writeFileSync(join(stateDir(), "lock"), JSON.stringify(identify(/** @type {number} */ (dying.pid))));
+        writeFileSync(join(stateDir(), "daemon.json"), JSON.stringify({ port, pid: dying.pid }));
+        const later = () => new Date(Date.now() + 61_000);
+
+        expect((await ensureDaemon(context({ now: later }))).action).toBe("started");
+        expect(starts()).toHaveLength(1);
+        expect(daemonPids()).toHaveLength(1);
     });
 
     it("never restarts a daemon in fatal mode, however old its loop tick, and reports why it is down", async () => {
@@ -1031,7 +1072,7 @@ describe("restarts and upgrades", () => {
                 JSON.stringify({ pid: 999_999_999, startTime: "1", bootId: bootId() }),
             );
             const tmux = process.env.TMUX_TMPDIR;
-            process.env.TMUX_TMPDIR = mkdtempSync(join(tmpdir(), "githerd-tmux-"));
+            process.env.TMUX_TMPDIR = tempDir("githerd-tmux-");
             try {
                 const ran = [];
                 const record = await prepareUpdate(ctx, target, [
@@ -1463,7 +1504,7 @@ describe("pm2Command", () => {
 
 describe("transcriptTyped", () => {
     it("reads the newest prompt the owner typed from that session's own transcript", () => {
-        const home = mkdtempSync(join(tmpdir(), "githerd-home-"));
+        const home = tempDir("githerd-home-");
         try {
             const cwd = "/work/my.repo";
             expect(transcriptTyped(cwd, home, "s1")).toBeNull();
@@ -1501,7 +1542,7 @@ describe("transcriptTyped", () => {
 
 describe("sessionTypedAt", () => {
     it("reads the owner's last typed message from the newest transcript of the session's directory", () => {
-        const home = mkdtempSync(join(tmpdir(), "githerd-home-"));
+        const home = tempDir("githerd-home-");
         try {
             const cwd = "/work/my.repo";
             expect(sessionTypedAt(cwd, home)).toBeNull();

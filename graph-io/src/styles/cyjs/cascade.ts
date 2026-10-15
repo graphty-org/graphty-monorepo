@@ -1319,6 +1319,9 @@ function evaluateTarget(
         forceLoopCurves(graph, cells.get("curve-style"));
     }
     const drawn = drawnValues(kind, els, cells, order, input.rendered, notes, spend);
+    if (kind === "edge") {
+        straightenUnpairedBeziers(graph, curveStyles(graph, cells, input.rendered), coreToOut, drawn.curved);
+    }
     const built = buildRules(kind, applied, { els, order, coreToOut }, input, drawn, { matcher, notes, spend });
     return {
         n: order.length,
@@ -1579,6 +1582,75 @@ function overrideRendered(
             col[k] = v === undefined || (v === "" && spec.type === "text") ? null : v;
         }
     }
+}
+
+/**
+ * Each edge's curve style as Cytoscape.js draws it: what a live core reports, else the winning cell.
+ * @param graph - the core's elements
+ * @param cells - the winning cells
+ * @param rendered - what a live core reports, when given
+ * @returns the curve style per edge, in core order
+ */
+function curveStyles(graph: CyjsGraph, cells: Cells, rendered: CyjsStyleInput["rendered"]): unknown[] {
+    const col = cells.get("curve-style");
+    return graph.edges.map((el, e) => {
+        const r = rendered?.get(el.json);
+        if (r !== undefined && Object.hasOwn(r, "curve-style")) {
+            return r["curve-style"];
+        }
+        const c = col?.[e];
+        return typeof c === "object" && c.kind === "word" ? c.value : undefined;
+    });
+}
+
+/**
+ * Cytoscape.js bows a `bezier` edge only to keep it apart from the other `bezier` edges joining the same two nodes:
+ * it draws a lone one, and the middle one of an odd number, straight. Loops stay curved.
+ * @param graph - the core's elements
+ * @param styles - each edge's curve style, in core order
+ * @param coreToOut - each edge's output index, or -1
+ * @param curved - the drawn `curved` values in output order, changed in place
+ */
+function straightenUnpairedBeziers(
+    graph: CyjsGraph,
+    styles: readonly unknown[],
+    coreToOut: Int32Array,
+    curved: (StyleValue | null)[] | undefined,
+): void {
+    if (curved === undefined) {
+        return;
+    }
+    for (const bundle of bezierBundles(graph, styles)) {
+        const k = bundle.length % 2 === 1 ? coreToOut[bundle[(bundle.length - 1) / 2]] : -1;
+        if (k >= 0) {
+            curved[k] = false;
+        }
+    }
+}
+
+/**
+ * The `bezier` edges that are not loops, grouped by the two nodes they join (either way round), in core order.
+ * @param graph - the core's elements
+ * @param styles - each edge's curve style, in core order
+ * @returns the groups
+ */
+function bezierBundles(graph: CyjsGraph, styles: readonly unknown[]): Iterable<number[]> {
+    const bundles = new Map<string, number[]>();
+    for (let e = 0; e < graph.edges.length; e++) {
+        const s = graph.source[e];
+        const t = graph.target[e];
+        if (s === t || styles[e] !== "bezier") {
+            continue;
+        }
+        const key = s < t ? `${s} ${t}` : `${t} ${s}`;
+        const bundle = bundles.get(key);
+        if (bundle === undefined) {
+            bundles.set(key, [e]);
+        } else {
+            bundle.push(e);
+        }
+    }
+    return bundles.values();
 }
 
 /**

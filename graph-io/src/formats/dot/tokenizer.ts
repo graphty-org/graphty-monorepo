@@ -148,15 +148,15 @@ export class DotTokenizer {
         const { line } = this;
         const c = text.charCodeAt(start);
         switch (c) {
-            case 0x7b: // {
-            case 0x7d: // }
-            case 0x5b: // [
-            case 0x5d: // ]
-            case 0x3b: // ;
-            case 0x2c: // ,
-            case 0x3d: // =
-            case 0x3a: // :
-            case 0x2b: // +
+            case 0x7b: // "{"
+            case 0x7d: // "}"
+            case 0x5b: // "["
+            case 0x5d: // "]"
+            case 0x3b: // ";"
+            case 0x2c: // ","
+            case 0x3d: // "="
+            case 0x3a: // ":"
+            case 0x2b: // "+"
                 this.pos++;
                 return { kind: "punct", text: text[start], quoted: false, html: false, line };
             case 0x2d: {

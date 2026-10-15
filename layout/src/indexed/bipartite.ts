@@ -1,7 +1,7 @@
 import { type F64, type GraphSnapshot, type NodeMask, type NodeSet, resolveNodeMask } from "@graphty/graph-format";
 
 import type { LayoutResult } from "../positions.js";
-import { type CommonLayoutOptions, planar, resolve, result } from "./common.js";
+import { type CommonLayoutOptions, planar, refusal, resolve, result } from "./common.js";
 import { type LayerAlign, layeredRows } from "./multipartite.js";
 
 /** Options of the index-based bipartite layout. */
@@ -60,15 +60,32 @@ function topOf(s: GraphSnapshot, topSet: NodeMask | NodeSet | string): (i: numbe
     const top = typeof topSet === "string" || topSet instanceof Uint32Array ? topSet : resolveNodeMask(s, topSet);
     if (typeof top !== "string") {
         if (top.length < Math.ceil(s.nodeCount / 32)) {
-            throw new Error(
-                `top mask has ${top.length} words; ${s.nodeCount} nodes need ${Math.ceil(s.nodeCount / 32)}`,
+            throw refusal(
+                new Error(`top mask has ${top.length} words; ${s.nodeCount} nodes need ${Math.ceil(s.nodeCount / 32)}`),
+                "E_BAD_OPTION",
+                { option: "top", length: top.length, expected: Math.ceil(s.nodeCount / 32) },
             );
         }
         return (i) => ((top[i >>> 5] >>> (i & 31)) & 1) === 1;
     }
-    const column = s.nodes.require(top);
+    const column = s.nodes.get(top);
+    if (column === null) {
+        throw refusal(
+            new Error(`top names node column "${top}", which the snapshot does not hold`),
+            "E_UNKNOWN_COLUMN",
+            {
+                option: "top",
+                column: top,
+            },
+        );
+    }
     if (column.dtype !== "bool") {
-        throw new Error(`top column "${top}" must be bool, not ${column.dtype}`);
+        throw refusal(new Error(`top column "${top}" must be bool, not ${column.dtype}`), "E_COLUMN_TYPE", {
+            option: "top",
+            column: top,
+            dtype: column.dtype,
+            expected: ["bool"],
+        });
     }
     return (i) => column.isSet(i) && ((column.data[i >>> 5] >>> (i & 31)) & 1) === 1;
 }
@@ -79,6 +96,9 @@ function topOf(s: GraphSnapshot, topSet: NodeMask | NodeSet | string): (i: numbe
  * @param s - the snapshot; only its node count and the named column are read
  * @param options - `scale` is the distance of the farthest node from the centre; `top` the first line
  * @returns the layout
+ * @throws an Error with `code` `E_UNKNOWN_COLUMN` or `E_COLUMN_TYPE` when `top` names a node column the snapshot does
+ * not hold or one that is not bool, and `E_BAD_OPTION` for a short `top` mask or an unknown `align`; `params` carry
+ * the facts
  */
 export function bipartite(s: GraphSnapshot, options: BipartiteLayoutOptions = {}): LayoutResult {
     const { n, dim, scale, center } = resolve(s, options);

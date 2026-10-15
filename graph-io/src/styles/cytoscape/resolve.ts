@@ -321,7 +321,8 @@ function resolver(
 /**
  * Every element's value per neutral property under a Cytoscape style, the way Cytoscape draws it: per visual
  * property a bypass, else the mapping's value, else the default; `nodeSizeLocked` and `arrowColorMatchesEdge`
- * applied. Visual properties no neutral property carries are noted as `W_STYLE_NOT_CARRIED`.
+ * applied. `EDGE_CURVED` only rounds an edge's bends, so an edge without bends is `curved: false`. Visual properties
+ * no neutral property carries are noted as `W_STYLE_NOT_CARRIED`.
  * @param target - nodes or edges
  * @param style - the style
  * @param elements - the elements, their attribute values and their bypasses
@@ -364,8 +365,39 @@ export function resolveCytoscape(
     }
     noteUncarried(target, s, used, bypassed, notes);
     fillToolDefaults(target, out, n, options.defaults ?? null);
+    if (target === "edge") {
+        straightenBendless(out, one);
+    }
     return out;
 }
+
+/**
+ * Marks straight every curved edge without bends: `EDGE_CURVED` only rounds the bends an edge has.
+ * @param out - the values per property, changed in place
+ * @param one - reads one visual property of one element
+ */
+function straightenBendless(out: Partial<Record<string, StyleColumn>>, one: Resolver["one"]): void {
+    const { curved } = out;
+    if (curved !== undefined) {
+        out.curved = curved.map((c, i) => (c === true ? one(EDGE_BEND_VP, bendParser, "curved", i) === true : c));
+    }
+}
+
+/** An edge's bend handles. */
+export const EDGE_BEND_VP = "EDGE_BEND";
+
+/**
+ * Whether an `EDGE_BEND` value holds any handle: Cytoscape writes an edge without bends as an empty string.
+ * @param raw - the value
+ * @returns true when the edge bends
+ */
+export const bendParser: CytoscapeValueParser = (raw) => {
+    if (typeof raw === "string") {
+        const text = raw.trim();
+        return text !== "" && text !== '""';
+    }
+    return Array.isArray(raw) ? raw.length > 0 : raw !== null && raw !== undefined && typeof raw === "object";
+};
 
 /** Default values that mean "nothing drawn": a VP left at one of these is not worth a note. */
 const INERT_DEFAULT = /NullCustomGraphics|^255$|^0(?:\.0+)?$|^$|^C,C,c,0\.00,0\.00$|^false$/;

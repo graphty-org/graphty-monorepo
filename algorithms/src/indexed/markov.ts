@@ -1,4 +1,4 @@
-import type { AdjacencyView, NumericVector } from "@graphty/graph-format";
+import { type AdjacencyView, detPow, type NumericVector } from "@graphty/graph-format";
 
 import { withCode } from "../errors.js";
 import { type LabelResult, withGroups } from "./components.js";
@@ -107,7 +107,7 @@ function multiply(a: Csc, b: Csc, acc: Float64Array, mark: Uint8Array): Csc {
  * @returns The new matrix
  */
 function inflateAndPrune(m: Csc, inflation: number, threshold: number): Csc {
-    const powered: Csc = { ptr: m.ptr, row: m.row, val: m.val.map((v) => Math.pow(v, inflation)) };
+    const powered: Csc = { ptr: m.ptr, row: m.row, val: m.val.map((v) => detPow(v, inflation)) };
     normaliseColumns(powered);
     const n = m.ptr.length - 1;
     const ptr = new Uint32Array(n + 1);

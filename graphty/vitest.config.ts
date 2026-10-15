@@ -81,7 +81,8 @@ export default defineConfig({
                     include: [REAL_ELEMENT_TESTS],
                     sequence: { groupOrder: 1 },
                     browser: chromium(),
-                    setupFiles: "./src/test/setup.ts",
+                    // First: frees earlier files' pages, which v8 coverage keeps alive (issue #2247).
+                    setupFiles: ["../vitest.browser-coverage-setup.ts", "./src/test/setup.ts"],
                     // One file at a time. Every file mounts a real element, and the files share
                     // the renderer's main thread: in parallel, nine files took 158 s and single
                     // tests up to 29 s (past the 15 s test timeout), against 90 s and at most

@@ -637,6 +637,32 @@ describe("DataTable keyboard", () => {
         expect(handleRowClick).toHaveBeenCalledWith(CATS[1], expect.anything(), { source: "keyboard" });
     });
 
+    it("activates a row of a selection of several with Enter and keeps the selection", async () => {
+        const user = userEvent.setup();
+        const handleSelectionChange = vi.fn();
+        const handleRowClick = vi.fn();
+        renderTable(
+            <DataTable
+                columns={COLUMNS}
+                data={CATS}
+                getRowId={(cat) => cat.id}
+                onSelectionChange={handleSelectionChange}
+                onRowClick={handleRowClick}
+            />,
+        );
+
+        await user.tab();
+        await user.keyboard("{ArrowDown}");
+        await user.keyboard(" ");
+        await user.keyboard("{Shift>}{ArrowDown}{/Shift}");
+        expect(handleSelectionChange).toHaveBeenLastCalledWith(["c1", "c2"], expect.anything());
+        const changes = handleSelectionChange.mock.calls.length;
+
+        await user.keyboard("{Enter}");
+        expect(handleRowClick).toHaveBeenCalledWith(CATS[1], expect.anything(), { source: "keyboard" });
+        expect(handleSelectionChange).toHaveBeenCalledTimes(changes);
+    });
+
     it("adds to the selection with Space, the way Control and a click does", async () => {
         const user = userEvent.setup();
         const handleSelectionChange = vi.fn();

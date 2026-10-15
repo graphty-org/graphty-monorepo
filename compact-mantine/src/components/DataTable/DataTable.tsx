@@ -598,7 +598,14 @@ function DataTableInner<TRow extends object>(
             if (event.key === " ") {
                 applyGesture(position.row, { extend: event.shiftKey, toggle: !event.shiftKey }, event);
             } else {
-                applyGesture(position.row, { extend: false, toggle: false }, event);
+                // Enter opens what is selected: on a row that is part of a selection of several
+                // it keeps the selection (as a file list opens every selected file), and on any
+                // other row it selects that row alone first.
+                const focusedId = rowIds[position.row - offset];
+                const inSelection = focusedId !== undefined && selection.includes(focusedId) && selection.length > 1;
+                if (!inSelection) {
+                    applyGesture(position.row, { extend: false, toggle: false }, event);
+                }
                 activateRow(position.row, event, { source: "keyboard" });
             }
 

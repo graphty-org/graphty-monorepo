@@ -2176,6 +2176,16 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         ...(sources.groupRanks === undefined ? {} : { groupRanks: sources.groupRanks }),
         valueLabels: (path) => valueLabelsAt(dispatcher.state.valueLabels, path),
         painted: (id) => api.counts(id).painted,
+        reached: (id, channel) => {
+            const binding = byId().get(id)?.layer.encode?.[channel];
+            if (binding === undefined || !("by" in binding)) {
+                return undefined;
+            }
+            const { bins } = api.preview(binding, { channel, within: id });
+            return new Set(
+                bins.filter((bin) => bin.count > 0 && bin.value !== undefined).map((bin) => String(bin.value)),
+            );
+        },
         // Only a `{match:"has"}` layer below can be answered: its elements are the ones a column
         // lists, and each is put to the compiled test of the layer above. Every other shape would
         // need a walk over the whole graph, and a legend is read on every style change.

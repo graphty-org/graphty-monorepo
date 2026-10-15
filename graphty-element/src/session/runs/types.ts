@@ -529,7 +529,11 @@ export type RunStyle =
           readonly groups?: "layers";
           /**
            * What to call each group's layer when `groups` is `"layers"`; its value as text when
-           * absent. `rank` is 1 for the largest group.
+           * absent. `rank` is 1 for the largest group; `taken` lists the names the folder's
+           * layers already go by, so a re-run's new group can be given a name no layer has. The
+           * name is also given to the group's value (as `data.setValueLabel` gives one), so the
+           * legend and every value list name the group as its layer is named, and the name
+           * follows the group across a re-run.
            * @since 3.29.0
            */
           readonly groupName?: (group: RunGroup) => string;
@@ -546,6 +550,8 @@ export interface RunGroup {
     readonly rank: number;
     /** How many nodes it holds. */
     readonly size: number;
+    /** The names of the layers already in the run's folder of groups. */
+    readonly taken: readonly string[];
 }
 
 /** One member of a batch: the same thing `start` takes, as data. */

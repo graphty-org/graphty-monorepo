@@ -345,6 +345,17 @@ function categoryName(value: unknown): string {
 }
 
 /**
+ * A painted colour as one spelling, so two paints of one colour compare equal: a hex string as
+ * it is, a colour value by its hex, upper case.
+ * @param paints - The paint.
+ * @returns The hex, or undefined for anything else.
+ */
+function hexOf(paints: unknown): string | undefined {
+    const hex = typeof paints === "string" ? paints : (paints as { readonly hex?: unknown } | null | undefined)?.hex;
+    return typeof hex === "string" ? hex.toUpperCase() : undefined;
+}
+
+/**
  * The layers a style command added, read off what it resolved with: one layer for an encoding,
  * one per half for a highlight.
  * @param outcome - What the command resolved with.
@@ -1750,7 +1761,9 @@ class Runs implements SessionRunsApi {
         this.groupStyles.set(result.runId, style);
         const field = binding.by.slice(`${RESULT_ROOT}.${result.runId}.`.length);
         const column = elementIdsOf(result, "node").map((id) => result.node(id)?.[field]);
-        const preview = styles.previewColumn(binding, "node.color", column);
+        // Every group has a layer of its own, so none is folded into an "other" grey: the groups
+        // past the palette's colours take colours of their own.
+        const preview = styles.previewColumn({ ...binding, overflow: "extend" }, "node.color", column);
         const found = findRow(rowsOf(draft.styles), layer.id);
         const folder = styles.execute(
             {
@@ -1766,8 +1779,11 @@ class Runs implements SessionRunsApi {
         // Largest first, each put at the bottom of the folder: the largest ends on top.
         const ids: LayerId[] = [];
         const values = preview.bins.filter((bin) => bin.value !== undefined && bin.count > 0);
+        const taken: string[] = [];
         for (const [at, bin] of values.entries()) {
-            ids.push(this.addGroupLayer(draft, folder.result.id, layer, binding.by, bin, at + 1, style.groupName));
+            ids.push(
+                this.addGroupLayer(draft, folder.result.id, layer, binding.by, bin, at + 1, style.groupName, taken),
+            );
         }
 
         return ids;
@@ -1785,6 +1801,7 @@ class Runs implements SessionRunsApi {
      * @param bin.paints - The colour the run's layer paints it.
      * @param rank - Its place by size, 1 for the largest.
      * @param groupName - What to call it.
+     * @param taken - The names of the folder's group layers so far; the new name is added to it.
      * @returns The layer's id.
      */
     private addGroupLayer(
@@ -1795,11 +1812,20 @@ class Runs implements SessionRunsApi {
         bin: { readonly value?: unknown; readonly count: number; readonly paints: unknown },
         rank: number,
         groupName: ((group: RunGroup) => string) | undefined,
+        taken: string[],
     ): LayerId {
         const { styles } = this.dispatcher.services;
         const paints = bin.paints as { readonly hex?: string } | string | null;
         const color = typeof paints === "string" ? paints : paints?.hex;
-        const name = groupName?.({ value: bin.value, rank, size: bin.count }) ?? categoryName(bin.value);
+        const value = categoryName(bin.value);
+        const given = groupName?.({ value: bin.value, rank, size: bin.count, taken: [...taken] });
+        const name = given ?? value;
+        taken.push(name);
+        if (given !== undefined) {
+            // The group goes by its layer's name wherever its value is named (the legend, a
+            // value list), and the name follows the group across a re-run.
+            draft.valueLabels.set(valueLabelKey(path, value), given);
+        }
         const added = styles?.execute(
             {
                 op: "style.patch",
@@ -1809,7 +1835,7 @@ class Runs implements SessionRunsApi {
                     target: "node",
                     selector: {
                         match: "rule",
-                        where: { kind: "categories", attribute: path, values: [categoryName(bin.value)] },
+                        where: { kind: "categories", attribute: path, values: [value] },
                     },
                     ...(color === undefined ? {} : { set: { "node.color": color } }),
                     source: from.source,
@@ -1854,13 +1880,20 @@ class Runs implements SessionRunsApi {
         if (folder === undefined) {
             return;
         }
-        const taken = new Set(mine.flatMap(groupValues));
+        const held = new Set(mine.flatMap(groupValues));
+        const names = layers
+            .filter((layer) => findRow(rows, layer.id)?.ancestors.at(-1)?.id === folder.id)
+            .map((layer) => layer.name);
+        const used = new Set(mine.map((layer) => hexOf(layer.set?.["node.color"])));
         const column = elementIdsOf(result, "node").map((id) => result.node(id)?.group);
-        const { bins } = styles.previewColumn({ by: path, scale: "ordinal" }, "node.color", column);
+        const { bins } = styles.previewColumn({ by: path, scale: "ordinal", overflow: "extend" }, "node.color", column);
+        // The run's palette by place among the groups, the colours no group layer holds yet first.
+        const free = bins.map((bin) => bin.paints).filter((paints) => !used.has(hexOf(paints)));
         for (const [at, bin] of bins.entries()) {
-            if (bin.value !== undefined && bin.count > 0 && !taken.has(categoryName(bin.value))) {
-                // The colour a new group takes is the run's palette's, by its place among the groups.
-                this.addGroupLayer(draft, folder.id, mine[0], path, bin, at + 1, groupName);
+            if (bin.value !== undefined && bin.count > 0 && !held.has(categoryName(bin.value))) {
+                const paints = free.shift() ?? bin.paints;
+                used.add(hexOf(paints));
+                this.addGroupLayer(draft, folder.id, mine[0], path, { ...bin, paints }, at + 1, groupName, names);
             }
         }
     }

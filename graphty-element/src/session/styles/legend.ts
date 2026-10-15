@@ -426,6 +426,17 @@ export interface LegendSources {
      * @returns True for the base look's home.
      */
     readonly holdsBase?: (layer: Layer) => boolean;
+    /**
+     * The categories one layer's binding for a channel meets among the elements the layer
+     * selects, spelled as the legend spells a category. Read only for copies of one binding the
+     * legend folds into one block, so the block lists what the copies paint and no more.
+     *
+     * Absent, a folded block keeps its first copy's rows.
+     * @param layerId - The layer.
+     * @param channel - The channel.
+     * @returns The categories, or undefined when the layer binds no category there.
+     */
+    readonly reached?: (layerId: LayerId, channel: Channel) => ReadonlySet<string> | undefined;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1045,11 +1056,7 @@ function buildBlock(
     const { channel } = prepared;
     const rule = authoredRule(layer, channel);
     const all = allSwatches(prepared, layer, sources);
-    // The "other" row is what the paint folded, so it is kept whatever the cap drops.
-    const other = all.at(-1)?.role === "other" ? all.at(-1) : undefined;
-    const rows = other === undefined ? all : all.slice(0, -1);
-    const hidden = Math.max(0, rows.length - SWATCH_CAP);
-    const swatches = other === undefined ? rows.slice(0, SWATCH_CAP) : [...rows.slice(0, SWATCH_CAP), other];
+    const capped = capSwatches(all);
     const { path, scale } = prepared;
     const domain = domainOf(prepared, rule);
     const kind = kindOf(prepared, layer);
@@ -1057,7 +1064,7 @@ function buildBlock(
     const { range } = prepared;
     const facts = factsOf(prepared, layers, at, sources);
 
-    return {
+    const block: LegendBlock = {
         channel,
         layerId: layer.id,
         ...(layer.source.by === "run" ? { runId: layer.source.runId } : {}),
@@ -1072,12 +1079,31 @@ function buildBlock(
         ...(prepared.palette === null
             ? {}
             : { palette: { name: prepared.palette.id, reversed: rule?.reverse === true } }),
-        swatches: Object.freeze(swatches),
+        swatches: Object.freeze(capped.swatches),
         ...(painted === undefined ? {} : { painted: painted[channel] ?? 0 }),
-        ...(hidden === 0 ? {} : { overflow: { hidden } }),
+        ...(capped.hidden === 0 ? {} : { overflow: { hidden: capped.hidden } }),
         facts: Object.freeze([...facts]),
         departures: Object.freeze(facts.map(departureSentence)),
     };
+    UNCAPPED.set(block, all);
+    return block;
+}
+
+/** Every row a block had before the cap, for {@link foldCopies} to choose from. */
+const UNCAPPED = new WeakMap<LegendBlock, readonly LegendSwatch[]>();
+
+/**
+ * At most {@link SWATCH_CAP} rows, plus the `"other"` row, which is what the paint folded and so
+ * is kept whatever the cap drops.
+ * @param all - Every row.
+ * @returns The rows kept and how many were left out.
+ */
+function capSwatches(all: readonly LegendSwatch[]): { swatches: LegendSwatch[]; hidden: number } {
+    const other = all.at(-1)?.role === "other" ? all.at(-1) : undefined;
+    const rows = other === undefined ? all : all.slice(0, -1);
+    const hidden = Math.max(0, rows.length - SWATCH_CAP);
+    const kept = rows.slice(0, SWATCH_CAP);
+    return { swatches: other === undefined ? kept : [...kept, other], hidden };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1121,42 +1147,106 @@ export function buildLegend(sources: LegendSources): readonly LegendBlock[] {
         }
     }
 
-    return blocks.length === 0 ? NO_BLOCKS : Object.freeze(foldCopies(blocks, layers));
+    return blocks.length === 0 ? NO_BLOCKS : Object.freeze(foldCopies(blocks, layers, sources.reached));
 }
 
 /**
- * Fold the blocks of identical bindings in several layers into the first of them, which lists
- * every layer it stands for and the elements they paint together.
+ * Fold the blocks of copies of one binding in several layers into the first of them, which lists
+ * every layer it stands for and the elements they paint together. Copies that differ only in
+ * their value tables (`map`) are copies too -- a binding copied into each of a folder's group
+ * layers keeps each group's colour in its own table, so the colour follows the group across a
+ * re-run -- and the folded block lists the categories the copies meet among the elements they
+ * select, each painted as the copy that meets it paints it.
  * @param blocks - The blocks, bottom first.
  * @param layers - The stack.
+ * @param reached - The categories a layer's binding meets, when the sources can say.
  * @returns The blocks, each binding once.
  */
-function foldCopies(blocks: readonly LegendBlock[], layers: readonly Layer[]): LegendBlock[] {
+function foldCopies(
+    blocks: readonly LegendBlock[],
+    layers: readonly Layer[],
+    reached: LegendSources["reached"],
+): LegendBlock[] {
     const byId = new Map(layers.map((layer) => [layer.id, layer]));
-    const first = new Map<string, number>();
-    const folded: LegendBlock[] = [];
+    const groups = new Map<string, LegendBlock[]>();
+    const order: (LegendBlock | LegendBlock[])[] = [];
     for (const block of blocks) {
         const binding = byId.get(block.layerId)?.encode?.[block.channel];
-        const key =
-            binding === undefined || !("by" in binding) ? undefined : `${block.channel}|${JSON.stringify(binding)}`;
-        const at = key === undefined ? undefined : first.get(key);
-        if (at === undefined) {
-            if (key !== undefined) {
-                first.set(key, folded.length);
-            }
-            folded.push(block);
+        if (binding === undefined || !("by" in binding)) {
+            order.push(block);
             continue;
         }
-        const kept = folded[at];
-        folded[at] = Object.freeze({
-            ...kept,
-            layers: Object.freeze([...(kept.layers ?? [kept.layerId]), block.layerId]),
-            ...(kept.painted === undefined && block.painted === undefined
-                ? {}
-                : { painted: (kept.painted ?? 0) + (block.painted ?? 0) }),
-        });
+        const { map: _map, ...rest } = binding;
+        const key = `${block.channel}|${JSON.stringify(rest)}`;
+        const group = groups.get(key);
+        if (group === undefined) {
+            const fresh = [block];
+            groups.set(key, fresh);
+            order.push(fresh);
+        } else {
+            group.push(block);
+        }
     }
-    return folded;
+    return order.map((entry) => (Array.isArray(entry) ? foldGroup(entry, reached) : entry));
+}
+
+/**
+ * One block for several copies of a binding (see {@link foldCopies}).
+ * @param copies - The copies' blocks, bottom first.
+ * @param reached - The categories a layer's binding meets, when the sources can say.
+ * @returns The folded block, or the one block of a binding with no copies.
+ */
+function foldGroup(copies: readonly LegendBlock[], reached: LegendSources["reached"]): LegendBlock {
+    const [kept] = copies;
+    if (copies.length === 1) {
+        return kept;
+    }
+    const painted = copies.some((copy) => copy.painted !== undefined)
+        ? { painted: copies.reduce((sum, copy) => sum + (copy.painted ?? 0), 0) }
+        : {};
+    const folded = {
+        ...kept,
+        layers: Object.freeze(copies.map((copy) => copy.layerId)),
+        ...painted,
+    };
+    const met = copies.map((copy) => reached?.(copy.layerId, copy.channel));
+    if (met.some((each) => each === undefined)) {
+        return Object.freeze(folded);
+    }
+    // Each category once, painted as the copy that meets it paints it, in the first copy's order.
+    const rank = new Map((UNCAPPED.get(kept) ?? kept.swatches).map((swatch, at) => [String(swatch.value), at]));
+    const seen = new Set<string>();
+    const rows: LegendSwatch[] = [];
+    let other: LegendSwatch | undefined;
+    copies.forEach((copy, at) => {
+        const categories = met[at] ?? new Set<string>();
+        for (const swatch of UNCAPPED.get(copy) ?? copy.swatches) {
+            if (swatch.role === "other") {
+                // The bucket stays when a copy meets a category folded into it.
+                const folds = Array.isArray(swatch.value) ? swatch.value : [];
+                other ??= folds.some((value) => categories.has(String(value))) ? swatch : undefined;
+                continue;
+            }
+            const category = String(swatch.value);
+            const key = `${category}|${JSON.stringify(swatch.paints ?? swatch.color ?? null)}`;
+            if (categories.has(category) && !seen.has(key)) {
+                seen.add(key);
+                rows.push(swatch);
+            }
+        }
+    });
+    rows.sort((a, b) => (rank.get(String(a.value)) ?? Infinity) - (rank.get(String(b.value)) ?? Infinity));
+    const capped = capSwatches(other === undefined ? rows : [...rows, other]);
+    const { overflow: _overflow, ...rest } = folded;
+    // Nothing the copies meet is folded into "other" when no copy keeps the bucket's row.
+    const facts = other === undefined ? kept.facts.filter((fact) => fact.code !== "legend.lumped") : kept.facts;
+    return Object.freeze({
+        ...rest,
+        swatches: Object.freeze(capped.swatches),
+        ...(capped.hidden === 0 ? {} : { overflow: { hidden: capped.hidden } }),
+        facts: Object.freeze(facts),
+        departures: Object.freeze(facts.map(departureSentence)),
+    });
 }
 
 /**

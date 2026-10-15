@@ -3013,6 +3013,7 @@ export type RunExecutor<T = RunResult> = (context: RunExecutionContext) => Promi
 export interface RunGroup {
     readonly rank: number;
     readonly size: number;
+    readonly taken: readonly string[];
     readonly value: unknown;
 }
 

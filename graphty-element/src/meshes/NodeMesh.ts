@@ -598,12 +598,14 @@ export class NodeMesh {
         );
     }
 
-    private static createCapsule(_size: number, scene?: Scene): Mesh {
-        return MeshBuilder.CreateCapsule("capsule", {}, scene);
+    // Babylon's own default dimensions at size 1 (a capsule 2 tall of radius 0.25, a torus 1
+    // across and 0.5 thick), scaled with the size as every other shape is.
+    private static createCapsule(size: number, scene?: Scene): Mesh {
+        return MeshBuilder.CreateCapsule("capsule", { height: 2 * size, radius: 0.25 * size }, scene);
     }
 
-    private static createTorus(_size: number, scene?: Scene): Mesh {
-        return MeshBuilder.CreateTorus("torus", {}, scene);
+    private static createTorus(size: number, scene?: Scene): Mesh {
+        return MeshBuilder.CreateTorus("torus", { diameter: size, thickness: 0.5 * size }, scene);
     }
 
     private static createTorusKnot(size: number, scene?: Scene): Mesh {

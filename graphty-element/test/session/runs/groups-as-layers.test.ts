@@ -153,6 +153,110 @@ describe("a partition's groups as layers", () => {
         assert.strictEqual(s.styles.counts(after.children[0].id).matched, 2);
     });
 
+    it("names a re-run's new group with a name no layer has, and names each group's value as its layer", async () => {
+        const s = await session();
+        const asked: string[][] = [];
+        await s.runs.start(
+            "louvain",
+            {},
+            {
+                as: "louvain",
+                style: {
+                    groups: "layers",
+                    groupName: ({ rank, taken }) => {
+                        asked.push([...taken]);
+                        let n = rank;
+                        while (taken.includes(`Group ${String(n)}`)) {
+                            n += 1;
+                        }
+                        return `Group ${String(n)}`;
+                    },
+                },
+            },
+        );
+        await s.styles.settled();
+        assert.deepEqual(asked[1], ["Group 1"], "each name sees the names before it");
+        assert.strictEqual(s.data.valueLabels("results.louvain.group").get("1"), "Group 2", "e, f and g's group");
+
+        membership = SECOND;
+        await s.runs.start("louvain", {}, { as: "louvain", seed: 7 });
+        await s.styles.settled();
+
+        const [folder] = s.styles.tree().filter((row) => row.kind === "folder");
+        const names = folder.children.map((row) => row.name);
+        assert.lengthOf(new Set(names), names.length, `no two layers share a name: ${names.join(", ")}`);
+        // e, f and g are group 0 now: the name followed them.
+        assert.strictEqual(s.data.valueLabels("results.louvain.group").get("0"), "Group 2");
+        const fresh = folder.children[0];
+        assert.strictEqual(s.data.valueLabels("results.louvain.group").get("4"), fresh.name);
+        assert.notInclude(
+            folder.children.slice(1).map((row) => s.styles.get(row.id)?.set?.["node.color"]),
+            s.styles.get(fresh.id)?.set?.["node.color"],
+            "the new group takes a colour no group layer holds",
+        );
+    });
+
+    it("keeps each group's colour from a binding copied into every group layer across a re-run", async () => {
+        const s = await session();
+        await s.runs.start("louvain", {}, { as: "louvain", style: { groups: "layers" } });
+        await s.styles.settled();
+        const [folder] = s.styles.tree().filter((row) => row.kind === "folder");
+        // Each layer holds one group: its copy keeps that group's colour in its own table.
+        await s.styles.updateMany(
+            folder.children.map((row) => {
+                const selector = s.styles.get(row.id)?.selector;
+                const where = selector?.match === "rule" ? selector.where : undefined;
+                const value = where?.kind === "categories" ? where.values[0] : "";
+                const { bins } = s.styles.preview(
+                    { by: "results.louvain.group", scale: "ordinal", palette: "okabe-ito" },
+                    { channel: "node.color", within: row.id },
+                );
+                const paints = bins.find((bin) => bin.count > 0)?.paints as { hex: string };
+                return {
+                    id: row.id,
+                    patch: {
+                        set: {},
+                        encode: {
+                            "node.color": {
+                                by: "results.louvain.group",
+                                scale: "ordinal",
+                                palette: "okabe-ito",
+                                map: { [value]: paints.hex },
+                            },
+                        },
+                    },
+                };
+            }),
+        );
+        await s.styles.settled();
+        const before = Object.keys(FIRST).map((node) => colorOf(s, node));
+        assert.lengthOf(
+            s.styles.legend().filter((block) => block.channel === "node.color"),
+            1,
+            "the copies are one block",
+        );
+
+        membership = SECOND;
+        await s.runs.start("louvain", {}, { as: "louvain", seed: 7 });
+        await s.styles.settled();
+
+        for (const [at, node] of Object.keys(FIRST).entries()) {
+            if (node !== "c" && node !== "d") {
+                assert.strictEqual(colorOf(s, node), before[at], `node ${node} keeps its group's colour`);
+            }
+        }
+    });
+
+    it("gives every group a colour of its own when there are more groups than the palette has colours", async () => {
+        const s = createGraphSession({ runs: { execute: communities } });
+        membership = Object.fromEntries(Array.from({ length: 12 }, (_, i) => [`n${String(i)}`, i]));
+        await s.data.addNodes(Object.keys(membership).map((id) => ({ id })));
+        await s.runs.start("louvain", {}, { as: "louvain", style: { groups: "layers" } });
+        await s.styles.settled();
+        const colors = Object.keys(membership).map((node) => colorOf(s, node));
+        assert.lengthOf(new Set(colors), 12, colors.join(", "));
+    });
+
     it("puts the folder of groups back when a deleted folder's run restores its layer", async () => {
         const s = await session();
         await s.runs.start("louvain", {}, { as: "louvain", style: { groups: "layers", name: "Louvain" } });

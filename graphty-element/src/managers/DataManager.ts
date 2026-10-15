@@ -83,7 +83,7 @@ export type { AddEdgesOptions } from "../session/project/ingest";
  * @param teardown - Disposes them.
  * @returns What `teardown` returns.
  */
-function disposeReleased<T>(nodes: Iterable<Node>, edges: Iterable<Edge>, teardown: () => T): T {
+export function disposeReleased<T>(nodes: Iterable<Node>, edges: Iterable<Edge>, teardown: () => T): T {
     const doomed = new Set<AbstractMesh>();
     const handlers: NodeDragHandler[] = [];
     collectDoomed(nodes, edges, doomed, handlers);
@@ -126,15 +126,15 @@ function disposeReleased<T>(nodes: Iterable<Node>, edges: Iterable<Edge>, teardo
         handler.forgetSceneObservers();
     }
 
-    // The parents' child lists are set aside too: a doomed mesh leaving its parent searches them,
-    // and a parent such as the graph's root holds every node (issue #2733).
-    const siblings: [list: SceneNode[], survivors: SceneNode[]][] = [];
+    // A disposed mesh leaves its parent by an `indexOf` over the parent's child list, and every
+    // node mesh shares one parent, the graph root: that list is set aside too (issues #2733, #2749).
+    const families: [SceneNode, SceneNode[], SceneNode[]][] = [];
     for (const parent of parents) {
         // Babylon has no public way to edit a node's child list in place; `getChildren()` copies it.
         const children = (parent as unknown as { _children: SceneNode[] | null })._children;
         if (children) {
             dropAll(children, doomed);
-            siblings.push([children, children.splice(0)]);
+            families.push([parent, children, children.splice(0)]);
         }
     }
 
@@ -145,8 +145,8 @@ function disposeReleased<T>(nodes: Iterable<Node>, edges: Iterable<Edge>, teardo
     } finally {
         restore(scene.meshes, meshes, (mesh) => !mesh.isDisposed());
         restore(actionManagers, owned, () => true);
-        for (const [list, survivors] of siblings) {
-            restore(list, survivors, (child) => !child.isDisposed());
+        for (const [parent, children, kept] of families) {
+            restore(children, kept, (child) => child.parent === parent && !child.isDisposed());
         }
     }
 }

@@ -4,6 +4,7 @@ import "@graphty/graphty-element";
 import type { Meta, StoryObj } from "@storybook/react";
 import { userEvent, waitFor, within } from "storybook/test";
 
+import { storyWaitOptions } from "../../stories/wait";
 import { createWorkspaceStore } from "../state/store";
 import { Workspace } from "../Workspace";
 import { type DataPageRequest, openDataPage } from "./request";
@@ -57,14 +58,11 @@ const OPEN_PROJECT = { name: "Les Miserables", id: 1 };
  * @param canvasElement - the story's root.
  */
 async function read(canvasElement: HTMLElement): Promise<void> {
-    await waitFor(
-        () => {
-            if (canvasElement.querySelector('[role="grid"] [role="gridcell"], [role="alert"]') === null) {
-                throw new Error("still reading");
-            }
-        },
-        { timeout: 10_000 },
-    );
+    await waitFor(() => {
+        if (canvasElement.querySelector('[role="grid"] [role="gridcell"], [role="alert"]') === null) {
+            throw new Error("still reading");
+        }
+    }, storyWaitOptions(10_000));
 }
 
 /**
@@ -170,7 +168,7 @@ export const RefusedParse: Story = pageStory({ intent: "new", files: [new File([
 /** An address that cannot be fetched (`#/data-page/refused-fetch`). */
 export const RefusedFetch: Story = pageStory({ intent: "new" }, async (canvas) => {
     await enterUrl(canvas, "/no-such-file.csv", true);
-    await canvas.findByRole("alert", {}, { timeout: 10_000 });
+    await canvas.findByRole("alert", {}, storyWaitOptions(10_000));
 });
 
 /** Adding to the open project: the title names it (`Add to <project>`). */

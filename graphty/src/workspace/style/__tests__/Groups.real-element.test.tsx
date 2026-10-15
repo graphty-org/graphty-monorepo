@@ -186,6 +186,11 @@ describe("per-group settings", () => {
             assert.isNull(screen.queryByRole("group", { name: `${name} properties` }));
             assert.lengthOf(gridRows(popover), Math.min(8, session.styles.groups(layer.id, path).length));
         });
+        await waitFor(() => {
+            const focused = document.activeElement;
+            assert.equal(focused?.getAttribute("role"), "gridcell", "focus is back in the list");
+            assert.isNotNull(focused?.querySelector(`[data-group-row="${firstKey}"]`), "on the group just left");
+        });
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
             assert.isNull(screen.queryByRole("group", { name: "Color binding" }));

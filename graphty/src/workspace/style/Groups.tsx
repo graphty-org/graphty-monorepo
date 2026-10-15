@@ -31,13 +31,13 @@ const FULL_ROWS = 10;
 const ROW_HEIGHT = 28;
 
 /** How wide a row's field for the popover's property is, by its kind: a chit, else a narrow field. */
-const FIELD_WIDTH: Readonly<Record<string, number>> = { color: 28, number: 60, choice: 64, text: 68 };
+const FIELD_WIDTH: Readonly<Record<string, number>> = { color: 44, number: 60, choice: 64, text: 68 };
 
 /** The width the group grid has in a 240 px popover. */
-const GRID_WIDTH = 224;
+const GRID_WIDTH = 236;
 
 /** The size and actions columns' widths. */
-const COUNT_WIDTH = 40;
+const COUNT_WIDTH = 48;
 const ACTIONS_WIDTH = 56;
 
 /** How the full list is sorted. */
@@ -300,9 +300,18 @@ export function GroupList({
                     onBack={() => {
                         setOpened(null);
                         onDetailChange?.(false);
-                        // Back on the list, focus returns to the grid.
+                        // Back on the list, focus returns to the row of the group just left (the
+                        // first picked one), so the arrow keys carry on from there.
+                        const back = keys[0];
                         requestAnimationFrame(() => {
-                            listRef.current?.querySelector<HTMLElement>("[role=gridcell][tabindex='0']")?.focus();
+                            const list = listRef.current;
+                            const cell =
+                                list
+                                    ?.querySelector(`[data-group-row="${CSS.escape(back ?? "")}"]`)
+                                    ?.closest("[role=gridcell]") ?? list?.querySelector("[role=gridcell]");
+                            if (cell instanceof HTMLElement) {
+                                cell.focus();
+                            }
                         });
                     }}
                 />
@@ -469,7 +478,7 @@ export function GroupList({
         },
         {
             id: "count",
-            header: "Count",
+            header: target === "node" ? "Nodes" : "Edges",
             value: (row) => row.group.count,
             align: "end",
             width: COUNT_WIDTH,
@@ -553,7 +562,8 @@ export function GroupList({
         },
     ];
 
-    const height = (Math.min(shown.length, all ? FULL_ROWS : shown.length) + 1) * ROW_HEIGHT + 2;
+    // The header and the rows on show, each with its 1 px grid line, and the frame's 1 px.
+    const height = (Math.max(1, Math.min(shown.length, all ? FULL_ROWS : shown.length)) + 1) * (ROW_HEIGHT + 1) + 4;
     return (
         <Stack gap={6} ref={setMenuHost} pos="relative">
             {all ? (

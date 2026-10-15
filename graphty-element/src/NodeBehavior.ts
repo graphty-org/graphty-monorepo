@@ -92,37 +92,113 @@ interface ClickState {
     pointerEvent: PointerEvent | null;
 }
 
-/** A node's pre-pointer callback. */
-type PointerHandler = (pointerInfo: PointerInfoPre) => void;
+/**
+ * The nodes of one scene that a pointer event can concern, behind the one observer they share.
+ *
+ * An event reaches only the nodes it can change, never every node: the one under the pointer
+ * (found by ONE pick per event), the ones with a press or a drag in progress, and the ones the
+ * pointer was over until now. Asking every node "is the pointer over you?" made each node pick
+ * the scene, and each pick tests every mesh, so one mouse move over n nodes cost about n x n mesh
+ * tests (issue #2941). A node joins and leaves these in constant time instead of adding and
+ * removing observers of its own, whose `remove` searches every observer the scene holds (issue
+ * #2894).
+ */
+export interface NodePointerRoster {
+    /** Each node's handler, by node id. */
+    readonly byId: Map<NodeIdType, NodeDragHandler>;
+    /** Handlers with a press or a drag in progress: they hear every move and every release. */
+    readonly engaged: Set<NodeDragHandler>;
+    /** Handlers whose node the pointer is over: they hear the move that leaves it. */
+    readonly hovered: Set<NodeDragHandler>;
+}
 
-/** The pointer callbacks of every node of a scene, behind the one observer they share. */
-const nodePointerHandlers = new WeakMap<Scene, Set<PointerHandler>>();
+/** The roster of each scene; see {@link nodePointerRosterOf}. */
+const nodePointerRosters = new WeakMap<Scene, NodePointerRoster>();
 
 /**
- * The pointer callbacks of a scene's nodes, which one `onPrePointerObservable` observer calls in
- * the order they were added. A node joins and leaves this set instead of adding and removing
- * observers of its own: Babylon's `remove` searches every observer the scene holds -- two per
- * node -- so repainting or disposing one node cost the size of the graph (issue #2894). A callback
- * added while an event is being delivered gets that event too, and one deleted before its turn
- * does not, as with Babylon's own list. The graph creates the set when it sets up its scene, so
- * the shared observer sits where the first node's own observers used to.
+ * Whether the scene is in an XR session, whose input XRInputHandler handles instead.
  * @param scene - The scene.
- * @returns The scene's set, created with its observer on first use.
+ * @returns True in XR.
  */
-export function nodePointerHandlersOf(scene: Scene): Set<PointerHandler> {
-    let handlers = nodePointerHandlers.get(scene);
-    if (!handlers) {
-        const created = new Set<PointerHandler>();
-        scene.onPrePointerObservable.add((pointerInfo) => {
-            for (const handler of created) {
-                handler(pointerInfo);
-            }
-        });
-        nodePointerHandlers.set(scene, created);
-        handlers = created;
+function inXR(scene: Scene): boolean {
+    const xrHelper = scene.metadata?.xrHelper;
+    return xrHelper?.baseExperience?.state === 2; // WebXRState.IN_XR
+}
+
+/**
+ * Deliver one pointer event to the nodes it concerns.
+ * @param scene - The scene.
+ * @param roster - The scene's nodes.
+ * @param pointerInfo - The event.
+ */
+function deliverPointerEvent(scene: Scene, roster: NodePointerRoster, pointerInfo: PointerInfoPre): void {
+    // Skip desktop pointer handling in XR mode - XRInputHandler handles it. This prevents
+    // conflicts where XR generates pointer events that the desktop handler would misinterpret
+    // with wrong world position calculations.
+    if (inXR(scene)) {
+        return;
     }
 
-    return handlers;
+    switch (pointerInfo.type) {
+        case PointerEventTypes.POINTERDOWN: {
+            // nodeId from mesh metadata works with both regular and instanced meshes
+            const pickedId = pickNodeId(scene, scene.pointerX, scene.pointerY);
+            if (pickedId !== undefined) {
+                roster.byId.get(pickedId)?.onPointerDown(pointerInfo);
+            }
+
+            break;
+        }
+        case PointerEventTypes.POINTERMOVE: {
+            for (const handler of roster.engaged) {
+                handler.onPointerMove();
+            }
+
+            // Picked AFTER the drags above have moved their nodes, so the hover reads where things
+            // are now.
+            const pickedId = pickNodeId(scene, scene.pointerX, scene.pointerY);
+            for (const handler of roster.hovered) {
+                handler.onHover(pickedId);
+            }
+
+            const target = pickedId === undefined ? undefined : roster.byId.get(pickedId);
+            if (target && !roster.hovered.has(target)) {
+                target.onHover(pickedId);
+            }
+
+            break;
+        }
+        case PointerEventTypes.POINTERUP:
+            for (const handler of roster.engaged) {
+                handler.onPointerUp(pointerInfo);
+            }
+
+            break;
+        default:
+            // Ignore other pointer events
+            break;
+    }
+}
+
+/**
+ * The roster of a scene's nodes, created with its one `onPrePointerObservable` observer on first
+ * use. The graph creates it when it sets up its scene, so the shared observer sits where the
+ * first node's own observers used to.
+ * @param scene - The scene.
+ * @returns The scene's roster.
+ */
+export function nodePointerRosterOf(scene: Scene): NodePointerRoster {
+    let roster = nodePointerRosters.get(scene);
+    if (!roster) {
+        const created: NodePointerRoster = { byId: new Map(), engaged: new Set(), hovered: new Set() };
+        scene.onPrePointerObservable.add((pointerInfo) => {
+            deliverPointerEvent(scene, created, pointerInfo);
+        });
+        nodePointerRosters.set(scene, created);
+        roster = created;
+    }
+
+    return roster;
 }
 
 /** The one action manager the nodes of each scene share; see {@link nodeActionManagerOf}. */
@@ -244,8 +320,7 @@ export class NodeDragHandler {
     private clickState: ClickState | null = null;
     private gesture: DragGesture | null = null;
     private readonly scene: Scene;
-    private pointerHandler: PointerHandler | null = null;
-    private hoverHandler: PointerHandler | null = null;
+    private readonly roster: NodePointerRoster;
     private isHovered = false;
     private readonly zAxisAmplification: number;
     private readonly enableZAmplificationInDesktop: boolean;
@@ -272,9 +347,9 @@ export class NodeDragHandler {
         this.zAxisAmplification = xrConfig?.input.zAxisAmplification ?? 10;
         this.enableZAmplificationInDesktop = xrConfig?.input.enableZAmplificationInDesktop ?? false;
 
-        // Setup pointer event listeners
-        this.setupPointerEvents();
-        this.setupHoverEvents();
+        // Join the scene's pointer roster; see nodePointerRosterOf.
+        this.roster = nodePointerRosterOf(this.scene);
+        this.roster.byId.set(node.id, this);
     }
 
     // Public API for both desktop and XR
@@ -296,6 +371,7 @@ export class NodeDragHandler {
 
         this.dragState.dragging = true;
         this.dragState.moved = false;
+        this.roster.engaged.add(this);
         this.dragState.dragStartMeshPosition = this.node.mesh.position.clone();
         this.dragState.dragStartWorldPosition = worldPosition.clone();
         this.node.dragging = true;
@@ -447,6 +523,14 @@ export class NodeDragHandler {
         this.dragState.dragStartMeshPosition = null;
         this.dragState.dragStartWorldPosition = null;
         this.dragState.dragPlaneNormal = null;
+        this.settle();
+    }
+
+    /** Leave the engaged handlers once no press or drag is left in progress. */
+    private settle(): void {
+        if (!this.dragState.dragging && this.clickState === null) {
+            this.roster.engaged.delete(this);
+        }
     }
 
     /**
@@ -598,47 +682,11 @@ export class NodeDragHandler {
     }
 
     // Internal methods
-    private setupPointerEvents(): void {
-        // Listen to pointer events for node dragging and clicking
-        this.pointerHandler = (pointerInfo) => {
-            // Skip desktop pointer handling in XR mode - XRInputHandler handles it
-            // This prevents conflicts where XR generates pointer events that the
-            // desktop handler would misinterpret with wrong world position calculations
-            if (this.isXRMode()) {
-                return;
-            }
-
-            switch (pointerInfo.type) {
-                case PointerEventTypes.POINTERDOWN:
-                    this.onPointerDown(pointerInfo);
-                    break;
-                case PointerEventTypes.POINTERMOVE:
-                    this.onPointerMove();
-                    break;
-                case PointerEventTypes.POINTERUP:
-                    this.onPointerUp(pointerInfo);
-                    break;
-                default:
-                    // Ignore other pointer events
-                    break;
-            }
-        };
-        nodePointerHandlersOf(this.scene).add(this.pointerHandler);
-    }
-
     /**
-     * A press: start a drag when it lands on this node.
+     * A press on this node: start a drag. The scene's roster calls it for the node it picked.
      * @param pointerInfo - The event.
      */
-    private onPointerDown(pointerInfo: PointerInfoPre): void {
-        // Check if we clicked on this node
-        // nodeId from mesh metadata works with both regular and instanced meshes
-        const pickedNodeId = pickNodeId(this.scene, this.scene.pointerX, this.scene.pointerY);
-
-        if (pickedNodeId !== this.node.id) {
-            return;
-        }
-
+    public onPointerDown(pointerInfo: PointerInfoPre): void {
         // Initialize click tracking
         this.clickState = {
             pointerDownTime: pointerEventTime(pointerInfo.event),
@@ -653,8 +701,8 @@ export class NodeDragHandler {
         this.onDragStart(this.pointerWorldPosition());
     }
 
-    /** A move: carry this node along while it is being dragged. */
-    private onPointerMove(): void {
+    /** A move: carry this node along while it is being dragged. Called for engaged handlers. */
+    public onPointerMove(): void {
         if (!this.dragState.dragging) {
             return;
         }
@@ -673,10 +721,11 @@ export class NodeDragHandler {
     }
 
     /**
-     * A release: end this node's drag, and select it when the drag was a click.
+     * A release: end this node's drag, and select it when the drag was a click. Called for engaged
+     * handlers.
      * @param pointerInfo - The event.
      */
-    private onPointerUp(pointerInfo: PointerInfoPre): void {
+    public onPointerUp(pointerInfo: PointerInfoPre): void {
         if (this.dragState.dragging) {
             // Check if this was a click (short duration, minimal movement)
             const wasClick = this.isClick(pointerEventTime(pointerInfo.event));
@@ -691,6 +740,7 @@ export class NodeDragHandler {
 
         // Reset click state
         this.clickState = null;
+        this.settle();
     }
 
     /**
@@ -708,56 +758,45 @@ export class NodeDragHandler {
     }
 
     /**
-     * Setup hover detection for emitting node-hover events.
+     * A move: emit node-hover when the pointer arrives on this node, and hide its tooltip when it
+     * leaves. The scene's roster calls it for the node under the pointer and the hovered ones.
+     * @param pickedNodeId - The node under the pointer, if any.
      */
-    private setupHoverEvents(): void {
-        this.hoverHandler = (pointerInfo) => {
-            // Skip in XR mode
-            if (this.isXRMode()) {
-                return;
+    public onHover(pickedNodeId: NodeIdType | undefined): void {
+        // Skip if we're currently dragging
+        if (this.dragState.dragging) {
+            return;
+        }
+
+        const isOverThisNode = pickedNodeId === this.node.id;
+
+        // Emit node-hover when entering the node (not when already hovering)
+        if (isOverThisNode && !this.isHovered) {
+            this.isHovered = true;
+            this.roster.hovered.add(this);
+
+            // THE TOOLTIP IS DRAWN HERE, and this is the only moment it can be. A tooltip is
+            // an answer to pointing at something, so no style pass knows when to draw one:
+            // the paint records what this node's tooltip should say and the pointer arriving
+            // is what puts it on screen. The channel has been published as `renderable` and
+            // documented as "the words to show on hover" since before there were channels,
+            // and until this line nothing drew one in any version of the package.
+            this.node.showTooltip();
+
+            const context = this.getContext();
+            const eventManager = context.getEventManager?.();
+            if (eventManager) {
+                eventManager.emitNodeEvent("node-hover", {
+                    node: this.node,
+                    data: this.node.data,
+                });
             }
-
-            // Only process move events for hover detection
-            if (pointerInfo.type !== PointerEventTypes.POINTERMOVE) {
-                return;
-            }
-
-            // Skip if we're currently dragging
-            if (this.dragState.dragging) {
-                return;
-            }
-
-            // Check if we're hovering over this node
-            const pickedNodeId = pickNodeId(this.scene, this.scene.pointerX, this.scene.pointerY);
-            const isOverThisNode = pickedNodeId === this.node.id;
-
-            // Emit node-hover when entering the node (not when already hovering)
-            if (isOverThisNode && !this.isHovered) {
-                this.isHovered = true;
-
-                // THE TOOLTIP IS DRAWN HERE, and this is the only moment it can be. A tooltip is
-                // an answer to pointing at something, so no style pass knows when to draw one:
-                // the paint records what this node's tooltip should say and the pointer arriving
-                // is what puts it on screen. The channel has been published as `renderable` and
-                // documented as "the words to show on hover" since before there were channels,
-                // and until this line nothing drew one in any version of the package.
-                this.node.showTooltip();
-
-                const context = this.getContext();
-                const eventManager = context.getEventManager?.();
-                if (eventManager) {
-                    eventManager.emitNodeEvent("node-hover", {
-                        node: this.node,
-                        data: this.node.data,
-                    });
-                }
-            } else if (!isOverThisNode && this.isHovered) {
-                // Reset hover state when leaving
-                this.isHovered = false;
-                this.node.hideTooltip();
-            }
-        };
-        nodePointerHandlersOf(this.scene).add(this.hoverHandler);
+        } else if (!isOverThisNode && this.isHovered) {
+            // Reset hover state when leaving
+            this.isHovered = false;
+            this.roster.hovered.delete(this);
+            this.node.hideTooltip();
+        }
     }
 
     /**
@@ -885,17 +924,13 @@ export class NodeDragHandler {
         // A node removed mid-drag: its drag records nothing more, and leaves nothing pending.
         this.gesture?.finish();
         this.gesture = null;
-        // Leaving a set, not searching the scene's observers: see nodePointerHandlersOf.
-        const handlers = nodePointerHandlersOf(this.scene);
-        if (this.pointerHandler) {
-            handlers.delete(this.pointerHandler);
-            this.pointerHandler = null;
+        // Leaving the roster, not searching the scene's observers: see nodePointerRosterOf.
+        if (this.roster.byId.get(this.node.id) === this) {
+            this.roster.byId.delete(this.node.id);
         }
 
-        if (this.hoverHandler) {
-            handlers.delete(this.hoverHandler);
-            this.hoverHandler = null;
-        }
+        this.roster.engaged.delete(this);
+        this.roster.hovered.delete(this);
     }
 }
 

@@ -58,7 +58,7 @@ export type { AddEdgesOptions } from "../session/project/ingest";
  * graph (issue #2732). So, before `teardown` runs, everything the elements are about to dispose
  * is taken out of those lists in one pass over each: their meshes out of `scene.meshes` and their
  * parent's children, and each mesh's action manager out of `scene.actionManagers`. (A node's
- * pointer callbacks leave a set of their own in constant time; see `nodePointerHandlersOf`.)
+ * pointer callbacks leave a set of their own in constant time; see `nodePointerRosterOf`.)
  * While `teardown` runs, the survivors are set aside and
  * the two scene lists are empty, so every search a dispose makes finds nothing at once; Babylon
  * still runs the rest of its dispose, including the `onMeshRemovedObservable` notification and

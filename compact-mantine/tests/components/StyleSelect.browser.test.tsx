@@ -1,8 +1,8 @@
 import { DirectionProvider, MantineProvider } from "@mantine/core";
-import { fireEvent, render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeAll, describe, expect, it, vi } from "vitest";
+import { page, userEvent } from "vitest/browser";
 
 import { compactTheme, StyleSelect } from "../../src";
 import { LabelsProvider } from "../../src/i18n";
@@ -243,10 +243,7 @@ describe("StyleSelect", () => {
             renderSelect(<StyleSelect label="Select" defaultValue="option1" options={options} onChange={onChange} />);
 
             await user.click(screen.getByRole("combobox", { name: "Select" }));
-            // Mantine's dropdown is a Popover whose transition never completes
-            // in jsdom, so the option is in the tree but painted `display:
-            // none`; it is found with `hidden` and clicked directly.
-            fireEvent.click(screen.getByRole("option", { name: "Option 3", hidden: true }));
+            await user.click(page.getByRole("option", { name: "Option 3" }));
 
             expect(onChange).toHaveBeenCalledTimes(1);
             expect(onChange.mock.calls[0][0]).toBe("option3");
@@ -258,6 +255,8 @@ describe("StyleSelect", () => {
             const onBlur = vi.fn();
             renderSelect(
                 <>
+                    {/* Above the select, where its open dropdown does not cover it. */}
+                    <button type="button">elsewhere</button>
                     <StyleSelect
                         label="Select"
                         defaultValue="option1"
@@ -265,7 +264,6 @@ describe("StyleSelect", () => {
                         onFocus={onFocus}
                         onBlur={onBlur}
                     />
-                    <button type="button">elsewhere</button>
                 </>,
             );
 

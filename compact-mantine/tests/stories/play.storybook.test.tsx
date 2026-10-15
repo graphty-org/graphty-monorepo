@@ -1,5 +1,6 @@
 import { composeStories, type Meta, setProjectAnnotations, type StoryFn } from "@storybook/react";
 import { afterEach, describe, expect, it } from "vitest";
+import { commands, userEvent } from "vitest/browser";
 
 import preview from "../../.storybook/preview";
 import { AXE_EXCEPTIONS, axeFindings, OFF_BY_DESIGN } from "../a11y/axe";
@@ -16,7 +17,9 @@ import { AXE_EXCEPTIONS, axeFindings, OFF_BY_DESIGN } from "../a11y/axe";
  * less the rules OFF_BY_DESIGN lists for the story's component and the known violations
  * AXE_EXCEPTIONS lists for the story, each with its tracking issue.
  */
-setProjectAnnotations(preview);
+// Real input for the play functions (stories/helpers/real-input.ts): Playwright drives the browser,
+// so a scrub or a key press is a trusted event with pointer capture and hit testing, as a reader's is.
+setProjectAnnotations([preview, { parameters: { realInput: { userEvent, commands } } }]);
 
 const MODULES = import.meta.glob<Record<string, StoryFn> & { default: Meta }>(
     "../../stories/**/*.stories.@(js|jsx|ts|tsx)",

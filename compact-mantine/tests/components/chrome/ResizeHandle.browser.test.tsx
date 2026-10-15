@@ -1,7 +1,7 @@
 import { DirectionProvider, MantineProvider } from "@mantine/core";
-import { fireEvent, render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { compactTheme } from "../../../src";
 import { ResizeHandle, type ResizeHandleProps } from "../../../src/components/chrome/ResizeHandle";
@@ -22,13 +22,6 @@ function renderHandle(props: Partial<ResizeHandleProps> = {}, rtl = false): HTML
     );
     return screen.getByRole("separator");
 }
-
-// jsdom has no pointer capture.
-Object.assign(HTMLElement.prototype, {
-    setPointerCapture: vi.fn(),
-    releasePointerCapture: vi.fn(),
-    hasPointerCapture: vi.fn(() => true),
-});
 
 describe("ResizeHandle", () => {
     describe("the window splitter pattern", () => {
@@ -116,19 +109,19 @@ describe("ResizeHandle", () => {
     });
 
     describe("the pointer", () => {
-        // The drag itself is measured with a real pointer in tests/figma/chrome.browser.test.tsx:
-        // jsdom's pointer events carry no coordinates.
-        it("ignores a move with no press", () => {
+        // The drag itself is measured in tests/figma/chrome.browser.test.tsx.
+        it("ignores a move with no press", async () => {
             const onChange = vi.fn();
             const handle = renderHandle({ defaultValue: 300, onChange });
-            fireEvent.pointerMove(handle, { clientX: 140, pointerId: 1 });
+            await userEvent.hover(handle);
+            await userEvent.hover(document.body, { position: { x: 140, y: 1 } });
             expect(onChange).not.toHaveBeenCalled();
         });
 
-        it("resets to its default size on a double-click", () => {
+        it("resets to its default size on a double-click", async () => {
             const onChangeEnd = vi.fn();
             const handle = renderHandle({ value: 420, defaultValue: 240, onChangeEnd });
-            fireEvent.doubleClick(handle);
+            await userEvent.dblClick(handle);
             expect(onChangeEnd).toHaveBeenCalledWith(240);
         });
     });

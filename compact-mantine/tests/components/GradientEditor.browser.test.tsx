@@ -1,11 +1,12 @@
 import { DirectionProvider, MantineProvider } from "@mantine/core";
-import { fireEvent, render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { type ColorStop, compactTheme, createColorStop, GradientEditor, PopoutManager } from "../../src";
 import { LabelsProvider } from "../../src/i18n";
+import { drag } from "../harness/mouse";
 
 /**
  * Helper to render GradientEditor with required providers
@@ -180,7 +181,8 @@ describe("GradientEditor", () => {
         const addButton = screen.getByRole("button", { name: /add/i });
         expect(addButton).toBeDisabled();
 
-        await user.click(addButton);
+        // force: a disabled control fails Playwright's actionability check, but a reader can still press it.
+        await user.click(addButton, { force: true });
         expect(onChange).not.toHaveBeenCalled();
     });
 
@@ -192,7 +194,7 @@ describe("GradientEditor", () => {
         const removeButtons = screen.getAllByRole("button", { name: /remove/i });
         expect(removeButtons[0]).toBeDisabled();
 
-        await user.click(removeButtons[0]);
+        await user.click(removeButtons[0], { force: true });
         expect(onChange).not.toHaveBeenCalled();
     });
 
@@ -349,7 +351,7 @@ describe("GradientEditor", () => {
             expect(onChangeEnd).toHaveBeenCalledTimes(3);
         });
 
-        it("reports one start for a pointer drag, carrying the press that began it", () => {
+        it("reports one start for a pointer drag, carrying the press that began it", async () => {
             const onChangeStart = vi.fn();
 
             const { container } = renderGradientEditor(
@@ -362,8 +364,7 @@ describe("GradientEditor", () => {
             );
 
             const handle = container.querySelectorAll<HTMLElement>("[data-testid='gradient-editor-handle']")[0];
-            fireEvent.pointerDown(handle);
-            fireEvent.pointerMove(handle, { clientX: 20 });
+            await drag(handle, { x: 4, y: 4 }, { x: 20, y: 0 });
 
             expect(onChangeStart).toHaveBeenCalledTimes(1);
             expect(onChangeStart.mock.calls[0][0].type).toBe("pointerdown");
@@ -419,24 +420,25 @@ describe("GradientEditor", () => {
             expect(onChange.mock.calls.at(-1)?.[0][0].offset).toBe(0);
         });
 
-        it("marks the stop whose handle has focus as selected, handle and row alike", () => {
+        it("marks the stop whose handle has focus as selected, handle and row alike", async () => {
             renderGradientEditor(<GradientEditor defaultStops={defaultStops} />);
 
             const second = screen.getByRole("slider", { name: "Stop 2 position" });
-            fireEvent.focus(second);
+            second.focus();
 
-            expect(second).toHaveAttribute("data-selected");
+            // A programmatic focus outside React's event system renders on the next tick.
+            await expect.element(second).toHaveAttribute("data-selected");
             expect(screen.getAllByTestId("gradient-editor-stop")[1]).toHaveAttribute("data-selected");
             expect(screen.getAllByTestId("gradient-editor-stop")[0]).not.toHaveAttribute("data-selected");
         });
 
-        it("adds a stop where the bar is clicked, its color mixed from its neighbors", () => {
+        it("adds a stop where the bar is clicked, its color mixed from its neighbors", async () => {
             const onChange = vi.fn();
             renderGradientEditor(<GradientEditor defaultStops={defaultStops} onChange={onChange} />);
 
             const bar = screen.getByTestId("gradient-editor-bar");
-            bar.getBoundingClientRect = () => ({ left: 0, width: 200, top: 0, height: 32 }) as DOMRect;
-            fireEvent.click(bar, { clientX: 50 });
+            const { width, height } = bar.getBoundingClientRect();
+            await userEvent.click(bar, { position: { x: width / 4, y: height / 2 } });
 
             const [nextStops] = onChange.mock.calls[0];
             expect(nextStops).toHaveLength(3);
@@ -611,10 +613,10 @@ describe("GradientEditor", () => {
             expect(onChange).not.toHaveBeenCalled();
         });
 
-        it("focus entering a row selects its stop for the picker", () => {
+        it("focus entering a row selects its stop for the picker", async () => {
             renderGradientEditor(<GradientEditor defaultStops={defaultStops} />);
 
-            fireEvent.focus(screen.getAllByRole("textbox", { name: /^stop \d+ color$/i })[1]);
+            await userEvent.click(screen.getAllByRole("textbox", { name: /^stop \d+ color$/i })[1]);
 
             expect(screen.getAllByTestId("gradient-editor-stop")[1]).toHaveAttribute("data-selected");
             expect(screen.getByRole("textbox", { name: "Color value" })).toHaveValue("0000FF");

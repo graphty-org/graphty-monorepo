@@ -10,7 +10,7 @@
 import { screen, within } from "@testing-library/react";
 import React from "react";
 import { afterEach, describe, expect, it } from "vitest";
-import { userEvent } from "vitest/browser";
+import { commands, userEvent } from "vitest/browser";
 
 import { DataTable, type DataTableColumn } from "../../src/components/DataTable";
 import { DataRow, DataRowHeader, RankChip } from "../../src/components/rows/DataRow";
@@ -71,6 +71,25 @@ async function renderTree(
 }
 
 const row = (name: string): HTMLElement => screen.getByRole("treeitem", { name });
+
+/**
+ * Start a real drag on one row and hold it over another; resetHarness releases it after the test.
+ * Chromium starts the drag on the first move past its threshold, and a row gets dragover only on
+ * the moves after the one that entered it, so the pointer moves several times, as a hand does.
+ * @param source - the row pressed
+ * @param target - the row held over
+ * @param at - where on the target the pointer rests
+ */
+async function holdDragOver(source: HTMLElement, target: HTMLElement, at: { x: number; y: number }): Promise<void> {
+    await userEvent.hover(source, { position: { x: 50, y: 16 } });
+    await commands.mouseDown();
+    for (const x of [56, 62, 68]) {
+        await userEvent.hover(source, { position: { x, y: 16 }, force: true });
+    }
+    for (const dx of [0, 1, 2]) {
+        await userEvent.hover(target, { position: { x: at.x + dx, y: at.y }, force: true });
+    }
+}
 
 describe.skipIf(!(await figmaAvailable()))("Tree rows against Figma", () => {
     it("top-level row: 32 x 240, glyph at x 16, name at x 40, 11/32 600, primary glyph", async () => {
@@ -299,18 +318,7 @@ describe.skipIf(!(await figmaAvailable()))("Tree rows against Figma", () => {
         const tree = await renderTree({ onMove: () => undefined, defaultExpanded: [] });
         const source = row("other");
         const target = row("cross-area-index");
-        const data = new DataTransfer();
-        source.dispatchEvent(new DragEvent("dragstart", { bubbles: true, dataTransfer: data }));
-        const box = target.getBoundingClientRect();
-        target.dispatchEvent(
-            new DragEvent("dragover", {
-                bubbles: true,
-                cancelable: true,
-                dataTransfer: data,
-                clientY: box.top + 16,
-                clientX: box.left + 50,
-            }),
-        );
+        await holdDragOver(source, target, { x: 50, y: 16 });
         const drop = await within(tree).findByTestId("tree-drop-box");
         expectMeasured(drop, {
             ...figmaSpec(figBox, ["height", "borderTopWidth", "borderTopColor", "borderStyle", "borderRadius"]),
@@ -323,18 +331,8 @@ describe.skipIf(!(await figmaAvailable()))("Tree rows against Figma", () => {
         const tree = await renderTree({ onMove: () => undefined });
         const source = row("other");
         const target = row("ci-inner-frame");
-        const data = new DataTransfer();
-        source.dispatchEvent(new DragEvent("dragstart", { bubbles: true, dataTransfer: data }));
         const box = target.getBoundingClientRect();
-        target.dispatchEvent(
-            new DragEvent("dragover", {
-                bubbles: true,
-                cancelable: true,
-                dataTransfer: data,
-                clientY: box.top + 2,
-                clientX: box.left + 50,
-            }),
-        );
+        await holdDragOver(source, target, { x: 50, y: 2 });
         const line = await within(tree).findByTestId("tree-drop-line");
         expectMeasured(
             line,

@@ -1721,7 +1721,7 @@ export class LineReader implements AsyncIterable<string> {
             }
             if (start < chunk.length) {
                 pending.appendRest(chunk, start, this.lineNumber + 1);
-                trailingCr = chunk.charCodeAt(chunk.length - 1) === 13;
+                trailingCr = chunk.codePointAt(chunk.length - 1) === 13;
             }
         }
         if (!pending.empty) {
@@ -1857,7 +1857,7 @@ class LineBreaks {
                 return false;
             }
             this.cut = cr;
-            this.next = chunk.charCodeAt(cr + 1) === 10 ? cr + 2 : cr + 1;
+            this.next = chunk.codePointAt(cr + 1) === 10 ? cr + 2 : cr + 1;
             return true;
         }
         if (nl < 0) {

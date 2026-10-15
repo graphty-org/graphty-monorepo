@@ -1,8 +1,9 @@
 import { PopoutManager } from "@graphty/compact-mantine";
 import React from "react";
 import { describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
-import { fireEvent, render, screen } from "../../../../test/test-utils";
+import { render, screen } from "../../../../test/test-utils";
 import { keyChipFor } from "../../bindings";
 import { ShellProvider } from "../../ShellContext";
 import { GraphSummary, type GraphSummaryCounts, type GraphSummaryProps } from "../GraphSummary";
@@ -231,11 +232,11 @@ describe("GraphSummary", () => {
             expect(axis).toHaveTextContent("4");
         });
 
-        it("offers See all N ranked", () => {
+        it("offers See all N ranked", async () => {
             const onSeeAllRanked = vi.fn();
             renderSummary({ onSeeAllRanked });
 
-            fireEvent.click(screen.getByRole("button", { name: "See all 20 ranked" }));
+            await userEvent.click(screen.getByRole("button", { name: "See all 20 ranked" }));
 
             expect(onSeeAllRanked).toHaveBeenCalledTimes(1);
         });
@@ -246,8 +247,8 @@ describe("GraphSummary", () => {
 
             expect(screen.getByRole("button", { name: "Show in table" })).toBeInTheDocument();
 
-            fireEvent.click(screen.getByRole("button", { name: "Export" }));
-            fireEvent.click(await screen.findByRole("menuitem", { name: "Export top 20 (CSV)" }));
+            await userEvent.click(screen.getByRole("button", { name: "Export" }));
+            await userEvent.click(await screen.findByRole("menuitem", { name: "Export top 20 (CSV)" }));
 
             expect(onExportTop).toHaveBeenCalledTimes(1);
         });
@@ -316,18 +317,18 @@ describe("GraphSummary", () => {
             ).toBeDisabled();
         });
 
-        it("keeps its summary as its state mark once it is closed", () => {
+        it("keeps its summary as its state mark once it is closed", async () => {
             renderSummary();
 
-            fireEvent.click(screen.getByRole("button", { name: "Collapse Schema" }));
+            await userEvent.click(screen.getByRole("button", { name: "Collapse Schema" }));
 
             expect(screen.getByTestId("schema-summary-mark")).toHaveTextContent("3 node types, 7 edge types");
         });
 
-        it("reads measuring... until the schema has been extracted", () => {
+        it("reads measuring... until the schema has been extracted", async () => {
             renderSummary({ schema: { ...defaultProps.schema, ready: false } });
 
-            fireEvent.click(screen.getByRole("button", { name: "Collapse Schema" }));
+            await userEvent.click(screen.getByRole("button", { name: "Collapse Schema" }));
 
             expect(screen.getByTestId("schema-summary-mark")).toHaveTextContent("measuring...");
         });
@@ -343,7 +344,7 @@ describe("GraphSummary", () => {
         it("opens onto Nodes and Edges tabs", async () => {
             renderSummary();
 
-            fireEvent.click(screen.getByRole("button", { name: "Expand Attributes" }));
+            await userEvent.click(screen.getByRole("button", { name: "Expand Attributes" }));
 
             expect(await screen.findByRole("tab", { name: "Nodes 2" })).toBeInTheDocument();
             expect(await screen.findByRole("tab", { name: "Edges 1" })).toBeInTheDocument();
@@ -401,22 +402,22 @@ describe("GraphSummary", () => {
             expect(screen.getByRole("button", { name: "3 case notes" })).toBeInTheDocument();
         });
 
-        it("opens the graph-level annotation", () => {
+        it("opens the graph-level annotation", async () => {
             const onOpenCaseNotes = vi.fn();
             renderSummary({ onOpenCaseNotes });
 
-            fireEvent.click(screen.getByRole("button", { name: "Add a case note" }));
+            await userEvent.click(screen.getByRole("button", { name: "Add a case note" }));
 
             expect(onOpenCaseNotes).toHaveBeenCalledTimes(1);
         });
     });
 
     describe("More in Analyze", () => {
-        it("is the single link into that panel", () => {
+        it("is the single link into that panel", async () => {
             const onMoreInAnalyze = vi.fn();
             renderSummary({ onMoreInAnalyze });
 
-            fireEvent.click(screen.getByRole("button", { name: "More in Analyze" }));
+            await userEvent.click(screen.getByRole("button", { name: "More in Analyze" }));
 
             expect(onMoreInAnalyze).toHaveBeenCalledTimes(1);
         });

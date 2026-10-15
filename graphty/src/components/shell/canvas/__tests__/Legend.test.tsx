@@ -1,7 +1,8 @@
 import React from "react";
 import { describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
-import { fireEvent, render, screen } from "../../../../test/test-utils";
+import { render, screen } from "../../../../test/test-utils";
 import { LEGEND_MAX_HEIGHT, LEGEND_WIDTH, OVERLAY_INSET } from "../../constants";
 import { Legend, type LegendChannel, type LegendOtherRow } from "../Legend";
 import { capLegendCategories, orderLegendChannels } from "../legendChannels";
@@ -142,11 +143,11 @@ describe("Legend", () => {
             expect(screen.getAllByText("not measured (12 nodes)").length).toBeGreaterThan(0);
         });
 
-        it("opens the groups table from the Other row", () => {
+        it("opens the groups table from the Other row", async () => {
             const onClick = vi.fn();
             render(<Legend {...defaultProps} channels={[{ ...COLOR, other: { ...OTHER, onClick } }]} />);
 
-            fireEvent.click(screen.getByRole("button", { name: /Other/ }));
+            await userEvent.click(screen.getByRole("button", { name: /Other/ }));
 
             expect(onClick).toHaveBeenCalledTimes(1);
         });

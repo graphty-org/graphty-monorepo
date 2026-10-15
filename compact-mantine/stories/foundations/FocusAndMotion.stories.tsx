@@ -142,7 +142,7 @@ export const Motion: Story = {
         await expect(duration(".mantine-Switch-thumb")).toBe(moving);
         // The menu is drawn in full the moment it opens.
         await userEvent.click(canvas.getByRole("button", { name: "Open a menu" }));
-        const menu = await within(doc.body).findByRole("menu");
+        const menu = await within(doc.body).findByRole("menu", {}, storyWaitOptions(1000));
         await expect(getComputedStyle(menu).opacity).toBe("1");
         await expect(getComputedStyle(menu).transitionDuration).toBe("0s");
         await userEvent.keyboard("{Escape}");
@@ -154,6 +154,6 @@ export const Motion: Story = {
         await userEvent.unhover(canvas.getByRole("button", { name: "Hover me" }));
         // The tooltip closes after its close delay; the story is finished once it has, so a
         // screenshot never catches it half the time.
-        await waitFor(() => expect(within(doc.body).queryByRole("tooltip")).toBeNull());
+        await waitFor(() => expect(within(doc.body).queryByRole("tooltip")).toBeNull(), storyWaitOptions(1000));
     },
 };

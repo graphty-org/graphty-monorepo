@@ -451,13 +451,26 @@ function readEdge(real: Realizer, put: PutValue, at: SiteOf): void {
         put("sourceArrow", canonEnum("arrow", treeAttr(arrows, "source"), "yed", at("sourceArrow")));
         put("targetArrow", canonEnum("arrow", treeAttr(arrows, "target"), "yed", at("targetArrow")));
     }
-    if (real.type !== "PolyLineEdge") {
-        put("curved", true);
-    } else {
-        const smoothed = treeAttr(treeChild(r, "BendStyle"), "smoothed");
-        put("curved", smoothed === undefined ? null : smoothed === "true");
-    }
+    put("curved", edgeCurved(real));
     readLabels(treeChildren(r, "EdgeLabel"), false, put, at);
+}
+
+/**
+ * Whether yEd draws an edge curved: an arc always; a Bezier, quad curve, spline or generic edge only through its
+ * control points (with none it is a straight line); a polyline only when it smooths bends it has.
+ * @param real - the edge realizer
+ * @returns true when curved, null when a polyline does not say whether it smooths
+ */
+function edgeCurved(real: Realizer): boolean | null {
+    if (real.type === "ArcEdge") {
+        return true;
+    }
+    const bent = treeChildren(treeChild(real.r, "Path"), "Point").length > 0;
+    if (real.type !== "PolyLineEdge") {
+        return bent;
+    }
+    const smoothed = treeAttr(treeChild(real.r, "BendStyle"), "smoothed");
+    return smoothed === undefined ? null : smoothed === "true" && bent;
 }
 
 /** Canonical values per property, by element index. */

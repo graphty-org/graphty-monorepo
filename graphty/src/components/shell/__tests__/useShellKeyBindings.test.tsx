@@ -190,6 +190,23 @@ describe("useShellKeyBindings", () => {
             expect(onToggleMinimap).toHaveBeenCalledTimes(1);
         });
 
+        it("leaves an arrow on a radio or a slider to that control", () => {
+            const panOrOrbit = vi.fn();
+            const radio = mountElement('<input type="radio" name="mode" />');
+            const slider = mountElement('<input type="range" />');
+
+            mountDispatcher({ handlers: { panOrOrbit } });
+            press("ArrowRight", {}, radio);
+            press("ArrowUp", {}, slider);
+
+            expect(panOrOrbit).not.toHaveBeenCalled();
+
+            press("m", {}, radio);
+            press("ArrowRight", {}, mountElement("<button>Run</button>"));
+
+            expect(panOrOrbit).toHaveBeenCalledTimes(1);
+        });
+
         it("leaves Escape to the widget while focus is in a text field", () => {
             const closeTopmostTransient = vi.fn(() => true);
             const input = mountElement('<input type="text" />');

@@ -705,7 +705,15 @@ export class Ingest<K extends KnownEdge> {
             const record = frozenRecord(edge);
             if (known !== null) {
                 tally.repeatedSeen++;
-                if (this.mergeRepeat(known, record, weight.weight, policy, srcNodeId, dstNodeId, tally, writer)) {
+                if (
+                    this.mergeRepeat(
+                        known,
+                        { record, weight: weight.weight, sourceId: srcNodeId, targetId: dstNodeId },
+                        policy,
+                        tally,
+                        writer,
+                    )
+                ) {
                     tally.edgeIds.push(null);
                     continue;
                 }
@@ -924,11 +932,12 @@ export class Ingest<K extends KnownEdge> {
     /**
      * Apply the repeat policy to one record that names an edge the graph already holds.
      * @param known - the edge already present
-     * @param record - the repeating record
-     * @param weight - the repeating record's resolved weight
+     * @param repeat - the repeating record
+     * @param repeat.record - the record itself
+     * @param repeat.weight - its resolved weight
+     * @param repeat.sourceId - the source endpoint id, for the error message
+     * @param repeat.targetId - the target endpoint id, for the error message
      * @param policy - what to do about it
-     * @param sourceId - the source endpoint id, for the error message
-     * @param targetId - the target endpoint id, for the error message
      * @param tally - the load's counters
      * @param writer - the graph primitives to write through
      * @returns true when the repeat has been dealt with and must not become an edge of its own
@@ -936,14 +945,17 @@ export class Ingest<K extends KnownEdge> {
      */
     private mergeRepeat(
         known: K,
-        record: Record<string | number, unknown>,
-        weight: number,
+        repeat: {
+            readonly record: Record<string | number, unknown>;
+            readonly weight: number;
+            readonly sourceId: NodeIdType;
+            readonly targetId: NodeIdType;
+        },
         policy: DuplicatePolicy,
-        sourceId: NodeIdType,
-        targetId: NodeIdType,
         tally: ImportTally,
         writer: GraphWriter,
     ): boolean {
+        const { record, weight, sourceId, targetId } = repeat;
         const decision = decideRepeat(policy, writer.store.builder.edgeWeight(known.edgeIndex), weight);
         if (decision.kind === "add") {
             tally.repeatedKept++;

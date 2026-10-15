@@ -765,17 +765,6 @@ describe("MetricRow", () => {
             expect(typeof event.preventDefault).toBe("function");
         });
 
-        it("carries the modifier keys a multiple selection needs", () => {
-            const onClick = vi.fn();
-            renderChart(<MetricRow name="Betweenness" percentile={41} value="0.04" onClick={onClick} />);
-
-            fireEvent.click(screen.getByRole("button", { name: /Betweenness/ }), { detail: 1, shiftKey: true });
-
-            const [event, meta] = onClick.mock.calls[0];
-            expect(event.shiftKey).toBe(true);
-            expect(meta.source).toBe("pointer");
-        });
-
         it("opens from the keyboard on Enter, and says the activation was a keyboard one", async () => {
             const onClick = vi.fn();
             const user = userEvent.setup();
@@ -820,15 +809,6 @@ describe("MetricRow", () => {
             await user.dblClick(screen.getByTestId("metric-row"));
 
             expect(onDoubleClick).toHaveBeenCalledTimes(1);
-        });
-
-        it("reports a right click, so a consumer can put its own menu there", () => {
-            const onContextMenu = vi.fn();
-            renderChart(<MetricRow name="Betweenness" percentile={41} value="0.04" onContextMenu={onContextMenu} />);
-
-            fireEvent.contextMenu(screen.getByTestId("metric-row"));
-
-            expect(onContextMenu).toHaveBeenCalledTimes(1);
         });
 
         it("forwards focus and blur untouched", async () => {

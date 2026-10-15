@@ -153,8 +153,6 @@ function ToolbarDivider(props: ToolbarDividerProps): React.JSX.Element {
 
     return (
         <div
-            role="separator"
-            aria-orientation="vertical"
             style={{
                 display: "flex",
                 alignItems: "center",
@@ -164,10 +162,13 @@ function ToolbarDivider(props: ToolbarDividerProps): React.JSX.Element {
                 flex: "0 0 auto",
             }}
         >
-            <div
+            <hr
+                aria-orientation="vertical"
                 style={{
                     width: profile.dividerRuleWidth,
                     height: profile.dividerRuleHeight,
+                    margin: 0,
+                    border: 0,
                     background: PANEL_INK.DIVIDER,
                 }}
             />

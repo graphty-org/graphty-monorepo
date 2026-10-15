@@ -1,5 +1,6 @@
 import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { fireEvent, render, screen } from "../../../../test/test-utils";
 import type { GraphtyHandle } from "../../../Graphty";
@@ -321,8 +322,8 @@ describe("AnalyzePanel", () => {
             const toggle = screen.getByTestId("analyze-card-view");
 
             expect(header).toContainElement(toggle);
-            expect(screen.getByRole("radio", { name: "Cards" })).toHaveAttribute("aria-checked", "true");
-            expect(screen.getByRole("radio", { name: "List" })).toHaveAttribute("aria-checked", "false");
+            expect(screen.getByRole("radio", { name: "Cards" })).toBeChecked();
+            expect(screen.getByRole("radio", { name: "List" })).not.toBeChecked();
         });
 
         it("remembers the chosen view under the panel's own key", () => {
@@ -331,6 +332,19 @@ describe("AnalyzePanel", () => {
             fireEvent.click(screen.getByRole("radio", { name: "List" }));
 
             expect(window.localStorage.getItem(ANALYZE_MEMORY_STORAGE_KEY)).toContain("list");
+        });
+
+        it("moves between Cards and List with the arrow keys, with a visible focus ring", async () => {
+            renderPanelInChrome();
+
+            const cards = screen.getByRole<HTMLInputElement>("radio", { name: "Cards" });
+            await userEvent.click(cards.labels?.[0] ?? cards);
+            await userEvent.keyboard("{ArrowRight}");
+
+            const list = screen.getByRole<HTMLInputElement>("radio", { name: "List" });
+            expect(list).toHaveFocus();
+            expect(list).toBeChecked();
+            expect(getComputedStyle(list.labels?.[0] ?? list).outlineStyle).toBe("solid");
         });
 
         it("draws nothing where there is no panel chrome to draw into", () => {

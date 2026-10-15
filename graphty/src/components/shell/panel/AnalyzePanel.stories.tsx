@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import React from "react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
+import { storyWaitOptions } from "../../../stories/wait";
 import type { GraphtyHandle } from "../../Graphty";
 import { ShellProvider } from "../ShellContext";
 import { ActivityPanel } from "./ActivityPanel";
@@ -101,6 +102,6 @@ export const ResultsAsList: Story = {
         await userEvent.unhover(label);
         await waitFor(async () => {
             await expect(within(document.body).queryByRole("tooltip")).toBeNull();
-        });
+        }, storyWaitOptions(1000));
     },
 };

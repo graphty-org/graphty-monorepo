@@ -3,6 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import React, { useState } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
 
+import { storyWaitOptions } from "../../../stories/wait";
 import { CANVAS_TOOLBAR_BOTTOM_OFFSET_BASE } from "../constants";
 import type { CanvasViewMode } from "../types";
 import { CANVAS_TOOLBAR_LABEL, CanvasToolbar, type CanvasToolbarComponentProps } from "./CanvasToolbar";
@@ -101,6 +102,8 @@ export const ViewsMenuOpen: Story = {
     play: async ({ canvasElement }) => {
         const bar = within(canvasElement).getByRole("toolbar", { name: CANVAS_TOOLBAR_LABEL });
         await userEvent.click(within(bar).getByRole("button", { name: VIEWS_LABEL }));
-        await expect(await within(document.body).findByRole("menu", { name: VIEWS_LABEL })).toBeVisible();
+        await expect(
+            await within(document.body).findByRole("menu", { name: VIEWS_LABEL }, storyWaitOptions(1000)),
+        ).toBeVisible();
     },
 };

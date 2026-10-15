@@ -130,11 +130,15 @@ export const SHARDS = [
         "test-command": "pnpm exec nx run graph-samples:coverage",
         "needs-browser": false,
     },
-    // cytoscape-extensions - single shard (Node.js, headless Cytoscape); resolves the graphty packages through their dist
+    // cytoscape-extensions - single shard (Node.js, headless Cytoscape); resolves the graphty packages through their dist.
+    // --exclude-task-dependencies: the coverage target depends on every package's build, and nx "restores" a cached
+    // build by deleting its dist and writing it again. Run beside the other shards, that pulled graph-format/dist out
+    // from under graphty's Vite dependency scan, which then re-bundled mid-run and reloaded the test page (issue #2860).
+    // The builds are already in place when the shards run (CI's build artifacts, the gate's Build step).
     {
         shard: "cytoscape-extensions",
         package: "cytoscape-extensions",
-        "test-command": "pnpm exec nx run cytoscape-extensions:coverage",
+        "test-command": "pnpm exec nx run cytoscape-extensions:coverage --exclude-task-dependencies",
         "needs-browser": false,
     },
     // cytoscape-extensions against the oldest Cytoscape its peer range admits (3.31.0, the first that ships its own

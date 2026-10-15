@@ -107,6 +107,28 @@ describe("the test matrix", () => {
         assert.equal(browser["needs-browser"], true);
     });
 
+    it("never rebuilds a package while other shards run (issue #2860)", () => {
+        // nx restores a cached build by deleting the package's dist and writing it again, so a shard whose
+        // nx target runs its task dependencies pulls dist directories out from under the shards beside it.
+        const nxJson = JSON.parse(readFileSync("nx.json", "utf8"));
+        const dependsOn = (project, target) => {
+            const read = (f) => (existsSync(f) ? JSON.parse(readFileSync(f, "utf8")) : {});
+            const fromProject = read(join(project, "project.json")).targets?.[target]?.dependsOn;
+            const fromPackage = read(join(project, "package.json")).nx?.targets?.[target]?.dependsOn;
+            return fromProject ?? fromPackage ?? nxJson.targetDefaults?.[target]?.dependsOn ?? [];
+        };
+        for (const s of SHARDS) {
+            for (const [, project, target, rest] of s["test-command"].matchAll(/nx run ([\w-]+):([\w-]+)([^;&|]*)/g)) {
+                if (rest.includes("--exclude-task-dependencies")) continue;
+                assert.deepEqual(
+                    dependsOn(project, target),
+                    [],
+                    `${s.shard}: nx run ${project}:${target} runs its dependencies`,
+                );
+            }
+        }
+    });
+
     it("runs every member of a group even after one fails, then fails naming it", () => {
         const fake = (shard, cmd) => ({ shard, package: shard, "test-command": cmd, "needs-browser": false });
         const entry = groupEntry("g", [fake("a", "echo ran-a"), fake("b", "cd / && false"), fake("c", "echo ran-c")]);

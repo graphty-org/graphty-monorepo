@@ -111,6 +111,11 @@ interface Case {
      */
     readonly superlinear?: number;
     /**
+     * The two graph sizes, when {@link SIZES} is too small for a per-call cost that grows with the
+     * graph to stand out from the call's constant work.
+     */
+    readonly sizes?: readonly [number, number];
+    /**
      * Build the state the call needs and return the call.
      * @param element - A freshly mounted element, its graph empty.
      * @param size - The graph size.
@@ -170,7 +175,6 @@ const CASES: readonly Case[] = [
     {
         methods: ["Graph.addNode", "DataManager.addNode"],
         growth: "linear",
-        superlinear: 2733,
         prepare: async (element, size) => {
             await fill(element, size);
             return () => Promise.all(nodesOf(size / 4, size).map((node) => element.graph.addNode(node as never)));
@@ -182,7 +186,6 @@ const CASES: readonly Case[] = [
     {
         methods: ["Graphty.addNode"],
         growth: "linear",
-        superlinear: 2733,
         prepare: async (element, size) => {
             await fill(element, size);
             return () => Promise.all(nodesOf(size / 4, size).map((node) => element.addNode(node as never)));
@@ -218,7 +221,6 @@ const CASES: readonly Case[] = [
     {
         methods: ["Graphty.addEdge", "DataManager.addEdge"],
         growth: "linear",
-        superlinear: 2733,
         prepare: async (element, size) => {
             await fill(element, size);
             const chords = Array.from({ length: size / 4 }, (_, at) => ({
@@ -284,7 +286,6 @@ const CASES: readonly Case[] = [
     {
         methods: ["DataManager.removeNodeAndIncidentEdges"],
         growth: "linear",
-        superlinear: 2733,
         prepare: async (element, size) => {
             await fill(element, size);
             const data = element.graph.getDataManager();
@@ -298,6 +299,36 @@ const CASES: readonly Case[] = [
         },
         check: (element, size) => {
             assert.strictEqual(drawn(element).nodes, size - size / 4);
+        },
+    },
+    {
+        // With an edge selected, each removal finds the removed node's edges to deselect them:
+        // its own edges, never a walk of every edge (issue #2788).
+        methods: ["SelectionManager.onEdgesRemoved"],
+        growth: "linear",
+        // A removal does a few hundred visits of its own; a walk of every edge stands out from that
+        // only once the graph holds more edges than that.
+        sizes: [400, 1600],
+        prepare: async (element, size) => {
+            await fill(element, size);
+            const data = element.graph.getDataManager();
+            const ids = [...data.edges.keys()];
+            // The first edge goes with n0, so the run deselects one edge while the far half of the
+            // path stays selected.
+            const kept = ids.slice(size / 2);
+            const delta = await element.graph.getSession().selection.apply({ edges: [ids[0], ...kept] });
+            assert.strictEqual(delta.edges, kept.length + 1, "the edges are selected");
+            return async () => {
+                for (const { id } of nodesOf(size / 4)) {
+                    data.removeNodeAndIncidentEdges(id);
+                }
+
+                await settled(element.graph);
+            };
+        },
+        check: (element, size) => {
+            assert.strictEqual(drawn(element).nodes, size - size / 4);
+            assert.strictEqual(drawn(element).edges, size - 1 - size / 4);
         },
     },
     {
@@ -540,7 +571,7 @@ describe("the data path does work in proportion to its reach", () => {
         scope.__GRAPHTY_STRICT_STATE__ = strict;
     });
 
-    for (const { methods, growth, superlinear, prepare, check } of CASES) {
+    for (const { methods, growth, superlinear, sizes, prepare, check } of CASES) {
         const reach = growth === "linear" ? "no more than linear in the graph" : "about the same at any size";
         // A call with an open superlinear issue is expected to fail, so the fix turns it green.
         const test = superlinear === undefined ? it : it.fails;
@@ -558,7 +589,7 @@ describe("the data path does work in proportion to its reach", () => {
                         element.remove();
                     }
                 },
-                { sizes: SIZES, growth, counter: `elements visited by ${methods.join(", ")}` },
+                { sizes: sizes ?? SIZES, growth, counter: `elements visited by ${methods.join(", ")}` },
             );
         });
     }

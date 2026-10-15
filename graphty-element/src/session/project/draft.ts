@@ -183,18 +183,25 @@ export function touchedBy(patch: Patch, into: TouchedIds): void {
     }
 
     for (const entry of patch.entries) {
-        if (entry.slice !== "sets") {
-            continue;
+        if (entry.slice === "sets") {
+            touchedBySet(entry, into);
         }
+    }
+}
 
-        for (const record of [entry.prior, entry.next]) {
-            // ponytail: only a fixed set names its node members; a rule or a path set would need
-            // resolving here against a snapshot, and none of the history paths does that yet.
-            const definition = record === ABSENT || record === undefined ? null : (record as ElementSet).definition;
-            if (definition?.kind === "fixed") {
-                for (const id of definition.nodes ?? []) {
-                    into.node(id);
-                }
+/**
+ * Report the node members of a fixed set a patch entry wrote or removed, prior then next.
+ * @param entry - A `sets` entry of the patch.
+ * @param into - Where to report them.
+ */
+function touchedBySet(entry: PatchEntry, into: TouchedIds): void {
+    for (const record of [entry.prior, entry.next]) {
+        // ponytail: only a fixed set names its node members; a rule or a path set would need
+        // resolving here against a snapshot, and none of the history paths does that yet.
+        const definition = record === ABSENT || record === undefined ? null : (record as ElementSet).definition;
+        if (definition?.kind === "fixed") {
+            for (const id of definition.nodes ?? []) {
+                into.node(id);
             }
         }
     }

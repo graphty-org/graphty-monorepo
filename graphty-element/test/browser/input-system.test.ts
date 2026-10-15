@@ -154,9 +154,9 @@ describe("Input System Architecture", () => {
             assert.isTrue(upEvent.info.ctrlKey, "Up event ctrlKey should be true");
         });
 
-        // A wheel turn on two axes is handled twice (issue #2937): Babylon raises one POINTERWHEEL
-        // per changed axis. Drop `.fails` with the fix.
-        test.fails("handles wheel events", async () => {
+        // A turn on two axes, as a trackpad sends: Babylon raises one POINTERWHEEL per changed axis,
+        // each carrying the same WheelEvent, and it must still arrive once (issue #2937).
+        test("handles wheel events", async () => {
             const wheelEvents: WheelInfo[] = [];
             inputSystem.onWheel.add((info) => wheelEvents.push(info));
 

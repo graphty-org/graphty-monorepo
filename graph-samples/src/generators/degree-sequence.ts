@@ -800,14 +800,25 @@ export function randomRegularGraph(options: RandomRegularOptions): SampleGraph {
                 `randomRegularGraph found no ${d}-regular graph on ${n} nodes in ${REGULAR_ATTEMPTS} attempts`,
             );
         }
-        for (let u = 0; u < n; u++) {
-            const row = adj.subarray(u * d, u * d + d).sort();
-            for (const v of row) {
-                if (v > u) {
-                    out.push(u, v);
-                }
+        pushRegularEdges(n, d, adj, out);
+    }
+    return applyWeights(toGraph(n, out, false), options);
+}
+
+/**
+ * Push the edges (u, v), u < v, of a d-regular adjacency table in lexicographic order.
+ * @param n - the node count
+ * @param d - the degree
+ * @param adj - row u holds u's d neighbours (sorted in place)
+ * @param out - receives the edges
+ */
+function pushRegularEdges(n: number, d: number, adj: Uint32Array, out: EdgeBuffer): void {
+    for (let u = 0; u < n; u++) {
+        const row = adj.subarray(u * d, u * d + d).sort();
+        for (const v of row) {
+            if (v > u) {
+                out.push(u, v);
             }
         }
     }
-    return applyWeights(toGraph(n, out, false), options);
 }

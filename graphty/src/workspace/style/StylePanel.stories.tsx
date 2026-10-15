@@ -274,6 +274,64 @@ export const TwoRows: Story = sceneStory(async ({ runs }) => {
     await page().findByRole("heading", { level: 2, name: "2 layers" });
 });
 
+/**
+ * Runs Leiden from Analyze, as a reader does, and selects the folder of group layers it makes: the
+ * Style panel then acts on every group layer, under its scope line, with Fill reading Mixed.
+ * @returns the Style tab.
+ */
+async function openLeidenFolder(): Promise<HTMLElement> {
+    const toolbar = page().getByRole("toolbar", { name: "Canvas tools" });
+    await userEvent.click(within(toolbar).getByRole("button", { name: "Analyze" }));
+    await userEvent.type(await page().findByRole("combobox", { name: "Filter analyses" }), "Leiden");
+    await userEvent.click(await page().findByRole("option", { name: /^Leiden/ }));
+    await userEvent.click(await page().findByRole("button", { name: "Run" }));
+    const tree = await page().findByRole("tree", { name: "Style layers" });
+    const folder = await within(tree).findByRole("treeitem", { name: /^Leiden, folder, / }, { timeout: 30_000 });
+    await userEvent.click(folder);
+    await page().findByText(/ layers in Leiden\b/);
+    return page().findByTestId("style-tab");
+}
+
+/**
+ * The Fill row of a Style tab.
+ * @param tab - the Style tab.
+ * @returns the row.
+ */
+async function fillRow(tab: HTMLElement): Promise<HTMLElement> {
+    return waitFor(() => {
+        const found = tab.querySelector<HTMLElement>('.ws-row[data-line="node.color"]');
+        expect(found).not.toBeNull();
+        return found as HTMLElement;
+    });
+}
+
+/** Leiden's folder of group layers selected: the scope line, and Fill reading Mixed with who sets it. */
+export const BulkFolder: Story = sceneStory(async () => {
+    const tab = await openLeidenFolder();
+    const fill = await fillRow(tab);
+    await within(fill).findByText(/layers set color/);
+});
+
+/** A color typed into the Mixed Fill of Leiden's folder: every group layer takes it, and the receipt says so. */
+export const BulkReceipt: Story = sceneStory(async () => {
+    const tab = await openLeidenFolder();
+    const fill = await fillRow(tab);
+    await userEvent.click(within(fill).getByRole("textbox", { name: /^Node color/ }));
+    await userEvent.keyboard("0072B2{Enter}");
+    await within(fill).findByRole("status");
+});
+
+/** Fill > Vary > the run's group on Leiden's folder: what the copied rule paints in each layer, before Apply. */
+export const BulkVaryByData: Story = sceneStory(async () => {
+    const tab = await openLeidenFolder();
+    const fill = await fillRow(tab);
+    await userEvent.hover(fill);
+    await userEvent.click(within(fill).getByRole("button", { name: "Node color by attribute" }));
+    const options = await page().findAllByRole("option", { name: /group|community|leiden/i });
+    await userEvent.click(options[0]);
+    await within(fill).findByRole("group", { name: /, in each layer$/ });
+});
+
 /** "+" > Layer: a real "Layer 1" on nodes and edges, its name ready to type, writing nothing yet. */
 export const NewLayer: Story = sceneStory(async () => {
     await userEvent.click(page().getByRole("button", { name: "Add a layer or a folder" }));

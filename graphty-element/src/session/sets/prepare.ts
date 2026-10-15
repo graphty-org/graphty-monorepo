@@ -1140,6 +1140,24 @@ export function edgeMemberKey(member: EdgeMember): string {
 }
 
 /**
+ * The keys of every edge member a fixed set or a path names, a path's groups flattened.
+ * @param edges - The definition's edges.
+ * @returns The keys.
+ */
+function edgeMemberKeysOf(edges: Extract<SetDefinition, { kind: "fixed" | "path" }>["edges"]): Set<string> {
+    const built = new Set<string>();
+    for (const step of edges ?? []) {
+        for (const each of Array.isArray(step) ? (step as readonly EdgeMember[]) : [step as EdgeMember | null]) {
+            if (each !== null) {
+                built.add(edgeMemberKey(each));
+            }
+        }
+    }
+
+    return built;
+}
+
+/**
  * Whether a definition holds an edge member: a binary search over a fixed set's edge columns, a
  * lookup in the keys of anything else's edges (a path's steps, a restored fixed set), built on
  * first use so a write that asks about every member of a path does not scan the path per member.
@@ -1159,16 +1177,7 @@ export function holdsEdgeMember(definition: SetDefinition, member: EdgeMember): 
 
     let keys = memberKeysOf.get(definition);
     if (keys === undefined) {
-        const built = new Set<string>();
-        for (const step of definition.edges ?? []) {
-            for (const each of Array.isArray(step) ? (step as readonly EdgeMember[]) : [step as EdgeMember | null]) {
-                if (each !== null) {
-                    built.add(edgeMemberKey(each));
-                }
-            }
-        }
-
-        keys = built;
+        keys = edgeMemberKeysOf(definition.edges);
         memberKeysOf.set(definition, keys);
     }
 

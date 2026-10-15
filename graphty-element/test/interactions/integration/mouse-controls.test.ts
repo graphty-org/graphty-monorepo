@@ -2,14 +2,15 @@
  * Mouse Controls Integration Tests
  *
  * These tests verify mouse interactions in a real browser environment
- * by creating Graph instances directly and simulating mouse events.
+ * by creating Graph instances directly and driving them with real mouse and keyboard input
+ * (test/helpers/real-input.ts).
  */
 
-import { PointerEventTypes, type PointerInfo, type PointerInfoPre } from "@babylonjs/core";
 import { assert } from "chai";
-import { afterEach, beforeEach, describe, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 import { Graph, operationQueueOf } from "../../../src/Graph";
+import { click, drag, holdKey, releaseHeldKeys, releaseKey, wheel } from "../../helpers/real-input";
 import { configureGraph } from "../../helpers/testSetup";
 
 const TEST_NODES = [{ id: 1 }, { id: 2 }, { id: 3 }];
@@ -43,12 +44,13 @@ describe("Mouse Controls Integration", () => {
             await graph.waitForStableFrame();
         });
 
-        afterEach(() => {
+        afterEach(async () => {
+            await releaseHeldKeys();
             graph.dispose();
             document.body.removeChild(container);
         });
 
-        test("drag to pan in 2D mode", () => {
+        test("drag to pan in 2D mode", async () => {
             // Get the camera controller
             const cameraController = graph.camera.getActiveController();
             assert.isDefined(cameraController, "Camera controller should be defined");
@@ -62,47 +64,14 @@ describe("Mouse Controls Integration", () => {
             // Spy on the pan method to verify it's being called
             const panSpy = vi.spyOn(twoDController, "pan");
 
-            const { scene } = graph;
-
-            // Simulate mouse pan via scene observables
-            // Pointer down at position 100, 100
-            scene.onPointerObservable.notifyObservers({
-                type: PointerEventTypes.POINTERDOWN,
-                event: {
-                    clientX: 100,
-                    clientY: 100,
-                    buttons: 1,
-                    button: 0,
-                } as PointerEvent,
-            } as unknown as PointerInfo);
-
-            // Pointer move to position 200, 150 (drag right and down)
-            scene.onPointerObservable.notifyObservers({
-                type: PointerEventTypes.POINTERMOVE,
-                event: {
-                    clientX: 200,
-                    clientY: 150,
-                    buttons: 1,
-                    button: 0,
-                } as PointerEvent,
-            } as unknown as PointerInfo);
-
-            // Pointer up
-            scene.onPointerObservable.notifyObservers({
-                type: PointerEventTypes.POINTERUP,
-                event: {
-                    clientX: 200,
-                    clientY: 150,
-                    buttons: 0,
-                    button: 0,
-                } as PointerEvent,
-            } as unknown as PointerInfo);
+            // A real drag from 100, 100 to 200, 150 (right and down)
+            await drag(graph.canvas, { x: 100, y: 100 }, { x: 200, y: 150 });
 
             // Pan method should have been called during the drag
             assert.isAbove(panSpy.mock.calls.length, 0, "pan() should be called during mouse drag");
         });
 
-        test("wheel to zoom in 2D mode", () => {
+        test("wheel to zoom in 2D mode", async () => {
             // Get the camera controller
             const cameraController = graph.camera.getActiveController();
             if (!cameraController) {
@@ -114,29 +83,18 @@ describe("Mouse Controls Integration", () => {
             const initialOrthoBottom = camera.orthoBottom ?? -10;
             const initialRange = initialOrthoTop - initialOrthoBottom;
 
-            const { scene } = graph;
-
-            // Simulate wheel zoom in (negative deltaY)
-            scene.onPrePointerObservable.notifyObservers(
-                {
-                    type: PointerEventTypes.POINTERWHEEL,
-                    event: {
-                        deltaY: -100,
-                        preventDefault: vi.fn(),
-                    } as unknown as WheelEvent,
-                } as unknown as PointerInfoPre,
-                PointerEventTypes.POINTERWHEEL,
-            );
-
-            const newOrthoTop = camera.orthoTop ?? 10;
-            const newOrthoBottom = camera.orthoBottom ?? -10;
-            const newRange = newOrthoTop - newOrthoBottom;
+            // A real wheel turn up (negative deltaY)
+            await wheel(graph.canvas, { x: 200, y: 150 }, -100);
 
             // Zoom in should decrease ortho range
-            assert.isBelow(newRange, initialRange, "Wheel up should zoom in (decrease ortho range)");
+            await expect
+                .poll(() => (camera.orthoTop ?? 10) - (camera.orthoBottom ?? -10), {
+                    message: "Wheel up should zoom in (decrease ortho range)",
+                })
+                .toBeLessThan(initialRange);
         });
 
-        test("wheel down to zoom out in 2D mode", () => {
+        test("wheel down to zoom out in 2D mode", async () => {
             // Get the camera controller
             const cameraController = graph.camera.getActiveController();
             if (!cameraController) {
@@ -148,26 +106,15 @@ describe("Mouse Controls Integration", () => {
             const initialOrthoBottom = camera.orthoBottom ?? -10;
             const initialRange = initialOrthoTop - initialOrthoBottom;
 
-            const { scene } = graph;
-
-            // Simulate wheel zoom out (positive deltaY)
-            scene.onPrePointerObservable.notifyObservers(
-                {
-                    type: PointerEventTypes.POINTERWHEEL,
-                    event: {
-                        deltaY: 100,
-                        preventDefault: vi.fn(),
-                    } as unknown as WheelEvent,
-                } as unknown as PointerInfoPre,
-                PointerEventTypes.POINTERWHEEL,
-            );
-
-            const newOrthoTop = camera.orthoTop ?? 10;
-            const newOrthoBottom = camera.orthoBottom ?? -10;
-            const newRange = newOrthoTop - newOrthoBottom;
+            // A real wheel turn down (positive deltaY)
+            await wheel(graph.canvas, { x: 200, y: 150 }, 100);
 
             // Zoom out should increase ortho range
-            assert.isAbove(newRange, initialRange, "Wheel down should zoom out (increase ortho range)");
+            await expect
+                .poll(() => (camera.orthoTop ?? 10) - (camera.orthoBottom ?? -10), {
+                    message: "Wheel down should zoom out (increase ortho range)",
+                })
+                .toBeGreaterThan(initialRange);
         });
     });
 
@@ -191,12 +138,13 @@ describe("Mouse Controls Integration", () => {
             await graph.waitForStableFrame();
         });
 
-        afterEach(() => {
+        afterEach(async () => {
+            await releaseHeldKeys();
             graph.dispose();
             document.body.removeChild(container);
         });
 
-        test("drag to orbit in 3D mode", () => {
+        test("drag to orbit in 3D mode", async () => {
             // Get the camera controller - 3D mode uses OrbitCameraController
             const cameraController = graph.camera.getActiveController();
             assert.isDefined(cameraController, "Camera controller should be defined");
@@ -216,28 +164,7 @@ describe("Mouse Controls Integration", () => {
             const { canvas } = graph;
 
             // 3D mode uses direct canvas events
-            canvas.dispatchEvent(
-                new PointerEvent("pointerdown", {
-                    clientX: 100,
-                    clientY: 100,
-                    button: 0,
-                    bubbles: true,
-                }),
-            );
-
-            canvas.dispatchEvent(
-                new PointerEvent("pointermove", {
-                    clientX: 200,
-                    clientY: 150,
-                    bubbles: true,
-                }),
-            );
-
-            canvas.dispatchEvent(
-                new PointerEvent("pointerup", {
-                    bubbles: true,
-                }),
-            );
+            await drag(canvas, { x: 100, y: 100 }, { x: 200, y: 150 }, 1);
 
             // Verify rotate was called with the movement delta
             assert.isAbove(rotateSpy.mock.calls.length, 0, "rotate() should be called during drag");
@@ -246,7 +173,7 @@ describe("Mouse Controls Integration", () => {
             assert.equal(dy, 50, "dy should be the difference in clientY (150 - 100)");
         });
 
-        test("keyboard W to zoom in 3D mode", () => {
+        test("keyboard W to zoom in 3D mode", async () => {
             // Get the camera controller - 3D mode uses OrbitCameraController
 
             const cameraManager = graph.camera as any;
@@ -259,9 +186,10 @@ describe("Mouse Controls Integration", () => {
             const initialDistance = orbitController.cameraDistance;
 
             const { canvas } = graph;
+            canvas.focus();
 
             // 3D mode uses W key for zoom in (decrease distance)
-            canvas.dispatchEvent(new KeyboardEvent("keydown", { key: "w", bubbles: true }));
+            await holdKey("w");
             inputController.update();
 
             assert.isBelow(
@@ -270,10 +198,10 @@ describe("Mouse Controls Integration", () => {
                 "W key should zoom in (decrease camera distance)",
             );
 
-            canvas.dispatchEvent(new KeyboardEvent("keyup", { key: "w", bubbles: true }));
+            await releaseKey("w");
         });
 
-        test("keyboard S to zoom out in 3D mode", () => {
+        test("keyboard S to zoom out in 3D mode", async () => {
             // Get the camera controller - 3D mode uses OrbitCameraController
 
             const cameraManager = graph.camera as any;
@@ -286,9 +214,10 @@ describe("Mouse Controls Integration", () => {
             const initialDistance = orbitController.cameraDistance;
 
             const { canvas } = graph;
+            canvas.focus();
 
             // 3D mode uses S key for zoom out (increase distance)
-            canvas.dispatchEvent(new KeyboardEvent("keydown", { key: "s", bubbles: true }));
+            await holdKey("s");
             inputController.update();
 
             assert.isAbove(
@@ -297,7 +226,7 @@ describe("Mouse Controls Integration", () => {
                 "S key should zoom out (increase camera distance)",
             );
 
-            canvas.dispatchEvent(new KeyboardEvent("keyup", { key: "s", bubbles: true }));
+            await releaseKey("s");
         });
     });
 
@@ -321,7 +250,8 @@ describe("Mouse Controls Integration", () => {
             await graph.waitForStableFrame();
         });
 
-        afterEach(() => {
+        afterEach(async () => {
+            await releaseHeldKeys();
             graph.dispose();
             document.body.removeChild(container);
         });
@@ -332,21 +262,14 @@ describe("Mouse Controls Integration", () => {
             assert.equal(canvas.getAttribute("tabindex"), "0", "Canvas should have tabindex='0' for focus");
         });
 
-        test("pointer down triggers canvas focus", () => {
+        test("pointer down triggers canvas focus", async () => {
             const { canvas } = graph;
 
             // Mock focus method
             const focusSpy = vi.spyOn(canvas, "focus").mockImplementation(() => undefined);
 
-            // 3D mode uses direct canvas events for pointer handling
-            canvas.dispatchEvent(
-                new PointerEvent("pointerdown", {
-                    clientX: 400,
-                    clientY: 300,
-                    button: 0,
-                    bubbles: true,
-                }),
-            );
+            // A real click on the canvas
+            await click(canvas, { x: 200, y: 150 });
 
             // Canvas should have been focused
             assert.isAbove(focusSpy.mock.calls.length, 0, "Canvas should be focused on pointer down");

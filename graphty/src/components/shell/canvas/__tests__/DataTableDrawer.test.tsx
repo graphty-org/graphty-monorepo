@@ -1,6 +1,7 @@
 import type { DataTableColumn } from "@graphty/compact-mantine";
 import React from "react";
 import { describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { fireEvent, render, screen } from "../../../../test/test-utils";
 import { keyChipFor } from "../../bindings";
@@ -58,8 +59,21 @@ describe("DataTableDrawer", () => {
         it("draws the Nodes and Edges tabs with Nodes checked", () => {
             render(<DataTableDrawer {...defaultProps} />);
 
-            expect(screen.getByRole("radio", { name: "Nodes" })).toHaveAttribute("aria-checked", "true");
-            expect(screen.getByRole("radio", { name: "Edges" })).toHaveAttribute("aria-checked", "false");
+            expect(screen.getByRole("radiogroup", { name: "Data table rows" })).toBeInTheDocument();
+            expect(screen.getByRole("radio", { name: "Nodes" })).toBeChecked();
+            expect(screen.getByRole("radio", { name: "Edges" })).not.toBeChecked();
+        });
+
+        it("moves between Nodes and Edges with the arrow keys", async () => {
+            const onTabChange = vi.fn();
+            render(<DataTableDrawer {...defaultProps} onTabChange={onTabChange} />);
+
+            const nodes = screen.getByRole<HTMLInputElement>("radio", { name: "Nodes" });
+            await userEvent.click(nodes.labels?.[0] ?? nodes);
+            await userEvent.keyboard("{ArrowRight}");
+
+            expect(onTabChange).toHaveBeenCalledWith("edges");
+            expect(screen.getByRole("radio", { name: "Edges" })).toHaveFocus();
         });
 
         it("draws the Show control with its count and total", () => {
@@ -181,8 +195,8 @@ describe("GraphTableSegment", () => {
         it("draws Graph and Table with the current half checked", () => {
             render(<GraphTableSegment value="graph" onChange={vi.fn()} />);
 
-            expect(screen.getByRole("radio", { name: "Graph" })).toHaveAttribute("aria-checked", "true");
-            expect(screen.getByRole("radio", { name: "Table" })).toHaveAttribute("aria-checked", "false");
+            expect(screen.getByRole("radio", { name: "Graph" })).toBeChecked();
+            expect(screen.getByRole("radio", { name: "Table" })).not.toBeChecked();
         });
     });
 
@@ -192,6 +206,21 @@ describe("GraphTableSegment", () => {
             render(<GraphTableSegment value="graph" onChange={onChange} />);
 
             fireEvent.click(screen.getByRole("radio", { name: "Table" }));
+
+            expect(onChange).toHaveBeenCalledWith("table");
+        });
+
+        it("switches with the arrow keys from one tab stop, with a visible focus ring", async () => {
+            const onChange = vi.fn();
+            render(<GraphTableSegment value="graph" onChange={onChange} />);
+
+            await userEvent.tab();
+
+            const graph = screen.getByRole<HTMLInputElement>("radio", { name: "Graph" });
+            expect(graph).toHaveFocus();
+            expect(getComputedStyle(graph.labels?.[0] ?? graph).outlineStyle).toBe("solid");
+
+            await userEvent.keyboard("{ArrowRight}");
 
             expect(onChange).toHaveBeenCalledWith("table");
         });

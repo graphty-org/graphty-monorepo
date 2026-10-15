@@ -371,17 +371,23 @@ const CASES: readonly Case[] = [
     {
         method: "NotesApi.update",
         growth: "constant",
-        prepare: (session, size) => {
+        prepare: async (session, size) => {
             const notes = ids(size).map((node) => session.notes.add({ text: node, targets: [{ node }] }));
-            return Promise.resolve(() => session.notes.update(notes[0], { text: "edited" }));
+            // Measured after the adds' pass has finished, so the count never depends on whether
+            // it has (#2844).
+            await session.styles.settled();
+            return () => session.notes.update(notes[0], { text: "edited" });
         },
     },
     {
         method: "NotesApi.remove",
         growth: "constant",
-        prepare: (session, size) => {
+        prepare: async (session, size) => {
             const notes = ids(size).map((node) => session.notes.add({ text: node, targets: [{ node }] }));
-            return Promise.resolve(() => session.notes.remove(notes[0]));
+            // Measured after the adds' pass has finished, so the count never depends on whether
+            // it has (#2844).
+            await session.styles.settled();
+            return () => session.notes.remove(notes[0]);
         },
     },
     {

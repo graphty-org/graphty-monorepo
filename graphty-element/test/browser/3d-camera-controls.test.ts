@@ -4,6 +4,7 @@ import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 import { OrbitCameraController } from "../../src/cameras/OrbitCameraController";
 import { OrbitInputController } from "../../src/cameras/OrbitInputController";
 import { Graph } from "../../src/Graph";
+import { click, drag, holdKey, moveHeld, press, release, releaseHeldKeys, releaseKey } from "../helpers/real-input";
 import { cleanupTestGraph, createTestGraph, setBehavior } from "../helpers/testSetup";
 
 describe("3D Camera Controls", () => {
@@ -37,23 +38,17 @@ describe("3D Camera Controls", () => {
         assert.isTrue((inputController as any).enabled, "Input controller should be enabled after camera activation");
     });
 
-    afterEach(() => {
+    afterEach(async () => {
+        await releaseHeldKeys();
         cleanupTestGraph(graph);
     });
 
-    test("mouse drag orbits camera", () => {
+    test("mouse drag orbits camera", async () => {
         const { canvas } = graph;
         canvas.focus();
 
-        // Test pointer event registration
-        canvas.dispatchEvent(
-            new PointerEvent("pointerdown", {
-                clientX: 100,
-                clientY: 100,
-                button: 0,
-                bubbles: true,
-            }),
-        );
+        // A real press on the canvas
+        await press(canvas, { x: 100, y: 100 });
 
         const { isPointerDown } = inputController as any;
         assert.isTrue(isPointerDown, "Pointer down should be registered");
@@ -61,13 +56,7 @@ describe("3D Camera Controls", () => {
         // Spy on the rotate method to verify it's called during drag
         const rotateSpy = vi.spyOn(cameraController, "rotate");
 
-        canvas.dispatchEvent(
-            new PointerEvent("pointermove", {
-                clientX: 200,
-                clientY: 150,
-                bubbles: true,
-            }),
-        );
+        await moveHeld(canvas, { x: 200, y: 150 });
 
         // Verify rotate was called with the movement delta
         assert.equal(rotateSpy.mock.calls.length, 1, "rotate() should be called once during pointer move");
@@ -75,64 +64,63 @@ describe("3D Camera Controls", () => {
         assert.equal(dx, 100, "dx should be the difference in clientX (200 - 100)");
         assert.equal(dy, 50, "dy should be the difference in clientY (150 - 100)");
 
-        canvas.dispatchEvent(
-            new PointerEvent("pointerup", {
-                bubbles: true,
-            }),
-        );
+        await release(canvas, { x: 200, y: 150 });
 
         const isPointerDownAfter = (inputController as any).isPointerDown;
         assert.isFalse(isPointerDownAfter, "Pointer down should be cleared after pointer up");
     });
 
-    test("arrow keys turn the camera, one way and the other", () => {
-        const { canvas } = graph;
+    test("arrow keys turn the camera, one way and the other", async () => {
+        graph.canvas.focus();
         const rotate = vi.spyOn(cameraController, "rotate");
         /**
          * The turn one update makes while a key is held.
          * @param key - The key.
          * @returns The yaw and pitch handed to the camera.
          */
-        const turnFor = (key: string): [number, number] => {
+        const turnFor = async (key: string): Promise<[number, number]> => {
+            await holdKey(key);
+            // Cleared after the press: the render loop's own updates turn the camera too while
+            // the key is held, and this counts only the one update below.
             rotate.mockClear();
-            canvas.dispatchEvent(new KeyboardEvent("keydown", { key }));
             inputController.update();
-            canvas.dispatchEvent(new KeyboardEvent("keyup", { key }));
-            assert.equal(rotate.mock.calls.length, 1, `${key} turned the camera once`);
-            return rotate.mock.calls[0];
+            const calls = rotate.mock.calls.length;
+            const [turn] = rotate.mock.calls;
+            await releaseKey(key);
+            assert.equal(calls, 1, `${key} turned the camera once`);
+            return turn;
         };
 
-        assert.isBelow(turnFor("ArrowLeft")[0], 0, "ArrowLeft turns one way");
-        assert.isAbove(turnFor("ArrowRight")[0], 0, "ArrowRight turns the other");
-        assert.isBelow(turnFor("ArrowUp")[1], 0, "ArrowUp tilts one way");
-        assert.isAbove(turnFor("ArrowDown")[1], 0, "ArrowDown tilts the other");
+        assert.isBelow((await turnFor("ArrowLeft"))[0], 0, "ArrowLeft turns one way");
+        assert.isAbove((await turnFor("ArrowRight"))[0], 0, "ArrowRight turns the other");
+        assert.isBelow((await turnFor("ArrowUp"))[1], 0, "ArrowUp tilts one way");
+        assert.isAbove((await turnFor("ArrowDown"))[1], 0, "ArrowDown tilts the other");
     });
 
-    test("WASD keys control camera movement", () => {
-        const { canvas } = graph;
+    test("WASD keys control camera movement", async () => {
+        graph.canvas.focus();
         const initialDistance = cameraController.cameraDistance;
 
         // Test W key (zoom in)
-        canvas.dispatchEvent(new KeyboardEvent("keydown", { key: "w" }));
+        await holdKey("w");
         inputController.update();
 
         assert.isTrue(cameraController.cameraDistance < initialDistance, "W key should zoom in (decrease distance)");
 
-        // Reset and test S key (zoom out)
+        // Release W, press S, reset and test S key (zoom out)
+        await releaseKey("w");
+        await holdKey("s");
         cameraController.cameraDistance = initialDistance;
-        canvas.dispatchEvent(new KeyboardEvent("keyup", { key: "w" }));
-        canvas.dispatchEvent(new KeyboardEvent("keydown", { key: "s" }));
         inputController.update();
 
         assert.isTrue(cameraController.cameraDistance > initialDistance, "S key should zoom out (increase distance)");
     });
 
-    test("AD keys control yaw (spin)", () => {
-        const { canvas } = graph;
-        canvas.focus();
+    test("AD keys control yaw (spin)", async () => {
+        graph.canvas.focus();
 
         // Test A key registration and spin method call
-        canvas.dispatchEvent(new KeyboardEvent("keydown", { key: "a", bubbles: true }));
+        await holdKey("a");
 
         const { keysDown } = inputController as any;
         assert.isTrue(keysDown.a === true, "A key should be registered as down");
@@ -150,8 +138,8 @@ describe("3D Camera Controls", () => {
         );
 
         // Test D key
-        canvas.dispatchEvent(new KeyboardEvent("keyup", { key: "a", bubbles: true }));
-        canvas.dispatchEvent(new KeyboardEvent("keydown", { key: "d", bubbles: true }));
+        await releaseKey("a");
+        await holdKey("d");
 
         assert.isTrue(keysDown.d === true, "D key should be registered as down");
 
@@ -166,36 +154,33 @@ describe("3D Camera Controls", () => {
             "spin() should be called with negative keyboardYawSpeed for D key",
         );
 
-        canvas.dispatchEvent(new KeyboardEvent("keyup", { key: "d", bubbles: true }));
+        await releaseKey("d");
     });
 
-    test("an arrow key stops turning the camera when it is released", () => {
-        const { canvas } = graph;
+    test("an arrow key stops turning the camera when it is released", async () => {
+        graph.canvas.focus();
         const rotate = vi.spyOn(cameraController, "rotate");
 
-        canvas.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft" }));
+        // Each count starts after the key changes: the render loop updates too while it is held.
+        await holdKey("ArrowLeft");
+        rotate.mockClear();
         inputController.update();
         assert.equal(rotate.mock.calls.length, 1, "a held arrow turns the camera");
 
-        canvas.dispatchEvent(new KeyboardEvent("keyup", { key: "ArrowLeft" }));
+        await releaseKey("ArrowLeft");
+        rotate.mockClear();
         inputController.update();
-        assert.equal(rotate.mock.calls.length, 1, "nothing coasts on after the key is released");
+        assert.equal(rotate.mock.calls.length, 0, "nothing coasts on after the key is released");
     });
 
-    test("canvas gains focus on pointer down", () => {
+    test("canvas gains focus on pointer down", async () => {
         const { canvas } = graph;
 
         // Mock focus method
         const focusSpy = vi.spyOn(canvas, "focus").mockImplementation(() => undefined);
 
-        // Simulate pointer down
-        canvas.dispatchEvent(
-            new PointerEvent("pointerdown", {
-                clientX: 100,
-                clientY: 100,
-                button: 0,
-            }),
-        );
+        // A real click on the canvas
+        await click(canvas, { x: 100, y: 100 });
 
         // Canvas should have been focused (may be called multiple times due to event handling)
         assert.isTrue(focusSpy.mock.calls.length >= 1, "Canvas focus should be called at least once");
@@ -208,34 +193,36 @@ describe("3D Camera Controls", () => {
         assert.equal(canvas.getAttribute("tabindex"), "0");
     });
 
-    test("input controller can be enabled and disabled", () => {
+    test("input controller can be enabled and disabled", async () => {
         assert.isTrue((inputController as any).enabled, "Input controller should start enabled");
 
         inputController.disable();
         assert.isFalse((inputController as any).enabled, "Input controller should be disabled");
 
         // Test that keyboard input has no effect when disabled
-        const { canvas } = graph;
-        canvas.focus();
+        graph.canvas.focus();
 
-        canvas.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }));
+        await holdKey("ArrowLeft");
         inputController.update();
 
         // When disabled, the arrow key does not turn the camera
         const rotate = vi.spyOn(cameraController, "rotate");
         assert.equal(rotate.mock.calls.length, 0, "The camera should not turn when input is disabled");
 
+        // Let go of the key the disabled controller never heard, as a reader would before trying again
+        await releaseKey("ArrowLeft");
         inputController.enable();
         assert.isTrue((inputController as any).enabled, "Input controller should be re-enabled");
 
-        // Should work again when re-enabled
-        canvas.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }));
+        // Should work again when re-enabled; counted from the press, as the render loop updates too
+        await holdKey("ArrowLeft");
+        rotate.mockClear();
         inputController.update();
 
         assert.equal(rotate.mock.calls.length, 1, "The camera should turn when input is re-enabled");
     });
 
-    test("multi-touch prevents mouse orbit", () => {
+    test("multi-touch prevents mouse orbit", async () => {
         const { canvas } = graph;
         const initialPivotRotation = {
             x: cameraController.pivot.rotation.x,
@@ -246,23 +233,8 @@ describe("3D Camera Controls", () => {
         // Simulate multi-touch state
         (inputController as any).isMultiTouch = true;
 
-        // Try mouse movement - should not affect camera
-        canvas.dispatchEvent(
-            new PointerEvent("pointerdown", {
-                clientX: 100,
-                clientY: 100,
-                button: 0,
-            }),
-        );
-
-        canvas.dispatchEvent(
-            new PointerEvent("pointermove", {
-                clientX: 200,
-                clientY: 150,
-            }),
-        );
-
-        canvas.dispatchEvent(new PointerEvent("pointerup"));
+        // Try a real mouse drag - should not affect camera
+        await drag(canvas, { x: 100, y: 100 }, { x: 200, y: 150 }, 1);
 
         // Pivot should not have moved due to multi-touch state
         const finalPivotRotation = {
@@ -279,15 +251,14 @@ describe("3D Camera Controls", () => {
         assert.isTrue(rotationUnchanged, "Pivot should not orbit during multi-touch");
     });
 
-    test("camera position updates on rotation", () => {
-        const { canvas } = graph;
-        canvas.focus();
+    test("camera position updates on rotation", async () => {
+        graph.canvas.focus();
 
         // Test that updateCameraPosition is called during the input controller update
         const updateSpy = vi.spyOn(cameraController, "updateCameraPosition");
 
         // Apply keyboard rotation
-        canvas.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }));
+        await holdKey("ArrowLeft");
         inputController.update();
 
         // updateCameraPosition should be called during the update cycle

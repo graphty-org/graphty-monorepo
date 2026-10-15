@@ -72,15 +72,11 @@ function element(width: number, height: number, eye: Vector3): Element {
         scene,
     );
     assert.isNotNull(arrowCap);
-    const patternLine = PatternedLineRenderer.create(
-        "dot",
-        new Vector3(0, 0, 0),
-        new Vector3(0, 0, 5),
-        0.5,
-        "#ffffff",
-        1,
-        scene,
-    );
+    const patternLine = PatternedLineRenderer.create("dot", new Vector3(0, 0, 0), new Vector3(0, 0, 5), scene, {
+        width: 0.5,
+        color: "#ffffff",
+        opacity: 1,
+    });
 
     return {
         scene,

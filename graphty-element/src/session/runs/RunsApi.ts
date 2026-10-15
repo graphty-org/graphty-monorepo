@@ -1041,7 +1041,7 @@ class Runs implements SessionRunsApi {
             this.names.set(id, name);
         }
 
-        return this.create(id, identity, result, descriptor, spec, options, derived, launch);
+        return this.create(id, identity, result, descriptor, { spec, options, derived }, launch);
     }
 
     /**
@@ -1117,9 +1117,10 @@ class Runs implements SessionRunsApi {
      * @param identity - What the run is.
      * @param result - The canonical identity of the result it answers.
      * @param descriptor - The algorithm's catalogue entry.
-     * @param spec - The scope specification it was asked for.
-     * @param options - What the caller passed.
-     * @param derived - Whether the element minted the id rather than the author naming it.
+     * @param request - How it was asked for.
+     * @param request.spec - The scope specification it was asked for.
+     * @param request.options - What the caller passed.
+     * @param request.derived - Whether the element minted the id rather than the author naming it.
      * @param launch - How its first execution is dispatched.
      * @returns The run.
      */
@@ -1128,11 +1129,10 @@ class Runs implements SessionRunsApi {
         identity: RunIdentity,
         result: string,
         descriptor: AlgorithmDescriptor,
-        spec: Scope,
-        options: StartOptions,
-        derived: boolean,
+        request: { readonly spec: Scope; readonly options: StartOptions; readonly derived: boolean },
         launch: Launch,
     ): Run {
+        const { spec, options, derived } = request;
         if (options.queue === "replace") {
             this.cancelSiblings(descriptor.key, id);
         }

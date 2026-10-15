@@ -170,6 +170,8 @@ interface Fault {
     name: string;
     property: Property;
     plant: (graph: Graph, control: Scene) => void;
+    /** The sample to plant it in, when not the default one. */
+    sample?: string;
 }
 
 const MAGENTA = new Color3(1, 0, 1);
@@ -213,6 +215,26 @@ const FAULTS: readonly Fault[] = [
         },
     },
     {
+        // What graphty-element drew before groups were put behind their members: a group's box
+        // in front of everything inside it, hiding every member.
+        name: "every group drawn in front of its members",
+        property: "groups",
+        sample: "graphml-yed-voctomix",
+        plant: (graph, control) => {
+            const { nodes } = graph.getDataManager();
+            const front = (id: string | number): number =>
+                nodes.get(id)?.mesh.getBoundingInfo().boundingBox.minimumWorld.z ?? Infinity;
+            const nearest = Math.min(...[...nodes.keys()].map(front));
+            for (const group of control.groups) {
+                const node = nodes.get(group.id);
+                if (node !== undefined) {
+                    node.mesh.position.z -= front(group.id) - nearest + 1;
+                    node.mesh.computeWorldMatrix(true);
+                }
+            }
+        },
+    },
+    {
         name: "a glow turned on around every node",
         property: "borderWidth",
         plant: (graph) => {
@@ -232,10 +254,10 @@ describe("style fidelity: graphty-element's drawing of each sample", () => {
     // without it. A scorer that passes its own planted fault is reading the request, not the
     // picture, and every score after it would be meaningless.
     it("self-check: every scorer catches its planted fault", async () => {
-        const sample = SAMPLES.find((s) => s.id === SELF_CHECK_SAMPLE);
-        assert.isDefined(sample);
         const checks: SelfCheck[] = [];
         for (const fault of FAULTS) {
+            const sample = SAMPLES.find((s) => s.id === (fault.sample ?? SELF_CHECK_SAMPLE));
+            assert.isDefined(sample);
             const { element, sha256, command } = await mountSample(sample);
             const control = drawnScene(element, sha256, command);
             const clean = compareScenes(control, control).properties[fault.property];

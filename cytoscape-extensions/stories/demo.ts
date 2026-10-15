@@ -36,6 +36,15 @@ cytoscape.use(graphtyCytoscape);
  */
 export const CAPTURE = /[?&]chromatic=true/.test(globalThis.location?.search ?? "");
 
+/**
+ * Where the stories load the sample datasets from: the copy of graph-samples' build that .storybook/main.ts serves
+ * next to the Storybook (staticDirs), the same files graphty.app publishes, so a story needs no internet.
+ * @returns the options for cy.graphtyDataset
+ */
+export function datasetOptions(): { baseUrl: string } {
+    return { baseUrl: new URL("graph-samples-data/v1/", document.baseURI).href };
+}
+
 /** Node counts; "large" and "huge" are where the GPU is meant to pay off. */
 export const SIZES = { small: 100, medium: 2_000, large: 10_000, huge: 50_000 };
 type Size = keyof typeof SIZES;
@@ -194,6 +203,17 @@ const STYLE: StylesheetJson = [
     },
     { selector: "edge.proposed[color]", style: { "line-color": "data(color)" } },
     { selector: "edge.proposed[label]", style: { label: "data(label)", "font-size": sized(9, 9), color: "#1f2937" } },
+    // a short label on an edge, such as its weight in a hand-built example ("tag", as for nodes)
+    {
+        selector: "edge[tag]",
+        style: {
+            label: "data(tag)",
+            "font-size": sized(9, 9),
+            color: "#1f2937",
+            "text-background-color": "#ffffff",
+            "text-background-opacity": 0.8,
+        },
+    },
 ];
 
 /**

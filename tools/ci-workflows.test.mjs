@@ -15,11 +15,12 @@ import {
     readdirSync,
     readFileSync,
     rmSync,
+    truncateSync,
     writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, it } from "node:test";
+import { after, describe, it } from "node:test";
 
 import { GROUPS, groupEntry, plan, SHARDS } from "./ci-test-matrix.mjs";
 import { isolateGit } from "./isolated-git-env.mjs";
@@ -49,11 +50,19 @@ import { gateShards, localShards, shardEnv, startRule } from "./prepush-tests.mj
 import { strayChanges } from "./release-diff.mjs";
 import { changedFiles, skippedProjects } from "./visual-capture-plan.mjs";
 
+// The temporary directories this file makes go inside this one, removed when the file finishes.
+const TMP = mkdtempSync(join(tmpdir(), "ci-workflows-"));
+after(() => rmSync(TMP, { recursive: true, force: true }));
+
 // Every git process below (and in the scripts the hook tests run) runs without the developer's own
 // config: a commit there must never reach their signing key.
 isolateGit();
 
 const PUSHOVER_SECRETS = ["secrets.PUSHOVER_APP_TOKEN", "secrets.PUSHOVER_USER_KEY"];
+// The caller's environment without the gate's own settings (PREPUSH_RERUN_ALL, PREPUSH_SHARD_TIMEOUT,
+// PREPUSH_ROOT): a push made with one of them runs these tests in its gate with it still set.
+const withoutPrepushSettings = () =>
+    Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("PREPUSH_")));
 const workflow = (name) => readFileSync(new URL(`../.github/workflows/${name}`, import.meta.url), "utf8");
 const job = (text, name) => {
     const start = text.indexOf(`\n    ${name}:\n`);
@@ -90,9 +99,10 @@ describe("the test matrix", () => {
         );
     });
 
-    it("uploads coverage only for the members that uploaded it before the groups", () => {
+    it("uploads coverage for every member that writes it", () => {
         const browser = plan(PACKAGES).find((e) => e.shard === "small-browser");
-        assert.doesNotMatch(browser.coverage, /visual-review|webgpu-graph-algorithms-browser/);
+        assert.doesNotMatch(browser.coverage, /webgpu-graph-algorithms-browser|graphty-storybook/);
+        assert.match(browser.coverage, /visual-review=visual-review\/coverage\/lcov.info/);
         assert.match(browser.coverage, /^algorithms-browser=algorithms\/coverage\/lcov.info /);
         assert.equal(browser["needs-browser"], true);
     });
@@ -134,6 +144,23 @@ describe("the pre-push gate matches CI", () => {
                 );
             }
         }
+    });
+
+    it("never writes core dumps, and passes Formatting with one in the tree (#2617)", () => {
+        const prepush = code(tool("prepush.sh"));
+        const limit = prepush.indexOf("\nulimit -c 0\n");
+        assert.ok(limit > 0 && limit < prepush.indexOf("prepush-source-checks.sh"), "ulimit -c 0 before every step");
+        // prettier reads the root .gitignore; a sparse 3 GiB dump costs no disk.
+        const dir = mkdtempSync(join(TMP, "core-dump-"));
+        writeFileSync(join(dir, ".gitignore"), readFileSync(new URL("../.gitignore", import.meta.url)));
+        writeFileSync(join(dir, "ok.js"), "export const a = 1;\n");
+        for (const name of ["core", "core.2406307"]) {
+            writeFileSync(join(dir, name), "");
+            truncateSync(join(dir, name), 3 * 1024 ** 3);
+        }
+        const prettier = new URL("../node_modules/.bin/prettier", import.meta.url).pathname;
+        const run = spawnSync(prettier, ["--check", "."], { cwd: dir, encoding: "utf8" });
+        assert.equal(run.status, 0, run.stdout + run.stderr);
     });
 
     it("tests through tools/prepush-tests.mjs only, on CI's affected set", () => {
@@ -278,7 +305,7 @@ describe("the pre-push gate matches CI", () => {
                 timeout: 60_000,
                 // Its own slot directory, with a slot per shard: never waits on, or holds up, the real slots.
                 env: {
-                    ...process.env,
+                    ...withoutPrepushSettings(),
                     GRAPHTY_TEST_SLOTS_DIR: join(dir, "tmp/test-slots"),
                     GRAPHTY_TEST_SLOTS: "2",
                     GRAPHTY_TEST_SLOT_HELD: "",
@@ -312,7 +339,7 @@ describe("the pre-push gate matches CI", () => {
                 encoding: "utf8",
                 timeout: 60_000,
                 env: {
-                    ...process.env,
+                    ...withoutPrepushSettings(),
                     GRAPHTY_TEST_SLOTS_DIR: join(dir, "tmp/test-slots"),
                     GRAPHTY_TEST_SLOTS: "1",
                     GRAPHTY_TEST_SLOT_HELD: "",
@@ -601,7 +628,9 @@ exec ${realGit} "$@"
             .map((l) => l.trim())
             .filter((l) => l && !l.startsWith("#!"));
         assert.equal(commands[0], 'GATE_DIR="$(cd "$(dirname "$0")/.." && pwd)"');
-        assert.equal(commands[1], '"$GATE_DIR/tools/lfs-pre-push.sh" "$@" || exit 1');
+        // git's ref lines are read once: the LFS upload gets them, and the remote sha is kept.
+        assert.equal(commands[1], "PUSH_REFS=$(cat)");
+        assert.equal(commands[2], `printf '%s\\n' "$PUSH_REFS" | "$GATE_DIR/tools/lfs-pre-push.sh" "$@" || exit 1`);
     });
 });
 
@@ -1445,7 +1474,7 @@ describe("Playwright's system packages", () => {
     // the dry run with PKGS and the install by writing DOWNLOADS into the archive directory, and
     // dpkg-query reports the packages named in INSTALLED as installed.
     const run = ({ hit, cached = [], stale = [], downloads = [], aptSays = "", installed = "a b" }) => {
-        const home = mkdtempSync(join(tmpdir(), "pw-debs-"));
+        const home = mkdtempSync(join(TMP, "pw-debs-"));
         const bin = join(home, "bin");
         const debs = join(home, "debs");
         const archives = join(home, "archives");

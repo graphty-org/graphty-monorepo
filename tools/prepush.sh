@@ -43,6 +43,10 @@ if [ -n "$PUSH_BRANCH" ] && ! node "$SCRIPT_DIR/queued-push-guard.mjs" "$PUSH_BR
     exit 1
 fi
 
+# A build or test that crashes must not leave a core dump (often gigabytes) in the checkout: every
+# step below runs in this shell's children, so this one limit covers them all.
+ulimit -c 0
+
 echo "========================================"
 echo "Pre-push validation"
 echo "========================================"
@@ -95,19 +99,25 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# The affected projects, as nx names them. The base is where this branch left origin/master,
-# so commits other people landed on master since then do not count as this push's changes.
+# The affected projects, as nx names them. The base is where this branch left the branch it merges
+# into (tools/push-base.mjs: origin/master, or the parent branch of a stacked pull request), so
+# commits other people landed there since then do not count as this push's changes.
+NX_SHOW_ERR=$(mktemp)
 if [ "${PREPUSH_ALL:-0}" = "1" ]; then
-    PROJECTS=$(NX_DAEMON=false pnpm exec nx show projects --json 2>/dev/null)
+    PROJECTS=$(NX_DAEMON=false pnpm exec nx show projects --json 2>"$NX_SHOW_ERR")
 else
-    BASE=$(git merge-base origin/master HEAD)
-    PROJECTS=$(NX_DAEMON=false pnpm exec nx show projects --affected --base="$BASE" --head=HEAD --json 2>/dev/null)
+    PUSH_BASE_REF=${PUSH_BASE_REF:-$(node "$SCRIPT_DIR/push-base.mjs")} && export PUSH_BASE_REF
+    BASE=$(git merge-base "$PUSH_BASE_REF" HEAD)
+    PROJECTS=$(NX_DAEMON=false pnpm exec nx show projects --affected --base="$BASE" --head=HEAD --json 2>"$NX_SHOW_ERR")
 fi
 # An empty answer is nx (or the pnpm in front of it) cut short, not "nothing affected", which is "[]".
 if [[ "$PROJECTS" != "["* ]]; then
-    echo "nx show projects printed no project list, so the affected packages are unknown; stopping" >&2
+    echo "nx show projects printed no project list, so the affected packages are unknown; stopping. Its errors:" >&2
+    tail -20 "$NX_SHOW_ERR" >&2
+    rm -f "$NX_SHOW_ERR"
     exit 1
 fi
+rm -f "$NX_SHOW_ERR"
 PROJECT_LIST=$(echo "$PROJECTS" | tr -d '[]" ')
 affected() { echo ",$PROJECT_LIST," | grep -q ",$1,"; }
 # The same packages as directories (nx names remote-logger by its package name).
@@ -139,13 +149,17 @@ echo ""
 # is left alone: nothing in this push changed it. Only projects with a build target are listed
 # (visual-review has none), so nx does not warn about the rest.
 BUILD_LIST=""
-for p in $(NX_DAEMON=false pnpm exec nx show projects --with-target build --json 2>/dev/null | tr -d "[]\"" | tr "," " "); do
+WITH_BUILD=$(NX_DAEMON=false pnpm exec nx show projects --with-target build --json 2>/dev/null)
+# Cut short, nx prints nothing, and an empty list would skip the build without a word.
+if [[ "$WITH_BUILD" != "["* ]]; then
+    echo "nx show projects --with-target build printed no project list; stopping" >&2
+    exit 1
+fi
+for p in $(echo "$WITH_BUILD" | tr -d "[]\"" | tr "," " "); do
     { affected "$p" || [ ! -d "${p#@graphty/}/dist" ]; } && BUILD_LIST="$BUILD_LIST,$p"
 done
 BUILD_LIST="${BUILD_LIST#,}"
-# The same 8 GB heap as CI's build steps: the graphty app's build, sourcemaps included, outgrows
-# Node's default heap since it bundles @mlc-ai/web-llm as a lazy chunk.
-[ -n "$BUILD_LIST" ] && run_step "Build" "NODE_OPTIONS=--max-old-space-size=8192 pnpm exec nx run-many -t build --projects=$BUILD_LIST --parallel=3"
+[ -n "$BUILD_LIST" ] && run_step "Build" "pnpm exec nx run-many -t build --projects=$BUILD_LIST --parallel=3"
 
 # webgpu-graph-algorithms: its lint runs the strict-consumer compile against the d.ts shims that only
 # build:bundle writes (tsc emits none; the package has no root entry file), so bundle it before Lint

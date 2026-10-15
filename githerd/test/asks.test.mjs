@@ -451,14 +451,44 @@ describe("inviting idle sessions to pull work", () => {
         expect(f.sent).toHaveLength(2);
     });
 
-    it("invites nobody while a shared resource is saturated, and resumes once it has room", async () => {
+    /**
+     * A state with the offered jobs queued, a shared resource saturated, and s1 working issue-7.
+     * @returns {any} the state
+     */
+    const saturatedBusy = () => {
         const state = { ...queued("issue-5", "triage-new-1"), pressure: ["2 pushes waiting in the push queue"] };
+        const busy = newJob({ kind: "issue", target: "#7", id: "issue-7" }, NOW);
+        move(busy, "starting", NOW, { holder: { session: "s1", window: null, startedBy: "owner" } });
+        move(busy, "working", NOW);
+        state.jobs["issue-7"] = busy;
+        return state;
+    };
+
+    it("invites no session actively working a job while a shared resource is saturated, and resumes once it has room", async () => {
+        const state = saturatedBusy();
         const f = fake();
         expect(await inviteStep(state, { ...f.opts(), offered })).toEqual([]);
         expect(f.sent).toEqual([]);
         state.pressure = [];
         await inviteStep(state, { ...f.opts(), offered });
         expect(f.sent).toHaveLength(2);
+        expect(f.sent[0][1]).not.toContain("saturated");
+    });
+
+    it("invites a session actively working no job while a shared resource is saturated, to take one", async () => {
+        const f = fake();
+        const idle = { ...queued("issue-5", "triage-new-1"), pressure: ["2 pushes waiting in the push queue"] };
+        await inviteStep(idle, { ...f.opts(), offered });
+        // A job only waiting on CI is not active work either.
+        const waiting = saturatedBusy();
+        waiting.prs = { 9: { headRef: "fix/7", references: [7], required: { "All Checks Pass": "PENDING" } } };
+        await inviteStep(waiting, { ...f.opts(), offered });
+        expect(f.sent.map(([socket]) => socket)).toEqual(["/s1.sock", "/s1.sock", "/s1.sock", "/s1.sock"]);
+        expect(f.sent[0][1]).toContain(
+            "githerd has work queued (issue-5, high bug). The shared resources are saturated (2 pushes waiting in " +
+                "the push queue), but this session is actively working no job, so it may take one job now; " +
+                "githerd offers more once they have room. If you're free",
+        );
     });
 
     it("names a verdict job's exact failure key in its invitation", async () => {
@@ -866,7 +896,21 @@ describe("asking an owner session for the status of the job it holds", () => {
                 "githerd invites you again as soon as they have room.",
         );
         expect(f.sent[0][1]).not.toContain("have room, so this session may take");
+        expect(f.sent[0][1]).not.toContain("may take one job");
         expect(f.sent[0][1]).toMatch(/do not count toward your capacity/);
+    });
+
+    it("tells a session whose jobs only wait on CI that it may take one job while a shared resource is saturated", async () => {
+        const f = fake();
+        const state = { ...claimed(), pressure: ["3 GitHub Actions runs queued for a runner"] };
+        state.prs = { 5: { headRef: "fix/186", references: [186], required: { "All Checks Pass": "PENDING" } } };
+        await statusStep(state, opts(f, { now: at("12:15") }));
+        expect(f.sent[0][1]).toContain(
+            "The shared resources are saturated (3 GitHub Actions runs queued for a runner), but this session is " +
+                "actively working no job, so it may take one job now; githerd offers more once they have room. " +
+                "Answer with capacity set",
+        );
+        expect(f.sent[0][1]).not.toContain("take no new job now");
     });
 
     it("asks only the holding session, once per interval, naming the tool and the subagent rule", async () => {
@@ -1078,18 +1122,30 @@ describe("asking an owner session for the status of the job it holds", () => {
         );
     });
 
-    it("does not ask a paused session its capacity, nor any while a shared resource is saturated", async () => {
+    it("does not ask a paused session its capacity", async () => {
         const f = fake();
         const state = { jobs: { "issue-9": newJob({ kind: "issue", target: "#9", id: "issue-9" }, NOW) } };
         const paused = { ...state, offersPaused: { "graphty-13": {}, "graphty-14": {} } };
         expect(await statusStep(paused, opts(f, { now: at("12:15") }))).toEqual([]);
-        const saturated = { ...state, pressure: ["2 pushes waiting in the push queue"] };
-        expect(await statusStep(saturated, opts(f, { now: at("12:15") }))).toEqual([]);
         expect(await statusStep(state, opts(f, { now: at("12:15"), acting: false }))).toEqual([
             { kind: "would-do", group: "workers", op: "ask graphty-13 for its capacity" },
             { kind: "would-do", group: "workers", op: "ask graphty-14 for its capacity" },
         ]);
         expect(f.sent).toEqual([]);
+    });
+
+    it("asks a session actively working no job its capacity while a shared resource is saturated, offering one", async () => {
+        const f = fake();
+        const state = claimed();
+        state.jobs["issue-9"] = newJob({ kind: "issue", target: "#9", id: "issue-9" }, NOW);
+        state.pressure = ["2 pushes waiting in the push queue"];
+        const lines = await statusStep(state, opts(f, { now: at("12:10") }));
+        // s1 works issue-186, so only s2 is asked.
+        expect(lines).toEqual([{ kind: "capacity-asked", session: "graphty-14", sent: ["graphty-14"], failed: [] }]);
+        expect(f.sent[0][1]).toContain(
+            "The shared resources are saturated (2 pushes waiting in the push queue), but this session is actively " +
+                "working no job, so it may take one job now",
+        );
     });
 
     it("leaves a worker's job, a verifying job and a kept job alone", async () => {

@@ -299,7 +299,8 @@ function spellsDecl(): ColumnDecl {
 }
 
 /**
- * The position column declaration (design section 5.2: f64 x 3, role position, units "file").
+ * The position column declaration (design section 5.2: f64 x 3, role position, units "file"), with
+ * its spelling for `extractPositions()`.
  * @param sourceDims - 2 or 3, the coordinate count of the first vertex line with coordinates
  * @returns a fresh declaration
  */
@@ -311,7 +312,9 @@ function positionDecl(sourceDims: number): ColumnDecl {
         nullable: true,
         role: "position",
         origin: { format: "pajek", id: "coordinates" },
-        extra: { sourceDims, units: "file" },
+        // Pajek draws y downward (USAir97.net has Deadhorse, Alaska at y 0.10 and Miami at 0.53),
+        // centers depth on 0.5, and NetworkX writes "0.0 0.0" for a node with no position
+        extra: { sourceDims, units: "file", yAxis: "down", zOrigin: 0.5, zeroUnplaced: true },
     };
 }
 
@@ -716,21 +719,7 @@ class PajekParser {
                 this.section = "none";
                 return;
             case "vertices":
-                if (afterObjectHeader) {
-                    // the `*Vertices N` line of a project object (*Partition, *Vector, a skipped
-                    // section), wherever it stands: never the network's own
-                    this.section = previous;
-                    if (previous === "object") {
-                        this.objects[this.objects.length - 1].count = h.count;
-                    }
-                    return;
-                }
-                if (this.vertexCount >= 0) {
-                    // a second `*Vertices` without a `*Network` header starts the next network
-                    this.ended = true;
-                    return;
-                }
-                this.verticesHeader(h, line);
+                this.verticesSectionLine(h, line, previous, afterObjectHeader);
                 return;
             case "arcs":
             case "edges":
@@ -767,6 +756,32 @@ class PajekParser {
                 throw new Error(`unknown section kind ${name}`);
             }
         }
+    }
+
+    /**
+     * A `*Vertices` line: a project object's own count, the start of the next network, or the
+     * network's vertices header.
+     * @param h - the header
+     * @param line - the line number
+     * @param previous - the section before this header
+     * @param afterObjectHeader - the previous line was a `*Partition`, `*Vector` or skipped section header
+     */
+    private verticesSectionLine(h: SectionHeader, line: number, previous: Section, afterObjectHeader: boolean): void {
+        if (afterObjectHeader) {
+            // the `*Vertices N` line of a project object (*Partition, *Vector, a skipped
+            // section), wherever it stands: never the network's own
+            this.section = previous;
+            if (previous === "object") {
+                this.objects[this.objects.length - 1].count = h.count;
+            }
+            return;
+        }
+        if (this.vertexCount >= 0) {
+            // a second `*Vertices` without a `*Network` header starts the next network
+            this.ended = true;
+            return;
+        }
+        this.verticesHeader(h, line);
     }
 
     /**
@@ -1648,22 +1663,9 @@ class PajekParser {
                 i++;
                 continue;
             }
-            if (i + 1 >= tokens.length && isNumericText(token)) {
-                this.report.warnOnce(
-                    "validation-error",
-                    PAJEK_ISSUE.TRAILING_VALUE,
-                    `the number ${JSON.stringify(token)} alone at the end of a row is not a parameter; it is ignored`,
-                    { line },
-                );
-                break;
-            }
             if (i + 1 >= tokens.length) {
-                this.skip(domain);
-                throw new LineError(
-                    "parse-error",
-                    domain === "node" ? PAJEK_ISSUE.VERTEX_LINE : PAJEK_ISSUE.LINE,
-                    `parameter "${token}" has no value`,
-                );
+                this.loneLastToken(token, domain, line);
+                break;
             }
             if (seen.has(token)) {
                 this.report.warning(
@@ -1679,6 +1681,31 @@ class PajekParser {
             i += 2;
         }
         return extras;
+    }
+
+    /**
+     * A token alone at the end of a row, with no value after it: a number is ignored (reported once);
+     * anything else is a parameter without its value, which skips the row.
+     * @param token - the token
+     * @param domain - what is skipped when the row is malformed
+     * @param line - the line number
+     */
+    private loneLastToken(token: string, domain: "node" | "edge", line: number): void {
+        if (isNumericText(token)) {
+            this.report.warnOnce(
+                "validation-error",
+                PAJEK_ISSUE.TRAILING_VALUE,
+                `the number ${JSON.stringify(token)} alone at the end of a row is not a parameter; it is ignored`,
+                { line },
+            );
+            return;
+        }
+        this.skip(domain);
+        throw new LineError(
+            "parse-error",
+            domain === "node" ? PAJEK_ISSUE.VERTEX_LINE : PAJEK_ISSUE.LINE,
+            `parameter "${token}" has no value`,
+        );
     }
 
     /**

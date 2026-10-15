@@ -269,6 +269,7 @@ export interface BaseDataSourceConfig {
     file?: File;
     graphIndex?: number;
     graphName?: string;
+    layout?: "recommended" | "keep";
     styles?: "file" | "none";
     url?: string;
 }
@@ -899,6 +900,7 @@ export const EdgeStyle: z.ZodObject<{
             text: z.ZodOptional<z.ZodString>;
             font: z.ZodOptional<z.ZodDefault<z.ZodString>>;
             fontSize: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+            size: z.ZodOptional<z.ZodNumber>;
             fontWeight: z.ZodOptional<z.ZodDefault<z.ZodString>>;
             fontStyle: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
                 normal: "normal";
@@ -1066,6 +1068,7 @@ export const EdgeStyle: z.ZodObject<{
             text: z.ZodOptional<z.ZodString>;
             font: z.ZodOptional<z.ZodDefault<z.ZodString>>;
             fontSize: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+            size: z.ZodOptional<z.ZodNumber>;
             fontWeight: z.ZodOptional<z.ZodDefault<z.ZodString>>;
             fontStyle: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
                 normal: "normal";
@@ -1232,6 +1235,7 @@ export const EdgeStyle: z.ZodObject<{
         text: z.ZodOptional<z.ZodString>;
         font: z.ZodOptional<z.ZodDefault<z.ZodString>>;
         fontSize: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        size: z.ZodOptional<z.ZodNumber>;
         fontWeight: z.ZodOptional<z.ZodDefault<z.ZodString>>;
         fontStyle: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
             normal: "normal";
@@ -1660,6 +1664,7 @@ export class Graph implements GraphContext {
         graphName?: string;
         styles?: "file" | "none";
         styleOptions?: FileStyleOptions;
+        layout?: "recommended" | "keep";
     }): Promise<{
         loadId: number;
     }>;
@@ -1673,6 +1678,7 @@ export class Graph implements GraphContext {
         graphName?: string;
         styles?: "file" | "none";
         styleOptions?: FileStyleOptions;
+        layout?: "recommended" | "keep";
     }): Promise<{
         loadId: number;
     }>;
@@ -2091,6 +2097,7 @@ export class Graphty extends LitElement {
         graphName?: string;
         styles?: "file" | "none";
         styleOptions?: FileStyleOptions;
+        layout?: "recommended" | "keep";
     }): Promise<{
         loadId: number;
     }>;
@@ -2104,6 +2111,7 @@ export class Graphty extends LitElement {
         graphName?: string;
         styles?: "file" | "none";
         styleOptions?: FileStyleOptions;
+        layout?: "recommended" | "keep";
     }): Promise<{
         loadId: number;
     }>;
@@ -3132,13 +3140,22 @@ export interface NeighborSort {
 class Node_2 {
     constructor(graph: Graph | GraphContext, nodeId: NodeIdType, paint: NodePaint, data: AdHocData<string | number>, opts?: NodeOpts);
     applySessionPaint(paint: NodePaint): void;
+    // @internal
+    get borderReach(): number;
     get data(): AdHocData<string | number>;
     dispose(): void;
     // (undocumented)
     dragging: boolean;
     // (undocumented)
     dragHandler?: NodeDragHandler;
+    get drawnHalfExtents(): Readonly<{
+        x: number;
+        y: number;
+        z: number;
+    }>;
     get drawnRadius(): number;
+    // @internal
+    framingHalf(axis: "x" | "y" | "z"): number;
     getPosition(): {
         x: number;
         y: number;
@@ -3297,6 +3314,12 @@ export interface NodeLabelCounts {
 
 // @public
 export interface NodeScreenPosition {
+    bounds: {
+        left: number;
+        top: number;
+        right: number;
+        bottom: number;
+    };
     radius: number;
     visible: boolean;
     x: number;
@@ -3305,7 +3328,10 @@ export interface NodeScreenPosition {
 
 // @public
 export const NodeShapes: z.ZodEnum<{
+    diamond: "diamond";
     box: "box";
+    vee: "vee";
+    star: "star";
     sphere: "sphere";
     cylinder: "cylinder";
     cone: "cone";
@@ -3330,14 +3356,30 @@ export const NodeShapes: z.ZodEnum<{
     goldberg: "goldberg";
     icosphere: "icosphere";
     geodesic: "geodesic";
+    rectangle: "rectangle";
+    "round-rectangle": "round-rectangle";
+    ellipse: "ellipse";
+    triangle: "triangle";
+    pentagon: "pentagon";
+    hexagon: "hexagon";
+    octagon: "octagon";
+    parallelogram: "parallelogram";
+    trapezoid: "trapezoid";
 }>;
 
 // @public
 export const NodeStyle: z.ZodObject<{
     shape: z.ZodOptional<z.ZodObject<{
         size: z.ZodOptional<z.ZodNumber>;
+        sizeMode: z.ZodOptional<z.ZodEnum<{
+            scale: "scale";
+            diameter: "diameter";
+        }>>;
         type: z.ZodOptional<z.ZodEnum<{
+            diamond: "diamond";
             box: "box";
+            vee: "vee";
+            star: "star";
             sphere: "sphere";
             cylinder: "cylinder";
             cone: "cone";
@@ -3362,7 +3404,20 @@ export const NodeStyle: z.ZodObject<{
             goldberg: "goldberg";
             icosphere: "icosphere";
             geodesic: "geodesic";
+            rectangle: "rectangle";
+            "round-rectangle": "round-rectangle";
+            ellipse: "ellipse";
+            triangle: "triangle";
+            pentagon: "pentagon";
+            hexagon: "hexagon";
+            octagon: "octagon";
+            parallelogram: "parallelogram";
+            trapezoid: "trapezoid";
         }>>;
+        width: z.ZodOptional<z.ZodNumber>;
+        height: z.ZodOptional<z.ZodNumber>;
+        depth: z.ZodOptional<z.ZodNumber>;
+        planar: z.ZodOptional<z.ZodBoolean>;
     }, z.core.$strict>>;
     texture: z.ZodOptional<z.ZodObject<{
         color: z.ZodOptional<z.ZodUnion<[z.ZodDiscriminatedUnion<[z.ZodObject<{
@@ -3392,6 +3447,16 @@ export const NodeStyle: z.ZodObject<{
         wireframe: z.ZodOptional<z.ZodBoolean>;
         flatShaded: z.ZodOptional<z.ZodBoolean>;
     }, z.core.$strict>>;
+    border: z.ZodOptional<z.ZodObject<{
+        color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+        width: z.ZodOptional<z.ZodNumber>;
+        style: z.ZodOptional<z.ZodEnum<{
+            solid: "solid";
+            dashed: "dashed";
+            dotted: "dotted";
+            double: "double";
+        }>>;
+    }, z.core.$strict>>;
     label: z.ZodOptional<z.ZodPrefault<z.ZodObject<{
         enabled: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         textPath: z.ZodOptional<z.ZodString>;
@@ -3410,6 +3475,7 @@ export const NodeStyle: z.ZodObject<{
         text: z.ZodOptional<z.ZodString>;
         font: z.ZodOptional<z.ZodDefault<z.ZodString>>;
         fontSize: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        size: z.ZodOptional<z.ZodNumber>;
         fontWeight: z.ZodOptional<z.ZodDefault<z.ZodString>>;
         fontStyle: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
             normal: "normal";
@@ -3556,6 +3622,7 @@ export const NodeStyle: z.ZodObject<{
         text: z.ZodOptional<z.ZodString>;
         font: z.ZodOptional<z.ZodDefault<z.ZodString>>;
         fontSize: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        size: z.ZodOptional<z.ZodNumber>;
         fontWeight: z.ZodOptional<z.ZodDefault<z.ZodString>>;
         fontStyle: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
             normal: "normal";
@@ -4140,6 +4207,11 @@ export class RenderManager implements Manager {
     scene: Scene;
     startRenderLoop(updateCallback: (frameMs: number) => void): void;
     stopRenderLoop(): void;
+    readonly ticks: {
+        drawn: number;
+        rested: number;
+        gpuBehind: number;
+    };
 }
 
 // @public
@@ -4167,6 +4239,7 @@ export const RichTextStyle: z.ZodObject<{
     text: z.ZodOptional<z.ZodString>;
     font: z.ZodOptional<z.ZodDefault<z.ZodString>>;
     fontSize: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+    size: z.ZodOptional<z.ZodNumber>;
     fontWeight: z.ZodOptional<z.ZodDefault<z.ZodString>>;
     fontStyle: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
         normal: "normal";
@@ -4432,6 +4505,7 @@ export class SelectionManager implements Manager {
     deselect(): void;
     dispose(): void;
     getSelectedNode(): Node_2 | null;
+    getSelectedNodes(): Node_2[];
     init(): Promise<void>;
     isSelected(node: Node_2): boolean;
     onEdgesRemoved(ids: readonly EdgeId[]): void;
@@ -4439,6 +4513,7 @@ export class SelectionManager implements Manager {
     select(node: Node_2): void;
     selectById(nodeId: string | number): boolean;
     setDataManager(dataManager: DataManager): void;
+    toggle(node: Node_2): void;
 }
 
 // @public

@@ -23,10 +23,11 @@ import {
     toColorValue,
 } from "../../../src/session/styles/channels";
 
-/** The thirty-five channels the element publishes, in the order the table declares them. */
+/** The forty-three channels the element publishes, in the order the table declares them. */
 const DECLARED = [
     "node.color",
     "node.size",
+    "node.sizeMode",
     "node.shape",
     "node.label",
     "node.labelStyle",
@@ -44,6 +45,13 @@ const DECLARED = [
     "node.wireframe",
     "node.flat",
     "node.marker",
+    "node.width",
+    "node.height",
+    "node.depth",
+    "node.planar",
+    "node.borderColor",
+    "node.borderWidth",
+    "node.borderStyle",
     "edge.color",
     "edge.width",
     "edge.opacity",
@@ -96,8 +104,8 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into nineteen node channels and twenty-six edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 19);
+    it("splits into twenty-seven node channels and twenty-six edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 27);
         assert.strictEqual(channelsFor("edge").length, 26);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
@@ -289,6 +297,10 @@ describe("what a style editor needs to draw a row", () => {
         "node.glow",
         "node.glowStrength",
         "node.marker",
+        // Unset, a node's width, height and depth follow its size and its shape's proportions.
+        "node.width",
+        "node.height",
+        "node.depth",
         "edge.patternCount",
         "edge.arrowHeadText",
         "edge.arrowHeadTextStyle",
@@ -388,12 +400,13 @@ describe("what a style editor needs to draw a row", () => {
 });
 
 describe("colour channels", () => {
-    it("are the eight that carry a colour, and the type says the same eight", () => {
+    it("are the nine that carry a colour, and the type says the same nine", () => {
         const fromTheType: readonly ColorChannel[] = [
             "node.color",
             "node.labelColor",
             "node.outline",
             "node.glow",
+            "node.borderColor",
             "edge.color",
             "edge.arrowHeadColor",
             "edge.arrowTailColor",

@@ -1,3 +1,5 @@
+import type { AbstractMesh } from "@babylonjs/core";
+
 export const SHAPE_CONSTANTS = {
     GOLDEN_RATIO: 1.618,
     DEFAULT_NODE_SIZE: 1,
@@ -71,3 +73,30 @@ export const EDGE_CONSTANTS = {
     // from the true curve by about 1/30,000 of its length, under a pixel on any screen.
     BEZIER_MAX_SEGMENTS: 64,
 } as const;
+
+/**
+ * The Babylon rendering groups the graph is drawn in, in drawing order.
+ *
+ * A node outline is a highlight layer, a glow composited over the frame once the GRAPH group is
+ * drawn. Arrow caps (and the elements of patterned lines, which are caps too) and labels are
+ * drawn after it in ABOVE_OUTLINES, with the depth buffer kept, so the glow never paints over a
+ * cap that touches an outlined node -- and a cap behind a node is still hidden by it (#2324).
+ * Labels go with the caps so a label still covers a cap it is in front of, as it did when both
+ * were drawn in GRAPH. ON_TOP clears the depth buffer, so a label asked to be drawn on top covers
+ * everything.
+ */
+export const RENDERING_GROUPS = {
+    GRAPH: 0,
+    ABOVE_OUTLINES: 1,
+    ON_TOP: 2,
+} as const;
+
+/**
+ * Draw a mesh after the node outlines, against the graph's depth buffer: see
+ * {@link RENDERING_GROUPS}.
+ * @param mesh - The mesh.
+ */
+export function drawAboveOutlines(mesh: AbstractMesh): void {
+    mesh.renderingGroupId = RENDERING_GROUPS.ABOVE_OUTLINES;
+    mesh.getScene().setRenderingAutoClearDepthStencil(RENDERING_GROUPS.ABOVE_OUTLINES, false, false, false);
+}

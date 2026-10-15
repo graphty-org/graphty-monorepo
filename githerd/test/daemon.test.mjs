@@ -1,15 +1,5 @@
 import { spawn } from "node:child_process";
-import {
-    chmodSync,
-    existsSync,
-    mkdirSync,
-    mkdtempSync,
-    readdirSync,
-    readFileSync,
-    rmSync,
-    writeFileSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
+import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -23,10 +13,12 @@ import { TOOL_PROTOCOL, TOOLS } from "../lib/mcp.mjs";
 const META = { githerd: { protocol: TOOL_PROTOCOL } };
 import { notifyCommandProblem, PROTOCOL, startDaemon } from "../lib/daemon.mjs";
 import { containerStart, identify } from "../lib/proc.mjs";
+import { masterRefs } from "../lib/queue.mjs";
 import { readHistory } from "../lib/stats.mjs";
 import { readLedger, repoIdentity, spoolEvent } from "../lib/store.mjs";
 import { statusData, statusText } from "../lib/tools.mjs";
 import { createFakeGh, httpOutput } from "./helpers/fake-gh.mjs";
+import { tempDir } from "./helpers/temp-dir.mjs";
 
 const FAKE_NOTIFY = fileURLToPath(new URL("helpers/fake-notify.mjs", import.meta.url));
 const DAEMON_BIN = fileURLToPath(new URL("../bin/githerd-daemon.mjs", import.meta.url));
@@ -363,7 +355,7 @@ function sleeper() {
 beforeAll(() => isolateGit());
 
 beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "githerd-daemon-"));
+    dir = tempDir("githerd-daemon-");
     configFile = join(dir, "githerd.config.json");
     notifyLog = join(dir, "notify.log");
     clock = new Date("2026-10-02T12:00:00Z");
@@ -690,6 +682,19 @@ describe("HTTP endpoints", () => {
         expect(job).toMatchObject({ state: "queued", reason: "claim lapsed: session wt-1 ended" });
     });
 
+    it("drops a finished job nothing reads after a poll, its whole record first written to the ledger", async () => {
+        const daemon = await start();
+        const job = newJob({ kind: "triage", target: "20 issues", id: "triage-full-4" }, clock);
+        move(job, "cancelled", clock, { reason: "superseded" });
+        daemon.state.jobs = { "triage-full-4": job };
+        await poll(daemon);
+        expect(saved().jobs["triage-full-4"]).toBeUndefined();
+        const lines = (await readLedger(join(dir, ".githerd"))).filter((e) => e.kind === "job-dropped");
+        expect(lines).toEqual([
+            expect.objectContaining({ job: "triage-full-4", record: JSON.parse(JSON.stringify(job)) }),
+        ]);
+    });
+
     it("registers a heartbeat and refuses one without a session", async () => {
         const daemon = await start();
         const beat = (body) => fetch(`${daemon.url}/heartbeat`, { method: "POST", body: JSON.stringify(body) });
@@ -870,7 +875,10 @@ describe("the poll loop", () => {
         scene.ci = [run(102, C, "success"), run(101, B, "failure"), run(100, A, "success")];
         await poll(daemon);
         expect(daemon.state.master).toMatchObject({ verdict: "green", greenSha: C, pending: false });
-        expect(Object.values(daemon.state.incidents)[0].status).toBe("resolved");
+        // The resolved incident left the state, its whole record in the ledger (issue #2552).
+        expect(daemon.state.incidents).toEqual({});
+        const [resolved] = await droppedRecords("incident");
+        expect(resolved).toMatchObject({ status: "resolved", redSha: B, resolvedAt: clock.toISOString() });
         expect(await events()).toEqual([
             "lane-green",
             "lane-red",
@@ -882,8 +890,7 @@ describe("the poll loop", () => {
         expect(masterRed()).toHaveLength(1);
         // Recovery is not the owner's to act on: it ends his item and pages nothing.
         expect(pages().filter((p) => p.message.startsWith("master green again"))).toEqual([]);
-        const id = Object.keys(daemon.state.incidents)[0];
-        expect(daemon.state.ownerItems[`master-red:${id}`]).toMatchObject({ endedBy: "cleared" });
+        expect(await ownerItem(`master-red:${resolved.id}`)).toMatchObject({ endedBy: "cleared" });
 
         // the dry-run fake gh recorded no write; from the reconcile after the red sighting the failing
         // job would have been re-run once on the red head
@@ -912,6 +919,17 @@ describe("the poll loop", () => {
                 .filter((a) => a[0] !== "fetch" && a[0] !== "symbolic-ref")
                 .every((a) => shown.map((f) => `show origin/master:${f}`).includes(a.join(" "))),
         ).toBe(true);
+
+        // Red again the same day: the next incident gets the next id, not the dropped one's.
+        scene.head = D;
+        scene.commits = [commit(D, C, "Merge pull request #4 from o/y"), ...scene.commits];
+        scene.ci = [run(103, D, "failure"), ...scene.ci];
+        for (const at of ["2026-10-02T12:15:00Z", "2026-10-02T12:18:00Z"]) {
+            clock = new Date(at);
+            await poll(daemon);
+        }
+        expect(resolved.id).toBe("inc-20261002-1");
+        expect(Object.keys(daemon.state.incidents)).toEqual(["inc-20261002-2"]);
     });
 
     describe("the main checkout", () => {
@@ -1148,7 +1166,7 @@ describe("the poll loop", () => {
         scene.head = D;
         await poll(daemon);
         expect(daemon.state.config.pollSeconds).toBe(300);
-        expect(daemon.state.escalations["config-refused"].resolvedAt).not.toBeNull();
+        expect((await escalation(daemon, "config-refused")).resolvedAt).not.toBeNull();
     });
 
     it("never puts a missing push queue script on the owner's list, and resolves an item an older daemon raised", async () => {
@@ -1165,7 +1183,7 @@ describe("the poll loop", () => {
         clock = new Date("2026-10-02T12:03:00Z");
         scene.head = B;
         await poll(daemon);
-        expect(daemon.state.escalations["no-push-queue"].resolvedAt).not.toBeNull();
+        expect((await escalation(daemon, "no-push-queue")).resolvedAt).not.toBeNull();
     });
 
     it("enters fatal mode when it has never had a good config", async () => {
@@ -1291,7 +1309,7 @@ describe("the poll loop", () => {
         offline = false;
         clock = new Date("2026-10-02T12:37:00Z");
         expect(await daemon.poll()).toEqual({ ok: true });
-        expect(daemon.state.escalations["github-down"].resolvedAt).toBe(clock.toISOString());
+        expect((await escalation(daemon, "github-down")).resolvedAt).toBe(clock.toISOString());
     });
 
     it("runs the rest of a poll when one step throws, and saves the state", async () => {
@@ -1340,7 +1358,7 @@ describe("the poll loop", () => {
         broken = false;
         clock = new Date("2026-10-02T12:09:00Z");
         expect(await poll(daemon)).toEqual({ ok: true });
-        expect(daemon.state.ownerItems["poll-failing"].endedAt).toBe(clock.toISOString());
+        expect((await ownerItem("poll-failing")).endedAt).toBe(clock.toISOString());
 
         const beats = (await readLedger(join(dir, ".githerd")))
             .filter((e) => e.situation === "heartbeat")
@@ -1667,6 +1685,72 @@ describe("the poll loop", () => {
         }
     });
 
+    it("drops each ended owner item once its record is in the ledger, so state.json stays the size of what is open", async () => {
+        const daemon = await start();
+        const sizes = [];
+        for (let n = 0; n < 30; n++) {
+            clock = new Date(Date.parse("2026-10-02T12:00:00Z") + n * 3 * 60_000);
+            const at = clock.toISOString();
+            daemon.state.ownerItems ??= {};
+            daemon.state.ownerItems[`fault:r${n}`] = {
+                id: `fault:r${n}`,
+                kind: "fault",
+                question: "x".repeat(4000),
+                options: [],
+                target: null,
+                blocks: null,
+                raisedAt: at,
+                updatedAt: at,
+                endedAt: at,
+                endedBy: "cleared",
+            };
+            await poll(daemon);
+            sizes.push(statSync(join(dir, ".githerd", "state.json")).size);
+        }
+        // Thirty 4 KB items kept would add 120 KB.
+        expect(sizes.at(-1) - sizes[0]).toBeLessThan(4000);
+        expect(daemon.state.ownerItems).toEqual({});
+        const dropped = (await readLedger(join(dir, ".githerd"))).filter(
+            (e) => e.kind === "owner-item" && e.event === "dropped",
+        );
+        expect(dropped.map((e) => e.item)).toEqual(Array.from({ length: 30 }, (_, n) => `fault:r${n}`));
+        expect(dropped.every((e) => e.record.question.length === 4000)).toBe(true);
+    });
+
+    it("drops a closed issue's merge record once it is in the ledger, and puts it back when the issue reopens", async () => {
+        const daemon = await start();
+        daemon.state.merged.refs = { 7: ["#70"] };
+        daemon.state.merged.closed = [7];
+        await poll(daemon);
+        expect(daemon.state.merged.refs).toEqual({});
+        expect(daemon.state.merged.closed).toEqual([]);
+        const dropped = (await readLedger(join(dir, ".githerd"))).filter((e) => e.kind === "merged-issue-dropped");
+        expect(dropped).toEqual([expect.objectContaining({ issue: 7, record: { refs: ["#70"], closed: true } })]);
+        // #7 reopens: the next poll reads it back, and its issue job will know #70 closed it.
+        scene.issues = [
+            { number: 7, state: "open", updated_at: "2026-10-02T12:01:00Z", title: "a", user: { login: "owner" } },
+        ];
+        clock = new Date("2026-10-02T12:03:00Z");
+        await poll(daemon);
+        expect(daemon.state.merged.refs).toEqual({ 7: ["#70"] });
+        expect(daemon.state.merged.closed).toEqual([7]);
+        expect(masterRefs(daemon.state, 7)).toEqual(["#70"]);
+    });
+
+    it("drops a page record nothing can send again once it is in the ledger, and keeps a fatal page's", async () => {
+        const daemon = await start();
+        daemon.state.notified = { "digest:2026-10-01": "2026-10-01T16:00:00.000Z", "fatal:lock": "x" };
+        await poll(daemon);
+        expect(daemon.state.notified).toEqual({ "fatal:lock": "x" });
+        const dropped = (await readLedger(join(dir, ".githerd"))).filter((e) => e.kind === "notify-dropped");
+        expect(dropped).toEqual([
+            expect.objectContaining({
+                key: "digest:2026-10-01",
+                record: { notified: "2026-10-01T16:00:00.000Z", failed: null, items: null },
+            }),
+        ]);
+    });
+
     it("posts open owner items as would-dos, and counts only the owner's CLI and typing as presence", async () => {
         const daemon = await start();
         daemon.state.ownerItems = {
@@ -1754,7 +1838,12 @@ describe("the poll loop", () => {
             "issue:6": { id: "issue:6", kind: "fixed", target: "issue:6", of: null, status: "unconfirmed" },
         };
         await poll(daemon);
-        expect(daemon.state.proposals["issue:4"]).toMatchObject({ status: "ended", reason: "closed on GitHub" });
+        // Ended, it left the state, its whole record in the ledger (issue #2552).
+        expect(daemon.state.proposals["issue:4"]).toBeUndefined();
+        expect((await droppedRecords("proposal")).find((p) => p.target === "issue:4")).toMatchObject({
+            status: "ended",
+            reason: "closed on GitHub",
+        });
         expect(daemon.state.proposals["issue:6"].status).toBe("unconfirmed");
         expect(gh.writes()).toEqual([]);
         const wouldDo = (await readLedger(join(dir, ".githerd"))).filter(
@@ -1779,7 +1868,7 @@ describe("the poll loop", () => {
         };
         await daemon.shutdown();
         daemon = await start();
-        expect(daemon.state.ownerItems["stack-conflict:617"]).toMatchObject({ endedBy: "cleared" });
+        expect(await ownerItem("stack-conflict:617")).toMatchObject({ endedBy: "cleared" });
     });
 
     it("retargets a stacked child whose base merged, once, as a would-do in dry-run", async () => {
@@ -1927,7 +2016,7 @@ describe("the poll loop", () => {
             clock = new Date("2026-10-02T12:58:00Z");
             await poll(daemon);
             expect(daemon.state.master.lanes.release).toMatchObject({ verdict: "green", runId: 38007185586 });
-            expect(daemon.state.escalations["release-failed:38001930188"].resolvedAt).not.toBeNull();
+            expect((await escalation(daemon, "release-failed:38001930188")).resolvedAt).not.toBeNull();
             expect(daemon.state.jobs["incident-release-failed-38001930188"]).toMatchObject({
                 state: "cancelled",
                 reason: "the release recovered",
@@ -1949,7 +2038,7 @@ describe("the poll loop", () => {
                 await poll(daemon);
             }
             expect(daemon.state.master.lanes.release.verdict).toBe("red");
-            expect(daemon.state.escalations["release-failed:38001930188"].resolvedAt).not.toBeNull();
+            expect((await escalation(daemon, "release-failed:38001930188")).resolvedAt).not.toBeNull();
             expect(daemon.state.jobs["incident-release-failed-38001930188"].state).toBe("cancelled");
         });
 
@@ -2017,6 +2106,46 @@ describe("the poll loop", () => {
         const daemon = await start();
         await poll(daemon);
         expect(daemon.state.prs["7"]).toMatchObject({ ownerGate: true, gateJob: 555 });
+    });
+
+    it("reads the gate's steps again while GitHub has not finished them, then waits on the owner (#2081)", async () => {
+        writeConfig({
+            requiredChecks: ["All Checks Pass"],
+            ownerGate: { steps: ["^Check visual changes were accepted$"], rejectMarker: "visual-review-rejects" },
+        });
+        scene.prs = [gatedPr()];
+        const visual = { name: "Check visual changes were accepted", conclusion: "failure" };
+        // The check run is complete, its last step not yet: no step failed so far.
+        scene.job = {
+            555: {
+                steps: [
+                    { name: "Check all jobs passed", conclusion: "success" },
+                    { ...visual, conclusion: null },
+                ],
+            },
+        };
+        const daemon = await start();
+        await poll(daemon);
+        expect(daemon.state.prs["7"]).toMatchObject({
+            ownerGate: false,
+            stuck: expect.arrayContaining(["required check failing: All Checks Pass"]),
+        });
+        scene.job = { 555: { steps: [{ name: "Check all jobs passed", conclusion: "success" }, visual] } };
+        clock = new Date("2026-10-02T12:03:00Z");
+        await poll(daemon);
+        expect(daemon.state.prs["7"]).toMatchObject({ ownerGate: true, gateRead: 555 });
+        expect(daemon.state.prs["7"].stuck).toContain("waiting on owner: visual review");
+        clock = new Date("2026-10-02T12:06:00Z");
+        await poll(daemon);
+        const reads = () => gh.calls.filter((c) => c.args.at(-1)?.endsWith("/actions/jobs/555")).length;
+        expect(reads()).toBe(2);
+
+        // A record saved before `gateRead` with such a read kept (#1727) is read once more.
+        Object.assign(daemon.state.prs["7"], { ownerGate: false, ownerSteps: false, gateRead: undefined });
+        clock = new Date("2026-10-02T12:09:00Z");
+        await poll(daemon);
+        expect(daemon.state.prs["7"]).toMatchObject({ ownerGate: true, gateRead: 555 });
+        expect(reads()).toBe(3);
     });
 
     it("takes the reject marker from the owner's comments only", async () => {
@@ -2420,6 +2549,35 @@ describe("every live session a worker unless excluded", () => {
     });
 });
 
+describe("githerd pause", () => {
+    it("sends the sessions nothing while paused: no onboarding, invitation or status check", async () => {
+        writeConfig({ requiredChecks: ["All Checks Pass"] });
+        const peers = {
+            sessions: () => [
+                { pid: 1, sessionId: "s1", name: "graphty-06", cwd: dir, socket: "/s1.sock", status: "idle" },
+            ],
+            transport: { send: async () => {} },
+        };
+        const daemon = await start({ peers });
+        daemon.state.settings = { ...daemon.state.settings, paused: true };
+        await poll(daemon);
+        scene.head = B;
+        scene.commits = [commit(B, A, "Merge pull request #2 from o/feat"), commit(A, null, "first")];
+        scene.ci = [run(101, B, "failure"), run(100, A, "success")];
+        for (const at of ["12:03", "12:06"]) {
+            clock = new Date(`2026-10-02T${at}:00Z`);
+            await poll(daemon);
+        }
+        const ledger = await readLedger(join(dir, ".githerd"));
+        // Worker starts are held in start.mjs (heldBy); this pins the messages to sessions.
+        const messages = ledger.filter(
+            (e) => e.kind === "would-do" && e.group === "workers" && !e.op.startsWith("start a worker"),
+        );
+        expect(messages).toEqual([]);
+        expect(ledger.filter((e) => e.kind === "sessions-invited")).toEqual([]);
+    });
+});
+
 describe("inviting idle sessions to pull work", () => {
     it("announces a queued job no worker took once, to idle sessions only, a would-do in dry-run", async () => {
         /** @type {string[]} */
@@ -2534,7 +2692,7 @@ describe("failure classes on master", () => {
         scene.gpu = [{ ...run(201, A, "success"), name: "GPU" }, ...scene.gpu];
         clock = new Date("2026-10-03T12:54:00Z");
         await poll(daemon);
-        expect(daemon.state.ownerItems["paid-capacity:gpu"]).toMatchObject({ endedBy: "cleared" });
+        expect(await ownerItem("paid-capacity:gpu")).toMatchObject({ endedBy: "cleared" });
     });
 
     it("asks the owner once to top up a rented runner a pull request's job was refused on, and ends it when one runs", async () => {
@@ -2594,11 +2752,11 @@ describe("failure classes on master", () => {
         scene.prs = [pr(8, C, t4(3, "FAILURE", "20:00")), pr(9, D, t4(2, "FAILURE", "00:05"))];
         clock = new Date("2026-10-02T12:30:00Z");
         await poll(daemon);
-        expect(daemon.state.ownerItems[id]).toMatchObject({ endedBy: "cleared" });
+        expect(await ownerItem(id)).toMatchObject({ endedBy: "cleared" });
         // The old refusal still on #9 does not raise it again.
         clock = new Date("2026-10-02T12:33:00Z");
         await poll(daemon);
-        expect(daemon.state.ownerItems[id].endedAt).toBeDefined();
+        expect(daemon.state.ownerItems[id]).toBeUndefined();
         expect(gh.writes()).toEqual([]);
     });
 
@@ -2701,7 +2859,7 @@ describe("failure classes on master", () => {
             expect(await balanceReruns()).toEqual([
                 ["would-do", "worker-writes", "POST actions/runs/302/rerun-failed-jobs"],
             ]);
-            expect(daemon.state.ownerItems["runner-balance:GPU / Test (NVIDIA T4)"]).toMatchObject({
+            expect(await ownerItem("runner-balance:GPU / Test (NVIDIA T4)")).toMatchObject({
                 endedBy: "cleared",
             });
             expect(gh.writes()).toEqual([]);
@@ -3069,7 +3227,7 @@ describe("failure classes on master", () => {
         };
         clock = new Date("2026-10-02T12:23:00Z");
         await poll(daemon);
-        expect(daemon.state.ownerItems["lane-not-progressing:gpu"]).toMatchObject({ endedBy: "cleared" });
+        expect(await ownerItem("lane-not-progressing:gpu")).toMatchObject({ endedBy: "cleared" });
         expect(daemon.state.master.pickups[RENTED]).toBe(21 * 60_000);
     });
 });
@@ -3243,6 +3401,39 @@ async function until(check, what) {
         },
         { timeout: 15_000, interval: 20 },
     );
+}
+
+/**
+ * The records the daemon dropped from one collection of the state, from their ledger lines
+ * (`<kind>-dropped`, issue #2552), oldest first.
+ * @param {string} kind `incident`, `proposal`, `escalation` or `notify`
+ * @returns {Promise<any[]>} the records
+ */
+async function droppedRecords(kind) {
+    const ledger = await readLedger(join(dir, ".githerd"));
+    return ledger.filter((e) => e.kind === `${kind}-dropped`).map((e) => e.record);
+}
+
+/**
+ * An escalation as it is in the state, or as the daemon dropped it once resolved.
+ * @param {any} daemon the daemon
+ * @param {string} key the key
+ * @returns {Promise<any>} the escalation
+ */
+async function escalation(daemon, key) {
+    return daemon.state.escalations[key] ?? (await droppedRecords("escalation")).findLast((e) => e.key === key);
+}
+
+/**
+ * An ended owner item as the daemon dropped it from the state: the record its `dropped` ledger line
+ * keeps.
+ * @param {string} id the item id
+ * @returns {Promise<any>} the item, or undefined when it was not dropped
+ */
+async function ownerItem(id) {
+    const ledger = await readLedger(join(dir, ".githerd"));
+    const dropped = ledger.findLast((e) => e.kind === "owner-item" && e.event === "dropped" && e.item === id);
+    return dropped?.record;
 }
 
 /**

@@ -1002,7 +1002,9 @@
             "id",
             "label.position",
             "penwidth",
+            "pin",
             "pos",
+            "position",
             "shape",
             "style",
             "width",
@@ -1153,7 +1155,7 @@
         "edges": ["arrowhead", "color", "label", "source", "target"]
     },
     "dot/graphviz-gallery-undirected-gd_1994_2007.gv": {
-        "nodes": ["fontsize", "group", "height", "id", "label", "margin", "pos", "width"],
+        "nodes": ["fontsize", "group", "height", "id", "label", "margin", "pos", "position", "width"],
         "edges": ["pos", "source", "target", "weight"]
     },
     "dot/graphviz-gallery-undirected-root.gv": {
@@ -1169,7 +1171,19 @@
         "edges": ["color", "penwidth", "source", "style", "target"]
     },
     "dot/zjunlp_KnowledgeCircuits__graph.gv": {
-        "nodes": ["color", "fillcolor", "fontname", "height", "id", "label", "pos", "shape", "style", "width"],
+        "nodes": [
+            "color",
+            "fillcolor",
+            "fontname",
+            "height",
+            "id",
+            "label",
+            "pos",
+            "position",
+            "shape",
+            "style",
+            "width"
+        ],
         "edges": ["color", "penwidth", "pos", "source", "target"]
     },
     "gexf/cns-iu_cns-pubvis__wos-extract.isi_full-layout.gexf.gz": {
@@ -1400,20 +1414,24 @@
         "nodes": ["color", "disclass", "id", "label", "position", "rawSize", "size", "type"],
         "edges": ["gexfId", "rawWeight", "source", "target", "weight"]
     },
+    "gml/ImperialCollegeLondon_pyrealm__pmodel.gml": {
+        "nodes": ["LabelGraphics", "graphics", "id", "label", "position"],
+        "edges": ["graphics", "source", "target"]
+    },
     "gml/TwelveYC_network-vi__metabolicpos.gml": {
-        "nodes": ["graphics", "id", "label"],
+        "nodes": ["graphics", "id", "label", "position"],
         "edges": ["id", "source", "target", "value"]
     },
     "gml/di-unipi-socc_dgLBF__germany50.gml": {
-        "nodes": ["LabelGraphics", "graphics", "id", "label"],
+        "nodes": ["LabelGraphics", "graphics", "id", "label", "position"],
         "edges": ["graphics", "id", "source", "target"]
     },
     "gml/generated/cytoscape-interactions.gml": {
-        "nodes": ["canonicalName", "graphics", "id", "label", "root_index"],
+        "nodes": ["canonicalName", "graphics", "id", "label", "position", "root_index"],
         "edges": ["graphics", "label", "root_index", "source", "target"]
     },
     "gml/generated/gephi-unquoted-creator.gml": {
-        "nodes": ["graphics", "id", "kind", "label"],
+        "nodes": ["graphics", "id", "kind", "label", "position"],
         "edges": ["graphics", "id", "source", "target", "value"]
     },
     "gml/generated/graphics-mix.gml": {
@@ -1421,7 +1439,7 @@
         "edges": ["graphics", "source", "target"]
     },
     "gml/generated/graphty-written.gml": {
-        "nodes": ["LabelGraphics", "graphics", "graphty_style_node_class", "id", "label"],
+        "nodes": ["LabelGraphics", "graphics", "graphty_style_node_class", "id", "label", "position"],
         "edges": [
             "LabelGraphics",
             "graphics",
@@ -1442,11 +1460,11 @@
         "edges": ["graphics", "source", "target"]
     },
     "gml/generated/ogdf-escaped-labels.gml": {
-        "nodes": ["graphics", "id", "label"],
+        "nodes": ["graphics", "id", "label", "position"],
         "edges": ["graphics", "source", "target"]
     },
     "gml/generated/tamper-block-truncated.gml": {
-        "nodes": ["LabelGraphics", "graphics", "graphty_style_node_class", "id", "label"],
+        "nodes": ["LabelGraphics", "graphics", "graphty_style_node_class", "id", "label", "position"],
         "edges": [
             "LabelGraphics",
             "graphics",
@@ -1459,7 +1477,7 @@
         ]
     },
     "gml/generated/tamper-native-edited.gml": {
-        "nodes": ["LabelGraphics", "graphics", "graphty_style_node_class", "id", "label"],
+        "nodes": ["LabelGraphics", "graphics", "graphty_style_node_class", "id", "label", "position"],
         "edges": [
             "LabelGraphics",
             "graphics",
@@ -1472,7 +1490,7 @@
         ]
     },
     "gml/generated/tamper-node-added.gml": {
-        "nodes": ["LabelGraphics", "graphics", "graphty_style_node_class", "id", "label"],
+        "nodes": ["LabelGraphics", "graphics", "graphty_style_node_class", "id", "label", "position"],
         "edges": [
             "LabelGraphics",
             "graphics",
@@ -1485,11 +1503,11 @@
         ]
     },
     "gml/generated/yed-labels-and-arrows.gml": {
-        "nodes": ["LabelGraphics", "graphics", "id", "label"],
+        "nodes": ["LabelGraphics", "graphics", "id", "label", "position"],
         "edges": ["LabelGraphics", "graphics", "source", "target"]
     },
     "gml/spupyrev_bob__need4stacks261.gml": {
-        "nodes": ["LabelGraphics", "graphics", "id", "label"],
+        "nodes": ["LabelGraphics", "graphics", "id", "label", "position"],
         "edges": ["graphics", "source", "target"]
     },
     "graphml/LTVA1_STM32CrapSynth__func.graphml.gz": {
@@ -1702,7 +1720,7 @@
         ]
     },
     "graphml/generated/labels-multi.graphml": {
-        "nodes": ["borderColor", "borderWidth", "color", "height", "id", "label", "position", "shape", "width"],
+        "nodes": ["borderColor", "borderWidth", "color", "height", "id", "label", "shape", "width"],
         "edges": []
     },
     "graphml/generated/ramp-with-exceptions.graphml.gz": {
@@ -1891,31 +1909,31 @@
         "edges": ["source", "target"]
     },
     "graphml/yed-genericnode/Accenture__reactive-interaction-gateway__overview.graphml": {
-        "nodes": ["description", "id"],
+        "nodes": ["description", "height", "id", "position", "width"],
         "edges": ["description", "source", "target"]
     },
     "graphml/yed-genericnode/CERT-Polska__ursadb__dataset.graphml": {
-        "nodes": ["description", "id"],
+        "nodes": ["description", "height", "id", "position", "width"],
         "edges": []
     },
     "graphml/yed-genericnode/TimothyJones__github-cognito-openid-wrapper__overview.graphml": {
-        "nodes": ["description", "id"],
+        "nodes": ["description", "height", "id", "position", "width"],
         "edges": ["color", "description", "directed", "source", "target", "targetArrow", "width"]
     },
     "graphml/yed-genericnode/awslabs__aws-c-io__slots.graphml": {
-        "nodes": ["id"],
+        "nodes": ["height", "id", "position", "width"],
         "edges": []
     },
     "graphml/yed-genericnode/brucou__kingly__hero_graph.graphml": {
-        "nodes": ["description", "id"],
+        "nodes": ["description", "height", "id", "position", "width"],
         "edges": ["color", "description", "directed", "source", "target", "targetArrow", "width"]
     },
     "graphml/yed-genericnode/buaazp__zimg__arch.graphml": {
-        "nodes": ["id", "url"],
+        "nodes": ["height", "id", "position", "url", "width"],
         "edges": ["color", "directed", "source", "target", "targetArrow", "width"]
     },
     "graphml/yed-genericnode/diennea__herddb__herddb.graphml": {
-        "nodes": ["id"],
+        "nodes": ["height", "id", "position", "width"],
         "edges": []
     },
     "graphml/yed-large/IBM__responsible-prompting-course__prompt_anatomy.graphml.gz": {
@@ -2007,7 +2025,7 @@
         "edges": ["color", "description", "directed", "source", "sourceArrow", "target", "targetArrow", "width"]
     },
     "graphml/yed-svgnode/JustDerb__yed-aws-palettes__AWS_-_Blockchain.graphml": {
-        "nodes": ["Palette ToolTip", "description", "id", "yed.palette.node.name"],
+        "nodes": ["Palette ToolTip", "description", "height", "id", "position", "width", "yed.palette.node.name"],
         "edges": []
     },
     "graphml/yed-svgnode/ZUGFeRD__quba-viewer__XSLGenesis.graphml": {
@@ -2030,7 +2048,7 @@
         "edges": []
     },
     "graphml/yed-svgnode/kyriosdata__rnds__xds.b.graphml": {
-        "nodes": ["description", "id", "url"],
+        "nodes": ["description", "height", "id", "position", "url", "width"],
         "edges": ["color", "description", "directed", "source", "target", "targetArrow", "url", "width"]
     },
     "graphml/yed-svgnode/mitogen-hq__mitogen__persistent.graphml": {
@@ -2038,7 +2056,7 @@
         "edges": ["color", "directed", "source", "sourceArrow", "target", "targetArrow", "width"]
     },
     "graphml/yed-svgnode/sk2__autonetkit-py__small_internet.graphml": {
-        "nodes": ["asn", "device_type", "id"],
+        "nodes": ["asn", "device_type", "height", "id", "position", "width"],
         "edges": ["color", "directed", "source", "speed", "target", "targetArrow", "width"]
     },
     "graphml/yfiles-html/OmniOneID__did-doc-architecture__genKey_iOS.graphml": {
@@ -2542,7 +2560,7 @@
         "edges": ["c", "directed", "source", "target", "weight"]
     },
     "pajek/generated/b98-trailing-zero.net": {
-        "nodes": ["bc", "ic", "id", "label", "lc", "shape", "x", "x_fact", "y", "y_fact", "z"],
+        "nodes": ["bc", "ic", "id", "label", "lc", "position", "shape", "x", "x_fact", "y", "y_fact", "z"],
         "edges": ["c", "directed", "source", "target", "weight"]
     },
     "pajek/generated/color-forms.net": {
@@ -2550,11 +2568,27 @@
         "edges": ["c", "directed", "source", "target", "weight"]
     },
     "pajek/generated/colors-mix.net": {
-        "nodes": ["bc", "ic", "id", "label", "shape", "x", "x_fact", "y", "z"],
+        "nodes": ["bc", "ic", "id", "label", "position", "shape", "x", "x_fact", "y", "z"],
         "edges": ["c", "directed", "p", "source", "target", "w", "weight"]
     },
     "pajek/generated/graphty-written.net": {
-        "nodes": ["bw", "fos", "ic", "id", "label", "lc", "lphi", "lr", "shape", "x", "x_fact", "y", "y_fact", "z"],
+        "nodes": [
+            "bw",
+            "fos",
+            "ic",
+            "id",
+            "label",
+            "lc",
+            "lphi",
+            "lr",
+            "position",
+            "shape",
+            "x",
+            "x_fact",
+            "y",
+            "y_fact",
+            "z"
+        ],
         "edges": [
             "a1",
             "a2",
@@ -2579,11 +2613,27 @@
         "edges": ["directed", "source", "target", "weight"]
     },
     "pajek/generated/proto-color-names.net": {
-        "nodes": ["bc", "ic", "id", "label", "shape", "x", "y", "z"],
+        "nodes": ["bc", "ic", "id", "label", "position", "shape", "x", "y", "z"],
         "edges": ["c", "directed", "p", "source", "target", "weight"]
     },
     "pajek/generated/shapes-and-lines.net": {
-        "nodes": ["bw", "fos", "ic", "id", "label", "lc", "lphi", "lr", "shape", "x", "x_fact", "y", "y_fact", "z"],
+        "nodes": [
+            "bw",
+            "fos",
+            "ic",
+            "id",
+            "label",
+            "lc",
+            "lphi",
+            "lr",
+            "position",
+            "shape",
+            "x",
+            "x_fact",
+            "y",
+            "y_fact",
+            "z"
+        ],
         "edges": [
             "a1",
             "a2",
@@ -2604,7 +2654,23 @@
         ]
     },
     "pajek/generated/tamper-block-truncated.net": {
-        "nodes": ["bw", "fos", "ic", "id", "label", "lc", "lphi", "lr", "shape", "x", "x_fact", "y", "y_fact", "z"],
+        "nodes": [
+            "bw",
+            "fos",
+            "ic",
+            "id",
+            "label",
+            "lc",
+            "lphi",
+            "lr",
+            "position",
+            "shape",
+            "x",
+            "x_fact",
+            "y",
+            "y_fact",
+            "z"
+        ],
         "edges": [
             "a1",
             "a2",
@@ -2625,7 +2691,23 @@
         ]
     },
     "pajek/generated/tamper-native-edited.net": {
-        "nodes": ["bw", "fos", "ic", "id", "label", "lc", "lphi", "lr", "shape", "x", "x_fact", "y", "y_fact", "z"],
+        "nodes": [
+            "bw",
+            "fos",
+            "ic",
+            "id",
+            "label",
+            "lc",
+            "lphi",
+            "lr",
+            "position",
+            "shape",
+            "x",
+            "x_fact",
+            "y",
+            "y_fact",
+            "z"
+        ],
         "edges": [
             "a1",
             "a2",
@@ -2646,7 +2728,23 @@
         ]
     },
     "pajek/generated/tamper-node-added.net": {
-        "nodes": ["bw", "fos", "ic", "id", "label", "lc", "lphi", "lr", "shape", "x", "x_fact", "y", "y_fact", "z"],
+        "nodes": [
+            "bw",
+            "fos",
+            "ic",
+            "id",
+            "label",
+            "lc",
+            "lphi",
+            "lr",
+            "position",
+            "shape",
+            "x",
+            "x_fact",
+            "y",
+            "y_fact",
+            "z"
+        ],
         "edges": [
             "a1",
             "a2",
@@ -2665,6 +2763,14 @@
             "w",
             "weight"
         ]
+    },
+    "pajek/graphstream_gs-core__B.net": {
+        "nodes": ["bw", "fos", "ic", "id", "label", "position", "shape", "x", "x_fact", "y", "y_fact"],
+        "edges": ["ap", "directed", "h2", "source", "target", "w", "weight"]
+    },
+    "pajek/kjhealy_kjhnet__iliad_killedby.net": {
+        "nodes": ["ic", "id", "label"],
+        "edges": ["directed", "source", "target"]
     },
     "xgmml/BasicDataVizDemo.xgmml.gz": {
         "nodes": [

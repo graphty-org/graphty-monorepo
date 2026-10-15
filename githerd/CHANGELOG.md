@@ -1,3 +1,104 @@
+## 0.1.9 (2026-10-15)
+
+### 🩹 Fixes
+
+- **githerd:** drop a closed issue's merge record from state and restore it on reopen ([#2661](https://github.com/graphty-org/graphty-monorepo/issues/2661), [#2270](https://github.com/graphty-org/graphty-monorepo/issues/2270))
+- **githerd:** keep the pull request page size private to the daemon ([#2700](https://github.com/graphty-org/graphty-monorepo/issues/2700))
+- **githerd:** page the open pull request list so GitHub answers it in time ([#2700](https://github.com/graphty-org/graphty-monorepo/issues/2700))
+- **githerd:** read a large ledger without spreading its lines as arguments ([512eee55c](https://github.com/graphty-org/graphty-monorepo/commit/512eee55c))
+- **githerd:** read the visual gate's steps again until GitHub has finished them ([#1727](https://github.com/graphty-org/graphty-monorepo/issues/1727), [#2081](https://github.com/graphty-org/graphty-monorepo/issues/2081))
+- **githerd:** drop finished incidents, proposals, escalations and page records from state ([#2552](https://github.com/graphty-org/graphty-monorepo/issues/2552), [#2270](https://github.com/graphty-org/graphty-monorepo/issues/2270))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.55
+- Updated visual-review to 0.2.29
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.1.8 (2026-10-14)
+
+### 🚀 Features
+
+- **githerd:** resume sessions when usage comes back before the limit's reset ([#2596](https://github.com/graphty-org/graphty-monorepo/issues/2596))
+
+### 🩹 Fixes
+
+- **githerd:** read the newer usage-limit status line on a worker pane ([#2647](https://github.com/graphty-org/graphty-monorepo/issues/2647))
+- **githerd:** offer an issue again when its done job's pull request is gone ([#2644](https://github.com/graphty-org/graphty-monorepo/issues/2644))
+- **githerd:** count a daemon's forked child as no second daemon ([#2576](https://github.com/graphty-org/graphty-monorepo/issues/2576))
+- **githerd:** propose closing a split issue once every child issue closes ([#2557](https://github.com/graphty-org/graphty-monorepo/issues/2557))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.1.7 (2026-10-14)
+
+### 🩹 Fixes
+
+- **githerd:** githerd pause also stops every message to the sessions ([3867a92a1](https://github.com/graphty-org/graphty-monorepo/commit/3867a92a1))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.54
+- Updated visual-review to 0.2.28
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.1.6 (2026-10-14)
+
+### 🩹 Fixes
+
+- **githerd:** require a job's pull request to name the issues joined into it ([#2262](https://github.com/graphty-org/graphty-monorepo/issues/2262), [#2261](https://github.com/graphty-org/graphty-monorepo/issues/2261), [#2499](https://github.com/graphty-org/graphty-monorepo/issues/2499))
+- **githerd:** name the holding session wherever a holder is shown ([#2486](https://github.com/graphty-org/graphty-monorepo/issues/2486))
+- **githerd:** cut the work of the tests that timed out in busy pre-push gates ([#2478](https://github.com/graphty-org/graphty-monorepo/issues/2478), [#2479](https://github.com/graphty-org/graphty-monorepo/issues/2479), [#2480](https://github.com/graphty-org/graphty-monorepo/issues/2480))
+- **githerd:** keep an issue off the queue while a stacked pull request fixes it ([#2470](https://github.com/graphty-org/graphty-monorepo/issues/2470))
+
+### 🔥 Performance
+
+- **githerd:** drop ended owner items from state and save state.json compactly ([#2352](https://github.com/graphty-org/graphty-monorepo/issues/2352), [#2270](https://github.com/graphty-org/graphty-monorepo/issues/2270))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.53
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.1.5 (2026-10-14)
+
+### 🩹 Fixes
+
+- **githerd:** let a killed push's gate run its exit trap before the push is reported ([#2481](https://github.com/graphty-org/graphty-monorepo/issues/2481))
+- **githerd:** accept done for a fix stacked on another open pull request ([#2467](https://github.com/graphty-org/graphty-monorepo/issues/2467))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.1.4 (2026-10-13)
+
+### 🩹 Fixes
+
+- **githerd:** offer work to idle sessions while shared resources are busy ([7de96768b](https://github.com/graphty-org/graphty-monorepo/commit/7de96768b))
+- **githerd:** drop settled tests from the flaky-test record ([#2368](https://github.com/graphty-org/graphty-monorepo/issues/2368))
+- **githerd:** drop finished jobs nothing reads from the state ([#2366](https://github.com/graphty-org/graphty-monorepo/issues/2366))
+- **githerd:** stop the push-log tests waiting on pnpm, and build no git for retargets ([#2373](https://github.com/graphty-org/graphty-monorepo/issues/2373))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.52
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.1.3 (2026-10-13)
 
 ### 🩹 Fixes

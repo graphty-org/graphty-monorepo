@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -17,6 +17,7 @@ import {
     repoRoot,
     resolveConfig,
 } from "../lib/config.mjs";
+import { tempDir } from "./helpers/temp-dir.mjs";
 
 const ROOT = fileURLToPath(new URL("../../", import.meta.url));
 const MINIMAL = { repo: "o/r", lanes: { ci: { workflow: "ci.yml", gating: "required" } } };
@@ -275,7 +276,7 @@ describe("resolveConfig", () => {
 
     beforeAll(() => {
         isolateGit();
-        dir = mkdtempSync(join(tmpdir(), "githerd-config-"));
+        dir = tempDir("githerd-config-");
         remote = join(dir, "remote.git");
         const seed = join(dir, "seed");
         git(dir, "init", "--bare", "-b", "main", remote);

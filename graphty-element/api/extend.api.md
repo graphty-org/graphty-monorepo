@@ -282,6 +282,7 @@ export interface BaseDataSourceConfig {
     file?: File;
     graphIndex?: number;
     graphName?: string;
+    layout?: "recommended" | "keep";
     styles?: "file" | "none";
     url?: string;
 }
@@ -1572,13 +1573,22 @@ export function metricFieldSpecs(kind: "node" | "edge", valueType?: "number" | "
 class Node_2 {
     constructor(graph: Graph | GraphContext, nodeId: NodeIdType, paint: NodePaint, data: AdHocData<string | number>, opts?: NodeOpts);
     applySessionPaint(paint: NodePaint): void;
+    // @internal
+    get borderReach(): number;
     get data(): AdHocData<string | number>;
     dispose(): void;
     // (undocumented)
     dragging: boolean;
     // (undocumented)
     dragHandler?: NodeDragHandler;
+    get drawnHalfExtents(): Readonly<{
+        x: number;
+        y: number;
+        z: number;
+    }>;
     get drawnRadius(): number;
+    // @internal
+    framingHalf(axis: "x" | "y" | "z"): number;
     getPosition(): {
         x: number;
         y: number;

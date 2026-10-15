@@ -407,7 +407,8 @@ export class Graphty extends LitElement {
                     reason,
                     version: history.version,
                     position: history.position,
-                    steps: history.steps.length,
+                    // The count alone: the step list is rebuilt after every change.
+                    steps: dispatcherOf(session).history.length,
                     canUndo: session.canUndo,
                     canRedo: session.canRedo,
                 } satisfies GraphtyHistoryChangeDetail,

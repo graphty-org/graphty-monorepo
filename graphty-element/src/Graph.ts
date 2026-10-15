@@ -113,6 +113,7 @@ import {
     UpdateManager,
     type ViewMasks,
 } from "./managers";
+import { dataManagerInternals } from "./managers/DataManager";
 import { animatesEveryFrame } from "./managers/everyFrameAnimations";
 import { LabelDeclutter, NO_NODE_LABELS, type NodeLabel, type NodeLabelCounts } from "./managers/LabelDeclutter";
 import { layoutManagerInternals } from "./managers/LayoutManager";
@@ -701,8 +702,17 @@ export class Graph implements GraphContext {
             // queue: queued work ran after the add's step had sealed, or inside a later undo
             // before its `arrangement` hook, and moved an arrangement being restored. An import
             // places them once, in the pass its end schedules, not after every chunk: placing
-            // steps an engine like ngraph over the whole graph each time.
-            if (this.#placementOwed && cause === "command" && this.#importsReading === 0) {
+            // steps an engine like ngraph over the whole graph each time. Likewise a graph write
+            // with another still waiting behind it leaves the placing to the last of them, so a
+            // run of queued adds -- `addNode` in a loop -- places once over the whole graph, not
+            // once per add (issue #2733); the pass that paints the run places it.
+            const dispatcher = dispatcherOf(this.session);
+            if (
+                this.#placementOwed &&
+                cause === "command" &&
+                this.#importsReading === 0 &&
+                !dispatcher.graphWritesWaiting
+            ) {
                 this.#placementOwed = false;
                 await this.layoutManager.updatePositions([...this.dataManager.nodes.values()]);
             }
@@ -712,7 +722,6 @@ export class Graph implements GraphContext {
             // write with another still waiting behind it leaves the paint to the last of them,
             // so a run of queued adds repaints once, not once per add. Everything else -- undo,
             // redo, a rollback, an edit, a session verb -- is painted here, in its own pass.
-            const dispatcher = dispatcherOf(this.session);
             if (cause !== "command" || (this.#importsReading === 0 && !dispatcher.graphWritesWaiting)) {
                 dispatcher.paintOwed = false;
                 await this.repaintFromSession();
@@ -2955,10 +2964,13 @@ export class Graph implements GraphContext {
         }
 
         const doomedEdges: string[] = [...edgeIds];
-        if (doomed.size > 0) {
-            for (const edge of this.dataManager.edges.values()) {
-                if (doomed.has(edge.srcId) || doomed.has(edge.dstId)) {
-                    doomedEdges.push(edge.id);
+        // The edges of a doomed node, from the store's incidence lists, and only when one of them
+        // could be selected: a run of removals stays linear either way.
+        if (doomed.size > 0 && !this.session.selection.edgeRemovalChangesNothing()) {
+            for (const id of doomed) {
+                const node = this.dataManager.getNode(id);
+                if (node) {
+                    doomedEdges.push(...this.dataManager.incidentEdgeIds(node));
                 }
             }
         }
@@ -3943,7 +3955,9 @@ export class Graph implements GraphContext {
      * @param twoD - Whether the scene becomes 2D.
      */
     private enterDimension(twoD: boolean): void {
-        // Clear mesh cache if switching between 2D and 3D modes
+        // Clear mesh cache if switching between 2D and 3D modes, once the meshes of nodes just
+        // removed are gone: the cache disposes the source meshes they are instances of.
+        dataManagerInternals.flushReleasing(this.dataManager);
         this.dataManager.meshCache.clear();
         this.writeSceneDimension(twoD);
 

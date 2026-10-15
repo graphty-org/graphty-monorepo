@@ -207,6 +207,30 @@ function jacobi(a: Float64Array, p: number): { values: Float64Array; vectors: Fl
 }
 
 /**
+ * The p x p matrix of dot products `block[i] . image[j]`, filled from its upper triangle so it is
+ * exactly symmetric.
+ * @param block - p vectors of length n
+ * @param image - The operator applied to each vector of `block`
+ * @param n - Vector length
+ * @returns The matrix, row-major
+ */
+function projection(block: Float64Array[], image: Float64Array[], n: number): Float64Array {
+    const p = block.length;
+    const h = new Float64Array(p * p);
+    for (let i = 0; i < p; i++) {
+        for (let j = i; j < p; j++) {
+            let dot = 0;
+            for (let r = 0; r < n; r++) {
+                dot += block[i][r] * image[j][r];
+            }
+            h[i * p + j] = dot;
+            h[j * p + i] = dot;
+        }
+    }
+    return h;
+}
+
+/**
  * The k smallest eigenpairs of a symmetric Laplacian, by subspace iteration on `shift * I - L` (whose
  * largest eigenpairs they are) with a Rayleigh-Ritz step, over a block a few vectors wider than k.
  * @param apply - Writes `L x` into `out`
@@ -240,18 +264,7 @@ function smallestEigenpairs(
     for (let round = 0; round < MAX_SUBSPACE_ROUNDS; round++) {
         const image = block.map(shifted);
         // Rayleigh-Ritz: the block's projection of the shifted operator, diagonalised.
-        const h = new Float64Array(p * p);
-        for (let i = 0; i < p; i++) {
-            for (let j = i; j < p; j++) {
-                let dot = 0;
-                for (let r = 0; r < n; r++) {
-                    dot += block[i][r] * image[j][r];
-                }
-                h[i * p + j] = dot;
-                h[j * p + i] = dot;
-            }
-        }
-        const eig = jacobi(h, p);
+        const eig = jacobi(projection(block, image, n), p);
         ({ values: ritz, vectors } = eig);
         order = Array.from({ length: p }, (_, i) => i).sort((a, b) => ritz[b] - ritz[a]);
         // Converged when every wanted Ritz pair (y = X q, theta) has a residual |B y - theta y|

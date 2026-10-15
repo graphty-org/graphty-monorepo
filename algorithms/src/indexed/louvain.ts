@@ -45,9 +45,9 @@ interface Level {
 }
 
 /**
- * Row pointers over the snapshot's arcs with the self-loop arcs left out.
- * @param s - The snapshot
- * @returns The row pointers
+ * Row pointers of the snapshot's adjacency with every self-loop arc left out.
+ * @param s - An undirected snapshot
+ * @returns The row pointers, `nodeCount + 1` long
  */
 function rowPtrWithoutLoops(s: GraphSnapshot): Uint32Array {
     const n = s.nodeCount;
@@ -230,6 +230,58 @@ function localMove(level: Level, comm: Uint32Array, resolution: number, m2: numb
 }
 
 /**
+ * The nodes of each community, grouped: community `c`'s members, in node order, are
+ * `members[start[c]]` up to `members[start[c + 1]]`.
+ * @param n - The node count
+ * @param comm - Dense community of every node
+ * @param count - Number of communities
+ * @returns The group starts and the grouped members
+ */
+function membersByCommunity(n: number, comm: Uint32Array, count: number): { start: Uint32Array; members: Uint32Array } {
+    const start = new Uint32Array(count + 1);
+    for (let u = 0; u < n; u++) {
+        start[comm[u] + 1]++;
+    }
+    for (let c = 0; c < count; c++) {
+        start[c + 1] += start[c];
+    }
+    const members = new Uint32Array(n);
+    const fill = start.slice(0, count);
+    for (let u = 0; u < n; u++) {
+        members[fill[comm[u]]++] = u;
+    }
+    return { start, members };
+}
+
+/**
+ * Write one aggregated row: an arc to each touched community, weighted by its accumulated weight.
+ * @param touched - The touched communities, in first-touch order
+ * @param cnt - How many of `touched` are in use
+ * @param acc - Accumulated arc weight per community
+ * @param colIdx - Output arc heads
+ * @param w - Output arc weights
+ * @param k - The index of the row's first arc
+ * @returns The row's total arc weight
+ */
+function emitRow(
+    touched: Uint32Array,
+    cnt: number,
+    acc: Float64Array,
+    colIdx: Uint32Array,
+    w: Float64Array,
+    k: number,
+): number {
+    let rowWeight = 0;
+    for (let i = 0; i < cnt; i++) {
+        const other = touched[i];
+        colIdx[k + i] = other;
+        w[k + i] = acc[other];
+        rowWeight += acc[other];
+    }
+    return rowWeight;
+}
+
+/**
  * Phase two: every community becomes one node, the edges between two communities merge into one
  * arc, and the edges inside a community become that node's self-loop. Rows are NOT sorted by
  * neighbour index; nothing downstream of here needs them to be.
@@ -239,18 +291,7 @@ function localMove(level: Level, comm: Uint32Array, resolution: number, m2: numb
  * @returns The next level, with `count` nodes
  */
 function aggregate(level: Level, comm: Uint32Array, count: number): Level {
-    const start = new Uint32Array(count + 1);
-    for (let u = 0; u < level.n; u++) {
-        start[comm[u] + 1]++;
-    }
-    for (let c = 0; c < count; c++) {
-        start[c + 1] += start[c];
-    }
-    const members = new Uint32Array(level.n);
-    const fill = start.slice(0, count);
-    for (let u = 0; u < level.n; u++) {
-        members[fill[comm[u]]++] = u;
-    }
+    const { start, members } = membersByCommunity(level.n, comm, count);
     const rowPtr = new Uint32Array(count + 1);
     const colIdx = new Uint32Array(level.colIdx.length);
     const w = new Float64Array(level.colIdx.length);
@@ -284,14 +325,8 @@ function aggregate(level: Level, comm: Uint32Array, count: number): Level {
         }
         // An edge between two members shows up as two arcs, one from each end.
         loop[c] += internalArcs / 2;
-        let rowWeight = 0;
-        for (let i = 0; i < cnt; i++) {
-            const other = touched[i];
-            colIdx[k] = other;
-            w[k] = acc[other];
-            rowWeight += acc[other];
-            k++;
-        }
+        const rowWeight = emitRow(touched, cnt, acc, colIdx, w, k);
+        k += cnt;
         deg[c] = rowWeight + 2 * loop[c];
     }
     rowPtr[count] = k;

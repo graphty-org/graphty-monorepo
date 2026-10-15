@@ -407,7 +407,7 @@ export class Autosaver {
     /** A page-supplied load is running: its changes do not start an entry. */
     #quiet = 0;
     /** Changes made during a page load, and the parts they touched, until the load says whose they were. */
-    #heldDuringLoad = { count: 0, tags: new Set<PartTag>() };
+    #heldDuringLoad = { count: 0, tags: new Set<PartTag>(), stash: false };
     /** The listing has not succeeded yet: nothing is written, so no entry can shadow the real one. */
     #blocked = false;
     /** The next write rewrites an older-format entry, flushed to disk. */
@@ -581,6 +581,12 @@ export class Autosaver {
             this.#stash.set(name, JSON.parse(JSON.stringify(value)) as unknown); // NOSONAR(S7784): JSON semantics wanted, not a structured clone
         }
 
+        if (this.#quiet > 0 && !this.#restoring) {
+            // Never the page load's own: written once the load ends.
+            this.#heldDuringLoad.stash = true;
+            return;
+        }
+
         this.#mark(["stash"], false, false);
     }
 
@@ -744,19 +750,10 @@ export class Autosaver {
         try {
             await load();
         } finally {
+            // Settled whether the load worked or threw: a failed load says nothing about the
+            // reader's changes made while it ran.
             this.#quiet -= 1;
-        }
-
-        const held = this.#heldDuringLoad;
-        this.#heldDuringLoad = { count: 0, tags: new Set() };
-        const readerSteps = this.#session.history.steps.filter(
-            (step) => !steps.has(step.id) && !PAGE_LOAD_CODES.has(step.fact.code),
-        ).length;
-        if (held.count > 0 && readerSteps > 0) {
-            // The reader's steps count, as their changes would have outside the load; the mark
-            // counts one of them.
-            this.#changes += readerSteps - 1;
-            this.#mark([...held.tags], false, true);
+            this.#settleHeld(steps);
         }
 
         if (restored !== null) {
@@ -771,6 +768,33 @@ export class Autosaver {
         }
 
         return "applied";
+    }
+
+    /**
+     * A page load ended: write the reader's changes made while it ran. A history step the load did
+     * not make says the reader worked; a stash made meanwhile is the reader's in any case.
+     * @param before - The history steps before the load.
+     */
+    #settleHeld(before: ReadonlySet<string>): void {
+        if (this.#quiet > 0) {
+            return;
+        }
+
+        const held = this.#heldDuringLoad;
+        this.#heldDuringLoad = { count: 0, tags: new Set(), stash: false };
+        const readerSteps = this.#session.history.steps.filter(
+            (step) => !before.has(step.id) && !PAGE_LOAD_CODES.has(step.fact.code),
+        ).length;
+        if (held.count > 0 && readerSteps > 0) {
+            // The reader's steps count, as their changes would have outside the load; the mark
+            // counts one of them.
+            this.#changes += readerSteps - 1;
+            this.#mark([...held.tags], false, true);
+        }
+
+        if (held.stash) {
+            this.#mark(["stash"], false, false);
+        }
     }
 
     /**

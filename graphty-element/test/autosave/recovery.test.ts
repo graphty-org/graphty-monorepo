@@ -453,6 +453,53 @@ describe("the page's own data and settings", () => {
         assert.strictEqual(reload.session.config.name, "Edited while loading");
     });
 
+    it("keeps a change the reader makes while a page load runs, when the load then fails", async () => {
+        const store = memoryAutosaveStore();
+        const page = load(store);
+        await page.saver.recover();
+        const first = rows(["a", "b"]);
+        let failure: unknown = null;
+        try {
+            await page.saver.admit(first.source, async () => {
+                await first.apply(page.session)();
+                await page.session.config.set({ name: "Edited before the failure" });
+                page.saver.stash("org.example.draft", { text: "half a note" });
+                throw new Error("the rest of the load failed");
+            });
+        } catch (error) {
+            failure = error;
+        }
+
+        assert.instanceOf(failure, Error, "the load's own failure reaches its caller");
+        await page.saver.flush();
+        assert.strictEqual(page.saver.status.state, "saved");
+        assert.strictEqual(page.saver.status.revision, 1, "the reader's change counted");
+        page.saver.stop();
+
+        const reload = load(store);
+        await reload.saver.recover();
+        assert.strictEqual(reload.session.config.name, "Edited before the failure");
+        assert.deepStrictEqual(reload.saver.stashed("org.example.draft"), { text: "half a note" });
+    });
+
+    it("keeps a stash made while a page load runs", async () => {
+        const store = memoryAutosaveStore();
+        const page = load(store);
+        await page.saver.recover();
+        const first = rows(["a", "b"]);
+        await page.saver.admit(first.source, async () => {
+            await first.apply(page.session)();
+            page.saver.stash("org.example.draft", { text: "typed during the load" });
+        });
+        await page.saver.flush();
+        assert.isNotNull(page.saver.status.entry, "the stash started an entry");
+        page.saver.stop();
+
+        const reload = load(store);
+        await reload.saver.recover();
+        assert.deepStrictEqual(reload.saver.stashed("org.example.draft"), { text: "typed during the load" });
+    });
+
     it("a page load alone, however long it takes to finish, starts no entry", async () => {
         const store = memoryAutosaveStore();
         const page = load(store);

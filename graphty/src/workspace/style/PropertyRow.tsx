@@ -266,6 +266,8 @@ export function Field({ ctx, descriptor, word }: Readonly<FieldProps>): React.JS
     // "=" in a field opens the value picker, as Figma's "apply variable" does (a typed text keeps
     // its "="). A Tooltip just added opens it at once: an empty tooltip says nothing.
     const [varyOpen, setVaryOpen] = useState(() => listOpensNext(channel));
+    // Several layers: the binding picked in Vary, waiting for Apply under its per-layer preview.
+    const [pendingVary, setPendingVary] = useState<DataBinding | null>(null);
     useFocusOnRemoval(box);
     const line = lineIn(ctx, channel);
     // A line on a locked layer (the element's own base layers) is not this row's.
@@ -312,11 +314,19 @@ export function Field({ ctx, descriptor, word }: Readonly<FieldProps>): React.JS
     };
     const bind = (choice: DataChoice): void => {
         const proposal = propose(session, choice, channel);
-        if (proposal.ok) {
+        if (!proposal.ok) {
+            return;
+        }
+        // Several layers: show what the copy paints in each before writing it.
+        if (ctx.many === undefined) {
             write({ binding: proposal.binding });
+        } else {
+            setPendingVary(proposal.binding);
         }
     };
-    const varies = takesBinding(descriptor) && own !== undefined && own.binding === undefined;
+    const varies =
+        takesBinding(descriptor) &&
+        ((own !== undefined && own.binding === undefined) || (own === undefined && ctx.many !== undefined));
     // The keyboard's remove: empty a typed field and press Enter, or Delete / Backspace on a
     // closed select or a color chit.
     const onKeyDownCapture = (event: React.KeyboardEvent<HTMLDivElement>): void => {
@@ -474,9 +484,32 @@ export function Field({ ctx, descriptor, word }: Readonly<FieldProps>): React.JS
             </Tooltip>
         );
     } else if (varies) {
-        varySlot = (
-            <VaryButton ctx={ctx} descriptor={descriptor} onPick={bind} open={varyOpen} onOpenChange={setVaryOpen} />
-        );
+        const off = ctx.many === undefined ? null : varyOffReason(ctx);
+        varySlot =
+            off === null ? (
+                <VaryButton
+                    ctx={ctx}
+                    descriptor={descriptor}
+                    onPick={bind}
+                    open={varyOpen}
+                    onOpenChange={setVaryOpen}
+                />
+            ) : (
+                <Tooltip label={off} multiline w={220}>
+                    <ActionIcon
+                        variant="subtle"
+                        size="sm"
+                        aria-label={`${name} by attribute: ${off}`}
+                        aria-disabled
+                        data-disabled
+                        onClick={(event) => {
+                            event.preventDefault();
+                        }}
+                    >
+                        <GLYPHS.link size={14} aria-hidden />
+                    </ActionIcon>
+                </Tooltip>
+            );
     }
     const removeName =
         ctx.many === undefined ? `Remove ${name.toLowerCase()}` : `Remove ${name.toLowerCase()} from every row`;
@@ -519,9 +552,138 @@ export function Field({ ctx, descriptor, word }: Readonly<FieldProps>): React.JS
                     {breakdownWords(word ?? channelWord(channel), ctx.many.breakdown(channel))}
                 </Text>
             ) : null}
+            {pendingVary === null ? null : (
+                <VaryPreview
+                    ctx={ctx}
+                    descriptor={descriptor}
+                    binding={pendingVary}
+                    onApply={() => {
+                        setPendingVary(null);
+                        write({ binding: pendingVary });
+                    }}
+                    onCancel={() => {
+                        setPendingVary(null);
+                    }}
+                />
+            )}
             {receipt === undefined ? null : (
                 <Receipt ctx={ctx} channel={channel} name={word ?? channelWord(channel)} receipt={receipt} />
             )}
+        </div>
+    );
+}
+
+/** The words for why several layers cannot vary by data. */
+const VARY_OFF_WORDS =
+    "These layers do not each hold one value of the same field, so a rule copied into each would paint each the same way";
+
+/**
+ * Why several layers cannot vary a property by data, or null when they can: they can when every
+ * one of them holds one value of a field its rule selects by (a group of a run, a value of a
+ * column), read from what a binding on that field paints within each (`styles.preview`'s `within`).
+ * @param ctx - the rows.
+ * @returns the reason, or null.
+ */
+function varyOffReason(ctx: RowContext): string | null {
+    const layers = ctx.layers.filter((layer) => !layer.locked);
+    const attributes = new Set(
+        layers.flatMap((layer) =>
+            layer.selector.match === "rule" &&
+            layer.selector.where.kind === "categories" &&
+            layer.selector.where.values.length === 1
+                ? [layer.selector.where.attribute]
+                : [],
+        ),
+    );
+    const channel: Channel = ctx.side === "node" ? "node.color" : "edge.color";
+    // ponytail: one preview per layer per candidate field, a walk over the graph each; cache by
+    // the style version if a folder of hundreds of layers is slow.
+    const sharesOne = (by: string): boolean =>
+        layers.every(
+            (layer) =>
+                ctx.session.styles
+                    .preview({ by, scale: "ordinal" }, { channel, within: layer.id })
+                    .bins.filter((bin) => bin.count > 0).length === 1,
+        );
+    return layers.length > 0 && [...attributes].some(sharesOne) ? null : VARY_OFF_WORDS;
+}
+
+/**
+ * What a binding copied into each of several layers would paint in each, before it is written:
+ * one line per layer with its values (`styles.preview` within the layer), then Apply and Cancel.
+ * @param props - Component props
+ * @param props.ctx - the rows
+ * @param props.descriptor - the property
+ * @param props.binding - the binding to copy
+ * @param props.onApply - writes it
+ * @param props.onCancel - drops it
+ * @returns The preview
+ */
+function VaryPreview({
+    ctx,
+    descriptor,
+    binding,
+    onApply,
+    onCancel,
+}: Readonly<{
+    ctx: RowContext;
+    descriptor: ChannelDescriptor;
+    binding: DataBinding;
+    onApply: () => void;
+    onCancel: () => void;
+}>): React.JSX.Element {
+    const name = channelWord(descriptor.channel);
+    const layers = ctx.layers.filter((layer) => !layer.locked);
+    const source = sourceName(ctx.session, binding) ?? binding.by;
+    return (
+        <div className="ws-bulk-vary" role="group" aria-label={`${name} by ${source}, in each layer`}>
+            <Text size="xs" c="var(--cm-text-secondary)">
+                Each layer gets its own rule:
+            </Text>
+            <ul className="ws-bulk-vary-list">
+                {layers.map((layer) => {
+                    const bins = ctx.session.styles
+                        .preview(binding, { channel: descriptor.channel, within: layer.id })
+                        .bins.filter((bin) => bin.count > 0);
+                    const shown = bins.slice(0, 4);
+                    return (
+                        <li key={layer.id} data-layer={layer.id} aria-label={layer.name}>
+                            <Text size="xs" span truncate className="ws-bulk-vary-name">
+                                {layer.name}
+                            </Text>
+                            {shown.map((bin, at) => {
+                                const hex = descriptor.accepts === "color" ? hexOf(bin.paints) : null;
+                                // The bins of one preview, in its order: their place is their key.
+                                const key = String(at);
+                                return hex === null ? (
+                                    <Text key={key} size="xs" span>
+                                        {valueWords(descriptor, bin.paints)}
+                                    </Text>
+                                ) : (
+                                    <span
+                                        key={key}
+                                        className="ws-bulk-vary-chit"
+                                        role="img"
+                                        aria-label={hex}
+                                        style={{ background: hex }}
+                                    />
+                                );
+                            })}
+                            {bins.length > shown.length ? (
+                                <Text size="xs" span>{`+${String(bins.length - shown.length)}`}</Text>
+                            ) : null}
+                        </li>
+                    );
+                })}
+            </ul>
+            <div className="ws-bulk-vary-actions">
+                <Button size="compact-xs" onClick={onApply}>
+                    Apply
+                </Button>
+                <Button size="compact-xs" variant="subtle" onClick={onCancel}>
+                    Cancel
+                </Button>
+            </div>
         </div>
     );
 }

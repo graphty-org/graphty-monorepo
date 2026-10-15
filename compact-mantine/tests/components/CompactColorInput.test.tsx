@@ -237,7 +237,7 @@ describe("CompactColorInput", () => {
             );
 
             const group = screen.getByRole("group", { name: "Fill Color" });
-            expect(group).toBeInTheDocument();
+            expect(group.tagName).toBe("FIELDSET");
             expect(group).toContainElement(screen.getByRole("textbox", { name: "Fill Color" }));
             expect(group).toContainElement(screen.getByRole("button", { name: "Pick Fill Color" }));
             expect(group).toContainElement(screen.getByRole("textbox", { name: "Fill Color opacity" }));

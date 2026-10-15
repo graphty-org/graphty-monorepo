@@ -11,37 +11,37 @@
  * 50,000 elements, so it blows the whole-frame budget on selector evaluation alone. Every
  * assertion below is written so that such an implementation fails it.
  *
- * TWO KINDS OF ASSERTION, and both are here on purpose. The absolute ceilings are generous,
- * because a shared CI runner is slower and noisier than a workstation; they catch an order of
- * magnitude, not a percent. The RATIO against `jmespath.search()` measured in this same process
- * is the machine-independent one: it is the same arithmetic on the same hardware at the same
- * moment, so it stays meaningful wherever this runs.
+ * WHAT IS ASSERTED IS COUNTED WORK, never a stopwatch. Every pass is held to the work it may do:
+ * no `jmespath.search()` call at all, no expression parsed while the predicate runs, and exactly
+ * one column read per element. A `search()`-per-element implementation fails the first, one that
+ * re-parses per element the second, and one that walks or re-reads a root object per element the
+ * third, on any machine however busy it is. Compiling is held to one parse per selector, whatever
+ * the element count.
  *
- * It gates no push: ci.yml's advisory "performance" job runs it, because a stopwatch on a busy
- * machine measures the machine. selector.test.ts pins the mechanism by count: a compiled selector
- * reads each element's column once and never re-parses.
+ * THE TIMINGS ARE PRINTED, NOT ASSERTED: nanoseconds per element, milliseconds per pass at 50,000
+ * elements against the design's 5 ms share of the frame, and the ratio against `search()` measured
+ * in this process, so a CI log still shows the trend. ci.yml's advisory "performance" job runs this
+ * file. selector.test.ts pins the same mechanism, gating, on small inputs.
  */
 
 import jmespath from "jmespath";
 import { assert, describe, it } from "vitest";
 
 import type { NodeId } from "../../../src/catalog/types";
-import type { ElementPredicate, SelectorSource } from "../../../src/session/styles/predicate";
+import { type ElementPredicate, predicateCounters, type SelectorSource } from "../../../src/session/styles/predicate";
 import { compileSelector, type Selector } from "../../../src/session/styles/selector";
 
 /** The element count the budget is stated at. */
 const ELEMENTS = 50_000;
 
 /**
- * The selector half of a single-layer edit, in milliseconds.
- *
- * Well under the 16 ms whole-frame budget, because deciding WHICH elements to paint is only the
- * first of the repaint's jobs and must not eat the frame on its own. A `search()`-per-element
- * implementation measures 65-95 ms here.
+ * The selector half of a single-layer edit, in milliseconds: the design's share of the 16 ms
+ * frame. Printed beside each measurement and never asserted -- a stopwatch on a busy machine
+ * measures the machine. A `search()`-per-element implementation measures 65-95 ms here.
  */
 const PASS_BUDGET_MS = 5;
 
-/** How many times cheaper than a `jmespath.search()` call a compiled predicate must be. */
+/** How many times cheaper than a `jmespath.search()` call the design expects a predicate to be; printed. */
 const SPEEDUP = 10;
 
 /** How many times each measurement is repeated; the fastest run is the estimate. */
@@ -52,10 +52,19 @@ const groups: (number | null)[] = Array.from({ length: ELEMENTS }, (_, index) =>
 const flags: (boolean | null)[] = Array.from({ length: ELEMENTS }, (_, index) => (index % 3 === 0 ? true : null));
 const ids: NodeId[] = Array.from({ length: ELEMENTS }, (_, index) => `n${String(index)}`);
 
+/** Column reads made through {@link source}: a value or an id, one per call. */
+let reads = 0;
+
 const source: SelectorSource = {
-    nodeValue: (index, path) => (path === "results.louvain.group" ? groups[index] : flags[index]),
+    nodeValue: (index, path) => {
+        reads++;
+        return path === "results.louvain.group" ? groups[index] : flags[index];
+    },
     edgeValue: () => undefined,
-    nodeIdOf: (index) => ids[index],
+    nodeIdOf: (index) => {
+        reads++;
+        return ids[index];
+    },
 };
 
 /** What one measurement found. */
@@ -66,6 +75,34 @@ interface Measurement {
     readonly passMs: number;
     /** How many elements the pass matched, so an accidentally empty pass cannot look fast. */
     readonly matched: number;
+    /** Column reads in one pass over every element. */
+    readonly reads: number;
+    /** Expressions parsed during the passes. */
+    readonly parses: number;
+    /** `jmespath.search()` calls made during the passes. */
+    readonly searches: number;
+}
+
+/**
+ * Count the `jmespath.search()` calls some work makes, whoever makes them.
+ * @param work - The work.
+ * @returns How many calls it made.
+ */
+function searchesDuring(work: () => void): number {
+    const { search: original } = jmespath;
+    let calls = 0;
+    jmespath.search = (data, expression) => {
+        calls++;
+        return original(data, expression);
+    };
+
+    try {
+        work();
+    } finally {
+        jmespath.search = original;
+    }
+
+    return calls;
 }
 
 /**
@@ -76,22 +113,35 @@ interface Measurement {
 function measure(run: (index: number) => boolean): Measurement {
     let best = Number.POSITIVE_INFINITY;
     let matched = 0;
+    let passReads = 0;
+    const parsesBefore = predicateCounters.parses;
 
-    for (let round = 0; round < ROUNDS; round++) {
-        const started = performance.now();
-        let hits = 0;
+    const searches = searchesDuring(() => {
+        for (let round = 0; round < ROUNDS; round++) {
+            const readsBefore = reads;
+            const started = performance.now();
+            let hits = 0;
 
-        for (let index = 0; index < ELEMENTS; index++) {
-            if (run(index)) {
-                hits++;
+            for (let index = 0; index < ELEMENTS; index++) {
+                if (run(index)) {
+                    hits++;
+                }
             }
+
+            best = Math.min(best, performance.now() - started);
+            matched = hits;
+            passReads = reads - readsBefore;
         }
+    });
 
-        best = Math.min(best, performance.now() - started);
-        matched = hits;
-    }
-
-    return { perElement: (best * 1e6) / ELEMENTS, passMs: best, matched };
+    return {
+        perElement: (best * 1e6) / ELEMENTS,
+        passMs: best,
+        matched,
+        reads: passReads,
+        parses: predicateCounters.parses - parsesBefore,
+        searches,
+    };
 }
 
 /**
@@ -131,8 +181,19 @@ function report(label: string, measurement: Measurement, baseline: number): void
     console.log(
         `${label.padEnd(34)} ${measurement.perElement.toFixed(1).padStart(8)} ns/element  ` +
             `${measurement.passMs.toFixed(2).padStart(7)} ms for ${String(ELEMENTS)}  ` +
-            `${speedup.toFixed(0).padStart(5)}x search  matched ${String(measurement.matched)}`,
+            `${speedup.toFixed(0).padStart(5)}x search  ` +
+            `(budget ${String(PASS_BUDGET_MS)} ms, ${String(SPEEDUP)}x)  matched ${String(measurement.matched)}`,
     );
+}
+
+/**
+ * Assert the work one pass over every element did: no `search()`, no parse, one read each.
+ * @param measurement - What the pass did.
+ */
+function assertOneReadPerElement(measurement: Measurement): void {
+    assert.strictEqual(measurement.searches, 0, "no jmespath.search() call while the predicate runs");
+    assert.strictEqual(measurement.parses, 0, "no expression parsed while the predicate runs");
+    assert.strictEqual(measurement.reads, ELEMENTS, "one column read per element, and no more");
 }
 
 describe("selector evaluation stays inside the repaint budget", () => {
@@ -144,9 +205,9 @@ describe("selector evaluation stays inside the repaint budget", () => {
                 `${baseline.passMs.toFixed(2).padStart(7)} ms for ${String(ELEMENTS)}`,
         );
 
-        // Not a budget, a sanity check: a "baseline" of nothing would make every ratio below
-        // meaningless, and that is exactly how a benchmark quietly stops testing anything.
-        assert.isAbove(baseline.perElement, 50, "a search() call cannot plausibly cost under 50 ns");
+        // Not a budget, a check that the counter sees what it is meant to: the baseline makes one
+        // search() per element, so a counter reading zero below means something.
+        assert.strictEqual(baseline.searches, ELEMENTS * ROUNDS, "the baseline makes one search() per element");
     });
 
     it("runs an expression selector far cheaper than a search per element", () => {
@@ -154,8 +215,7 @@ describe("selector evaluation stays inside the repaint budget", () => {
         report("expression: path != `null`", measurement, baseline.perElement);
 
         assert.strictEqual(measurement.matched, ELEMENTS - Math.ceil(ELEMENTS / 7));
-        assert.isBelow(measurement.passMs, PASS_BUDGET_MS);
-        assert.isBelow(measurement.perElement, baseline.perElement / SPEEDUP);
+        assertOneReadPerElement(measurement);
     });
 
     it("runs an equality expression far cheaper than a search per element", () => {
@@ -163,8 +223,7 @@ describe("selector evaluation stays inside the repaint budget", () => {
         report("expression: path == `true`", measurement, baseline.perElement);
 
         assert.strictEqual(measurement.matched, Math.ceil(ELEMENTS / 3));
-        assert.isBelow(measurement.passMs, PASS_BUDGET_MS);
-        assert.isBelow(measurement.perElement, baseline.perElement / SPEEDUP);
+        assertOneReadPerElement(measurement);
     });
 
     it("runs the generated has selector at least as cheaply as the expression it replaces", () => {
@@ -172,8 +231,7 @@ describe("selector evaluation stays inside the repaint budget", () => {
         report("has: one column presence test", measurement, baseline.perElement);
 
         assert.strictEqual(measurement.matched, ELEMENTS - Math.ceil(ELEMENTS / 7));
-        assert.isBelow(measurement.passMs, PASS_BUDGET_MS);
-        assert.isBelow(measurement.perElement, baseline.perElement / SPEEDUP);
+        assertOneReadPerElement(measurement);
     });
 
     it("runs an ids selector as a set membership test", () => {
@@ -181,8 +239,7 @@ describe("selector evaluation stays inside the repaint budget", () => {
         report("ids: set membership", measurement, baseline.perElement);
 
         assert.strictEqual(measurement.matched, 3);
-        assert.isBelow(measurement.passMs, PASS_BUDGET_MS);
-        assert.isBelow(measurement.perElement, baseline.perElement / SPEEDUP);
+        assertOneReadPerElement(measurement);
     });
 
     it("costs nothing at all for everything, because there is no test to call", () => {
@@ -198,6 +255,8 @@ describe("selector evaluation stays inside the repaint budget", () => {
             compileSelector({ match: "expression", where }, "node", source);
         }
 
+        const readsBefore = reads;
+        const parsesBefore = predicateCounters.parses;
         const started = performance.now();
 
         for (let round = 0; round < 1000; round++) {
@@ -207,9 +266,9 @@ describe("selector evaluation stays inside the repaint budget", () => {
         const perCompile = ((performance.now() - started) * 1e6) / 1000;
         console.log(`compile: parse + build closure     ${perCompile.toFixed(1).padStart(8)} ns/selector`);
 
-        // One compile is allowed to cost far more than one element, because it happens once per
-        // layer edit. What it may NOT cost is anything like the element count: this is the
-        // assertion that an implementation compiling per element fails.
-        assert.isBelow(perCompile, baseline.perElement * ELEMENTS);
+        // One compile is one parse and touches no element: an implementation that compiled per
+        // element, or read the columns to compile, fails here.
+        assert.strictEqual(predicateCounters.parses - parsesBefore, 1000, "one parse per compile");
+        assert.strictEqual(reads - readsBefore, 0, "compiling reads no element");
     });
 });

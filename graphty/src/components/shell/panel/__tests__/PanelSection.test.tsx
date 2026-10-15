@@ -1,7 +1,8 @@
 import React from "react";
 import { describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
-import { fireEvent, render, screen } from "../../../../test/test-utils";
+import { render, screen } from "../../../../test/test-utils";
 import { ACTIVITY_PANEL_WIDTH_DEFAULT } from "../../constants";
 import { ShellProvider } from "../../ShellContext";
 import { ActivityPanel } from "../ActivityPanel";
@@ -45,14 +46,14 @@ describe("PanelSection", () => {
             expect(screen.getByRole("button", { name: "Collapse Open file" })).toHaveAttribute("aria-expanded", "true");
         });
 
-        it("expands in place from its own header", () => {
+        it("expands in place from its own header", async () => {
             renderInShell(
                 <PanelSection sectionId="test.inplace" label="Filters">
                     <div>a row</div>
                 </PanelSection>,
             );
 
-            fireEvent.click(screen.getByRole("button", { name: "Expand Filters" }));
+            await userEvent.click(screen.getByRole("button", { name: "Expand Filters" }));
 
             expect(screen.getByRole("button", { name: "Collapse Filters" })).toHaveAttribute("aria-expanded", "true");
         });
@@ -85,7 +86,7 @@ describe("PanelSection", () => {
     });
 
     describe("the alt-click sibling rule", () => {
-        it("applies one header's toggle to every sibling of the panel", () => {
+        it("applies one header's toggle to every sibling of the panel", async () => {
             renderInPanel(
                 <>
                     <PanelSection sectionId="explore.a" label="Alpha">
@@ -100,14 +101,14 @@ describe("PanelSection", () => {
                 </>,
             );
 
-            fireEvent.click(screen.getByRole("button", { name: "Expand Alpha" }), { altKey: true });
+            await userEvent.click(screen.getByRole("button", { name: "Expand Alpha" }), { modifiers: ["Alt"] });
 
             expect(screen.getByRole("button", { name: "Collapse Alpha" })).toHaveAttribute("aria-expanded", "true");
             expect(screen.getByRole("button", { name: "Collapse Beta" })).toHaveAttribute("aria-expanded", "true");
             expect(screen.getByRole("button", { name: "Collapse Gamma" })).toHaveAttribute("aria-expanded", "true");
         });
 
-        it("leaves the siblings alone on a plain click", () => {
+        it("leaves the siblings alone on a plain click", async () => {
             renderInPanel(
                 <>
                     <PanelSection sectionId="explore.d" label="Delta">
@@ -119,13 +120,13 @@ describe("PanelSection", () => {
                 </>,
             );
 
-            fireEvent.click(screen.getByRole("button", { name: "Expand Delta" }));
+            await userEvent.click(screen.getByRole("button", { name: "Expand Delta" }));
 
             expect(screen.getByRole("button", { name: "Collapse Delta" })).toHaveAttribute("aria-expanded", "true");
             expect(screen.getByRole("button", { name: "Expand Epsilon" })).toHaveAttribute("aria-expanded", "false");
         });
 
-        it("collapses every sibling when the alt-clicked header closes", () => {
+        it("collapses every sibling when the alt-clicked header closes", async () => {
             renderInPanel(
                 <>
                     <PanelSection sectionId="explore.f" label="Zeta" defaultOpen>
@@ -137,7 +138,7 @@ describe("PanelSection", () => {
                 </>,
             );
 
-            fireEvent.click(screen.getByRole("button", { name: "Collapse Zeta" }), { altKey: true });
+            await userEvent.click(screen.getByRole("button", { name: "Collapse Zeta" }), { modifiers: ["Alt"] });
 
             expect(screen.getByRole("button", { name: "Expand Zeta" })).toHaveAttribute("aria-expanded", "false");
             expect(screen.getByRole("button", { name: "Expand Eta" })).toHaveAttribute("aria-expanded", "false");
@@ -184,12 +185,12 @@ describe("PanelSection", () => {
             expect(add).toHaveAttribute("title", "Save as filter... Build a filter first");
         });
 
-        it("reports its click", () => {
+        it("reports its click", async () => {
             const onClick = vi.fn();
 
             render(<SectionAddButton tooltip="Add a rule" label="Add a rule" onClick={onClick} />);
 
-            fireEvent.click(screen.getByRole("button", { name: "Add a rule" }));
+            await userEvent.click(screen.getByRole("button", { name: "Add a rule" }));
 
             expect(onClick).toHaveBeenCalledTimes(1);
         });

@@ -211,6 +211,9 @@ export const WarmHandOffInteractions: Story = {
         await userEvent.hover(first);
         await waitFor(() => expect(within(document.body).getByRole("tooltip")).toBeVisible(), storyWaitOptions(2000));
         await userEvent.hover(canvas.getByRole("button", { name: "Align right" }));
-        await waitFor(() => expect(within(document.body).getByRole("tooltip")).toHaveTextContent("Align right"));
+        await waitFor(
+            () => expect(within(document.body).getByRole("tooltip")).toHaveTextContent("Align right"),
+            storyWaitOptions(1000),
+        );
     },
 };

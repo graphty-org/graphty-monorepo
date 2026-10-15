@@ -38,6 +38,7 @@ after(() => rmSync(scratch, { recursive: true, force: true }));
 // and none of the GIT_* variables a hook exports (they would point git at the real repository).
 const gitEnv = isolatedGitEnv();
 for (const k of Object.keys(gitEnv)) if (k.startsWith("SONAR_")) delete gitEnv[k];
+delete gitEnv.PUSH_REMOTE_SHA; // the pre-push hook exports it; a fixture repository sets its own
 const git = (cwd, ...args) => execFileSync("git", args, { cwd, env: gitEnv, encoding: "utf8" }).trim();
 
 const BASE = ["export function a() {", "    return 1;", "}", "export const b = 2;", ""].join("\n");
@@ -786,5 +787,122 @@ describe("sonar-gate: complexity and parameter counts", () => {
         const s = await server({ local: [issue(2, "    return 1 + 1;")] });
         await gate(repo(HEAD_NEW), { SONAR_HOST_URL: s.url, SONAR_SCAN_TOKEN: TOKEN });
         assert.equal(s.scans().length, 1);
+    });
+});
+
+// A branch already on GitHub is judged by what THIS push changes: the lines between the remote
+// branch's head and the new head, less what a merge brought in from master. A new branch has no
+// remote head, so everything it changes counts.
+describe("sonar-gate: complexity is judged on this push's own changes", () => {
+    const msg = (n) => `Refactor this function to reduce its Cognitive Complexity from ${n} to the 15 allowed.`;
+    // An S3776 finding on function `a` (line 1) whose increments run to line `to`.
+    const at = (n, to) => ({
+        component: "proj-local:src/a.ts",
+        line: 1,
+        rule: "typescript:S3776",
+        message: msg(n),
+        type: "CODE_SMELL",
+        textRange: { startLine: 1, endLine: 1, startOffset: 16, endOffset: 17 },
+        flows: [{ locations: [{ textRange: { startLine: to, endLine: to } }] }],
+    });
+    const fn = (name, { first = "x + 1", inner = "y", extra = [] } = {}) => [
+        `export function ${name}(x: number) {`,
+        `    const y = ${first};`,
+        "    if (x > 1) {",
+        `        return ${inner};`,
+        "    }",
+        ...extra,
+        "    // tail",
+        "    return 2;",
+        "}",
+        "",
+    ];
+    const file = (a, b = {}) => [...fn("a", a), ...fn("b", b)].join("\n");
+    const NESTED = ["    if (x > 2) {", "        return 3;", "    }"];
+    const MASTER = file({});
+    const PUSHED = file({ extra: NESTED }); // the branch's first push: a's complexity rose then
+
+    // The branch pushed once (origin/feature), then `steps` committed on top: each { master } is a
+    // master commit merged into the branch, each { head } a branch commit.
+    function pushedRepo(steps) {
+        const dir = repo(PUSHED, { base: MASTER });
+        const pushed = git(dir, "rev-parse", "HEAD");
+        git(dir, "update-ref", "refs/remotes/origin/feature", pushed);
+        for (const step of steps) {
+            if (step.master) {
+                git(dir, "switch", "-q", "master");
+                writeFileSync(join(dir, "src/a.ts"), step.master);
+                git(dir, "commit", "-q", "-am", "master moves on");
+                git(dir, "update-ref", "refs/remotes/origin/master", "HEAD");
+                git(dir, "switch", "-q", "feature");
+                git(dir, "merge", "-q", "--no-edit", "master");
+            } else {
+                writeFileSync(join(dir, "src/a.ts"), step.head);
+                git(dir, "commit", "-q", "-am", "this push");
+            }
+        }
+        return { dir, pushed };
+    }
+    const priorCopy = (dir) =>
+        readFileSync(join(dir, ".git/sonar", `prior-${dir.split("/").pop()}`, "src/a.ts"), "utf8");
+
+    it("does not judge a function the branch changed before, after a master merge", async () => {
+        // Master edits a's first line; the merge brings it in; the push edits nothing of its own in a.
+        const { dir } = pushedRepo([
+            { master: file({ first: "x + 2" }) },
+            { head: file({ first: "x + 2", extra: NESTED }, { inner: "y + 1" }) },
+        ]);
+        assert.equal(git(dir, "show", "HEAD:src/a.ts").split("\n")[1], "    const y = x + 2;");
+        const s = await server({ local: [at(17, 8)], base: [at(17, 8)] });
+        const r = await gate(dir, { SONAR_HOST_URL: s.url, SONAR_SCAN_TOKEN: TOKEN });
+        assert.equal(r.code, 0, r.out);
+        assert.equal(s.scans().length, 1, "no second scan: no complexity finding is this push's");
+    });
+
+    it("blocks a push that edits one old function scoring 17 (touch it, fix it)", async () => {
+        const { dir, pushed } = pushedRepo([{ head: file({ inner: "y + 1", extra: NESTED }) }]);
+        const s = await server({ local: [at(17, 8)], base: [at(17, 8)] });
+        const r = await gate(dir, { SONAR_HOST_URL: s.url, SONAR_SCAN_TOKEN: TOKEN, PUSH_REMOTE_SHA: pushed });
+        assert.equal(r.code, 1, r.out);
+        assert.match(r.out, /src\/a\.ts:1 {2}typescript:S3776 .*bring it to 15 or below/);
+        assert.equal(priorCopy(dir), PUSHED, "compared with the remote head's copy, not the merge base's");
+    });
+
+    it("blocks a push that raises a function's score deep inside it", async () => {
+        const deeper = [...NESTED, "    if (x > 3) {", "        return 4;", "    }"];
+        const { dir, pushed } = pushedRepo([{ head: file({ extra: deeper }) }]);
+        const s = await server({ local: [at(23, 11)], base: [at(21, 8)] });
+        const r = await gate(dir, { SONAR_HOST_URL: s.url, SONAR_SCAN_TOKEN: TOKEN, PUSH_REMOTE_SHA: pushed });
+        assert.equal(r.code, 1, r.out);
+        assert.match(r.out, /src\/a\.ts:1 {2}typescript:S3776 .*was 21 before this push/);
+    });
+
+    it("judges everything a new branch changes", async () => {
+        // Two commits, neither on GitHub: the first raised a, the second edits only b.
+        const dir = repo(PUSHED, { base: MASTER });
+        writeFileSync(join(dir, "src/a.ts"), file({ extra: NESTED }, { inner: "y + 1" }));
+        git(dir, "commit", "-q", "-am", "second");
+        const zero = "0".repeat(40);
+        const s = await server({ local: [at(17, 8)] });
+        const r = await gate(dir, { SONAR_HOST_URL: s.url, SONAR_SCAN_TOKEN: TOKEN, PUSH_REMOTE_SHA: zero });
+        assert.equal(r.code, 1, r.out);
+        assert.match(r.out, /src\/a\.ts:1 {2}typescript:S3776 /);
+    });
+
+    it("never counts a score master's merge raised as this push's", () => {
+        // Master's side (the merge base) already scores 23; the remote head scored 21.
+        const f = { path: "f.ts", line: 5, rule: "typescript:S3776", message: msg(23) };
+        const issue = { ...f, textRange: { startLine: 5, endLine: 5 }, flows: [] };
+        const hunk = [{ oldStart: 5, oldCount: 1, newStart: 5, newCount: 1 }];
+        const v = decide({
+            local: { issues: [issue], hotspots: [] },
+            master: { issuesByFile: () => [], hotspotsByFile: () => [], lineAt: () => null },
+            base: [
+                { issuesByFile: () => [{ ...f, message: msg(21) }], label: "before this push" },
+                { issuesByFile: () => [{ ...f, message: msg(23) }], label: "at the merge base" },
+            ],
+            files: new Map([["f.ts", { oldPath: "f.ts", hunks: hunk, lines: [], baseLines: [] }]]),
+        });
+        assert.equal(v.blocking.length, 0, JSON.stringify(v.blocking));
     });
 });

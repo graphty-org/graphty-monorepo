@@ -7,7 +7,7 @@ import { page } from "vitest/browser";
 import { Popout, PopoutAnchor, PopoutManager } from "../../src/components/popout";
 import { POPOUT_NESTED_GAP } from "../../src/constants/popout";
 import { compactTheme } from "../../src/theme";
-import { waitForSettledLayout } from "../../stories/helpers/settled";
+import { untilPasses, waitForSettledLayout } from "../../stories/helpers/settled";
 
 /**
  * Helper to render Popout components with required providers
@@ -91,7 +91,8 @@ describe("Popout geometry (browser)", () => {
         );
         await user.click(screen.getByRole("button", { name: "Open narrow" }));
         const panel = await screen.findByRole("dialog");
-        await waitFor(() => {
+        // The panel is placed on a later frame: wait on the placement, not a deadline (#2719).
+        await untilPasses(() => {
             expect(panel.getBoundingClientRect().left).toBe(0);
         });
         await page.viewport(1280, 800);
@@ -281,8 +282,8 @@ describe("Popout geometry (browser)", () => {
         // produces a click, and the panel's click handler closes its children.
         expect(screen.getByTestId("child-content")).toBeInTheDocument();
 
-        // And the child follows the parent it is anchored to.
-        await waitFor(() => {
+        // And the child follows the parent it is anchored to, on a later frame (#2719).
+        await untilPasses(() => {
             const childAfter = (childPanel as HTMLElement).getBoundingClientRect();
             expect(Math.round(childAfter.left)).toBe(Math.round(childBefore.left) - 120);
             expect(Math.round(childAfter.top)).toBe(Math.round(childBefore.top) + 60);

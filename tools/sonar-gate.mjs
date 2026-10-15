@@ -25,10 +25,16 @@
 //    Cognitive complexity (S3776), regex complexity (S5843) and too many parameters (S107) are
 //    reported on a function's name or a regex, which an edit inside the body leaves alone, so they
 //    are judged by their whole span (the finding through its last secondary location; for S107 the
-//    parameter list) and against the merge base, not master's analysis: when such a finding's span
-//    overlaps a hunk, the merge base's copies of those files are scanned too (a second scan, into
-//    the same scratch project). The finding blocks when the merge base has none there, when its
-//    score rose, or -- "touch it, fix it" -- when it is S3776 scoring 16 to 20.
+//    parameter list), only when that span overlaps a hunk THIS push introduces, and against the
+//    version before the push, not master's analysis. For a branch already on GitHub this push's
+//    hunks are the lines changed since the remote head (git's pre-push stdin, exported by
+//    .husky/pre-push as PUSH_REMOTE_SHA; else origin/<branch>) that also differ from the merge base,
+//    so what a merge brought in from master never counts; for a new branch they are all of its
+//    hunks. When such a span is edited, the previous version's copies of those files are scanned
+//    too (a second scan, into the same scratch project), and when the push holds a merge commit, the
+//    merge base's copies as well, so a score master's side raised is not the push's. The finding
+//    blocks when the previous version has none there, when its score rose above every previous
+//    version's, or -- "touch it, fix it" -- when it is S3776 scoring 16 to 20.
 //    An issue on an UNCHANGED line whose rule and message master lacks for that file is a warning.
 // 5. `// NOSONAR(<rule>): <reason of 10+ chars>` is the only accepted NOSONAR form on a changed line,
 //    and it may not name a vulnerability rule. A `Sonar-Bypass: <reason>` trailer on HEAD passes a
@@ -221,14 +227,42 @@ function checkNosonar(files) {
     return { malformed, named };
 }
 
-// The merge base's S3776 / S107 / S5843 finding that is this one: the same rule, on the line the
-// hunks shift it to, or inside the hunk that rewrote its line.
-function priorScored(issue, f, baseIssues) {
-    return baseIssues.find((m) => {
+// The previous version's S3776 / S107 / S5843 finding that is this one: the same rule, on the line
+// the hunks from that version shift it to, or inside the hunk that rewrote its line.
+function priorScored(issue, hunks, priorIssues) {
+    return priorIssues.find((m) => {
         if (m.rule !== issue.rule || !m.line) return false;
-        const where = mapOldLine(f.hunks, m.line);
+        const where = mapOldLine(hunks, m.line);
         return where.hunk ? onChangedLine([where.hunk], issue.line) : where.line === issue.line;
     });
+}
+
+/**
+ * This push's own hunks: the parts of `pushHunks` (previous version -> HEAD) on lines the branch
+ * owns, those `branchHunks` (merge base -> HEAD) change. A line a merge brought in from master equals
+ * the merge base's, so it is in no branch hunk. A deletion counts where it sits in or beside a
+ * branch hunk.
+ * @param pushHunks - parseHunks of the diff from the previous version to HEAD, for one file.
+ * @param branchHunks - parseHunks of the diff from the merge base to HEAD, for the same file.
+ * @returns Hunks with `newStart` and `newCount` (the old side is meaningless here).
+ */
+export function ownHunks(pushHunks, branchHunks) {
+    const out = [];
+    for (const p of pushHunks) {
+        if (p.newCount === 0) {
+            const at = p.newStart;
+            const near = (b) =>
+                b.newCount === 0 ? b.newStart === at : b.newStart <= at + 1 && b.newStart + b.newCount >= at;
+            if (branchHunks.some(near)) out.push(p);
+            continue;
+        }
+        for (const b of branchHunks) {
+            const start = Math.max(p.newStart, b.newStart);
+            const end = Math.min(p.newStart + p.newCount, b.newStart + b.newCount);
+            if (end > start) out.push({ oldStart: 0, oldCount: 0, newStart: start, newCount: end - start });
+        }
+    }
+    return out;
 }
 
 // The last line of the parameter list that opens on `start` (where the brackets balance again).
@@ -272,14 +306,19 @@ const touches = (hunks, { start, end }) =>
     );
 
 // Is this scored finding one the push edits?
-const scoredTouched = (issue, f) => SCORE_RULES.test(issue.rule) && touches(f.hunks, scoredSpan(issue, f.lines));
+// Only this push's own hunks count (f.pushHunks; a new branch has none apart from f.hunks).
+const scoredTouched = (issue, f) =>
+    SCORE_RULES.test(issue.rule) && touches(f.pushHunks ?? f.hunks, scoredSpan(issue, f.lines));
 
-// Why an edited S3776 / S107 / S5843 finding blocks, or null when it does not.
-function scoredVerdict(issue, prior) {
+// Why an edited S3776 / S107 / S5843 finding blocks, or null when it does not. `priors` are its
+// matches in the previous versions, `{ finding, label }`, the version before the push first;
+// a function none of them has is new.
+function scoredVerdict(issue, priors) {
     const score = scoreOf(issue.message);
-    if (!prior) return issue.message;
-    const was = scoreOf(prior.message);
-    if (score > was) return `${issue.message} (was ${was} at the merge base)`;
+    const found = priors.filter((p) => p.finding);
+    if (!found.length) return issue.message;
+    const was = Math.max(...found.map((p) => scoreOf(p.finding.message)));
+    if (score > was) return `${issue.message} (was ${was} ${found[0].label})`;
     if (TOUCH_FIX.rule.test(issue.rule) && score >= TOUCH_FIX.min && score <= TOUCH_FIX.max) {
         return `${issue.message} This push edits the function: bring it to 15 or below (touch it, fix it).`;
     }
@@ -359,8 +398,11 @@ export function vouchedFor(found, prior, f) {
  *   `lineAt(oldPath, line)` (master's text of that line, or null), from <key>.
  * @param input.files - Map from each scanned path to `{ oldPath, hunks, lines, baseLines }` (HEAD's
  *   lines and the merge base's lines of `oldPath`).
- * @param input.base - `issuesByFile(oldPath)`: the S3776 / S107 / S5843 findings of the merge base's
- *   copy of each file whose such findings the push edits (the second scan); omitted, none.
+ * @param input.base - The previous versions to judge S3776 / S107 / S5843 findings against (one, or
+ *   a list, the version before the push first): `{ issuesByFile(path, f), hunks?(path, f), label? }`,
+ *   their findings for the file at `path` (HEAD's path), the hunks from that version to HEAD
+ *   (default `f.hunks`) and how the message names it (default "at the merge base"). Each file may
+ *   carry `pushHunks`, this push's own hunks (default `hunks`). Omitted, none.
  * @returns `{ blocking, existing, warnings, named }`: findings as `{ path, line, rule, message, kind }`,
  *   and the rule each well-formed NOSONAR names, by `path:line`.
  */
@@ -371,7 +413,14 @@ export function decide({ local, master, files, base = { issuesByFile: () => [] }
         judgeIssues(
             local.issues.filter((x) => x.path === path && x.line),
             f,
-            { master: master.issuesByFile(f.oldPath), base: base.issuesByFile(f.oldPath) },
+            {
+                master: master.issuesByFile(f.oldPath),
+                priors: [base].flat().map((b) => ({
+                    issues: b.issuesByFile(path, f),
+                    hunks: b.hunks?.(path, f) ?? f.hunks,
+                    label: b.label ?? "at the merge base",
+                })),
+            },
             out,
         );
         const hotspots = local.hotspots.filter(
@@ -407,7 +456,8 @@ function placeIssue(issue, f, prior, vouched, out) {
     const kind = isVulnerability(issue) ? "vulnerability" : "issue";
     const entry = { path: issue.path, line: issue.line, rule: issue.rule, message: issue.message, kind };
     if (scoredTouched(issue, f)) {
-        const why = scoredVerdict(issue, priorScored(issue, f, prior.base));
+        const matches = prior.priors.map((p) => ({ finding: priorScored(issue, p.hunks, p.issues), label: p.label }));
+        const why = scoredVerdict(issue, matches);
         if (why) out.blocking.push({ ...entry, message: why });
         else out.existing.push(entry);
     } else if (!SCORE_RULES.test(issue.rule) && onChangedLine(f.hunks, issue.line)) {
@@ -534,6 +584,14 @@ const skip = (reason, why) =>
 const serverFault = (why) => skip("server-fault", `The SonarQube server or the network failed: ${why}`);
 
 const git = (args) => execFileSync("git", args, { encoding: "utf8", env: envWithoutToken(), maxBuffer: 256 << 20 });
+// git for a question whose "no" is an error (a path missing at a revision): no stderr.
+const gitQuiet = (args) =>
+    execFileSync("git", args, {
+        encoding: "utf8",
+        env: envWithoutToken(),
+        stdio: ["ignore", "pipe", "ignore"],
+        maxBuffer: 256 << 20,
+    });
 
 function isExecutable(p) {
     try {
@@ -698,20 +756,20 @@ async function scan(run, setup, scanList) {
     return { issues, hotspots };
 }
 
-// Phase 3b: the merge base's copies of `oldPaths`, scanned into <key>-local from a directory of
-// their own; their S3776 / S107 / S5843 findings by path.
-async function scanBase(run, setup, oldPaths) {
-    console.log(`SonarQube: scanning the merge base's copy of ${oldPaths.length} file(s) to compare complexity...`);
-    const baseDir = join(run.sonarDir, `base-${basename(run.top)}`);
+// Phase 3b: the copies at `rev` of `oldPaths`, scanned into <key>-local from a directory of their
+// own (`name`-<checkout>); their S3776 / S107 / S5843 findings by path.
+async function scanBase(run, setup, { rev, name, what }, oldPaths) {
+    console.log(`SonarQube: scanning ${what}'s copy of ${oldPaths.length} file(s) to compare complexity...`);
+    const baseDir = join(run.sonarDir, `${name}-${basename(run.top)}`);
     rmSync(baseDir, { recursive: true, force: true });
     mkdirSync(baseDir, { recursive: true });
     // The same settings (exclusions, test globs, path decisions) as the scan of HEAD.
     writeFileSync(join(baseDir, "sonar-project.properties"), readFileSync(join(run.top, "sonar-project.properties")));
     for (const p of oldPaths) {
         mkdirSync(dirname(join(baseDir, p)), { recursive: true });
-        writeFileSync(join(baseDir, p), git(["show", `${run.base}:${p}`]));
+        writeFileSync(join(baseDir, p), git(["show", `${rev}:${p}`]));
     }
-    const workDir = join(run.sonarDir, `base-work-${basename(run.top)}`);
+    const workDir = join(run.sonarDir, `${name}-work-${basename(run.top)}`);
     await runScan(run, setup, { baseDir, paths: oldPaths, workDir, extra: ["-Dsonar.scm.disabled=true"] });
     const found = (await openIssues(setup)).map(withPath).filter((x) => SCORE_RULES.test(x.rule));
     return { issuesByFile: (p) => found.filter((x) => x.path === p) };
@@ -822,10 +880,86 @@ function verdictOutcome(verdict, host, bypass) {
 // A file's lines at a revision, or [] when it is not there (a file the push adds).
 function showOrEmpty(spec) {
     try {
-        return git(["show", spec]).split("\n");
+        return gitQuiet(["show", spec]).split("\n");
     } catch {
         return [];
     }
+}
+
+// The commit already on GitHub for this branch: the remote sha git gave the pre-push hook
+// (PUSH_REMOTE_SHA; all zeros for a new branch), else origin/<branch>. Null: a new branch.
+function remoteHead(run) {
+    const commit = (r) => {
+        try {
+            return gitQuiet(["rev-parse", "--verify", "-q", `${r}^{commit}`]).trim();
+        } catch {
+            return null;
+        }
+    };
+    const sha = process.env.PUSH_REMOTE_SHA ?? "";
+    if (/^0+$/.test(sha)) return null;
+    return (sha && commit(sha)) || (run.branch && commit(`refs/remotes/origin/${run.branch}`)) || null;
+}
+
+// For a branch already on GitHub: give each file this push's own hunks (`pushHunks`), the hunks
+// from the remote head (`priorHunks`) and its path there (`priorPath`). Returns the remote head,
+// or null for a new branch (whose own hunks are all of its hunks, against the merge base).
+function previousVersion(run, files) {
+    const prior = remoteHead(run);
+    if (!prior || prior === run.base) return null;
+    const renames = new Map(
+        parseNameStatus(git(["diff", "-M", "--name-status", "--diff-filter=AMR", prior, "HEAD"])).map((c) => [
+            c.path,
+            c.oldPath,
+        ]),
+    );
+    const hunks = parseHunks(git(["diff", "-M", "-U0", prior, "HEAD", "--", ...files.keys(), ...renames.values()]));
+    for (const [path, f] of files) {
+        f.priorPath = renames.get(path) ?? path;
+        f.priorHunks = hunks.get(path) ?? [];
+        f.pushHunks = ownHunks(f.priorHunks, f.hunks);
+    }
+    return prior;
+}
+
+// Scan the previous versions of `paths` (HEAD's paths): the remote head's copies (or, for a new
+// branch, the merge base's), and when the push holds a merge commit the merge base's as well.
+async function scanPrevious(run, setup, prior, paths, files) {
+    const exists = (rev, p) => {
+        try {
+            gitQuiet(["cat-file", "-e", `${rev}:${p}`]);
+            return true;
+        } catch {
+            return false;
+        }
+    };
+    const one = async (version, pathOf, hunksOf, label) => {
+        const at = paths.filter((p) => exists(version.rev, pathOf(files.get(p))));
+        const found = at.length
+            ? await scanBase(run, setup, version, [...new Set(at.map((p) => pathOf(files.get(p))))])
+            : null;
+        return {
+            issuesByFile: (p, f) => (found && at.includes(p) ? found.issuesByFile(pathOf(f)) : []),
+            hunks: (p, f) => hunksOf(f),
+            label,
+        };
+    };
+    const atBase = () =>
+        one(
+            { rev: run.base, name: "base", what: "the merge base" },
+            (f) => f.oldPath,
+            (f) => f.hunks,
+            "at the merge base",
+        );
+    if (!prior) return [await atBase()];
+    const before = await one(
+        { rev: prior, name: "prior", what: "the remote head" },
+        (f) => f.priorPath,
+        (f) => f.priorHunks,
+        "before this push",
+    );
+    const merges = git(["rev-list", "--merges", `${prior}..HEAD`]).trim();
+    return merges ? [before, await atBase()] : [before];
 }
 
 async function check(run) {
@@ -850,16 +984,17 @@ async function check(run) {
         ]),
     );
 
+    const previous = previousVersion(run, files);
+
     const release = await acquireLock(join(run.sonarDir, "sonar-local.lock"), run.left() / 1000);
     if (!release) throw skip("deadline", "Another scan held the lock until the deadline.");
     let local;
     let base;
     try {
         local = await scan(run, setup, scanList);
-        // The merge base's copies of the files whose complexity findings the push edits.
         const edited = local.issues.filter((x) => files.has(x.path) && scoredTouched(x, files.get(x.path)));
-        const atBase = [...new Set(edited.map((x) => files.get(x.path)))].filter((f) => f.baseLines.length);
-        if (atBase.length) base = await scanBase(run, setup, [...new Set(atBase.map((f) => f.oldPath))]);
+        if (edited.length)
+            base = await scanPrevious(run, setup, previous, [...new Set(edited.map((x) => x.path))], files);
     } finally {
         release();
     }
@@ -888,6 +1023,7 @@ async function main() {
         top,
         sonarDir,
         head: git(["rev-parse", "HEAD"]).trim(),
+        branch: branch === "(detached)" ? "" : branch,
         leftOut: [],
         bypass: "",
         scanner: null,

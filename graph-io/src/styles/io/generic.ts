@@ -57,8 +57,7 @@ export interface ExtractStylesOptions extends StyleImportOptions {
     readonly signal?: AbortSignal | null;
     /**
      * The counted work budget to spend (and read back after: `budget.used("node")`); a new one of
-     * `STYLE_WORK_BUDGET` operations per target when absent. Engine-only: `StyleBudget` is not published, so only
-     * graph-io itself passes it.
+     * `STYLE_WORK_BUDGET` operations per target when absent.
      * @internal
      */
     readonly budget?: StyleBudget;

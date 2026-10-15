@@ -88,8 +88,7 @@ export interface PlanOptions {
     /** The counted work budget; defaults to a fresh `StyleBudget`. */
     readonly budget?: StyleWorkBudget;
     /**
-     * Where notes are collected; the reader's notes, when it used the same collector, are kept. Engine-only:
-     * `StyleNotes` is not published, so only graph-io itself passes it.
+     * Where notes are collected; the reader's notes, when it used the same collector, are kept.
      * @internal
      */
     readonly notes?: StyleNotes;

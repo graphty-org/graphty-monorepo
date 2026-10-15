@@ -33,12 +33,12 @@ const rule = {
         return {
             CallExpression(node) {
                 const callee = node.callee;
-                const name =
-                    callee.type === "Identifier"
-                        ? callee.name
-                        : callee.type === "MemberExpression" && !callee.computed
-                          ? callee.property.name
-                          : undefined;
+                let name;
+                if (callee.type === "Identifier") {
+                    name = callee.name;
+                } else if (callee.type === "MemberExpression" && !callee.computed) {
+                    name = callee.property.name;
+                }
                 let index;
                 if (WAIT_NAMES.has(name)) {
                     index = 1;

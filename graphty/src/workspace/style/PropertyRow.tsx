@@ -1,19 +1,11 @@
-import {
-    ComboInput,
-    CompactColorInput,
-    Popout,
-    PopoutButton,
-    StyleSelect,
-    type StyleSelectOption,
-    VariablePill,
-} from "@graphty/compact-mantine";
+import { ComboInput, CompactColorInput, Popout, PopoutButton, VariablePill } from "@graphty/compact-mantine";
 import type { ChannelDescriptor } from "@graphty/graphty-element/catalog";
 import type { Channel, ChannelValue, LayerId } from "@graphty/graphty-element/schema";
 import type { GraphSession, Layer, LegendBlock } from "@graphty/graphty-element/session";
-import { ActionIcon, Text, TextInput, Tooltip } from "@mantine/core";
+import { ActionIcon, Button, Text, TextInput, Tooltip } from "@mantine/core";
 import React, { useLayoutEffect, useRef, useState } from "react";
 
-import { factSentence, swatchName } from "../canvas/legendWords";
+import { factSentence, paintWords, swatchName } from "../canvas/legendWords";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { BindingPopover } from "./BindingPopover";
@@ -36,6 +28,7 @@ import {
     writeIn,
 } from "./row";
 import { focusLineNext, listOpensNext, openListNext } from "./useFocusLine";
+import { ValueField } from "./ValueField";
 import { ValuePicker } from "./ValuePicker";
 import {
     bindLabel,
@@ -44,14 +37,12 @@ import {
     enumWords,
     failureWords,
     fieldName,
-    GLYPH_TABLES,
     hexOf,
     isPercent,
     listWords,
     paletteWord,
     SCALE_WORDS,
     takesBinding,
-    TWO_WORDS,
     valueWords,
 } from "./words";
 
@@ -102,31 +93,6 @@ export interface ManyRows {
     readonly write: (channel: Channel, write: LiteralWrite | { readonly binding: DataBinding }) => Promise<unknown>;
     /** Takes the channel off every row. */
     readonly clear: (channel: Channel) => Promise<unknown>;
-}
-
-/**
- * A select's choices: a glyph per choice where the element's catalog draws one.
- * @param descriptor - the channel.
- * @returns the options.
- */
-function optionsOf(descriptor: ChannelDescriptor): StyleSelectOption[] {
-    const two = TWO_WORDS[descriptor.channel];
-    if (two !== undefined) {
-        return two.map(([value, word]) => ({ value: String(value), label: word }));
-    }
-    const glyphs = GLYPH_TABLES[descriptor.channel];
-    return (descriptor.values ?? []).map((value) => {
-        const glyph = glyphs?.find((g) => g.id === value);
-        return {
-            value,
-            label: glyph?.plainName ?? enumWords(value),
-            // The catalog's own static SVG, drawn in currentColor; the app keeps no picture of its own.
-            glyph:
-                glyph === undefined ? undefined : (
-                    <span dangerouslySetInnerHTML={{ __html: glyph.glyph }} style={{ display: "inline-flex" }} />
-                ),
-        };
-    });
 }
 
 /**
@@ -308,23 +274,13 @@ export function Field({ ctx, descriptor, word }: Readonly<FieldProps>): React.JS
             />
         );
     } else if (descriptor.accepts === "enum" || descriptor.accepts === "boolean") {
-        const grid = GLYPH_TABLES[channel] !== undefined;
-        const value = typeof own.value === "string" || typeof own.value === "boolean" ? String(own.value) : "";
         control = (
-            <StyleSelect
-                label=""
-                aria-label={name}
-                value={value}
-                defaultValue={value}
-                showReset={false}
-                options={optionsOf(descriptor)}
-                layout={grid ? "grid" : "list"}
-                columns={4}
-                onChange={(next) => {
-                    if (next !== undefined) {
-                        writeValue(descriptor.accepts === "boolean" ? next === "true" : next);
-                    }
-                }}
+            <ValueField
+                descriptor={descriptor}
+                label={name}
+                value={own.value}
+                shown={own.value}
+                onChange={writeValue}
             />
         );
     } else if (descriptor.accepts === "number") {
@@ -389,7 +345,8 @@ export function Field({ ctx, descriptor, word }: Readonly<FieldProps>): React.JS
                     size="sm"
                     aria-label={`Stop varying ${name.toLowerCase()} by data`}
                     onClick={() => {
-                        const value = startingValue(descriptor, session, own.layer.selector);
+                        // A property set for a few groups goes back to the one value the rest have.
+                        const value = own.binding?.otherwise ?? startingValue(descriptor, session, own.layer.selector);
                         // Focus stays on the property: its field, now holding the one value.
                         focusLineNext(channel, "fixed");
                         store.set({
@@ -630,27 +587,59 @@ function BoundValue({
         }
     };
 
+    // A property set for a few groups only (tier3 decisions, round 6): the row keeps the one value
+    // every other group paints, editable here, and a second line says which groups differ.
+    const { otherwise } = binding;
+    const few =
+        otherwise === undefined ? null : (
+            <>
+                <ValueField
+                    descriptor={descriptor}
+                    label={fieldName(descriptor.channel)}
+                    value={otherwise}
+                    shown={otherwise}
+                    onChange={(next) => {
+                        write({ binding: { ...binding, otherwise: typeof next === "boolean" ? String(next) : next } });
+                    }}
+                />
+                <Button
+                    size="compact-xs"
+                    variant="subtle"
+                    className="ws-varied-few"
+                    aria-label={`${fieldName(descriptor.channel)}: ${entriesWords(descriptor, binding)} by ${source}`}
+                    onClick={() => {
+                        setOpen(true);
+                    }}
+                >
+                    {entriesWords(descriptor, binding)}
+                </Button>
+            </>
+        );
     return (
         // No Popout.Trigger: its click would also fire for the pill's detach button inside it, so
         // the pill opens the panel itself and the panel docks to it.
         <Popout opened={open} onOpenChange={openChange}>
             <div ref={pill} className="ws-varied">
-                <VariablePill
-                    name={source}
-                    value={detail}
-                    swatch={swatch}
-                    swatchWidth={swatch === undefined ? undefined : SWATCH_STRIP}
-                    width="100%"
-                    aria-label={`${fieldName(descriptor.channel)}: ${spoken}`}
-                    onClick={() => {
-                        setOpen(true);
-                    }}
-                />
-                <VariedLine
-                    block={session.styles
-                        .legend()
-                        .find((b) => b.layerId === layer.id && b.channel === descriptor.channel)}
-                />
+                {few ?? (
+                    <>
+                        <VariablePill
+                            name={source}
+                            value={detail}
+                            swatch={swatch}
+                            swatchWidth={swatch === undefined ? undefined : SWATCH_STRIP}
+                            width="100%"
+                            aria-label={`${fieldName(descriptor.channel)}: ${spoken}`}
+                            onClick={() => {
+                                setOpen(true);
+                            }}
+                        />
+                        <VariedLine
+                            block={session.styles
+                                .legend()
+                                .find((b) => b.layerId === layer.id && b.channel === descriptor.channel)}
+                        />
+                    </>
+                )}
             </div>
             <Popout.Panel
                 width={POPOUT_WIDTH}
@@ -675,6 +664,33 @@ function BoundValue({
         </Popout>
     );
 }
+
+/**
+ * The groups a property set for a few groups gives a value of their own, by value: "Box for 1
+ * group", "Box for 2 groups, Star for 1 group".
+ * @param descriptor - the property.
+ * @param binding - its binding.
+ * @returns the words.
+ */
+function entriesWords(descriptor: ChannelDescriptor, binding: DataBinding): string {
+    const counts = new Map<string, number>();
+    for (const entry of Object.values(binding.map ?? {})) {
+        const words = valueWords(descriptor, entry);
+        counts.set(words, (counts.get(words) ?? 0) + 1);
+    }
+    if (counts.size === 0) {
+        return "No group has its own";
+    }
+    return [...counts]
+        .map(
+            ([words, n]) =>
+                `${words.charAt(0).toUpperCase()}${words.slice(1)} for ${String(n)} ${n === 1 ? "group" : "groups"}`,
+        )
+        .join(", ");
+}
+
+/** How many groups' paints a varied field's second line names, for a property that is not a color. */
+const MAX_WORDS = 3;
 
 /** How many category chits a varied field's second line shows before "+N". */
 const MAX_CHITS = 8;
@@ -707,7 +723,14 @@ function VariedLine({ block }: Readonly<{ block: LegendBlock | undefined }>): Re
         }),
     ];
     let summary: React.ReactNode = null;
-    if (block.kind === "categorical") {
+    if (block.kind === "categorical" && block.swatches.every((s) => s.color === undefined)) {
+        // A shape, a pattern, a number or words by group: what each group paints, as words, since
+        // a chit shows only a color.
+        const rows = block.swatches.filter((s) => s.role !== "other");
+        const shown = rows.slice(0, MAX_WORDS);
+        const more = rows.length - shown.length + (block.overflow?.hidden ?? 0);
+        summary = `${shown.map((s) => paintWords(s) ?? swatchName(block, s)).join(", ")}${more > 0 ? ` +${String(more)}` : ""}`;
+    } else if (block.kind === "categorical") {
         const rows = block.swatches.filter((s) => s.role !== "other");
         const shown = rows.slice(0, MAX_CHITS);
         const more = rows.length - shown.length + (block.overflow?.hidden ?? 0);

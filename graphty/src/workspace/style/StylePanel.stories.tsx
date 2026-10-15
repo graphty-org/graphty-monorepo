@@ -312,6 +312,55 @@ export const LouvainCategories: Story = sceneStory(async ({ runs }) => {
     await within(popover).findByRole("menuitem", { name: "New layer for Group 3" });
 });
 
+/**
+ * A Louvain group's detail, opened by a click on its row: Name, its color, and a shape set for it
+ * alone through "+ Set another property" (any property per group, not only color).
+ */
+export const LouvainGroupDetail: Story = sceneStory(async ({ runs }) => {
+    const tab = await openStyle(runs.louvain);
+    const popover = await openColorBinding(tab);
+    const name = popover.querySelector<HTMLElement>("[data-group-name]");
+    if (name === null) {
+        throw new Error("no group rows");
+    }
+    const group = name.firstChild?.textContent ?? "";
+    await userEvent.click(name);
+    const detail = await page().findByRole("group", { name: `${group} properties` });
+    await userEvent.click(within(detail).getByRole("button", { name: `Set another property for ${group}` }));
+    await userEvent.click(await page().findByRole("menuitem", { name: "Shape" }));
+    const shape = await within(detail).findByRole("combobox", { name: new RegExp(`^${group} shape`) });
+    await userEvent.click(shape);
+    await userEvent.click(await page().findByRole("option", { name: /^Box/ }));
+    await waitFor(() => {
+        expect(within(detail).getByRole("combobox", { name: new RegExp(`^${group} shape`) })).toHaveValue("Box");
+    });
+});
+
+/**
+ * Louvain's Shape row after one group was given a box: the one shape every other group keeps,
+ * and a second line naming the group that differs.
+ */
+export const LouvainShapeForOneGroup: Story = sceneStory(async ({ runs, session }) => {
+    const tab = await openStyle(runs.louvain);
+    const popover = await openColorBinding(tab);
+    const name = popover.querySelector<HTMLElement>("[data-group-name]");
+    if (name === null) {
+        throw new Error("no group rows");
+    }
+    const group = name.firstChild?.textContent ?? "";
+    await userEvent.click(name);
+    const detail = await page().findByRole("group", { name: `${group} properties` });
+    await userEvent.click(within(detail).getByRole("button", { name: `Set another property for ${group}` }));
+    await userEvent.click(await page().findByRole("menuitem", { name: "Shape" }));
+    const shape = await within(detail).findByRole("combobox", { name: new RegExp(`^${group} shape`) });
+    await userEvent.click(shape);
+    await userEvent.click(await page().findByRole("option", { name: /^Box/ }));
+    await userEvent.keyboard("{Escape}");
+    await userEvent.keyboard("{Escape}");
+    await within(tab).findByRole("button", { name: /^Node shape: Box for 1 group by / });
+    await session.styles.settled();
+});
+
 /** Edge betweenness: an edge layer's Style tab. */
 export const EdgeBetweenness: Story = sceneStory(async ({ runs }) => {
     await openStyle(runs["edge-betweenness"]);

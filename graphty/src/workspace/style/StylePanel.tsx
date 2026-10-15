@@ -3,30 +3,29 @@ import "./style.css";
 import { ComboInput, CompactColorInput, FieldRow } from "@graphty/compact-mantine";
 import { channelsFor, toColorValue } from "@graphty/graphty-element/catalog";
 import { DEFAULT_SELECTION_STYLE, type LayerId } from "@graphty/graphty-element/schema";
-import type { GraphSession } from "@graphty/graphty-element/session";
-import { Group, Stack, Text } from "@mantine/core";
+import type { GraphSession, Layer } from "@graphty/graphty-element/session";
+import { Box, Group, Stack, Text } from "@mantine/core";
 import React, { useEffect, useId, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import { findTreeRow, isHidden, isLocked, rowLayers as treeRowLayers } from "../graph-place/rows";
 import { edgeName } from "../inspector/words";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
+import { GroupDetail } from "./Groups";
 import { LabelSection } from "./LabelSection";
 import type { RowContext } from "./PropertyRow";
 import {
     beneathOf,
-    colorBlockOf,
     EVERYTHING_LAYER,
     everythingRow,
     type NewLayer,
     paintedOverOf,
     rowLayers,
-    runColorOf,
     selectionLayer,
     selectionRow,
+    sourceName,
     startingEverything,
     type Target,
-    writeGroupColor,
 } from "./row";
 import { Section } from "./Section";
 import { useFocusLine } from "./useFocusLine";
@@ -552,8 +551,9 @@ export function SelectionStyle(): React.JSX.Element | null {
 }
 
 /**
- * A group row's Style: the color its run paints the group, written into the run's color binding
- * as that group's own entry. A run that paints no color has nothing here to edit.
+ * A group row's Style: every property the run's layer varies by its groups, for this one group,
+ * in the group detail the binding popover opens (tier3 decisions, round 6: "any property per
+ * group"), with "+ Set another property". A run that paints nothing by group has nothing to edit.
  * @param props - Component props
  * @param props.run - the run
  * @param props.group - the group, as the run's summary spells it
@@ -563,44 +563,49 @@ export function GroupStyle({
     run,
     group,
 }: Readonly<{ run: string; group: string | number }>): React.JSX.Element | null {
-    const { session, element, store } = useWorkspace();
+    const { session, element } = useWorkspace();
     useStyleVersion(session, element);
     if (session === null) {
         return null;
     }
-    const bound = runColorOf(session, run);
-    if (bound === undefined) {
+    // The run's first layer that paints something by a value its groups are values of.
+    const owned = session.runs.bindings(run);
+    let found: { layer: Layer; path: string } | undefined;
+    for (const layer of session.styles.list()) {
+        if (!owned.includes(layer.id)) {
+            continue;
+        }
+        for (const binding of Object.values(layer.encode ?? {})) {
+            if (
+                binding !== undefined &&
+                "by" in binding &&
+                session.styles.groups(layer.id, binding.by).some((g) => String(g.value) === String(group))
+            ) {
+                found = { layer, path: binding.by };
+                break;
+            }
+        }
+        if (found !== undefined) {
+            break;
+        }
+    }
+    if (found === undefined) {
         return (
             <Text size="xs" c="dimmed" p="md">
-                This run paints no color
+                This run paints nothing by group
             </Text>
         );
     }
-    const block = colorBlockOf(session, run);
-    const mapped = bound.binding.map?.[String(group)];
-    const painted = (
-        typeof mapped === "string" ? mapped : block?.swatches.find((swatch) => swatch.value === group)?.color
-    )
-        ?.slice(0, 7)
-        .toUpperCase();
+    const source = sourceName(session, { by: found.path }) ?? found.path;
     return (
-        <Stack gap={8} p={8} data-testid="group-style" role="group" aria-label="Fill">
-            <Text size="xs" fw={600} pl={4}>
-                Fill
-            </Text>
-            <CompactColorInput
-                label="Color"
-                color={painted}
-                defaultColor={painted ?? "#000000"}
-                showOpacity={false}
-                onChangeEnd={(color) => {
-                    if (color !== undefined) {
-                        writeGroupColor(session, bound, block?.palette, group, color).catch(() => {
-                            store.set({ notice: { message: "The group's color could not be changed", error: true } });
-                        });
-                    }
-                }}
+        <Box p={8} data-testid="group-style">
+            <GroupDetail
+                session={session}
+                layer={found.layer}
+                path={found.path}
+                source={source}
+                keys={[String(group)]}
             />
-        </Stack>
+        </Box>
     );
 }

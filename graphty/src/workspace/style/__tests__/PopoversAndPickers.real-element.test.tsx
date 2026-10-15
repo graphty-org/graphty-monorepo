@@ -2,8 +2,8 @@
  * The binding popover's rows and readings, and the two value lists, on the REAL graphty-element,
  * driven by real input: on College football the conference column offers "One color per value"
  * and paints one palette color per conference; at 900 x 700 the ramp popover is 240 px wide and
- * fits; on Les Miserables Louvain's category rows line up column for column, a recolored row
- * included, and every Clear is a minus; the vary picker and the rule editor name Degree's and
+ * fits; on Les Miserables Louvain's group grid lines up column for column, a recolored row
+ * included, and a set select's Clear is a minus; the vary picker and the rule editor name Degree's and
  * Louvain's values the same.
  */
 
@@ -143,17 +143,21 @@ describe("the binding popover's rows and readings", () => {
         );
     });
 
-    it("Les Miserables: Louvain's rows line up, a recolored row included, and every Clear is a minus", async () => {
+    it("Les Miserables: Louvain's group rows line up, a recolored row included; a set select's Clear is a minus", async () => {
         await page.viewport(1440, 900);
         const { session, store } = await openSample("Les Miserables", 77);
         await session.runs.start("louvain");
         await session.styles.settled();
         const layer = runColorLayer(session);
         const popover = await openBinding(store, layer);
-        const list = within(popover).getByRole("list", { name: /values$/ });
+        const grid = within(popover).getByRole("grid", { name: /groups$/ });
+        const dataRows = (): HTMLElement[] =>
+            within(grid)
+                .getAllByRole("row")
+                .filter((row) => row.querySelector("[role=gridcell]") !== null);
 
         // Recolor the first row through its chip.
-        const [first] = within(list).getAllByRole("listitem");
+        const [first] = dataRows();
         await userEvent.click(within(first).getByTestId("compact-color-input-chip"));
         const hex = await screen.findByTestId("color-picker-value");
         await userEvent.tripleClick(hex);
@@ -165,48 +169,34 @@ describe("the binding popover's rows and readings", () => {
             );
         });
 
-        const rows = await waitFor(() => {
-            const found = within(list).getAllByRole("listitem");
-            assert.isNotNull(within(found[0]).queryByRole("button", { name: /^Back to the palette: / }));
-            return found;
-        });
-        const lefts = (selector: (row: HTMLElement) => Element | null): number[] =>
-            rows.map((row) => Math.round((selector(row)?.getBoundingClientRect().left ?? -1) * 2) / 2);
-        const same = (values: number[], what: string): void => {
+        // Every column lines up row to row, the recolored row included: the grid's own columns.
+        const rows = dataRows();
+        const lefts = (column: number): number[] =>
+            rows.map(
+                (row) =>
+                    Math.round(
+                        (row.querySelectorAll<HTMLElement>("[role=gridcell]")[column]?.getBoundingClientRect().left ??
+                            -1) * 2,
+                    ) / 2,
+            );
+        for (const [column, what] of ["the chip", "the name", "the count", "the eye and menu"].entries()) {
+            const values = lefts(column);
             assert.isAtLeast(values[0], 0, `${what} is drawn`);
             assert.deepEqual(
                 values,
                 values.map(() => values[0]),
                 `${what} lines up on every row`,
             );
-        };
-        same(
-            lefts((row) => row.querySelector("[data-testid=compact-color-input-chip]")),
-            "the chip",
-        );
-        same(
-            lefts((row) => row.children[1]),
-            "the name",
-        );
-        same(
-            rows.map((row) => Math.round((row.children[2]?.getBoundingClientRect().right ?? -1) * 2) / 2),
-            "the count's end",
-        );
-        same(
-            lefts((row) => within(row).queryByRole("button", { name: /^Hide / })),
-            "the eye",
-        );
-        same(
-            lefts((row) => row.querySelector("[data-clear-column]")),
-            "the Clear column",
-        );
+        }
         for (const row of rows) {
-            assert.match(row.children[2]?.textContent ?? "", /^\d+ nodes?$/, "the count says its unit");
+            assert.match(row.querySelectorAll("[role=gridcell]")[2]?.textContent ?? "", /^\d+$/, "the count");
         }
 
-        // Clear on the recolored row and on a set select are both a minus, never an "x".
-        const clear = within(rows[0]).getByRole("button", { name: /^Back to the palette: / });
-        assert.isNotNull(clear.querySelector("svg.lucide-minus"), "the row's Clear is the panel's minus");
+        // Clear on a set select is a minus, never an "x"; the recolored row's Clear is in its menu.
+        const firstName = rows[0].querySelector("[data-group-name]")?.firstChild?.textContent ?? "";
+        await userEvent.click(within(rows[0]).getByRole("button", { name: new RegExp(` ${firstName} actions$`) }));
+        assert.isDefined(await within(popover).findByRole("menuitem", { name: /^Clear color/ }));
+        await userEvent.keyboard("{Escape}");
         await userEvent.click(within(popover).getByRole("combobox", { name: /^More values than colors/ }));
         await userEvent.click(await screen.findByRole("option", { name: "Extend the palette" }));
         const reset = await within(popover).findByTestId("style-select-reset");

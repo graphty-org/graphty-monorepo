@@ -139,6 +139,33 @@ function keyName(session: GraphSession, layerId: string, value: string): string 
 }
 
 /**
+ * The grid row of one value in a binding popover's group list.
+ * @param popover - the popover.
+ * @param value - the value, as the legend spells it.
+ * @returns the row.
+ */
+function rowOf(popover: HTMLElement, value: string): HTMLElement {
+    const cell = popover.querySelector(`[data-group-row="${value}"]`);
+    const row = cell?.closest<HTMLElement>("[role=row]");
+    if (row === null || row === undefined) {
+        throw new Error(`no row for ${value}`);
+    }
+    return row;
+}
+
+/**
+ * Opens a group row's menu and picks an item.
+ * @param popover - the popover.
+ * @param row - the row.
+ * @param name - the row's name.
+ * @param item - the item's name.
+ */
+async function rowMenu(popover: HTMLElement, row: HTMLElement, name: string, item: string | RegExp): Promise<void> {
+    await userEvent.click(within(row).getByRole("button", { name: new RegExp(` ${name} actions$`) }));
+    await userEvent.click(await within(popover).findByRole("menuitem", { name: item }));
+}
+
+/**
  * Edits one value's chit through its hex box, then checks the entry, its minus and its own
  * layer, on any categorical color layer.
  * @param session - the session.
@@ -158,10 +185,7 @@ async function editValue(
     const category = session.styles.categories(layer.id, "node.color").find((c) => String(c.value) === value);
     assert.isDefined(category, `the layer paints ${value}`);
     const name = keyName(session, layer.id, value);
-    const count = category?.count ?? 0;
-    const row = within(popover).getByRole("listitem", {
-        name: `${name}, ${String(count)} ${count === 1 ? "node" : "nodes"}`,
-    });
+    const row = rowOf(popover, value);
     const otherBefore = colorOfValue(session, layer.id, other);
 
     await userEvent.click(within(row).getByTestId("compact-color-input-chip"));
@@ -188,36 +212,23 @@ async function editValue(
     });
     assert.equal(colorOfValue(session, layer.id, value), "#00aa00", "and leaves the entry");
 
-    // The minus returns the value to the palette.
-    await userEvent.click(
-        within(popover).getByRole("button", { name: new RegExp(`^Back to the palette: .* ${name}$`) }),
-    );
+    // Clear, in the row's menu, returns the value to the palette.
+    await rowMenu(popover, rowOf(popover, value), name, /^Clear color/);
     await waitFor(() => {
         const back = session.styles.categories(layer.id, "node.color").find((c) => String(c.value) === value);
         assert.isUndefined(back?.entry);
         assert.notEqual(colorOfValue(session, layer.id, value), "#00aa00");
     });
 
-    // "New layer for <value>": a layer on top, over a layer above the binding's that would paint
-    // over it (an analysis layer above Everything), its rule that value, matching as many.
-    const over = await session.styles.add({
-        name: "Painted above",
-        target: "node",
-        selector: { match: "everything" },
-        set: { "node.color": "#123456" },
-    });
-    await userEvent.click(within(popover).getByRole("button", { name: new RegExp(` ${name} actions$`) }));
-    await userEvent.click(await within(popover).findByRole("menuitem", { name: `New layer for ${name}` }));
+    // "New layer for <value>": a layer directly above its source, its rule that value, carrying
+    // what the value paints, so the drawing does not change.
+    await rowMenu(popover, rowOf(popover, value), name, `New layer for ${name}`);
     const binding = layer.encode?.["node.color"];
     const by = binding !== undefined && "by" in binding ? binding.by : "";
     const added = await waitFor(() => {
-        const readers = session.styles.list().filter((l) => l.source.by !== "element");
-        const above = readers[readers.length - 1];
-        assert.isAbove(
-            readers.indexOf(above),
-            readers.findIndex((l) => l.id === over.id),
-        );
-        assert.deepEqual(above.selector, {
+        const stack = session.styles.list();
+        const above = stack[stack.findIndex((l) => l.id === layer.id) + 1];
+        assert.deepEqual(above?.selector, {
             match: "rule",
             where: { kind: "categories", attribute: by, values: [value] },
         });
@@ -235,7 +246,7 @@ async function editValue(
             "focus is in the new layer's Style tab",
         );
     });
-    assert.equal(store.get().announcement, `Layer ${added.name} added on top`, "and it is announced");
+    assert.equal(store.get().announcement, `Layer ${added.name} added above ${layer.name}`, "and it is announced");
 }
 
 describe("the binding popover on the real element", () => {
@@ -379,24 +390,34 @@ describe("the binding popover on the real element", () => {
             return;
         }
         const popover = await openBinding(store, layer);
-        const rows = within(within(popover).getByRole("list", { name: /values$/ })).getAllByRole("listitem");
+        const grid = within(popover).getByRole("grid", { name: /groups$/ });
+        const rows = within(grid)
+            .getAllByRole("row")
+            .filter((row) => row.querySelector("[role=gridcell]") !== null);
         const categories = session.styles.categories(layer.id, "node.color");
-        assert.lengthOf(rows, categories.length);
+        assert.lengthOf(rows, Math.min(8, categories.length), "the largest 8 groups");
         const keyNames = categories.map((c) => keyName(session, layer.id, String(c.value)));
         assert.isTrue(
             keyNames.every((name) => name.startsWith("Group ")),
             "the key names Louvain's groups by rank",
         );
         rows.forEach((row, at) => {
-            const [chit, name, count] = [...row.children] as HTMLElement[];
-            assert.equal(name.textContent, keyNames[at], "the row is named as the key names it");
-            const n = categories[at].count;
-            assert.equal(count.textContent, `${String(n)} ${n === 1 ? "node" : "nodes"}`, "the count says its unit");
-            const box = (chit.firstElementChild as HTMLElement).getBoundingClientRect();
+            const [chit, name, count] = [...row.querySelectorAll<HTMLElement>("[role=gridcell]")];
+            assert.equal(
+                name.querySelector("[data-group-name]")?.firstChild?.textContent,
+                keyNames[at],
+                "named as the key",
+            );
+            assert.equal(count.textContent, String(categories[at].count), "the count in its own column");
+            const box = chit.querySelector("[data-testid=compact-color-input-chip]")?.getBoundingClientRect();
             const words = name.getBoundingClientRect();
-            assert.isAtMost(box.right, words.left, `the color chip stops before ${keyNames[at]}'s name`);
-            assert.isAbove(words.width, 0);
-            assert.isAtLeast(count.getBoundingClientRect().left, words.right, "the count follows the name");
+            assert.isAtMost(box?.right ?? Infinity, words.left, `the color chip stops before ${keyNames[at]}'s name`);
+            assert.isAtLeast(count.getBoundingClientRect().left, words.right - 1, "the count follows the name");
+            // The row reads its name, size and every property it varies.
+            assert.match(
+                name.textContent,
+                new RegExp(`^${keyNames[at]}, ${String(categories[at].count)} nodes?, color `),
+            );
         });
         assert.isDefined(
             within(rows[0]).getByRole("button", { name: new RegExp(`^Hide .* ${keyNames[0]}$`) }),
@@ -448,8 +469,7 @@ describe("the binding popover on the real element", () => {
         const value = String(session.styles.categories(layer.id, "node.color")[0]?.value);
         const name = keyName(session, layer.id, value);
         const popover = await openBinding(store, layer);
-        await userEvent.click(within(popover).getByRole("button", { name: new RegExp(` ${name} actions$`) }));
-        await userEvent.click(await within(popover).findByRole("menuitem", { name: /^Rename/ }));
+        await rowMenu(popover, rowOf(popover, value), name, /^Rename/);
         const field = await within(popover).findByRole("textbox", { name: new RegExp(`^Name of .* ${name}$`) });
         await userEvent.clear(field);
         await userEvent.type(field, "Students{Enter}");
@@ -457,7 +477,9 @@ describe("the binding popover on the real element", () => {
         await waitFor(() => {
             assert.equal(session.data.valueLabels(path).get(value), "Students");
         });
-        await within(popover).findByRole("listitem", { name: /^Students, / });
+        await waitFor(() => {
+            assert.equal(rowOf(popover, value).querySelector("[data-group-name]")?.firstChild?.textContent, "Students");
+        });
         const legend = await screen.findByRole("region", { name: "Legend" });
         await within(legend).findByText("Students");
     });

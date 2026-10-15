@@ -1,6 +1,5 @@
 import {
     ComboInput,
-    CompactColorInput,
     MenuShortcut,
     RampEditor,
     type RampEditorHandle,
@@ -15,12 +14,13 @@ import type { GraphSession, ReadableValue } from "@graphty/graphty-element/sessi
 import { ActionIcon, Box, Button, Group, Menu, Stack, Text, TextInput, Tooltip } from "@mantine/core";
 import React, { useState } from "react";
 
-import { swatchText } from "../canvas/legendWords";
 import { GLYPHS } from "../glyphs";
 import { count as countOf } from "../inspector/words";
 import { useWorkspace } from "../state/WorkspaceContext";
+import { GroupList } from "./Groups";
 import { type DataBinding, type DataChoice, startingValue, topmostRow } from "./row";
 import { focusLineNext } from "./useFocusLine";
+import { ValueField } from "./ValueField";
 import { ValuePicker } from "./ValuePicker";
 import { channelWord, enumWords, failureWords, paletteWord, SCALE_WORDS } from "./words";
 
@@ -30,21 +30,25 @@ type ColorInput = Parameters<typeof toColorValue>[0];
 /** What the element's preview of a binding says. */
 type Preview = ReturnType<GraphSession["styles"]["preview"]>;
 
-/** One value of a categorical binding, as `styles.categories` lists it. */
-type Category = ReturnType<GraphSession["styles"]["categories"]>[number];
-
 /** The most distinct values a number may hold to be offered one color each: past it, colors stop telling apart. */
 const PER_VALUE_MOST = 24;
 
-/** Past this many category rows, a search field filters them (tier3 design, section 4). */
-const SEARCH_PAST = 8;
-
-/** What a categorical color binding does with more values than its palette tells apart. */
-const OVERFLOW_WORDS = [
-    { value: "other", label: "Fold into Other" },
-    { value: "shape", label: "Repeat colors, change shape" },
-    { value: "extend", label: "Extend the palette" },
-];
+/**
+ * What a categorical color binding does with more values than its palette tells apart. Repeated
+ * colors always come with a second cue, a node's shape or an edge's pattern, never color alone.
+ */
+const OVERFLOW_WORDS = {
+    node: [
+        { value: "other", label: "Fold into Other" },
+        { value: "shape", label: "Repeat colors, change shape" },
+        { value: "extend", label: "Extend the palette" },
+    ],
+    edge: [
+        { value: "other", label: "Fold into Other" },
+        { value: "pattern", label: "Repeat colors, change pattern" },
+        { value: "extend", label: "Extend the palette" },
+    ],
+} as const;
 
 /** How a number meets what the layers beneath painted. */
 const COMBINE_WORDS = [
@@ -169,6 +173,8 @@ export function BindingPopover({
 }: Readonly<BindingPopoverProps>): React.JSX.Element | null {
     const { session } = useWorkspace();
     const [choosing, setChoosing] = useState(false);
+    // A group's detail takes the popover over: what belongs to the whole binding steps aside.
+    const [detail, setDetail] = useState(false);
     if (session === null) {
         return null;
     }
@@ -234,15 +240,17 @@ export function BindingPopover({
                     source={source}
                     preview={preview}
                     patch={patch}
+                    detail={detail}
+                    onDetailChange={setDetail}
                 />
             ) : null}
-            {isNumber ? (
+            {isNumber && !detail ? (
                 <Range key={String(binding.range)} descriptor={descriptor} range={binding.range} patch={patch} />
             ) : null}
-            {(isColor || isNumber) && (categorical || !isColor) ? (
+            {preview !== null && !detail && (categorical || !isColor) ? (
                 <NoValue session={session} descriptor={descriptor} missing={binding.missing ?? "skip"} patch={patch} />
             ) : null}
-            {isNumber ? (
+            {isNumber && !detail ? (
                 <StyleSelect
                     label="Combine"
                     aria-label={`How ${name.toLowerCase()} meets the layers beneath`}
@@ -600,7 +608,8 @@ function Clamp({
 }
 
 /**
- * A categorical binding: its scheme, one row per value, and what happens past the palette.
+ * A categorical binding: its scheme, its groups (the group list, which opens a group's detail), and
+ * what happens past the palette.
  * @param props - Component props
  * @param props.session - the element's session
  * @param props.descriptor - the bound property
@@ -609,47 +618,32 @@ function Clamp({
  * @param props.source - what it reads, in words
  * @param props.preview - the element's preview of it
  * @param props.patch - writes a change
+ * @param props.detail - whether a group's detail is open, which hides the scheme
+ * @param props.onDetailChange - told when a group's detail opens or closes
  * @returns The scheme and its rows
  */
-function Categories({ session, descriptor, layerId, binding, source, preview, patch }: PartProps): React.JSX.Element {
-    const { store } = useWorkspace();
-    const [search, setSearch] = useState("");
+function Categories({
+    session,
+    descriptor,
+    layerId,
+    binding,
+    source,
+    preview,
+    patch,
+    detail,
+    onDetailChange,
+}: PartProps & { detail: boolean; onDetailChange: (open: boolean) => void }): React.JSX.Element {
     const { channel } = descriptor;
     const isColor = descriptor.accepts === "color";
-    const categories = session.styles.categories(layerId, channel);
     const palettes = session.catalog.palettes().filter((p) => p.kind === "categorical");
     const block = session.styles.legend().find((b) => b.layerId === layerId && b.channel === channel);
     const shownPalette = block?.palette?.name;
-    // What each value paints, from the element's preview: an entry's own value, else the palette's.
-    const paints = new Map(preview.bins.map((bin) => [String(bin.value), bin.paints]));
-    // Each value by the name the canvas key gives it: a run's group as "Group 3", by its rank.
-    const names = new Map(
-        (block?.swatches ?? [])
-            .filter((swatch) => swatch.role !== "other")
-            .map((swatch) => [String(swatch.value), block === undefined ? "" : swatchText(block, swatch)]),
-    );
-    const nameOf = (value: unknown): string => names.get(String(value)) ?? String(value);
     const readable = readableOf(session, binding, descriptor.target);
     const asWritten = binding.scale === "passthrough";
-    const needle = search.trim().toLowerCase();
-    const shown = categories.filter(
-        (c) =>
-            needle === "" ||
-            String(c.value).toLowerCase().includes(needle) ||
-            nameOf(c.value).toLowerCase().includes(needle),
-    );
-    const fail = (error: unknown): void => {
-        store.set({ notice: { message: failureWords(channelWord(channel), "changed", error), error: true } });
-    };
-    const entry = (value: Category["value"], next: string | number | undefined): void => {
-        Promise.resolve(session.styles.setValueEntry(layerId, channel, value as string | number | boolean, next)).catch(
-            fail,
-        );
-    };
 
     return (
         <Stack gap={8}>
-            {isColor && readable?.kind === "number" && binding.scale === "ordinal" ? (
+            {isColor && !detail && readable?.kind === "number" && binding.scale === "ordinal" ? (
                 <QuietButton
                     onClick={() => {
                         patch({ scale: undefined, palette: undefined, overflow: undefined });
@@ -658,7 +652,7 @@ function Categories({ session, descriptor, layerId, binding, source, preview, pa
                     Use a ramp
                 </QuietButton>
             ) : null}
-            {isColor && readable?.valuesAreColors === true ? (
+            {isColor && !detail && readable?.valuesAreColors === true ? (
                 <QuietButton
                     onClick={() => {
                         patch(
@@ -671,7 +665,7 @@ function Categories({ session, descriptor, layerId, binding, source, preview, pa
                     {asWritten ? "Use a palette" : "Use the values as colors"}
                 </QuietButton>
             ) : null}
-            {isColor && !asWritten ? (
+            {isColor && !detail && !asWritten ? (
                 <StyleSelect
                     label="Palette"
                     value={binding.palette}
@@ -699,116 +693,21 @@ function Categories({ session, descriptor, layerId, binding, source, preview, pa
                     }}
                 />
             ) : null}
-            {categories.length > SEARCH_PAST ? (
-                <TextInput
-                    size="xs"
-                    aria-label={`Search ${source} values`}
-                    placeholder="Search values"
-                    value={search}
-                    onChange={(event) => {
-                        setSearch(event.currentTarget.value);
-                    }}
-                />
-            ) : null}
-            <Stack gap={2} role="list" aria-label={`${source} values`}>
-                {shown.map((category) => {
-                    const word = String(category.value);
-                    const name = nameOf(category.value);
-                    const painted = paints.get(word);
-                    let chit: React.ReactNode = null;
-                    if (isColor) {
-                        chit = (
-                            <CompactColorInput
-                                variant="chip"
-                                aria-label={`${source} ${name} color`}
-                                color={typeof category.entry === "string" ? category.entry : undefined}
-                                // The color it paints now, the palette's until it has its own.
-                                defaultColor={cssOf(painted) ?? "#999999"}
-                                showOpacity={false}
-                                showReset={false}
-                                onChangeEnd={(next) => {
-                                    if (next !== undefined) {
-                                        entry(category.value, next.toUpperCase());
-                                    }
-                                }}
-                            />
-                        );
-                    } else if (descriptor.accepts === "number") {
-                        chit = (
-                            <Box w={64}>
-                                <StyleNumberInput
-                                    label={`${source} ${name} ${channelWord(channel).toLowerCase()}`}
-                                    value={typeof category.entry === "number" ? category.entry : undefined}
-                                    defaultValue={typeof painted === "number" ? painted : 1}
-                                    min={descriptor.min}
-                                    max={descriptor.max}
-                                    onChange={(next) => {
-                                        entry(category.value, next);
-                                    }}
-                                />
-                            </Box>
-                        );
-                    }
-                    return (
-                        <ValueRow
-                            key={word}
-                            session={session}
-                            target={descriptor.target}
-                            source={source}
-                            name={name}
-                            count={category.count}
-                            chit={chit}
-                            hidden={category.hidden}
-                            onHide={(hide) => {
-                                Promise.resolve(
-                                    session.styles.setValueHidden(
-                                        layerId,
-                                        channel,
-                                        category.value as string | number | boolean,
-                                        hide,
-                                    ),
-                                ).catch(fail);
-                            }}
-                            onClear={
-                                category.entry === undefined
-                                    ? undefined
-                                    : () => {
-                                          entry(category.value, undefined);
-                                      }
-                            }
-                            where={{ kind: "categories", attribute: binding.by, values: [word] }}
-                            onNewLayer={(where) => {
-                                openLayerFor(session, store, layerId, channel, `${source} ${name}`, where, painted);
-                            }}
-                            onRename={(label) => {
-                                if (label !== name) {
-                                    Promise.resolve(
-                                        session.data.setValueLabel(
-                                            binding.by,
-                                            category.value as string | number | boolean,
-                                            label === "" ? null : label,
-                                        ),
-                                    ).catch((error: unknown) => {
-                                        store.set({
-                                            notice: {
-                                                message: failureWords("The name", "changed", error),
-                                                error: true,
-                                            },
-                                        });
-                                    });
-                                }
-                            }}
-                        />
-                    );
-                })}
-            </Stack>
-            {isColor && !asWritten ? (
+            <GroupList
+                session={session}
+                descriptor={descriptor}
+                layerId={layerId}
+                binding={binding}
+                source={source}
+                onDetailChange={onDetailChange}
+            />
+            {isColor && !detail && !asWritten ? (
                 <StyleSelect
                     label="More values than colors"
                     value={binding.overflow}
                     defaultValue="other"
                     placeholder=""
-                    options={OVERFLOW_WORDS}
+                    options={[...OVERFLOW_WORDS[descriptor.target]]}
                     onChange={(overflow) => {
                         patch({ overflow: overflow as DataBinding["overflow"] });
                     }}
@@ -1072,35 +971,19 @@ function NoValue({
     const raw = startingValue(descriptor, session);
     const start: string | number =
         typeof raw === "number" || typeof raw === "string" ? raw : (toColorValue(raw as ColorInput)?.hex ?? "");
-    let field: React.JSX.Element | null = null;
-    if (given !== null && descriptor.accepts === "color") {
-        field = (
-            <CompactColorInput
+    // The field the property's own row draws: a color, a number, a shape or pattern, or words.
+    const field =
+        given === null ? null : (
+            <ValueField
+                descriptor={descriptor}
                 label="Value"
-                // The popover's width, not the sidebar's 184: the default widened the popover.
-                width="100%"
-                color={typeof given === "string" ? given : undefined}
-                defaultColor={String(start)}
-                // Once per gesture, so a drag in the picker is one undo step.
-                onChangeEnd={(color) => {
-                    patch({ missing: { value: color ?? start } });
-                }}
-            />
-        );
-    } else if (given !== null) {
-        field = (
-            <StyleNumberInput
-                label="Value"
-                value={typeof given === "number" ? given : undefined}
-                defaultValue={Number(start)}
-                min={descriptor.min}
-                max={descriptor.max}
+                value={given}
+                shown={start}
                 onChange={(value) => {
-                    patch({ missing: { value: value ?? start } });
+                    patch({ missing: { value: typeof value === "boolean" ? String(value) : value } });
                 }}
             />
         );
-    }
     return (
         <Stack gap={4}>
             <StyleSelect

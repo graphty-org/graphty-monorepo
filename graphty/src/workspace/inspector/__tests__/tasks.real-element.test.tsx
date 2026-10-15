@@ -527,8 +527,9 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
         act(() => {
             store.set({ inspected: { kind: "group-row", id: JSON.stringify([id, first.group]) } });
         });
-        const fill = await inspector().findByRole("group", { name: "Fill" });
-        const fillHex = within(fill).getByRole("textbox", { name: /Color/ });
+        // The group's Style: its own detail, every property its run varies by group (color here).
+        const fill = await inspector().findByRole("group", { name: / properties$/ });
+        const fillHex = within(fill).getByRole("textbox", { name: /color/i });
         await userEvent.clear(fillHex);
         await userEvent.type(fillHex, "123456{Enter}");
         await act(async () => {

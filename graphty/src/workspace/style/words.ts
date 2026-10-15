@@ -713,3 +713,33 @@ export function failureWords(what: string, verb: string, error: unknown): string
     const reason = error instanceof GraphtyError ? REFUSAL_WORDS[error.code] : undefined;
     return reason === undefined ? `${what} could not be ${verb}.` : `${what} could not be ${verb}: ${reason}.`;
 }
+
+/** The control a value of one property is edited with: one per kind of property. */
+export type ValueFieldKind = "color" | "number" | "choice" | "text";
+
+/**
+ * The control a per-value field draws for a property: a color chit, a number, a shape, pattern or
+ * arrow glyph grid (or a yes-or-no select), or words. Every per-value and per-group control of the
+ * Style tab draws its field through `ValueField`, so none offers fewer kinds of property than
+ * the property row it hangs from (`coverage.ts`, PER_VALUE_CONTROLS).
+ * @param descriptor - the property.
+ * @returns the kind, or null for a property the Style tab does not draw.
+ */
+export function valueFieldKind(descriptor: ChannelDescriptor): ValueFieldKind | null {
+    if (!descriptor.renderable) {
+        return null;
+    }
+    switch (descriptor.accepts) {
+        case "color":
+            return "color";
+        case "number":
+            return "number";
+        case "enum":
+        case "boolean":
+            return "choice";
+        case "text":
+            return "text";
+        default:
+            return null;
+    }
+}

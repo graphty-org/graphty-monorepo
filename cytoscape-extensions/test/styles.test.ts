@@ -5,7 +5,7 @@
 
 import type { LossNote } from "@graphty/graph-io";
 import cytoscape from "cytoscape";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import graphtyCytoscape from "../src/index";
 import type { ExportFormat } from "../src/io";
@@ -96,6 +96,24 @@ describe("graphtyImport with styles", () => {
         cy.destroy();
     });
 
+    it("keeps the core's own function-valued style properties working after applyStyles", async () => {
+        const cy = core({
+            style: [{ selector: "node", style: { width: () => 33 } }],
+            elements: [{ data: { id: "own" } }],
+        });
+        const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+        try {
+            await cy.graphtyImport(gephi("n", COLORS), "gexf", { styles: true, applyStyles: true });
+            // Cytoscape warns "The style property `width: fn` is invalid" for a property read back as "fn"
+            expect(warn).not.toHaveBeenCalled();
+        } finally {
+            warn.mockRestore();
+        }
+        expect(cy.$id("own").style("width")).toBe("33px");
+        expect(cy.$id("n0").style("background-color")).toBe(rgb(COLORS[0]));
+        cy.destroy();
+    });
+
     it("leaves the elements and the report as they were without styles", async () => {
         const plain = core();
         const r = await plain.graphtyImport(gephi("n", COLORS), "gexf");
@@ -113,8 +131,8 @@ const styled = (): cytoscape.Core =>
     core({
         elements: [
             { data: { id: "a", w: 0, fill: "#112233" }, classes: "hub", position: { x: 0, y: 0 } },
-            { data: { id: "b", w: 5, fill: "#445566" }, position: { x: 10, y: 0 } },
-            { data: { id: "c", w: 10, fill: "#778899" }, position: { x: 20, y: 0 } },
+            { data: { id: "b", w: 5, fill: "#445566" }, position: { x: 10, y: 5 } },
+            { data: { id: "c", w: 10, fill: "#778899" }, position: { x: 20, y: -5 } },
             { data: { id: "ab", source: "a", target: "b" } },
             { data: { id: "bc", source: "b", target: "c" } },
         ],
@@ -143,6 +161,10 @@ describe("graphtyExport with styles", () => {
             const back = core();
             await back.graphtyImport(text, format, { styles: true, applyStyles: true });
             expect(drawn(back)).toEqual(drawn(cy));
+            // every node where it was, the right way up (a yEd box is written by its top-left corner, y down)
+            const at = (c: cytoscape.Core): Record<string, cytoscape.Position> =>
+                Object.fromEntries(c.nodes().map((n) => [n.id(), n.position()]));
+            expect(at(back)).toEqual(at(cy));
             cy.destroy();
             back.destroy();
         },

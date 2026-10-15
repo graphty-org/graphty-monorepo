@@ -134,10 +134,6 @@ export const CANVAS_METRICS = {
     PILL_PAD_X: 6,
     /** the Graph / Table segmented track (ART-DTD:472 `height: 24px`). */
     SEGMENT_TRACK: 24,
-    /** one half of that track (ART-DTD:473 `height: 20px`). */
-    SEGMENT_ITEM: 20,
-    /** a segmented half's horizontal padding (ART-DTD:473 `padding: 0 10px`). */
-    SEGMENT_ITEM_PAD_X: 10,
     /** the segmented track's inner padding (ART-DTD:472 `padding: 1px`). */
     SEGMENT_PAD: 1,
     /** the drawer's tab row and its toolbar row (ART-DTD:664 `flex: 0 0 28px`). */

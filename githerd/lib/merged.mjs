@@ -302,3 +302,47 @@ export function commitRefs(log, open) {
     }
     return refs;
 }
+
+/**
+ * The issues whose merge record (`refs`, `closed`) nothing reads any more (issue #2661): those not
+ * in `state.issues.byNumber`. Every open issue is there, and the readers ask only about issues
+ * there: an issue job's and a refresh pass's `masterRefs` and `closed` (jobs.mjs, queue.mjs), a
+ * triage verdict's `judgedRefs` (done.mjs). The daemon drops each with its record in the ledger (a
+ * `merged-issue-dropped` line) and `restoreMergedIssues` puts it back when the issue comes back
+ * (a reopen, or a reference that keeps a closed one).
+ * @param {any} state the daemon state
+ * @returns {string[]} the issue numbers
+ */
+export function droppableMergedIssues(state) {
+    const by = state.issues?.byNumber ?? {};
+    const m = state.merged ?? {};
+    const numbers = new Set([...Object.keys(m.refs ?? {}), ...(m.closed ?? []).map(String)]);
+    return [...numbers].filter((n) => !by[n]);
+}
+
+/**
+ * Puts back the merge record of each issue in `numbers` from its `merged-issue-dropped` lines, all
+ * of them (an issue dropped twice may have gained references in between), into `merged`.
+ * @param {any} merged `state.merged`, changed in place
+ * @param {any[]} ledger the ledger, every month of it
+ * @param {string[]} numbers the issues that came back
+ * @returns {string[]} the issues it put a record back for
+ */
+export function restoreMergedIssues(merged, ledger, numbers) {
+    const wanted = new Set(numbers);
+    const back = new Set();
+    const closed = new Set(merged.closed ?? []);
+    for (const e of ledger) {
+        if (e.kind !== "merged-issue-dropped" || !wanted.has(String(e.issue))) continue;
+        const n = String(e.issue);
+        back.add(n);
+        if (e.record?.refs?.length) {
+            merged.refs ??= {};
+            const list = (merged.refs[n] ??= []);
+            for (const r of e.record.refs) if (!list.includes(r)) list.push(r);
+        }
+        if (e.record?.closed) closed.add(Number(n));
+    }
+    merged.closed = [...closed].sort((a, b) => a - b);
+    return [...back];
+}

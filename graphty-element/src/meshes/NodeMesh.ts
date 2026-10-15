@@ -283,6 +283,9 @@ export class NodeMesh {
         const extents = this.extentsOf(createOptions.shape, size, options.is2D);
         const mesh = creator(size, scene);
         fitNodeMesh(mesh, extents);
+        if (createOptions.shape.sizeMode === "diameter" && !this.hasExplicitExtent(createOptions.shape)) {
+            NodeMesh.scaleToExtent(mesh, size);
+        }
 
         return mesh;
     }
@@ -295,15 +298,36 @@ export class NodeMesh {
      * @returns The extents to fit its mesh to.
      */
     static extentsOf(shape: NonNullable<NodeStyleConfig["shape"]>, size: number, is2D: boolean): NodeExtents {
+        const perSize = this.extentPerSize(shape);
         const world = (value: number | undefined): number | undefined =>
-            value === undefined ? undefined : Math.max(value, MIN_NODE_SIZE) * NODE_EXTENT_PER_SIZE;
-        const across = size * NODE_EXTENT_PER_SIZE;
+            value === undefined ? undefined : Math.max(value, MIN_NODE_SIZE) * perSize;
+        const across = size * perSize;
         const x = world(shape.width);
         const y = world(shape.height);
         const thin = shape.planar === true || (is2D && isFlatShape(shape.type ?? ""));
         const z = world(shape.depth) ?? (thin ? THIN_DEPTH_RATIO * Math.min(x ?? across, y ?? across) : undefined);
 
         return { across, x, y, z };
+    }
+
+    /**
+     * How many world units one unit of size, width, height, depth or border width is drawn at:
+     * the common node extent under the default `sizeMode`, one unit under "diameter".
+     * @param shape - The node's shape block, or none.
+     * @returns World units per unit of size.
+     * @internal
+     */
+    static extentPerSize(shape: NodeStyleConfig["shape"]): number {
+        return shape?.sizeMode === "diameter" ? 1 : NODE_EXTENT_PER_SIZE;
+    }
+
+    /**
+     * Whether the node names its own width, height or depth, which then decide its extents.
+     * @param shape - The node's shape block.
+     * @returns True when any of the three is set.
+     */
+    private static hasExplicitExtent(shape: NonNullable<NodeStyleConfig["shape"]>): boolean {
+        return shape.width !== undefined || shape.height !== undefined || shape.depth !== undefined;
     }
 
     /**
@@ -344,7 +368,7 @@ export class NodeMesh {
         scene?: Scene,
     ): InstancedMesh | null {
         const { border, shape } = createOptions;
-        const width = (border?.width ?? 0) * NODE_EXTENT_PER_SIZE;
+        const width = (border?.width ?? 0) * this.extentPerSize(shape);
 
         if (width <= 0 || shape?.type === undefined) {
             return null;
@@ -397,6 +421,24 @@ export class NodeMesh {
         mat.freeze();
 
         return mat;
+    }
+
+    /**
+     * Rescales a fitted mesh so its largest width, height or depth is `extent`: what
+     * `sizeMode: "diameter"` means. `fitNodeMesh` sets the extent across the view; a shape that is
+     * deepest front to back (the dodecahedron, the icosahedron) is then scaled down so its depth
+     * is `extent` too. Every other shape is already `extent` at its widest and is left as it was.
+     * @param mesh - The mesh a shape creator returned
+     * @param extent - The largest width, height or depth it should be drawn at, in scene units
+     */
+    private static scaleToExtent(mesh: Mesh, extent: number): void {
+        mesh.computeWorldMatrix(true);
+        const { minimumWorld: min, maximumWorld: max } = mesh.getBoundingInfo().boundingBox;
+        const drawn = Math.max(max.x - min.x, max.y - min.y, max.z - min.z);
+        if (drawn > 0) {
+            mesh.scaling.scaleInPlace(extent / drawn);
+            mesh.bakeCurrentTransformIntoVertices();
+        }
     }
 
     /**

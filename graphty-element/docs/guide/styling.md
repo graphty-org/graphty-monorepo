@@ -188,7 +188,8 @@ A channel is one visual property with one name. These are all of them:
 | Node channel        | Takes                                                                    |
 | ------------------- | ------------------------------------------------------------------------ |
 | `node.color`        | any CSS colour                                                           |
-| `node.size`         | a number; every shape at one size is the same width across the view      |
+| `node.size`         | 0 or more; every shape at one size is the same width across the view     |
+| `node.sizeMode`     | `scale` (the default) or `diameter`: what `node.size` measures           |
 | `node.shape`        | `sphere`, `box`, `icosphere`, ..., or a flat `rectangle`, `ellipse`, ... |
 | `node.width`        | 0 or more: the width, in the units of `node.size`                        |
 | `node.height`       | 0 or more: the height, in the units of `node.size`                       |
@@ -323,6 +324,23 @@ shared by every node drawn with it.
 Glowing nodes are drawn through one mesh per distinct `node.glow` and `node.glowStrength`
 pair. A handful of glow styles costs nothing; a strength encoded from data, with a different value
 on every node, gives up instancing for the glowing nodes.
+
+### What a node's size measures
+
+`node.sizeMode` says how `node.size` is read. With `scale`, the default, every shape at one size is
+drawn the same width across the view: 1.5 units per unit of size, the default icosphere's
+diameter. With `diameter`, the size is the largest width, height or depth of the drawn shape, 1
+unit per unit of size: a size-1 octahedron is 1 unit across, like a size-1 sphere. `node.width`,
+`node.height`, `node.depth` and `node.borderWidth` are read in the same units as `node.size`.
+
+```typescript
+await element.session.styles.add({
+    name: "Size is the diameter",
+    target: "node",
+    selector: { match: "everything" },
+    set: { "node.sizeMode": "diameter" },
+});
+```
 
 ### Drawing a style editor
 

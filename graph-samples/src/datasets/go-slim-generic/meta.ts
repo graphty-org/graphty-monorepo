@@ -1,4 +1,5 @@
 import { type DatasetMeta } from "../build.js";
+import { PACKED } from "../packed.js";
 
 /** What the go-slim-generic dataset is, where it came from and under which terms. */
 export const goSlimGenericMeta: DatasetMeta = {
@@ -24,4 +25,6 @@ export const goSlimGenericMeta: DatasetMeta = {
         "topological order and ancestors",
         "coloring terms by namespace",
     ],
+    hosting: "remote",
+    ...PACKED["go-slim-generic"],
 };

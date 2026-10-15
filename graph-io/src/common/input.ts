@@ -1232,130 +1232,244 @@ export async function* textChunks(
 ): AsyncGenerator<string, void, undefined> {
     const input = normalizeInput(rawInput);
     const signal = options.signal ?? null;
-    const onProgress = options.onProgress ?? null;
     const filter = new TextFilter(report, options);
     throwIfAborted(signal);
     if (typeof input === "string") {
         reportTextEncoding(report, options.encoding);
-        const total = onProgress === null ? 0 : utf8Length(input);
-        let done = 0;
-        let start = 0;
-        while (start < input.length) {
-            throwIfAborted(signal);
-            let end = Math.min(start + DECODE_SLICE, input.length);
-            const highSurrogate = (input.charCodeAt(end - 1) & 0xfc00) === 0xd800; // NOSONAR(S7758): reads UTF-16 code units on purpose
-            if (end < input.length && highSurrogate) {
-                end++; // never split a surrogate pair
-            }
-            const piece = start === 0 && end === input.length ? input : input.slice(start, end);
-            start = end;
-            const text = filter.push(piece);
-            if (text.length > 0) {
-                yield text;
-            }
-            if (onProgress !== null) {
-                done += utf8Length(piece);
-                onProgress(done, total);
-            }
-        }
-        if (input.length === 0) {
-            onProgress?.(0, 0);
-        }
-        filter.end();
+        yield* stringTextChunks(input, filter, options);
         return;
     }
     const decoder = new ByteDecoder(report, options);
-    const headBytes = Math.max(options.declarationBytes ?? HEAD_BYTES, BOM_BYTES);
     if (input instanceof Uint8Array) {
-        const length = input.byteLength;
-        decoder.start(input.subarray(0, headBytes));
-        for (let offset = 0; offset < length; offset += DECODE_SLICE) {
-            throwIfAborted(signal);
-            if (input.byteLength !== length) {
-                throw new GraphFormatError(
-                    "E_UNSUPPORTED",
-                    "the input's buffer was detached (transferred) or resized during the import",
-                    { reason: "detached" },
-                );
-            }
-            const slice = input.subarray(offset, Math.min(offset + DECODE_SLICE, length));
-            const text = filter.push(decoder.decode(slice, offset + DECODE_SLICE < length));
-            if (text.length > 0) {
-                yield text;
-            }
-            onProgress?.(Math.min(offset + DECODE_SLICE, length), length);
-        }
-        if (length === 0) {
-            onProgress?.(0, 0);
-        }
-        filter.end();
+        yield* byteTextChunks(input, filter, decoder, options);
         return;
     }
-    // the first bytes of a stream are held back until the BOM check (and the declaration check,
-    // when the format has one) can see enough of them, or the input ended, or text arrived, so a
-    // BOM or a declaration split across small chunks is still seen
-    const needed = options.declaredEncoding === undefined ? BOM_BYTES : headBytes;
-    let done = 0;
-    let head: Uint8Array[] = [];
-    let headLength = 0;
-    const flushHead = (stream: boolean): string => {
-        const bytes = concatBytes(head);
-        head = [];
-        headLength = 0;
-        decoder.start(bytes.subarray(0, headBytes));
-        return decoder.decode(bytes, stream);
-    };
-    const chunks = isReadableStream(input) ? streamChunks(input, signal) : input;
-    for await (const chunk of chunks) {
+    // the stream's loop stays here rather than in a delegated generator: a yield* layer costs
+    // time on every chunk, and a stream may arrive in many small ones
+    const stream = new StreamText(filter, decoder, options);
+    for await (const chunk of isReadableStream(input) ? streamChunks(input, signal) : input) {
         throwIfAborted(signal);
-        let text: string;
-        const bytes = typeof chunk === "string" ? null : asBytes(chunk);
+        const text = stream.push(chunk);
+        if (text.length > 0) {
+            yield text;
+        }
+        options.onProgress?.(stream.done);
+    }
+    const tail = stream.end();
+    if (tail.length > 0) {
+        yield tail;
+    }
+    filter.end();
+    options.onProgress?.(stream.done, stream.done);
+}
+
+/**
+ * The end of the slice of a string input that starts at start: DECODE_SLICE code units, one more
+ * when the slice would end between the two halves of a surrogate pair.
+ * @param input - the string
+ * @param start - where the slice starts
+ * @returns where it ends
+ */
+function stringSliceEnd(input: string, start: number): number {
+    const end = Math.min(start + DECODE_SLICE, input.length);
+    const highSurrogate = (input.charCodeAt(end - 1) & 0xfc00) === 0xd800; // NOSONAR(S7758): reads UTF-16 code units on purpose
+    return end < input.length && highSurrogate ? end + 1 : end;
+}
+
+/**
+ * textChunks() of a string input: slices of it, through the text filter.
+ * @param input - the string
+ * @param filter - the text checks
+ * @param options - cancellation and progress
+ * @yields the filtered slices
+ * @returns nothing
+ */
+function* stringTextChunks(
+    input: string,
+    filter: TextFilter,
+    options: ReadOptions,
+): Generator<string, void, undefined> {
+    const signal = options.signal ?? null;
+    const onProgress = options.onProgress ?? null;
+    const total = onProgress === null ? 0 : utf8Length(input);
+    let done = 0;
+    let start = 0;
+    while (start < input.length) {
+        throwIfAborted(signal);
+        const end = stringSliceEnd(input, start);
+        const piece = start === 0 && end === input.length ? input : input.slice(start, end);
+        start = end;
+        const text = filter.push(piece);
+        if (text.length > 0) {
+            yield text;
+        }
+        if (onProgress !== null) {
+            done += utf8Length(piece);
+            onProgress(done, total);
+        }
+    }
+    if (input.length === 0) {
+        onProgress?.(0, 0);
+    }
+    filter.end();
+}
+
+/**
+ * textChunks() of a Uint8Array input: slices of it, decoded, through the text filter.
+ * @param input - the bytes
+ * @param filter - the text checks
+ * @param decoder - the byte decoder
+ * @param options - cancellation, progress and the declaration size
+ * @yields the decoded, filtered slices
+ * @returns nothing
+ */
+function* byteTextChunks(
+    input: Uint8Array,
+    filter: TextFilter,
+    decoder: ByteDecoder,
+    options: ReadOptions,
+): Generator<string, void, undefined> {
+    const signal = options.signal ?? null;
+    const length = input.byteLength;
+    decoder.start(input.subarray(0, headByteCount(options)));
+    for (let offset = 0; offset < length; offset += DECODE_SLICE) {
+        throwIfAborted(signal);
+        if (input.byteLength !== length) {
+            throw new GraphFormatError(
+                "E_UNSUPPORTED",
+                "the input's buffer was detached (transferred) or resized during the import",
+                { reason: "detached" },
+            );
+        }
+        const slice = input.subarray(offset, Math.min(offset + DECODE_SLICE, length));
+        const text = filter.push(decoder.decode(slice, offset + DECODE_SLICE < length));
+        if (text.length > 0) {
+            yield text;
+        }
+        options.onProgress?.(Math.min(offset + DECODE_SLICE, length), length);
+    }
+    if (length === 0) {
+        options.onProgress?.(0, 0);
+    }
+    filter.end();
+}
+
+/**
+ * How many leading bytes the encoding is chosen from: the format's declaration size, at least a BOM.
+ * @param options - the declaration size
+ * @returns the byte count
+ */
+function headByteCount(options: ReadOptions): number {
+    return Math.max(options.declarationBytes ?? HEAD_BYTES, BOM_BYTES);
+}
+
+/**
+ * The chunks of a stream input (a ReadableStream or an async iterable of strings and bytes) turned
+ * into filtered text. The first bytes are held back until the BOM check (and the declaration
+ * check, when the format has one) can see enough of them, or the input ended, or text arrived, so
+ * a BOM or a declaration split across small chunks is still seen.
+ */
+class StreamText {
+    /** Bytes read so far (text counted as UTF-8 when progress is reported), for progress. */
+    done = 0;
+
+    private head: Uint8Array[] = [];
+
+    private headLength = 0;
+
+    private readonly headBytes: number;
+
+    /** How many bytes to hold back before choosing the encoding. */
+    private readonly needed: number;
+
+    /** Whether progress is reported, so text chunks are measured. */
+    private readonly counting: boolean;
+
+    /**
+     * Create the reader of one stream input.
+     * @param filter - the text checks
+     * @param decoder - the byte decoder
+     * @param options - progress, the declaration reader and its size
+     */
+    constructor(
+        private readonly filter: TextFilter,
+        private readonly decoder: ByteDecoder,
+        options: ReadOptions,
+    ) {
+        this.headBytes = headByteCount(options);
+        this.needed = options.declaredEncoding === undefined ? BOM_BYTES : this.headBytes;
+        this.counting = (options.onProgress ?? null) !== null;
+    }
+
+    /**
+     * Read the next chunk.
+     * @param chunk - a string or a Uint8Array (anything else is E_UNSUPPORTED)
+     * @returns its filtered text; empty while bytes are held back
+     */
+    push(chunk: unknown): string {
         if (typeof chunk === "string") {
-            // finish any byte sequence still pending in the decoder before switching to text; the
-            // BOM and declaration checks apply to the start of the input only, so bytes after text
-            // are never taken for a BOM
-            let pending = "";
-            if (headLength > 0) {
-                pending = decoder.flushBeforeText(() => flushHead(false));
-            } else if (decoder.started) {
-                pending = decoder.flushBeforeText(() => decoder.decode(new Uint8Array(0), false));
-            } else {
-                decoder.start(new Uint8Array(0));
-            }
-            text = filter.push(pending + chunk);
-            done += onProgress === null ? 0 : utf8Length(chunk);
-        } else if (bytes !== null) {
-            done += bytes.byteLength;
-            if (decoder.started) {
-                text = filter.push(decoder.decode(bytes, true));
-            } else {
-                head.push(bytes);
-                headLength += bytes.byteLength;
-                text = headLength >= needed ? filter.push(flushHead(true)) : "";
-            }
-        } else {
+            this.done += this.counting ? utf8Length(chunk) : 0;
+            return this.filter.push(this.beforeText() + chunk);
+        }
+        const bytes = asBytes(chunk);
+        if (bytes === null) {
             throw new GraphFormatError("E_UNSUPPORTED", "an input chunk must be a string or a Uint8Array", {
                 reason: "chunk type",
                 found: typeof chunk,
             });
         }
-        if (text.length > 0) {
-            yield text;
+        this.done += bytes.byteLength;
+        if (this.decoder.started) {
+            return this.filter.push(this.decoder.decode(bytes, true));
         }
-        onProgress?.(done);
+        this.head.push(bytes);
+        this.headLength += bytes.byteLength;
+        return this.headLength >= this.needed ? this.filter.push(this.flushHead(true)) : "";
     }
-    let tail = "";
-    if (headLength > 0) {
-        tail = flushHead(false);
-    } else if (decoder.started) {
-        tail = decoder.decode(new Uint8Array(0), false);
+
+    /**
+     * The input ended: the filtered text of whatever is still held or pending.
+     * @returns the text
+     */
+    end(): string {
+        let tail = "";
+        if (this.headLength > 0) {
+            tail = this.flushHead(false);
+        } else if (this.decoder.started) {
+            tail = this.decoder.decode(new Uint8Array(0), false);
+        }
+        return this.filter.push(tail);
     }
-    tail = filter.push(tail);
-    if (tail.length > 0) {
-        yield tail;
+
+    /**
+     * Start the decoder on the held bytes and decode them.
+     * @param stream - whether more bytes follow
+     * @returns their text
+     */
+    private flushHead(stream: boolean): string {
+        const bytes = concatBytes(this.head);
+        this.head = [];
+        this.headLength = 0;
+        this.decoder.start(bytes.subarray(0, this.headBytes));
+        return this.decoder.decode(bytes, stream);
     }
-    filter.end();
-    onProgress?.(done, done);
+
+    /**
+     * A text chunk follows: finish any byte sequence still pending in the decoder before switching
+     * to text. The BOM and declaration checks apply to the start of the input only, so bytes after
+     * text are never taken for a BOM.
+     * @returns the text of the pending bytes
+     */
+    private beforeText(): string {
+        if (this.headLength > 0) {
+            return this.decoder.flushBeforeText(() => this.flushHead(false));
+        }
+        if (this.decoder.started) {
+            return this.decoder.flushBeforeText(() => this.decoder.decode(new Uint8Array(0), false));
+        }
+        this.decoder.start(new Uint8Array(0));
+        return "";
+    }
 }
 
 /**

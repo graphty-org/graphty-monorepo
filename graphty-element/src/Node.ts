@@ -25,7 +25,7 @@ import { LabelDeclutter } from "./managers/LabelDeclutter";
 import { bootstrapNodePaint, type NodePaint } from "./managers/StylePainter";
 import { oweLabelAnimations } from "./meshes/labelAnimationDebt";
 import { NodeEffects } from "./meshes/NodeEffects";
-import { NODE_EXTENT_PER_SIZE, NodeMesh } from "./meshes/NodeMesh";
+import { NodeMesh } from "./meshes/NodeMesh";
 import { readColor } from "./meshes/readColor";
 import { RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
 import { NodeBehavior, type NodeDragHandler } from "./NodeBehavior";
@@ -411,7 +411,9 @@ export class Node {
      * @internal
      */
     get borderReach(): number {
-        return this.border === null ? 0 : (this.drawnStyle?.border?.width ?? 0) * NODE_EXTENT_PER_SIZE;
+        return this.border === null
+            ? 0
+            : (this.drawnStyle?.border?.width ?? 0) * NodeMesh.extentPerSize(this.drawnStyle?.shape);
     }
 
     /**
@@ -432,7 +434,7 @@ export class Node {
 
         const extent = this.mesh.getBoundingInfo().boundingBox.extendSize[axis] * Math.abs(this.mesh.scaling[axis]);
 
-        return (extent + this.borderReach) / NODE_EXTENT_PER_SIZE;
+        return (extent + this.borderReach) / NodeMesh.extentPerSize(this.drawnStyle?.shape);
     }
 
     /**

@@ -108,7 +108,8 @@ const config: KnipConfig = {
             ignoreDependencies: production ? ["webgpu", "cytoscape"] : [],
         },
 
-        // graph-samples package: the root, generators and every dataset subpath are entries
+        // graph-samples package: the root, generators and every dataset subpath are entries; data/ is the
+        // repository's copy of the small datasets, read by scripts/pack-datasets.mjs and the tests, never shipped
         "graph-samples": {
             // "!" marks what ships: the only patterns knip reads in --production (lint:knip:prod)
             entry: [
@@ -117,8 +118,9 @@ const config: KnipConfig = {
                 "src/datasets/*/index.ts!",
                 "test/**/*.test.ts",
                 "scripts/**/*.{ts,js,mjs}",
+                "data/*.ts",
             ],
-            project: ["src/**/*.ts!", "test/**/*.ts", "scripts/**/*.{ts,js,mjs}"],
+            project: ["src/**/*.ts!", "data/**/*.ts", "test/**/*.ts", "scripts/**/*.{ts,js,mjs}"],
         },
 
         // webgpu-graph-algorithms package: the root barrel re-exports neither subpath, so both are entries; the test

@@ -23,7 +23,7 @@ import {
     toColorValue,
 } from "../../../src/session/styles/channels";
 
-/** The forty-three channels the element publishes, in the order the table declares them. */
+/** The channels the element publishes, in the order the table declares them. */
 const DECLARED = [
     "node.color",
     "node.size",
@@ -49,6 +49,7 @@ const DECLARED = [
     "node.height",
     "node.depth",
     "node.planar",
+    "node.zIndex",
     "node.borderColor",
     "node.borderWidth",
     "node.borderStyle",
@@ -104,8 +105,8 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into twenty-seven node channels and twenty-six edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 27);
+    it("splits into twenty-eight node channels and twenty-six edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 28);
         assert.strictEqual(channelsFor("edge").length, 26);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),

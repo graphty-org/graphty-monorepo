@@ -607,6 +607,8 @@ export class DataManager implements Manager {
     };
     // @internal
     get holdsNoRows(): boolean;
+    // @internal
+    incidentEdgeIds(node: Node_2): EdgeId[];
     init(): Promise<void>;
     get isLoading(): boolean;
     get lastImport(): LoadReport | null;
@@ -3418,6 +3420,7 @@ export const NodeStyle: z.ZodObject<{
         height: z.ZodOptional<z.ZodNumber>;
         depth: z.ZodOptional<z.ZodNumber>;
         planar: z.ZodOptional<z.ZodBoolean>;
+        zIndex: z.ZodOptional<z.ZodNumber>;
     }, z.core.$strict>>;
     texture: z.ZodOptional<z.ZodObject<{
         color: z.ZodOptional<z.ZodUnion<[z.ZodDiscriminatedUnion<[z.ZodObject<{

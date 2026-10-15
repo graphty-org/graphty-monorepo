@@ -289,6 +289,7 @@ export interface ChannelValues {
     "node.height": number;
     "node.depth": number;
     "node.planar": boolean;
+    "node.zIndex": number;
     "node.borderColor": ColorValue;
     "node.borderWidth": number;
     "node.borderStyle": NodeBorderStyleValue;
@@ -947,6 +948,23 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "A planar node is drawn thin along z, as a flat shape facing a 2D camera, even in a 3D " +
             "view. The flat shapes (rectangle, ellipse, diamond and the rest) are always drawn thin " +
             "in a 2D view; in a 3D view they are as deep as they are wide unless this is set.",
+    },
+    "node.zIndex": {
+        channel: "node.zIndex",
+        target: "node",
+        plainName: "Node Z-Index",
+        shortName: "Z-index",
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        min: -1000,
+        max: 0,
+        stylePath: "shape.zIndex",
+        renderable: true,
+        caveat:
+            "Drawing order in a 2D view, from -1000 to 0. A node below 0 is drawn " +
+            "behind every edge and every node with a higher z-index, so a group (compound) node " +
+            "drawn at -1 never hides its members. 3D views draw by real depth and ignore it.",
     },
     "node.borderColor": {
         channel: "node.borderColor",

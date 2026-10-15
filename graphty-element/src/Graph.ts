@@ -339,6 +339,14 @@ export interface NodeScreenPosition {
     visible: boolean;
     /** The node's radius on screen in pixels: its largest half-extent, projected. 0 behind the camera. */
     radius: number;
+    /**
+     * The rectangle the node covers on screen, in the same pixels: its bounding box's eight
+     * corners, projected. Unlike {@link NodeScreenPosition.radius} it follows the node's shape --
+     * a box seen corner-on reaches past the radius, and a tall cylinder is narrower than it. The
+     * corners behind the camera are left out; with none in front it is the centre, zero in size.
+     * @since 3.27.0
+     */
+    bounds: { left: number; top: number; right: number; bottom: number };
 }
 
 /**
@@ -4257,8 +4265,8 @@ export class Graph implements GraphContext {
      * created it reports the hidden mesh template's position, off screen and not visible. Wait
      * for {@link Graph.waitForStableFrame} first.
      * @param nodeId - The node's id.
-     * @returns The centre, whether it is drawn on screen, and its radius in pixels; undefined for
-     *     an id the graph does not hold.
+     * @returns The centre, whether it is drawn on screen, its radius and the rectangle it covers in
+     *     pixels; undefined for an id the graph does not hold.
      */
     nodeScreenPosition(nodeId: string | number): NodeScreenPosition | undefined {
         const node = this.getNode(nodeId);
@@ -4293,11 +4301,31 @@ export class Graph implements GraphContext {
         const w = camera.mode === Camera.ORTHOGRAPHIC_CAMERA ? 1 : depth;
         const radius = inDepth ? (worldRadius * Math.abs(projection[5]) * height) / (2 * w) : 0;
 
+        const bounds = { left: Infinity, top: Infinity, right: -Infinity, bottom: -Infinity };
+        for (const corner of mesh.getBoundingInfo().boundingBox.vectorsWorld) {
+            const ahead = corner.x * view[2] + corner.y * view[6] + corner.z * view[10] + view[14];
+            if (ahead < camera.minZ) {
+                continue;
+            }
+
+            const at = this.worldToScreen(corner);
+            bounds.left = Math.min(bounds.left, at.x);
+            bounds.top = Math.min(bounds.top, at.y);
+            bounds.right = Math.max(bounds.right, at.x);
+            bounds.bottom = Math.max(bounds.bottom, at.y);
+        }
+
+        if (bounds.left > bounds.right) {
+            bounds.left = bounds.right = x;
+            bounds.top = bounds.bottom = y;
+        }
+
         return {
             x,
             y,
             visible: node.getRenderState() === "visible" && inDepth && onScreen,
             radius,
+            bounds,
         };
     }
 

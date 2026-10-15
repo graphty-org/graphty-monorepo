@@ -143,6 +143,35 @@ describe("nodeScreenPosition", () => {
         });
     }
 
+    it("2d: the reported bounds follow a box's corners, past its radius", async () => {
+        await element.session.styles.add({
+            name: "box b",
+            target: "node",
+            selector: { match: "ids", nodes: ["b"] },
+            set: { "node.shape": "box", "node.size": 2 },
+        });
+        await view("2d");
+        await frames(element);
+
+        const at = element.nodeScreenPosition("b");
+        assert.isDefined(at);
+        const { bounds } = at;
+        const halfX = (bounds.right - bounds.left) / 2;
+        const halfY = (bounds.bottom - bounds.top) / 2;
+        assert.isAbove(halfX, 2, "the box is drawn bigger than a dot");
+        assert.closeTo((bounds.left + bounds.right) / 2, at.x, 1, "the rectangle is centred on the node");
+        assert.closeTo((bounds.top + bounds.bottom) / 2, at.y, 1, "the rectangle is centred on the node");
+
+        // Toward the box's top-right corner, inside the rectangle but past the radius.
+        const x = at.x + halfX * 0.85;
+        const y = at.y - halfY * 0.85;
+        assert.isAbove(Math.hypot(x - at.x, y - at.y), at.radius, "the point is outside the radius");
+        clickAt(0, 0);
+        assert.strictEqual(clickAt(x, y), "b", "a click inside the bounds selects the box");
+        clickAt(0, 0);
+        assert.isNull(clickAt(at.x + halfX * 1.3, at.y - halfY * 1.3), "a click past the bounds misses it");
+    });
+
     it("2d: a node panned out of the element is not visible", async () => {
         await view("2d");
         await element.setCameraState({ pan: { x: 100, y: 0 } });

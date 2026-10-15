@@ -2329,17 +2329,27 @@ function childrenOf(snapshot: GraphSnapshot): Map<number, number[]> {
 
         for (let row = 0; row < snapshot.nodeCount; row++) {
             const value = column.isSet(row) ? plain(column.value(row)) : null;
-            for (const parent of Array.isArray(value) ? value : [value]) {
-                if (typeof parent === "number" && parent !== row && parent >= 0 && parent < snapshot.nodeCount) {
-                    const held = out.get(parent) ?? [];
-                    held.push(row);
-                    out.set(parent, held);
-                }
+            for (const parent of parentRows(value, row, snapshot.nodeCount)) {
+                const held = out.get(parent) ?? [];
+                held.push(row);
+                out.set(parent, held);
             }
         }
     }
 
     return out;
+}
+
+/**
+ * The parent rows one node's `parent` or `parents` value names: valid rows other than its own.
+ * @param value - The column's value for the node: a row, a list of rows or nothing.
+ * @param row - The node's own row.
+ * @param nodeCount - How many nodes the graph has.
+ * @returns The parent rows.
+ */
+function parentRows(value: unknown, row: number, nodeCount: number): number[] {
+    const list: unknown[] = Array.isArray(value) ? value : [value];
+    return list.filter((p): p is number => typeof p === "number" && p !== row && p >= 0 && p < nodeCount);
 }
 
 /** The first segment after `data.` in an expression, bare or quoted. */

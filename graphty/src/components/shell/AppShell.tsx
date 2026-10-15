@@ -240,6 +240,7 @@ import type {
     StatusBarIssuesModel,
     StatusBarSlotsModel,
 } from "./statusbar/statusBarModel";
+import { thresholdFilterSubject } from "./thresholdFilterSubject";
 import { CanvasToolbar, type CanvasToolbarComponentProps } from "./toolbar/CanvasToolbar";
 import { historyRows, undoVerb } from "./topbar/historyRows";
 import { TopBar } from "./topbar/TopBar";
@@ -5143,12 +5144,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                       chips: [
                           {
                               id: "threshold",
-                              label: `${
-                                  activeResult?.runId !== undefined &&
-                                  session?.results.path(activeResult.runId) === thresholdFilter.path
-                                      ? activeResult.title
-                                      : "Result"
-                              } above ${formatMetricValue(thresholdFilter.above ?? 0, false)}`,
+                              label: `${thresholdFilterSubject(activeResult, session, thresholdFilter.path)} above ${formatMetricValue(thresholdFilter.above ?? 0, false)}`,
                           },
                       ],
                       controls: (

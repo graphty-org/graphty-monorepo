@@ -317,6 +317,25 @@ describe("Tree: keyboard", () => {
         }
     });
 
+    it("leaves Shift+letter chords to the page: Shift+L does not jump to Leaf", async () => {
+        const seen: boolean[] = [];
+        const onKey = (event: KeyboardEvent): void => {
+            if (event.code === "KeyL" && event.shiftKey) {
+                seen.push(event.defaultPrevented);
+            }
+        };
+        await renderThemed(<Tree items={ITEMS} />);
+        await tabIn();
+        globalThis.addEventListener("keydown", onKey);
+        try {
+            await userEvent.keyboard("{Shift>}l{/Shift}");
+            expect(focused()).toBe("frame");
+            expect(seen).toEqual([false]);
+        } finally {
+            globalThis.removeEventListener("keydown", onKey);
+        }
+    });
+
     it("opens every sibling with *", async () => {
         await renderThemed(<Tree items={ITEMS} />);
         await tabIn();

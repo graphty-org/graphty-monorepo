@@ -697,8 +697,15 @@ export function Tree({
                         top = rows[indexOf.get(top.parentId) ?? 0];
                     }
                     moveFocus(top.node.id);
-                } else if (TYPEAHEAD_KEY.test(event.key) && !event.ctrlKey && !event.metaKey && !event.altKey) {
-                    // Letters and digits only: "/" and other punctuation stay free for the page's shortcuts.
+                } else if (
+                    TYPEAHEAD_KEY.test(event.key) &&
+                    !event.ctrlKey &&
+                    !event.metaKey &&
+                    !event.altKey &&
+                    !event.shiftKey
+                ) {
+                    // Letters and digits only: "/", other punctuation and Shift+letter chords stay
+                    // free for the page's shortcuts (type-ahead ignores case, so Shift adds nothing).
                     const now = Date.now();
                     const t = typeahead.current;
                     t.text = now - t.at > TYPEAHEAD_MS ? event.key : t.text + event.key;

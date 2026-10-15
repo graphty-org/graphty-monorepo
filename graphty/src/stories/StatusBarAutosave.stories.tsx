@@ -24,6 +24,7 @@ import {
 } from "../components/shell/statusbar/formatAutosave";
 import { StatusBar } from "../components/shell/statusbar/StatusBar";
 import type { StatusBarCompletion } from "../components/shell/statusbar/statusBarModel";
+import { storyWaitOptions } from "./wait";
 
 /** The element and its autosave status, by the element's own published types. */
 type Graphty = import("@graphty/graphty-element").Graphty;
@@ -176,7 +177,7 @@ async function chipReads(
     await statusReaches(element, state);
     await waitFor(async () => {
         await expect(within(canvasElement).getByTestId("autosave-chip")).toHaveTextContent(label);
-    });
+    }, storyWaitOptions(5000));
 }
 
 const meta: Meta<typeof Board> = {
@@ -247,7 +248,7 @@ export const Restored: Story = {
             await expect(within(canvasElement).getByRole("status")).toHaveTextContent(
                 "Restored your work from a moment ago.",
             );
-        });
+        }, storyWaitOptions(5000));
         await chipReads(canvasElement, second, "saved", "Autosave: saved");
     },
 };

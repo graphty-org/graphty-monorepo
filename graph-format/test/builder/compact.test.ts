@@ -198,6 +198,24 @@ describe("StagingColumn: declared columns", () => {
     });
 });
 
+describe("StagingColumn: list items of every item dtype", () => {
+    it("accepts a well-typed item of each item dtype", () => {
+        const cases: [string, Record<string, unknown>, unknown[]][] = [
+            ["u8", { itemDtype: "u8" }, [255]],
+            ["pairs", { itemDtype: "f64", itemComponents: 2 }, [[1.5, 2]]],
+            ["bools", { itemDtype: "bool" }, [true, false]],
+            ["dicts", { itemDtype: "dict" }, ["a"]],
+            ["strings", { itemDtype: "string" }, ["b"]],
+            ["jsons", { itemDtype: "json" }, [{ ok: true }]],
+        ];
+        for (const [name, decl, items] of cases) {
+            const column = createStagingColumn(name, "node", { dtype: "list", ...decl }, false);
+            column.write(0, items);
+            expect(column.read(0)).toEqual(items);
+        }
+    });
+});
+
 describe("StagingColumn: inferred columns", () => {
     it("keeps raw values, widens monotonically and coerces once at freeze", () => {
         const column = createStagingColumn("v", "node", { dtype: "bool", nullable: true }, true);

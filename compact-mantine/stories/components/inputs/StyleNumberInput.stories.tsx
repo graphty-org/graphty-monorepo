@@ -7,6 +7,7 @@ import { LabelsProvider, StyleNumberInput } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";
 import { StateGrid } from "../../helpers/input-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
+import { storyWaitOptions } from "../../helpers/settled";
 // Imported from "../../../src", the package's published entry point, so the stories exercise
 // exactly what a consumer gets from `@graphty/compact-mantine`.
 
@@ -206,12 +207,12 @@ export const Keyboard: Story = {
         const box = canvas.getByLabelText("Size");
         await userEvent.click(box);
         await userEvent.keyboard("{Control>}a{/Control}4*5{Enter}");
-        await waitFor(() => expect(canvas.getByTestId("value")).toHaveTextContent("20"));
+        await waitFor(() => expect(canvas.getByTestId("value")).toHaveTextContent("20"), storyWaitOptions(1000));
         await expect(box).toHaveFocus();
         await userEvent.keyboard("{ArrowUp}");
-        await waitFor(() => expect(canvas.getByTestId("value")).toHaveTextContent("21"));
+        await waitFor(() => expect(canvas.getByTestId("value")).toHaveTextContent("21"), storyWaitOptions(1000));
         await userEvent.click(canvas.getByRole("button", { name: "Reset Size to default" }));
-        await waitFor(() => expect(canvas.getByTestId("value")).toHaveTextContent("undefined"));
+        await waitFor(() => expect(canvas.getByTestId("value")).toHaveTextContent("undefined"), storyWaitOptions(1000));
     },
 };
 

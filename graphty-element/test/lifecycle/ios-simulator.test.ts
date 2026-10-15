@@ -31,9 +31,9 @@ import { join } from "node:path";
 
 import { afterAll, assert, beforeAll, describe, it, onTestFailed } from "vitest";
 
-import { processes } from "./cdp-harness";
 import { kill } from "./engines";
 import { type Fixture, startFixture } from "./fixture";
+import { ownChild, processes } from "./processes";
 
 const MACOS = process.platform === "darwin" && process.env.GRAPHTY_LIFECYCLE_MACOS === "1";
 const SAFARI = "com.apple.mobilesafari";
@@ -117,10 +117,10 @@ interface SafariLog {
 function followSafari(udid: string): SafariLog {
     const predicate =
         'process == "MobileSafari" AND (eventMessage CONTAINS "UISceneDidEnterBackground" OR eventMessage CONTAINS "processDidTerminate")';
-    const child: ChildProcess = spawn(
-        "xcrun",
-        ["simctl", "spawn", udid, "log", "stream", "--style", "compact", "--predicate", predicate],
-        { stdio: ["ignore", "pipe", "ignore"] },
+    const child: ChildProcess = ownChild(
+        spawn("xcrun", ["simctl", "spawn", udid, "log", "stream", "--style", "compact", "--predicate", predicate], {
+            stdio: ["ignore", "pipe", "ignore"],
+        }),
     );
     const lines: string[] = [];
     const waiters = new Set<() => void>();

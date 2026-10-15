@@ -16,12 +16,14 @@
  * `chrome.tabs.discard` the way Memory Saver and tab-suspender extensions do.
  */
 
-import { execFileSync, spawn } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { spawn } from "node:child_process";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { chromium } from "playwright";
+
+import { type Proc, processTree } from "./processes";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -36,61 +38,6 @@ interface Message {
     readonly result?: Record<string, unknown>;
     readonly error?: { message: string };
     readonly sessionId?: string;
-}
-
-/** A process on this machine. */
-export interface Proc {
-    readonly pid: number;
-    readonly ppid: number;
-    readonly cmdline: string;
-}
-
-/**
- * Every process on this machine, read from /proc, or from `ps` where there is none (macOS).
- * @returns The processes.
- */
-export function processes(): Proc[] {
-    if (!existsSync("/proc/self")) {
-        return execFileSync("ps", ["-axww", "-o", "pid=,ppid=,command="], { encoding: "utf8", maxBuffer: 64 << 20 })
-            .split("\n")
-            .map((line) => /^\s*(\d+)\s+(\d+)\s(.*)$/.exec(line))
-            .filter((match) => match !== null)
-            .map((match) => ({ pid: Number(match[1]), ppid: Number(match[2]), cmdline: match[3] }));
-    }
-
-    const found: Proc[] = [];
-    for (const name of readdirSync("/proc")) {
-        if (!/^\d+$/.test(name)) {
-            continue;
-        }
-
-        try {
-            const stat = readFileSync(`/proc/${name}/stat`, "utf8");
-            // The command name is in parentheses and may hold spaces; the parent pid follows it.
-            const ppid = Number(stat.slice(stat.lastIndexOf(")") + 2).split(" ")[1]);
-            const cmdline = readFileSync(`/proc/${name}/cmdline`, "utf8").replaceAll("\0", " ");
-            found.push({ pid: Number(name), ppid, cmdline });
-        } catch {
-            // It exited while being read.
-        }
-    }
-
-    return found;
-}
-
-/**
- * A process and everything under it.
- * @param root - The root pid.
- * @returns The processes of the tree, root first.
- */
-export function processTree(root: number): Proc[] {
-    const all = processes();
-    const tree = all.filter((proc) => proc.pid === root);
-    for (let i = 0; i < tree.length; i++) {
-        tree.push(...all.filter((proc) => proc.ppid === tree[i].pid));
-    }
-
-    return tree;
 }
 
 /** A tab attached over a flattened DevTools session. */
@@ -213,17 +160,8 @@ export async function launchChrome(userDataDir: string, args: readonly string[] 
             env: screen === null ? chromeEnv() : { ...chromeEnv(), DISPLAY: screen },
         },
     );
-    // A test run that ends, however it ends, takes its browser with it.
-    const reap = (): void => {
-        child.kill("SIGKILL");
-    };
-    process.on("exit", reap);
-    const exited = new Promise<void>((resolve) =>
-        child.on("exit", () => {
-            process.off("exit", reap);
-            resolve();
-        }),
-    );
+    // Interrupted or failed, the run's browsers are reaped by profile (./processes).
+    const exited = new Promise<void>((resolve) => child.on("exit", () => resolve()));
     let stderr = (): string => "";
     const endpoint = await new Promise<string>((resolve, reject) => {
         let text = "";

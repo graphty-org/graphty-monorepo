@@ -9,6 +9,8 @@ import { type ChildProcess, execFile, spawn } from "node:child_process";
 import net from "node:net";
 import { promisify } from "node:util";
 
+import { ownChild } from "./processes";
+
 /** A WebDriver session in Safari. */
 export interface Safari {
     /** Load a URL in the session's window. */
@@ -52,7 +54,7 @@ function freePort(): Promise<number> {
  */
 export async function startSafariDriver(): Promise<SafariDriver> {
     const port = await freePort();
-    const driver: ChildProcess = spawn("safaridriver", ["--port", String(port)], { stdio: "ignore" });
+    const driver: ChildProcess = ownChild(spawn("safaridriver", ["--port", String(port)], { stdio: "ignore" }));
     const exited = new Promise<void>((resolve) => driver.once("exit", () => resolve()));
     const base = `http://127.0.0.1:${port}`;
 

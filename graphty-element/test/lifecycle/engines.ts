@@ -4,29 +4,22 @@
  * found by its profile directory, so a kill never reaches another test's browser or the developer's.
  */
 
-import { mkdtempSync, readFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 
 import { type BrowserContext, chromium, firefox, webkit } from "playwright";
 import { assert } from "vitest";
 
-import { chromeArgs, chromeEnv, type Proc, processes, processTree } from "./cdp-harness";
+import { chromeArgs, chromeEnv } from "./cdp-harness";
 import type { Fixture, PageCheck } from "./fixture";
+import { browserProcesses, type Proc, processes } from "./processes";
 
 /** The three engines. */
 export type Engine = "chromium" | "firefox" | "webkit";
 
 export const ENGINES: readonly Engine[] = ["chromium", "firefox", "webkit"];
 
-/**
- * A fresh profile directory.
- * @param name - What the test calls it.
- * @returns The directory.
- */
-export function profile(name: string): string {
-    return mkdtempSync(path.join(tmpdir(), `graphty-lifecycle-${name}-`));
-}
+export { browserProcesses, profile } from "./processes";
 
 /**
  * Launch an engine on a persistent profile.
@@ -64,18 +57,6 @@ export function launch(
     return engine === "chromium"
         ? chromium.launchPersistentContext(userDataDir, { headless: true, args: chromeArgs(), env: chromeEnv() })
         : webkit.launchPersistentContext(userDataDir, { headless: true });
-}
-
-/**
- * The browser's own processes: every process whose command line names the profile, and all
- * their descendants.
- * @param userDataDir - The profile the browser was launched on.
- * @returns The processes, outermost first.
- */
-export function browserProcesses(userDataDir: string): Proc[] {
-    const named = processes().filter((proc) => proc.cmdline.includes(userDataDir));
-    const roots = named.filter((proc) => !named.some((other) => other.pid === proc.ppid));
-    return roots.flatMap((root) => processTree(root.pid));
 }
 
 /**

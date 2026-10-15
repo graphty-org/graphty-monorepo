@@ -172,6 +172,13 @@ export interface LegendBlock {
     readonly channel: Channel;
     /** The layer that paints it. */
     readonly layerId: LayerId;
+    /**
+     * Every layer whose copy of the same binding this one block stands for, bottom first, when
+     * several layers hold an identical binding (a binding copied into each of a folder's layers):
+     * {@link StylesApi.legend} lists such copies once. Absent for a block of one layer.
+     * @since 3.29.0
+     */
+    readonly layers?: readonly LayerId[];
     /** The run behind the layer, when a run put it there. */
     readonly runId?: RunId;
     /** What shape of legend a consumer draws: a ramp, a list of colours, a single chip. */
@@ -1114,7 +1121,42 @@ export function buildLegend(sources: LegendSources): readonly LegendBlock[] {
         }
     }
 
-    return blocks.length === 0 ? NO_BLOCKS : Object.freeze(blocks);
+    return blocks.length === 0 ? NO_BLOCKS : Object.freeze(foldCopies(blocks, layers));
+}
+
+/**
+ * Fold the blocks of identical bindings in several layers into the first of them, which lists
+ * every layer it stands for and the elements they paint together.
+ * @param blocks - The blocks, bottom first.
+ * @param layers - The stack.
+ * @returns The blocks, each binding once.
+ */
+function foldCopies(blocks: readonly LegendBlock[], layers: readonly Layer[]): LegendBlock[] {
+    const byId = new Map(layers.map((layer) => [layer.id, layer]));
+    const first = new Map<string, number>();
+    const folded: LegendBlock[] = [];
+    for (const block of blocks) {
+        const binding = byId.get(block.layerId)?.encode?.[block.channel];
+        const key =
+            binding === undefined || !("by" in binding) ? undefined : `${block.channel}|${JSON.stringify(binding)}`;
+        const at = key === undefined ? undefined : first.get(key);
+        if (at === undefined) {
+            if (key !== undefined) {
+                first.set(key, folded.length);
+            }
+            folded.push(block);
+            continue;
+        }
+        const kept = folded[at];
+        folded[at] = Object.freeze({
+            ...kept,
+            layers: Object.freeze([...(kept.layers ?? [kept.layerId]), block.layerId]),
+            ...(kept.painted === undefined && block.painted === undefined
+                ? {}
+                : { painted: (kept.painted ?? 0) + (block.painted ?? 0) }),
+        });
+    }
+    return folded;
 }
 
 /**

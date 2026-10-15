@@ -1752,6 +1752,7 @@ export interface LegendBlock {
     };
     readonly kind: "sequential" | "diverging" | "categorical" | "highlight" | "literal";
     readonly layerId: LayerId;
+    readonly layers?: readonly LayerId[];
     readonly overflow?: {
         readonly hidden: number;
     };
@@ -4047,6 +4048,7 @@ export interface StylesApi {
         readonly channel: Channel;
         readonly bins?: number;
         readonly span?: PreviewSpan;
+        readonly within?: LayerId;
     }): BindingPreview;
     proposeEncoding(spec: EncodingSpec | ColumnEncodingSpec): EncodingProposal;
     remove(id: LayerId, options?: RunOptions): Run<void>;

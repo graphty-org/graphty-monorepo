@@ -1,10 +1,12 @@
 /**
  * @file The quick start of the "Finding" guide (`docs/guide/find.md`), kept here so the documented
  * code keeps working. The guide's listener is copied verbatim; the element is a standalone
- * session with a `zoomToSelection` that records its call.
+ * session with a `zoomToSelection` that records its call. The reader's typing, click and Enter are
+ * real input through `userEvent`.
  */
 
 import { assert, describe, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import type { FindHit } from "../../index";
 import { createGraphSession } from "../../session";
@@ -60,28 +62,27 @@ describe("the finding guide's example", () => {
         });
         // --- end ---
 
-        box.value = "jav";
-        box.dispatchEvent(new Event("input"));
+        await userEvent.fill(box, "jav");
         assert.deepEqual(
             [...list.children].map((li) => li.textContent),
             ["Javert"],
         );
         assert.lengthOf(session.selection.nodes, 0, "typing selected nothing");
 
-        box.value = "purs";
-        box.dispatchEvent(new Event("input"));
+        await userEvent.fill(box, "purs");
         assert.deepEqual(
             [...list.children].map((li) => li.textContent),
             ["Valjean -> Javert"],
         );
-        await (list.children[0] as HTMLLIElement).onclick?.(new PointerEvent("click"));
+        await userEvent.click(list.children[0]);
+        await vi.waitFor(() => {
+            assert.strictEqual(framed, 1, "and framed it");
+        });
         assert.lengthOf(session.selection.edges, 1, "the click selected the edge");
-        assert.strictEqual(framed, 1, "and framed it");
 
         await session.data.addNodes([{ id: "n3", name: "Javert's brother" }]);
         assert.lengthOf(list.children, 1, "still the edge: the box reads purs");
-        box.value = "jav";
-        box.dispatchEvent(new Event("input"));
+        await userEvent.fill(box, "jav");
         await session.data.addNodes([{ id: "n4", name: "Javotte" }]);
         assert.deepEqual(
             [...list.children].map((li) => li.textContent),
@@ -90,12 +91,12 @@ describe("the finding guide's example", () => {
         );
 
         session.selection.clear();
-        box.value = "Javert";
-        box.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter" }));
+        await userEvent.fill(box, "Javert");
+        await userEvent.keyboard("{Enter}");
         await new Promise((resolve) => setTimeout(resolve, 0));
         assert.lengthOf(session.selection.nodes, 0, "Enter on plain text commits nothing");
-        box.value = "regex:^Jav";
-        box.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter" }));
+        await userEvent.fill(box, "regex:^Jav");
+        await userEvent.keyboard("{Enter}");
         await vi.waitFor(() => {
             assert.isAbove(session.selection.nodes.length, 0, "Enter on a pattern selects what it matches");
         });

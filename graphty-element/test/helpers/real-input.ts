@@ -94,6 +94,7 @@ async function mouseEvent(
     point: Point,
     buttons: Buttons,
     modifiers?: Modifiers,
+    timeStamp?: number,
 ): Promise<void> {
     const at = toPage(element, point);
     await send()("Input.dispatchMouseEvent", {
@@ -104,6 +105,9 @@ async function mouseEvent(
         buttons,
         clickCount: type === "mouseMoved" ? 0 : 1,
         modifiers: modifierBits(modifiers),
+        // The protocol takes seconds since the epoch; the event's timeStamp reads it back on the
+        // page's performance.now() clock
+        ...(timeStamp === undefined ? {} : { timestamp: (performance.timeOrigin + timeStamp) / 1000 }),
     });
 }
 
@@ -138,9 +142,20 @@ export async function click(element: Element, point: Point, modifiers?: Modifier
  * Move the mouse to a point and press the left button there, holding it.
  * @param element - The element the point is on.
  * @param point - Where.
+ * @param timeStamp - When the press happened, on the `performance.now()` clock; now if omitted.
  */
-export async function press(element: Element, point: Point): Promise<void> {
+export async function press(element: Element, point: Point, timeStamp?: number): Promise<void> {
     await mouseEvent("mouseMoved", element, point, 0);
+    await mouseEvent("mousePressed", element, point, 1, undefined, timeStamp);
+}
+
+/**
+ * Press the left button where the pointer already is, after `hover` to the same point, with no
+ * move of its own: the press alone, as a hand that has stopped makes it.
+ * @param element - The element the point is on.
+ * @param point - Where the pointer is.
+ */
+export async function pressInPlace(element: Element, point: Point): Promise<void> {
     await mouseEvent("mousePressed", element, point, 1);
 }
 
@@ -157,9 +172,10 @@ export async function moveHeld(element: Element, point: Point): Promise<void> {
  * Release the left button at a point, as after `press`.
  * @param element - The element the point is on.
  * @param point - Where.
+ * @param timeStamp - When the release happened, on the `performance.now()` clock; now if omitted.
  */
-export async function release(element: Element, point: Point): Promise<void> {
-    await mouseEvent("mouseReleased", element, point, 0);
+export async function release(element: Element, point: Point, timeStamp?: number): Promise<void> {
+    await mouseEvent("mouseReleased", element, point, 0, undefined, timeStamp);
 }
 
 /**
@@ -192,10 +208,11 @@ export async function drag(element: Element, from: Point, to: Point, steps = 8):
  * @param element - The element the point is on.
  * @param point - Where the pointer is.
  * @param deltaY - How far; positive scrolls down (away from the reader).
+ * @param deltaX - How far sideways; positive scrolls right.
  */
-export async function wheel(element: Element, point: Point, deltaY: number): Promise<void> {
+export async function wheel(element: Element, point: Point, deltaY: number, deltaX = 0): Promise<void> {
     const at = toPage(element, point);
-    await send()("Input.dispatchMouseEvent", { type: "mouseWheel", x: at.x, y: at.y, deltaX: 0, deltaY });
+    await send()("Input.dispatchMouseEvent", { type: "mouseWheel", x: at.x, y: at.y, deltaX, deltaY });
 }
 
 /**

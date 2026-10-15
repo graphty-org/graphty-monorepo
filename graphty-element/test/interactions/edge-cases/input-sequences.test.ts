@@ -2,14 +2,15 @@
  * Input Sequence Tests
  *
  * Tests verify correct behavior for complex input sequences
- * and transitions between different input methods.
+ * and transitions between different input methods, sent as real mouse input
+ * (test/helpers/real-input.ts).
  */
 
-import { PointerEventTypes, type PointerInfo } from "@babylonjs/core";
 import { assert } from "chai";
 import { afterEach, beforeEach, describe, test, vi } from "vitest";
 
 import { Graph, operationQueueOf } from "../../../src/Graph";
+import { drag, moveHeld, type Point, press, release } from "../../helpers/real-input";
 import { configureGraph } from "../../helpers/testSetup";
 
 const TEST_NODES = [
@@ -21,11 +22,46 @@ const TEST_EDGES = [{ src: "node1", dst: "node2" }];
 describe("Input Sequences", () => {
     let graph: Graph;
     let container: HTMLDivElement;
+    /** Where the button is held down, until a test or `afterEach` releases it. */
+    let held: Point | null = null;
+
+    /**
+     * Where node1 is drawn on the canvas.
+     * @returns Its centre, in CSS pixels from the canvas's top-left corner.
+     */
+    function node1At(): Point {
+        const at = graph.nodeScreenPosition("node1");
+        assert.isTrue(at?.visible, "node1 should be on screen");
+        if (!at) {
+            throw new Error("node1 is not on screen");
+        }
+
+        return at;
+    }
+
+    /**
+     * Press the button at a point and hold it.
+     * @param at - Where.
+     */
+    async function down(at: Point): Promise<void> {
+        await press(graph.canvas, at);
+        held = at;
+    }
+
+    /**
+     * Release the held button at a point.
+     * @param at - Where.
+     */
+    async function up(at: Point): Promise<void> {
+        await release(graph.canvas, at);
+        held = null;
+    }
 
     beforeEach(async () => {
         container = document.createElement("div");
-        container.style.width = "800px";
-        container.style.height = "600px";
+        // Inside the test frame's 414-pixel-wide viewport, so the real pointer reaches every node
+        container.style.width = "400px";
+        container.style.height = "300px";
         document.body.appendChild(container);
 
         graph = new Graph(container);
@@ -37,119 +73,56 @@ describe("Input Sequences", () => {
         await graph.waitForStableFrame();
     });
 
-    afterEach(() => {
+    afterEach(async () => {
+        // A test that stopped mid-drag leaves the button down; let it go before the next one
+        if (held) {
+            await release(graph.canvas, held);
+            held = null;
+        }
+
         vi.restoreAllMocks();
         graph.dispose();
         document.body.removeChild(container);
     });
 
     describe("Pointer Event Sequences", () => {
-        test("down-move-up sequence maintains state", () => {
-            const node1 = graph.getNode("node1");
-            if (!node1) {
-                return;
-            }
+        test("down-move-up sequence maintains state", async () => {
+            const at = node1At();
 
-            const { scene } = graph;
-
-            // Pointer down
-            scene.onPointerObservable.notifyObservers({
-                type: PointerEventTypes.POINTERDOWN,
-                event: { clientX: 400, clientY: 300, buttons: 1, button: 0 } as PointerEvent,
-                pickInfo: { hit: true, pickedMesh: node1.mesh },
-            } as unknown as PointerInfo);
-
-            // Pointer move
-            scene.onPointerObservable.notifyObservers({
-                type: PointerEventTypes.POINTERMOVE,
-                event: { clientX: 450, clientY: 350, buttons: 1, button: 0 } as PointerEvent,
-            } as unknown as PointerInfo);
-
-            // Pointer up
-            scene.onPointerObservable.notifyObservers({
-                type: PointerEventTypes.POINTERUP,
-                event: { clientX: 450, clientY: 350, buttons: 0, button: 0 } as PointerEvent,
-            } as unknown as PointerInfo);
+            // Press on the node, move with the button held, release
+            await down(at);
+            await moveHeld(graph.canvas, { x: at.x + 50, y: at.y + 50 });
+            await up({ x: at.x + 50, y: at.y + 50 });
 
             // Node should still be valid
             assert.isDefined(graph.getNode("node1"), "Node should exist after sequence");
         });
 
-        test("interrupted sequence cleans up state", () => {
-            const node1 = graph.getNode("node1");
-            if (!node1) {
-                return;
-            }
-
-            const { scene } = graph;
+        test("interrupted sequence cleans up state", async () => {
+            const at = node1At();
 
             // Start drag
-            scene.onPointerObservable.notifyObservers({
-                type: PointerEventTypes.POINTERDOWN,
-                event: { clientX: 400, clientY: 300, buttons: 1, button: 0 } as PointerEvent,
-                pickInfo: { hit: true, pickedMesh: node1.mesh },
-            } as unknown as PointerInfo);
+            await down(at);
 
             // Move without completing
-            scene.onPointerObservable.notifyObservers({
-                type: PointerEventTypes.POINTERMOVE,
-                event: { clientX: 450, clientY: 350, buttons: 1, button: 0 } as PointerEvent,
-            } as unknown as PointerInfo);
+            await moveHeld(graph.canvas, { x: at.x + 50, y: at.y + 50 });
 
-            // Simulate losing focus (pointer up with no buttons)
-            scene.onPointerObservable.notifyObservers({
-                type: PointerEventTypes.POINTERUP,
-                event: { clientX: 0, clientY: 0, buttons: 0, button: 0 } as PointerEvent,
-            } as unknown as PointerInfo);
+            // Let go far from where the drag went, at the canvas's corner
+            await up({ x: 0, y: 0 });
 
             // Graph should remain in valid state
             assert.isDefined(graph.scene, "Scene should exist");
             assert.isDefined(graph.getNode("node1"), "Node should exist");
         });
 
-        test("multiple sequential drags work correctly", () => {
-            const node1 = graph.getNode("node1");
-            if (!node1) {
-                return;
+        test("multiple sequential drags work correctly", async () => {
+            const at = node1At();
+
+            // Three press-and-release sequences on the node
+            for (let i = 0; i < 3; i++) {
+                await down(at);
+                await up(at);
             }
-
-            const { scene } = graph;
-
-            // First drag sequence
-            scene.onPointerObservable.notifyObservers({
-                type: PointerEventTypes.POINTERDOWN,
-                event: { clientX: 400, clientY: 300, buttons: 1, button: 0 } as PointerEvent,
-                pickInfo: { hit: true, pickedMesh: node1.mesh },
-            } as unknown as PointerInfo);
-
-            scene.onPointerObservable.notifyObservers({
-                type: PointerEventTypes.POINTERUP,
-                event: { clientX: 400, clientY: 300, buttons: 0, button: 0 } as PointerEvent,
-            } as unknown as PointerInfo);
-
-            // Second drag sequence
-            scene.onPointerObservable.notifyObservers({
-                type: PointerEventTypes.POINTERDOWN,
-                event: { clientX: 400, clientY: 300, buttons: 1, button: 0 } as PointerEvent,
-                pickInfo: { hit: true, pickedMesh: node1.mesh },
-            } as unknown as PointerInfo);
-
-            scene.onPointerObservable.notifyObservers({
-                type: PointerEventTypes.POINTERUP,
-                event: { clientX: 400, clientY: 300, buttons: 0, button: 0 } as PointerEvent,
-            } as unknown as PointerInfo);
-
-            // Third drag sequence
-            scene.onPointerObservable.notifyObservers({
-                type: PointerEventTypes.POINTERDOWN,
-                event: { clientX: 400, clientY: 300, buttons: 1, button: 0 } as PointerEvent,
-                pickInfo: { hit: true, pickedMesh: node1.mesh },
-            } as unknown as PointerInfo);
-
-            scene.onPointerObservable.notifyObservers({
-                type: PointerEventTypes.POINTERUP,
-                event: { clientX: 400, clientY: 300, buttons: 0, button: 0 } as PointerEvent,
-            } as unknown as PointerInfo);
 
             assert.isDefined(graph.getNode("node1"), "Node should exist after multiple sequences");
         });
@@ -157,19 +130,8 @@ describe("Input Sequences", () => {
 
     describe("State Transitions", () => {
         test("view mode change interrupts drag cleanly", async () => {
-            const node1 = graph.getNode("node1");
-            if (!node1) {
-                return;
-            }
-
-            const { scene } = graph;
-
-            // Start drag
-            scene.onPointerObservable.notifyObservers({
-                type: PointerEventTypes.POINTERDOWN,
-                event: { clientX: 400, clientY: 300, buttons: 1, button: 0 } as PointerEvent,
-                pickInfo: { hit: true, pickedMesh: node1.mesh },
-            } as unknown as PointerInfo);
+            // Start drag; afterEach lets the button go
+            await down(node1At());
 
             // Change view mode mid-drag
             await graph.setViewMode("2d");
@@ -182,29 +144,17 @@ describe("Input Sequences", () => {
         });
 
         test("adding nodes during drag does not corrupt state", async () => {
-            const node1 = graph.getNode("node1");
-            if (!node1) {
-                return;
-            }
-
-            const { scene } = graph;
+            const at = node1At();
 
             // Start drag
-            scene.onPointerObservable.notifyObservers({
-                type: PointerEventTypes.POINTERDOWN,
-                event: { clientX: 400, clientY: 300, buttons: 1, button: 0 } as PointerEvent,
-                pickInfo: { hit: true, pickedMesh: node1.mesh },
-            } as unknown as PointerInfo);
+            await down(at);
 
             // Add new node mid-drag
             await graph.addNodes([{ id: "node3", x: 10, y: 10, z: 0 }]);
             await operationQueueOf(graph).waitForCompletion();
 
             // End drag
-            scene.onPointerObservable.notifyObservers({
-                type: PointerEventTypes.POINTERUP,
-                event: { clientX: 400, clientY: 300, buttons: 0, button: 0 } as PointerEvent,
-            } as unknown as PointerInfo);
+            await up(at);
 
             assert.equal(graph.getNodes().length, 3, "Should have 3 nodes");
             assert.isDefined(graph.getNode("node3"), "New node should exist");
@@ -229,25 +179,9 @@ describe("Input Sequences", () => {
     });
 
     describe("Camera Interaction Sequences", () => {
-        test("camera position remains valid after interactions", () => {
-            const { scene } = graph;
-
-            // Multiple pointer events on empty space (camera interaction)
-            scene.onPointerObservable.notifyObservers({
-                type: PointerEventTypes.POINTERDOWN,
-                event: { clientX: 100, clientY: 100, buttons: 1, button: 0 } as PointerEvent,
-                pickInfo: { hit: false },
-            } as unknown as PointerInfo);
-
-            scene.onPointerObservable.notifyObservers({
-                type: PointerEventTypes.POINTERMOVE,
-                event: { clientX: 200, clientY: 200, buttons: 1, button: 0 } as PointerEvent,
-            } as unknown as PointerInfo);
-
-            scene.onPointerObservable.notifyObservers({
-                type: PointerEventTypes.POINTERUP,
-                event: { clientX: 200, clientY: 200, buttons: 0, button: 0 } as PointerEvent,
-            } as unknown as PointerInfo);
+        test("camera position remains valid after interactions", async () => {
+            // A drag on empty space, away from both nodes (camera interaction)
+            await drag(graph.canvas, { x: 20, y: 20 }, { x: 120, y: 120 });
 
             const controller = graph.camera.getActiveController();
             if (controller) {

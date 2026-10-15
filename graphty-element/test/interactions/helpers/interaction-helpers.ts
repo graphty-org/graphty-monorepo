@@ -10,7 +10,7 @@ import { vi } from "vitest";
 
 import { Graph } from "../../../src/Graph";
 import { assertPlaced } from "../../helpers/placed-position";
-import { nextFrame } from "../../helpers/real-input";
+import { click, moveHeld, nextFrame, press, release } from "../../helpers/real-input";
 import { cleanupTestGraph, createTestGraph, setBehavior } from "../../helpers/testSetup";
 import type { CameraState, DragDelta, NodeData, ScreenPosition, TestGraphOptions, Vector3D } from "../types";
 
@@ -180,8 +180,21 @@ export async function setupTestGraph(options: TestGraphOptions = {}): Promise<Gr
 }
 
 /**
- * Perform a drag operation on a node.
- * Simulates mouse down, move, and up events to drag a node.
+ * A point in the engine's render pixels, which `getNodeScreenPosition` returns, in the canvas's CSS
+ * pixels, where real input lands. They differ when the canvas draws at another resolution.
+ *
+ * @param graph - The graph instance
+ * @param position - A point in render pixels
+ * @returns The same point in CSS pixels from the canvas's top-left corner
+ */
+function toCanvasPixels(graph: Graph, position: ScreenPosition): ScreenPosition {
+    const scale = graph.canvas.getBoundingClientRect().width / graph.engine.getRenderWidth();
+    return { x: position.x * scale, y: position.y * scale };
+}
+
+/**
+ * Perform a drag operation on a node: a real press on it, five moves with the button held, and
+ * a release (test/helpers/real-input.ts).
  *
  * @param graph - The graph instance
  * @param nodeId - The ID of the node to drag
@@ -193,50 +206,22 @@ export async function dragNode(graph: Graph, nodeId: string | number, delta: Dra
         throw new Error(`Node ${nodeId} not found`);
     }
 
-    const { scene } = graph;
-    const { PointerEventTypes } = await import("@babylonjs/core");
+    const { canvas } = graph;
+    const from = toCanvasPixels(graph, screenPos);
+    const to = toCanvasPixels(graph, { x: screenPos.x + delta.dx, y: screenPos.y + delta.dy });
 
-    // Simulate pointer down on the node
-    scene.onPointerObservable.notifyObservers({
-        type: PointerEventTypes.POINTERDOWN,
-        event: {
-            clientX: screenPos.x,
-            clientY: screenPos.y,
-            buttons: 1,
-            button: 0,
-        } as PointerEvent,
-    } as unknown as Parameters<typeof scene.onPointerObservable.notifyObservers>[0]);
-
-    // Observers run synchronously; let a frame render between the steps, as a real drag would
+    await press(canvas, from);
+    // A frame between the steps, as a hand gives: the element reads the pointer once a frame
     await nextFrame();
 
-    // Simulate pointer move
     const steps = 5;
     for (let i = 1; i <= steps; i++) {
         const progress = i / steps;
-        scene.onPointerObservable.notifyObservers({
-            type: PointerEventTypes.POINTERMOVE,
-            event: {
-                clientX: screenPos.x + delta.dx * progress,
-                clientY: screenPos.y + delta.dy * progress,
-                buttons: 1,
-                button: 0,
-            } as PointerEvent,
-        } as unknown as Parameters<typeof scene.onPointerObservable.notifyObservers>[0]);
-
+        await moveHeld(canvas, { x: from.x + (to.x - from.x) * progress, y: from.y + (to.y - from.y) * progress });
         await nextFrame();
     }
 
-    // Simulate pointer up
-    scene.onPointerObservable.notifyObservers({
-        type: PointerEventTypes.POINTERUP,
-        event: {
-            clientX: screenPos.x + delta.dx,
-            clientY: screenPos.y + delta.dy,
-            buttons: 0,
-            button: 0,
-        } as PointerEvent,
-    } as unknown as Parameters<typeof scene.onPointerObservable.notifyObservers>[0]);
+    await release(canvas, to);
 
     // Wait for whatever the drag queued to run, and a frame to show it
     await graph.waitForSettled();
@@ -351,54 +336,16 @@ export const DEFAULT_TEST_EDGES = [
     { src: "node3", dst: "node1" },
 ];
 
-/** How long the simulated button is held: a quick click, well under the element's long-press limit. */
-const CLICK_PRESS_MS = 16;
-
 /**
- * Simulate a click (pointer down + up with no movement) on a specific screen position.
- *
- * The two events carry time stamps `CLICK_PRESS_MS` apart, the way a browser stamps a real quick
- * click, so the element reads a click however long this page takes to get from one to the other.
+ * Click (a real press and release with no movement) at a screen position.
  *
  * @param graph - The graph instance
- * @param position - Screen position to click at
+ * @param position - Screen position to click at, in render pixels as `getNodeScreenPosition` gives
  */
 export async function clickAtPosition(graph: Graph, position: ScreenPosition): Promise<void> {
-    const { scene } = graph;
-    const { PointerEventTypes } = await import("@babylonjs/core");
+    await click(graph.canvas, toCanvasPixels(graph, position));
 
-    // Set pointer position on scene - this is what scene.pick() uses
-    scene.pointerX = position.x;
-    scene.pointerY = position.y;
-
-    const pressedAt = performance.now();
-
-    // Notify Babylon's PrePointerObservable (used by NodeBehavior)
-    // The scene.pick() inside the handler will use scene.pointerX/Y
-    scene.onPrePointerObservable.notifyObservers({
-        type: PointerEventTypes.POINTERDOWN,
-        event: {
-            clientX: position.x,
-            clientY: position.y,
-            buttons: 1,
-            button: 0,
-            timeStamp: pressedAt,
-        } as PointerEvent,
-    } as unknown as Parameters<typeof scene.onPrePointerObservable.notifyObservers>[0]);
-
-    // Pointer up to complete the click
-    scene.onPrePointerObservable.notifyObservers({
-        type: PointerEventTypes.POINTERUP,
-        event: {
-            clientX: position.x,
-            clientY: position.y,
-            buttons: 0,
-            button: 0,
-            timeStamp: pressedAt + CLICK_PRESS_MS,
-        } as PointerEvent,
-    } as unknown as Parameters<typeof scene.onPrePointerObservable.notifyObservers>[0]);
-
-    // The click was handled synchronously; wait for the selection styling it queued to land
+    // Wait for the selection styling the click queued to land
     await graph.waitForSettled();
 }
 

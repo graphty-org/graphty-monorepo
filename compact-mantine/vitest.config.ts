@@ -88,7 +88,9 @@ const emulateReducedMotion: BrowserCommand<[reduce: boolean]> = async (ctx, redu
 /**
  * Drag a finger from the middle of the element `selector` names, `dx` pixels across, as a touch
  * screen sends it (CDP touch events, so the browser's touch target adjustment runs as it does for
- * a real finger).
+ * a real finger). Touch emulation stays off: once it has been on, Chromium answers `(hover: none)`
+ * for the rest of the run and nothing over CDP turns that back, so every later test that hovers a
+ * hover-only control would read a touch screen. The touch events arrive as touch pointers without it.
  * @param ctx - the browser command context
  * @param selector - CSS selector of the element to press, inside the test frame
  * @param dx - horizontal distance to drag, in pixels
@@ -99,7 +101,6 @@ const touchDrag: BrowserCommand<[selector: string, dx: number]> = async (ctx, se
         throw new Error(`${selector} is not on screen`);
     }
     const cdp = await ctx.page.context().newCDPSession(ctx.page);
-    await cdp.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 5 });
     const x = box.x + box.width / 2;
     const y = box.y + box.height / 2;
     await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
@@ -111,10 +112,6 @@ const touchDrag: BrowserCommand<[selector: string, dx: number]> = async (ctx, se
         });
     }
     await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
-    // Touch emulation outlives this session, so it is turned off again. Chromium still answers
-    // `(hover: none)` for the rest of the run once a touch has been dispatched, and nothing over
-    // CDP turns that back: a later test that measures a hover-only control reads the media query.
-    await cdp.send("Emulation.setTouchEmulationEnabled", { enabled: false });
     await cdp.detach();
 };
 

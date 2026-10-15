@@ -637,6 +637,13 @@ describe("DataTable keyboard", () => {
         expect(handleRowClick).toHaveBeenCalledWith(CATS[1], expect.anything(), { source: "keyboard" });
     });
 
+    it("pads its cells less when compact, for a list in a popover", () => {
+        const { container } = renderTable(<DataTable columns={COLUMNS} data={CATS} density="compact" />);
+        expect(container.querySelector(".cm-dt")).toHaveClass("cm-dt-compact");
+        const { container: plain } = renderTable(<DataTable columns={COLUMNS} data={CATS} />);
+        expect(plain.querySelector(".cm-dt")).not.toHaveClass("cm-dt-compact");
+    });
+
     it("activates a row of a selection of several with Enter and keeps the selection", async () => {
         const user = userEvent.setup();
         const handleSelectionChange = vi.fn();

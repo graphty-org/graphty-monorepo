@@ -175,6 +175,7 @@ function DataTableInner<TRow extends object>(
         onFocus,
         onBlur,
         empty,
+        density = "default",
     } = props;
 
     const labels = useDataTableLabels(labelOverrides);
@@ -732,7 +733,7 @@ function DataTableInner<TRow extends object>(
             dir={isRtl(direction) ? "rtl" : undefined}
             onFocus={onFocus}
             onBlur={onBlur}
-            className="cm-dt"
+            className={density === "compact" ? "cm-dt cm-dt-compact" : "cm-dt"}
         >
             {searchable && (
                 <Box style={{ display: "flex", alignItems: "center", gap: PANEL_GRID.GUTTER }}>

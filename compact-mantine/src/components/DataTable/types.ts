@@ -405,4 +405,13 @@ export interface DataTableProps<TRow extends object> {
      * data at all, and a different one for a search that matched nothing.
      */
     empty?: React.ReactNode;
+    /**
+     * How much room a cell leaves around its contents.
+     *
+     * - `"default"` is Figma's variables table: the first column padded 16 px each side, the
+     *   rest 12 and 8, for a table that has the width of a panel or more.
+     * - `"compact"` pads every cell 4 px each side, for a short list in a popover or a narrow
+     *   panel, where the default padding would leave the columns no room for their contents.
+     */
+    density?: "default" | "compact";
 }

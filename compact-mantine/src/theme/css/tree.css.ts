@@ -647,6 +647,10 @@ const css = `
 .cm-dt .cm-dt-cell:first-child { padding: 0 16px; }
 .cm-dt .cm-dt-cell:first-child:not(.cm-dt-header) { font-weight: 400; letter-spacing: normal; }
 .cm-dt .cm-dt-cell.cm-dt-header { padding: 0 16px; }
+/* density="compact": a short list in a popover, where every pixel of a column is its content's. */
+.cm-dt.cm-dt-compact .cm-dt-cell,
+.cm-dt.cm-dt-compact .cm-dt-cell:first-child,
+.cm-dt.cm-dt-compact .cm-dt-cell.cm-dt-header { padding: 0 4px; }
 .cm-dt .cm-dt-header { ${cmFont("body")} font-weight: 600; letter-spacing: normal; color: var(--cm-text); }
 .cm-dt .cm-dt-row[aria-selected="true"] > .cm-dt-cell { background: var(--cm-bg-selected); }
 /* The active (keyboard) cell: a 1px box drawn inside the cell; the grid line stays. */

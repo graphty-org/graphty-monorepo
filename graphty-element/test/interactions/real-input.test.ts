@@ -555,7 +555,7 @@ describe("the input:* events", () => {
         await hover(element, EMPTY);
         await click(element, EMPTY);
         await wheel(element, EMPTY, 100, 10);
-        await userEvent.keyboard("{Shift>}q{/Shift}");
+        await userEvent.keyboard("q");
         await userEvent.keyboard("{Control>}z{/Control}");
         await userEvent.keyboard("{Control>}y{/Control}");
         await userEvent.keyboard("{Control>}a{/Control}");
@@ -575,7 +575,7 @@ describe("the input:* events", () => {
         const wheels = seen.get("input:wheel") ?? [];
         assert.strictEqual(wheels[0]?.deltaY, 100, "input:wheel deltaY is the turn's");
         const keys = (seen.get("input:key-down") ?? []).map((detail) => detail.key);
-        assert.include(keys, "Q", "input:key-down key is the key pressed");
+        assert.include(keys, "q", "input:key-down key is the key pressed");
         for (const name of ["input:touch-start", "input:touch-move"]) {
             for (const detail of seen.get(name) ?? []) {
                 for (const touch of detail.array as Record<string, unknown>[]) {

@@ -314,7 +314,7 @@ describe("files that used to load other elements than graph-io", () => {
 
         const { nodes, edges } = await read("json", { data: cyjs });
         // Cytoscape.js's y points down; graph-io's, like the element's, points up.
-        assert.deepInclude(nodes[1], { id: "a", parent: "p", weight: 2, position: { x: 1, y: -2 } });
+        assert.deepInclude(nodes[1], { id: "a", parent: "p", weight: 2, position: { x: 1, y: -2, z: 0 } });
         assert.deepInclude(edges[0], { id: "e", source: "a", target: "p", label: "x" });
     });
 

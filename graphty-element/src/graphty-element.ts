@@ -1700,7 +1700,9 @@ export class Graphty extends LitElement {
      * a reader drags stays where they put it. `labels.declutter` (off by default) hides a node
      * label whose words would be drawn over another label's, keeping a selected node's label
      * first and then the label of the node with more edges; it takes effect on the next frame.
-     * {@link Graphty.nodeLabelCounts} says how many it hid.
+     * {@link Graphty.nodeLabelCounts} says how many it hid. `camera.pivotOnSelection` (off by
+     * default) makes the selection the camera's pivot: one selected node, or the average position
+     * of several, is what the camera turns and zooms about, in 2D, 3D, VR and AR.
      *
      * Merged over what is already set, so naming one field leaves the others alone.
      * @since 2.0.0
@@ -1708,6 +1710,7 @@ export class Graphty extends LitElement {
      * ```typescript
      * element.layoutBehavior = { layout: { preSteps: 1000 } };
      * element.layoutBehavior = { labels: { declutter: true } };
+     * element.layoutBehavior = { camera: { pivotOnSelection: true } };
      * ```
      * @returns The view preferences set on this element, with the pacing settings saved in the
      *     project (`preSteps`, `stepMultiplier`, `minDelta`) as they are in effect
@@ -2903,6 +2906,9 @@ export class Graphty extends LitElement {
      *     labels) as style layers, so the graph looks as it does in the program that wrote it;
      *     `"none"` (the default) loads the data alone
      * @param options.styleOptions - How the file's styles are turned into layers
+     * @param options.layout - `"recommended"` chooses a layout for what was loaded once it is loaded:
+     *     `fixed`, which draws each node where the file put it, when every node arrived with a position,
+     *     and a computed one otherwise. `"keep"` (the default) leaves the layout as it is
      * @returns Promise that resolves to `{ loadId }`, the id every event about this load carries
      * @since 1.5.0
      * @example
@@ -2922,6 +2928,7 @@ export class Graphty extends LitElement {
             graphName?: string;
             styles?: "file" | "none";
             styleOptions?: FileStyleOptions;
+            layout?: "recommended" | "keep";
         },
     ): Promise<{ loadId: number }> {
         return this.#graph.loadFromUrl(url, options);
@@ -2945,6 +2952,9 @@ export class Graphty extends LitElement {
      *     labels) as style layers, so the graph looks as it does in the program that wrote it;
      *     `"none"` (the default) loads the data alone
      * @param options.styleOptions - How the file's styles are turned into layers
+     * @param options.layout - `"recommended"` chooses a layout for what was loaded once it is loaded:
+     *     `fixed`, which draws each node where the file put it, when every node arrived with a position,
+     *     and a computed one otherwise. `"keep"` (the default) leaves the layout as it is
      * @returns Promise that resolves to `{ loadId }`, the id every event about this load carries
      * @since 1.5.0
      * @example
@@ -2966,6 +2976,7 @@ export class Graphty extends LitElement {
             graphName?: string;
             styles?: "file" | "none";
             styleOptions?: FileStyleOptions;
+            layout?: "recommended" | "keep";
         },
     ): Promise<{ loadId: number }> {
         return this.#graph.loadFromFile(file, options);
@@ -3904,10 +3915,20 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Set render settings for advanced rendering control.
-     * @param settings - Render settings object
-     * @param options - Queue options
+     * Set render settings: the `layoutBehavior.rendering` group.
+     * @remarks
+     * `onDemand` is the one setting, the same switch as `renderOnDemand`: whether a frame is
+     * drawn only when the picture can have changed. A field left out keeps its value. A
+     * preference of this view: it records no undo step and is not saved in a project file.
+     * @example
+     * ```typescript
+     * await element.setRenderSettings({ onDemand: true });
+     * ```
+     * @param settings - The fields to change
+     * @param options - Queue options; with `skipQueue` the settings apply at once
      * @returns Promise that resolves when settings are applied
+     * @throws A `GraphtyError` with `E_UNKNOWN_OPTION` for a field that is not a render setting
+     * (`details.available` lists them), or `E_OPTION_RANGE` for a value the setting does not take
      * @since 1.5.0
      */
     async setRenderSettings(

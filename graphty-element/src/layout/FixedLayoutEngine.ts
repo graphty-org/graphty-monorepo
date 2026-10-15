@@ -17,11 +17,20 @@ const fixedLayoutOptionsSchema = defineOptions({
             description: "Layout dimensionality (2D or 3D)",
         },
     },
+    scale: {
+        schema: z.number().positive().default(1),
+        meta: {
+            label: "Scale",
+            description: "What every data position is multiplied by, on top of the element's positionScale",
+            advanced: true,
+        },
+    },
 });
 
 const FixedLayoutConfig = z.strictObject({
     ...SimpleLayoutConfig.shape,
     dim: z.number().default(3),
+    scale: z.number().positive().default(1),
 });
 type FixedLayoutConfigType = z.infer<typeof FixedLayoutConfig>;
 type FixedLayoutOpts = Partial<FixedLayoutConfigType>;
@@ -34,7 +43,9 @@ type FixedLayoutOpts = Partial<FixedLayoutConfigType>;
  * array -- switching to "fixed" means "put the nodes where the data says". After that the engine
  * keeps what the array holds, so a drag survives a later recompute; a node added later reaches the
  * array from its own `data.position` when the graph is frozen. A node with no coordinates at all
- * is placed at the origin.
+ * is placed at the origin. `scale` (1 by default) multiplies every data position on top of
+ * `positionScale`: a load that draws a file's styles sets it so the stored drawing is in the same
+ * unit as the file's node sizes.
  */
 export class FixedLayout extends SnapshotLayoutEngine {
     static type = "fixed";
@@ -68,7 +79,8 @@ export class FixedLayout extends SnapshotLayoutEngine {
         const position = (n.data as Record<string, unknown>).position as
             { x?: number; y?: number; z?: number } | undefined;
         if (position) {
-            n.setMeshPosition(position.x ?? 0, position.y ?? 0, position.z ?? 0);
+            const { scale } = this.config;
+            n.setMeshPosition((position.x ?? 0) * scale, (position.y ?? 0) * scale, (position.z ?? 0) * scale);
         }
     }
 
@@ -88,6 +100,12 @@ export class FixedLayout extends SnapshotLayoutEngine {
      */
     protected compute(input: SnapshotLayoutInput): F32 {
         const seeds = input.firstRun ? input.dataPositions() : null;
+        if (seeds !== null && this.config.scale !== 1) {
+            for (let i = 0; i < seeds.length; i++) {
+                seeds[i] *= this.config.scale;
+            }
+        }
+
         const { initial } = input;
         const positions = new Float32Array(initial.length);
         for (let i = 0; i < positions.length; i += 3) {

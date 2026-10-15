@@ -1,4 +1,4 @@
-import type { NodeMask } from "@graphty/graph-format";
+import { detCos, detSin, type NodeMask } from "@graphty/graph-format";
 import ngraphCreateLayout, { Layout as NGraphLayout } from "ngraph.forcelayout";
 import createGraph, { Graph as NGraph, Link as NGraphLink, Node as NGraphNode } from "ngraph.graph";
 import random from "ngraph.random";
@@ -440,8 +440,8 @@ export class NGraphEngine extends LayoutEngine {
             // Two nodes on one point: a direction from their indices, so a seeded layout stays
             // the same from run to run.
             const angle = (i * GOLDEN_ANGLE + j) % (2 * Math.PI);
-            dx = Math.cos(angle);
-            dy = Math.sin(angle);
+            dx = detCos(angle);
+            dy = detSin(angle);
             dz = 0;
             distance = 1;
         }

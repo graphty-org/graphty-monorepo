@@ -3,7 +3,6 @@ import { resolve } from "node:path";
 
 import { defineConfig, loadEnv, UserConfig } from "vite";
 import VitePluginCustomElementsManifest from "vite-plugin-cem";
-// import eslint from "vite-plugin-eslint";
 
 /**
  * The published entry points, as `<output file name>: <source file>`.

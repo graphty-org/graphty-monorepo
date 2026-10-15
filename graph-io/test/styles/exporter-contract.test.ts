@@ -261,7 +261,7 @@ describe("what an exporter with a styles member receives", () => {
         expect(input.picture("node", "fill")).toEqual(resolveStyles(given, "node", "fill", snapshot));
         expect(input.picture("node", "shape")[3]).toBe("diamond");
         expect(input.rules).toBe(given);
-        expect(JSON.parse(input.block).rules).toHaveLength(given.styles.rules.length);
+        expect((JSON.parse(input.block) as { rules: unknown[] }).rules).toHaveLength(given.styles.rules.length);
         for (const key of given.columns.node.keys()) {
             expect(input.tags.node.get(styleTag("node", key))).toBe(given.columns.node.get(key));
         }

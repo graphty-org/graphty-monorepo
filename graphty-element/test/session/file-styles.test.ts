@@ -360,7 +360,11 @@ describe("a file's styles drawn by the load", () => {
             { status: [{ success: true }] },
         ]);
         const session = createGraphSession();
-        await session.data.import({ type: "cx2", config: { data: doc } }, { styles: "file" });
+        // lengths: "file" keeps the file's numbers, so the rounding is seen unscaled
+        await session.data.import(
+            { type: "cx2", config: { data: doc } },
+            { styles: "file", styleOptions: { lengths: "file" } },
+        );
         const sizes = ["0", "1", "2", "3", "17"].map((id) => {
             const label = (session.styles.explain({ node: id }).merged as Record<string, unknown>)["node.labelStyle"];
             return (label as { sizePx?: unknown } | undefined)?.sizePx;

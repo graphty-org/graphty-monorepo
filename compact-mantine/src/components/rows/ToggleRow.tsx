@@ -470,13 +470,14 @@ export interface ToggleRowGroupProps {
  */
 export function ToggleRowGroup({ children, label, labelledBy }: ToggleRowGroupProps): React.JSX.Element {
     const count = React.Children.toArray(children).length;
+    const noun = count === 1 ? "row" : "rows";
 
     // The message names the fix rather than the rule it comes from: a consumer
     // reads it in their own devtools, with none of this library's reasoning in
     // front of them.
     useDevWarning(
         count < MIN_TOGGLE_ROWS
-            ? `ToggleRowGroup was given ${String(count)} ${count === 1 ? "row" : "rows"}, and it holds two or ` +
+            ? `ToggleRowGroup was given ${String(count)} ${noun}, and it holds two or ` +
                   "more. A single checkbox on a row of its own interrupts a column of rows to say one bit: put " +
                   "it in the trailing slot of the row it modifies, or make it one tile of a group of icon " +
                   "buttons. Rendering it anyway."

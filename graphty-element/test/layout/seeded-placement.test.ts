@@ -7,7 +7,7 @@
  *   promise "the same every time". A consumer applies it by name alone, so its seed has a fixed
  *   default rather than a fresh `Math.random()` one per load.
  */
-import { assert, describe, it } from "vitest";
+import { assert, describe, it, vi } from "vitest";
 
 import type { Edge } from "../../src/Edge";
 import { layoutEngineInternals } from "../../src/layout/LayoutEngine";
@@ -92,5 +92,39 @@ describe("seeded placement", () => {
 
     it("still lets an explicit seed change the random layout", () => {
         assert.notDeepEqual(runRandom({ seed: 5 }), runRandom({ seed: 6 }));
+    });
+
+    it("parts two nodes on one point without an engine-approximated Math function, where it parted them before", () => {
+        // Math.cos and Math.sin leave their last bit to the engine, and the direction they gave fed every later step
+        // of the simulation. With no repulsion and no edges, only the nodeGap separation moves the nodes, and the two
+        // unpinned nodes sit exactly on the pinned one, so it takes the coincident branch.
+        const nodes = ["a", "b", "c"].map((id, index) => ({ id, index, drawnRadius: 1 }) as unknown as Node);
+        const layout = new NGraphEngine({ seed: 1, dim: 2, nodeGap: 1, gravity: 0 });
+        nodes.forEach((n) => {
+            layout.addNode(n);
+            layoutEngineInternals.setNodePosition(layout, n, { x: 0, y: 0, z: 0 });
+        });
+        layoutEngineInternals.pin(layout, nodes[0]);
+        for (const name of ["cos", "sin", "tan", "atan2", "hypot", "log", "exp", "pow"] as const) {
+            vi.spyOn(Math, name).mockImplementation(() => {
+                throw new Error(`Math.${name} called`);
+            });
+        }
+        try {
+            for (let i = 0; i < 3; i++) {
+                layout.step();
+            }
+        } finally {
+            vi.restoreAllMocks();
+        }
+        // recorded with Math.cos and Math.sin, before the change
+        assert.deepStrictEqual(
+            nodes.map((n) => layout.getNodePosition(n)),
+            [
+                { x: 0, y: 0, z: 0 },
+                { x: 2.105497360229492, y: 2.137026071548462, z: 0 },
+                { x: -1.7828494310379028, y: 2.4127676486968994, z: 0 },
+            ],
+        );
     });
 });

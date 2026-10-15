@@ -1,7 +1,6 @@
 // Defects in the worker wiring (queue item -> job record -> start -> death and recovery -> done),
 // each written as the behavior the design asks for. These fail until the defect is fixed.
-import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -13,6 +12,7 @@ import { answerHook } from "../lib/hook.mjs";
 import { createMcpServer, TOOL_PROTOCOL } from "../lib/mcp.mjs";
 import { sessionToolSet } from "../lib/session-tools.mjs";
 import { fillSlots, tidyEndedJobs } from "../lib/start.mjs";
+import { tempDir } from "./helpers/temp-dir.mjs";
 
 const T0 = new Date("2026-10-04T12:00:00Z");
 const GREEN = "g".repeat(40);
@@ -25,7 +25,7 @@ let dir;
 let calls;
 
 beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "githerd-wiring-"));
+    dir = tempDir("githerd-wiring-");
     calls = [];
 });
 afterEach(() => rmSync(dir, { recursive: true, force: true }));

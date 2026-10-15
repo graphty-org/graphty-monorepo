@@ -307,11 +307,11 @@ describe("AlgorithmManager", () => {
     });
 
     describe("getAvailableAlgorithms", () => {
-        it("should return empty array (current implementation)", () => {
+        it("returns every registered algorithm key", () => {
             const algorithms = algorithmManager.getAvailableAlgorithms();
 
-            assert.isArray(algorithms);
-            assert.equal(algorithms.length, 0);
+            assert.include(algorithms, "graphty:degree");
+            assert.deepEqual(algorithms, Algorithm.getRegisteredAlgorithms());
         });
     });
 

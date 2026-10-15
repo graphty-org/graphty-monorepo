@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 /**
- * Build the hosted datasets: the graphs too large to bundle (over about 5,000 nodes), published
- * at https://graphty.app/data/graph-samples/v1/<name>.gsnp.gz and loaded with fetchDataset().
+ * Build the files graphty.app serves at https://graphty.app/data/graph-samples/v1/: every dataset,
+ * loaded with fetchDataset(). The large ones (over about 5,000 nodes) are built here from their
+ * upstream sources; the small ones are copied from graph-samples' own build (dist/data/v1/, written
+ * by scripts/pack-datasets.mjs from the repository's data/), so build graph-samples first.
  *
  *     node scripts/build-hosted.mjs [--cache <dir>]
  *
@@ -9,19 +11,21 @@
  * <repo>/tmp/graph-samples-sources), refuses a source whose SHA-256 is not the one recorded here,
  * builds a graph-format snapshot with its node columns, and writes
  *
- *   public-data/v1/<name>.gsnp.gz   the snapshot's wire bytes (snapshot.toBytes()), gzipped
- *   public-data/v1/index.json       every hosted dataset's metadata, URL, size and checksum
+ *   public-data/v1/<name>.gsnp.gz   the snapshot's wire bytes (snapshot.toBytes()), gzipped (and a copy of
+ *                                   each small dataset's file from dist/data/v1/)
+ *   public-data/v1/index.json       every dataset's metadata, URL, size and checksum, small ones first
  *   src/datasets/hosted.ts          the same metadata for the DATASETS catalogue (committed)
  *   src/datasets/hosted-names.ts    their names alone, in the same order, for DATASET_NAMES (committed)
  *
  * public-data/ is build output and is not committed; .github/workflows/deploy-pages.yml runs this
- * script and publishes public-data/v1/ as /data/graph-samples/v1/. Needs `unzip` on the PATH and a
- * built graph-format (graph-format/dist). Running it twice writes identical files.
+ * script and publishes public-data/v1/ as /data/graph-samples/v1/. Needs `unzip` on the PATH, a
+ * built graph-format (graph-format/dist) and a built graph-samples (graph-samples/dist/data/v1/).
+ * Running it twice writes identical files.
  */
 
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { gunzipSync, gzipSync } from "node:zlib";
@@ -400,8 +404,26 @@ function asciiJson(value, indent) {
     );
 }
 
+/**
+ * Copy the small datasets' files from graph-samples' build into the output.
+ * @returns {object[]} their index.json entries
+ */
+function copySmallDatasets() {
+    const packed = path.join(packageRoot, "dist/data/v1");
+    if (!existsSync(path.join(packed, "index.json"))) {
+        throw new Error(`${packed}/index.json is missing: build graph-samples first (npm run build:all)`);
+    }
+    const index = JSON.parse(readFileSync(path.join(packed, "index.json"), "utf8"));
+    for (const { name } of index) {
+        copyFileSync(path.join(packed, `${name}.gsnp.gz`), path.join(outDir, `${name}.gsnp.gz`));
+    }
+    console.log(`copied ${index.length} small datasets from dist/data/v1/`);
+    return index;
+}
+
 async function main() {
     mkdirSync(outDir, { recursive: true });
+    const small = copySmallDatasets();
     const metas = [];
     for (const dataset of DATASETS) {
         const files = {};
@@ -444,10 +466,7 @@ async function main() {
     }
     writeFileSync(
         path.join(outDir, "index.json"),
-        `${asciiJson(
-            metas.map((meta) => ({ ...meta, url: `${BASE_URL}${meta.name}.gsnp.gz` })),
-            2,
-        )}\n`,
+        asciiJson([...small, ...metas.map((meta) => ({ ...meta, url: BASE_URL + meta.name + ".gsnp.gz" }))], 2) + "\n",
     );
     const hosted = path.join(packageRoot, "src/datasets/hosted.ts");
     writeFileSync(
@@ -458,7 +477,7 @@ async function main() {
             'import { type DatasetMeta } from "./build.js";',
             "",
             "/**",
-            " * The metadata of every hosted dataset: too large to bundle, loaded with `fetchDataset(name)` from",
+            " * The metadata of every large dataset (over about 5,000 nodes), loaded with `fetchDataset(name)` from",
             " * https://graphty.app/data/graph-samples/v1/. `sha256` and `bytes` describe the published .gsnp.gz file.",
             " */",
             `export const HOSTED_DATASETS: readonly DatasetMeta[] = ${asciiJson(metas, 4)};`,

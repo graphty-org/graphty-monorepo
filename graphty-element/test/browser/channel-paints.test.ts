@@ -218,7 +218,8 @@ describe("every channel the table says is renderable", () => {
                     name: "channel probe prerequisites",
                     target: "node",
                     selector: { match: "everything" },
-                    set: { "node.label": "WORDS" },
+                    // A border to recolour and restyle: its colour and style draw nothing alone.
+                    set: { "node.label": "WORDS", "node.borderWidth": 0.3 },
                 });
                 await session.styles.add({
                     name: "channel probe prerequisites",

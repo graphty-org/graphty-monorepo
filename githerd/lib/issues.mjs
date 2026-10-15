@@ -12,7 +12,9 @@
  * list (seen live 2026-10-04), so the epoch cannot stand in for "from the beginning".
  */
 
+import { TERMINAL } from "./board.mjs";
 import { LABEL as HEARTBEAT } from "./heartbeat.mjs";
+import { TERMINAL as PROPOSAL_ENDED } from "./proposals.mjs";
 
 /** How far before the high-water mark a `since` poll starts. */
 const SINCE_OVERLAP_MS = 10 * 60_000;
@@ -121,4 +123,65 @@ export async function pollIssues(gitHub, repo, saved) {
         path = nextPage(res.headers.link);
     }
     return { ...record, complete: path === null };
+}
+
+/**
+ * The issue numbers something in the state still looks up in `state.issues.byNumber`: a job that
+ * has not ended (its target and a triage batch), a split job's children, a deferral, a left-out bundle member, a proposal
+ * that has not ended, an owner item that has not ended, a flaky test's issue, a dequeued release's
+ * issue and an unresolved escalation's hold issue. Built once per pass.
+ * @param {any} state the daemon state
+ * @returns {Set<string>} the numbers, as `byNumber` keys
+ */
+function referencedIssues(state) {
+    const out = new Set([...Object.keys(state.deferred ?? {}), ...Object.keys(state.unbundled ?? {})]);
+    /**
+     * Records an issue number.
+     * @param {number | string | null | undefined} n the number
+     */
+    const add = (n) => {
+        if (n != null) out.add(String(n));
+    };
+    const live = (/** @type {Record<string, any> | undefined} */ records, /** @type {(r: any) => boolean} */ ended) =>
+        Object.values(records ?? {}).filter((r) => !ended(r));
+    for (const j of live(state.jobs, (j) => TERMINAL.includes(j.state))) {
+        add(issueOf(j.target));
+        for (const n of j.facts?.batch ?? []) add(n);
+    }
+    // A split job's children, while the job is kept: proposals.mjs proposeSplitParents reads them.
+    for (const j of Object.values(state.jobs ?? {})) for (const n of j.children ?? []) add(n);
+    for (const p of live(state.proposals, (p) => PROPOSAL_ENDED.has(p.status))) add(issueOf(p.target));
+    for (const i of live(state.ownerItems, (i) => Boolean(i.endedAt))) add(issueOf(i.target));
+    for (const e of live(state.escalations, (e) => Boolean(e.resolvedAt))) add(e.holdIssue);
+    for (const t of Object.values(state.flakes?.tests ?? {})) add(t.issue);
+    for (const r of Object.values(state.releaseQueue ?? {})) add(r.issue);
+    return out;
+}
+
+/**
+ * The issue number a job, proposal or owner item target names (`#12`, `issue:12`), or undefined.
+ * @param {string | null | undefined} target the target
+ * @returns {string | undefined} the number
+ */
+function issueOf(target) {
+    return /^(?:#|issue:)(\d+)$/.exec(target ?? "")?.[1];
+}
+
+/**
+ * Drops each closed issue nothing refers to any more (`referencedIssues`) from
+ * `state.issues.byNumber`, in place. A dropped issue that reopens comes back on the next poll: the
+ * reopen changes its `updated_at`, so the `since` read returns it and `applyIssues` records it anew.
+ * @param {any} state the daemon state
+ * @returns {number} how many issues were dropped
+ */
+export function pruneClosedIssues(state) {
+    const byNumber = state.issues?.byNumber ?? {};
+    const kept = referencedIssues(state);
+    let dropped = 0;
+    for (const [n, i] of Object.entries(byNumber)) {
+        if (i.state !== "closed" || kept.has(n)) continue;
+        delete byNumber[n];
+        dropped += 1;
+    }
+    return dropped;
 }

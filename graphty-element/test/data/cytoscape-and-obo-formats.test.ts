@@ -93,7 +93,9 @@ describe("the Cytoscape formats and OBO", () => {
 
     it("hands every node of a session its saved position", async () => {
         const loaded = await read("cys", { data: bytesOf("cys/tutorials/galFiltered.cys") });
-        const placed = loaded.nodes.filter((node) => Array.isArray(node.position));
+        const placed = loaded.nodes.filter(
+            (node) => typeof (node.position as { x?: unknown } | undefined)?.x === "number",
+        );
         assert.strictEqual(placed.length, loaded.nodes.length, "every node of the session has its saved position");
     });
 

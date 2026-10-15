@@ -1,4 +1,5 @@
 import { type DatasetMeta } from "../build.js";
+import { PACKED } from "../packed.js";
 
 /** What the davisSouthernWomen dataset is, where it came from and under which terms. */
 export const davisSouthernWomenMeta: DatasetMeta = {
@@ -17,4 +18,6 @@ export const davisSouthernWomenMeta: DatasetMeta = {
     attributes: { side: "u8: 0 for a woman, 1 for an event (ground truth)" },
     groundTruth: "side",
     showcases: ["bipartite layout", "bipartite check and matching", "projection onto the women"],
+    hosting: "remote",
+    ...PACKED["davis-southern-women"],
 };

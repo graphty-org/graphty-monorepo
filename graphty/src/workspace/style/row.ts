@@ -499,6 +499,10 @@ export function startingValue(
     session?: GraphSession,
     selector?: Layer["selector"],
 ): ChannelValue {
+    const own = APP_STARTS[descriptor.channel];
+    if (own !== undefined) {
+        return own;
+    }
     const highlight =
         session !== undefined && selector?.match === "ids"
             ? session.styles.highlightStyle(descriptor.target)[descriptor.channel]
@@ -518,6 +522,13 @@ export function startingValue(
     }
     return value;
 }
+
+/**
+ * Starting values the app chooses where the element has no value that draws what is there now.
+ * A pattern count left unset follows the element's spacing rule, which differs edge by edge, and
+ * the channel's floor (2) draws only a mark at each end, so the line seems to vanish.
+ */
+const APP_STARTS: Readonly<Partial<Record<Channel, ChannelValue>>> = { "edge.patternCount": 10 };
 
 /**
  * What `encode()` would store for a choice on a channel, from the element.

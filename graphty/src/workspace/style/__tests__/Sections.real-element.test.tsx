@@ -303,6 +303,16 @@ describe("the Style tab's sections", () => {
         });
     });
 
+    it("starts an added pattern count at 10 marks, not the floor of 2 that reads as no line", async () => {
+        const { session } = await openScene();
+        await openStyle("Everything");
+        await userEvent.click(within(section("edge", "line")).getByRole("button", { name: "Add to edge line" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Pattern count" }));
+        await waitFor(() => {
+            assert.equal(written(session, "Everything", "edge.patternCount"), 10);
+        });
+    });
+
     it("an end label on an undirected graph's edges says why it is not drawn", async () => {
         const { session } = await openScene();
         await openStyle("Everything");

@@ -54,6 +54,12 @@ export default meta;
 
 type Story = StoryObj<StoryArgs>;
 
+/** The nodes and edges a file declares. */
+interface FileCounts {
+    readonly nodes: number;
+    readonly edges: number;
+}
+
 /**
  * Wait for the story's graph, and check the file's styles were drawn as layers.
  * @param canvasElement - Where the story rendered.
@@ -67,7 +73,7 @@ type Story = StoryObj<StoryArgs>;
 async function drewFileStyles(
     canvasElement: HTMLElement,
     story: string,
-    counts: { readonly nodes: number; readonly edges: number },
+    counts: FileCounts,
     colors: Readonly<Record<string, string>>,
     larger: readonly (readonly [string, string])[] = [],
 ): Promise<void> {

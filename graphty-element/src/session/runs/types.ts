@@ -510,7 +510,42 @@ export interface RunLayers {
  * the run.
  */
 export type RunStyle =
-    boolean | { readonly size?: boolean | readonly [min: number, max: number]; readonly name?: string };
+    | boolean
+    | {
+          readonly size?: boolean | readonly [min: number, max: number];
+          readonly name?: string;
+          /**
+           * `"layers"`: a run that partitions the nodes (shape `"community"`: Louvain, Leiden, label
+           * propagation, connected components) paints each group as a layer of its own instead of one
+           * layer colouring every group: a folder named for the run (`name`, else the run's label)
+           * holding one node layer per group, largest on top, each selecting `<group path> ==
+           * <value>` and setting the colour the one layer would have painted that group. A re-run
+           * keeps each layer on the group sharing most of its members and adds a layer at the bottom
+           * of the folder for each new group; removing the run removes the folder. Ignored for any
+           * other result shape. Left off, the run paints one layer.
+           * @since 3.29.0
+           */
+          readonly groups?: "layers";
+          /**
+           * What to call each group's layer when `groups` is `"layers"`; its value as text when
+           * absent. `rank` is 1 for the largest group.
+           * @since 3.29.0
+           */
+          readonly groupName?: (group: RunGroup) => string;
+      };
+
+/**
+ * One group of a run that partitions the nodes, as {@link RunStyle}'s `groupName` is asked about it.
+ * @since 3.29.0
+ */
+export interface RunGroup {
+    /** The group's value, as the run published it. */
+    readonly value: unknown;
+    /** Its place by size, 1 for the largest. */
+    readonly rank: number;
+    /** How many nodes it holds. */
+    readonly size: number;
+}
 
 /** One member of a batch: the same thing `start` takes, as data. */
 export interface RunSpec {

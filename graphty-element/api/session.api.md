@@ -1619,9 +1619,7 @@ export type LayerKind = "base" | "encoding" | "highlight" | "custom";
 
 // @public
 export interface LayerPatch {
-    // (undocumented)
     readonly id: LayerId;
-    // (undocumented)
     readonly patch: Partial<LayerSpec>;
 }
 
@@ -3011,6 +3009,13 @@ export interface RunExecutionContext {
 export type RunExecutor<T = RunResult> = (context: RunExecutionContext) => Promise<RunOutcome<T>>;
 
 // @public
+export interface RunGroup {
+    readonly rank: number;
+    readonly size: number;
+    readonly value: unknown;
+}
+
+// @public
 export type RunId = string;
 
 // @public
@@ -3173,6 +3178,8 @@ export type RunStatus = (typeof RUN_STATUSES)[number];
 export type RunStyle = boolean | {
     readonly size?: boolean | readonly [min: number, max: number];
     readonly name?: string;
+    readonly groups?: "layers";
+    readonly groupName?: (group: RunGroup) => string;
 };
 
 // @public

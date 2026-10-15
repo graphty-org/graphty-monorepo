@@ -48,6 +48,7 @@ export type {
     RunChange,
     RunDirection,
     RunDistinction,
+    RunGroup,
     RunLayers,
     RunOptions,
     RunPainting,

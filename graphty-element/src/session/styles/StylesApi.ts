@@ -3525,8 +3525,41 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         }
     };
 
+    /**
+     * What a binding paints over a column of values, its palette filled in as a written layer's is.
+     * @param binding - The binding, as written.
+     * @param channel - The channel.
+     * @param column - The values.
+     * @param options - How many bins, and what they span.
+     * @param options.bins - How many bins to cut a numeric domain into.
+     * @param options.span - What the numeric bins span.
+     * @returns The preview.
+     */
+    const previewColumn = (
+        binding: RuleBinding,
+        channel: Channel,
+        column: readonly unknown[],
+        options: { readonly bins?: number; readonly span?: PreviewSpan } = {},
+    ): BindingPreview => {
+        const descriptor = requireChannel(channel);
+        const kind = descriptor.accepts === "color" ? paletteKindOf(binding) : null;
+        const palette = kind === null || binding.palette !== undefined ? undefined : defaultPalettes[kind];
+        const filled: RuleBinding = palette === undefined ? binding : { ...binding, palette };
+
+        return previewBinding({
+            channel: descriptor.channel,
+            binding: filled,
+            column,
+            scales,
+            asWritten: binding,
+            ...(options.bins === undefined ? {} : { bins: options.bins }),
+            ...(options.span === undefined ? {} : { span: options.span }),
+        });
+    };
+
     // The style ops of this dispatcher compile against this session.
     dispatcher.services.styles = {
+        previewColumn: (binding, channel, column) => previewColumn(binding, channel, column),
         execute(command, draft) {
             const planned = planOf(command);
             const stack = current();
@@ -4232,22 +4265,11 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 }
             }
 
-            const kind = descriptor.accepts === "color" ? paletteKindOf(binding) : null;
-            const palette = kind === null || binding.palette !== undefined ? undefined : defaultPalettes[kind];
-            const filled: RuleBinding = palette === undefined ? binding : { ...binding, palette };
             const { nodes, edges } = elementsOf(WHOLE_GRAPH);
             const read = descriptor.target === "node" ? sources.elements.nodeValue : sources.elements.edgeValue;
             const column = [...(descriptor.target === "node" ? nodes : edges)].map((index) => read(index, binding.by));
 
-            return previewBinding({
-                channel: descriptor.channel,
-                binding: filled,
-                column,
-                scales,
-                asWritten: binding,
-                ...(options.bins === undefined ? {} : { bins: options.bins }),
-                ...(options.span === undefined ? {} : { span: options.span }),
-            });
+            return previewColumn(binding, descriptor.channel, column, options);
         },
 
         counts(id: LayerId): StyleCounts {

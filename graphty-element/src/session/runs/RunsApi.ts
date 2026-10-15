@@ -59,6 +59,7 @@ import {
 } from "../styles/autoApply";
 import type { StyleSuggestion } from "../styles/derive";
 import type { Layer } from "../styles/Layer";
+import { findRow, rowsOf } from "../styles/tree";
 import { type GroupMatch, matchGroups, realignPatch } from "../styles/values";
 import type { HistoryCode } from "../types";
 import { valueLabelKey, valueLabelOf } from "../valueLabels";
@@ -94,6 +95,7 @@ import {
     type ResolvedScope,
     type Run,
     type RunChange,
+    type RunGroup,
     type RunLayers,
     type RunOptions,
     type RunPainting,
@@ -102,6 +104,7 @@ import {
     type RunsApi,
     type RunScopeFacts,
     type RunSpec,
+    type RunStyle,
     type StaleNote,
     type StartOptions,
     type SuggestionOutcome,
@@ -331,6 +334,15 @@ const PENDING: RunPainting = bare("pending");
 
 /** A run recorded without a decision. */
 const UNKNOWN: RunPainting = bare("unknown");
+
+/**
+ * A group's value spelled as a category, the way a rule's `categories` names it.
+ * @param value - The value.
+ * @returns The name.
+ */
+function categoryName(value: unknown): string {
+    return typeof value === "string" ? value : JSON.stringify(value);
+}
 
 /**
  * The layers a style command added, read off what it resolved with: one layer for an encoding,
@@ -1520,8 +1532,9 @@ class Runs implements SessionRunsApi {
             draft.runs.set(run.id, entry);
             if (prior !== undefined) {
                 this.realignGroups(draft, prior.result, entry.result);
+                this.addNewGroupLayers(draft, entry.result, run.style);
             }
-            const outcomes = this.paint(draft, run.id, decision.paint);
+            const outcomes = this.paint(draft, run.id, decision.paint, { style: run.style, result: entry.result });
 
             if (decision.painting !== undefined) {
                 // Written after the layers, which need the run's entry to bind to.
@@ -1663,9 +1676,17 @@ class Runs implements SessionRunsApi {
      * @param draft - The draft.
      * @param runId - The run they come from.
      * @param suggestions - What to paint.
+     * @param groups - The run's style option and result, for a run whose groups become layers.
+     * @param groups.style - The style option.
+     * @param groups.result - The result.
      * @returns What became of each.
      */
-    private paint(draft: Draft, runId: RunId, suggestions: readonly StyleSuggestion[]): SuggestionOutcome[] {
+    private paint(
+        draft: Draft,
+        runId: RunId,
+        suggestions: readonly StyleSuggestion[],
+        groups?: { readonly style: RunStyle; readonly result: RunResult },
+    ): SuggestionOutcome[] {
         const { styles } = this.dispatcher.services;
 
         if (styles === undefined) {
@@ -1675,6 +1696,10 @@ class Runs implements SessionRunsApi {
         return suggestions.map((suggestion) => {
             try {
                 const outcome = styles.execute(suggestionCommand(suggestion, true), draft);
+                const layered = groups === undefined ? null : this.groupLayers(draft, outcome, groups);
+                if (layered !== null) {
+                    return Object.freeze({ outcome: "added" as const, suggestion, layerIds: layered });
+                }
 
                 return addedOutcome(
                     suggestion,
@@ -1687,6 +1712,151 @@ class Runs implements SessionRunsApi {
                 return refusedOutcome(suggestion, error);
             }
         });
+    }
+
+    /**
+     * Turn the one layer a partition's colour suggestion added into a folder of one layer per group,
+     * when the run was started with `style: { groups: "layers" }`: see {@link RunStyle}. Planned into
+     * the same draft, so the run, the folder and its layers are one step.
+     * @param draft - The run's draft.
+     * @param outcome - What the colour suggestion's command resolved with.
+     * @param groups - The run's style option and its result.
+     * @param groups.style - The style option.
+     * @param groups.result - The result.
+     * @returns The group layers' ids, or null when this is not such a suggestion.
+     */
+    private groupLayers(
+        draft: Draft,
+        outcome: unknown,
+        { style, result }: { readonly style: RunStyle; readonly result: RunResult },
+    ): LayerId[] | null {
+        const { styles } = this.dispatcher.services;
+        const layer = (outcome as { result?: unknown } | null)?.result as Layer | undefined;
+        const binding = layer?.encode?.["node.color"];
+        if (
+            typeof style !== "object" ||
+            style.groups !== "layers" ||
+            result.shape !== "community" ||
+            styles?.previewColumn === undefined ||
+            layer === undefined ||
+            binding === undefined ||
+            !("by" in binding)
+        ) {
+            return null;
+        }
+
+        const field = binding.by.slice(`${RESULT_ROOT}.${result.runId}.`.length);
+        const column = elementIdsOf(result, "node").map((id) => result.node(id)?.[field]);
+        const preview = styles.previewColumn(binding, "node.color", column);
+        const found = findRow(rowsOf(draft.styles), layer.id);
+        const folder = styles.execute(
+            {
+                op: "style.patch",
+                action: "addFolder",
+                name: style.name ?? layer.name,
+                at: { parent: found?.ancestors.at(-1)?.id ?? null, index: found?.index ?? 0 },
+            },
+            draft,
+        ) as { result: { id: string } };
+        styles.execute({ op: "style.patch", action: "remove", id: layer.id }, draft);
+
+        // Largest first, each put at the bottom of the folder: the largest ends on top.
+        const ids: LayerId[] = [];
+        const values = preview.bins.filter((bin) => bin.value !== undefined && bin.count > 0);
+        for (const [at, bin] of values.entries()) {
+            ids.push(this.addGroupLayer(draft, folder.result.id, layer, binding.by, bin, at + 1, style.groupName));
+        }
+
+        return ids;
+    }
+
+    /**
+     * Add one group's layer at the bottom of its folder.
+     * @param draft - The draft.
+     * @param folder - The folder.
+     * @param from - The run's layer it takes its source from.
+     * @param path - The group path.
+     * @param bin - The group, as a preview of the run's colour binding counts and paints it.
+     * @param bin.value - The group's value.
+     * @param bin.count - How many nodes it holds.
+     * @param bin.paints - The colour the run's layer paints it.
+     * @param rank - Its place by size, 1 for the largest.
+     * @param groupName - What to call it.
+     * @returns The layer's id.
+     */
+    private addGroupLayer(
+        draft: Draft,
+        folder: string,
+        from: Layer,
+        path: string,
+        bin: { readonly value?: unknown; readonly count: number; readonly paints: unknown },
+        rank: number,
+        groupName: ((group: RunGroup) => string) | undefined,
+    ): LayerId {
+        const { styles } = this.dispatcher.services;
+        const paints = bin.paints as { readonly hex?: string } | string | null;
+        const color = typeof paints === "string" ? paints : paints?.hex;
+        const name = groupName?.({ value: bin.value, rank, size: bin.count }) ?? categoryName(bin.value);
+        const added = styles?.execute(
+            {
+                op: "style.patch",
+                action: "add",
+                spec: {
+                    name,
+                    target: "node",
+                    selector: {
+                        match: "rule",
+                        where: { kind: "categories", attribute: path, values: [categoryName(bin.value)] },
+                    },
+                    ...(color === undefined ? {} : { set: { "node.color": color } }),
+                    source: from.source,
+                },
+            },
+            draft,
+        ) as { result: Layer };
+        styles?.execute(
+            { op: "style.patch", action: "moveRow", id: added.result.id, to: { parent: folder, index: 0 } },
+            draft,
+        );
+        return added.result.id;
+    }
+
+    /**
+     * After a re-run, add a layer at the bottom of a run's group folder for each group no layer
+     * there selects: see {@link RunStyle}'s `groups`.
+     * @param draft - The run's draft.
+     * @param result - The new result.
+     * @param style - The run's style option.
+     */
+    private addNewGroupLayers(draft: Draft, result: RunResult, style: RunStyle): void {
+        const { styles } = this.dispatcher.services;
+        if (typeof style !== "object" || style.groups !== "layers" || styles?.previewColumn === undefined) {
+            return;
+        }
+        const path = `${RESULT_ROOT}.${result.runId}.group`;
+        const groupValues = (layer: Layer): readonly string[] => {
+            const where = layer.selector.match === "rule" ? layer.selector.where : undefined;
+            return where?.kind === "categories" && where.attribute === path ? where.values : [];
+        };
+        const layers = draft.styles.map((entry) => entry.layer);
+        const mine = layers.filter(
+            (layer) =>
+                layer.source.by === "run" && layer.source.runId === result.runId && groupValues(layer).length > 0,
+        );
+        const rows = rowsOf(draft.styles);
+        const folder = mine.length === 0 ? undefined : findRow(rows, mine[0].id)?.ancestors.at(-1);
+        if (folder === undefined) {
+            return;
+        }
+        const taken = new Set(mine.flatMap(groupValues));
+        const column = elementIdsOf(result, "node").map((id) => result.node(id)?.group);
+        const { bins } = styles.previewColumn({ by: path, scale: "ordinal" }, "node.color", column);
+        for (const [at, bin] of bins.entries()) {
+            if (bin.value !== undefined && bin.count > 0 && !taken.has(categoryName(bin.value))) {
+                // The colour a new group takes is the run's palette's, by its place among the groups.
+                this.addGroupLayer(draft, folder.id, mine[0], path, bin, at + 1, style.groupName);
+            }
+        }
     }
 
     /**
@@ -1807,7 +1977,17 @@ class Runs implements SessionRunsApi {
             if (styles === undefined) {
                 this.options.layers?.remove?.(layerIds);
             } else {
+                // A folder that held only this run's layers (its groups, see RunStyle) goes with them.
+                const folders = new Set(
+                    layerIds.flatMap((layerId) => findRow(rowsOf(draft.styles), layerId)?.ancestors.at(-1)?.id ?? []),
+                );
                 styles.execute({ op: "style.patch", action: "removeBySource", ids: layerIds }, draft);
+                for (const folder of folders) {
+                    const left = findRow(rowsOf(draft.styles), folder);
+                    if (left !== undefined && (left.row.children ?? []).length === 0) {
+                        styles.execute({ op: "style.patch", action: "deleteRow", id: folder }, draft);
+                    }
+                }
             }
         }
 

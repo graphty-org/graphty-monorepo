@@ -211,6 +211,7 @@ export type {
     RunDistinction,
     RunExecutionContext,
     RunExecutor,
+    RunGroup,
     RunLayers,
     RunOptions,
     RunOutcome,

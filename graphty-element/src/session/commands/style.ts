@@ -19,6 +19,7 @@ import type { UndoableDefinition } from "../project/Dispatcher";
 import type { Draft } from "../project/draft";
 import type { ProjectState } from "../project/state";
 import type { CodedFact } from "../shared";
+import type { BindingPreview, RuleBinding } from "../styles/encoding";
 import type { EncodingSpec } from "../styles/EncodingSpec";
 import type { ExplainTarget } from "../styles/explain";
 import type { LayerPosition } from "../styles/Layer";
@@ -147,6 +148,14 @@ export interface StyleService {
      * @returns What the verb resolves with.
      */
     execute(command: StyleCommand, draft: Draft): unknown;
+    /**
+     * What a binding paints over a column of values, prepared as a repaint prepares it.
+     * @param binding - The binding, as written.
+     * @param channel - The channel it paints.
+     * @param column - The values.
+     * @returns The preview.
+     */
+    previewColumn?(binding: RuleBinding, channel: Channel, column: readonly unknown[]): BindingPreview;
 }
 
 /** What a style op's step is keyed on: the stack, one frozen value. */

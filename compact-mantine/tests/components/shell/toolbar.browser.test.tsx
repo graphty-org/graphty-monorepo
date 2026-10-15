@@ -1,8 +1,8 @@
 import { SegmentedControl } from "@mantine/core";
-import { fireEvent, screen, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { screen, within } from "@testing-library/react";
 import React, { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
+import { page, userEvent } from "vitest/browser";
 
 import { SecondaryToolbar, Toolbar, ToolButton, ToolGroup, type ToolItem } from "../../../src";
 import { compactThemeWithoutTooltips } from "../theme-without-tooltips";
@@ -63,6 +63,8 @@ describe("Toolbar", () => {
 
     it("is one Tab stop that lands on the selected tool", async () => {
         renderShell(<Editor />);
+        expect(screen.getByRole("separator")).toHaveAttribute("aria-orientation", "vertical");
+        expect(screen.getByRole("separator").tagName).toBe("HR");
         await userEvent.tab();
         expect(screen.getByRole("button", { name: "Move" })).toHaveFocus();
         await userEvent.tab();
@@ -111,7 +113,8 @@ describe("ToolButton", () => {
         const button = screen.getByRole("button", { name: "Analyze" });
         expect(button).toHaveAttribute("aria-disabled", "true");
         expect(button).toHaveAttribute("aria-description", "Nothing is drawn");
-        await userEvent.click(button);
+        // force: an aria-disabled control fails Playwright's actionability check, but a reader can still press it.
+        await userEvent.click(button, { force: true });
         expect(onClick).not.toHaveBeenCalled();
         screen.getByRole("button", { name: "Actions" }).focus();
         await userEvent.keyboard("{ArrowLeft}");
@@ -119,44 +122,32 @@ describe("ToolButton", () => {
     });
 });
 
-// The overlays theme clamps the menu's height to the viewport, which jsdom reports as zero, so
-// the open dropdown is display:none here and its rows are queried with `hidden: true`. The
-// browser suite (tests/figma/shell.browser.test.tsx) opens the flyout for real.
-//
-// The flyout tests click with fireEvent, not user-event. user-event focuses each button it
-// clicks, and focus mounts that button's tooltip at once (it is only held hidden for the delay).
-// Positioning a tooltip or the menu makes floating-ui read the computed style of every ancestor,
-// and jsdom re-matches the whole package stylesheet on each read after a DOM change, so one
-// user-event click cost 100-300 ms of CPU. Under the pre-push gate's load that passed the 5 s
-// test timeout (issue #1483). fireEvent opens and picks with a quarter of the style reads; real
-// pointer picking is covered by the browser suite.
-const HIDDEN = { hidden: true } as const;
-
 describe("ToolGroup", () => {
     it("shows the selected face as pressed", () => {
         renderShell(<ToolGroup label="Shape tools" tools={SHAPES} activeTool="rectangle" />);
-        expect(screen.getByRole("group", { name: "Rectangle" })).toBeInTheDocument();
+        expect(screen.getByRole("group", { name: "Rectangle" }).tagName).toBe("FIELDSET");
         expect(screen.getByRole("button", { name: "Rectangle" })).toHaveAttribute("aria-pressed", "true");
     });
 
-    it("picks a tool from the flyout, makes it the face and closes", () => {
+    it("picks a tool from the flyout, makes it the face and closes", async () => {
         const onToolChange = vi.fn();
         renderShell(<Editor onToolChange={onToolChange} />);
-        fireEvent.click(screen.getByRole("button", { name: "Shape tools" }));
-        const rows = screen.getAllByRole("menuitemradio", HIDDEN);
+        await userEvent.click(screen.getByRole("button", { name: "Shape tools" }));
+        await expect.element(page.getByRole("menuitemradio").first()).toBeVisible();
+        const rows = screen.getAllByRole("menuitemradio");
         expect(rows).toHaveLength(2);
         expect(rows[0]).toHaveAttribute("aria-checked", "true");
-        fireEvent.click(screen.getByRole("menuitemradio", { ...HIDDEN, name: /Ellipse/ }));
+        await userEvent.click(page.getByRole("menuitemradio", { name: /Ellipse/ }));
         expect(onToolChange).toHaveBeenLastCalledWith("ellipse");
         expect(screen.getByRole("button", { name: "Ellipse" })).toHaveAttribute("aria-pressed", "true");
-        expect(screen.queryByRole("menuitemradio", HIDDEN)).not.toBeInTheDocument();
+        await expect.element(page.getByRole("menuitemradio", { includeHidden: true })).not.toBeInTheDocument();
     });
 
-    it("keeps the last picked face when another group's tool is chosen", () => {
+    it("keeps the last picked face when another group's tool is chosen", async () => {
         renderShell(<Editor />);
-        fireEvent.click(screen.getByRole("button", { name: "Shape tools" }));
-        fireEvent.click(screen.getByRole("menuitemradio", { ...HIDDEN, name: /Ellipse/ }));
-        fireEvent.click(screen.getByRole("button", { name: "Move" }));
+        await userEvent.click(screen.getByRole("button", { name: "Shape tools" }));
+        await userEvent.click(page.getByRole("menuitemradio", { name: /Ellipse/ }));
+        await userEvent.click(screen.getByRole("button", { name: "Move" }));
         expect(screen.getByRole("button", { name: "Ellipse" })).toHaveAttribute("aria-pressed", "false");
     });
 
@@ -181,7 +172,9 @@ describe("SecondaryToolbar", () => {
         );
         const bar = screen.getByRole("toolbar", { name: "Vector editing" });
         expect(bar).toHaveAttribute("data-flush");
-        expect(screen.getByRole("separator")).toBeInTheDocument();
+        const separator = screen.getByRole("separator");
+        expect(separator.tagName).toBe("HR");
+        expect(separator).toHaveAttribute("aria-orientation", "vertical");
         expect(screen.getByRole("button", { name: "Move" })).toHaveAttribute("aria-pressed", "true");
         await userEvent.tab();
         expect(screen.getByRole("button", { name: "Move" })).toHaveFocus();

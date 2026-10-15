@@ -31,7 +31,7 @@
             "labelWeight": "normal",
             "labelItalic": false,
             "labelSize": 10,
-            "curved": true
+            "curved": false
         },
         "graph": {
             "background": "#ffffff"

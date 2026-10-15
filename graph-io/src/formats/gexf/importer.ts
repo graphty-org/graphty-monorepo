@@ -2684,6 +2684,51 @@ class GexfReader implements XmlHandler {
     // ---------------------------------------------------------------- viz
 
     /**
+     * Write a `<viz:position>` into the node position column, declared on first use with the
+     * dimensions the element writes.
+     * @param attrs - its attributes
+     * @param index - the node's index
+     * @param where - the element's location
+     */
+    private writeVizPosition(attrs: ReadonlyMap<string, string>, index: number, where: IssueLocation): void {
+        const x = vizNumber(attrs, "x");
+        const y = vizNumber(attrs, "y");
+        const z = attrs.has("z") ? vizNumber(attrs, "z") : 0;
+        this.positionColumn ??= new LazyColumn("node", {
+            ...NODE_DECLS.position,
+            extra: { ...NODE_DECLS.position.extra, sourceDims: attrs.has("z") ? 3 : 2 },
+        });
+        this.positionColumn.set(this.sink, this.report, index, [x, y, z], where);
+    }
+
+    /**
+     * Write a `<viz:shape>` into the shape column, and a node's image `uri` beside it.
+     * @param name - the element name as written
+     * @param attrs - its attributes
+     * @param domain - node or edge
+     * @param index - the element's index
+     * @param where - the element's location
+     */
+    private writeVizShape(
+        name: string,
+        attrs: ReadonlyMap<string, string>,
+        domain: "node" | "edge",
+        index: number,
+        where: IssueLocation,
+    ): void {
+        const value = attrs.get("value");
+        if (value === undefined) {
+            throw new GraphFormatError("E_COLUMN_TYPE", "<viz:shape> without a value", { element: name });
+        }
+        const columns = domain === "node" ? this.nodeColumns : this.edgeColumns;
+        columns.shape.set(this.sink, this.report, index, value, where);
+        const uri = attrs.get("uri");
+        if (domain === "node" && uri !== undefined) {
+            this.shapeUriColumn.set(this.sink, this.report, index, uri, where);
+        }
+    }
+
+    /**
      * Write one viz element into its role column; a value that does not parse is a recorded
      * warning and the element is skipped.
      * @param name - the element name as written
@@ -2720,35 +2765,18 @@ class GexfReader implements XmlHandler {
                 case "color":
                     columns.color.set(sink, report, index, this.vizColor(attrs, name, where), where);
                     break;
-                case "position": {
-                    const x = vizNumber(attrs, "x");
-                    const y = vizNumber(attrs, "y");
-                    const z = attrs.has("z") ? vizNumber(attrs, "z") : 0;
-                    this.positionColumn ??= new LazyColumn("node", {
-                        ...NODE_DECLS.position,
-                        extra: { ...NODE_DECLS.position.extra, sourceDims: attrs.has("z") ? 3 : 2 },
-                    });
-                    this.positionColumn.set(sink, report, index, [x, y, z], where);
+                case "position":
+                    this.writeVizPosition(attrs, index, where);
                     break;
-                }
                 case "size":
                     this.sizeColumn.set(sink, report, index, vizNumber(attrs, "value"), where);
                     break;
                 case "thickness":
                     this.thicknessColumn.set(sink, report, index, vizNumber(attrs, "value"), where);
                     break;
-                case "shape": {
-                    const value = attrs.get("value");
-                    if (value === undefined) {
-                        throw new GraphFormatError("E_COLUMN_TYPE", "<viz:shape> without a value", { element: name });
-                    }
-                    columns.shape.set(sink, report, index, value, where);
-                    const uri = attrs.get("uri");
-                    if (domain === "node" && uri !== undefined) {
-                        this.shapeUriColumn.set(sink, report, index, uri, where);
-                    }
+                case "shape":
+                    this.writeVizShape(name, attrs, domain, index, where);
                     break;
-                }
                 default:
                     break;
             }

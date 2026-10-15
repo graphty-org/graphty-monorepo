@@ -17,7 +17,7 @@ type DOTDataSourceConfig = BaseDataSourceConfig;
  * edge endpoint (`a:p1 -> b`) names a place on the node, not another node, so it is not part of
  * the id. A cluster subgraph is a node of its own, with the cluster's attributes (its `label`,
  * `fillcolor` and so on), as graph-io reads it and as Graphviz draws it. `pos`
- * stays the text the file wrote. A node written in several statements has the attributes of all
+ * stays the text the file wrote, and the node's `position` is read from it. A node written in several statements has the attributes of all
  * of them, the later ones winning, as Graphviz draws it.
  *
  * DOT states direction once, in the keyword that opens the file. A body with no keyword
@@ -54,12 +54,12 @@ export class DOTDataSource extends DataSource {
             dotImporter,
             headerless ? `digraph ${await this.getContent()}` : input,
             // Ids stay the strings DOT writes, `weight` stays an attribute (the element reads its
-            // weight from the record), and `pos` stays the text the file wrote. A body with no
-            // keyword takes each edge's direction from its own operator.
+            // weight from the record), and `pos` stays the text the file wrote beside the position
+            // read from it. A body with no keyword takes each edge's direction from its own operator.
             {
                 ids: "keep",
                 weightFrom: null,
-                positions: false,
+                keepPositionSource: true,
                 ...(headerless ? { mismatchedEdgeOperator: "operator" as const } : {}),
             },
             this.errorAggregator,

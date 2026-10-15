@@ -37,6 +37,24 @@ const SUBAGENTS = 2;
 const BROWSERS = 4;
 /** With no reset time, a usage stop is probed this long after it began (design 8.3). */
 const PROBE_HOURS = [1, 3, 6];
+/**
+ * One minimal Claude call on the default model, which the sessions' limit applies to: no tools, no
+ * customizations, no saved session, a one-word reply. About 540 input and 5 output tokens when it
+ * succeeds (2026-10-14, Claude Code 2.1.299); a call refused by the limit costs nothing.
+ */
+const PROBE_ARGS = [
+    "-p",
+    "--safe-mode",
+    "--tools",
+    "",
+    "--strict-mcp-config",
+    "--no-session-persistence",
+    "--system-prompt",
+    "Reply with the single word OK.",
+    "--output-format",
+    "json",
+    "OK",
+];
 /** How long a `claude --version` answer and a signing probe are reused. */
 const CACHE_MS = 10 * 60_000;
 const HOUR = 3_600_000;
@@ -51,6 +69,8 @@ const HOUR = 3_600_000;
  * @property {() => {load: number, cores: number, memory: number}} machine load, cores and the share
  *   of memory available
  * @property {() => string} loginPath the owner's interactive login PATH
+ * @property {() => Promise<boolean>} usageProbe whether one minimal Claude call succeeds now
+ *   (stalls.mjs usageBackStep)
  * @property {() => Record<string, string>} signingEnv the owner's signing variables
  * @property {(env: Record<string, string>) => Promise<{ok: boolean, reason?: string}>} signing the
  *   signing probe with a worker's environment
@@ -112,6 +132,14 @@ export function realPlatform({ env, stateDir }) {
         resumeVerified: () => resumeVerified(stateDir),
         machine: () => ({ load: loadavg()[0], cores: availableParallelism(), memory: memoryShare() }),
         loginPath: login,
+        usageProbe: async () => {
+            const r = await run("claude", PROBE_ARGS, {
+                cwd: home,
+                env: { HOME: home, PATH: login() },
+                timeoutMs: 2 * 60_000,
+            });
+            return r.code === 0 && r.stdout.includes('"is_error":false');
+        },
         signingEnv: () => readSigningEnv(home),
         signing: (workerVars) => signingProbe({ env: workerVars }),
         prepare: prepareJobWorktree,

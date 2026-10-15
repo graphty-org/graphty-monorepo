@@ -3,27 +3,11 @@
     "headroomPercent": 10,
     "minimumHeadroomBytes": 1024,
     "parts": {
-        "main entry (loaded up front)": 129743,
-        "dataset celegans-neural": 10154,
-        "dataset contiguous-usa": 3918,
-        "dataset davis-southern-women": 2575,
-        "dataset dolphins": 2959,
-        "dataset florentine-families": 2358,
-        "dataset football": 4786,
-        "dataset go-slim-generic": 4284,
-        "dataset karate": 2609,
-        "dataset knuth-miles": 45666,
-        "dataset les-miserables": 3406,
-        "dataset openflights": 204136,
-        "dataset political-blogs": 77273,
-        "dataset political-books": 4603,
-        "dataset stelzl-interactome": 40292,
-        "dataset wikipathways-senescence-autophagy": 4665,
-        "dataset yeast-perturbation": 11219,
-        "file formats, all of them (on the first graphtyImport or graphtyExport)": 410218,
-        "generators (on the first graphtyGenerate or graphtyDataset)": 25875,
-        "WebGPU code (on the first GPU-eligible call)": 117237,
-        "everything (every chunk of the build)": 1090550,
-        "script-tag bundle (dist/cytoscape-extensions.bundle.js, without the file formats and the datasets)": 270136
+        "main entry (loaded up front)": 135404,
+        "file formats, all of them (on the first graphtyImport or graphtyExport)": 412822,
+        "generators (on the first graphtyGenerate or graphtyDataset)": 23862,
+        "WebGPU code (on the first GPU-eligible call)": 117298,
+        "everything (every chunk of the build)": 688325,
+        "script-tag bundle (dist/cytoscape-extensions.bundle.js, without the file formats)": 274400
     }
 }

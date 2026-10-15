@@ -47,8 +47,8 @@ export interface GraphtyGraphData {
      */
     graphtyGenerate<N extends GeneratorName>(name: N, options: GeneratorOptions<N>): Promise<AddedGraph>;
     /**
-     * Adds a sample dataset: `cy.graphtyDataset("karate")`. The small ones ship with the package; the large ones
-     * (road-ny, ogbn-arxiv, com-dblp) are downloaded from graphty.app. Throws, adding nothing, when the core already holds one of the graph's node ids.
+     * Adds a sample dataset: `cy.graphtyDataset("karate")`, downloaded from graphty.app (`options.baseUrl` for a
+     * mirror of your own). Throws, adding nothing, when the core already holds one of the graph's node ids.
      * `options.signal` cancels it: once aborted, it rejects with the signal's reason and adds nothing, whatever
      * `options.fetch` does with the signal.
      */

@@ -5,6 +5,7 @@ import type {
     SimulationType,
     SpringElectricalOptions,
 } from "@graphty/layout";
+import { z } from "zod/v4";
 
 import type { AccelerationController } from "../acceleration/AccelerationController";
 import { LAYOUT_DESCRIPTORS, layoutDescriptor } from "../catalog/layouts";
@@ -305,6 +306,50 @@ function resolveLayoutOptions(
     }
 
     return resolveOptionValues(descriptor.options, passed as Record<string, unknown>, { kind: "layout", id: type });
+}
+
+/**
+ * The refusal for options an engine's own schema rejected while it was built: an engine that
+ * declares no descriptor validates its options with Zod in its constructor, and a missing
+ * required option (`bfs` with no `start`) used to arrive as `E_INTERNAL` whose message was Zod's
+ * issue dump. It is the same refusal `resolveLayoutOptions` gives: `E_UNKNOWN_OPTION` for a name
+ * the engine does not take, `E_OPTION_RANGE` for a value it does not accept or a required option
+ * that is missing.
+ * @param type - The layout name.
+ * @param error - What the build threw.
+ * @param passed - The options the engine was built with.
+ * @returns The error to report, or undefined when the build failed for another reason.
+ */
+function optionRefusal(type: string, error: unknown, passed: Record<string, unknown>): GraphtyError | undefined {
+    const issue = error instanceof z.ZodError ? error.issues[0] : undefined;
+    if (issue === undefined) {
+        return undefined;
+    }
+
+    const where = { kind: "layout", id: type };
+    if (issue.code === "unrecognized_keys") {
+        const option = issue.keys[0] ?? "";
+        return new GraphtyError({
+            code: "E_UNKNOWN_OPTION",
+            message: `the layout "${type}" has no option named "${option}"`,
+            source: "config",
+            details: { ...where, option },
+            cause: error,
+        });
+    }
+
+    const option = String(issue.path[0] ?? "");
+    const value = passed[option];
+    return new GraphtyError({
+        code: "E_OPTION_RANGE",
+        message:
+            value === undefined
+                ? `the layout "${type}" needs the option "${option}"`
+                : `the layout "${type}" does not accept that "${option}"`,
+        source: "config",
+        details: value === undefined ? { ...where, option } : { ...where, option, value },
+        cause: error,
+    });
 }
 
 /**
@@ -1106,7 +1151,7 @@ export class LayoutManager implements Manager {
                 throw cancelledBuild();
             }
 
-            throw this.reportLayoutFailure(type, error, "built");
+            throw this.reportLayoutFailure(type, optionRefusal(type, error, layoutOpts) ?? error, "built");
         }
 
         if (engine instanceof SnapshotLayoutEngine) {
@@ -1353,24 +1398,26 @@ export class LayoutManager implements Manager {
 
         this.logger.error(`Layout could not be ${phase}`, thrown, { layoutType: type });
 
-        if (this.graphContext) {
-            this.eventManager.emitGraphError(this.graphContext, thrown, "layout", { layoutType: type, phase });
-        }
-
-        if (isGraphtyError(thrown)) {
-            return thrown;
-        }
-
         // An uncoded throw from an engine has no better code in the union than this one, and
         // inventing a code is not allowed. An engine that wants a consumer to be able to switch on
-        // its failure throws a `GraphtyError`, and the branch above hands that back untouched. A
-        // sibling package's coded throw (the layout package's E_TOO_LARGE) keeps its code and params.
-        return GraphtyError.wrap(thrown, {
-            code: "E_INTERNAL",
-            message: `the layout "${type}" could not be ${phase}: ${thrown.message}`,
-            source: "layout",
-            details: { layout: type, phase },
-        });
+        // its failure throws a `GraphtyError`, which comes back untouched. A sibling package's
+        // coded throw (the layout package's E_TOO_LARGE, planar's E_NOT_PLANAR) keeps its code and
+        // params. The error event carries the same coded error the caller is handed, so a
+        // consumer listening for refusals can switch on `code` there too.
+        const reported = isGraphtyError(thrown)
+            ? thrown
+            : GraphtyError.wrap(thrown, {
+                  code: "E_INTERNAL",
+                  message: `the layout "${type}" could not be ${phase}: ${thrown.message}`,
+                  source: "layout",
+                  details: { layout: type, phase },
+              });
+
+        if (this.graphContext) {
+            this.eventManager.emitGraphError(this.graphContext, reported, "layout", { layoutType: type, phase });
+        }
+
+        return reported;
     }
 
     /**

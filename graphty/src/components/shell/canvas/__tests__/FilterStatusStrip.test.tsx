@@ -1,7 +1,8 @@
 import React from "react";
 import { describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
-import { fireEvent, render, screen } from "../../../../test/test-utils";
+import { render, screen } from "../../../../test/test-utils";
 import { collapseFilterChips, type FilterStatusChip } from "../filterChips";
 import { FilterStatusStrip } from "../FilterStatusStrip";
 
@@ -41,7 +42,7 @@ describe("FilterStatusStrip", () => {
             expect(collapsed[0].label).toBe("3 filters");
         });
 
-        it("opens Explore from the collapsed chip", () => {
+        it("opens Explore from the collapsed chip", async () => {
             const onOpenExplore = vi.fn();
             render(
                 <FilterStatusStrip
@@ -50,14 +51,14 @@ describe("FilterStatusStrip", () => {
                 />,
             );
 
-            fireEvent.click(screen.getByRole("button", { name: "3 filters" }));
+            await userEvent.click(screen.getByRole("button", { name: "3 filters" }));
 
             expect(onOpenExplore).toHaveBeenCalledTimes(1);
         });
     });
 
     describe("the render-ceiling note", () => {
-        it("names the criterion of the cut and the override with its own cost", () => {
+        it("names the criterion of the cut and the override with its own cost", async () => {
             const onAction = vi.fn();
             render(
                 <FilterStatusStrip
@@ -72,7 +73,7 @@ describe("FilterStatusStrip", () => {
 
             expect(screen.getByText("Edge cap: highest weight first.")).toBeInTheDocument();
 
-            fireEvent.click(screen.getByRole("button", { name: "Show all 1.1M (about 1.4 GB, 8 fps)" }));
+            await userEvent.click(screen.getByRole("button", { name: "Show all 1.1M (about 1.4 GB, 8 fps)" }));
 
             expect(onAction).toHaveBeenCalledTimes(1);
         });

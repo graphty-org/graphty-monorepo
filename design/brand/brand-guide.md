@@ -231,11 +231,10 @@ There is no published logo, brand or trademark policy for Cytoscape or Cytoscape
 **What this means for the co-brand.** Showing the unchanged Cytoscape.js logo to say that
 cytoscape-extensions works with Cytoscape.js is reference use, the kind the helpdesk answer allows.
 Nothing written requires permission, and nothing written forbids the lockup. But a heart joining two
-logos can read as a partnership or an endorsement, and on that the terms are silent. **Ask the
-Cytoscape.js maintainers before publishing the co-brand** (for example through the
-cytoscape-helpdesk list), keep their logo unmodified, and carry the "not affiliated" line until they
-agree. Until then, the plain cytoscape-extensions lockup, which shows no Cytoscape artwork, is the
-safe choice.
+logos can read as a partnership or an endorsement, and on that the terms are silent. So use the
+co-brand only to say that cytoscape-extensions works with Cytoscape.js, keep their logo unmodified,
+and always carry the "not affiliated" line beside it. Where that line cannot fit, use the plain
+cytoscape-extensions lockup, which shows no Cytoscape artwork.
 
 ## Backgrounds and imagery
 

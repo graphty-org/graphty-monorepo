@@ -114,7 +114,14 @@ export function categoriesOf(
     names: (path: Path) => ReadonlyMap<string, string> = () => new Map(),
 ): readonly ValueCategory[] {
     const binding = layer.encode?.[channel];
-    const ready = prepared.find((entry) => entry.channel === channel && entry.categories.length > 0);
+    const ready = prepared.find(
+        (entry) =>
+            entry.channel === channel &&
+            entry.categories.length + entry.lumped.length > 0 &&
+            binding !== undefined &&
+            "by" in binding &&
+            entry.path === binding.by,
+    );
     if (binding === undefined || !("by" in binding) || ready === undefined) {
         return [];
     }
@@ -170,7 +177,7 @@ export function groupsOf(
         const { entry: _entry, ...group } = category;
         return Object.freeze({ ...group, entries: entriesOf(String(category.value)) });
     });
-    const ready = prepared.find((entry) => entry.channel === first);
+    const ready = prepared.find((entry) => entry.channel === first && entry.path === path);
     const named = names(path);
     const folded = (ready?.lumped ?? []).map((key) => {
         const label = named.get(key);

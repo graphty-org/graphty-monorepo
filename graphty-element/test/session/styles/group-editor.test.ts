@@ -106,6 +106,32 @@ describe("a group editor's element side", () => {
         session.dispose();
     });
 
+    it("answers the groups from the layer's last paint while its repaint is pending", async () => {
+        const { session, id } = await grouped();
+        const seen: number[] = [];
+        // What a panel does: read the groups on every change the session announces.
+        const read = (): void => {
+            seen.push(session.styles.groups(id, "data.group").length);
+        };
+        const stops = (["style:changed", "project:changed", "history:changed"] as const).map((event) =>
+            session.on(event, read),
+        );
+        // The editor has shown the groups before the edit.
+        read();
+        await session.styles.setValueEntries(id, "data.group", [{ channel: "node.size", value: 0, entry: 3 }]);
+        read();
+        await session.styles.settled();
+        for (const stop of stops) {
+            stop();
+        }
+        assert.isAbove(seen.length, 0, "the edit was announced");
+        assert.isTrue(
+            seen.every((count) => count === SIZES.length),
+            `every read during the edit saw the groups: ${seen.join(",")}`,
+        );
+        session.dispose();
+    });
+
     it("reads which group a node is in", async () => {
         const { session } = await grouped();
         assert.strictEqual(session.styles.valueAt({ node: "n5" }, "data.group"), 1);

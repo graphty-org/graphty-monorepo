@@ -1969,6 +1969,32 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         return entry === undefined || sources.encoding === undefined ? NO_BINDINGS : sources.encoding(entry);
     };
 
+    /** The last bindings each layer was painted with, kept for {@link steadyEncodingOf}. */
+    const lastPainted = new Map<LayerId, readonly PreparedBinding[]>();
+
+    /**
+     * What a layer was last painted with, for the group reads: between an edit of a layer and the
+     * repaint that follows it the layer has no prepared bindings, and `groups` and `categories`
+     * would answer "none" for that moment -- a group editor reading them on the edit's change
+     * event would close and reopen. They read the layer's last paint instead; `categoriesOf`
+     * matches each binding by its path, so a binding that now reads another value is not answered
+     * from the old one.
+     * @param layerId - The layer.
+     * @returns Its prepared bindings, or the last ones while a repaint is pending.
+     */
+    const steadyEncodingOf: EncodingLookup = (layerId) => {
+        const prepared = encodingOf(layerId);
+        if (prepared.length > 0) {
+            lastPainted.set(layerId, prepared);
+            return prepared;
+        }
+        if (!byId().has(layerId)) {
+            lastPainted.delete(layerId);
+            return prepared;
+        }
+        return lastPainted.get(layerId) ?? prepared;
+    };
+
     /** What an explanation, an unbound report and a resolved rule are read from. */
     const explainSources: ExplainSources = {
         stack: () => painting(current()),
@@ -3863,7 +3889,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 );
             }
 
-            return categoriesOf(entry.layer, channel, encodingOf(id), (path) =>
+            return categoriesOf(entry.layer, channel, steadyEncodingOf(id), (path) =>
                 valueLabelsAt(dispatcher.state.valueLabels, path),
             );
         },
@@ -3877,7 +3903,9 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 );
             }
 
-            return groupsOf(entry.layer, path, encodingOf(id), (at) => valueLabelsAt(dispatcher.state.valueLabels, at));
+            return groupsOf(entry.layer, path, steadyEncodingOf(id), (at) =>
+                valueLabelsAt(dispatcher.state.valueLabels, at),
+            );
         },
 
         setValueEntries(

@@ -7,14 +7,15 @@ import type { NodeIdType } from "../config/GraphBehavior";
 import { Edge } from "../Edge";
 import { SimulationLayoutEngine } from "../layout/SimulationLayoutEngine";
 import { disposeLabelsTogether } from "../meshes/LabelBatch";
-import type { Node, NodeRenderState } from "../Node";
+import { collectResizedNodes, type Node, nodeRebuildsFor, type NodeRenderState, releaseNodeMesh } from "../Node";
 import type { ElementMask } from "../session/scope/index";
-import type { DataManager } from "./DataManager";
+import { type DataManager, disposeReleased } from "./DataManager";
 import type { EventManager } from "./EventManager";
 import type { GraphContext } from "./GraphContext";
 import type { Manager } from "./interfaces";
 import type { LayoutManager } from "./LayoutManager";
 import type { StatsManager } from "./StatsManager";
+import type { NodePaint } from "./StylePainter";
 
 /** The corners of a box in world space. */
 interface FramingBox {
@@ -586,18 +587,17 @@ export class UpdateManager implements Manager {
             // below it is still bounded by the dirty set. A dense index array beside
             // `edgesByIndex` would remove even the walk.
             const wanted = new Set(nodes);
+            const painted: [Node, NodePaint][] = [];
 
             for (const node of this.dataManager.nodes.values()) {
-                if (!wanted.has(node.index)) {
-                    continue;
-                }
-
-                const paint = painter.nodePaint(node.index);
+                const paint = wanted.has(node.index) ? painter.nodePaint(node.index) : null;
 
                 if (paint !== null) {
-                    node.applySessionPaint(paint);
+                    painted.push([node, paint]);
                 }
             }
+
+            this.paintNodes(painted);
         }
 
         for (const index of edges) {
@@ -617,6 +617,41 @@ export class UpdateManager implements Manager {
         // Every element the pass moved has now left its old source mesh, so a mesh this left
         // with no instances is a look nothing on screen has any more.
         this.graphContext.getMeshCache().prune();
+    }
+
+    /**
+     * Hand each node its paint, at a cost in proportion to the nodes rather than to the scene.
+     *
+     * A node whose paint changes its source mesh disposes its mesh, its label and its drag
+     * handler, and Babylon takes each of those out of scene-wide lists one search at a time; a
+     * node whose size or shape changes also used to walk every edge to find its own. Restyling
+     * every node's shape cost the size of the graph per node (issue #2749). So the meshes about to
+     * go are all disposed first, inside the bulk teardown the data manager removes nodes with, the
+     * new ones are built after it, and the edges of the resized nodes are found in one walk.
+     * @param painted - Each node and the paint it is to be drawn with.
+     */
+    private paintNodes(painted: readonly [Node, NodePaint][]): void {
+        const rebuilt = painted.filter(([node, paint]) => nodeRebuildsFor(node, paint)).map(([node]) => node);
+        disposeReleased(rebuilt, [], () => {
+            for (const node of rebuilt) {
+                releaseNodeMesh(node);
+            }
+        });
+        const resized = collectResizedNodes(() => {
+            for (const [node, paint] of painted) {
+                node.applySessionPaint(paint);
+            }
+        });
+
+        if (resized.size === 0) {
+            return;
+        }
+
+        for (const edge of this.dataManager.edges.values()) {
+            if (resized.has(edge.srcNode) || resized.has(edge.dstNode)) {
+                edge.invalidatePositionCache();
+            }
+        }
     }
 
     /**

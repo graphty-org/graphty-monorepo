@@ -1,5 +1,6 @@
 import { renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import {
     type EscapeLadderHandlers,
@@ -26,10 +27,44 @@ function mountDispatcher(options: Options) {
     );
 }
 
-function press(key: string, init: KeyboardEventInit = {}, target: EventTarget = window): KeyboardEvent {
-    const event = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true, ...init });
+/** The modifier keys `press` can hold, as `KeyboardEvent` names them and as keys. */
+const MODIFIERS = [
+    ["metaKey", "Meta"],
+    ["ctrlKey", "Control"],
+    ["shiftKey", "Shift"],
+    ["altKey", "Alt"],
+] as const;
 
-    target.dispatchEvent(event);
+/**
+ * Press and release a real key (vitest's `userEvent`, which drives Playwright) on the focused
+ * element, holding the modifiers `init` names.
+ * @param key - the key, as `KeyboardEvent.key` names it
+ * @param init - which modifiers to hold
+ * @param target - what to focus first; `window` leaves focus on the page body
+ * @returns the keydown the browser dispatched
+ */
+async function press(key: string, init: KeyboardEventInit = {}, target: EventTarget = window): Promise<KeyboardEvent> {
+    if (target instanceof HTMLElement) {
+        target.focus();
+    } else if (document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur();
+    }
+
+    let event: KeyboardEvent | undefined;
+    const listener = (seen: KeyboardEvent): void => {
+        event = seen;
+    };
+
+    window.addEventListener("keydown", listener);
+    const held = MODIFIERS.filter(([flag]) => init[flag] === true).map(([, name]) => name);
+    await userEvent.keyboard(
+        `${held.map((name) => `{${name}>}`).join("")}{${key}}${held.map((name) => `{/${name}}`).join("")}`,
+    );
+    window.removeEventListener("keydown", listener);
+
+    if (event === undefined) {
+        throw new Error(`no keydown for ${key}`);
+    }
 
     return event;
 }
@@ -61,176 +96,177 @@ describe("useShellKeyBindings", () => {
     });
 
     describe("dispatching", () => {
-        it("fires the handler for a matching chord", () => {
+        it("fires the handler for a matching chord", async () => {
             const onPalette = vi.fn();
 
             mountDispatcher({ handlers: { commandPalette: onPalette } });
-            press("k", { metaKey: true });
+            await press("k", { metaKey: true });
 
             expect(onPalette).toHaveBeenCalledTimes(1);
         });
 
-        it("does not fire a handler for a chord nobody pressed", () => {
+        it("does not fire a handler for a chord nobody pressed", async () => {
             const onPalette = vi.fn();
 
             mountDispatcher({ handlers: { commandPalette: onPalette } });
-            press("k");
+            await press("k");
 
             expect(onPalette).not.toHaveBeenCalled();
         });
 
-        it("stops listening when it is disabled", () => {
+        it("stops listening when it is disabled", async () => {
             const onPalette = vi.fn();
 
             mountDispatcher({ handlers: { commandPalette: onPalette }, enabled: false });
-            press("k", { metaKey: true });
+            await press("k", { metaKey: true });
 
             expect(onPalette).not.toHaveBeenCalled();
         });
 
-        it("stops listening when the hook unmounts", () => {
+        it("stops listening when the hook unmounts", async () => {
             const onPalette = vi.fn();
             const { unmount } = mountDispatcher({ handlers: { commandPalette: onPalette } });
 
             unmount();
-            press("k", { metaKey: true });
+            await press("k", { metaKey: true });
 
             expect(onPalette).not.toHaveBeenCalled();
         });
     });
 
     describe("modifier normalisation", () => {
-        it("accepts Cmd and Ctrl for the same binding", () => {
+        it("accepts Cmd and Ctrl for the same binding", async () => {
             const onPalette = vi.fn();
 
             mountDispatcher({ handlers: { commandPalette: onPalette } });
-            press("k", { metaKey: true });
-            press("k", { ctrlKey: true });
+            await press("k", { metaKey: true });
+            await press("k", { ctrlKey: true });
 
             expect(onPalette).toHaveBeenCalledTimes(2);
         });
 
-        it("does not fire an unmodified binding while Cmd is held", () => {
+        it("does not fire an unmodified binding while Cmd is held", async () => {
             const onToggleMinimap = vi.fn();
 
             mountDispatcher({ handlers: { toggleMinimap: onToggleMinimap } });
-            press("m", { metaKey: true });
+            await press("m", { metaKey: true });
 
             expect(onToggleMinimap).not.toHaveBeenCalled();
 
-            press("m");
+            await press("m");
 
             expect(onToggleMinimap).toHaveBeenCalledTimes(1);
         });
 
-        it("separates a binding from its Shift twin", () => {
+        it("separates a binding from its Shift twin", async () => {
             const onTimeSlider = vi.fn();
             const onDrawer = vi.fn();
 
             mountDispatcher({ handlers: { toggleTimeSlider: onTimeSlider, toggleDataDrawer: onDrawer } });
-            press("T", { shiftKey: true });
+            await press("T", { shiftKey: true });
 
             expect(onDrawer).toHaveBeenCalledTimes(1);
             expect(onTimeSlider).not.toHaveBeenCalled();
         });
 
-        it("fires a shift-produced character even though Shift is down", () => {
+        it("fires a shift-produced character even though Shift is down", async () => {
             const onShortcuts = vi.fn();
 
             mountDispatcher({ handlers: { keyboardShortcuts: onShortcuts } });
-            press("?", { shiftKey: true });
+            await press("?", { shiftKey: true });
 
             expect(onShortcuts).toHaveBeenCalledTimes(1);
         });
     });
 
     describe("text entry", () => {
-        it("recognises inputs, text areas and contenteditable regions", () => {
+        it("recognises inputs, text areas and contenteditable regions", async () => {
             // The composed path is only populated while the event is being
-            // dispatched, which is exactly when the dispatcher reads it.
-            const textEntryAt = (target: EventTarget): boolean => {
+            // dispatched, which is exactly when the dispatcher reads it. A real key press lands
+            // on the focused element, so the searchbox is focusable, as a real one is.
+            const textEntryAt = async (target: EventTarget): Promise<boolean> => {
                 let seen = false;
                 const listener = (event: Event): void => {
                     seen = isTextEntryTarget(event);
                 };
 
                 window.addEventListener("keydown", listener);
-                press("d", {}, target);
+                await press("d", {}, target);
                 window.removeEventListener("keydown", listener);
 
                 return seen;
             };
 
             expect(isTextEntryTarget(new KeyboardEvent("keydown", { bubbles: true }))).toBe(false);
-            expect(textEntryAt(mountElement('<input type="text" />'))).toBe(true);
-            expect(textEntryAt(mountElement("<textarea></textarea>"))).toBe(true);
-            expect(textEntryAt(mountElement('<div contenteditable="true"><span>note</span></div>'))).toBe(true);
-            expect(textEntryAt(mountElement('<div role="searchbox"></div>'))).toBe(true);
-            expect(textEntryAt(mountElement('<input type="checkbox" />'))).toBe(false);
-            expect(textEntryAt(mountElement("<button>Run</button>"))).toBe(false);
+            expect(await textEntryAt(mountElement('<input type="text" />'))).toBe(true);
+            expect(await textEntryAt(mountElement("<textarea></textarea>"))).toBe(true);
+            expect(await textEntryAt(mountElement('<div contenteditable="true"><span>note</span></div>'))).toBe(true);
+            expect(await textEntryAt(mountElement('<div role="searchbox" tabindex="0"></div>'))).toBe(true);
+            expect(await textEntryAt(mountElement('<input type="checkbox" />'))).toBe(false);
+            expect(await textEntryAt(mountElement("<button>Run</button>"))).toBe(false);
         });
 
-        it("does not fire a binding while focus is in a text field", () => {
+        it("does not fire a binding while focus is in a text field", async () => {
             const onToggleMinimap = vi.fn();
             const input = mountElement('<input type="text" />');
 
             mountDispatcher({ handlers: { toggleMinimap: onToggleMinimap } });
-            press("m", {}, input);
+            await press("m", {}, input);
 
             expect(onToggleMinimap).not.toHaveBeenCalled();
         });
 
-        it("still fires from a control that is not text entry", () => {
+        it("still fires from a control that is not text entry", async () => {
             const onToggleMinimap = vi.fn();
             const button = mountElement("<button>Run</button>");
 
             mountDispatcher({ handlers: { toggleMinimap: onToggleMinimap } });
-            press("m", {}, button);
+            await press("m", {}, button);
 
             expect(onToggleMinimap).toHaveBeenCalledTimes(1);
         });
 
-        it("leaves an arrow on a radio or a slider to that control", () => {
+        it("leaves an arrow on a radio or a slider to that control", async () => {
             const panOrOrbit = vi.fn();
             const radio = mountElement('<input type="radio" name="mode" />');
             const slider = mountElement('<input type="range" />');
 
             mountDispatcher({ handlers: { panOrOrbit } });
-            press("ArrowRight", {}, radio);
-            press("ArrowUp", {}, slider);
+            await press("ArrowRight", {}, radio);
+            await press("ArrowUp", {}, slider);
 
             expect(panOrOrbit).not.toHaveBeenCalled();
 
-            press("m", {}, radio);
-            press("ArrowRight", {}, mountElement("<button>Run</button>"));
+            await press("m", {}, radio);
+            await press("ArrowRight", {}, mountElement("<button>Run</button>"));
 
             expect(panOrOrbit).toHaveBeenCalledTimes(1);
         });
 
-        it("leaves Escape to the widget while focus is in a text field", () => {
+        it("leaves Escape to the widget while focus is in a text field", async () => {
             const closeTopmostTransient = vi.fn(() => true);
             const input = mountElement('<input type="text" />');
 
             mountDispatcher({ handlers: {}, escapeLadder: { closeTopmostTransient } });
-            press("Escape", {}, input);
+            await press("Escape", {}, input);
 
             expect(closeTopmostTransient).not.toHaveBeenCalled();
         });
     });
 
     describe("the Escape ladder", () => {
-        it("stops at the first rung that consumes the press", () => {
+        it("stops at the first rung that consumes the press", async () => {
             const cancelDragOrMarquee = vi.fn(() => true);
             const closeTopmostTransient = vi.fn(() => true);
 
             mountDispatcher({ handlers: {}, escapeLadder: { cancelDragOrMarquee, closeTopmostTransient } });
-            press("Escape");
+            await press("Escape");
 
             expect(cancelDragOrMarquee).toHaveBeenCalledTimes(1);
             expect(closeTopmostTransient).not.toHaveBeenCalled();
         });
 
-        it("falls through a rung that had nothing to do", () => {
+        it("falls through a rung that had nothing to do", async () => {
             const cancelDragOrMarquee = vi.fn(() => false);
             /* This rung used to be `closeNarrowOverlay`, which was deleted from the ladder
                on 2026-09-14 with the narrow layout itself. Any rung between the first and
@@ -242,25 +278,26 @@ describe("useShellKeyBindings", () => {
                 handlers: {},
                 escapeLadder: { cancelDragOrMarquee, closeTopmostTransient, clearSelection },
             });
-            press("Escape");
+            await press("Escape");
 
             expect(cancelDragOrMarquee).toHaveBeenCalledTimes(1);
             expect(closeTopmostTransient).toHaveBeenCalledTimes(1);
             expect(clearSelection).not.toHaveBeenCalled();
         });
 
-        it("does nothing when every rung declines", () => {
+        it("does nothing when every rung declines", async () => {
             const clearSelection = vi.fn(() => false);
 
             mountDispatcher({ handlers: {}, escapeLadder: { clearSelection } });
 
-            expect(() => press("Escape")).not.toThrow();
+            // A rung that threw would surface as an error out of the real dispatch
+            await expect(press("Escape")).resolves.toBeInstanceOf(KeyboardEvent);
             expect(clearSelection).toHaveBeenCalledTimes(1);
         });
     });
 
     describe("modal preconditions", () => {
-        it("suppresses every binding but Escape while a modal is open", () => {
+        it("suppresses every binding but Escape while a modal is open", async () => {
             const onPalette = vi.fn();
             const closeTopmostTransient = vi.fn(() => true);
 
@@ -269,8 +306,8 @@ describe("useShellKeyBindings", () => {
                 escapeLadder: { closeTopmostTransient },
                 modalOpen: true,
             });
-            press("k", { metaKey: true });
-            press("Escape");
+            await press("k", { metaKey: true });
+            await press("Escape");
 
             expect(onPalette).not.toHaveBeenCalled();
             expect(closeTopmostTransient).toHaveBeenCalledTimes(1);
@@ -278,51 +315,55 @@ describe("useShellKeyBindings", () => {
     });
 
     describe("browser defaults", () => {
-        it("intercepts the default only where the table says to", () => {
+        it("intercepts the default only where the table says to", async () => {
             mountDispatcher({ handlers: { commandPalette: vi.fn(), toggleMinimap: vi.fn() } });
 
-            expect(press("k", { metaKey: true }).defaultPrevented).toBe(true);
-            expect(press("m").defaultPrevented).toBe(false);
+            expect((await press("k", { metaKey: true })).defaultPrevented).toBe(true);
+            expect((await press("m")).defaultPrevented).toBe(false);
         });
 
-        it("leaves the default alone when no handler claims the action", () => {
+        it("leaves the default alone when no handler claims the action", async () => {
             mountDispatcher({ handlers: {} });
 
-            expect(press("k", { metaKey: true }).defaultPrevented).toBe(false);
+            expect((await press("k", { metaKey: true })).defaultPrevented).toBe(false);
         });
     });
 
     describe("held bindings", () => {
-        it("calls the handler on the keydown and again on the keyup", () => {
+        it("calls the handler on the keydown and again on the keyup", async () => {
             const panModifier = vi.fn();
 
             mountDispatcher({ handlers: { panModifier } });
 
-            window.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true, cancelable: true }));
-            window.dispatchEvent(new KeyboardEvent("keyup", { key: " ", bubbles: true, cancelable: true }));
+            await userEvent.keyboard("{ >}");
+            await userEvent.keyboard("{/ }");
 
             expect(panModifier).toHaveBeenCalledTimes(2);
             expect(panModifier.mock.calls[0][0].type).toBe("keydown");
             expect(panModifier.mock.calls[1][0].type).toBe("keyup");
         });
 
-        it("ignores auto-repeat on a held binding", () => {
+        it("ignores auto-repeat on a held binding", async () => {
             const panModifier = vi.fn();
 
             mountDispatcher({ handlers: { panModifier } });
 
-            window.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true }));
-            window.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true, repeat: true }));
+            // Held down: the second keydown is the browser's auto-repeat
+            await userEvent.keyboard("{ >2}");
 
             expect(panModifier).toHaveBeenCalledTimes(1);
+
+            await userEvent.keyboard("{/ }");
         });
 
-        it("does not deliver a keyup to a binding that is not held", () => {
+        it("does not deliver a keyup to a binding that is not held", async () => {
             const onToggleMinimap = vi.fn();
 
+            // Pressed before the bindings listen, so the release is the only event they see
+            await userEvent.keyboard("{m>}");
             mountDispatcher({ handlers: { toggleMinimap: onToggleMinimap } });
 
-            window.dispatchEvent(new KeyboardEvent("keyup", { key: "m", bubbles: true }));
+            await userEvent.keyboard("{/m}");
 
             expect(onToggleMinimap).not.toHaveBeenCalled();
         });

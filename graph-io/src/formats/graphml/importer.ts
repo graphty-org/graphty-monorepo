@@ -1126,9 +1126,6 @@ class GraphmlReader implements XmlHandler {
         known: ReadonlySet<string>,
         line: number,
     ): void {
-        if (attrs.size === 0) {
-            return;
-        }
         for (const name of attrs.keys()) {
             if (known.has(name) || name === "xmlns" || /^(xmlns|xml|xsi):/.test(name)) {
                 continue;
@@ -1150,14 +1147,7 @@ class GraphmlReader implements XmlHandler {
             if (names.size > MAX_UNKNOWN_ATTRIBUTE_NAMES && !hint) {
                 continue;
             }
-            let message: string;
-            if (hint) {
-                message = `the <${kind}> parse hint ${name} is ignored`;
-            } else if (SCHEMA_ATTRIBUTES.has(name)) {
-                message = `the <${kind}> attribute ${name} is not kept`;
-            } else {
-                message = `the <${kind}> attribute ${name} is not a GraphML attribute; it is not kept`;
-            }
+            const message = unreadAttributeMessage(kind, name, hint);
             this.report.warning("unsupported", code, message, { line, element: name });
         }
     }
@@ -2728,4 +2718,21 @@ function unknownElementMessage(name: string): string {
     return GRAPHML_ELEMENTS.has(name)
         ? `element <${name}> is not allowed at this place in a GraphML file and was skipped`
         : `element <${name}> is not GraphML and was skipped`;
+}
+
+/**
+ * The warning text for an attribute the importer does not keep.
+ * @param kind - the element name
+ * @param name - the attribute name
+ * @param hint - whether the attribute is a `parse.*` hint
+ * @returns the message
+ */
+function unreadAttributeMessage(kind: string, name: string, hint: boolean): string {
+    if (hint) {
+        return `the <${kind}> parse hint ${name} is ignored`;
+    }
+    if (SCHEMA_ATTRIBUTES.has(name)) {
+        return `the <${kind}> attribute ${name} is not kept`;
+    }
+    return `the <${kind}> attribute ${name} is not a GraphML attribute; it is not kept`;
 }

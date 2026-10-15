@@ -13,13 +13,30 @@ import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 
-import { build, type Rollup } from "vite";
+import type { InlineConfig, Rollup } from "vite";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
+type Chunk = Pick<Rollup.OutputChunk, "fileName" | "isEntry" | "code" | "dynamicImports">;
 
 const pkg = fileURLToPath(new URL("..", import.meta.url));
 let dir = "";
-let chunks: Rollup.OutputChunk[] = [];
+let chunks: Chunk[] = [];
+
+/**
+ * Runs a Vite build in a child process (test/vite-build.mjs), which coverage does not instrument.
+ * @param config - the inline Vite config, JSON-serializable
+ * @returns the chunks of a build that writes nothing; an empty array otherwise
+ */
+async function viteBuild(config: InlineConfig): Promise<Chunk[]> {
+    const script = fileURLToPath(new URL("vite-build.mjs", import.meta.url));
+    const { stdout } = await promisify(execFile)(process.execPath, [script, JSON.stringify(config)], {
+        cwd: pkg,
+        maxBuffer: 512 * 1024 * 1024,
+    });
+    return stdout === "" ? [] : (JSON.parse(stdout) as Chunk[]);
+}
 
 beforeAll(async () => {
     expect(existsSync(join(pkg, "dist/gpu.js")), "build the package first (npm run build)").toBe(true);
@@ -30,13 +47,12 @@ beforeAll(async () => {
         join(dir, "main.js"),
         'import graphtyCytoscape from "@graphty/cytoscape-extensions";\nconsole.log(graphtyCytoscape);\n',
     );
-    const out = (await build({
+    chunks = await viteBuild({
         root: dir,
         configFile: false,
         logLevel: "silent",
         build: { write: false, minify: false, rollupOptions: { input: join(dir, "main.js") } },
-    })) as Rollup.RollupOutput;
-    chunks = out.output.filter((o): o is Rollup.OutputChunk => o.type === "chunk");
+    });
 });
 
 afterAll(() => {
@@ -59,7 +75,7 @@ describe("a browser bundle", () => {
     it("loads the generators and the file formats only when asked, and bundles no dataset's data", () => {
         const [main] = chunks.filter((c) => c.isEntry);
         expect(main.code).not.toMatch(/function barabasiAlbertGraph\b|function fetchDataset\b|graphmlImporter/);
-        const owner = (re: RegExp): Rollup.OutputChunk[] => chunks.filter((c) => !c.isEntry && re.test(c.code));
+        const owner = (re: RegExp): Chunk[] => chunks.filter((c) => !c.isEntry && re.test(c.code));
         expect(owner(/function barabasiAlbertGraph\b/)).toHaveLength(1);
         expect(owner(/function fetchDataset\b/)).toHaveLength(1);
         expect(owner(/graphmlImporter/).length).toBeGreaterThan(0);
@@ -120,7 +136,7 @@ describe("a Vite production build whose entry module awaits a loading method at 
                 "",
             ].join("\n"),
         );
-        await build({
+        await viteBuild({
             root: page,
             configFile: false,
             logLevel: "silent",

@@ -2153,9 +2153,9 @@ describe("release.yml", () => {
         assert.match(workflow("hosts.yml"), /workflow_call:\n\s+inputs:\n\s+ref:/);
         assert.match(
             autosaveMacos,
-            /uses: \.\/\.github\/workflows\/work-protection-macos\.yml\n\s+with:\n\s+ref: \$\{\{ needs.pick.outputs.sha \}\}/,
+            /uses: \.\/\.github\/workflows\/work-protection-macos\.yml\n\s+with:\n\s+candidate: \$\{\{ needs.pick.outputs.sha \}\}/,
         );
-        assert.match(workflow("work-protection-macos.yml"), /workflow_call:\n\s+inputs:\n\s+ref:/);
+        assert.match(workflow("work-protection-macos.yml"), /workflow_call:\n\s+inputs:\n\s+candidate:/);
         assert.match(audit, /ref: \$\{\{ needs.pick.outputs.sha \}\}/);
         assert.match(audit, /run: pnpm audit --prod --audit-level=high/);
         assert.doesNotMatch(audit, /continue-on-error/, "a high advisory holds the release");

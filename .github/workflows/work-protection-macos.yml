@@ -9,19 +9,23 @@
 # macos-26 is pinned (macos-latest drifts), and the iOS job selects Xcode 26.
 #
 # The bundle the tests serve is built once, on Linux, and handed to the macOS jobs as an artifact.
+#
+# What it checks out: the release train's candidate, a commit already on master, passed as `candidate`; a
+# dispatch has no inputs and checks out the ref it was dispatched on. No job restores or saves a cache (no
+# `cache:` on setup-node), so nothing this workflow runs can feed a cache that a later run restores.
 name: Work protection (macOS)
 on:
     # The release train (release.yml) calls it with the commit it selected.
     workflow_call:
         inputs:
-            ref:
-                description: "the commit to test"
+            candidate:
+                description: "the commit to test: the release candidate, already on master"
                 type: string
                 required: true
     workflow_dispatch:
 permissions: { contents: read }
 concurrency:
-    group: work-protection-macos-${{ inputs.ref && format('release-{0}', inputs.ref) || github.ref }}
+    group: work-protection-macos-${{ inputs.candidate && format('release-{0}', inputs.candidate) || github.ref }}
     cancel-in-progress: false
 
 jobs:
@@ -31,10 +35,10 @@ jobs:
         timeout-minutes: 30
         steps:
             - uses: actions/checkout@v4
-              with: { ref: "${{ inputs.ref }}" }
+              with: { ref: "${{ inputs.candidate }}" }
             - uses: pnpm/action-setup@v4
             - uses: actions/setup-node@v4
-              with: { node-version: 22.x, cache: pnpm }
+              with: { node-version: 22.x }
             - run: pnpm install --frozen-lockfile
               env: { HUSKY: "0" }
             - run: pnpm exec nx run graphty-element:build
@@ -57,10 +61,10 @@ jobs:
         defaults: { run: { working-directory: graphty-element } }
         steps:
             - uses: actions/checkout@v4
-              with: { ref: "${{ inputs.ref }}" }
+              with: { ref: "${{ inputs.candidate }}" }
             - uses: pnpm/action-setup@v4
             - uses: actions/setup-node@v4
-              with: { node-version: 22.x, cache: pnpm }
+              with: { node-version: 22.x }
             - run: pnpm install --frozen-lockfile
               working-directory: .
               env: { HUSKY: "0" }
@@ -84,10 +88,10 @@ jobs:
         defaults: { run: { working-directory: graphty-element } }
         steps:
             - uses: actions/checkout@v4
-              with: { ref: "${{ inputs.ref }}" }
+              with: { ref: "${{ inputs.candidate }}" }
             - uses: pnpm/action-setup@v4
             - uses: actions/setup-node@v4
-              with: { node-version: 22.x, cache: pnpm }
+              with: { node-version: 22.x }
             - run: pnpm install --frozen-lockfile
               working-directory: .
               env: { HUSKY: "0" }
@@ -111,7 +115,7 @@ jobs:
         defaults: { run: { working-directory: graphty-element } }
         steps:
             - uses: actions/checkout@v4
-              with: { ref: "${{ inputs.ref }}" }
+              with: { ref: "${{ inputs.candidate }}" }
             - name: Xcode 26
               run: |
                   xcode=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
@@ -121,7 +125,7 @@ jobs:
                   xcrun simctl list runtimes
             - uses: pnpm/action-setup@v4
             - uses: actions/setup-node@v4
-              with: { node-version: 22.x, cache: pnpm }
+              with: { node-version: 22.x }
             - run: pnpm install --frozen-lockfile
               working-directory: .
               env: { HUSKY: "0" }

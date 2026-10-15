@@ -274,7 +274,7 @@ jobs:
             contents: read
         uses: ./.github/workflows/work-protection-macos.yml
         with:
-            ref: ${{ needs.pick.outputs.sha }}
+            candidate: ${{ needs.pick.outputs.sha }}
 
     # The security audit lives here, not in CI: a high or critical advisory against the candidate's shipped
     # (production) dependencies holds the release, never an unrelated pull request. Development tools are left

@@ -414,7 +414,8 @@ function cancelEndedPrJobs(state, cancel) {
         const rec = state.prs?.[String(job.pr)];
         if (!rec) cancel(job, `#${job.pr} closed or merged`);
         // A holder that pushed made it green, or is waiting on its CI: the done check settles that.
-        else if (!prWork(String(job.pr), rec, state) && !(job.holder && job.pushedHead)) {
+        // A holder that made it a draft is reworking it (REWORK_RULE in job-text.mjs, issue 2727).
+        else if (!prWork(String(job.pr), rec, state) && !(job.holder && (job.pushedHead || rec.draft))) {
             cancel(job, `#${job.pr} no longer needs a worker`);
         }
     }

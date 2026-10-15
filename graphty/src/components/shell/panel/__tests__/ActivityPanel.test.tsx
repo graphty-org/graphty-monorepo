@@ -1,7 +1,9 @@
 import React from "react";
 import { describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
-import { fireEvent, render, screen, within } from "../../../../test/test-utils";
+import { pressAndHold, releaseOver } from "../../../../test/real-pointer";
+import { render, screen, within } from "../../../../test/test-utils";
 import {
     ACTIVITY_PANEL_MAX_WIDTH,
     ACTIVITY_PANEL_MIN_WIDTH,
@@ -102,7 +104,7 @@ describe("ActivityPanel", () => {
                 </ActivityPanel>,
             );
 
-            fireEvent.click(screen.getByRole("button", { name: "More" }));
+            await userEvent.click(screen.getByRole("button", { name: "More" }));
 
             const items = await screen.findAllByRole("menuitem");
             expect(items.map((item) => item.textContent)).toEqual([
@@ -132,9 +134,9 @@ describe("ActivityPanel", () => {
 
             expect(screen.getByRole("button", { name: "Expand One" })).toHaveAttribute("aria-expanded", "false");
 
-            fireEvent.click(screen.getByRole("button", { name: "More" }));
+            await userEvent.click(screen.getByRole("button", { name: "More" }));
             const expandAll = await screen.findByRole("menuitem", { name: EXPAND_ALL_SECTIONS });
-            fireEvent.click(expandAll);
+            await userEvent.click(expandAll);
 
             expect(await screen.findByRole("button", { name: "Collapse One" })).toHaveAttribute(
                 "aria-expanded",
@@ -158,9 +160,9 @@ describe("ActivityPanel", () => {
                 </ActivityPanel>,
             );
 
-            fireEvent.click(screen.getByRole("button", { name: "More" }));
+            await userEvent.click(screen.getByRole("button", { name: "More" }));
             const collapseAll = await screen.findByRole("menuitem", { name: COLLAPSE_ALL_SECTIONS });
-            fireEvent.click(collapseAll);
+            await userEvent.click(collapseAll);
 
             expect(await screen.findByRole("button", { name: "Expand One" })).toHaveAttribute("aria-expanded", "false");
         });
@@ -223,7 +225,7 @@ describe("ActivityPanel", () => {
             expect(screen.queryByRole("separator")).not.toBeInTheDocument();
         });
 
-        it("moves the boundary from the keyboard and consumes the press", () => {
+        it("moves the boundary from the keyboard and consumes the press", async () => {
             const onWidthChange = vi.fn();
 
             renderInShell(
@@ -239,13 +241,21 @@ describe("ActivityPanel", () => {
             );
 
             const handle = screen.getByRole("separator", { name: "Resize the panel" });
-            const consumed = !fireEvent.keyDown(handle, { key: "ArrowRight" });
+            // Whether the key's default was prevented, read after React's own listener has run
+            let consumed = false;
+            const record = (event: KeyboardEvent): void => {
+                consumed = event.defaultPrevented;
+            };
+            document.addEventListener("keydown", record);
+            handle.focus();
+            await userEvent.keyboard("{ArrowRight}");
+            document.removeEventListener("keydown", record);
 
             expect(onWidthChange).toHaveBeenCalledWith(ACTIVITY_PANEL_WIDTH_DEFAULT + 1);
             expect(consumed).toBe(true);
         });
 
-        it("turns text selection off for the length of a drag", () => {
+        it("turns text selection off for the length of a drag", async () => {
             renderInShell(
                 <ActivityPanel
                     activity="explore"
@@ -259,11 +269,13 @@ describe("ActivityPanel", () => {
             );
 
             const handle = screen.getByRole("separator", { name: "Resize the panel" });
-            fireEvent.pointerDown(handle, { button: 0, pointerId: 1, clientX: 10 });
+            await pressAndHold(handle);
             expect(document.documentElement.style.userSelect).toBe("none");
-            expect(fireEvent(document.body, new Event("selectstart", { bubbles: true, cancelable: true }))).toBe(false);
+            expect(document.body.dispatchEvent(new Event("selectstart", { bubbles: true, cancelable: true }))).toBe(
+                false,
+            );
 
-            fireEvent.pointerUp(window, { pointerId: 1 });
+            await releaseOver(handle);
             expect(document.documentElement.style.userSelect).toBe("");
         });
 

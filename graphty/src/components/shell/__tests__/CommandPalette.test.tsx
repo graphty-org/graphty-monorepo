@@ -1,7 +1,8 @@
 import type { FindHit, FindResult } from "@graphty/graphty-element";
 import { describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
-import { act, fireEvent, render, screen, waitFor } from "../../../test/test-utils";
+import { act, render, screen, waitFor } from "../../../test/test-utils";
 import {
     COMMAND_PALETTE_EMPTY,
     COMMAND_PALETTE_FIND_LIMIT,
@@ -53,9 +54,7 @@ describe("CommandPalette", () => {
         it("matches every word against the group and the label", async () => {
             renderPalette();
 
-            fireEvent.change(await screen.findByLabelText("Search commands, nodes and edges"), {
-                target: { value: "show tool" },
-            });
+            await userEvent.fill(await screen.findByLabelText("Search commands, nodes and edges"), "show tool");
 
             expect(screen.getAllByRole("option")).toHaveLength(1);
             expect(screen.getByRole("option", { name: /Show canvas toolbar/ })).toBeInTheDocument();
@@ -64,9 +63,7 @@ describe("CommandPalette", () => {
         it("says so when nothing matches", async () => {
             renderPalette();
 
-            fireEvent.change(await screen.findByLabelText("Search commands, nodes and edges"), {
-                target: { value: "nothing here" },
-            });
+            await userEvent.fill(await screen.findByLabelText("Search commands, nodes and edges"), "nothing here");
 
             expect(screen.getByText(COMMAND_PALETTE_EMPTY)).toBeInTheDocument();
         });
@@ -101,9 +98,7 @@ describe("CommandPalette", () => {
             const onPickElement = vi.fn();
             const { onClose } = renderPalette({ find, onPickElement });
 
-            fireEvent.change(await screen.findByLabelText("Search commands, nodes and edges"), {
-                target: { value: "data" },
-            });
+            await userEvent.fill(await screen.findByLabelText("Search commands, nodes and edges"), "data");
 
             await waitFor(() => {
                 expect(screen.getAllByRole("option").map((row) => row.textContent)).toEqual([
@@ -114,7 +109,7 @@ describe("CommandPalette", () => {
             });
             expect(find).toHaveBeenLastCalledWith("data", { limit: COMMAND_PALETTE_FIND_LIMIT });
 
-            fireEvent.click(screen.getByRole("option", { name: /Alice -- Bob/ }));
+            await userEvent.click(screen.getByRole("option", { name: /Alice -- Bob/ }));
 
             expect(onClose).toHaveBeenCalledTimes(1);
             expect(onPickElement).toHaveBeenCalledWith(edge);
@@ -164,7 +159,7 @@ describe("CommandPalette", () => {
                 items: [{ id: "one", group: "View", label: "Zoom to fit", onSelect }],
             });
 
-            fireEvent.click(await screen.findByRole("option", { name: /Zoom to fit/ }));
+            await userEvent.click(await screen.findByRole("option", { name: /Zoom to fit/ }));
 
             expect(onClose).toHaveBeenCalledTimes(1);
             expect(onSelect).toHaveBeenCalledTimes(1);

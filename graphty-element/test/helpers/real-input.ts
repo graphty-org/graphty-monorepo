@@ -87,6 +87,8 @@ function modifierBits(modifiers: Modifiers = {}): number {
  * @param point - Where, on the element.
  * @param buttons - The buttons held during the event.
  * @param modifiers - The modifier keys held.
+ * @param timestamp - When the event happened, in seconds since the epoch; the browser stamps it
+ *     with the time it arrives when this is left out.
  */
 async function mouseEvent(
     type: "mouseMoved" | "mousePressed" | "mouseReleased",
@@ -94,6 +96,7 @@ async function mouseEvent(
     point: Point,
     buttons: Buttons,
     modifiers?: Modifiers,
+    timestamp?: number,
 ): Promise<void> {
     const at = toPage(element, point);
     await send()("Input.dispatchMouseEvent", {
@@ -104,6 +107,7 @@ async function mouseEvent(
         buttons,
         clickCount: type === "mouseMoved" ? 0 : 1,
         modifiers: modifierBits(modifiers),
+        ...(timestamp === undefined ? {} : { timestamp }),
     });
 }
 
@@ -132,6 +136,28 @@ export async function click(element: Element, point: Point, modifiers?: Modifier
         mouseEvent("mousePressed", element, point, 1, modifiers),
         mouseEvent("mouseReleased", element, point, 0, modifiers),
     ]);
+}
+
+/**
+ * Press and release the left button at one point, the two events stamped `heldMs` apart, so the
+ * element sees a button held that long however quickly the page gets to them. Both stamps are in
+ * the past when they are sent.
+ * @param element - The element the point is on.
+ * @param point - Where.
+ * @param heldMs - How long the button was down, by the events' own stamps.
+ * @param beforeRelease - Run after the press is handled and before the release is sent.
+ */
+export async function pressFor(
+    element: Element,
+    point: Point,
+    heldMs: number,
+    beforeRelease?: () => void,
+): Promise<void> {
+    const releasedAt = (performance.timeOrigin + performance.now()) / 1000;
+    await mouseEvent("mouseMoved", element, point, 0);
+    await mouseEvent("mousePressed", element, point, 1, undefined, releasedAt - heldMs / 1000);
+    beforeRelease?.();
+    await mouseEvent("mouseReleased", element, point, 0, undefined, releasedAt);
 }
 
 /**
@@ -203,10 +229,11 @@ export async function drag(
  * @param element - The element the point is on.
  * @param point - Where the pointer is.
  * @param deltaY - How far; positive scrolls down (away from the reader).
+ * @param deltaX - How far sideways; positive scrolls right.
  */
-export async function wheel(element: Element, point: Point, deltaY: number): Promise<void> {
+export async function wheel(element: Element, point: Point, deltaY: number, deltaX = 0): Promise<void> {
     const at = toPage(element, point);
-    await send()("Input.dispatchMouseEvent", { type: "mouseWheel", x: at.x, y: at.y, deltaX: 0, deltaY });
+    await send()("Input.dispatchMouseEvent", { type: "mouseWheel", x: at.x, y: at.y, deltaX, deltaY });
 }
 
 /**

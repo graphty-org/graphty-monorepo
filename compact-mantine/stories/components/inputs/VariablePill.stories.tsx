@@ -4,6 +4,7 @@ import { expect, fn, userEvent, within } from "@storybook/test";
 import { VariablePill } from "../../../src";
 import { StateGrid } from "../../helpers/input-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
+import { storyWaitOptions } from "../../helpers/settled";
 
 /**
  * A value bound to a design variable: a pill holding the variable's name inside a number field,
@@ -127,7 +128,7 @@ export const PillFromTheKeyboard: Story = {
         // Focus opens the tooltip after its delay; the story ends once it shows, so the picture
         // never depends on whether the delay ran out first.
         await expect(
-            await within(canvasElement.ownerDocument.body).findByRole("tooltip", {}, { timeout: 2000 }),
+            await within(canvasElement.ownerDocument.body).findByRole("tooltip", {}, storyWaitOptions(2000)),
         ).toBeVisible();
     },
 };

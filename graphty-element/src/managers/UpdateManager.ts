@@ -259,6 +259,14 @@ export class UpdateManager implements Manager {
     private appliedAnything = false;
 
     /**
+     * The nodes and edges the last pass drew as selected. A pass where only the selection moved
+     * un-selects these and selects the mask's members, so its cost is the size of the two
+     * selections rather than of the graph (issue #2899).
+     */
+    private drawnSelectedNodes = new Set<Node>();
+    private drawnSelectedEdges = new Set<Edge>();
+
+    /**
      * Whether the state the most recent update pass left behind is a finished picture: the layout
      * has stopped, no framing is outstanding that could still move the camera, no style work is
      * queued, and every drawn mesh has its shader. It says nothing about what is on screen -- a
@@ -389,7 +397,9 @@ export class UpdateManager implements Manager {
      * actually changed -- `Node.setRenderState` and `Edge.setRenderVisible` return false and touch
      * no mesh when handed what they already hold. So scrubbing a time window that moves 200 nodes
      * costs 200 mesh operations and not 50,000, and re-running a filter that lands on the same
-     * answer costs none.
+     * answer costs none. When ONLY the selection moved, the pass does not walk at all: it touches
+     * the elements it last drew selected and the selection's members, so a click costs the size of
+     * the selection and not of the graph.
      *
      * Mesh instancing is what bounds the rest: a node is one `InstancedMesh` of a source shared by
      * every node of its style, so hiding one is a flag on that instance rather than a geometry
@@ -441,20 +451,24 @@ export class UpdateManager implements Manager {
         // out of date. See `settleActiveMeshFreeze`.
         this.sceneChanged = true;
 
-        if (nodesMoved) {
-            const hiddenState: NodeRenderState = showContext ? "context" : "hidden";
+        // With what is drawn unchanged, only the selection moved: touch the elements that leave
+        // it and the ones in it, not the whole graph. A visibility or context change rewrites its
+        // mask wholesale, so that one still walks everything.
+        const nodeSelectionOnly =
+            this.appliedAnything &&
+            nodeVisibilityVersion === this.appliedNodeVisibility &&
+            showContext === this.appliedShowContext;
+        const edgeSelectionOnly = this.appliedAnything && edgeVisibilityVersion === this.appliedEdgeVisibility;
 
-            for (const node of this.dataManager.nodes.values()) {
-                const { index } = node;
-                const placed = index !== INVALID_INDEX;
-                const visible = nodeVisibility === null || !placed || nodeVisibility.has(index);
-
-                node.setRenderState(visible ? "visible" : hiddenState);
-                node.setSelected(nodeSelection !== null && placed && nodeSelection.has(index));
-            }
+        if (nodesMoved && nodeSelectionOnly) {
+            this.applyNodeSelection(nodeSelection);
+        } else if (nodesMoved) {
+            this.applyNodeMasks(nodeVisibility, nodeSelection, showContext);
         }
 
-        if (edgesMoved) {
+        if (edgesMoved && edgeSelectionOnly) {
+            this.applyEdgeSelection(edgeSelection);
+        } else if (edgesMoved) {
             this.applyEdgeMasks(edgeVisibility, edgeSelection);
         }
 
@@ -464,6 +478,102 @@ export class UpdateManager implements Manager {
         this.appliedEdgeVisibility = edgeVisibilityVersion;
         this.appliedShowContext = showContext;
         this.appliedAnything = true;
+    }
+
+    /**
+     * Show, hide, select and deselect every node to match the masks.
+     * @param nodeVisibility - The visible nodes, or null when nothing hides.
+     * @param nodeSelection - The selected nodes, or null when nothing is selected.
+     * @param showContext - Whether hidden nodes are drawn faintly.
+     */
+    private applyNodeMasks(
+        nodeVisibility: ElementMask<NodeId> | null,
+        nodeSelection: ElementMask<NodeId> | null,
+        showContext: boolean,
+    ): void {
+        const hiddenState: NodeRenderState = showContext ? "context" : "hidden";
+        this.drawnSelectedNodes.clear();
+
+        for (const node of this.dataManager.nodes.values()) {
+            const { index } = node;
+            const placed = index !== INVALID_INDEX;
+            const visible = nodeVisibility === null || !placed || nodeVisibility.has(index);
+            const selected = nodeSelection !== null && placed && nodeSelection.has(index);
+
+            node.setRenderState(visible ? "visible" : hiddenState);
+            node.setSelected(selected);
+            if (selected) {
+                this.drawnSelectedNodes.add(node);
+            }
+        }
+    }
+
+    /**
+     * Bring only the selected state of the nodes into line with the selection mask: the nodes
+     * drawn selected last time and the mask's members, the same states a full walk would write.
+     * @param nodeSelection - The selected nodes, or null when nothing is selected.
+     */
+    private applyNodeSelection(nodeSelection: ElementMask<NodeId> | null): void {
+        const next = new Set<Node>();
+
+        // `ids()` reads the bytes with an indexed loop, the same reach as the write that moved
+        // the mask; the per-element work below is one lookup per member.
+        for (const id of nodeSelection?.ids() ?? []) {
+            const node = this.dataManager.nodes.get(id);
+            if (node && node.index !== INVALID_INDEX && nodeSelection?.has(node.index) === true) {
+                next.add(node);
+            }
+        }
+
+        for (const node of this.drawnSelectedNodes) {
+            if (!next.has(node)) {
+                node.setSelected(false);
+            }
+        }
+
+        for (const node of next) {
+            node.setSelected(true);
+        }
+
+        this.drawnSelectedNodes = next;
+    }
+
+    /**
+     * Bring only the selected state of the edges into line with the selection mask; see
+     * {@link UpdateManager.applyNodeSelection}.
+     * @param edgeSelection - The selected edges, or null when nothing is selected.
+     */
+    private applyEdgeSelection(edgeSelection: ElementMask<EdgeId> | null): void {
+        const next = new Set<Edge>();
+
+        edgeSelection?.forEachMember((index) => {
+            const edge = this.dataManager.edgesByIndex[index];
+            if (edge) {
+                next.add(edge);
+            }
+        });
+
+        let changed = false;
+
+        for (const edge of this.drawnSelectedEdges) {
+            if (!next.has(edge) && edge.setSelected(false)) {
+                changed = true;
+            }
+        }
+
+        for (const edge of next) {
+            if (edge.setSelected(true)) {
+                changed = true;
+            }
+        }
+
+        this.drawnSelectedEdges = next;
+
+        // Selecting redraws the edge marked, from a different batch: the walk places it, as in
+        // applyEdgeMasks.
+        if (changed) {
+            this.forceEdgeWalk();
+        }
     }
 
     /**
@@ -477,6 +587,7 @@ export class UpdateManager implements Manager {
         edgeSelection: ElementMask<EdgeId> | null,
     ): void {
         let revealed = false;
+        this.drawnSelectedEdges.clear();
 
         for (const edge of this.dataManager.edges.values()) {
             const { index } = edge;
@@ -493,9 +604,13 @@ export class UpdateManager implements Manager {
                 revealed = true;
             }
 
+            const selected = edgeSelection !== null && placed && edgeSelection.has(index);
             // Selecting redraws the edge marked, from a different batch: placed by the walk too.
-            if (edge.setSelected(edgeSelection !== null && placed && edgeSelection.has(index))) {
+            if (edge.setSelected(selected)) {
                 revealed = true;
+            }
+            if (selected) {
+                this.drawnSelectedEdges.add(edge);
             }
         }
 

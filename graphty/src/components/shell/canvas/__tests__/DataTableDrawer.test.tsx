@@ -3,7 +3,7 @@ import React from "react";
 import { describe, expect, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import { fireEvent, render, screen } from "../../../../test/test-utils";
+import { render, screen } from "../../../../test/test-utils";
 import { keyChipFor } from "../../bindings";
 import { CANVAS_MENU_Z_INDEX, CANVAS_POPOUT_Z_INDEX, DATA_DRAWER_DEFAULT_HEIGHT } from "../../constants";
 import { CANVAS_DOCK_Z_INDEX, DATA_DRAWER_MIN_HEIGHT } from "../canvasLayout";
@@ -127,11 +127,11 @@ describe("DataTableDrawer", () => {
             expect(keyChipFor("toggleDataDrawer", false)).toBe("Shift+T");
         });
 
-        it("closes the drawer", () => {
+        it("closes the drawer", async () => {
             const onClose = vi.fn();
             render(<DataTableDrawer {...defaultProps} onClose={onClose} />);
 
-            fireEvent.click(screen.getByRole("button", { name: "Hide the data table" }));
+            await userEvent.click(screen.getByRole("button", { name: "Hide the data table" }));
 
             expect(onClose).toHaveBeenCalledTimes(1);
         });
@@ -169,16 +169,17 @@ describe("DataTableDrawer", () => {
             expect(screen.getByRole("separator", { name: "Resize the data table" })).toBeInTheDocument();
         });
 
-        it("grows the drawer on ArrowUp and shrinks it on ArrowDown", () => {
+        it("grows the drawer on ArrowUp and shrinks it on ArrowDown", async () => {
             const onHeightChange = vi.fn();
             render(<DataTableDrawer {...defaultProps} onHeightChange={onHeightChange} />);
 
             const handle = screen.getByRole("separator", { name: "Resize the data table" });
 
-            fireEvent.keyDown(handle, { key: "ArrowUp" });
+            handle.focus();
+            await userEvent.keyboard("{ArrowUp}");
             expect(onHeightChange).toHaveBeenLastCalledWith(DATA_DRAWER_DEFAULT_HEIGHT + 1);
 
-            fireEvent.keyDown(handle, { key: "ArrowDown" });
+            await userEvent.keyboard("{ArrowDown}");
             expect(onHeightChange).toHaveBeenLastCalledWith(DATA_DRAWER_DEFAULT_HEIGHT - 1);
         });
 
@@ -201,11 +202,12 @@ describe("GraphTableSegment", () => {
     });
 
     describe("switching", () => {
-        it("maximises the drawer from the Table half", () => {
+        it("maximises the drawer from the Table half", async () => {
             const onChange = vi.fn();
             render(<GraphTableSegment value="graph" onChange={onChange} />);
 
-            fireEvent.click(screen.getByRole("radio", { name: "Table" }));
+            // The radio itself is visually hidden; a reader clicks its label
+            await userEvent.click(screen.getByText("Table"));
 
             expect(onChange).toHaveBeenCalledWith("table");
         });

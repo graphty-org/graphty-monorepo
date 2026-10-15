@@ -23,38 +23,6 @@ export const TOOLTIP_FIND_OPTIONS = {
 };
 
 /**
- * Drags with a mouse the way compact-mantine's Tree listens for a row move: press the middle of
- * the source, move past the 4px start, move to a point and release there.
- * @param source - the element pressed.
- * @param x - client x of the drop.
- * @param y - client y of the drop.
- */
-export function mouseDrag(source: HTMLElement, x: number, y: number): void {
-    const box = source.getBoundingClientRect();
-    const startX = box.left + box.width / 2;
-    const startY = box.top + box.height / 2;
-    const send = (type: string, px: number, py: number): void => {
-        (document.elementFromPoint(px, py) ?? source).dispatchEvent(
-            new PointerEvent(type, {
-                bubbles: true,
-                cancelable: true,
-                clientX: px,
-                clientY: py,
-                pointerId: 1,
-                pointerType: "mouse",
-                isPrimary: true,
-                button: type === "pointermove" ? -1 : 0,
-                buttons: type === "pointerup" ? 0 : 1,
-            }),
-        );
-    };
-    send("pointerdown", startX, startY);
-    send("pointermove", startX, startY + 6);
-    send("pointermove", x, y);
-    send("pointerup", x, y);
-}
-
-/**
  * Waits until `check` passes, testing it once now and then once per animation frame, with no
  * deadline of its own: the test's timeout is the backstop. `check` passes when it returns
  * anything but `false` without throwing, so it can be a boolean test or a block of assertions.

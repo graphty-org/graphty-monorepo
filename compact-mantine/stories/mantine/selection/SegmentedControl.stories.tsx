@@ -7,6 +7,7 @@ import { AdvancedButton, ControlSection, PANEL_GRID, TrailingSlot, UiGlyph } fro
 import { expectStatesApply } from "../../helpers/assert-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
 import { focusMarked, StateGrid } from "../../helpers/selection-states";
+import { storyWaitOptions } from "../../helpers/settled";
 import { StoryPanel } from "../../helpers/story-panel";
 
 /**
@@ -212,7 +213,7 @@ export const PicturesInAPanelRow: Story = {
             throw new Error("the Center option has no label");
         }
         await userEvent.click(centerLabel);
-        await waitFor(() => expect(center).toBeChecked());
+        await waitFor(() => expect(center).toBeChecked(), storyWaitOptions(1000));
     },
 };
 

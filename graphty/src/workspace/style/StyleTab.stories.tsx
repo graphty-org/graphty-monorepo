@@ -4,6 +4,7 @@ import "@graphty/graphty-element";
 import type { Meta, StoryObj } from "@storybook/react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
+import { storyWaitOptions } from "../../stories/wait";
 import { fixWallClock } from "../../test/fixedWallClock";
 import { createWorkspaceStore, type WorkspaceStore } from "../state/store";
 import { Workspace } from "../Workspace";
@@ -38,7 +39,7 @@ async function loadRing(canvasElement: HTMLElement): Promise<GraphtyElement> {
  */
 async function openStyleTab(canvasElement: HTMLElement): Promise<void> {
     const inspector = within(canvasElement).getByRole("complementary", { name: "Inspector" });
-    await userEvent.click(await within(inspector).findByRole("tab", { name: "Style" }));
+    await userEvent.click(await within(inspector).findByRole("tab", { name: "Style" }, storyWaitOptions(1000)));
 }
 
 /**
@@ -94,7 +95,7 @@ function styleStory(
             const element = await loadRing(canvasElement);
             // As the reader gets here: the Everything row in the paint tree, then the inspector's
             // Style tab (it opens on Values).
-            await userEvent.click(await within(canvasElement).findByText("Everything"));
+            await userEvent.click(await within(canvasElement).findByText("Everything", {}, storyWaitOptions(1000)));
             await openStyleTab(canvasElement);
             await play?.(canvasElement, element, store);
         },
@@ -117,7 +118,9 @@ export const MeasureRow: Story = styleStory(async (canvasElement, element, store
 /** Shape "+" on the measure row: the menu of what the row does not set (`#/style-pickers/plus-menu`). */
 export const PlusMenu: Story = styleStory(async (canvasElement, element, store) => {
     await inspectPageRank(canvasElement, element, store);
-    await userEvent.click(await tab(canvasElement).findByRole("button", { name: "Add to Shape" }));
+    await userEvent.click(
+        await tab(canvasElement).findByRole("button", { name: "Add to Shape" }, storyWaitOptions(1000)),
+    );
 });
 
 /** The Color popover on Everything's color (`#/style-pickers/color`). */
@@ -138,20 +141,20 @@ export const BindSize: Story = styleStory(async (canvasElement) => {
 /** Everything colored by department, the Binding popover open (`#/style-pickers/binding`). */
 export const BindingPopover: Story = styleStory(async (canvasElement) => {
     await userEvent.click(tab(canvasElement).getByRole("button", { name: "Color by attribute" }));
-    await userEvent.click(await body().findByRole("option", { name: "dept" }));
+    await userEvent.click(await body().findByRole("option", { name: "dept" }, storyWaitOptions(1000)));
     await waitFor(() => {
         expect(body().queryByRole("dialog", { name: "From data" })).toBeNull();
-    });
-    await userEvent.click(await tab(canvasElement).findByRole("button", { name: /^dept,/ }));
-    await body().findByRole("group", { name: "Color binding" });
+    }, storyWaitOptions(1000));
+    await userEvent.click(await tab(canvasElement).findByRole("button", { name: /^dept,/ }, storyWaitOptions(1000)));
+    await body().findByRole("group", { name: "Color binding" }, storyWaitOptions(1000));
 });
 
 /** The Binding popover's palette list open, for the department colors (`#/style-pickers/palette`). */
 export const Palette: Story = styleStory(async (canvasElement) => {
     await userEvent.click(tab(canvasElement).getByRole("button", { name: "Color by attribute" }));
-    await userEvent.click(await body().findByRole("option", { name: "dept" }));
-    await userEvent.click(await tab(canvasElement).findByRole("button", { name: /^dept,/ }));
-    const popover = await body().findByRole("group", { name: "Color binding" });
+    await userEvent.click(await body().findByRole("option", { name: "dept" }, storyWaitOptions(1000)));
+    await userEvent.click(await tab(canvasElement).findByRole("button", { name: /^dept,/ }, storyWaitOptions(1000)));
+    const popover = await body().findByRole("group", { name: "Color binding" }, storyWaitOptions(1000));
     await userEvent.click(within(popover).getByRole("combobox", { name: "Palette" }));
 });
 
@@ -175,24 +178,21 @@ export const LabelNewLine: Story = styleStory(async (canvasElement) => {
 /** Esc on the list: the empty line reads "Pick an attribute" and draws nothing (`#/inspector-group-set-path-row/label-empty`). */
 export const LabelEmpty: Story = styleStory(async (canvasElement) => {
     await userEvent.click(tab(canvasElement).getByRole("button", { name: "Add label line" }));
-    await body().findByRole("dialog", { name: "From data" });
+    await body().findByRole("dialog", { name: "From data" }, storyWaitOptions(1000));
     await userEvent.keyboard("{Escape}");
 });
 
 /** A label line bound to the name, with the element's count (`#/inspector-group-set-path-row/label-two`). */
 export const LabelBound: Story = styleStory(async (canvasElement, element) => {
     await userEvent.click(tab(canvasElement).getByRole("button", { name: "Add label line" }));
-    await userEvent.click(await body().findByRole("option", { name: "name" }));
+    await userEvent.click(await body().findByRole("option", { name: "name" }, storyWaitOptions(1000)));
     await element.waitForStableFrame();
     // Picking the column leaves focus on the new line's position button, whose tooltip opens after
     // the cold delay. Wait for it, so the story ends settled: a screenshot taken while that timer
     // runs shows the tooltip or not depending on how long the capture took.
-    await waitFor(
-        () => {
-            const tip = body().getByRole("tooltip");
-            expect(tip).toHaveTextContent("Label position");
-            expect(tip).toBeVisible();
-        },
-        { timeout: 2000 },
-    );
+    await waitFor(() => {
+        const tip = body().getByRole("tooltip");
+        expect(tip).toHaveTextContent("Label position");
+        expect(tip).toBeVisible();
+    }, storyWaitOptions(2000));
 });

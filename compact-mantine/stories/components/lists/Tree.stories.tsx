@@ -15,7 +15,7 @@ import {
 import { expectStatesApply } from "../../helpers/assert-states";
 import { realInput } from "../../helpers/real-input";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
-import { untilPasses } from "../../helpers/settled";
+import { storyWaitOptions, untilPasses } from "../../helpers/settled";
 import { LAYERS, Panel, STYLE_LAYERS } from "./fixtures";
 
 /**
@@ -488,13 +488,15 @@ export const FlatReorderableList: Story = {
         const degree = tree.getByRole("treeitem", { name: "Degree color" });
         degree.focus();
         await userEvent.keyboard("{Alt>}{ArrowDown}{/Alt}");
-        await waitFor(() =>
-            expect(names()).toEqual(["Selection highlight", "Node labels", "Degree color", "Base style"]),
+        await waitFor(
+            () => expect(names()).toEqual(["Selection highlight", "Node labels", "Degree color", "Base style"]),
+            storyWaitOptions(1000),
         );
         await expect(tree.getByRole("treeitem", { name: "Degree color" })).toHaveFocus();
         await userEvent.keyboard("{Alt>}{ArrowUp}{/Alt}");
-        await waitFor(() =>
-            expect(names()).toEqual(["Selection highlight", "Degree color", "Node labels", "Base style"]),
+        await waitFor(
+            () => expect(names()).toEqual(["Selection highlight", "Degree color", "Node labels", "Base style"]),
+            storyWaitOptions(1000),
         );
         // Rename, then try to empty the name: the empty name is refused.
         await userEvent.keyboard("{F2}");
@@ -579,8 +581,9 @@ export const Keyboard: Story = {
         await expect(button).toHaveAttribute("aria-posinset", "1");
         // Alt+ArrowDown moves Button below Card, inside the same frame, and focus follows it.
         await userEvent.keyboard("{Alt>}{ArrowDown}{/Alt}");
-        await waitFor(() =>
-            expect(canvas.getByRole("treeitem", { name: "Button" })).toHaveAttribute("aria-posinset", "2"),
+        await waitFor(
+            () => expect(canvas.getByRole("treeitem", { name: "Button" })).toHaveAttribute("aria-posinset", "2"),
+            storyWaitOptions(1000),
         );
         await expect(canvas.getByRole("treeitem", { name: "Button" })).toHaveFocus();
         await userEvent.keyboard("{F2}");
@@ -704,7 +707,7 @@ export const Dragging: Story = {
                 const y = box.height * fraction;
                 await real.userEvent.hover(to, { position: { x: box.width / 2 - 8, y } });
                 await real.userEvent.hover(to, { position: { x: box.width / 2, y } });
-                await expect(await scope.findByTestId(mark)).toBeVisible();
+                await expect(await scope.findByTestId(mark, {}, storyWaitOptions(1000))).toBeVisible();
                 await real.commands.mouseUp();
                 from.removeEventListener("pointerdown", record);
                 expect(trusted).toEqual([true]);
@@ -734,10 +737,18 @@ export const Dragging: Story = {
         hover("Into", "Sticky note", "Card", 0.5, 11);
         hover("Between", "Sticky note", "Background", 0.1, 12);
         await expect(
-            await within(canvas.getByRole("tree", { name: "Into" })).findByTestId("tree-drop-box"),
+            await within(canvas.getByRole("tree", { name: "Into" })).findByTestId(
+                "tree-drop-box",
+                {},
+                storyWaitOptions(1000),
+            ),
         ).toBeVisible();
         await expect(
-            await within(canvas.getByRole("tree", { name: "Between" })).findByTestId("tree-drop-line"),
+            await within(canvas.getByRole("tree", { name: "Between" })).findByTestId(
+                "tree-drop-line",
+                {},
+                storyWaitOptions(1000),
+            ),
         ).toBeVisible();
     },
 };
@@ -807,7 +818,9 @@ export const TouchAndRowMenu: Story = {
         const tree = within(within(canvasElement).getByRole("tree", { name: "Style layers" }));
         tree.getByRole("treeitem", { name: "Node labels" }).focus();
         await userEvent.keyboard("{Shift>}{F10}{/Shift}");
-        await expect(await within(document.body).findByRole("menuitem", { name: "Delete" })).toBeVisible();
+        await expect(
+            await within(document.body).findByRole("menuitem", { name: "Delete" }, storyWaitOptions(1000)),
+        ).toBeVisible();
         await userEvent.keyboard("{Escape}");
     },
 };

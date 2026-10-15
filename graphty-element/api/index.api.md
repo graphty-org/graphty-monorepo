@@ -597,6 +597,8 @@ export class DataManager implements Manager {
     };
     // @internal
     get holdsNoRows(): boolean;
+    // @internal
+    incidentEdgeIds(node: Node_2): EdgeId[];
     init(): Promise<void>;
     get isLoading(): boolean;
     get lastImport(): LoadReport | null;
@@ -3094,6 +3096,11 @@ class Node_2 {
     dragging: boolean;
     // (undocumented)
     dragHandler?: NodeDragHandler;
+    get drawnHalfExtents(): Readonly<{
+        x: number;
+        y: number;
+        z: number;
+    }>;
     get drawnRadius(): number;
     getPosition(): {
         x: number;
@@ -3253,6 +3260,12 @@ export interface NodeLabelCounts {
 
 // @public
 export interface NodeScreenPosition {
+    bounds: {
+        left: number;
+        top: number;
+        right: number;
+        bottom: number;
+    };
     radius: number;
     visible: boolean;
     x: number;
@@ -3292,6 +3305,10 @@ export const NodeShapes: z.ZodEnum<{
 export const NodeStyle: z.ZodObject<{
     shape: z.ZodOptional<z.ZodObject<{
         size: z.ZodOptional<z.ZodNumber>;
+        sizeMode: z.ZodOptional<z.ZodEnum<{
+            scale: "scale";
+            diameter: "diameter";
+        }>>;
         type: z.ZodOptional<z.ZodEnum<{
             box: "box";
             sphere: "sphere";
@@ -4381,6 +4398,7 @@ export class SelectionManager implements Manager {
     deselect(): void;
     dispose(): void;
     getSelectedNode(): Node_2 | null;
+    getSelectedNodes(): Node_2[];
     init(): Promise<void>;
     isSelected(node: Node_2): boolean;
     onEdgesRemoved(ids: readonly EdgeId[]): void;
@@ -4388,6 +4406,7 @@ export class SelectionManager implements Manager {
     select(node: Node_2): void;
     selectById(nodeId: string | number): boolean;
     setDataManager(dataManager: DataManager): void;
+    toggle(node: Node_2): void;
 }
 
 // @public

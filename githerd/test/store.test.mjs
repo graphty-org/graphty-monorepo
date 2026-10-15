@@ -195,6 +195,12 @@ describe("ledger", () => {
         expect((await readLedger(dir)).map((e) => e.event)).toEqual(["a"]);
     });
 
+    it("reads a ledger with more lines than a call can take as arguments", async () => {
+        const line = `{"ts":"${NOW.toISOString()}","kind":"event"}\n`;
+        writeFileSync(join(dir, "ledger.jsonl"), line.repeat(200_000));
+        expect((await readLedger(dir)).length).toBe(200_000);
+    });
+
     it("reads nothing from a directory with no ledger", async () => {
         expect(await readLedger(join(dir, "none"))).toEqual([]);
         expect(await readLedger(join(dir, "none"), { since: NOW })).toEqual([]);

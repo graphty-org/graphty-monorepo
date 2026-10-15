@@ -113,6 +113,7 @@ import {
     UpdateManager,
     type ViewMasks,
 } from "./managers";
+import { dataManagerInternals } from "./managers/DataManager";
 import { animatesEveryFrame } from "./managers/everyFrameAnimations";
 import { LabelDeclutter, NO_NODE_LABELS, type NodeLabel, type NodeLabelCounts } from "./managers/LabelDeclutter";
 import { layoutManagerInternals } from "./managers/LayoutManager";
@@ -339,6 +340,14 @@ export interface NodeScreenPosition {
     visible: boolean;
     /** The node's radius on screen in pixels: its largest half-extent, projected. 0 behind the camera. */
     radius: number;
+    /**
+     * The rectangle the node covers on screen, in the same pixels: its bounding box's eight
+     * corners, projected. Unlike {@link NodeScreenPosition.radius} it follows the node's shape --
+     * a box seen corner-on reaches past the radius, and a tall cylinder is narrower than it. The
+     * corners behind the camera are left out; with none in front it is the centre, zero in size.
+     * @since 3.27.0
+     */
+    bounds: { left: number; top: number; right: number; bottom: number };
 }
 
 /**
@@ -693,8 +702,17 @@ export class Graph implements GraphContext {
             // queue: queued work ran after the add's step had sealed, or inside a later undo
             // before its `arrangement` hook, and moved an arrangement being restored. An import
             // places them once, in the pass its end schedules, not after every chunk: placing
-            // steps an engine like ngraph over the whole graph each time.
-            if (this.#placementOwed && cause === "command" && this.#importsReading === 0) {
+            // steps an engine like ngraph over the whole graph each time. Likewise a graph write
+            // with another still waiting behind it leaves the placing to the last of them, so a
+            // run of queued adds -- `addNode` in a loop -- places once over the whole graph, not
+            // once per add (issue #2733); the pass that paints the run places it.
+            const dispatcher = dispatcherOf(this.session);
+            if (
+                this.#placementOwed &&
+                cause === "command" &&
+                this.#importsReading === 0 &&
+                !dispatcher.graphWritesWaiting
+            ) {
                 this.#placementOwed = false;
                 await this.layoutManager.updatePositions([...this.dataManager.nodes.values()]);
             }
@@ -704,7 +722,6 @@ export class Graph implements GraphContext {
             // write with another still waiting behind it leaves the paint to the last of them,
             // so a run of queued adds repaints once, not once per add. Everything else -- undo,
             // redo, a rollback, an edit, a session verb -- is painted here, in its own pass.
-            const dispatcher = dispatcherOf(this.session);
             if (cause !== "command" || (this.#importsReading === 0 && !dispatcher.graphWritesWaiting)) {
                 dispatcher.paintOwed = false;
                 await this.repaintFromSession();
@@ -1589,21 +1606,10 @@ export class Graph implements GraphContext {
                 // Only process settlement events if there are nodes - an empty graph
                 // has nothing to settle, so we shouldn't emit events or log
                 if (this.dataManager.nodes.size > 0) {
-                    // A label built while the layout is at rest -- by the load, a style layer or
-                    // any later write -- has no settlement coming to start its animation, so the
-                    // first frame at rest does. See `oweLabelAnimations`.
-                    if (!this.layoutManager.running && !this.layoutManager.building && payLabelAnimations(this.scene)) {
-                        this.dataManager.startLabelAnimations();
-                    }
-
                     // Check if layout has settled
                     if (this.layoutManager.isSettled && this.layoutManager.running) {
                         this.eventManager.emitGraphSettled(this);
                         this.layoutManager.running = false;
-
-                        // Start label animations after layout has settled
-                        payLabelAnimations(this.scene);
-                        this.dataManager.startLabelAnimations();
 
                         // Only zoom to fit on FIRST settlement after data load.
                         // Subsequent settlements (e.g., after node selection/style change)
@@ -1623,31 +1629,60 @@ export class Graph implements GraphContext {
                         }
                     }
 
-                    // Report performance when transitioning from unsettled to settled
-                    if (this.layoutManager.isSettled && !this.wasSettled) {
-                        this.wasSettled = true;
-                        // End layout session tracking
-                        this.statsManager.endLayoutSession();
-                        const snapshot = this.statsManager.getSnapshot();
-                        graphLogger.debug("Layout settled", {
-                            updateCalls: snapshot.cpu.find((m) => m.label === "Graph.update")?.count ?? 0,
-                        });
-                        this.statsManager.reportDetailed();
-                        // Reset measurements after reporting so next settlement shows fresh data
-                        this.statsManager.resetMeasurements();
-                    } else if (!this.layoutManager.isSettled && this.wasSettled) {
-                        // Reset when layout becomes unsettled (so we can report next settlement)
-                        this.wasSettled = false;
-                        // Restart layout session tracking
-                        this.statsManager.startLayoutSession();
-                        graphLogger.debug("Layout became unsettled, will report on next settlement");
-                    }
+                    this.startOwedLabelAnimations();
+
+                    this.reportSettlementChange();
                 }
             });
         });
 
         // End frame profiling (correlates operations with inter-frame time)
         this.statsManager.endFrameProfiling();
+    }
+
+    /**
+     * Report performance when the layout goes from unsettled to settled, and start a new layout
+     * session when it goes back.
+     */
+    private reportSettlementChange(): void {
+        if (this.layoutManager.isSettled && !this.wasSettled) {
+            this.wasSettled = true;
+            // End layout session tracking
+            this.statsManager.endLayoutSession();
+            const snapshot = this.statsManager.getSnapshot();
+            graphLogger.debug("Layout settled", {
+                updateCalls: snapshot.cpu.find((m) => m.label === "Graph.update")?.count ?? 0,
+            });
+            this.statsManager.reportDetailed();
+            // Reset measurements after reporting so next settlement shows fresh data
+            this.statsManager.resetMeasurements();
+        } else if (!this.layoutManager.isSettled && this.wasSettled) {
+            // Reset when layout becomes unsettled (so we can report next settlement)
+            this.wasSettled = false;
+            // Restart layout session tracking
+            this.statsManager.startLayoutSession();
+            graphLogger.debug("Layout became unsettled, will report on next settlement");
+        }
+    }
+
+    /**
+     * Start the label animations the built labels owe, on the first frame that finds the layout at
+     * rest -- settled, or never running -- and no style paint still to draw. A load's labels are
+     * built from that paint, and a pass not drawn yet (a slow machine settles a `fixed` layout
+     * first) would leave some unbuilt, start the rest early, and then start them again. See
+     * `oweLabelAnimations`.
+     */
+    private startOwedLabelAnimations(): void {
+        const painter = this.getStylePainter();
+        if (
+            !this.layoutManager.running &&
+            !this.layoutManager.building &&
+            !painter.hasPending &&
+            !painter.isPainting &&
+            payLabelAnimations(this.scene)
+        ) {
+            this.dataManager.startLabelAnimations();
+        }
     }
 
     /**
@@ -1745,6 +1780,7 @@ export class Graph implements GraphContext {
             node: { ...current.node, ...behavior.node },
             labels: { ...current.labels, ...behavior.labels },
             rendering: { ...current.rendering, ...behavior.rendering },
+            camera: { ...current.camera, ...behavior.camera },
         };
 
         // Checked whole, the project half over the settings in force, before anything is written.
@@ -2928,10 +2964,13 @@ export class Graph implements GraphContext {
         }
 
         const doomedEdges: string[] = [...edgeIds];
-        if (doomed.size > 0) {
-            for (const edge of this.dataManager.edges.values()) {
-                if (doomed.has(edge.srcId) || doomed.has(edge.dstId)) {
-                    doomedEdges.push(edge.id);
+        // The edges of a doomed node, from the store's incidence lists, and only when one of them
+        // could be selected: a run of removals stays linear either way.
+        if (doomed.size > 0 && !this.session.selection.edgeRemovalChangesNothing()) {
+            for (const id of doomed) {
+                const node = this.dataManager.getNode(id);
+                if (node) {
+                    doomedEdges.push(...this.dataManager.incidentEdgeIds(node));
                 }
             }
         }
@@ -3916,7 +3955,9 @@ export class Graph implements GraphContext {
      * @param twoD - Whether the scene becomes 2D.
      */
     private enterDimension(twoD: boolean): void {
-        // Clear mesh cache if switching between 2D and 3D modes
+        // Clear mesh cache if switching between 2D and 3D modes, once the meshes of nodes just
+        // removed are gone: the cache disposes the source meshes they are instances of.
+        dataManagerInternals.flushReleasing(this.dataManager);
         this.dataManager.meshCache.clear();
         this.writeSceneDimension(twoD);
 
@@ -4238,8 +4279,8 @@ export class Graph implements GraphContext {
      * created it reports the hidden mesh template's position, off screen and not visible. Wait
      * for {@link Graph.waitForStableFrame} first.
      * @param nodeId - The node's id.
-     * @returns The centre, whether it is drawn on screen, and its radius in pixels; undefined for
-     *     an id the graph does not hold.
+     * @returns The centre, whether it is drawn on screen, its radius and the rectangle it covers in
+     *     pixels; undefined for an id the graph does not hold.
      */
     nodeScreenPosition(nodeId: string | number): NodeScreenPosition | undefined {
         const node = this.getNode(nodeId);
@@ -4274,11 +4315,31 @@ export class Graph implements GraphContext {
         const w = camera.mode === Camera.ORTHOGRAPHIC_CAMERA ? 1 : depth;
         const radius = inDepth ? (worldRadius * Math.abs(projection[5]) * height) / (2 * w) : 0;
 
+        const bounds = { left: Infinity, top: Infinity, right: -Infinity, bottom: -Infinity };
+        for (const corner of mesh.getBoundingInfo().boundingBox.vectorsWorld) {
+            const ahead = corner.x * view[2] + corner.y * view[6] + corner.z * view[10] + view[14];
+            if (ahead < camera.minZ) {
+                continue;
+            }
+
+            const at = this.worldToScreen(corner);
+            bounds.left = Math.min(bounds.left, at.x);
+            bounds.top = Math.min(bounds.top, at.y);
+            bounds.right = Math.max(bounds.right, at.x);
+            bounds.bottom = Math.max(bounds.bottom, at.y);
+        }
+
+        if (bounds.left > bounds.right) {
+            bounds.left = bounds.right = x;
+            bounds.top = bounds.bottom = y;
+        }
+
         return {
             x,
             y,
             visible: node.getRenderState() === "visible" && inDepth && onScreen,
             radius,
+            bounds,
         };
     }
 

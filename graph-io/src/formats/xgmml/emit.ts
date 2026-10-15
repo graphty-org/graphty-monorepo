@@ -237,19 +237,7 @@ export function membersOf(
     const edges: EdgeRec[] = [];
     let dangling = 0;
     for (const member of graph.members) {
-        if (member.href === null) {
-            if (member.kind === "node") {
-                nodes.push(member);
-            } else {
-                edges.push(member);
-            }
-            continue;
-        }
-        const id = localRef(member.href);
-        let target: NodeRec | EdgeRec | undefined;
-        if (id !== null) {
-            target = member.kind === "node" ? nodeById.get(id) : edgeById.get(id);
-        }
+        const target = resolveMember(member, nodeById, edgeById);
         if (target === undefined) {
             dangling++;
         } else if (target.kind === "node") {
@@ -259,6 +247,29 @@ export function membersOf(
         }
     }
     return { nodes, edges, dangling };
+}
+
+/**
+ * The record a graph member stands for: itself when declared in place, else the node or edge its
+ * local `#id` reference names.
+ * @param member - the member
+ * @param nodeById - the first node declaration of each id
+ * @param edgeById - the first edge declaration of each id
+ * @returns the record, or undefined for a cross-file, malformed or dangling reference
+ */
+function resolveMember(
+    member: NodeRec | EdgeRec,
+    nodeById: ReadonlyMap<string, NodeRec>,
+    edgeById: ReadonlyMap<string, EdgeRec>,
+): NodeRec | EdgeRec | undefined {
+    if (member.href === null) {
+        return member;
+    }
+    const id = localRef(member.href);
+    if (id === null) {
+        return undefined;
+    }
+    return member.kind === "node" ? nodeById.get(id) : edgeById.get(id);
 }
 
 /**
@@ -274,6 +285,42 @@ function indexById<T extends NodeRec | EdgeRec>(records: readonly T[]): Map<stri
         }
     }
     return out;
+}
+
+/**
+ * Whether an edge repeats one already seen, remembering it otherwise: a repeat has the same id,
+ * or without one the same label and endpoints.
+ * @param seen - the keys seen so far, or null when repeats are kept
+ * @param record - the edge
+ * @returns true for a repeat
+ */
+function isRepeat(seen: Set<string> | null, record: EdgeRec): boolean {
+    if (seen === null) {
+        return false;
+    }
+    const key =
+        record.id ?? (record.label === null ? null : JSON.stringify([record.label, record.source, record.target]));
+    if (key === null) {
+        return false;
+    }
+    if (seen.has(key)) {
+        return true;
+    }
+    seen.add(key);
+    return false;
+}
+
+/**
+ * Whether a graph's att is one of its values: not RDF metadata, not the unnamed holder of a
+ * nested graph.
+ * @param att - the att
+ * @returns true to write it to the graph table
+ */
+function isGraphValueAtt(att: AttRec): boolean {
+    if (att.name !== null && META_ATTS.has(att.name)) {
+        return false;
+    }
+    return !(att.hasGraph && att.name === null);
 }
 
 /** Per-node state while emitting. */
@@ -731,16 +778,7 @@ export class XgmmlEmitter {
             if (graph.owner !== null && isGroup(graph.owner)) {
                 continue;
             }
-            for (const member of graph.members) {
-                if (member.href === null) {
-                    continue;
-                }
-                const id = localRef(member.href);
-                const known = id !== null && (member.kind === "node" ? this.rows.has(id) : edgeIds.has(id));
-                if (!known) {
-                    dangling++;
-                }
-            }
+            dangling += this.danglingReferences(graph, edgeIds);
         }
         if (dangling > 0) {
             this.report.warning(
@@ -749,6 +787,27 @@ export class XgmmlEmitter {
                 `${this.prefix()}${dangling} xlink:href reference${plural(dangling)} ${agree(dangling, "names", "name")} no node or edge of the document`,
             );
         }
+    }
+
+    /**
+     * How many `xlink:href` members of a graph name no node or edge of the document.
+     * @param graph - the graph
+     * @param edgeIds - the id of every edge
+     * @returns the count
+     */
+    private danglingReferences(graph: GraphRec, edgeIds: ReadonlySet<string | null>): number {
+        let dangling = 0;
+        for (const member of graph.members) {
+            if (member.href === null) {
+                continue;
+            }
+            const id = localRef(member.href);
+            const known = id !== null && (member.kind === "node" ? this.rows.has(id) : edgeIds.has(id));
+            if (!known) {
+                dangling++;
+            }
+        }
+        return dangling;
     }
 
     /**
@@ -966,17 +1025,10 @@ export class XgmmlEmitter {
         this.decideNameLabel("edge", records);
         for (const record of records) {
             const where = { line: record.line, element: record.id ?? record.label };
-            // a repeat has the same id, or without one the same label and endpoints
-            const key =
-                record.id ??
-                (record.label === null ? null : JSON.stringify([record.label, record.source, record.target]));
-            if (dedupe !== null && key !== null) {
-                if (dedupe.has(key)) {
-                    repeats++;
-                    firstRepeat ??= where;
-                    continue;
-                }
-                dedupe.add(key);
+            if (isRepeat(dedupe, record)) {
+                repeats++;
+                firstRepeat ??= where;
+                continue;
             }
             const index = this.addEdge(record, header, ids, where);
             this.checkAbort();
@@ -1244,13 +1296,9 @@ export class XgmmlEmitter {
             }
         }
         for (const att of g.atts) {
-            if (att.name !== null && META_ATTS.has(att.name)) {
-                continue;
+            if (isGraphValueAtt(att)) {
+                this.graphColumns.addAtt(0, att, where);
             }
-            if (att.hasGraph && att.name === null) {
-                continue;
-            }
-            this.graphColumns.addAtt(0, att, where);
         }
         this.graphColumns.write(this.sink, () => 0);
         const json: Record<string, unknown> = { ...this.extras.graphJson };

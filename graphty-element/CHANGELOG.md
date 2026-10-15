@@ -1,3 +1,74 @@
+## 3.28.0 (2026-10-15)
+
+### 🚀 Features
+
+- **graphty-element:** report the screen rectangle a node covers in nodeScreenPosition ([#2668](https://github.com/graphty-org/graphty-monorepo/issues/2668))
+
+### 🩹 Fixes
+
+- **graphty-element:** keep an edge's ray aimed from source to destination when it is built ([#2668](https://github.com/graphty-org/graphty-monorepo/issues/2668))
+- **graphty-element:** keep round nodes on the sphere path of nodeGap without reading extents ([#2668](https://github.com/graphty-org/graphty-monorepo/issues/2668))
+- **graphty-element:** measure non-round nodes by their box in edge trim, nodeGap, labels, loops ([#2668](https://github.com/graphty-org/graphty-monorepo/issues/2668))
+
+### 🔥 Performance
+
+- **graphty-element:** add or remove one node or edge in time linear in the run ([#2733](https://github.com/graphty-org/graphty-monorepo/issues/2733))
+- **graphty-element:** restyle every node's shape in linear time ([#2749](https://github.com/graphty-org/graphty-monorepo/issues/2749))
+- **graphty-element:** remove part of a graph in linear time ([#543](https://github.com/graphty-org/graphty-monorepo/issues/543), [#2732](https://github.com/graphty-org/graphty-monorepo/issues/2732))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.27.0 (2026-10-15)
+
+### 🚀 Features
+
+- **graphty-element:** add node.sizeMode so every shape can be drawn at one extent ([#2495](https://github.com/graphty-org/graphty-monorepo/issues/2495))
+- **graphty-element:** an option to make the selected nodes the camera pivot ([#2293](https://github.com/graphty-org/graphty-monorepo/issues/2293), [#2294](https://github.com/graphty-org/graphty-monorepo/issues/2294))
+
+### 🩹 Fixes
+
+- **graphty-element:** the picture is not final while the camera glides to the selection ([#2293](https://github.com/graphty-org/graphty-monorepo/issues/2293))
+- **graphty-element:** turn the 3D camera by a steady angle while an arrow key is held ([#2292](https://github.com/graphty-org/graphty-monorepo/issues/2292))
+- **graphty-element:** planar story captions keep a fixed height ([dd0cf8c9e](https://github.com/graphty-org/graphty-monorepo/commit/dd0cf8c9e))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.55
+- Updated graph-samples to 0.1.33
+- Updated algorithms to 3.4.8
+- Updated layout to 2.5.4
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.26.0 (2026-10-14)
+
+### 🚀 Features
+
+- **graphty-element:** count what each render loop tick did ([#2535](https://github.com/graphty-org/graphty-monorepo/issues/2535))
+
+### 🩹 Fixes
+
+- **graphty-element:** start a load's label animations once, after its labels are built ([#2577](https://github.com/graphty-org/graphty-monorepo/issues/2577))
+- **graphty-element:** classify RenderManager.ticks as a read in the door list ([#2535](https://github.com/graphty-org/graphty-monorepo/issues/2535))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.54
+- Updated @graphty/remote-logger to 2.0.18
+- Updated graph-samples to 0.1.32
+- Updated graph-format to 1.4.1
+- Updated algorithms to 3.4.7
+- Updated graph-io to 0.3.40
+- Updated layout to 2.5.3
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.25.8 (2026-10-14)
 
 ### 🩹 Fixes

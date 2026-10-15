@@ -898,12 +898,20 @@ function parseOr(state: ParseState): ExpressionNode {
 }
 
 /**
+ * Invocation counts the counted-work tests read: `parses` is whole expressions parsed. A compiled
+ * selector parses once, when its layer is added, and never while a repaint calls its predicate.
+ * Internal; never reset here.
+ */
+export const predicateCounters = { parses: 0 };
+
+/**
  * Parse a whole selector expression.
  * @param where - The expression as it was typed.
  * @returns The parsed tree.
  * @throws A `GraphtyError` with code `E_BAD_SELECTOR` naming the offset of whatever is wrong.
  */
 function parseExpression(where: Query): ExpressionNode {
+    predicateCounters.parses++;
     const state: ParseState = { where, tokens: tokenize(where), index: 0 };
     const parsed = parseOr(state);
     const trailing = peek(state);

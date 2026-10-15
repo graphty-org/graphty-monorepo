@@ -1385,16 +1385,7 @@ class Neo4jImportSession {
             }
             const { spec } = slot;
             try {
-                if (spec.temporal !== null && !spec.list) {
-                    const zoned = withZoneOffset(text, spec);
-                    const parsed = parseDeclaredTemporal(zoned, spec);
-                    values[slot.cell] = parsed.value;
-                    // a zone name is kept in the companion text, the value is its instant
-                    texts[slot.cell] = zoned === text ? parsed.text : text;
-                } else {
-                    values[slot.cell] = parseDeclaredValue(text, spec, this.options.listSyntax);
-                    checkNeo4jRange(spec, values[slot.cell], text);
-                }
+                this.parseCell(slot, text);
             } catch (err) {
                 this.report.recordError(err, { line, element: `${element} ${slot.name}` });
                 return false;
@@ -1407,6 +1398,26 @@ class Neo4jImportSession {
             }
         }
         return true;
+    }
+
+    /**
+     * Parse one non-empty property cell into the scratch arrays; throws on a malformed value.
+     * @param slot - the cell's property slot
+     * @param text - the cell text
+     */
+    private parseCell(slot: PropertySlot, text: string): void {
+        const { values, texts } = this;
+        const { spec } = slot;
+        if (spec.temporal !== null && !spec.list) {
+            const zoned = withZoneOffset(text, spec);
+            const parsed = parseDeclaredTemporal(zoned, spec);
+            values[slot.cell] = parsed.value;
+            // a zone name is kept in the companion text, the value is its instant
+            texts[slot.cell] = zoned === text ? parsed.text : text;
+        } else {
+            values[slot.cell] = parseDeclaredValue(text, spec, this.options.listSyntax);
+            checkNeo4jRange(spec, values[slot.cell], text);
+        }
     }
 
     /**

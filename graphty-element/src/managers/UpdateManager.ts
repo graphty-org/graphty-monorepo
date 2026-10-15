@@ -6,14 +6,16 @@ import type { EdgeId, NodeId } from "../catalog/types";
 import type { NodeIdType } from "../config/GraphBehavior";
 import { Edge } from "../Edge";
 import { SimulationLayoutEngine } from "../layout/SimulationLayoutEngine";
-import type { Node, NodeRenderState } from "../Node";
+import { disposeLabelsTogether } from "../meshes/LabelBatch";
+import { collectResizedNodes, type Node, nodeRebuildsFor, type NodeRenderState, releaseNodeMesh } from "../Node";
 import type { ElementMask } from "../session/scope/index";
-import type { DataManager } from "./DataManager";
+import { type DataManager, disposeReleased } from "./DataManager";
 import type { EventManager } from "./EventManager";
 import type { GraphContext } from "./GraphContext";
 import type { Manager } from "./interfaces";
 import type { LayoutManager } from "./LayoutManager";
 import type { StatsManager } from "./StatsManager";
+import type { NodePaint } from "./StylePainter";
 
 /** The corners of a box in world space. */
 interface FramingBox {
@@ -211,6 +213,8 @@ interface UpdateManagerConfig {
  */
 export class UpdateManager implements Manager {
     private needsZoomToFit = false;
+    /** Whether this pass moved the camera towards the selection; see `followSelection`. */
+    private followingSelection = false;
     private hasZoomedToFit = false;
 
     /**
@@ -583,18 +587,17 @@ export class UpdateManager implements Manager {
             // below it is still bounded by the dirty set. A dense index array beside
             // `edgesByIndex` would remove even the walk.
             const wanted = new Set(nodes);
+            const painted: [Node, NodePaint][] = [];
 
             for (const node of this.dataManager.nodes.values()) {
-                if (!wanted.has(node.index)) {
-                    continue;
-                }
-
-                const paint = painter.nodePaint(node.index);
+                const paint = wanted.has(node.index) ? painter.nodePaint(node.index) : null;
 
                 if (paint !== null) {
-                    node.applySessionPaint(paint);
+                    painted.push([node, paint]);
                 }
             }
+
+            this.paintNodes(painted);
         }
 
         for (const index of edges) {
@@ -614,6 +617,41 @@ export class UpdateManager implements Manager {
         // Every element the pass moved has now left its old source mesh, so a mesh this left
         // with no instances is a look nothing on screen has any more.
         this.graphContext.getMeshCache().prune();
+    }
+
+    /**
+     * Hand each node its paint, at a cost in proportion to the nodes rather than to the scene.
+     *
+     * A node whose paint changes its source mesh disposes its mesh, its label and its drag
+     * handler, and Babylon takes each of those out of scene-wide lists one search at a time; a
+     * node whose size or shape changes also used to walk every edge to find its own. Restyling
+     * every node's shape cost the size of the graph per node (issue #2749). So the meshes about to
+     * go are all disposed first, inside the bulk teardown the data manager removes nodes with, the
+     * new ones are built after it, and the edges of the resized nodes are found in one walk.
+     * @param painted - Each node and the paint it is to be drawn with.
+     */
+    private paintNodes(painted: readonly [Node, NodePaint][]): void {
+        const rebuilt = painted.filter(([node, paint]) => nodeRebuildsFor(node, paint)).map(([node]) => node);
+        disposeReleased(rebuilt, [], () => {
+            for (const node of rebuilt) {
+                releaseNodeMesh(node);
+            }
+        });
+        const resized = collectResizedNodes(() => {
+            for (const [node, paint] of painted) {
+                node.applySessionPaint(paint);
+            }
+        });
+
+        if (resized.size === 0) {
+            return;
+        }
+
+        for (const edge of this.dataManager.edges.values()) {
+            if (resized.has(edge.srcNode) || resized.has(edge.dstNode)) {
+                edge.invalidatePositionCache();
+            }
+        }
     }
 
     /**
@@ -784,6 +822,10 @@ export class UpdateManager implements Manager {
             return "a filter or a selection has not been drawn yet";
         }
 
+        if (this.followingSelection) {
+            return "the camera is still moving to the selection";
+        }
+
         if (!this.everyDrawnMeshIsReady()) {
             return "a mesh is still waiting for its shader";
         }
@@ -833,7 +875,7 @@ export class UpdateManager implements Manager {
         }
 
         // A filter or a selection the meshes have not been handed yet; see `viewMasksPending`.
-        if (this.viewMasksPending()) {
+        if (this.viewMasksPending() || this.followingSelection) {
             return false;
         }
 
@@ -970,6 +1012,34 @@ export class UpdateManager implements Manager {
     }
 
     /**
+     * With `camera.pivotOnSelection` on, hands the camera the plain average of the selected
+     * nodes' positions to pivot on, every frame, so it follows them while they move.
+     *
+     * Not while the element is still framing the graph, which places the camera itself until it
+     * is done, and not while a selected node is being dragged: a camera following the node under
+     * the pointer would carry the drag along with it.
+     */
+    private followSelection(): void {
+        this.followingSelection = false;
+        if (!this.graphContext.getStyles().config.behavior.camera.pivotOnSelection || this.willZoomToFit()) {
+            return;
+        }
+
+        const nodes = this.graphContext.getSelectionManager?.()?.getSelectedNodes() ?? [];
+        if (nodes.length === 0 || nodes.some((node) => node.dragging)) {
+            return;
+        }
+
+        const center = nodes[0].mesh.position.clone();
+        for (const node of nodes.slice(1)) {
+            center.addInPlace(node.mesh.position);
+        }
+
+        // A camera still gliding to the selection is a picture that is not final yet.
+        this.followingSelection = this.camera.followPoint(center.scaleInPlace(1 / nodes.length));
+    }
+
+    /**
      * One pass of the update loop: masks, styles, camera, layout, meshes and framing.
      * @param frameMs - How long the previous frame took; see {@link UpdateManager.update}.
      */
@@ -982,8 +1052,13 @@ export class UpdateManager implements Manager {
 
         // And before the bounding box is measured for a second reason: a style pass can change a
         // node's SIZE, and zooming to fit a graph whose sizes have just changed must frame what
-        // is about to be drawn rather than what was drawn last frame.
-        this.syncStyles();
+        // is about to be drawn rather than what was drawn last frame. A repaint that takes a label
+        // off, or rebuilds, every element releases all those labels in one pass (issue #2762).
+        disposeLabelsTogether(() => {
+            this.syncStyles();
+        });
+
+        this.followSelection();
 
         // Always update camera
         this.camera.update();

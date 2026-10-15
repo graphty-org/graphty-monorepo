@@ -2,10 +2,10 @@
  * @file `session.find`: what a find box lists as the reader types, without selecting anything.
  */
 
-import { lesMiserables } from "@graphty/graph-samples/datasets/les-miserables";
 import { assert, describe, it } from "vitest";
 
 import { createGraphSession, type FindHit, type GraphSession, isGraphtyError } from "../../session";
+import { lesMiserables } from "../helpers/les-miserables";
 
 /**
  * A small cast: nodes carry a name and a group, edges a kind and, like the nodes, a group.
@@ -163,14 +163,14 @@ describe("finding without selecting", () => {
         // The column the app's Les Miserables sample writes its edge weights under.
         const WEIGHT = "shared_chapters";
         const sample = lesMiserables();
-        const ids = sample.ids ?? [];
+        const { ids } = sample;
         const session = createGraphSession();
         await session.data.addNodes(ids.map((id) => ({ id })));
         await session.data.addEdges(
             [...sample.src].map((src, e) => ({
                 source: ids[src],
                 target: ids[sample.dst[e]],
-                [WEIGHT]: sample.weights?.[e],
+                [WEIGHT]: sample.weights[e],
             })),
         );
 

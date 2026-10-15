@@ -7,11 +7,11 @@
 
 import "../../src/graphty-element";
 
-import { lesMiserables } from "@graphty/graph-samples/datasets/les-miserables";
 import { afterEach, assert, describe, it } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
 import type { GraphSession } from "../../src/session/types";
+import { lesMiserables } from "../helpers/les-miserables";
 
 const TEST_TIMEOUT_MS = 60_000;
 
@@ -40,7 +40,7 @@ async function loaded(): Promise<Graph> {
     await graph.init();
     await graph.setLayout("force", { seed: 1 });
     const sample = lesMiserables();
-    const ids = sample.ids ?? [];
+    const { ids } = sample;
     await graph.addNodes(ids.map((id) => ({ id })));
     await graph.addEdges([...sample.src].map((src, e) => ({ src: ids[src], dst: ids[sample.dst[e]] })));
     await operationQueueOf(graph).waitForCompletion();
@@ -85,7 +85,7 @@ function edgeToPairRatio(session: GraphSession): number {
     const snapshot = session.snapshot();
     const d = (a: number, b: number): number => Math.hypot(p[a][0] - p[b][0], p[a][1] - p[b][1], p[a][2] - p[b][2]);
     const sample = lesMiserables();
-    const ids = sample.ids ?? [];
+    const { ids } = sample;
     const rowOf = (i: number): number => snapshot.ids.requireIndex(ids[i]);
     let edgeSum = 0;
     for (let e = 0; e < sample.src.length; e++) {

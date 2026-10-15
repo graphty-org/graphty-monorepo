@@ -1,7 +1,7 @@
 import { ToggleIconButton, Tree, type TreeNodeData, type TreeRowActions } from "@graphty/compact-mantine";
 import type { GraphSession, StaleNote, StyleRow } from "@graphty/graphty-element/session";
-import { ActionIcon, Menu, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
-import React, { useRef } from "react";
+import { ActionIcon, Button, Group, Menu, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
+import React, { useRef, useState } from "react";
 
 import { CommandMenuItem } from "../frame/menus";
 import { GLYPHS } from "../glyphs";
@@ -163,6 +163,8 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
     const { store } = workspace;
     const inspected = useWorkspaceState((state) => state.inspected);
     const renamingRow = useWorkspaceState((state) => state.renamingRow);
+    // "Select...": a checkbox on every row, and a tap adds a row or takes it out (touch).
+    const [selecting, setSelecting] = useState(false);
     const tree = session.styles.tree();
 
     const toItem = (row: StyleRow, folders: readonly StyleRow[]): TreeNodeData => {
@@ -270,6 +272,11 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
     };
 
     const onRowKeyDown = (id: string, event: React.KeyboardEvent): void => {
+        if (selecting && event.key === "Escape") {
+            event.preventDefault();
+            setSelecting(false);
+            return;
+        }
         const row = findTreeRow(tree, id)?.row;
         if (row === undefined) {
             return;
@@ -289,11 +296,32 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
                 <Text span className="ws-style-tree-title">
                     Style layers
                 </Text>
-                <AddMenu session={session} store={store} />
+                <AddMenu
+                    session={session}
+                    store={store}
+                    onSelectMany={() => {
+                        setSelecting(true);
+                    }}
+                />
             </div>
+            {selecting && (
+                <Group className="ws-style-tree-selecting" gap={4} wrap="nowrap" px={8} justify="space-between">
+                    <Text size="xs">Tap rows to select them</Text>
+                    <Button
+                        size="compact-xs"
+                        variant="subtle"
+                        onClick={() => {
+                            setSelecting(false);
+                        }}
+                    >
+                        Done
+                    </Button>
+                </Group>
+            )}
             <Tree
                 label="Style layers"
                 items={items}
+                checkboxes={selecting}
                 childBand={false}
                 height="100%"
                 selected={selectedIds(inspected)}
@@ -327,13 +355,19 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
 /**
  * The "+" beside the tree's title, where layers come from: Layer makes a real layer at once with
  * its name ready to type; Folder makes "New folder" the same way; Analyze... opens the toolbar's
- * Analyze popover (the one Analyze), and closing it gives focus back to this "+".
+ * Analyze popover (the one Analyze), and closing it gives focus back to this "+". Select... puts a
+ * checkbox on every row, so several rows can be selected by touch.
  * @param props - Component props
  * @param props.session - the element's session
  * @param props.store - the chrome store
+ * @param props.onSelectMany - turns the tree's checkbox mode on
  * @returns The button and its menu
  */
-function AddMenu({ session, store }: Readonly<{ session: GraphSession; store: WorkspaceStore }>): React.JSX.Element {
+function AddMenu({
+    session,
+    store,
+    onSelectMany,
+}: Readonly<{ session: GraphSession; store: WorkspaceStore; onSelectMany: () => void }>): React.JSX.Element {
     const button = useRef<HTMLButtonElement>(null);
     const analyze = useCommand("analyze.open");
     return (
@@ -375,6 +409,9 @@ function AddMenu({ session, store }: Readonly<{ session: GraphSession; store: Wo
                     }}
                 >
                     Folder
+                </Menu.Item>
+                <Menu.Item leftSection={<GLYPHS.check size={14} aria-hidden />} onClick={onSelectMany}>
+                    Select...
                 </Menu.Item>
                 {analyze !== null && (
                     <CommandMenuItem

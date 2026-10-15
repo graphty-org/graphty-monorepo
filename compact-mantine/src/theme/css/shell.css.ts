@@ -159,7 +159,8 @@ const css = `
     flex: none;
     align-self: stretch;
     width: 1px;
-    margin-block: -8px;
+    margin: -8px 0;
+    border: 0;
     background-color: var(--cm-border);
 }
 
@@ -268,7 +269,8 @@ const css = `
     flex: none;
     align-self: stretch;
     width: 1px;
-    margin-block: -8px;
+    margin: -8px 0;
+    border: 0;
     background-color: var(--cm-border);
 }
 .cm-secondary-toolbar[data-flush] .cm-secondary-divider { margin-block: 0; }
@@ -352,6 +354,7 @@ const css = `
     width: 16px;
     height: 1px;
     margin: 8px 0 7px;
+    border: 0;
     background-color: var(--cm-border);
 }
 .cm-rail-button {

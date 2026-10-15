@@ -152,16 +152,12 @@ test("only the last segment of a connected pattern is clipped, however its lengt
 
     try {
         for (const pattern of ["zigzag", "sinewave"] as const) {
-            const line = PatternedLineRenderer.create(
-                pattern,
-                Vector3.Zero(),
-                new Vector3(1, 0, 0),
-                0.1,
-                "#ff0000",
-                1.0,
-                scene,
-                false,
-            );
+            const line = PatternedLineRenderer.create(pattern, Vector3.Zero(), new Vector3(1, 0, 0), scene, {
+                width: 0.1,
+                color: "#ff0000",
+                opacity: 1.0,
+                is2DMode: false,
+            });
 
             // Grow and shrink through lengths whose remainders clip the last segment, so a segment
             // clipped while it was last is no longer last on the next length.

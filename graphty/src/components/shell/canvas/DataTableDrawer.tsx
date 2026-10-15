@@ -48,6 +48,7 @@ import {
     type DataTableSort,
     PANEL_GRID,
     PANEL_INK,
+    SegmentedControl,
     UiGlyph,
 } from "@graphty/compact-mantine";
 import React, { useCallback, useRef } from "react";
@@ -100,55 +101,16 @@ export function GraphTableSegment(props: GraphTableSegmentProps): React.JSX.Elem
     const { onChange, value } = props;
 
     return (
-        <div
-            role="radiogroup"
+        <SegmentedControl
             aria-label="Graph or table"
             data-canvas-overlay="graph-table"
-            style={{
-                display: "flex",
-                gap: CANVAS_SPACE.TIGHT,
-                height: CANVAS_METRICS.SEGMENT_TRACK,
-                padding: CANVAS_METRICS.SEGMENT_PAD,
-                borderRadius: "var(--mantine-radius-sm)",
-                background: PANEL_INK.SURFACE,
-                border: `${String(CANVAS_SPACE.HAIRLINE)}px solid ${PANEL_INK.BORDER}`,
-                boxSizing: "border-box",
-                zIndex: CANVAS_TOOLBAR_Z_INDEX,
+            data={[...SURFACES]}
+            value={value}
+            onChange={(next) => {
+                onChange(next as CanvasSurface);
             }}
-        >
-            {SURFACES.map((surface) => {
-                const checked = surface.value === value;
-
-                return (
-                    <button // NOSONAR(S6819): a segmented-button radio; a native radio needs a hidden input and label and would change how it draws
-                        key={surface.value}
-                        type="button"
-                        role="radio"
-                        aria-checked={checked}
-                        onClick={() => {
-                            onChange(surface.value);
-                        }}
-                        style={{
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            height: CANVAS_METRICS.SEGMENT_ITEM,
-                            padding: `0 ${String(CANVAS_METRICS.SEGMENT_ITEM_PAD_X)}px`,
-                            border: "none",
-                            borderRadius: "var(--mantine-radius-xs)",
-                            background: checked ? PANEL_INK.SELECTED : "transparent",
-                            color: checked ? PANEL_INK.ON_SELECTED : PANEL_INK.CHROME,
-                            fontSize: CANVAS_TYPE.SMALL,
-                            fontWeight: 500,
-                            lineHeight: 1,
-                            cursor: "pointer",
-                        }}
-                    >
-                        {surface.label}
-                    </button>
-                );
-            })}
-        </div>
+            style={{ zIndex: CANVAS_TOOLBAR_Z_INDEX }}
+        />
     );
 }
 
@@ -383,52 +345,14 @@ export function DataTableDrawer<TRow extends object>(props: DataTableDrawerProps
                         </span>
                     </div>
 
-                    <div
-                        role="radiogroup"
+                    <SegmentedControl
                         aria-label="Data table rows"
-                        style={{
-                            display: "flex",
-                            gap: CANVAS_SPACE.TIGHT,
-                            height: CANVAS_METRICS.SEGMENT_TRACK - CANVAS_METRICS.SEGMENT_PAD * 2,
-                            padding: CANVAS_METRICS.SEGMENT_PAD,
-                            borderRadius: "var(--mantine-radius-sm)",
-                            background: PANEL_INK.SURFACE,
-                            boxSizing: "border-box",
+                        data={[...TABS]}
+                        value={tab}
+                        onChange={(next) => {
+                            onTabChange(next as DataDrawerTab);
                         }}
-                    >
-                        {TABS.map((entry) => {
-                            const checked = entry.value === tab;
-
-                            return (
-                                <button // NOSONAR(S6819): a segmented-button radio; a native radio needs a hidden input and label and would change how it draws
-                                    key={entry.value}
-                                    type="button"
-                                    role="radio"
-                                    aria-checked={checked}
-                                    onClick={() => {
-                                        onTabChange(entry.value);
-                                    }}
-                                    style={{
-                                        display: "flex",
-                                        alignItems: "center",
-                                        justifyContent: "center",
-                                        height: CANVAS_METRICS.SEGMENT_ITEM,
-                                        padding: `0 ${String(CANVAS_METRICS.SEGMENT_ITEM_PAD_X)}px`,
-                                        border: "none",
-                                        borderRadius: "var(--mantine-radius-xs)",
-                                        background: checked ? PANEL_INK.SELECTED : "transparent",
-                                        color: checked ? PANEL_INK.ON_SELECTED : PANEL_INK.CHROME,
-                                        fontSize: CANVAS_TYPE.SMALL,
-                                        fontWeight: 500,
-                                        lineHeight: 1,
-                                        cursor: "pointer",
-                                    }}
-                                >
-                                    {entry.label}
-                                </button>
-                            );
-                        })}
-                    </div>
+                    />
 
                     <div
                         style={{

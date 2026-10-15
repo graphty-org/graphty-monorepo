@@ -5,9 +5,10 @@ import {
     PANEL_GRID,
     PANEL_INK,
     ProseBlock,
+    SegmentedControl,
     UiGlyph,
 } from "@graphty/compact-mantine";
-import { Badge, Box, Button, Tooltip } from "@mantine/core";
+import { Badge, Box, Button, Tooltip, VisuallyHidden } from "@mantine/core";
 import React, { type RefObject, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -264,12 +265,6 @@ function ListGlyph(): React.JSX.Element {
     );
 }
 
-/** One tile of the header's card view track (AnalyzePanel.dc.html:209). */
-const CARD_VIEW_TILE_WIDTH = PANEL_GRID.CONTROL_HEIGHT;
-
-/** The gap between the header track's two tiles, which is tighter than the tab track's. */
-const CARD_VIEW_TRACK_GAP = 1;
-
 /**
  * The two modes the header track offers, in the order the artboard draws them.
  */
@@ -292,12 +287,9 @@ interface CardViewToggleProps {
  * The Cards / List track the panel header draws, between the panel name and the
  * close X (AnalyzePanel.dc.html:206-216).
  *
- * It is drawn here rather than with `IconGroupRow` because that component is a
- * ROW -- a leading label, the 224px band, a trailing slot -- and this control sits
- * in a 36px title row with no band to lay. What it keeps from `IconGroupRow` is the
- * part that matters: the same `SELECTED` / `ON_SELECTED` pair on the chosen tile,
- * so the panel's two mode tracks cannot drift apart. See the tab track below for
- * why those tokens and not the artboard's own hex.
+ * compact-mantine's SegmentedControl with a glyph and a hidden word per option (its
+ * documented icon recipe): native radios, so the arrow keys move and select the mode,
+ * the focus ring is the theme's, and each option is named by its word.
  *
  * It is a radio group, not a tab list: choosing a card view does not change which
  * surface is showing, it changes how one surface draws.
@@ -314,54 +306,25 @@ function CardViewToggle(props: CardViewToggleProps): React.JSX.Element {
     const { value, onChange } = props;
 
     return (
-        <Box
-            role="radiogroup"
+        <SegmentedControl
             aria-label="Result card view"
             data-testid="analyze-card-view"
-            style={{
-                display: "flex",
-                gap: CARD_VIEW_TRACK_GAP,
-                height: PANEL_GRID.CONTROL_HEIGHT,
-                padding: TRACK_PADDING,
-                borderRadius: "var(--mantine-radius-sm)",
-                background: PANEL_INK.SURFACE,
-                boxSizing: "border-box",
+            value={value}
+            onChange={(next) => {
+                onChange(next as AnalyzeCardView);
             }}
-        >
-            {CARD_VIEWS.map((mode) => {
-                const chosen = mode.value === value;
-
-                return (
-                    <Tooltip key={mode.value} label={mode.label} withinPortal>
-                        <button // NOSONAR(S6819): a segmented-button radio; a native radio needs a hidden input and label and would change how it draws
-                            type="button"
-                            role="radio"
-                            aria-checked={chosen}
-                            aria-label={mode.label}
-                            data-testid={`analyze-card-view-${mode.value}`}
-                            onClick={() => {
-                                onChange(mode.value);
-                            }}
-                            style={{
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                width: CARD_VIEW_TILE_WIDTH,
-                                height: TRACK_BUTTON_HEIGHT,
-                                border: "none",
-                                borderRadius: TRACK_BUTTON_RADIUS,
-                                background: chosen ? PANEL_INK.SELECTED : "transparent",
-                                color: chosen ? PANEL_INK.ON_SELECTED : PANEL_INK.CHROME,
-                                cursor: "pointer",
-                                boxSizing: "border-box",
-                            }}
-                        >
+            data={CARD_VIEWS.map((mode) => ({
+                value: mode.value,
+                label: (
+                    <Tooltip label={mode.label} withinPortal>
+                        <span style={{ display: "inline-flex" }}>
                             {mode.value === "cards" ? <CardsGlyph /> : <ListGlyph />}
-                        </button>
+                            <VisuallyHidden>{mode.label}</VisuallyHidden>
+                        </span>
                     </Tooltip>
-                );
-            })}
-        </Box>
+                ),
+            }))}
+        />
     );
 }
 
@@ -831,9 +794,7 @@ export function AnalyzePanel(props: AnalyzePanelProps): React.JSX.Element {
                     measures 1.26:1, and WCAG 2.2 1.4.11 asks 3:1 of the boundary
                     that draws an operable control's state. SELECTED inverts to
                     clear 5.59:1, which then forces ON_SELECTED, because the
-                    primary ink on that ground is only 1.66:1. This track is the
-                    same row type as the Cards / List icon group in the header,
-                    so the two carry the same pair of tokens.
+                    primary ink on that ground is only 1.66:1.
                 */}
                 <Box
                     role="tablist"

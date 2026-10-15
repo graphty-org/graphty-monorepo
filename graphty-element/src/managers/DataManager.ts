@@ -83,7 +83,7 @@ export type { AddEdgesOptions } from "../session/project/ingest";
  * @param teardown - Disposes them.
  * @returns What `teardown` returns.
  */
-function disposeReleased<T>(nodes: Iterable<Node>, edges: Iterable<Edge>, teardown: () => T): T {
+export function disposeReleased<T>(nodes: Iterable<Node>, edges: Iterable<Edge>, teardown: () => T): T {
     const doomed = new Set<AbstractMesh>();
     const handlers: NodeDragHandler[] = [];
     collectDoomed(nodes, edges, doomed, handlers);
@@ -126,11 +126,15 @@ function disposeReleased<T>(nodes: Iterable<Node>, edges: Iterable<Edge>, teardo
         handler.forgetSceneObservers();
     }
 
+    // A disposed mesh leaves its parent by an `indexOf` over the parent's child list, and every
+    // node mesh shares one parent, the graph root: that list is set aside too (issue #2749).
+    const families: [SceneNode, SceneNode[], SceneNode[]][] = [];
     for (const parent of parents) {
         // Babylon has no public way to edit a node's child list in place; `getChildren()` copies it.
         const children = (parent as unknown as { _children: SceneNode[] | null })._children;
         if (children) {
             dropAll(children, doomed);
+            families.push([parent, children, children.splice(0)]);
         }
     }
 
@@ -141,6 +145,9 @@ function disposeReleased<T>(nodes: Iterable<Node>, edges: Iterable<Edge>, teardo
     } finally {
         restore(scene.meshes, meshes, (mesh) => !mesh.isDisposed());
         restore(actionManagers, owned, () => true);
+        for (const [parent, children, kept] of families) {
+            restore(children, kept, (child) => child.parent === parent && !child.isDisposed());
+        }
     }
 }
 

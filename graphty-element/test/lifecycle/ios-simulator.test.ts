@@ -13,6 +13,13 @@
  * The same run with a memory warning posted while Safari is in the background, and once with Safari's
  * web content process killed (as iOS kills it for memory) instead of Safari itself.
  *
+ * The pages run without WebGL (`webgl=off`, so the element draws nothing): on the hosted macOS
+ * runners the Simulator's Metal driver aborts WebKit's GPU process (MTLSimDriver, an XPC error in
+ * setBuffer) while a WebGL page draws, until WebKit gives up on every tab -- sometimes before the page
+ * has made its edits. What these scenarios test, the autosave across the app's lifecycle, does not
+ * draw; a page whose WebGL fails is covered by the "No WebGL" lifecycle test and, here, by the switch
+ * scenario's "page terminated by WebKit" path.
+ *
  * The Simulator has no memory-pressure killer and no 7-day storage rule; those are the iPad
  * protocol's (design/work-protection/ipad-protocol.md).
  */
@@ -199,7 +206,7 @@ describe.skipIf(!MACOS)("Safari in the iOS Simulator", () => {
             diagnose(udid, tab);
         });
         const from = safariLog.lines.length;
-        openInSafari(fx.url({ key, tab, auto: 3, tail: 1, delay: 600_000 }));
+        openInSafari(fx.url({ key, tab, auto: 3, tail: 1, delay: 600_000, webgl: "off" }));
         const saved = await fx.waitFor((e) => e.tab === tab && e.type === "auto-saved");
         assert.strictEqual(saved.state, "saved", "the page saved its edits");
         const tail = await fx.waitFor((e) => e.tab === tab && e.type === "auto-tail");
@@ -209,7 +216,7 @@ describe.skipIf(!MACOS)("Safari in the iOS Simulator", () => {
         const mark = fx.log.length;
 
         // Opened again: Safari may also reload the tab it had, so the first page to report a restore counts.
-        openInSafari(fx.url({ key, tab: `${tab}.reopened` }));
+        openInSafari(fx.url({ key, tab: `${tab}.reopened`, webgl: "off" }));
         const ready = await fx.waitFor(
             (e) =>
                 e.seq >= mark &&

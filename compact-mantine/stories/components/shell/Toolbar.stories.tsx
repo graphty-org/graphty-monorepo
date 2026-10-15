@@ -157,7 +157,7 @@ function CanvasFoot({ children }: { children: React.ReactNode }): React.JSX.Elem
  */
 async function flyoutOf(chevron: HTMLElement): Promise<HTMLElement> {
     const id = chevron.getAttribute("aria-controls") ?? "";
-    await waitFor(() => expect(document.getElementById(id)).toBeVisible());
+    await waitFor(() => expect(document.getElementById(id)).toBeVisible(), storyWaitOptions(1000));
     return document.getElementById(id) as HTMLElement;
 }
 
@@ -240,7 +240,7 @@ export const PickFromFlyout: Story = {
         const face = canvas.getByRole("button", { name: "Ellipse" });
         await expect(face).toHaveAttribute("aria-pressed", "true");
         // The picked tool is now the toolbar's Tab stop (spec 11.1).
-        await waitFor(() => expect(face).toHaveFocus());
+        await waitFor(() => expect(face).toHaveFocus(), storyWaitOptions(1000));
         await expect(face).toHaveAttribute("tabindex", "0");
         // Focus shows the face's tooltip after the 1000 ms cold delay (spec 8.3). Wait for it, so the
         // story ends settled: a screenshot taken while that timer runs shows the tooltip or not

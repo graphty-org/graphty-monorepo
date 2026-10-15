@@ -242,3 +242,58 @@ export const GRAPH_SETTING_HOMES: Readonly<Record<string, Home>> = {
 export function homeless(list: readonly string[], homes: Readonly<Record<string, Home>>): string[] {
     return list.filter((name) => !Object.hasOwn(homes, name));
 }
+
+/**
+ * The per-value and per-group controls of the Style tab, each with the file that draws it (tier3
+ * decisions, round 6: "no color-only controls"). Every one draws its field through `ValueField`
+ * (or the group detail, which does), so it offers a field for every kind of property its parent,
+ * the property row, can vary: a color, a number, a shape, pattern or arrow, or words. The coverage
+ * test fails when a control's file stops drawing the shared field, and when the field leaves a kind
+ * the property row varies without a control.
+ */
+export const PER_VALUE_CONTROLS: Readonly<Record<string, { readonly file: string; readonly draws: string }>> = {
+    "Binding popover, a group's row (the chit for the popover's property)": {
+        file: "workspace/style/Groups.tsx",
+        draws: "<ValueField",
+    },
+    "Group detail, one field per property the layer varies by the groups": {
+        file: "workspace/style/Groups.tsx",
+        draws: "<ValueField",
+    },
+    "Binding popover, No value: Use one value": { file: "workspace/style/BindingPopover.tsx", draws: "<ValueField" },
+    "Property row, the one value of a property set for a few groups": {
+        file: "workspace/style/PropertyRow.tsx",
+        draws: "<ValueField",
+    },
+    "A group row's Style tab": { file: "workspace/style/StylePanel.tsx", draws: "<GroupDetail" },
+};
+
+/**
+ * Every place the app branches on a color, by file: how many branches it holds and why each either
+ * has a branch for every other kind or is about color by nature. The coverage test counts the
+ * branches on a color in every source file (a test of a property accepting color, an is-color
+ * flag) and fails on a file or a count this map does not hold, so a new color-only branch is
+ * caught and has to say why (or offer the other kinds).
+ */
+export const COLOR_BRANCHES: Readonly<Record<string, { readonly count: number; readonly reason: string }>> = {
+    "workspace/style/BindingPopover.tsx": {
+        count: 15,
+        reason: "A palette, a ramp's colors, 'Use the values as colors', 'One color per value' on a number and 'More values than colors' are color by nature: a number ramps through Range, a shape or pattern steps through the channel's own list (graphty-element's binding choices), and every per-group and No value field is a ValueField for every kind",
+    },
+    "workspace/style/PropertyRow.tsx": {
+        count: 3,
+        reason: "The color field beside the number, choice and words fields; 'one color' against 'one value' in Stop varying's words; a bound color's swatch strip, where other kinds show their source and range",
+    },
+    "workspace/style/words.ts": {
+        count: 2,
+        reason: "takesBinding lists color with number, choice and words; valueWords names a color, and names every other kind in its own branch",
+    },
+    "workspace/style/row.ts": {
+        count: 1,
+        reason: "startFor reads a color beneath as its hex, and every other kind as it is",
+    },
+    "workspace/style/StylePanel.tsx": {
+        count: 1,
+        reason: "The document's colors, offered as the color picker's swatches: no other kind has swatches",
+    },
+};

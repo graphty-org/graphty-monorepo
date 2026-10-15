@@ -3,14 +3,53 @@ import { assert, describe, it } from "vitest";
 
 import {
     CHANNEL_HOMES,
+    COLOR_BRANCHES,
     DESIGN_PLACED,
     GRAPH_SETTING_HOMES,
     homeless,
     LABEL_FIELD_HOMES,
     NO_VARY,
+    PER_VALUE_CONTROLS,
     publishedGraphSettings,
 } from "../coverage";
-import { isPercent, SECTIONS, takesBinding } from "../words";
+import { isPercent, SECTIONS, takesBinding, valueFieldKind } from "../words";
+
+/**
+ * A path the glob gives relative to this folder, as a path under `src/`.
+ * @param path - such as `../BindingPopover.tsx` or `../../inspector/Inspector.tsx`.
+ * @returns such as `workspace/style/BindingPopover.tsx`.
+ */
+function fromSrc(path: string): string {
+    const here = ["workspace", "style", "__tests__"];
+    const parts = path.split("/");
+    while (parts[0] === "..") {
+        parts.shift();
+        here.pop();
+    }
+    return [...here, ...parts.filter((part) => part !== ".")].join("/");
+}
+
+/** The app's sources, by path under `src/`, as text: the rule is app-wide. */
+const SOURCES: Readonly<Record<string, string>> = Object.fromEntries(
+    Object.entries(
+        import.meta.glob<string>(
+            [
+                "../../../**/*.{ts,tsx}",
+                "!../../../**/__tests__/**",
+                "!../../../**/*.stories.tsx",
+                "!../../../**/*.test.{ts,tsx}",
+            ],
+            {
+                query: "?raw",
+                import: "default",
+                eager: true,
+            },
+        ),
+    ).map(([path, text]) => [fromSrc(path), text]),
+);
+
+/** A branch on a color: `accepts === "color"`, `accepts !== "color"` or `isColor`. */
+const COLOR_BRANCH = /accepts [!=]== "color"|\bisColor\b/g;
 
 /** Every channel a section of the Style tab draws. */
 const DRAWN = new Set<string>([...SECTIONS.node, ...SECTIONS.edge].flatMap((section) => section.channels));
@@ -73,5 +112,41 @@ describe("every style has a home", () => {
             assert.isTrue(takesBinding(d), `${d.channel} varies by a value`);
             assert.isTrue(isPercent(d), `${d.channel} reads as a percent`);
         }
+    });
+});
+
+describe("no color-only controls", () => {
+    const drawn = [...channelsFor("node"), ...channelsFor("edge")].filter((d) => DRAWN.has(d.channel));
+
+    it("reads the Style tab's sources", () => {
+        assert.include(Object.keys(SOURCES), "workspace/style/BindingPopover.tsx");
+        assert.include(Object.keys(SOURCES), "workspace/style/Groups.tsx");
+    });
+
+    it("gives every kind of property the property row varies a per-value field", () => {
+        const missing = drawn.filter((d) => takesBinding(d) && valueFieldKind(d) === null).map((d) => d.channel);
+        assert.deepEqual(missing, [], "the shared per-value field draws a control for each");
+    });
+
+    it("draws every per-value and per-group control through the shared field", () => {
+        for (const [control, { file, draws }] of Object.entries(PER_VALUE_CONTROLS)) {
+            assert.include(SOURCES[file] ?? "", draws, `${control} (${file}) draws ${draws}`);
+        }
+    });
+
+    it("names every color branch with its reason, so a new color-only one is caught", () => {
+        const found = Object.fromEntries(
+            Object.entries(SOURCES).flatMap(([file, text]) => {
+                const count = text.match(COLOR_BRANCH)?.length ?? 0;
+                return count === 0 ? [] : [[file, count]];
+            }),
+        );
+        const recorded = Object.fromEntries(Object.entries(COLOR_BRANCHES).map(([file, { count }]) => [file, count]));
+        assert.deepEqual(found, recorded, "add the other kinds, or a reason in coverage.ts COLOR_BRANCHES");
+    });
+
+    it("catches a file that branches on color alone", () => {
+        const text = 'if (descriptor.accepts === "color") { chit = <Chit />; }';
+        assert.lengthOf(text.match(COLOR_BRANCH) ?? [], 1);
     });
 });

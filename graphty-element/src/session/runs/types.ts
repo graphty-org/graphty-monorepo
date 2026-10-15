@@ -521,8 +521,9 @@ export type RunStyle =
            * holding one node layer per group, largest on top, each selecting `<group path> ==
            * <value>` and setting the colour the one layer would have painted that group. A re-run
            * keeps each layer on the group sharing most of its members and adds a layer at the bottom
-           * of the folder for each new group; removing the run removes the folder. Ignored for any
-           * other result shape. Left off, the run paints one layer.
+           * of the folder for each new group, whether or not the re-run repeats the option (it
+           * keeps the first start's `groupName`); removing the run removes the folder. Ignored for
+           * any other result shape. Left off, the run paints one layer.
            * @since 3.29.0
            */
           readonly groups?: "layers";

@@ -697,6 +697,8 @@ class Runs implements SessionRunsApi {
 
     /** The batch each member's painting is held for. */
     private readonly holds = new Map<RunId, PaintHold>();
+    /** What each run started with `style: { groups: "layers", groupName }` calls its groups, for its re-runs. */
+    private readonly groupNamers = new Map<RunId, (group: RunGroup) => string>();
 
     /**
      * What a batch decided for its members when it released their hold. Kept beside the runs
@@ -1745,6 +1747,9 @@ class Runs implements SessionRunsApi {
             return null;
         }
 
+        if (style.groupName !== undefined) {
+            this.groupNamers.set(result.runId, style.groupName);
+        }
         const field = binding.by.slice(`${RESULT_ROOT}.${result.runId}.`.length);
         const column = elementIdsOf(result, "node").map((id) => result.node(id)?.[field]);
         const preview = styles.previewColumn(binding, "node.color", column);
@@ -1830,9 +1835,12 @@ class Runs implements SessionRunsApi {
      */
     private addNewGroupLayers(draft: Draft, result: RunResult, style: RunStyle): void {
         const { styles } = this.dispatcher.services;
-        if (typeof style !== "object" || style.groups !== "layers" || styles?.previewColumn === undefined) {
+        if (styles?.previewColumn === undefined) {
             return;
         }
+        // A re-run started without the option still keeps its folder whole, named as it was.
+        const groupName =
+            (typeof style === "object" ? style.groupName : undefined) ?? this.groupNamers.get(result.runId);
         const path = `${RESULT_ROOT}.${result.runId}.group`;
         const groupValues = (layer: Layer): readonly string[] => {
             const where = layer.selector.match === "rule" ? layer.selector.where : undefined;
@@ -1854,7 +1862,7 @@ class Runs implements SessionRunsApi {
         for (const [at, bin] of bins.entries()) {
             if (bin.value !== undefined && bin.count > 0 && !taken.has(categoryName(bin.value))) {
                 // The colour a new group takes is the run's palette's, by its place among the groups.
-                this.addGroupLayer(draft, folder.id, mine[0], path, bin, at + 1, style.groupName);
+                this.addGroupLayer(draft, folder.id, mine[0], path, bin, at + 1, groupName);
             }
         }
     }

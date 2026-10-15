@@ -140,8 +140,9 @@ describe("a partition's groups as layers", () => {
         assert.isDefined(efg);
         await s.styles.update(efg?.id ?? "", { set: { "node.color": "#123456" } });
 
+        // A re-run started without the option, as a Rerun button starts it, keeps the folder whole.
         membership = SECOND;
-        await s.runs.start("louvain", {}, { as: "louvain", seed: 7, style: { groups: "layers" } });
+        await s.runs.start("louvain", {}, { as: "louvain", seed: 7 });
         await s.styles.settled();
 
         assert.strictEqual(colorOf(s, "e"), "#123456");

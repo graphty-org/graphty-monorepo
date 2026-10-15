@@ -3094,6 +3094,11 @@ class Node_2 {
     dragging: boolean;
     // (undocumented)
     dragHandler?: NodeDragHandler;
+    get drawnHalfExtents(): Readonly<{
+        x: number;
+        y: number;
+        z: number;
+    }>;
     get drawnRadius(): number;
     getPosition(): {
         x: number;
@@ -3253,6 +3258,12 @@ export interface NodeLabelCounts {
 
 // @public
 export interface NodeScreenPosition {
+    bounds: {
+        left: number;
+        top: number;
+        right: number;
+        bottom: number;
+    };
     radius: number;
     visible: boolean;
     x: number;

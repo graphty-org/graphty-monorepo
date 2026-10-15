@@ -1354,11 +1354,15 @@ export function projectOf(
     // sample or a file is not an unsaved change. Undoing past it is.
     let fresh = true;
     const isFirstImport = (): boolean => {
-        const { steps, position } = session.history;
+        // Checked before the step list is read: reading it copies every step, and this runs on
+        // every recorded step of a session's life.
+        if (!fresh || session.history.position !== 1) {
+            return false;
+        }
+
+        const { steps } = session.history;
         return (
-            fresh &&
             steps.length === 1 &&
-            position === 1 &&
             steps[0].ops.includes("data.import") &&
             (point.step === null || point.step === steps[0].id) &&
             !point.lost &&

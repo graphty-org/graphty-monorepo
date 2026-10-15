@@ -137,7 +137,11 @@ function sectionName(id: string, label: string, technicalName: string | undefine
                 <>
                     {label}
                     {technicalName === undefined ? null : (
-                        <Box component="span" data-testid="control-section-technical-name" className="cm-section-technical">
+                        <Box
+                            component="span"
+                            data-testid="control-section-technical-name"
+                            className="cm-section-technical"
+                        >
                             {` (${technicalName})`}
                         </Box>
                     )}

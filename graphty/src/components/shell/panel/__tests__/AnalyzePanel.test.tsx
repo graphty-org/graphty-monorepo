@@ -114,6 +114,49 @@ describe("AnalyzePanel", () => {
 
             expect(screen.getByRole("tab", { name: "Run" })).toHaveAttribute("aria-selected", "true");
         });
+
+        it("moves between the tabs with the arrow keys, Home and End, as one Tab stop", async () => {
+            renderPanel({ results: THREE_RESULTS });
+
+            const run = screen.getByRole("tab", { name: "Run" });
+            const results = screen.getByRole("tab", { name: "Results (3)" });
+
+            await userEvent.click(run);
+            await userEvent.keyboard("{ArrowRight}");
+
+            expect(results).toHaveFocus();
+            expect(results).toHaveAttribute("aria-selected", "true");
+            expect(results.matches(":focus-visible")).toBe(true);
+            expect(screen.getByTestId("analyze-results")).toBeVisible();
+
+            // The list wraps, so Right on the last tab comes back to the first.
+            await userEvent.keyboard("{ArrowRight}");
+            expect(run).toHaveFocus();
+            expect(run).toHaveAttribute("aria-selected", "true");
+
+            await userEvent.keyboard("{End}");
+            expect(results).toHaveFocus();
+            await userEvent.keyboard("{Home}");
+            expect(run).toHaveFocus();
+
+            // One Tab stop: Tab leaves the list instead of visiting the other tab.
+            await userEvent.tab();
+            expect(results).not.toHaveFocus();
+            expect(document.activeElement?.getAttribute("role")).not.toBe("tab");
+        });
+
+        it("skips the empty Results tab with the arrow keys", async () => {
+            renderPanel();
+
+            const run = screen.getByRole("tab", { name: "Run" });
+
+            await userEvent.click(run);
+            await userEvent.keyboard("{ArrowRight}");
+
+            expect(run).toHaveFocus();
+            expect(run).toHaveAttribute("aria-selected", "true");
+            expect(screen.getByRole("tab", { name: "Results" })).toBeDisabled();
+        });
     });
 
     /* ------------------------------------------------------------------ */

@@ -1,6 +1,9 @@
+import { Tabs } from "@mantine/core";
 import { renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
+import { render, screen } from "../../../test/test-utils";
 import {
     type EscapeLadderHandlers,
     isTextEntryTarget,
@@ -205,6 +208,40 @@ describe("useShellKeyBindings", () => {
             press("ArrowRight", {}, mountElement("<button>Run</button>"));
 
             expect(panOrOrbit).toHaveBeenCalledTimes(1);
+        });
+
+        it("leaves every arrow on a tab to the tab list", () => {
+            const panOrOrbit = vi.fn();
+            const tab = mountElement('<button role="tab">Run</button>');
+
+            mountDispatcher({ handlers: { panOrOrbit } });
+
+            for (const key of ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]) {
+                press(key, {}, tab);
+            }
+
+            expect(panOrOrbit).not.toHaveBeenCalled();
+        });
+
+        it("keeps a real tab list's arrows off the canvas", async () => {
+            const panOrOrbit = vi.fn();
+
+            render(
+                <Tabs defaultValue="run">
+                    <Tabs.List aria-label="Analyze">
+                        <Tabs.Tab value="run">Run</Tabs.Tab>
+                        <Tabs.Tab value="results">Results</Tabs.Tab>
+                    </Tabs.List>
+                </Tabs>,
+            );
+            mountDispatcher({ handlers: { panOrOrbit } });
+
+            await userEvent.click(screen.getByRole("tab", { name: "Run" }));
+            // Right moves along the list; Up and Down cross it, which Mantine leaves alone.
+            await userEvent.keyboard("{ArrowRight}{ArrowUp}{ArrowDown}{ArrowLeft}");
+
+            expect(screen.getByRole("tab", { name: "Run" })).toHaveFocus();
+            expect(panOrOrbit).not.toHaveBeenCalled();
         });
 
         it("leaves Escape to the widget while focus is in a text field", () => {

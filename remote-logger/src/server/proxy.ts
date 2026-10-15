@@ -159,6 +159,38 @@ export function injectScript(html: string, scriptUrl: string, baseHref: string):
 }
 
 /**
+ * Copy an upstream response's headers for the proxied response: drop the ones the
+ * proxy must not pass on, and rewrite redirects and cookies to stay on the proxy.
+ * @param upstream - The upstream response's headers
+ * @param proxyBasePath - The proxy's base path
+ * @returns The headers to send
+ */
+function proxiedHeaders(upstream: http.IncomingHttpHeaders, proxyBasePath: string): Record<string, string | string[]> {
+    const headers: Record<string, string | string[]> = {};
+    for (const [key, value] of Object.entries(upstream)) {
+        if (value === undefined) {
+            continue;
+        }
+        if (HEADERS_TO_REMOVE.has(key.toLowerCase())) {
+            continue;
+        }
+
+        if (key.toLowerCase() === "location" && typeof value === "string") {
+            headers[key] = rewriteLocationHeader(value, proxyBasePath);
+            continue;
+        }
+
+        if (key.toLowerCase() === "set-cookie" && Array.isArray(value)) {
+            headers[key] = value.map(rewriteSetCookie);
+            continue;
+        }
+
+        headers[key] = value;
+    }
+    return headers;
+}
+
+/**
  * Check if a content-type header indicates HTML.
  * @param contentType - The Content-Type header value
  * @returns True if the content is HTML
@@ -232,28 +264,7 @@ export function createProxy(proxyBasePath: string, quiet: boolean): ProxyInstanc
         proxyRes.on("end", () => {
             const body = Buffer.concat(chunks);
 
-            // Copy headers with modifications
-            const headers: Record<string, string | string[]> = {};
-            for (const [key, value] of Object.entries(proxyRes.headers)) {
-                if (value === undefined) {
-                    continue;
-                }
-                if (HEADERS_TO_REMOVE.has(key.toLowerCase())) {
-                    continue;
-                }
-
-                if (key.toLowerCase() === "location" && typeof value === "string") {
-                    headers[key] = rewriteLocationHeader(value, proxyBasePath);
-                    continue;
-                }
-
-                if (key.toLowerCase() === "set-cookie" && Array.isArray(value)) {
-                    headers[key] = value.map(rewriteSetCookie);
-                    continue;
-                }
-
-                headers[key] = value;
-            }
+            const headers = proxiedHeaders(proxyRes.headers, proxyBasePath);
 
             const contentType = proxyRes.headers["content-type"];
             const statusCode = proxyRes.statusCode ?? 200;

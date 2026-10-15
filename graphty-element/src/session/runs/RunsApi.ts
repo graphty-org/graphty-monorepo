@@ -697,8 +697,8 @@ class Runs implements SessionRunsApi {
 
     /** The batch each member's painting is held for. */
     private readonly holds = new Map<RunId, PaintHold>();
-    /** What each run started with `style: { groups: "layers", groupName }` calls its groups, for its re-runs. */
-    private readonly groupNamers = new Map<RunId, (group: RunGroup) => string>();
+    /** The style of each run first started with `groups: "layers"`, kept for its re-runs and restores. */
+    private readonly groupStyles = new Map<RunId, Exclude<RunStyle, boolean>>();
 
     /**
      * What a batch decided for its members when it released their hold. Kept beside the runs
@@ -1417,7 +1417,7 @@ class Runs implements SessionRunsApi {
             }
 
             if (command.restoreLayer === true && run.status === "succeeded") {
-                this.restoreMissing(ctx.draft, run.id);
+                this.restoreMissing(ctx.draft, run.id, this.dispatcher.state.runs.get(run.id)?.result);
             }
 
             return run.id;
@@ -1552,7 +1552,7 @@ class Runs implements SessionRunsApi {
             }
 
             if (command.restoreLayer === true) {
-                this.restoreMissing(draft, run.id);
+                this.restoreMissing(draft, run.id, entry.result);
             }
         } catch (error) {
             revert();
@@ -1747,9 +1747,7 @@ class Runs implements SessionRunsApi {
             return null;
         }
 
-        if (style.groupName !== undefined) {
-            this.groupNamers.set(result.runId, style.groupName);
-        }
+        this.groupStyles.set(result.runId, style);
         const field = binding.by.slice(`${RESULT_ROOT}.${result.runId}.`.length);
         const column = elementIdsOf(result, "node").map((id) => result.node(id)?.[field]);
         const preview = styles.previewColumn(binding, "node.color", column);
@@ -1840,7 +1838,7 @@ class Runs implements SessionRunsApi {
         }
         // A re-run started without the option still keeps its folder whole, named as it was.
         const groupName =
-            (typeof style === "object" ? style.groupName : undefined) ?? this.groupNamers.get(result.runId);
+            (typeof style === "object" ? style.groupName : undefined) ?? this.groupStyles.get(result.runId)?.groupName;
         const path = `${RESULT_ROOT}.${result.runId}.group`;
         const groupValues = (layer: Layer): readonly string[] => {
             const where = layer.selector.match === "rule" ? layer.selector.where : undefined;
@@ -1896,15 +1894,21 @@ class Runs implements SessionRunsApi {
      * put it (beneath the reader's own layers when the project places runs there).
      * @param draft - The draft.
      * @param runId - The run.
+     * @param result - The run's result, so a run whose groups were layers gets its folder back.
      */
-    private restoreMissing(draft: Draft, runId: RunId): void {
+    private restoreMissing(draft: Draft, runId: RunId, result?: RunResult): void {
         const { styles } = this.dispatcher.services;
         if (styles === undefined) {
             return;
         }
 
+        const style = this.groupStyles.get(runId);
         for (const suggestion of this.missingOf(draft.styles, this.dispatcher.state.runs.get(runId)?.painting, runId)) {
-            styles.execute(suggestionCommand(suggestion, true), draft);
+            const outcome = styles.execute(suggestionCommand(suggestion, true), draft);
+            // A run whose groups were layers gets its folder of groups back, not one layer.
+            if (result !== undefined && style !== undefined) {
+                this.groupLayers(draft, outcome, { style, result });
+            }
         }
     }
 

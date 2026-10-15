@@ -153,6 +153,22 @@ describe("a partition's groups as layers", () => {
         assert.strictEqual(s.styles.counts(after.children[0].id).matched, 2);
     });
 
+    it("puts the folder of groups back when a deleted folder's run restores its layer", async () => {
+        const s = await session();
+        await s.runs.start("louvain", {}, { as: "louvain", style: { groups: "layers", name: "Louvain" } });
+        await s.styles.settled();
+        const [folder] = s.styles.tree().filter((row) => row.kind === "folder");
+        await s.styles.deleteRow(folder.id);
+        await s.styles.settled();
+
+        await s.runs.start("louvain", {}, { as: "louvain", restoreLayer: true });
+        await s.styles.settled();
+
+        const [back] = s.styles.tree().filter((row) => row.kind === "folder");
+        assert.strictEqual(back.name, "Louvain");
+        assert.lengthOf(back.children, 4);
+    });
+
     it("takes the folder away with the run", async () => {
         const s = await session();
         await s.runs.start("louvain", {}, { as: "louvain", style: { groups: "layers" } });

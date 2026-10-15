@@ -178,7 +178,7 @@ export interface BindingNumberFormat {
 }
 
 // @public
-export type BindingOverflow = "other" | "shape" | "extend";
+export type BindingOverflow = "other" | "shape" | "pattern" | "extend";
 
 // @public
 export interface BindingPreview {
@@ -4033,6 +4033,7 @@ export interface StylesApi {
     setDefaultPalettes(palettes: DefaultPalettes, options?: {
         readonly reapply?: boolean;
     }): void;
+    setFoldBelow(id: LayerId, by: Path, below: number | undefined, options?: RunOptions): Run<Layer>;
     setHighlightColor(color: string | undefined): void;
     settled(): Promise<void>;
     setValueEntries(id: LayerId, by: Path, writes: readonly ValueEntryWrite[], options?: RunOptions): Run<Layer>;
@@ -4042,6 +4043,7 @@ export interface StylesApi {
     tree(): readonly StyleRow[];
     update(id: LayerId, patch: Partial<LayerSpec>, options?: StyleUpdateOptions): Run<Layer>;
     validate(spec: LayerSpec): ValidationResult;
+    valueAt(target: ExplainTarget, path: Path): unknown;
     writeRow(id: LayerId, write: RowWrite, options?: RunOptions): Run<RowParts>;
 }
 
@@ -4223,6 +4225,7 @@ export interface ValueEntryWrite {
 export interface ValueGroup {
     readonly count: number;
     readonly entries: Readonly<Partial<Record<Channel, string | number>>>;
+    readonly folded?: true;
     readonly hidden: boolean;
     readonly name?: string;
     readonly value: unknown;

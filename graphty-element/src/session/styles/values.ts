@@ -30,6 +30,7 @@ import type {
     RunId,
     Selector,
 } from "../../catalog/types";
+import { OTHER_GROUP_COLOR } from "../../config/palettes/categorical";
 import { GraphtyError } from "../../errors";
 import { channelDescriptor } from "./channels";
 import type { PreparedBinding } from "./encoding";
@@ -51,6 +52,13 @@ export interface ValueGroup {
     readonly name?: string;
     /** Each channel's value-table entry for it, for the channels that have one. */
     readonly entries: Readonly<Partial<Record<Channel, string | number>>>;
+    /**
+     * True when the group is folded into the layer's Other group (`styles.setFoldBelow`, or a
+     * colour palette that ran out under `overflow: "other"`), so it paints what Other paints.
+     * Folded groups come after the rest, largest first.
+     * @since 3.27.0
+     */
+    readonly folded?: true;
 }
 
 /**
@@ -148,18 +156,34 @@ export function groupsOf(
         return [];
     }
 
-    return categoriesOf(layer, first, prepared, names).map((category) => {
-        const key = String(category.value);
-        const entries = Object.fromEntries(
-            channels.flatMap((channel) => {
-                const binding = layer.encode?.[channel];
-                const entry = binding !== undefined && "by" in binding ? binding.map?.[key] : undefined;
-                return entry === undefined ? [] : [[channel, entry]];
-            }),
+    const entriesOf = (key: string): Readonly<Partial<Record<Channel, string | number>>> =>
+        Object.freeze(
+            Object.fromEntries(
+                channels.flatMap((channel) => {
+                    const binding = layer.encode?.[channel];
+                    const entry = binding !== undefined && "by" in binding ? binding.map?.[key] : undefined;
+                    return entry === undefined ? [] : [[channel, entry]];
+                }),
+            ),
         );
+    const kept = categoriesOf(layer, first, prepared, names).map((category) => {
         const { entry: _entry, ...group } = category;
-        return Object.freeze({ ...group, entries: Object.freeze(entries) });
+        return Object.freeze({ ...group, entries: entriesOf(String(category.value)) });
     });
+    const ready = prepared.find((entry) => entry.channel === first);
+    const named = names(path);
+    const folded = (ready?.lumped ?? []).map((key) => {
+        const label = named.get(key);
+        return Object.freeze({
+            value: ready?.categoryValues.get(key) ?? key,
+            count: ready?.categoryCounts.get(key) ?? 0,
+            hidden: ready?.hidden.has(key) ?? false,
+            ...(label === undefined ? {} : { name: label }),
+            entries: entriesOf(key),
+            folded: true as const,
+        });
+    });
+    return [...kept, ...folded];
 }
 
 /**
@@ -217,13 +241,105 @@ function boundTo(layer: Layer, channel: Channel, by: Path): Layer {
     const { [channel]: single, ...set } = layer.set ?? {};
     const before = single ?? channelDescriptor(channel)?.default;
     const otherwise = typeof before === "string" || typeof before === "number" ? before : undefined;
-    const binding: Binding = { by, scale: "ordinal", ...(otherwise === undefined ? {} : { otherwise }) };
+    // A sibling reading the same path already hides some groups or folds the small ones into
+    // Other: the new channel does the same, so a group is hidden or folded in every property.
+    const sibling = bindingsBy(layer, by).find(
+        ([, each]) => each.hidden !== undefined || each.other !== undefined,
+    )?.[1];
+    const fold = sibling?.other === undefined ? undefined : foldOf(channel, otherwise, sibling.other.threshold);
+    const binding: Binding = {
+        by,
+        scale: "ordinal",
+        ...(otherwise === undefined ? {} : { otherwise }),
+        ...(sibling?.hidden === undefined ? {} : { hidden: [...sibling.hidden] }),
+        ...(fold === undefined ? {} : { other: fold }),
+    };
 
     return {
         ...layer,
         encode: { ...layer.encode, [channel]: binding },
         ...(single === undefined ? {} : { set }),
     };
+}
+
+/** A binding that reads a value. */
+type ValueBinding = Extract<Binding, { by: Path }>;
+
+/**
+ * The bindings of a layer that read one path.
+ * @param layer - The layer.
+ * @param by - The path.
+ * @returns Each channel with its binding.
+ */
+function bindingsBy(layer: Layer, by: Path): [Channel, ValueBinding][] {
+    return (Object.entries(layer.encode ?? {}) as [Channel, Binding | undefined][]).flatMap(([channel, binding]) =>
+        binding !== undefined && "by" in binding && binding.by === by
+            ? [[channel, binding] as [Channel, ValueBinding]]
+            : [],
+    );
+}
+
+/**
+ * What one channel paints the groups folded into Other: the grey of the Other bucket for a color,
+ * else the one value the channel paints every group without an entry.
+ * @param channel - The channel.
+ * @param otherwise - The binding's `otherwise`, if it has one.
+ * @param threshold - Groups with fewer elements than this are folded.
+ * @returns The fold, or undefined when the channel has no single value to fold into.
+ */
+function foldOf(
+    channel: Channel,
+    otherwise: string | number | undefined,
+    threshold: number,
+): { threshold: number; value: string | number } | undefined {
+    const descriptor = channelDescriptor(channel);
+    if (descriptor?.accepts === "color") {
+        return { threshold, value: OTHER_GROUP_COLOR };
+    }
+    const fallback = descriptor?.default;
+    const value = otherwise ?? (typeof fallback === "string" || typeof fallback === "number" ? fallback : undefined);
+    return value === undefined ? undefined : { threshold, value };
+}
+
+/**
+ * The patch that folds the small groups of a category path into one Other group in every channel
+ * of the layer that reads it, or unfolds them: see `styles.setFoldBelow`.
+ * @param layer - The layer, or undefined when the stack holds none with that id.
+ * @param by - The category path.
+ * @param below - Groups with fewer elements than this are folded; undefined unfolds them.
+ * @returns The patch.
+ * @throws `E_BAD_COMMAND` (`reason` `"not-bound"`) when no channel of the layer reads the path,
+ *   and (`reason` `"bad-threshold"`) for a threshold that is not a whole number of 1 or more.
+ */
+export function foldPatch(layer: Layer | undefined, by: Path, below: number | undefined): Partial<LayerSpec> {
+    if (layer === undefined) {
+        return {};
+    }
+    const bound = bindingsBy(layer, by);
+    if (bound.length === 0) {
+        throw refused(`Layer ${layer.id} does not paint anything from ${by}, so it has no groups to fold.`, {
+            id: layer.id,
+            path: by,
+            reason: "not-bound",
+        });
+    }
+    if (below !== undefined && (!Number.isInteger(below) || below < 1)) {
+        throw refused(`Groups are folded below a whole number of elements, 1 or more, not ${String(below)}.`, {
+            id: layer.id,
+            path: by,
+            below,
+            reason: "bad-threshold",
+        });
+    }
+
+    const encode: Encoding = { ...layer.encode };
+    for (const [channel, binding] of bound) {
+        const { other: _other, ...rest } = binding;
+        const fold = below === undefined ? undefined : foldOf(channel, binding.otherwise, below);
+        encode[channel] = fold === undefined ? rest : { ...rest, other: fold };
+    }
+
+    return { encode };
 }
 
 /**

@@ -402,7 +402,7 @@ const ID_FALLBACK = "layer";
 const RUN_PATH_PREFIX = "results.";
 
 /** The overflow policies a binding may name. */
-const OVERFLOW_POLICIES: readonly BindingOverflow[] = Object.freeze(["other", "shape", "extend"]);
+const OVERFLOW_POLICIES: readonly BindingOverflow[] = Object.freeze(["other", "shape", "pattern", "extend"]);
 
 /** The source a specification that named none is given. */
 const USER_SOURCE: LayerSource = Object.freeze({ by: "user" });
@@ -977,7 +977,14 @@ function checkBinding(
             code: "E_BAD_LAYER",
             message: `overflow "shape" draws the groups past the palette in other node shapes, and an edge has no shape, so ${descriptor.channel} cannot use it. Use "other" or "extend".`,
             path: `${path}.overflow`,
-            candidates: ["other", "extend"],
+            candidates: ["pattern", "other", "extend"],
+        });
+    } else if (binding.overflow === "pattern" && descriptor.target === "node") {
+        report(log, {
+            code: "E_BAD_LAYER",
+            message: `overflow "pattern" draws the groups past the palette in other edge line patterns, and a node has no line, so ${descriptor.channel} cannot use it. Use "shape", "other" or "extend".`,
+            path: `${path}.overflow`,
+            candidates: ["shape", "other", "extend"],
         });
     }
 

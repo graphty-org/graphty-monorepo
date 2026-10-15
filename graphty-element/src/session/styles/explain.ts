@@ -1252,14 +1252,14 @@ function authored(painted: unknown): ChannelValue {
 }
 
 /**
- * What one element carries for a path.
+ * What one element carries for a path: `styles.valueAt`.
  * @param path - The column path.
  * @param target - The node or edge to read.
  * @param sources - Where the element columns and the id map are.
  * @returns The value, or undefined when the element carries none.
  * @throws A `GraphtyError` with code `E_BAD_COMMAND` when the session holds no such element.
  */
-function read(path: Path, target: ExplainTarget, sources: ExplainSources): unknown {
+export function read(path: Path, target: ExplainTarget, sources: ExplainSources): unknown {
     const at = locate(target, sources);
 
     return columnsFor(sources.elements, at.target).value(at.index, path);

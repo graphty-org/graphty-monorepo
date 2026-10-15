@@ -58,7 +58,7 @@ import type { RunDistinction } from "../runs/types";
 import type { CodedFact, ColumnRef } from "../shared";
 import type { ChannelDescriptor, ChannelValueKind } from "./channels";
 import { DEFAULT_EDGE_WIDTH_RANGE, DEFAULT_SIZE_RANGE } from "./derive";
-import { requireChannel, type RuleBinding } from "./encoding";
+import { overflowHalf, requireChannel, type RuleBinding } from "./encoding";
 import { columnPaletteFor, sequentialSamples } from "./palettes";
 import type { ScaleRegistry } from "./scales";
 
@@ -481,31 +481,40 @@ function overflowOf(spec: EncodingOptions, scale: string, descriptor: ChannelDes
 }
 
 /**
- * The node shape half of `overflow: "shape"`, written into the same layer as the colour.
+ * The second half of `overflow: "shape"` (node shapes) or `"pattern"` (edge patterns), written
+ * into the same layer as the colour.
  * @param spec - The encoding.
  * @param colour - The colour binding it pairs with.
  * @param descriptor - The channel, refused when it paints edges.
- * @returns The extra channel bindings, empty unless the policy is "shape".
- * @throws A `GraphtyError` with code `E_BAD_COMMAND` for "shape" on an edge channel.
+ * @returns The extra channel bindings, empty unless the policy cycles a second cue.
+ * @throws A `GraphtyError` with code `E_BAD_COMMAND` for "shape" on an edge channel, or "pattern"
+ *   on a node channel.
  */
 function overflowCompanion(spec: EncodingOptions, colour: RuleBinding, descriptor: ChannelDescriptor): Encoding {
-    if (colour.overflow !== "shape") {
-        return {};
-    }
-
-    if (descriptor.target === "edge") {
+    if (colour.overflow === "shape" && descriptor.target === "edge") {
         throw badEncoding(
-            `overflow "shape" draws the groups past the palette in other node shapes, and an edge has no shape, so ${descriptor.channel} cannot use it. Use "other" or "extend".`,
+            `overflow "shape" draws the groups past the palette in other node shapes, and an edge has no shape, so ${descriptor.channel} cannot use it. Use "pattern", "other" or "extend".`,
+            { channel: descriptor.channel, overflow: colour.overflow },
+        );
+    }
+    if (colour.overflow === "pattern" && descriptor.target === "node") {
+        throw badEncoding(
+            `overflow "pattern" draws the groups past the palette in other edge line patterns, and a node has no line, so ${descriptor.channel} cannot use it. Use "shape", "other" or "extend".`,
             { channel: descriptor.channel, overflow: colour.overflow },
         );
     }
 
-    const shape: RuleBinding = { by: colour.by, scale: colour.scale, overflow: "shape" };
-    if (colour.palette !== undefined) {
-        shape.palette = colour.palette;
-    }
+    // The half carries what decides the cycle -- the value, the scale, the palette -- and nothing
+    // the colour's own reading of the data adds.
+    const { by, overflow, scale, palette } = colour;
+    const half = overflowHalf(descriptor.channel, {
+        by,
+        overflow,
+        ...(scale === undefined ? {} : { scale }),
+        ...(palette === undefined ? {} : { palette }),
+    });
 
-    return { "node.shape": shape };
+    return half === null ? {} : { [half[0]]: half[1] };
 }
 
 /**

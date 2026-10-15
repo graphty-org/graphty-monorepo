@@ -415,7 +415,7 @@ export function prepareRamp(spec: RampSpec, registry: ScaleRegistry): PreparedRa
     const declared = groupCount(scale, counting);
     // A binding that says what to do with too many groups is painted through the preferred palette
     // and handles the rest itself -- except "extend", whose whole point is the larger palette.
-    const folds = overflow === "other" || overflow === "shape";
+    const folds = overflow === "other" || overflow === "shape" || overflow === "pattern";
     const palette =
         stops === undefined
             ? requirePalette(named ?? defaultPaletteFor(registry, scale, folds ? 0 : declared))
@@ -428,7 +428,7 @@ export function prepareRamp(spec: RampSpec, registry: ScaleRegistry): PreparedRa
     const categorical = palette.kind === "categorical";
     const slots = categorical && declared === 0 ? palette.colors.length : declared;
 
-    // "shape" wraps and "extend" continues, so only "other" -- already folded -- and no policy at
+    // "shape" and "pattern" wrap and "extend" continues, so only "other" -- already folded -- and no policy at
     // all are held to the palette's capacity.
     if (declared > 0 && (overflow === undefined || overflow === "other")) {
         const fit = paletteCapacity(palette, declared);
@@ -479,7 +479,7 @@ export function prepareRamp(spec: RampSpec, registry: ScaleRegistry): PreparedRa
             if (categorical) {
                 const index = Math.max(0, slots > 1 ? Math.round(placed * (slots - 1)) : 0);
 
-                if (index > last && overflow === "shape") {
+                if (index > last && (overflow === "shape" || overflow === "pattern")) {
                     return swatches[index % swatches.length];
                 }
 

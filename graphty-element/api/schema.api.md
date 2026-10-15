@@ -54,7 +54,7 @@ export interface BindingNumberFormat {
 }
 
 // @public
-export type BindingOverflow = "other" | "shape" | "extend";
+export type BindingOverflow = "other" | "shape" | "pattern" | "extend";
 
 // @public
 export const BLUE_HIGHLIGHT: {

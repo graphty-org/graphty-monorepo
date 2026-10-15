@@ -641,6 +641,11 @@ const STYLES_API: Readonly<Record<string, Door>> = {
         ["no-such-layer", "data.group", [{ channel: "node.shape", value: 0, entry: "box" }]],
         [{ op: "style.patch", action: "update", id: "no-such-layer", patch: {} }],
     ),
+    setFoldBelow: calls(
+        ["no-such-layer", "data.group", 3],
+        [{ op: "style.patch", action: "update", id: "no-such-layer", patch: {} }],
+    ),
+    valueAt: READ,
     applyTemplate: calls(
         [{ version: 1, layers: [] }],
         [{ op: "style.template", document: { version: 1, layers: [] } }],

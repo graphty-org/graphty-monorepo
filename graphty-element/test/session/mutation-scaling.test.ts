@@ -448,6 +448,19 @@ const CASES: readonly Case[] = [
         },
     },
     {
+        method: "StylesApi.setFoldBelow",
+        growth: "linear",
+        prepare: async (session) => {
+            const id = await categoryLayer(session);
+            let below = 2;
+            return async () => {
+                below = below === 2 ? 3 : 2;
+                await session.styles.setFoldBelow(id, "data.group", below);
+                await session.styles.settled();
+            };
+        },
+    },
+    {
         method: "StylesApi.applyTemplate",
         growth: "linear",
         prepare: async (session) => {

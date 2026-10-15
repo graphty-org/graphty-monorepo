@@ -640,7 +640,12 @@ export type StaticStyle = Partial<Record<Channel, ChannelValue>>;
  * - `"shape"`: node encodings only. Group i is painted colour i mod N and drawn in shape
  *   floor(i / N) from a fixed list (icosphere, box, octahedron, cylinder, cone, torus), so the
  *   first N groups keep the element's default shape. Groups past N x 6 fold into the grey. On an
- *   edge encoding it is refused, because an edge has no shape to cycle.
+ *   edge encoding it is refused, because an edge has no shape to cycle. A layer that varies only
+ *   the colour this way is drawn in the shapes too, whether or not it stores the shape half.
+ * - `"pattern"`: edge encodings only, the edge counterpart of `"shape"`. Group i is painted
+ *   colour i mod N and drawn in line pattern floor(i / N) from a fixed list (solid, dash, dot,
+ *   dash-dot, wave, diamonds), so two groups that share a colour never share a pattern. On a node
+ *   encoding it is refused, because a node has no line. @since 3.27.0
  * - `"extend"`: every group gets a colour of its own. With no palette named, the smallest
  *   categorical palette that fits, else the sequential default sampled once per group; with a
  *   palette named, its colours and then samples of the sequential default. Distinctness is NOT
@@ -648,7 +653,7 @@ export type StaticStyle = Partial<Record<Channel, ChannelValue>>;
  *
  * Ignored by a scale that reads numbers, which has no groups to overflow.
  */
-export type BindingOverflow = "other" | "shape" | "extend";
+export type BindingOverflow = "other" | "shape" | "pattern" | "extend";
 
 /**
  * How a binding writes a number as text: a label, a tooltip or a caption bound to a number value.

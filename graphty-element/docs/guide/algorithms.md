@@ -686,7 +686,10 @@ await element.session.styles.encode({ run, channel: "node.color", overflow: "sha
 await element.session.styles.encode({ run, channel: "node.color", overflow: "extend" });
 ```
 
-`"shape"` is for nodes only; an edge encoding refuses it. If you name a `palette` and no
+`"shape"` is for nodes only; an edge encoding refuses it. Its edge counterpart is `"pattern"`:
+the colours cycle and each cycle draws the edges in the next line pattern (solid, dashed, dotted,
+...), so two edge groups that share a colour never share a pattern. A layer that varies only the
+colour with either policy still draws the second cue. If you name a `palette` and no
 `overflow`, a palette too small for the groups is refused with `E_CAP_EXCEEDED` rather than
 folded, because you asked for exactly those colours; name an `overflow` as well to apply it.
 

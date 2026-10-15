@@ -79,6 +79,7 @@ import {
     type ChannelValueKind,
     type ChannelValues,
     type ColorValue,
+    type EdgeLineValue,
     type NodeShapeValue,
     OFF_COLOR,
     toColorValue,
@@ -255,6 +256,21 @@ export const OVERFLOW_SHAPES: readonly NodeShapeValue[] = Object.freeze([
     "cylinder",
     "cone",
     "torus",
+]);
+
+/**
+ * The edge line patterns `overflow: "pattern"` steps through, one per full cycle of the palette:
+ * the edge counterpart of {@link OVERFLOW_SHAPES}. The first is the element's default, a solid
+ * line; the rest are chosen to stay apart at an edge's width.
+ * @since 3.27.0
+ */
+export const OVERFLOW_PATTERNS: readonly EdgeLineValue[] = Object.freeze([
+    "solid",
+    "dash",
+    "dot",
+    "dash-dot",
+    "sinewave",
+    "diamond",
 ]);
 
 /** The counts of a binding that read nothing. */
@@ -1412,7 +1428,10 @@ function withChoices(descriptor: ChannelDescriptor, choices: readonly string[] |
 function valuePainter(declared: ChannelDescriptor, binding: RuleBinding, parts: AssemblyParts): Painter {
     const descriptor = withChoices(declared, binding.choices);
     if (binding.overflow === "shape" && descriptor.channel === "node.shape") {
-        return shapeCyclePainter(binding, parts);
+        return cyclePainter(binding, parts, OVERFLOW_SHAPES);
+    }
+    if (binding.overflow === "pattern" && descriptor.channel === "edge.style") {
+        return cyclePainter(binding, parts, OVERFLOW_PATTERNS);
     }
 
     const convert = converterFor(descriptor, binding.format);
@@ -1461,30 +1480,74 @@ function valuePainter(declared: ChannelDescriptor, binding: RuleBinding, parts: 
 }
 
 /**
- * Build the painter for the node shape half of `overflow: "shape"`.
+ * Build the painter for the second half of `overflow: "shape"` (node shapes) or `"pattern"` (edge
+ * line patterns).
  *
- * Group i -- largest first, the order the colour half numbers them in -- is drawn in shape
- * floor(i / N), N being the palette's capacity, so each full cycle of colours moves to the next
- * shape. A group folded into "other" is not given a shape at all.
+ * Group i -- largest first, the order the colour half numbers them in -- is drawn in value
+ * floor(i / N) of the list, N being the palette's capacity, so each full cycle of colours moves to
+ * the next value and two groups that share a colour never share it. A group with its own entry in
+ * the binding's `map` keeps that entry. A group folded into "other" is not given a value at all.
  * @param binding - The rule binding, read for the palette whose capacity sets the cycle.
  * @param parts - What preparing it worked out.
+ * @param list - The values the cycle steps through.
  * @returns The painter.
  */
-function shapeCyclePainter(binding: RuleBinding, parts: AssemblyParts): Painter {
+function cyclePainter(binding: RuleBinding, parts: AssemblyParts, list: readonly string[]): Painter {
     const cycle = paletteCapacityOf(binding) ?? Number.POSITIVE_INFINITY;
-    const shapes = new Map<string, EncodedValue>(
-        parts.categories.categories.map((name, index) => [name, OVERFLOW_SHAPES[Math.floor(index / cycle)]]),
+    const values = new Map<string, EncodedValue>(
+        parts.categories.categories.map((name, index) => [
+            name,
+            binding.map?.[name] ?? list[Math.floor(index / cycle)],
+        ]),
     );
 
     return {
         palette: null,
-        groups: shapes.size,
+        groups: values.size,
         paint: (value): EncodedValue | undefined => {
             const name = readCategory(value);
 
-            return name === null ? undefined : shapes.get(name);
+            return name === null ? undefined : values.get(name);
         },
     };
+}
+
+/**
+ * The second half of a colour binding whose overflow cycles a second cue: the node shape binding
+ * of `overflow: "shape"` on `node.color`, the edge pattern binding of `overflow: "pattern"` on
+ * `edge.color`. Both halves read the same value and count the same palette, so a group that shares
+ * a colour with another never shares its shape or pattern.
+ * @param channel - The colour channel.
+ * @param binding - Its binding.
+ * @returns The other channel and its binding, or null when the binding cycles nothing.
+ * @since 3.27.0
+ */
+export function overflowHalf(channel: Channel, binding: Binding): readonly [Channel, RuleBinding] | null {
+    if (!("by" in binding)) {
+        return null;
+    }
+    let half: Channel | null = null;
+    if (binding.overflow === "shape" && channel === "node.color") {
+        half = "node.shape";
+    } else if (binding.overflow === "pattern" && channel === "edge.color") {
+        half = "edge.style";
+    }
+    if (half === null) {
+        return null;
+    }
+
+    return [
+        half,
+        {
+            by: binding.by,
+            overflow: binding.overflow,
+            ...(binding.scale === undefined ? {} : { scale: binding.scale }),
+            ...(binding.palette === undefined ? {} : { palette: binding.palette }),
+            ...(binding.stops === undefined ? {} : { stops: binding.stops }),
+            ...(binding.other === undefined ? {} : { other: binding.other }),
+            ...(binding.hidden === undefined ? {} : { hidden: binding.hidden }),
+        },
+    ];
 }
 
 /**
@@ -1509,7 +1572,13 @@ function overflowKeep(descriptor: ChannelDescriptor, binding: RuleBinding, numer
 
     if (overflow === "shape" && descriptor.target === "edge") {
         throw badBinding(
-            `overflow "shape" draws the groups past the palette in other node shapes, and an edge has no shape, so ${descriptor.channel} cannot use it. Use "other" or "extend".`,
+            `overflow "shape" draws the groups past the palette in other node shapes, and an edge has no shape, so ${descriptor.channel} cannot use it. Use "pattern", "other" or "extend".`,
+            { channel: descriptor.channel, overflow },
+        );
+    }
+    if (overflow === "pattern" && descriptor.target === "node") {
+        throw badBinding(
+            `overflow "pattern" draws the groups past the palette in other edge line patterns, and a node has no line, so ${descriptor.channel} cannot use it. Use "shape", "other" or "extend".`,
             { channel: descriptor.channel, overflow },
         );
     }
@@ -1520,11 +1589,15 @@ function overflowKeep(descriptor: ChannelDescriptor, binding: RuleBinding, numer
             ? (descriptor.values?.length ?? null)
             : paletteCapacityOf(binding);
 
-    if (numeric || capacity === null || (overflow !== "other" && overflow !== "shape")) {
+    if (numeric || capacity === null || (overflow !== "other" && overflow !== "shape" && overflow !== "pattern")) {
         return Number.POSITIVE_INFINITY;
     }
 
-    return overflow === "other" ? capacity : capacity * OVERFLOW_SHAPES.length;
+    if (overflow === "other") {
+        return capacity;
+    }
+
+    return capacity * (overflow === "shape" ? OVERFLOW_SHAPES : OVERFLOW_PATTERNS).length;
 }
 
 /**

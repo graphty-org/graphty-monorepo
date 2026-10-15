@@ -153,6 +153,7 @@ import {
     type ExplainSources,
     explainStyle,
     type ExplainTarget,
+    read as readAt,
     resolveToStatic as resolveRule,
     type StyleAgreement,
     styleAgreement,
@@ -233,6 +234,7 @@ import {
 } from "./tree";
 import {
     categoriesOf,
+    foldPatch,
     groupsOf,
     type ValueCategory,
     valueEntriesPatch,
@@ -818,6 +820,42 @@ export interface StylesApi {
      * @since 3.26.0
      */
     setValueEntries(id: LayerId, by: Path, writes: readonly ValueEntryWrite[], options?: RunOptions): Run<Layer>;
+    /**
+     * Fold the small groups of one category path into one Other group, in every channel of the
+     * layer that reads the path, as one undoable step: a group with fewer elements than `below`
+     * paints what Other paints (a colour paints the Other grey; any other channel the one value
+     * it paints every group without an entry). A channel bound to the path later folds the same
+     * way. `styles.groups` lists the folded groups last, marked `folded`.
+     *
+     * ```ts
+     * await session.styles.setFoldBelow(layer.id, "results.louvain.group", 3); // under 3 nodes
+     * await session.styles.setFoldBelow(layer.id, "results.louvain.group", undefined); // unfold
+     * ```
+     * @param id - The layer.
+     * @param by - The category path.
+     * @param below - Fold groups with fewer elements than this, a whole number of 1 or more;
+     *   undefined unfolds every group.
+     * @param options - A signal to cancel with, and a progress handler.
+     * @returns A run that resolves with the layer, and rejects with `E_BAD_COMMAND` when no channel
+     *   of the layer reads the path (`details.reason` `"not-bound"`) or `below` is not a whole
+     *   number of 1 or more (`"bad-threshold"`), `E_UNKNOWN_LAYER`, `E_PROTECTED` and `E_LOCKED`.
+     * @since 3.27.0
+     */
+    setFoldBelow(id: LayerId, by: Path, below: number | undefined, options?: RunOptions): Run<Layer>;
+    /**
+     * The value one node or edge carries for a path, read the way a layer reads it: which group of
+     * `results.louvain.group` the selected node is in, say, so a group list can put it first.
+     *
+     * ```ts
+     * session.styles.valueAt({ node: "Valjean" }, "results.louvain.group"); // 3
+     * ```
+     * @param target - The node or the edge.
+     * @param path - The path, such as `results.<run>.group` or `data.dept`.
+     * @returns The value, or undefined when the element carries none.
+     * @throws `E_BAD_COMMAND` when the session holds no such element.
+     * @since 3.27.0
+     */
+    valueAt(target: ExplainTarget, path: Path): unknown;
     /**
      * Set what one value of a categorical binding paints, or let it follow the palette again, as
      * one undoable step: an entry in the binding's value table (its `map`). A palette change
@@ -3859,6 +3897,27 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 }),
                 options,
             );
+        },
+
+        setFoldBelow(id: LayerId, by: Path, below: number | undefined, options: RunOptions = {}): Run<Layer> {
+            return edit<Layer>(
+                "update",
+                below === undefined
+                    ? `Unfold the groups of ${by} on layer ${id}`
+                    : `Fold groups of ${by} under ${String(below)} on layer ${id}`,
+                (state) => ({
+                    op: "style.patch",
+                    action: "update",
+                    id,
+                    patch: foldPatch(layerIn(state, id), by, below),
+                }),
+                options,
+            );
+        },
+
+        valueAt(target: ExplainTarget, path: Path): unknown {
+            const value = readAt(path, target, explainSources);
+            return value === null ? undefined : value;
         },
 
         setValueEntry(

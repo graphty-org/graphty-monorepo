@@ -67,6 +67,7 @@ export const COUNTED_WORK_TESTS: Readonly<Record<string, readonly string[]>> = {
     "StylesApi.renameRow": ["test/session/mutation-scaling.test.ts"],
     "StylesApi.replaceColor": ["test/session/mutation-scaling.test.ts"],
     "StylesApi.resolveToStatic": ["test/session/mutation-scaling.test.ts"],
+    "StylesApi.setFoldBelow": ["test/session/mutation-scaling.test.ts"],
     "StylesApi.setValueEntries": ["test/session/mutation-scaling.test.ts"],
     "StylesApi.setValueEntry": ["test/session/mutation-scaling.test.ts"],
     "StylesApi.setValueHidden": ["test/session/mutation-scaling.test.ts"],

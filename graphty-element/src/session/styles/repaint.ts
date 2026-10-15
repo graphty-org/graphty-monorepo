@@ -60,7 +60,7 @@ import type { Binding, Channel, GraphtyErrorCode, LayerId, Path } from "../../ca
 import { isGraphtyError } from "../../errors";
 import { isNotePath } from "../notes/paths";
 import { asColorValue, type ChannelDescriptor, channelDescriptor, type ChannelValues, EFFECT_OFF } from "./channels";
-import { prepareBinding, type PreparedBinding } from "./encoding";
+import { overflowHalf, prepareBinding, type PreparedBinding } from "./encoding";
 import { createStyleInterner, meshChannelsFor, type StyleInterner } from "./intern";
 import type {
     CompiledLayer,
@@ -1274,6 +1274,17 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
             for (const [name, binding] of Object.entries(layer.encode ?? {})) {
                 if (binding !== undefined) {
                     add(name, "by" in binding ? binding.by : null, binding);
+                }
+            }
+
+            // A colour that cycles a second cue past its palette draws that cue too, whether or
+            // not the layer stores it: a layer the cue's own binding was never written into
+            // (its colour binding edited to "shape") must not repeat colours with nothing else
+            // to tell the groups apart. A stored binding of the cue's channel wins.
+            for (const [name, binding] of Object.entries(layer.encode ?? {})) {
+                const half = binding === undefined ? null : overflowHalf(name as Channel, binding);
+                if (half !== null && layer.encode?.[half[0]] === undefined) {
+                    add(half[0], half[1].by, half[1]);
                 }
             }
         } catch (thrown) {

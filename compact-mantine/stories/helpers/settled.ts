@@ -3,6 +3,24 @@ import { expect, waitFor } from "@storybook/test";
 import { TOOLTIP_OPEN_DELAY } from "../../src/theme/styles/overlays";
 
 /**
+ * The longest delay `setTimeout` accepts (about 24.8 days): in effect, no deadline.
+ */
+const NO_DEADLINE_MS = 2 ** 31 - 1;
+
+/**
+ * Options for a play function's `waitFor` or `findBy*`: no deadline of their own under a test
+ * runner (the Storybook vitest project, the visual capture), so the runner's own test timeout is
+ * the only backstop; `interactiveMs` in the interactive Storybook, so a hang still shows an error
+ * there. A fixed deadline under a runner fails a story whenever a stalled machine outlasts it,
+ * though the work it waits on still finishes inside the test's own timeout (#2864).
+ * @param interactiveMs - the deadline in the interactive Storybook
+ * @returns the `timeout` option to pass to `waitFor` or `findBy*`
+ */
+export function storyWaitOptions(interactiveMs: number): { timeout: number } {
+    return { timeout: navigator.webdriver ? NO_DEADLINE_MS : interactiveMs };
+}
+
+/**
  * Waits until a story's floating parts have stopped moving: the page's web fonts have loaded,
  * no pop-out panel has a reposition queued (`data-cm-repositioning`), and the boxes of every
  * element matching `selector` (none is fine) are the same on two animation frames in a row.
@@ -49,9 +67,7 @@ export async function settleFocusTooltip(root: HTMLElement): Promise<void> {
     await waitFor(
         () =>
             expect(root.ownerDocument.querySelector(".cm-tooltip:is([data-cm-held], :not([data-cm-seen]))")).toBeNull(),
-        {
-            timeout: 5000,
-        },
+        storyWaitOptions(5000),
     );
     await waitForSettledLayout(root, ".mantine-Tooltip-tooltip");
 }

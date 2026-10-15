@@ -202,8 +202,25 @@
     margin: 0;
     padding: 0;
     list-style: none;
-    max-height: 160px;
+    /* Room for about a dozen layers before it scrolls. */
+    max-height: 240px;
     overflow-y: auto;
+}
+.ws-bulk-vary-palette {
+    display: block;
+    width: 16px;
+    height: 8px;
+    margin-block: 4px;
+    border-radius: 2px;
+}
+/* What a bulk edit says under its field (the breakdown, the receipt, the vary preview): 11 px in
+   the primary ink, so the small words keep 4.5:1 on either theme. */
+.ws-bulk-words.ws-bulk-words {
+    --text-fz: 11px;
+    --text-lh: 16px;
+    color: var(--cm-text);
+    font-size: 11px;
+    line-height: 16px;
 }
 .ws-bulk-vary-list li {
     display: flex;

@@ -146,7 +146,11 @@ export const ROW_COMMANDS: readonly RowCommand[] = [
         run: ({ session, workspace }, row) => {
             const runId = runOfFolder(session, row);
             if (runId !== undefined) {
-                workspace.set({ inspected: { kind: "run-row", id: runId } });
+                // On its Values tab, where its settings and Rerun are.
+                workspace.set((state) => ({
+                    inspected: { kind: "run-row", id: runId },
+                    tabs: { ...state.tabs, "run-row": "values" },
+                }));
             }
         },
     },

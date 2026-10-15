@@ -221,7 +221,7 @@ export function swatchText(block: LegendBlock, swatch: LegendSwatch, entry?: str
     }
     if (block.kind === "literal" && swatch.color === undefined) {
         // A fixed pattern or shape names what it paints ("Solid"): the title already names the row.
-        const paint = paintWords(swatch);
+        const paint = paintWords(swatch, block.channel);
         if (paint !== null) {
             return paint;
         }
@@ -277,15 +277,25 @@ export function factSentence(fact: LegendFact): string | null {
  * What a list row paints when that is not a color: a shape or a line pattern in words
  * ("triangular_prism" reads "Triangular prism"), or a size as its number.
  * @param swatch - the row.
+ * @param channel - the channel it paints, so an opacity reads as a percent.
  * @returns the words, or null for a row that paints a color or nothing.
  */
-export function paintWords(swatch: LegendSwatch): string | null {
+export function paintWords(swatch: LegendSwatch, channel?: Channel): string | null {
     if (typeof swatch.paints === "string" && swatch.paints !== "") {
         const words = swatch.paints.replaceAll(/[-_]+/g, " ");
         return words.charAt(0).toUpperCase() + words.slice(1);
     }
-    return swatch.size === undefined ? null : String(Number(swatch.size.toPrecision(3)));
+    if (swatch.size === undefined) {
+        return null;
+    }
+    // An opacity reads as a percent, as its field in the Style tab does.
+    return channel !== undefined && OPACITY.test(channel)
+        ? `${String(Math.round(swatch.size * 100))}%`
+        : String(Number(swatch.size.toPrecision(3)));
 }
+
+/** The channels whose number is an opacity. */
+const OPACITY = /opacity$/i;
 
 /**
  * What a list row prints beside its name: what it paints when that is not a color, else how many
@@ -297,7 +307,7 @@ export function paintWords(swatch: LegendSwatch): string | null {
  * @returns the words or the count, or undefined for neither.
  */
 export function swatchValue(block: LegendBlock, swatch: LegendSwatch, entry?: string): string | number | undefined {
-    const paint = paintWords(swatch);
+    const paint = paintWords(swatch, block.channel);
     return paint === null || paint === swatchText(block, swatch, entry) ? swatch.count : paint;
 }
 
@@ -342,6 +352,62 @@ function highlightColor(block: LegendBlock): string | undefined {
 }
 
 /**
+ * One run's blocks for one channel as one block, top first: a run whose groups are layers paints
+ * each group from a layer of its own -- a fixed value, or a copy of one rule -- and the key lists
+ * them as one section of groups rather than a section per layer. Each fixed value's row is named
+ * by its layer; when every group paints the same shape or pattern, one row says so.
+ * @param top - the blocks worth a key, top first.
+ * @param names - how to name a block's row and its entry.
+ * @returns the blocks, each run's channel once.
+ */
+function runSections(top: readonly LegendBlock[], names: KeyNames): LegendBlock[] {
+    const groups = new Map<string, LegendBlock[]>();
+    const out: (LegendBlock | LegendBlock[])[] = [];
+    for (const block of top) {
+        const joins = block.runId !== undefined && (block.kind === "literal" || block.kind === "categorical");
+        const key = `${block.runId ?? ""}|${block.channel}|${block.field?.path ?? ""}`;
+        const literalKey = `${block.runId ?? ""}|${block.channel}|`;
+        const group = joins ? (groups.get(key) ?? groups.get(literalKey)) : undefined;
+        if (!joins) {
+            out.push(block);
+        } else if (group === undefined) {
+            const fresh = [block];
+            groups.set(key, fresh);
+            groups.set(literalKey, fresh);
+            out.push(fresh);
+        } else {
+            group.push(block);
+        }
+    }
+    return out.map((entry) => (Array.isArray(entry) ? oneRunBlock(entry, names) : entry));
+}
+
+/**
+ * Several blocks of one run and channel as one (see {@link runSections}).
+ * @param blocks - the blocks, top first.
+ * @param names - how to name a fixed value's row.
+ * @returns the block.
+ */
+function oneRunBlock(blocks: readonly LegendBlock[], names: KeyNames): LegendBlock {
+    if (blocks.length === 1) {
+        return blocks[0];
+    }
+    const rows = blocks.flatMap((block) =>
+        block.kind === "literal"
+            ? block.swatches.map((swatch) => ({ ...swatch, name: names.entry(block), rank: undefined }))
+            : block.swatches,
+    );
+    const paintOf = (row: LegendSwatch): string => JSON.stringify([row.paints ?? null, row.size ?? null]);
+    const shared = rows[0]?.color === undefined && rows.every((row) => paintOf(row) === paintOf(rows[0]));
+    const base = blocks.find((block) => block.kind !== "literal") ?? blocks[0];
+    if (shared) {
+        // Every group the same shape or pattern: one row naming it, as a layer's fixed value reads.
+        return { ...base, kind: "literal", swatches: [{ ...rows[0], name: undefined, count: undefined }] };
+    }
+    return { ...base, kind: "categorical", swatches: rows };
+}
+
+/**
  * The key's sections, top first. A run's node and edge highlights in one color are one section,
  * titled by the run alone ("Shortest path") with one entry ("On the path"), and marked `merged`:
  * two sections with the same chip told a reader nothing the one does not. The card draws a merged
@@ -351,7 +417,7 @@ function highlightColor(block: LegendBlock): string | undefined {
  * @returns the sections.
  */
 export function keySections(blocks: readonly LegendBlock[], names: KeyNames): KeySection[] {
-    const top = [...blocks].reverse();
+    const top = runSections([...blocks].reverse(), names);
     const merged = new Set<LegendBlock>();
     const sections: KeySection[] = [];
     for (const block of top) {
@@ -425,6 +491,15 @@ export function imageLegend(blocks: readonly LegendBlock[], names: KeyNames): Sc
  * @returns the name.
  */
 function rowName(session: GraphSession, block: LegendBlock): string {
+    // A rule on a data column names the column, even on a layer a run made ("Color: value").
+    const path = block.runId !== undefined && block.field?.result === undefined ? block.field?.path : undefined;
+    if (path !== undefined) {
+        return (
+            session.data.attributes().find((attribute) => attribute.path === path)?.name ??
+            block.field?.technicalName ??
+            path
+        );
+    }
     const run = block.runId === undefined ? undefined : session.runs.get(block.runId);
     if (run === undefined) {
         return session.styles.get(block.layerId)?.name ?? block.layerId;

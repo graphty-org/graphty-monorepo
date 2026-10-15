@@ -19,6 +19,7 @@ import {
 import { SelectionColors } from "./SelectionColors";
 import { RowStyle, StateLine } from "./StylePanel";
 import { useStyleVersion } from "./useStyleVersion";
+import { channelWord, hexOf } from "./words";
 
 /** One value or binding written to a channel. */
 type Write = LiteralWrite | { readonly binding: DataBinding };
@@ -47,21 +48,92 @@ function patchOf(layer: Layer, channel: Channel, write: Write): Pick<Layer, "set
     return { set: without(layer.set, channel), encode: { ...layer.encode, [channel]: encoded } };
 }
 
-/** What several rows edited together need beyond the rows: the locked count and the receipt. */
+/**
+ * A binding as one layer of several keeps it: one that reads a run's result, copied into a layer
+ * that meets some of its groups, holds what it paints those groups now in its own value table, so
+ * a re-run that renumbers the groups (graphty-element carries a table's entries to the group
+ * sharing most members) leaves each group painted as it was. Any other binding is copied as it is.
+ * @param session - the element's session.
+ * @param layer - the layer it is written to.
+ * @param channel - the channel.
+ * @param binding - the binding.
+ * @returns the binding for that layer.
+ */
+function bindingFor(session: GraphSession, layer: Layer, channel: Channel, binding: DataBinding): DataBinding {
+    const { map: _map, ...rest } = binding;
+    if (!rest.by.startsWith("results.")) {
+        return rest;
+    }
+    const color = channel.endsWith("color");
+    const map: Record<string, string | number> = {};
+    for (const bin of session.styles.preview(rest, { channel, within: layer.id }).bins) {
+        const paints = color ? hexOf(bin.paints) : bin.paints;
+        if (bin.count > 0 && bin.value !== undefined && (typeof paints === "string" || typeof paints === "number")) {
+            map[categoryOf(bin.value)] = paints;
+        }
+    }
+    return Object.keys(map).length === 0 ? rest : { ...rest, map };
+}
+
+/**
+ * A value as a binding's value table spells it: text as it is, anything else as JSON.
+ * @param value - the value.
+ * @returns the key.
+ */
+function categoryOf(value: unknown): string {
+    return typeof value === "string" ? value : JSON.stringify(value);
+}
+
+/** What several rows edited together need beyond the rows: the locked rows and the receipt. */
 interface Bulk {
-    readonly locked: number;
+    /** The names of the locked layers an edit leaves alone. */
+    readonly locked: readonly string[];
     readonly last: LastWrite | null;
     readonly setLast: (last: LastWrite | null) => void;
 }
 
 /**
- * How several rows read and write one kind's channels together: a value they all write alike, or
- * Mixed; a write goes, as one undo step (`styles.updateMany`), to the rows that already set the
- * channel, or to every row when none does; a receipt says what it did and offers to set the rest.
+ * Whether a layer holds one value of a field its rule selects by (a run's group, a column's
+ * value), read from what a binding on that field paints within it (`styles.preview`'s `within`):
+ * a binding copied into each such layer paints each one its own way.
+ * @param session - the element's session.
+ * @param layer - the layer.
+ * @param channel - a channel of the layer's kind.
+ * @returns true when it does.
+ */
+function holdsOneValue(session: GraphSession, layer: Layer, channel: Channel): boolean {
+    const where = layer.selector.match === "rule" ? layer.selector.where : undefined;
+    if (where?.kind !== "categories" || where.values.length !== 1) {
+        return false;
+    }
+    // ponytail: one preview per layer, a walk over the graph each; cache by the style version if a
+    // folder of hundreds of layers is slow.
+    return (
+        session.styles
+            .preview({ by: where.attribute, scale: "ordinal" }, { channel, within: layer.id })
+            .bins.filter((bin) => bin.count > 0).length === 1
+    );
+}
+
+/**
+ * The words a write to several layers goes into the history by: "changing fill on 5 layers".
+ * @param channel - the channel.
+ * @param n - how many layers.
+ * @returns the words.
+ */
+function stepWords(channel: Channel, n: number): string {
+    return `changing ${channelWord(channel).toLowerCase()} on ${count(n, "layer")}`;
+}
+
+/**
+ * How several rows read and write one kind's channels together: the value every row that sets a
+ * channel sets alike, or Mixed; a write goes, as one undo step (`styles.updateMany`), to the rows
+ * that already set the channel, or to every row when none does; a receipt says what it did and
+ * offers to set the rest.
  * @param session - the element's session.
  * @param all - the unlocked rows; a kind reads only those that paint it.
  * @param side - nodes or edges.
- * @param bulk - the locked count and the last write.
+ * @param bulk - the locked rows and the last write.
  * @returns the reader, the writer, and what lies beneath when none of them writes a channel.
  */
 function manyOf(
@@ -83,19 +155,33 @@ function manyOf(
         layersOf(row)
             .filter((layer) => !layer.locked)
             .at(-1);
-    const key = (line: Line | undefined): string =>
-        line === undefined ? "" : JSON.stringify([line.value, line.binding, line.combine]);
-    const writeRows = (
+    // Copies of one binding differ only in each layer's own table: they count as one value.
+    const key = (line: Line): string => {
+        const { map: _map, ...binding } = line.binding ?? { by: "" };
+        return JSON.stringify([line.value, line.binding === undefined ? null : binding, line.combine]);
+    };
+    // The write rule: the rows that already set it, unless none does.
+    const targetsOf = (channel: Channel): FoundRow[] => {
+        const lines = linesOf(channel);
+        const setting = rows.filter((_, at) => lines[at] !== undefined);
+        return setting.length > 0 ? setting : rows;
+    };
+    const writeRows = async (
         targets: readonly FoundRow[],
         channel: Channel,
         write: Write,
-    ): ReturnType<typeof session.styles.updateMany> =>
-        session.styles.updateMany(
-            targets.flatMap((row) => {
-                const layer = homeOf(row, channel);
-                return layer === undefined ? [] : [{ id: layer.id, patch: patchOf(layer, channel, write) }];
-            }),
-        );
+    ): Promise<{ readonly updated: readonly unknown[]; readonly skipped: readonly unknown[] }> => {
+        const patches = targets.flatMap((row) => {
+            const layer = homeOf(row, channel);
+            if (layer === undefined) {
+                return [];
+            }
+            const each = "binding" in write ? { binding: bindingFor(session, layer, channel, write.binding) } : write;
+            return [{ id: layer.id, patch: patchOf(layer, channel, each) }];
+        });
+        // Named in the history as what it did ("Undid changing fill on 5 layers").
+        return session.transaction(stepWords(channel, patches.length), (tx) => tx.styles.updateMany(patches));
+    };
     // Beneath the lowest of them in paint order, so no selected row reads as beneath another.
     const stack = session.styles.list().map((layer) => layer.id);
     const lowest = [...rows].sort(
@@ -105,52 +191,79 @@ function manyOf(
     )[0]?.row.id;
     const below = beneathOf(session, lowest);
     const last = bulk.last?.side === side ? bulk.last : null;
+    const channelOfKind: Channel = side === "node" ? "node.color" : "edge.color";
+    const varyRows = (channel: Channel): { take: FoundRow[]; leave: FoundRow[] } => {
+        const targets = targetsOf(channel);
+        const take = targets.filter((row) => {
+            const layer = homeOf(row, channel);
+            return layer !== undefined && holdsOneValue(session, layer, channelOfKind);
+        });
+        return { take, leave: targets.filter((row) => !take.includes(row)) };
+    };
+    const record = async (
+        channel: Channel,
+        write: Write,
+        targets: readonly FoundRow[],
+        leave: readonly FoundRow[],
+    ): Promise<void> => {
+        const left = rows.filter((row) => !targets.includes(row) && !leave.includes(row));
+        const result = await writeRows(targets, channel, write);
+        bulk.setLast({
+            side,
+            channel,
+            write,
+            changed: result.updated.length,
+            unset: left.map((row) => row.row.name),
+            left: left.map((row) => row.row.id),
+            locked: bulk.locked.length + result.skipped.length,
+            kept: leave.map((row) => row.row.name),
+            everything: left.filter((row) => reachesEvery(session, row.row.id, side)).map((row) => row.row.name),
+        });
+    };
     const many: ManyRows = {
         line: (channel) => {
-            const lines = linesOf(channel);
-            return lines.every((line) => line !== undefined && key(line) === key(lines[0])) ? lines[0] : undefined;
+            const lines = linesOf(channel).filter((line): line is Line => line !== undefined);
+            return lines.length > 0 && lines.every((line) => key(line) === key(lines[0])) ? lines[0] : undefined;
         },
         count: (channel) => linesOf(channel).filter((line) => line !== undefined).length,
         of: rows.length,
-        write: async (channel, write) => {
-            const lines = linesOf(channel);
-            const setting = rows.filter((_, at) => lines[at] !== undefined);
-            // The write rule: only the rows that already set it, unless none does.
-            const targets = setting.length > 0 ? setting : rows;
-            const left = rows.filter((row) => !targets.includes(row));
-            const result = await writeRows(targets, channel, write);
-            bulk.setLast({
-                side,
-                channel,
-                write,
-                changed: result.updated.length,
-                unset: left.map((row) => row.row.name),
-                left: left.map((row) => row.row.id),
-                locked: bulk.locked + result.skipped.length,
+        write: (channel, write) => record(channel, write, targetsOf(channel), []),
+        clear: async (channel) => {
+            const patches = rows.flatMap((row) => {
+                const layer = lineOfRow(row, channel)?.layer;
+                return layer === undefined
+                    ? []
+                    : [
+                          {
+                              id: layer.id,
+                              patch: { set: without(layer.set, channel), encode: without(layer.encode, channel) },
+                          },
+                      ];
             });
+            await session.transaction(
+                `removing ${channelWord(channel).toLowerCase()} from ${count(patches.length, "layer")}`,
+                (tx) => tx.styles.updateMany(patches, { keepEmpty: true }),
+            );
         },
-        clear: async (channel) =>
-            await session.styles.updateMany(
-                rows.flatMap((row) => {
-                    const layer = lineOfRow(row, channel)?.layer;
-                    return layer === undefined
-                        ? []
-                        : [
-                              {
-                                  id: layer.id,
-                                  patch: { set: without(layer.set, channel), encode: without(layer.encode, channel) },
-                              },
-                          ];
-                }),
-                { keepEmpty: true },
-            ),
         breakdown: (channel) => {
             const lines = linesOf(channel);
             return {
                 set: rows.filter((_, at) => lines[at] !== undefined).map((row) => row.row.name),
                 unset: rows.filter((_, at) => lines[at] === undefined).map((row) => row.row.name),
-                values: new Set(lines.filter((line) => line !== undefined).map(key)).size,
+                values: new Set(lines.filter((line): line is Line => line !== undefined).map(key)).size,
+                locked: bulk.locked,
             };
+        },
+        varies: (channel) => {
+            const { take, leave } = varyRows(channel);
+            return {
+                layers: take.map((row) => homeOf(row, channel)).filter((l): l is Layer => l !== undefined),
+                left: leave.map((row) => row.row.name),
+            };
+        },
+        vary: async (channel, binding) => {
+            const { take, leave } = varyRows(channel);
+            await record(channel, { binding }, take, leave);
         },
         receipt: (channel) => (last?.channel === channel ? last : undefined),
         alsoSet: async (channel) => {
@@ -159,7 +272,13 @@ function manyOf(
             }
             const targets = rows.filter((row) => last.left.includes(row.row.id));
             const result = await writeRows(targets, channel, last.write);
-            bulk.setLast({ ...last, changed: last.changed + result.updated.length, unset: [], left: [] });
+            bulk.setLast({
+                ...last,
+                changed: last.changed + result.updated.length,
+                unset: [],
+                left: [],
+                everything: [],
+            });
         },
         dismiss: () => {
             bulk.setLast(null);
@@ -168,6 +287,26 @@ function manyOf(
     // What "+" starts a property from: what lies beneath the lowest of them.
     const beneath = (channel: Channel): BeneathValue => below(channel);
     return { many, beneath };
+}
+
+/**
+ * Whether a layer row matches every node (or edge) of the graph: setting a property on it paints
+ * over everything beneath.
+ * @param session - the element's session.
+ * @param id - the layer row.
+ * @param side - nodes or edges.
+ * @returns true when it does.
+ */
+function reachesEvery(session: GraphSession, id: string, side: Target): boolean {
+    const parts = session.styles.parts(id);
+    const layer = side === "node" ? parts?.node : parts?.edge;
+    if (layer === undefined) {
+        return false;
+    }
+    const { matched } = session.styles.counts(layer);
+    const { totalNodes, totalEdges } = session.visibility.summary;
+    const total = side === "node" ? totalNodes : totalEdges;
+    return total > 0 && matched >= total;
 }
 
 /**
@@ -239,7 +378,7 @@ export function MultiRowPanel({ ids }: Readonly<{ ids: readonly string[] }>): Re
     }
     const reach = session.styles.layersUnder(picked.map((row) => row.row.id));
     const open = reach.filter((row) => !row.locked).flatMap((row) => findTreeRow(tree, row.row) ?? []);
-    const locked = reach.filter((row) => row.locked).length;
+    const locked = reach.filter((row) => row.locked).map((row) => findTreeRow(tree, row.row)?.row.name ?? row.row);
     const sides = (["node", "edge"] as const).filter((side) =>
         open.some((row) => rowLayers(session, treeLayers(session, row.row.id), side).length > 0),
     );

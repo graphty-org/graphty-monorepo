@@ -38,6 +38,22 @@ interface RunPlan {
 }
 
 /**
+ * A grouping run's name for one group's layer: "Group <rank>", or the next number no layer in the
+ * run's folder goes by, so a re-run never gives two layers one name.
+ * @param group - the group, as graphty-element asks about it.
+ * @param group.rank - its place by size, 1 for the largest.
+ * @param group.taken - the names the folder's layers already go by.
+ * @returns the name.
+ */
+function groupLayerName({ rank, taken }: { readonly rank: number; readonly taken: readonly string[] }): string {
+    let n = rank;
+    while (taken.includes(`Group ${String(n)}`)) {
+        n += 1;
+    }
+    return `Group ${String(n)}`;
+}
+
+/**
  * The button's words, named for the kept run `start()` reuses (the algorithm's latest): "Run"
  * when there is none, "Update <name> layer" while its layer shows, "Add <name> layer" once its
  * layer was deleted, which the element restores from the stored result without computing again
@@ -236,12 +252,13 @@ export function AnalyzePopover({
                 onRun={() => {
                     // The layers it adds go by the algorithm's name as the reader picked it ("Closeness");
                     // a grouping run's groups each become a layer in a folder of that name, named
-                    // "Group 1" for the largest (the reader renames them in the tree).
+                    // "Group 1" for the largest (the reader renames them in the tree); a re-run's
+                    // new group takes the next number no layer in the folder has.
                     const run = session.runs.start(picked.key, paramsFor(session, picked, values), {
                         style: {
                             name: wordsFor(picked).name,
                             groups: "layers",
-                            groupName: (group) => `Group ${String(group.rank)}`,
+                            groupName: groupLayerName,
                         },
                         restoreLayer: runPlan(session, picked.key, wordsFor(picked).name).restoreLayer,
                     });

@@ -113,7 +113,10 @@ describe("bulk editing a folder", () => {
             assert.isNotNull(found);
             return found;
         });
-        assert.match(fill.querySelector("[data-breakdown]")?.textContent ?? "", /not set: Big ones$/);
+        assert.match(
+            fill.querySelector("[data-breakdown]")?.textContent ?? "",
+            /not set: Big ones; locked, left alone: /,
+        );
 
         const field = within(fill).getByRole("textbox", { name: /^Node color/ });
         await userEvent.click(field);
@@ -138,7 +141,7 @@ describe("bulk editing a folder", () => {
         });
 
         // Two writes, two undo steps: Undo, then Control+Z.
-        await userEvent.click(within(receipt).getByRole("button", { name: "Undo" }));
+        await userEvent.click(within(receipt).getByRole("button", { name: "Undo the color change" }));
         await waitFor(() => {
             assert.isUndefined(colorOf(session, sized));
         });

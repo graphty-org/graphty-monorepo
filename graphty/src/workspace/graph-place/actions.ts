@@ -53,8 +53,9 @@ function nextLayerName(tree: readonly StyleRow[]): string {
 }
 
 /**
- * Where a new layer lands (Figma inserts above the selection): directly above the row the
- * inspector shows when that row is unpinned, else at the top of the unpinned rows.
+ * Where a new layer lands (Figma inserts above the selection): inside the folder the inspector
+ * shows, on top; directly above the layer row it shows when that row is unpinned; else at the
+ * top of the unpinned rows.
  * @param session - the element's session.
  * @param inspected - the store's `inspected`.
  * @returns the place, bottom first.
@@ -65,6 +66,11 @@ function newLayerPlace(session: GraphSession, inspected: WorkspaceState["inspect
         (inspected?.kind === "layer-row" || inspected?.kind === "folder-row") && inspected.id !== undefined
             ? findTreeRow(tree, inspected.id)
             : undefined;
+    if (anchor?.row.kind === "folder") {
+        // Into the folder the inspector shows, on top of its unpinned rows.
+        const { children } = anchor.row;
+        return { parent: anchor.row.id, index: children.length - children.filter((row) => row.pin === "top").length };
+    }
     if (anchor !== undefined && anchor.row.pin === "none") {
         const parent = anchor.folders.at(-1);
         const siblings = parent?.children ?? tree;
@@ -243,5 +249,106 @@ export async function duplicateRow(session: GraphSession, row: StyleRow): Promis
         const added = await tx.styles.addRow(spec);
         await tx.styles.moveRow(added.id, { parent: parent?.id ?? null, index });
         return added.id;
+    });
+}
+
+/** What a transaction's body is handed: the session's verbs, recorded as one step. */
+type Scope = Parameters<Parameters<GraphSession["transaction"]>[1]>[0];
+
+/**
+ * Every row's id, the top of the tree first, as the tree draws them.
+ * @param rows - the rows, bottom first.
+ * @returns the ids.
+ */
+function topFirst(rows: readonly StyleRow[]): string[] {
+    return [...rows].reverse().flatMap((row) => [row.id, ...topFirst(row.children)]);
+}
+
+/**
+ * Moves rows into a folder, on top of its unpinned rows, or out of the folders holding them, each
+ * to just above its folder; their order stays as the tree drew it. A row is never moved into
+ * itself or a folder inside it.
+ * @param tx - the transaction's verbs.
+ * @param ids - the rows.
+ * @param to - the folder, or null for out of their folders.
+ */
+async function moveRowsIn(tx: Scope, ids: readonly string[], to: string | null): Promise<void> {
+    const order = topFirst(tx.styles.tree());
+    const sorted = [...ids].sort((a, b) => order.indexOf(a) - order.indexOf(b));
+    // Into a folder, bottom first, each to the top; out of one, top first, each just above it:
+    // either way the last one moved lands below the ones before it.
+    for (const id of to === null ? sorted : [...sorted].reverse()) {
+        const tree = tx.styles.tree();
+        const moving = findTreeRow(tree, id);
+        // A row inside a folder that moves too goes with its folder.
+        if (moving === undefined || moving.folders.some((row) => ids.includes(row.id))) {
+            continue;
+        }
+        if (to === null) {
+            const holder = moving.folders.at(-1);
+            const outer = holder === undefined ? undefined : findTreeRow(tree, holder.id);
+            if (holder === undefined || outer === undefined) {
+                continue;
+            }
+            const parent = outer.folders.at(-1);
+            const siblings = parent?.children ?? tree;
+            await tx.styles.moveRow(id, {
+                parent: parent?.id ?? null,
+                index: siblings.findIndex((row) => row.id === holder.id) + 1,
+            });
+            continue;
+        }
+        const folder = findTreeRow(tree, to);
+        if (folder === undefined || id === to || folder.folders.some((row) => row.id === id)) {
+            continue;
+        }
+        const others = folder.row.children.filter((row) => row.id !== id);
+        await tx.styles.moveRow(id, {
+            parent: to,
+            index: others.length - others.filter((row) => row.pin === "top").length,
+        });
+    }
+}
+
+/**
+ * Moves several rows into a folder, or out of their folders (null), in one undo step.
+ * @param session - the element's session.
+ * @param ids - the rows.
+ * @param to - the folder, or null.
+ * @returns when they are moved.
+ */
+export async function moveRows(session: GraphSession, ids: readonly string[], to: string | null): Promise<void> {
+    const words =
+        ids.length === 1
+            ? (findTreeRow(session.styles.tree(), ids[0])?.row.name ?? "a row")
+            : `${String(ids.length)} rows`;
+    await session.transaction(`moving ${words}`, (tx) => moveRowsIn(tx, ids, to));
+}
+
+/**
+ * A new folder holding rows (Figma's group selection): it takes the place of the topmost of them
+ * and they move into it, their order kept, in one undo step.
+ * @param session - the element's session.
+ * @param name - the folder's name.
+ * @param ids - the rows; none makes an empty folder at the default place.
+ * @returns the folder's id.
+ */
+export async function addFolderOf(session: GraphSession, name: string, ids: readonly string[]): Promise<string> {
+    return session.transaction(`adding ${name}`, async (tx) => {
+        const tree = tx.styles.tree();
+        const order = topFirst(tree);
+        const top = [...ids].sort((a, b) => order.indexOf(a) - order.indexOf(b))[0];
+        const found = top === undefined ? undefined : findTreeRow(tree, top);
+        const parent = found?.folders.at(-1);
+        const place =
+            found === undefined || found.row.pin !== "none"
+                ? undefined
+                : {
+                      parent: parent?.id ?? null,
+                      index: (parent?.children ?? tree).findIndex((row) => row.id === found.row.id) + 1,
+                  };
+        const folder = await tx.styles.addFolder(name, place);
+        await moveRowsIn(tx, ids, folder.id);
+        return folder.id;
     });
 }

@@ -2,8 +2,9 @@
  * The panels of the style tree's other row kinds on the REAL graphty-element, driven by real input
  * (tier3 design, section 2.2): a folder lists its rows in paint order and a click opens one; its
  * Selection colors rewrite a color in every row that wrote it, undone in one step; several rows
- * selected together read "Mixed" where they all set a property differently and "Set on 1 of 2" where
- * only some set it, with no value borrowed, and the minus takes it off every row in one undo step,
+ * selected together read "Mixed" where the rows that set a property set it differently, and the
+ * value they agree on where only some set it, saying who does not; the minus takes it off every
+ * layer in one undo step,
  * leaving a locked row named and unwritten; a draft shows no groups until a kind is chosen. Every
  * assertion reads the element's own layers or the page.
  */
@@ -169,7 +170,7 @@ describe("folders, several rows and the draft on the real element", () => {
         assert.equal(field.value, "", "no value borrowed from either row");
         assert.equal(field.placeholder, "Mixed");
 
-        await userEvent.click(within(size).getByRole("button", { name: "Remove node size from every row" }));
+        await userEvent.click(within(size).getByRole("button", { name: "Remove node size from every layer" }));
         await waitFor(() => {
             assert.isUndefined(written(session, key, "node.size"));
             assert.isUndefined(written(session, degree, "node.size"));
@@ -183,7 +184,7 @@ describe("folders, several rows and the draft on the real element", () => {
         });
     });
 
-    it("a label and a glow only one of two rows writes read as set on one, never as shared; the minus takes them off", async () => {
+    it("a label and a glow only one of two rows writes read as that row's, saying who does not set them; the minus takes them off", async () => {
         const { session, key, degree } = await openProject();
         await session.styles.update(key, {
             set: { "node.color": "#ff0000", "node.size": 3, "node.label": "Key", "node.glow": "#00FF00" },
@@ -198,13 +199,14 @@ describe("folders, several rows and the draft on the real element", () => {
         const tab = await screen.findByTestId("style-tab");
 
         const text = within(tab).getByRole("group", { name: "Node text" });
-        await within(text).findByText("Set on 1 of 2");
-        assert.isNull(text.querySelector("input"), "no label entry reads as shared");
+        await waitFor(() => {
+            assert.isNotNull(text.querySelector("input"), "the label the one setting row writes, to edit");
+        });
         const effects = within(tab).getByRole("group", { name: "Node effects" });
         const glow = effects.querySelector<HTMLElement>('.ws-row[data-line="node.glow"]');
-        assert.equal(glow?.querySelector("[data-breakdown]")?.textContent, "1 layer set glow; not set: Degree");
+        assert.equal(glow?.querySelector("[data-breakdown]")?.textContent, "1 layer sets glow; not set: Degree");
 
-        await userEvent.click(within(effects).getByRole("button", { name: "Remove node glow from every row" }));
+        await userEvent.click(within(effects).getByRole("button", { name: "Remove node glow from every layer" }));
         await waitFor(() => {
             assert.isUndefined(written(session, key, "node.glow"));
         });

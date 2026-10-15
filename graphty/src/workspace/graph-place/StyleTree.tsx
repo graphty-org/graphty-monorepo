@@ -1,4 +1,4 @@
-import { ToggleIconButton, Tree, type TreeNodeData, type TreeRowActions } from "@graphty/compact-mantine";
+import { ToggleIconButton, Tree, type TreeNodeData } from "@graphty/compact-mantine";
 import type { GraphSession, StaleNote, StyleRow } from "@graphty/graphty-element/session";
 import { ActionIcon, Button, Group, Menu, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
 import React, { useRef, useState } from "react";
@@ -10,8 +10,9 @@ import { matchesKey } from "../keys/keys";
 import type { WorkspaceState, WorkspaceStore } from "../state/store";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { StylePanel } from "../style/StylePanel";
+import { hexOf } from "../style/words";
 import { openers } from "../toolbar/popover";
-import { ADD_ROW_LABEL, addLayer, orNotice } from "./actions";
+import { ADD_ROW_LABEL, addFolderOf, addLayer, moveRows, orNotice } from "./actions";
 import { ROW_COMMANDS } from "./commands";
 import { KindGlyph } from "./KindGlyph";
 import { RowMenuItems } from "./RowMenu";
@@ -97,6 +98,38 @@ function PaintedOverMark({ words }: Readonly<{ words: string }>): React.JSX.Elem
             </span>
         </Tooltip>
     );
+}
+
+/**
+ * What a run's group layer shows on its row: the color it paints the group, and how many nodes
+ * the group holds. Undefined for any other row.
+ * @param session - the element's session.
+ * @param row - the layer row.
+ * @param nodes - how many nodes the row matches.
+ * @returns the swatch and the count, or undefined.
+ */
+function groupMarks(
+    session: GraphSession,
+    row: StyleRow,
+    nodes: number | undefined,
+): { readonly swatch?: React.ReactNode; readonly count: React.ReactNode } | undefined {
+    const id = session.styles.parts(row.id)?.node;
+    const layer = id === undefined ? undefined : session.styles.get(id);
+    const where = layer?.selector.match === "rule" ? layer.selector.where : undefined;
+    if (layer?.source.by !== "run" || where?.kind !== "categories" || where.values.length !== 1) {
+        return undefined;
+    }
+    const hex = hexOf(layer.set?.["node.color"]);
+    return {
+        ...(hex === null
+            ? {}
+            : { swatch: <span className="ws-row-swatch" style={{ background: hex }} data-row-swatch={hex} /> }),
+        count: (
+            <span className="ws-row-count" aria-hidden>
+                {nodes ?? ""}
+            </span>
+        ),
+    };
 }
 
 /**
@@ -234,6 +267,7 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
             </span>
         );
         const overWords = paintedOverWords(paints);
+        const group = groupMarks(session, row, paints.nodes);
         const stale = staleOf(session, row);
         const description = [...(stale === null ? [] : [staleWords(stale)]), ...states, ...(over ? [overWords] : [])];
         return {
@@ -244,7 +278,8 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
             // Everything holding the base look stays at the bottom.
             movable: !isBaseRow(session, row.id),
             dimmed: hidden,
-            count: over ? <PaintedOverMark words={overWords} /> : undefined,
+            count: over ? <PaintedOverMark words={overWords} /> : group?.count,
+            swatch: group?.swatch,
             actions,
             description: description.length === 0 ? undefined : description.join(", "),
         };
@@ -254,7 +289,7 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
     const placeFor = (move: { id: string; parentId: string | null; index: number }): ReturnType<typeof placeOf> =>
         placeOf(tree, move);
 
-    const rowMenu = (node: TreeNodeData, actions: TreeRowActions): React.ReactNode => {
+    const rowMenu = (node: TreeNodeData): React.ReactNode => {
         const found = findTreeRow(tree, node.id);
         if (found === undefined) {
             return null;
@@ -265,7 +300,10 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
                 row={found.row}
                 parent={found.folders.at(-1)}
                 onMoveTo={(folderId) => {
-                    actions.moveTo(folderId);
+                    // The row's menu acts on every selected row when the row is one of them.
+                    const picked = selectedIds(inspected);
+                    const ids = picked.includes(found.row.id) ? picked : [found.row.id];
+                    void orNotice(store, `move ${found.row.name}`, moveRows(session, ids, folderId));
                 }}
             />
         );
@@ -299,6 +337,7 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
                 <AddMenu
                     session={session}
                     store={store}
+                    selected={selectedIds(inspected)}
                     onSelectMany={() => {
                         setSelecting(true);
                     }}
@@ -360,14 +399,21 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
  * @param props - Component props
  * @param props.session - the element's session
  * @param props.store - the chrome store
+ * @param props.selected - the rows selected in the tree; Folder puts two or more of them in it
  * @param props.onSelectMany - turns the tree's checkbox mode on
  * @returns The button and its menu
  */
 function AddMenu({
     session,
     store,
+    selected,
     onSelectMany,
-}: Readonly<{ session: GraphSession; store: WorkspaceStore; onSelectMany: () => void }>): React.JSX.Element {
+}: Readonly<{
+    session: GraphSession;
+    store: WorkspaceStore;
+    selected: readonly string[];
+    onSelectMany: () => void;
+}>): React.JSX.Element {
     const button = useRef<HTMLButtonElement>(null);
     const analyze = useCommand("analyze.open");
     return (
@@ -393,13 +439,19 @@ function AddMenu({
                     onClick={() => {
                         void (async () => {
                             try {
-                                const folder = await session.styles.addFolder("New folder");
-                                store.set({ inspected: { kind: "folder-row", id: folder.id } });
+                                // Several selected rows go into it, as Figma groups a selection;
+                                // the starting rows and pinned rows stay where they are.
+                                const tree = session.styles.tree();
+                                const rows = selected.filter(
+                                    (id) => !isBaseRow(session, id) && findTreeRow(tree, id)?.row.pin === "none",
+                                );
+                                const folder = await addFolderOf(session, "New folder", rows.length > 1 ? rows : []);
+                                store.set({ inspected: { kind: "folder-row", id: folder } });
                                 setTimeout(() => {
                                     // Focus the row first: the name field hands focus back to
                                     // what held it when it opened, so naming ends on the folder.
-                                    focusRow(folder.id);
-                                    store.set({ renamingRow: folder.id });
+                                    focusRow(folder);
+                                    store.set({ renamingRow: folder });
                                 }, MENU_FOCUS_RETURN_MS);
                             } catch (error) {
                                 const why = error instanceof Error ? ` ${error.message}` : "";

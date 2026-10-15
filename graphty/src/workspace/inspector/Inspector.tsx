@@ -556,7 +556,8 @@ function bodyOf(
                 values: <FolderValues key={resolved.row} id={resolved.row} />,
             };
         case "rows":
-            return { only: <MultiRowPanel ids={resolved.rows} /> };
+            // Keyed by the rows, so another selection starts with no receipt of the last one's edit.
+            return { only: <MultiRowPanel key={resolved.rows.join(" ")} ids={resolved.rows} /> };
         case "filter-step":
             // Keyed by the step, so opening another step starts from its own fields.
             return { only: <FilterStepEditor key={resolved.step} id={resolved.step} /> };

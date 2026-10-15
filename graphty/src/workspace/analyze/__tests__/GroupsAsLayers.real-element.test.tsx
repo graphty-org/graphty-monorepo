@@ -1,8 +1,9 @@
 /**
  * Running a grouping algorithm from Analyze on the REAL graphty-element, with real clicks and keys:
  * Louvain makes a "Louvain" folder in the style tree with one layer per group, named "Group 1" for
- * the largest; a group recolored by hand keeps its color on the same members through a re-run;
- * the folder's menu opens the run's settings.
+ * the largest; a group recolored by hand keeps its color on the same members through a re-run,
+ * which gives its new groups names no layer has; the folder's menu opens the run's settings on
+ * the Values tab.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -109,6 +110,8 @@ describe("a grouping run from Analyze", () => {
                 names.join(", "),
             );
         });
+        // It opens on Values, where the settings and Rerun are.
+        assert.equal(screen.getByRole("tab", { name: "Values" }).getAttribute("aria-selected"), "true");
 
         // A re-run with another resolution, as the run's Rerun starts it.
         const run = session.runs.get(runId);
@@ -119,5 +122,8 @@ describe("a grouping run from Analyze", () => {
             "#123456",
             "Valjean's group layer still holds Valjean and its color",
         );
+        const after = session.styles.tree().find((row) => row.name === "Louvain")?.children ?? [];
+        const names = after.map((row) => row.name);
+        assert.lengthOf(new Set(names), names.length, `a re-run names its new groups apart: ${names.join(", ")}`);
     });
 });

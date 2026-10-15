@@ -160,7 +160,7 @@ describe("vary by data on several layers", () => {
 
         const fill = await line("node.color");
         const vary = within(fill).getByRole("button", {
-            name: /^Node color by attribute: These layers do not each hold one value/,
+            name: /^Node color by attribute: Varying by data copies one rule into each layer that holds one group\. Heroes and Law hold more than one group/,
         });
         assert.equal(vary.getAttribute("aria-disabled"), "true");
         // A typed Fill still writes to both.

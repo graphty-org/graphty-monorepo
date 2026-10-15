@@ -367,9 +367,8 @@ function Ramp({ session, descriptor, layerId, binding, source, preview, patch }:
         .filter((s) => s.domainKind === "numeric")
         .map((s) => ({ value: s.name, label: SCALE_WORDS[s.name] ?? enumWords(s.name) }));
     const palettes = session.catalog.palettes().filter((p) => p.kind !== "categorical");
-    const shownPalette = session.styles
-        .legend()
-        .find((block) => block.layerId === layerId && block.channel === descriptor.channel)?.palette?.name;
+    const shownPalette = session.styles.legendOf(layerId).find((block) => block.channel === descriptor.channel)
+        ?.palette?.name;
     const diverging = palettes.find((p) => p.id === (binding.palette ?? shownPalette))?.kind === "diverging";
     const stepped = preview.steps.length > 0;
     // A number with few distinct values (College football's conference codes) can take one color
@@ -636,7 +635,7 @@ function Categories({
     const { channel } = descriptor;
     const isColor = descriptor.accepts === "color";
     const palettes = session.catalog.palettes().filter((p) => p.kind === "categorical");
-    const block = session.styles.legend().find((b) => b.layerId === layerId && b.channel === channel);
+    const block = session.styles.legendOf(layerId).find((b) => b.channel === channel);
     const shownPalette = block?.palette?.name;
     const readable = readableOf(session, binding, descriptor.target);
     const asWritten = binding.scale === "passthrough";

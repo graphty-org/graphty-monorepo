@@ -1,4 +1,11 @@
-import { ComboInput, CompactColorInput, Popout, PopoutButton, VariablePill } from "@graphty/compact-mantine";
+import {
+    ComboInput,
+    CompactColorInput,
+    Popout,
+    PopoutButton,
+    StyleSelect,
+    VariablePill,
+} from "@graphty/compact-mantine";
 import type { ChannelDescriptor } from "@graphty/graphty-element/catalog";
 import type { Channel, ChannelValue, LayerId } from "@graphty/graphty-element/schema";
 import type { GraphSession, Layer, LegendBlock } from "@graphty/graphty-element/session";
@@ -93,18 +100,32 @@ export interface ManyRows {
     readonly write: (channel: Channel, write: LiteralWrite | { readonly binding: DataBinding }) => Promise<unknown>;
     /** Takes the channel off every row. */
     readonly clear: (channel: Channel) => Promise<unknown>;
-    /** Which rows set the channel, which do not, and how many values they set it to. */
-    readonly breakdown?: (channel: Channel) => {
-        readonly set: readonly string[];
-        readonly unset: readonly string[];
-        readonly values: number;
-    };
+    /**
+     * Which rows set the channel, which do not, how many values they set it to, and the locked
+     * rows an edit leaves alone.
+     */
+    readonly breakdown?: (channel: Channel) => Breakdown;
+    /**
+     * The layers Vary by data would write: of those a write reaches, the ones that each hold one
+     * value of a field (a group of a run), and the names of the rows left out.
+     */
+    readonly varies?: (channel: Channel) => { readonly layers: readonly Layer[]; readonly left: readonly string[] };
+    /** Copies a binding into each layer `varies` names, as its own rule. */
+    readonly vary?: (channel: Channel, binding: DataBinding) => Promise<unknown>;
     /** What the last write of the channel did, while it is the last write. */
     readonly receipt?: (channel: Channel) => BulkReceipt | undefined;
     /** Writes the last write again to the rows it left unset. */
     readonly alsoSet?: (channel: Channel) => Promise<unknown>;
     /** Puts the receipt away. */
     readonly dismiss?: () => void;
+}
+
+/** Who sets a channel among several rows edited together. */
+export interface Breakdown {
+    readonly set: readonly string[];
+    readonly unset: readonly string[];
+    readonly values: number;
+    readonly locked: readonly string[];
 }
 
 /** What a write to several rows did: shown under the field it came from. */
@@ -115,6 +136,10 @@ export interface BulkReceipt {
     readonly unset: readonly string[];
     /** How many locked layers it skipped. */
     readonly locked: number;
+    /** The rows Vary by data left as they were, holding more than one group, by name. */
+    readonly kept?: readonly string[];
+    /** Of the rows left unset, those that reach every element: setting them paints over everything. */
+    readonly everything?: readonly string[];
 }
 
 /**
@@ -124,19 +149,18 @@ export interface BulkReceipt {
  * @param breakdown.set - the rows that set it.
  * @param breakdown.unset - the rows that do not.
  * @param breakdown.values - how many values they set.
+ * @param breakdown.locked - the locked rows an edit leaves alone.
  * @returns the words.
  */
-function breakdownWords(
-    name: string,
-    {
-        set,
-        unset,
-        values,
-    }: { readonly set: readonly string[]; readonly unset: readonly string[]; readonly values: number },
-): string {
+function breakdownWords(name: string, { set, unset, values, locked }: Breakdown): string {
     const plural = (n: number, noun: string): string => `${String(n)} ${noun}${n === 1 ? "" : "s"}`;
-    const setWords = `${plural(set.length, "layer")} set ${name.toLowerCase()}${values > 1 ? `, to ${plural(values, "value")}` : ""}`;
-    return unset.length === 0 ? setWords : `${setWords}; not set: ${namesWords(unset)}`;
+    const verb = set.length === 1 ? "sets" : "set";
+    const setWords = `${plural(set.length, "layer")} ${verb} ${name.toLowerCase()}${values > 1 ? `, to ${plural(values, "value")}` : ""}`;
+    return [
+        setWords,
+        ...(unset.length === 0 ? [] : [`not set: ${namesWords(unset)}`]),
+        ...(locked.length === 0 ? [] : [`locked, left alone: ${namesWords(locked)}`]),
+    ].join("; ");
 }
 
 /**
@@ -167,16 +191,29 @@ function Receipt({
     receipt,
 }: Readonly<{ ctx: RowContext; channel: Channel; name: string; receipt: BulkReceipt }>): React.JSX.Element {
     const { store } = useWorkspace();
+    const kept = receipt.kept ?? [];
     const words = [
         `${String(receipt.changed)} changed`,
         ...(receipt.unset.length === 0 ? [] : [`${String(receipt.unset.length)} left unset`]),
+        ...(kept.length === 0 ? [] : [`${String(kept.length)} left as ${kept.length === 1 ? "it was" : "they were"}`]),
         ...(receipt.locked === 0 ? [] : [`${String(receipt.locked)} locked skipped`]),
     ].join(", ");
+    const everything = receipt.everything ?? [];
     return (
         <div className="ws-bulk-receipt" role="status" data-receipt={channel}>
-            <Text size="xs" c="var(--cm-text-secondary)">
+            <Text className="ws-bulk-words">
                 {name}: {words}
             </Text>
+            {kept.length === 0 ? null : (
+                <Text className="ws-bulk-words">
+                    {`${namesWords(kept)} ${kept.length === 1 ? "holds" : "hold"} more than one group, so no one rule fits`}
+                </Text>
+            )}
+            {everything.length === 0 ? null : (
+                <Text className="ws-bulk-words" data-covers-everything>
+                    {`${namesWords(everything)} ${everything.length === 1 ? "covers" : "cover"} every ${ctx.side === "node" ? "node" : "edge"}: setting ${name.toLowerCase()} there paints over all the others`}
+                </Text>
+            )}
             {receipt.unset.length > 0 && (
                 <Button
                     size="compact-xs"
@@ -192,6 +229,8 @@ function Receipt({
             <Button
                 size="compact-xs"
                 variant="subtle"
+                // Named for its edit, so it is not a second plain "Undo" beside the top bar's.
+                aria-label={`Undo the ${name.toLowerCase()} change`}
                 onClick={() => {
                     ctx.many?.dismiss?.();
                     store.set({ announcement: `Undid changing ${name.toLowerCase()}` });
@@ -243,6 +282,13 @@ interface FieldProps {
     readonly descriptor: ChannelDescriptor;
     /** The name drawn in the label column, when not the property's own ("Color" in an effect's pop-out). */
     readonly word?: string;
+    /**
+     * Several rows: the property was just added with "+" and none of them sets it yet. The field
+     * shows what lies beneath and writes to every row once a value is picked.
+     */
+    readonly pending?: boolean;
+    /** Takes a property added with "+" away again before any row sets it. */
+    readonly onCancel?: () => void;
 }
 
 /**
@@ -256,9 +302,17 @@ interface FieldProps {
  * @param props.ctx - the row
  * @param props.descriptor - the property
  * @param props.word - the name drawn in the label column, when not the property's own
+ * @param props.pending - just added with "+" on several rows, waiting for a value
+ * @param props.onCancel - takes a just-added property away again
  * @returns The row, or nothing when the layer does not set the property
  */
-export function Field({ ctx, descriptor, word }: Readonly<FieldProps>): React.JSX.Element | null {
+export function Field({
+    ctx,
+    descriptor,
+    word,
+    pending = false,
+    onCancel,
+}: Readonly<FieldProps>): React.JSX.Element | null {
     const { store } = useWorkspace();
     const box = useRef<HTMLDivElement>(null);
     const { session } = ctx;
@@ -266,14 +320,14 @@ export function Field({ ctx, descriptor, word }: Readonly<FieldProps>): React.JS
     // "=" in a field opens the value picker, as Figma's "apply variable" does (a typed text keeps
     // its "="). A Tooltip just added opens it at once: an empty tooltip says nothing.
     const [varyOpen, setVaryOpen] = useState(() => listOpensNext(channel));
-    // Several layers: the binding picked in Vary, waiting for Apply under its per-layer preview.
-    const [pendingVary, setPendingVary] = useState<DataBinding | null>(null);
+    // Several layers: the value picked in Vary, waiting for Apply under its per-layer preview.
+    const [pendingVary, setPendingVary] = useState<DataChoice | null>(null);
     useFocusOnRemoval(box);
     const line = lineIn(ctx, channel);
     // A line on a locked layer (the element's own base layers) is not this row's.
     const own = line !== undefined && !line.layer.locked ? line : undefined;
     const partly = own === undefined ? partlySet(ctx, channel) : undefined;
-    if (own === undefined && partly === undefined) {
+    if (own === undefined && partly === undefined && !pending) {
         return null;
     }
     const name = fieldName(channel);
@@ -291,6 +345,12 @@ export function Field({ ctx, descriptor, word }: Readonly<FieldProps>): React.JS
     };
     const remove = (): void => {
         store.set({ announcement: `${name} removed` });
+        // A property "+" added is no longer waiting, set or not.
+        onCancel?.();
+        if (own === undefined && partly === undefined) {
+            // Added with "+" and set on no row yet: nothing to write.
+            return;
+        }
         const { many } = ctx;
         if (many !== undefined) {
             many.clear(channel).catch(fail);
@@ -321,7 +381,7 @@ export function Field({ ctx, descriptor, word }: Readonly<FieldProps>): React.JS
         if (ctx.many === undefined) {
             write({ binding: proposal.binding });
         } else {
-            setPendingVary(proposal.binding);
+            setPendingVary(choice);
         }
     };
     const varies =
@@ -354,15 +414,16 @@ export function Field({ ctx, descriptor, word }: Readonly<FieldProps>): React.JS
 
     let control: React.ReactNode;
     if (own === undefined) {
-        // Several rows, only some of which set it (or all differently): Mixed, with no value
-        // borrowed from any of them, and a typed or picked value writes to them.
+        // Several rows that set it differently: Mixed, with no value borrowed from any of them,
+        // and a typed or picked value writes to them. Just added with "+": what lies beneath,
+        // as a field not set yet, until a value is picked.
         control = (
             <ValueField
                 descriptor={descriptor}
                 label={name}
                 value={undefined}
-                shown={undefined}
-                mixed
+                shown={pending && partly === undefined ? ctx.beneath(channel).value : undefined}
+                mixed={!pending || partly !== undefined}
                 onChange={(value) => {
                     write({ value });
                 }}
@@ -484,7 +545,7 @@ export function Field({ ctx, descriptor, word }: Readonly<FieldProps>): React.JS
             </Tooltip>
         );
     } else if (varies) {
-        const off = ctx.many === undefined ? null : varyOffReason(ctx);
+        const off = ctx.many === undefined ? null : varyOffReason(ctx, channel);
         varySlot =
             off === null ? (
                 <VaryButton
@@ -512,7 +573,7 @@ export function Field({ ctx, descriptor, word }: Readonly<FieldProps>): React.JS
             );
     }
     const removeName =
-        ctx.many === undefined ? `Remove ${name.toLowerCase()}` : `Remove ${name.toLowerCase()} from every row`;
+        ctx.many === undefined ? `Remove ${name.toLowerCase()}` : `Remove ${name.toLowerCase()} from every layer`;
     return (
         <div
             ref={box}
@@ -547,8 +608,10 @@ export function Field({ ctx, descriptor, word }: Readonly<FieldProps>): React.JS
                     {coveredWords(over)}
                 </Text>
             )}
-            {own === undefined && ctx.many?.breakdown !== undefined ? (
-                <Text size="xs" c="var(--cm-text-secondary)" className="ws-field-covered" data-breakdown>
+            {ctx.many?.breakdown !== undefined &&
+            (own === undefined || ctx.many.count(channel) < ctx.many.of) &&
+            (!pending || partly !== undefined) ? (
+                <Text className="ws-field-covered ws-bulk-words" data-breakdown>
                     {breakdownWords(word ?? channelWord(channel), ctx.many.breakdown(channel))}
                 </Text>
             ) : null}
@@ -556,10 +619,19 @@ export function Field({ ctx, descriptor, word }: Readonly<FieldProps>): React.JS
                 <VaryPreview
                     ctx={ctx}
                     descriptor={descriptor}
-                    binding={pendingVary}
-                    onApply={() => {
+                    choice={pendingVary}
+                    onApply={(binding) => {
                         setPendingVary(null);
-                        write({ binding: pendingVary });
+                        // Focus goes to the receipt's first action, where the next step is: the
+                        // field's own tooltip would cover the receipt.
+                        ctx.many
+                            ?.vary?.(channel, binding)
+                            .then(() => {
+                                requestAnimationFrame(() => {
+                                    box.current?.querySelector<HTMLElement>("[data-receipt] button")?.focus();
+                                });
+                            })
+                            .catch(fail);
                     }}
                     onCancel={() => {
                         setPendingVary(null);
@@ -573,83 +645,142 @@ export function Field({ ctx, descriptor, word }: Readonly<FieldProps>): React.JS
     );
 }
 
-/** The words for why several layers cannot vary by data. */
-const VARY_OFF_WORDS =
-    "These layers do not each hold one value of the same field, so a rule copied into each would paint each the same way";
-
 /**
- * Why several layers cannot vary a property by data, or null when they can: they can when every
- * one of them holds one value of a field its rule selects by (a group of a run, a value of a
- * column), read from what a binding on that field paints within each (`styles.preview`'s `within`).
+ * Why several layers cannot vary a property by data, or null when they can: they can when at
+ * least one layer the write reaches holds one value of a field its rule selects by (a group of a
+ * run); the layers that hold more are left as they are, and the preview says so.
  * @param ctx - the rows.
+ * @param channel - the channel.
  * @returns the reason, or null.
  */
-function varyOffReason(ctx: RowContext): string | null {
-    const layers = ctx.layers.filter((layer) => !layer.locked);
-    const attributes = new Set(
-        layers.flatMap((layer) =>
-            layer.selector.match === "rule" &&
-            layer.selector.where.kind === "categories" &&
-            layer.selector.where.values.length === 1
-                ? [layer.selector.where.attribute]
-                : [],
-        ),
-    );
-    const channel: Channel = ctx.side === "node" ? "node.color" : "edge.color";
-    // ponytail: one preview per layer per candidate field, a walk over the graph each; cache by
-    // the style version if a folder of hundreds of layers is slow.
-    const sharesOne = (by: string): boolean =>
-        layers.every(
-            (layer) =>
-                ctx.session.styles
-                    .preview({ by, scale: "ordinal" }, { channel, within: layer.id })
-                    .bins.filter((bin) => bin.count > 0).length === 1,
-        );
-    return layers.length > 0 && [...attributes].some(sharesOne) ? null : VARY_OFF_WORDS;
+function varyOffReason(ctx: RowContext, channel: Channel): string | null {
+    const varies = ctx.many?.varies?.(channel);
+    if (varies === undefined || varies.layers.length > 0) {
+        return null;
+    }
+    const { left } = varies;
+    const whose = left.length === 0 ? "None of these layers" : namesWords(left);
+    return `Varying by data copies one rule into each layer that holds one group. ${whose} ${left.length === 1 ? "holds" : "hold"} more than one group, or none.`;
+}
+
+/**
+ * The palettes a rule copied into several group layers can paint with: the categorical ones.
+ * @param session - the element's session.
+ * @returns the palettes.
+ */
+function groupPalettes(session: GraphSession): ReturnType<GraphSession["catalog"]["palettes"]> {
+    // Two-color highlight palettes name one value against the rest, never a set of groups.
+    return session.catalog.palettes().filter((p) => p.kind === "categorical" && p.colors.length > 2);
+}
+
+/**
+ * The rule a value picked in Vary copies into several layers that each hold one group: each layer
+ * is one group, so the rule reads the value as categories (one color, shape or pattern per
+ * value), with every value past the palette given a color of its own rather than folded into
+ * "other". A number or a size keeps the element's own proposal. Falls back to it when the element
+ * refuses categories.
+ * @param session - the element's session.
+ * @param choice - the value picked.
+ * @param descriptor - the property.
+ * @param palette - a palette the reader picked.
+ * @returns the binding, or null when the element refuses the channel.
+ */
+function manyBinding(
+    session: GraphSession,
+    choice: DataChoice,
+    descriptor: ChannelDescriptor,
+    palette: string | undefined,
+): DataBinding | null {
+    const plain = propose(session, choice, descriptor.channel);
+    if (descriptor.accepts !== "color") {
+        return plain.ok ? plain.binding : null;
+    }
+    const options = {
+        channel: descriptor.channel,
+        scale: "ordinal",
+        overflow: "extend",
+        ...(palette === undefined ? {} : { palette }),
+    } as const;
+    const proposal =
+        choice.kind === "column"
+            ? session.styles.proposeEncoding({ column: choice.column, ...options })
+            : session.styles.proposeEncoding({ run: choice.runId, field: choice.field, ...options });
+    if (proposal.ok) {
+        return proposal.binding;
+    }
+    return plain.ok ? plain.binding : null;
 }
 
 /**
  * What a binding copied into each of several layers would paint in each, before it is written:
- * one line per layer with its values (`styles.preview` within the layer), then Apply and Cancel.
+ * for a color, a palette to pick; one line per layer, top first, with its values
+ * (`styles.preview` within the layer); the layers left as they are; then Apply and Cancel.
  * @param props - Component props
  * @param props.ctx - the rows
  * @param props.descriptor - the property
- * @param props.binding - the binding to copy
- * @param props.onApply - writes it
+ * @param props.choice - the value picked
+ * @param props.onApply - writes the binding
  * @param props.onCancel - drops it
  * @returns The preview
  */
 function VaryPreview({
     ctx,
     descriptor,
-    binding,
+    choice,
     onApply,
     onCancel,
 }: Readonly<{
     ctx: RowContext;
     descriptor: ChannelDescriptor;
-    binding: DataBinding;
-    onApply: () => void;
+    choice: DataChoice;
+    onApply: (binding: DataBinding) => void;
     onCancel: () => void;
-}>): React.JSX.Element {
+}>): React.JSX.Element | null {
+    const [palette, setPalette] = useState<string | undefined>(undefined);
+    const { session } = ctx;
     const name = channelWord(descriptor.channel);
-    const layers = ctx.layers.filter((layer) => !layer.locked);
-    const source = sourceName(ctx.session, binding) ?? binding.by;
+    const binding = manyBinding(session, choice, descriptor, palette);
+    const varies = ctx.many?.varies?.(descriptor.channel) ?? { layers: [], left: [] };
+    if (binding === null) {
+        return null;
+    }
+    const source = sourceName(session, binding) ?? binding.by;
+    const palettes = descriptor.accepts === "color" ? groupPalettes(session) : [];
     return (
         <div className="ws-bulk-vary" role="group" aria-label={`${name} by ${source}, in each layer`}>
-            <Text size="xs" c="var(--cm-text-secondary)">
-                Each layer gets its own rule:
-            </Text>
+            {palettes.length === 0 ? null : (
+                <StyleSelect
+                    label="Palette"
+                    value={binding.palette}
+                    defaultValue={binding.palette ?? palettes[0].id}
+                    options={palettes.map((p) => ({
+                        value: p.id,
+                        label: paletteWord(p.id),
+                        glyph: (
+                            <span
+                                aria-hidden
+                                className="ws-bulk-vary-palette"
+                                style={{ background: `linear-gradient(to right, ${p.colors.slice(0, 8).join(", ")})` }}
+                            />
+                        ),
+                    }))}
+                    onChange={(next) => {
+                        setPalette(next);
+                    }}
+                />
+            )}
+            <Text className="ws-bulk-words">Each layer gets its own rule:</Text>
             <ul className="ws-bulk-vary-list">
-                {layers.map((layer) => {
-                    const bins = ctx.session.styles
+                {varies.layers.map((layer) => {
+                    const bins = session.styles
                         .preview(binding, { channel: descriptor.channel, within: layer.id })
                         .bins.filter((bin) => bin.count > 0);
                     const shown = bins.slice(0, 4);
+                    const rowName = layerWord(session, layer.id) ?? layer.name;
                     return (
-                        <li key={layer.id} data-layer={layer.id} aria-label={layer.name}>
+                        <li key={layer.id} data-layer={layer.id} aria-label={rowName}>
                             <Text size="xs" span truncate className="ws-bulk-vary-name">
-                                {layer.name}
+                                {rowName}
                             </Text>
                             {shown.map((bin, at) => {
                                 const hex = descriptor.accepts === "color" ? hexOf(bin.paints) : null;
@@ -676,8 +807,18 @@ function VaryPreview({
                     );
                 })}
             </ul>
+            {varies.left.length === 0 ? null : (
+                <Text className="ws-bulk-words" data-vary-left>
+                    {`Left as ${varies.left.length === 1 ? "it is" : "they are"}: ${namesWords(varies.left)}, which ${varies.left.length === 1 ? "holds" : "hold"} more than one group`}
+                </Text>
+            )}
             <div className="ws-bulk-vary-actions">
-                <Button size="compact-xs" onClick={onApply}>
+                <Button
+                    size="compact-xs"
+                    onClick={() => {
+                        onApply(binding);
+                    }}
+                >
                     Apply
                 </Button>
                 <Button size="compact-xs" variant="subtle" onClick={onCancel}>
@@ -786,7 +927,10 @@ function VaryButton({
                     }}
                     onPick={(choice) => {
                         openList(false);
-                        focusLineNext(channel, true);
+                        // Several layers: the preview opens first, and Apply moves focus on.
+                        if (ctx.many === undefined) {
+                            focusLineNext(channel, true);
+                        }
                         onPick(choice);
                     }}
                     onClose={() => {
@@ -836,8 +980,10 @@ function BoundValue({
         binding.palette === undefined ? undefined : session.catalog.palettes().find((p) => p.id === binding.palette);
     // Never empty, so two fields reading one source never share an accessible name -- except a
     // text field (Tooltip), whose words are the source's own values: it shows the source.
+    // A pill with no swatch shows its detail in place of the source's name, so a shape or a
+    // pattern by data shows the source ("Louvain"), never the property's own name.
     let detail: string | undefined = palette === undefined ? name : paletteWord(palette.id);
-    if (descriptor.accepts === "text") {
+    if (descriptor.accepts !== "color") {
         detail = undefined;
     }
     if (unresolved) {
@@ -845,11 +991,12 @@ function BoundValue({
     } else if (binding.range !== undefined) {
         detail = `${String(binding.range[0])} to ${String(binding.range[1])}`;
     }
+    // The layer's own block: a copy the legend folds with others is still read on its own.
+    const block = session.styles.legendOf(layer.id).find((b) => b.channel === descriptor.channel);
     let swatch: string | undefined;
     if (descriptor.accepts === "color") {
         // The colors the element paints for this field, from its legend; the named palette when
         // it has none to report (a path that reads nothing).
-        const block = session.styles.legend().find((b) => b.layerId === layer.id && b.channel === descriptor.channel);
         const painted = block?.swatches.flatMap((s) => (s.color === undefined ? [] : [s.color]));
         const colors = painted !== undefined && painted.length > 0 ? painted : palette?.colors;
         // At rest a ramp is a strip and categories are chits side by side (hard stops).
@@ -917,11 +1064,7 @@ function BoundValue({
                                 setOpen(true);
                             }}
                         />
-                        <VariedLine
-                            block={session.styles
-                                .legend()
-                                .find((b) => b.layerId === layer.id && b.channel === descriptor.channel)}
-                        />
+                        <VariedLine block={block} />
                     </>
                 )}
             </div>

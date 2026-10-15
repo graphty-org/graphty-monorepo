@@ -158,16 +158,16 @@ export function count(n: number, noun: string): string {
 }
 
 /**
- * The words heading the panel of several rows: "2 layers", or "3 rows" when a folder is among
- * them.
+ * The words heading the panel of several rows: how many layers an edit there reaches, through
+ * folders at every depth, as the panel's scope line counts them ("11 layers").
  * @param session - the element's session.
  * @param ids - the rows' ids.
  * @returns the words.
  */
 export function rowsHeading(session: GraphSession, ids: readonly string[]): string {
     const tree = session.styles.tree();
-    const folders = ids.some((id) => findTreeRow(tree, id)?.row.kind === "folder");
-    return count(ids.length, folders ? "row" : "layer");
+    const known = ids.filter((id) => findTreeRow(tree, id) !== undefined);
+    return count(known.length === 0 ? 0 : session.styles.layersUnder(known).length, "layer");
 }
 
 /**

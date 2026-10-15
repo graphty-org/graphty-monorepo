@@ -1,7 +1,7 @@
 import { ControlSection } from "@graphty/compact-mantine";
 import { type ChannelDescriptor, channelsFor } from "@graphty/graphty-element/catalog";
 import { ActionIcon, Menu, Text, Tooltip } from "@mantine/core";
-import React from "react";
+import React, { useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import { arrowheadNote } from "../inspector/words";
@@ -71,6 +71,9 @@ function sectionNote(ctx: RowContext, spec: SectionSpec, set: readonly ChannelDe
  */
 export function Section({ ctx, spec }: Readonly<{ ctx: RowContext; spec: SectionSpec }>): React.JSX.Element | null {
     const { store } = useWorkspace();
+    // Several rows: the properties "+" added that no row sets yet, waiting for a value, so adding
+    // one writes nothing until the reader picks what every row gets.
+    const [waiting, setWaiting] = useState<readonly string[]>([]);
     const descriptors = spec.channels.flatMap(
         (channel) => channelsFor(ctx.side).find((d) => d.channel === channel && d.renderable) ?? [],
     );
@@ -78,10 +81,10 @@ export function Section({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
         return null;
     }
     const set = descriptors.filter((d) => isSet(ctx, d));
+    const pending = descriptors.filter((d) => !set.includes(d) && waiting.includes(d.channel));
     const note = sectionNote(ctx, spec, set);
-    const unset = descriptors.filter((d) => !set.includes(d));
-    const add = (descriptor: ChannelDescriptor, value = startFor(ctx, descriptor)): void => {
-        focusLineNext(descriptor.channel);
+    const unset = descriptors.filter((d) => !set.includes(d) && !pending.includes(d));
+    const write = (descriptor: ChannelDescriptor, value: ReturnType<typeof startFor>): void => {
         writeIn(ctx, descriptor.channel, { value })
             .then(() => {
                 store.set({ announcement: `${fieldName(descriptor.channel)} added` });
@@ -93,6 +96,15 @@ export function Section({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
                 });
             });
     };
+    const add = (descriptor: ChannelDescriptor, value?: boolean): void => {
+        focusLineNext(descriptor.channel);
+        if (ctx.many !== undefined && value === undefined) {
+            setWaiting((now) => [...now, descriptor.channel]);
+            store.set({ announcement: `${fieldName(descriptor.channel)} added: pick a value for every layer` });
+            return;
+        }
+        write(descriptor, value ?? startFor(ctx, descriptor));
+    };
     return (
         <div
             role="group"
@@ -102,7 +114,7 @@ export function Section({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
         >
             <ControlSection
                 label={spec.title}
-                empty={set.length === 0}
+                empty={set.length + pending.length === 0}
                 collapsible={false}
                 actions={
                     <AddButton
@@ -119,8 +131,16 @@ export function Section({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
                     />
                 }
             >
-                {set.map((d) => (
-                    <Field key={d.channel} ctx={ctx} descriptor={d} />
+                {[...set, ...pending].map((d) => (
+                    <Field
+                        key={d.channel}
+                        ctx={ctx}
+                        descriptor={d}
+                        pending={pending.includes(d)}
+                        onCancel={() => {
+                            setWaiting((now) => now.filter((channel) => channel !== d.channel));
+                        }}
+                    />
                 ))}
             </ControlSection>
             {/* Outside the section's body, so it shows while the section sets nothing yet. */}

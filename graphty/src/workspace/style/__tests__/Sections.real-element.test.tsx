@@ -3,7 +3,8 @@
  * panel design, 2026-10-13): a section lists only what the layer sets; "+" ("Add to <section>")
  * adds a property with a starting value and focus in it, and the minus removes it, in every
  * section; nothing a layer does not set looks like a value; Everything holds the base look and its
- * eye hides the graph; a covered row says who covers it; several rows read "Set on 1 of 2"; every
+ * eye hides the graph; a covered row says who covers it; several rows read the value the rows that
+ * set a property agree on, and say who does not set it; every
  * eye in the tree shows at rest; Everything can be neither deleted nor moved.
  */
 
@@ -453,7 +454,7 @@ describe("the Style tab's sections", () => {
         );
     });
 
-    it("reads Mixed, with who sets it, for a property only some selected rows set, with no value", async () => {
+    it("reads the value the setting rows give a property only some selected rows set, and who sets it", async () => {
         const { session } = await openScene();
         const valjean = String(session.data.nodes().find((n) => n.name === "Valjean")?.id);
         await session.styles.add({
@@ -471,13 +472,16 @@ describe("the Style tab's sections", () => {
         await user.keyboard("{/Control}");
         await waitFor(() => {
             const color = section("node", "fill").querySelector<HTMLElement>('.ws-row[data-line="node.color"]');
-            assert.equal(color?.querySelector("[data-breakdown]")?.textContent, "1 layer set color; not set: Big");
+            assert.equal(color?.querySelector("[data-breakdown]")?.textContent, "1 layer sets color; not set: Big");
             const size = section("node", "shape").querySelector<HTMLElement>('.ws-row[data-line="node.size"]');
-            assert.equal(size?.querySelector("[data-breakdown]")?.textContent, "1 layer set size; not set: Key people");
+            assert.equal(
+                size?.querySelector("[data-breakdown]")?.textContent,
+                "1 layer sets size; not set: Key people",
+            );
             assert.equal(
                 size?.querySelector<HTMLInputElement>("input")?.value,
-                "",
-                "no value borrowed from either row",
+                "3",
+                "the one setting row's value, as a write reaches only the rows that set it",
             );
         });
     });

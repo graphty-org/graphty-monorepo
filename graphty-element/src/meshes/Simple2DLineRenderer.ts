@@ -1,4 +1,13 @@
-import { Color3, Mesh, type Scene, StandardMaterial, VertexData } from "@babylonjs/core";
+import { Camera, Color3, Mesh, type Scene, StandardMaterial, VertexData } from "@babylonjs/core";
+
+/**
+ * The four corners of a line's rectangle, half a width either side of its axis.
+ * @param half - Half the width, in world units.
+ * @returns The corner positions.
+ */
+function rectangle(half: number): number[] {
+    return [0, half, 0.5, 0, -half, 0.5, 0, -half, -0.5, 0, half, -0.5];
+}
 
 /**
  * Renderer for simple 2D solid lines in world-space
@@ -22,6 +31,15 @@ export class Simple2DLineRenderer {
      * Y is the in-plane perpendicular. A rectangle spanning local Y and Z therefore lands in the
      * XY plane with its long side on the line -- the same four corners the old per-edge mesh put
      * there by scaling (length, width) and turning about Z.
+     *
+     * A LINE THINNER THAN ONE PIXEL IS DRAWN ONE PIXEL WIDE AND FAINTER. Rasterized at its own
+     * width, a rectangle a fraction of a pixel wide covers a pixel centre only here and there, so
+     * a zoomed-out file graph's thin edges broke into dots. Canvas and SVG renderers (Cytoscape.js,
+     * Graphviz) draw the same stroke as a continuous faint line, its antialiased coverage the
+     * fraction of each pixel it crosses. So before each frame, while the camera shows this width
+     * under one pixel, the rectangle is one pixel wide and the material's alpha is the opacity
+     * times the width in pixels. At one pixel or more the line is exactly the rectangle and the
+     * opacity it was given, and a width of 0 is never widened.
      * @param width - Width of the line in world units
      * @param color - Hex color string (e.g., "#ff0000")
      * @param opacity - Opacity value 0-1
@@ -33,7 +51,7 @@ export class Simple2DLineRenderer {
         const half = width / 2;
 
         const vertexData = new VertexData();
-        vertexData.positions = [0, half, 0.5, 0, -half, 0.5, 0, -half, -0.5, 0, half, -0.5];
+        vertexData.positions = rectangle(half);
         vertexData.indices = [0, 1, 2, 0, 2, 3];
         vertexData.normals = [1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0];
         vertexData.applyToMesh(mesh);
@@ -45,7 +63,35 @@ export class Simple2DLineRenderer {
         material.backFaceCulling = false; // Visible from both sides
         mesh.material = material;
 
-        mesh.metadata = { is2DLine: true, lineWidth: width };
+        // The width and opacity the style asked for. The material's alpha is the opacity drawn,
+        // which a sub-pixel line lowers to keep its weight (below).
+        mesh.metadata = { is2DLine: true, lineWidth: width, lineOpacity: opacity };
+
+        const engine = scene.getEngine();
+        let drawnHalf = half;
+        const fitToPixel = scene.onBeforeRenderObservable.add(() => {
+            const camera = scene.activeCamera;
+            if (
+                width <= 0 ||
+                camera?.mode !== Camera.ORTHOGRAPHIC_CAMERA ||
+                camera.orthoTop === null ||
+                camera.orthoBottom === null
+            ) {
+                return;
+            }
+
+            const worldPerPx = (camera.orthoTop - camera.orthoBottom) / engine.getRenderHeight();
+            const px = width / worldPerPx;
+            const nextHalf = px < 1 ? worldPerPx / 2 : half;
+            material.alpha = opacity * Math.min(1, px);
+            if (nextHalf !== drawnHalf) {
+                drawnHalf = nextHalf;
+                mesh.setVerticesData("position", rectangle(nextHalf));
+            }
+        });
+        mesh.onDisposeObservable.addOnce(() => {
+            scene.onBeforeRenderObservable.remove(fitToPixel);
+        });
 
         return mesh;
     }

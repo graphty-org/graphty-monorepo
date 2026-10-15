@@ -404,7 +404,7 @@ describe("the Style tab on the real element", () => {
             { timeout: TIMEOUT_MS },
         );
         await userEvent.click(within(styleTab()).getByRole("button", { name: "Add to Shape" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Size/ }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: /^Size$/ }));
         const list = await screen.findByRole("dialog", { name: "From data" });
         const [first] = within(list).getAllByRole("option");
         assert.equal(first.textContent, "Fixed size");

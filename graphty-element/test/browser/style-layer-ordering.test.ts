@@ -50,9 +50,6 @@ import type { LayerSpec } from "../../src/catalog/types";
 import { Graph, operationQueueOf } from "../../src/Graph";
 import type { GraphSession } from "../../src/session";
 
-/** How long a write verb's run is given to settle before it counts as stranded. */
-const SETTLE_BUDGET_MS = 8000;
-
 /**
  * Four nodes in two named halves.
  *
@@ -107,36 +104,19 @@ function halfLayer(half: string, color: string): LayerSpec {
 }
 
 /**
- * Whether a run reached an answer, and which, inside a budget.
+ * Which answer a run reached.
  *
  * Both answers are acceptable to this helper: a refusal is a legitimate outcome of a write verb
  * and is what the published contract promises for one the element will not perform. What is not
- * acceptable is neither, which is what `"neither"` records.
+ * acceptable is neither, and a run that never answers times the test out.
  * @param work - The run.
- * @param ms - The budget.
  * @returns What it did.
  */
-async function outcomeOf(
-    work: PromiseLike<unknown>,
-    ms = SETTLE_BUDGET_MS,
-): Promise<"resolved" | "rejected" | "neither"> {
-    let timer: ReturnType<typeof setTimeout> | undefined;
-
-    const settled = Promise.resolve(work).then(
+async function outcomeOf(work: PromiseLike<unknown>): Promise<"resolved" | "rejected"> {
+    return Promise.resolve(work).then(
         () => "resolved" as const,
         () => "rejected" as const,
     );
-    const expired = new Promise<"neither">((resolve) => {
-        timer = setTimeout(() => {
-            resolve("neither");
-        }, ms);
-    });
-
-    try {
-        return await Promise.race([settled, expired]);
-    } finally {
-        clearTimeout(timer);
-    }
 }
 
 /**
@@ -220,13 +200,9 @@ describe("a layer issued before the data arrives, and not awaited", () => {
         void graph.addNodes(NODES);
         void graph.addEdges(EDGES);
 
-        const outcome = await outcomeOf(run);
-
-        assert.notStrictEqual(
-            outcome,
-            "neither",
-            `a write verb's run neither resolved nor rejected within ${SETTLE_BUDGET_MS} ms, so a consumer awaiting it waits forever`,
-        );
+        // A write verb's run that neither resolves nor rejects times the test out: a consumer
+        // awaiting it would wait forever.
+        await outcomeOf(run);
     });
 
     it("keeps both layers of a two-layer stack issued in the same tick", async () => {
@@ -257,7 +233,8 @@ describe("every write verb, issued in the same tick as the data", () => {
 
         void graph.addNodes(NODES);
 
-        assert.notStrictEqual(await outcomeOf(run), "neither", "add() never settled");
+        // A add() that never settles times the test out.
+        await outcomeOf(run);
     });
 
     it("settles update", async () => {
@@ -266,7 +243,8 @@ describe("every write verb, issued in the same tick as the data", () => {
 
         void graph.addNodes(NODES);
 
-        assert.notStrictEqual(await outcomeOf(run), "neither", "update() never settled");
+        // A update() that never settles times the test out.
+        await outcomeOf(run);
     });
 
     it("settles remove", async () => {
@@ -275,7 +253,8 @@ describe("every write verb, issued in the same tick as the data", () => {
 
         void graph.addNodes(NODES);
 
-        assert.notStrictEqual(await outcomeOf(run), "neither", "remove() never settled");
+        // A remove() that never settles times the test out.
+        await outcomeOf(run);
     });
 
     it("settles move", async () => {
@@ -285,7 +264,8 @@ describe("every write verb, issued in the same tick as the data", () => {
 
         void graph.addNodes(NODES);
 
-        assert.notStrictEqual(await outcomeOf(run), "neither", "move() never settled");
+        // A move() that never settles times the test out.
+        await outcomeOf(run);
     });
 });
 

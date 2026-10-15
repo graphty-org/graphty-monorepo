@@ -3,7 +3,7 @@ import { type DerivedGraph, type GraphSnapshot, INVALID_INDEX, type U32 } from "
 
 import type { EdgeId } from "../catalog/types";
 import type { AdHocData } from "../config";
-import { createEdgeCounter, edgeCounterOf } from "../data/edgeIdentity";
+import { createEdgeCounter, edgeCounterOf, edgeIdOf } from "../data/edgeIdentity";
 import { GraphStore } from "../data/GraphStore";
 import { readonlyPositions, WRITABLE_LANE } from "../data/lane";
 import { otherIdSpelling } from "../data/nodeIdSpelling";
@@ -1618,6 +1618,25 @@ export class DataManager implements Manager {
 
         const other = otherIdSpelling(nodeId);
         return other === undefined ? undefined : this.nodes.get(other);
+    }
+
+    /**
+     * The edges attached to a node that have render objects, found through the store's incidence
+     * lists in O(degree) rather than by walking every edge.
+     * @param node - The node.
+     * @returns Their ids.
+     * @internal
+     */
+    incidentEdgeIds(node: Node): EdgeId[] {
+        const ids: EdgeId[] = [];
+        for (const counter of this.store.incidentEdgeIds([node.id])) {
+            const id = edgeIdOf(counter);
+            if (this.edgeMap.has(id)) {
+                ids.push(id);
+            }
+        }
+
+        return ids;
     }
 
     /**

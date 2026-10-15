@@ -234,7 +234,6 @@ const CASES: readonly Case[] = [
     {
         methods: ["Graph.setNodes", "DataManager.setNodes"],
         growth: "linear",
-        superlinear: 2732,
         prepare: async (element, size) => {
             await fill(element, size);
             // Half the nodes stay, half go with their edges, and as many new ones arrive.
@@ -263,7 +262,6 @@ const CASES: readonly Case[] = [
     {
         methods: ["Graph.removeNodes"],
         growth: "linear",
-        superlinear: 2732,
         prepare: async (element, size) => {
             await fill(element, size);
             return () => element.graph.removeNodes(nodesOf(size / 2).map(({ id }) => id));
@@ -275,7 +273,6 @@ const CASES: readonly Case[] = [
     {
         methods: ["Graphty.removeNodes"],
         growth: "linear",
-        superlinear: 2732,
         prepare: async (element, size) => {
             await fill(element, size);
             return () => element.removeNodes(nodesOf(size / 2).map(({ id }) => id));

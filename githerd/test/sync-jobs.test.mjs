@@ -490,6 +490,18 @@ describe("syncJobs: pull requests", () => {
         expect(state.jobs["pr-4"].state).toBe("working");
         expect(state.jobs["pr-5"].state).toBe("verifying");
     });
+
+    it("keeps a held pr job while its holder reworks the pull request as a draft (issue 2727)", () => {
+        const state = base();
+        failingPr(state, 4);
+        sync(state);
+        const holder = { session: "s1", window: null, startedBy: "owner" };
+        move(state.jobs["pr-4"], "starting", NOW, { holder });
+        move(state.jobs["pr-4"], "working", NOW);
+        state.prs[4].draft = true;
+        expect(sync(state).cancelled).toEqual([]);
+        expect(state.jobs["pr-4"].state).toBe("working");
+    });
 });
 
 describe("syncJobs: titles and the local gate", () => {

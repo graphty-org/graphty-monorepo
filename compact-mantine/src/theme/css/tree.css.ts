@@ -144,7 +144,9 @@ const css = `
 }
 .cm-tree-row[data-dimmed] .cm-tree-name,
 .cm-tree-row[data-dimmed] .cm-tree-icon { color: var(--cm-text-tertiary); }
-.cm-tree-row .cm-rename { flex: none; width: 176px; }
+/* The name field is 176 wide, or less where a deep row leaves less room: it never runs under the
+   row's toggles. */
+.cm-tree-row .cm-rename { flex: 0 1 176px; min-width: 0; width: 176px; }
 /* A row that shows its description: the name, then the description on a second 16px line in the
    secondary ink; the row grows to 44 and its pill and ring to 36. A description too long for one
    line wraps onto more, and the row, pill and ring grow with it: it is never cut. */

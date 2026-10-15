@@ -107,6 +107,8 @@ export interface TreeItemProps extends Omit<React.HTMLAttributes<HTMLDivElement>
     nameSlot?: React.ReactNode;
     /** Draw a checkbox that shows `selected`, before the glyph (the Tree's `checkboxes` mode). */
     checkbox?: boolean;
+    /** The checkbox reads "some": a row inside this one is selected while this one is not. */
+    partlySelected?: boolean;
     /** Called when the caret is clicked. */
     onExpandToggle?: (event: React.MouseEvent) => void;
 }
@@ -143,6 +145,7 @@ export const TreeItem = forwardRef<HTMLDivElement, TreeItemProps>(function TreeI
         description,
         descriptionVisible = false,
         checkbox = false,
+        partlySelected = false,
         onExpandToggle,
         className,
         onClick,
@@ -229,7 +232,13 @@ export const TreeItem = forwardRef<HTMLDivElement, TreeItemProps>(function TreeI
             </span>
             {checkbox && (
                 <span className="cm-tree-check" aria-hidden="true" data-testid="tree-check">
-                    <Checkbox size="xs" checked={selected} readOnly tabIndex={-1} />
+                    <Checkbox
+                        size="xs"
+                        checked={selected}
+                        indeterminate={!selected && partlySelected}
+                        readOnly
+                        tabIndex={-1}
+                    />
                 </span>
             )}
             <span className="cm-tree-icon" aria-hidden="true">
@@ -488,6 +497,24 @@ export function Tree({
     });
     const openSet = useMemo(() => new Set(open), [open]);
     const selectedSet = useMemo(() => new Set(selection), [selection]);
+    // The rows with a selected row somewhere inside them, expanded or not: their checkbox says so.
+    const holdsSelected = useMemo(() => {
+        const holders = new Set<string>();
+        const walk = (node: TreeNodeData): boolean => {
+            let holds = false;
+            for (const child of node.children ?? []) {
+                if (walk(child) || selectedSet.has(child.id)) {
+                    holds = true;
+                }
+            }
+            if (holds) {
+                holders.add(node.id);
+            }
+            return holds;
+        };
+        items.forEach(walk);
+        return holders;
+    }, [items, selectedSet]);
     const rows = useMemo(() => flattenTree(items, openSet), [items, openSet]);
     const tints = useMemo(() => rowTints(rows, selectedSet, childBand), [rows, selectedSet, childBand]);
     const indexOf = useMemo(() => new Map(rows.map((r, i) => [r.node.id, i])), [rows]);
@@ -901,6 +928,7 @@ export function Tree({
                 expanded={row.expanded}
                 selected={selectedSet.has(id)}
                 checkbox={checkboxes && multiselect}
+                partlySelected={holdsSelected.has(id)}
                 tint={tints[i]}
                 tone={row.node.tone}
                 dimmed={row.node.dimmed}

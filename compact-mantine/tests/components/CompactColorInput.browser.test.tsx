@@ -6,7 +6,7 @@
 import { MantineProvider } from "@mantine/core";
 import { render } from "@testing-library/react";
 import React from "react";
-import { describe, expect, it } from "vitest";
+import { assert, describe, expect, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { CompactColorInput, compactTheme, GradientEditor, PopoutManager } from "../../src";
@@ -151,5 +151,39 @@ describe("CompactColorInput picker focus", () => {
             await expect.poll(() => picked).toBe("#FF00FF");
             unmount();
         }
+    });
+});
+
+describe("a Mixed color field", () => {
+    it("draws a swatch that opens the picker, takes a color by name, and marks words that name none", async () => {
+        let picked: string | undefined;
+        renderField(
+            <CompactColorInput
+                label="Fill"
+                mixed
+                defaultColor="#999999"
+                showOpacity={false}
+                onChangeEnd={(color) => {
+                    picked = color;
+                }}
+            />,
+        );
+        const swatch = page.getByRole("button", { name: "Pick Fill color", exact: true });
+        await expect.element(swatch).toHaveAttribute("data-mixed");
+        await userEvent.click(swatch);
+        await expect.element(page.getByTestId("color-picker-value")).toBeVisible();
+        await userEvent.keyboard("{Escape}");
+
+        const hex = page.getByTestId("compact-color-input-hex");
+        await userEvent.click(hex);
+        await userEvent.keyboard("blu{Enter}");
+        await expect.element(hex).toHaveAttribute("aria-invalid", "true");
+        await expect.element(hex).toHaveValue("blu");
+        assert.isUndefined(picked, "words that name no color write nothing");
+
+        await userEvent.clear(hex);
+        await userEvent.keyboard("blue{Enter}");
+        await expect.poll(() => picked).toBe("#0000FF");
+        await expect.element(hex).not.toHaveAttribute("aria-invalid");
     });
 });

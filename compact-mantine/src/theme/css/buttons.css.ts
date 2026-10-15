@@ -171,6 +171,9 @@ const css = `
     cursor: auto;
 }
 .cm-action-icon[aria-pressed="true"]${DISABLED} { background: var(--cm-bg-selected); }
+/* A button disabled by aria-disabled stays in the tab order, so it shows where focus is like any
+   other (WCAG 2.4.7): the disabled outline above must not hide the focus ring. */
+.cm-action-icon${DISABLED}${FOCUS} { outline: 1px solid var(--cm-border-selected); outline-offset: 1px; }
 .cm-action-icon[data-loading] { cursor: progress; }
 /* A finger needs more than the 24px sm box: under a coarse pointer an invisible ::after grows its
    hit target to 32 x 32 without moving anything (::before is the edged variants' focus ring).

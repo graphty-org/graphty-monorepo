@@ -145,8 +145,18 @@ const css = `
 }
 .cm-paint-chit:focus-visible .cm-chit::after { box-shadow: inset 0 0 0 2px var(--cm-border-selected); }
 .cm-paint-chit:is(:disabled, [aria-disabled="true"] *) .cm-chit { opacity: 0.4; }
-/* Mixed: no color is in force, so no swatch is drawn; the word starts where the swatch would. */
-.cm-paint-field[data-mixed] .cm-paint-hex { margin-inline-start: 8px; }
+/* Mixed: no color is in force, so the swatch is a dash in an outline, which still opens the
+   picker. */
+.cm-paint-chit[data-mixed] {
+    align-items: center;
+    justify-content: center;
+    border-radius: 2px;
+    box-shadow: inset 0 0 0 1px var(--cm-border);
+    color: var(--cm-text-secondary);
+}
+.cm-paint-chit[data-mixed]:focus-visible { box-shadow: inset 0 0 0 2px var(--cm-border-selected); }
+/* Words that name no color, after Enter: the field's edge turns the danger ink. */
+.cm-paint-field:has(.cm-paint-hex[aria-invalid="true"]) { border-color: var(--cm-text-danger); }
 /* The chip form: the swatch alone, 24 square (WCAG 2.2, 2.5.8). Mixed draws a dash in an outline,
    which cannot be taken for a color. */
 .cm-paint-chip-wrap { display: inline-flex; flex: none; }

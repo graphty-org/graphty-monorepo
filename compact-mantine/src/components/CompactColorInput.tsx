@@ -256,6 +256,33 @@ function useChosen<T>(
 }
 
 /**
+ * The color typed into the hex box, as `#RRGGBB`: three or six hex digits, with or without "#",
+ * or any color the browser's CSS knows by name ("blue", "rebeccapurple"); undefined for words
+ * that name no opaque color.
+ * @param typed - what was typed
+ * @returns the color, upper case, or undefined
+ */
+function typedColor(typed: string): string | undefined {
+    const text = typed.trim();
+    const digits = text.replace("#", "");
+    if (/^[0-9a-f]{3}$|^[0-9a-f]{6}$/i.test(digits)) {
+        return normalizeHexa(digits)?.slice(0, HEXA_ALPHA_START).toUpperCase();
+    }
+    if (text === "" || typeof CSS === "undefined" || !CSS.supports("color", text)) {
+        return undefined;
+    }
+    // The browser spells a parsed opaque color as "#rrggbb" when a canvas reads it back.
+    const context = document.createElement("canvas").getContext("2d");
+    if (context === null) {
+        return undefined;
+    }
+    context.fillStyle = "#000000";
+    context.fillStyle = text;
+    const read = context.fillStyle;
+    return /^#[0-9a-f]{6}$/i.test(read) ? read.toUpperCase() : undefined;
+}
+
+/**
  * A color in one paint field: the chit, the hex value and the opacity.
  *
  * Pressing the chit opens the color picker in a pop-out (one at a time, docked to the start
@@ -369,6 +396,8 @@ export function CompactColorInput({
         hexState = labels.fieldSet;
     }
     const [hexDraft, setHexDraft] = useState(shownHex);
+    // What was typed names no color: the box says so until the next edit.
+    const [unknown, setUnknown] = useState(false);
 
     useEffect(() => {
         setHexDraft(shownHex);
@@ -411,21 +440,27 @@ export function CompactColorInput({
     };
 
     /**
-     * Commit what was typed into the hex box: six (or three) hex digits, otherwise redraw it.
+     * Commit what was typed into the hex box: six (or three) hex digits or a color's name,
+     * otherwise redraw it (or, on Enter, keep the words and mark them).
      * @param event - the blur or Enter that ended the edit
+     * @param keepUnknown - keep words that name no color, marked, rather than redraw the box
      */
-    const commitHex = (event: React.SyntheticEvent): void => {
-        const digits = hexDraft.trim().replace("#", "");
-        const hexa = digits.length === 3 || digits.length === 6 ? normalizeHexa(digits) : undefined;
-        const candidate = hexa?.slice(0, HEXA_ALPHA_START);
+    const commitHex = (event: React.SyntheticEvent, keepUnknown = false): void => {
+        const candidate = typedColor(hexDraft);
 
         // Under empty words, typing the default color is a choice of its own, not "no change".
         const changed = candidate !== displayColor.toUpperCase() || shownHex === "";
         if (candidate !== undefined && changed) {
+            setUnknown(false);
             setChosenColor(candidate, event);
             onChange?.(candidate, chosenOpacity, event);
             onChangeEnd?.(candidate, chosenOpacity, event);
+        } else if (candidate === undefined && keepUnknown && hexDraft.trim() !== "") {
+            // Enter on words that name no color keeps them, marked, so the reader sees why
+            // nothing changed.
+            setUnknown(true);
         } else {
+            setUnknown(false);
             setHexDraft(shownHex);
         }
     };
@@ -519,23 +554,28 @@ export function CompactColorInput({
             >
                 {/* Mixed has no color in force, so no swatch is drawn: the field holds the word
                     alone, and typing a color replaces it (Figma's mixed fill). */}
-                {!showsMixed && (
-                    <Popout>
-                        <Popout.Trigger>
-                            <button
-                                type="button"
-                                className="cm-paint-chit"
-                                data-testid="compact-color-input-swatch"
-                                disabled={disabled}
-                                aria-label={name === undefined ? labels.colorSwatch : labels.pickColor(name)}
-                                aria-describedby={annotation.describedBy}
-                            >
+                {/* Mixed has no color in force, so its swatch is a dash in an outline, which cannot
+                    be taken for a color; it still opens the picker (Figma's mixed fill). */}
+                <Popout>
+                    <Popout.Trigger>
+                        <button
+                            type="button"
+                            className="cm-paint-chit"
+                            data-testid="compact-color-input-swatch"
+                            data-mixed={showsMixed || undefined}
+                            disabled={disabled}
+                            aria-label={name === undefined ? labels.colorSwatch : labels.pickColor(name)}
+                            aria-describedby={annotation.describedBy}
+                        >
+                            {showsMixed ? (
+                                <UiGlyph name="dash" size={PANEL_GRID.CHEVRON} />
+                            ) : (
                                 <Chit color={showOpacity ? hexaValue : displayColor} variant="field" />
-                            </button>
-                        </Popout.Trigger>
-                        {pickerPanel}
-                    </Popout>
-                )}
+                            )}
+                        </button>
+                    </Popout.Trigger>
+                    {pickerPanel}
+                </Popout>
 
                 <input
                     className="cm-paint-input cm-paint-hex"
@@ -546,11 +586,14 @@ export function CompactColorInput({
                     data-is-default={isColorDefault ? "true" : "false"}
                     aria-label={`${hexName}, ${hexState}`}
                     aria-describedby={annotation.describedBy}
+                    aria-invalid={unknown || undefined}
+                    title={unknown ? labels.notAColor(hexDraft.trim()) : undefined}
                     disabled={disabled}
                     value={hexDraft}
                     placeholder={emptyWords}
                     onChange={(event) => {
-                        setHexDraft(event.currentTarget.value.toUpperCase());
+                        setUnknown(false);
+                        setHexDraft(event.currentTarget.value);
                     }}
                     onFocus={(event) => {
                         event.currentTarget.select();
@@ -564,8 +607,9 @@ export function CompactColorInput({
                     }}
                     onKeyDown={(event) => {
                         if (event.key === "Enter") {
-                            commitHex(event);
+                            commitHex(event, true);
                         } else if (event.key === "Escape") {
+                            setUnknown(false);
                             leaveWithoutCommit(
                                 event,
                                 () => {

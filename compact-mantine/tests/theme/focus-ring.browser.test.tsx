@@ -88,6 +88,12 @@ const CONTROLS: [string, ReactElement][] = [
             <span>x</span>
         </ActionIcon>,
     ],
+    [
+        "ActionIcon (aria-disabled, still focusable)",
+        <ActionIcon key="c" aria-label="Reset" aria-disabled data-disabled>
+            <span>x</span>
+        </ActionIcon>,
+    ],
     ["CloseButton", <CloseButton key="c" aria-label="Close" />],
     ["Checkbox", <Checkbox key="c" label="Visible" />],
     ["Switch", <Switch key="c" label="Enabled" />],
@@ -131,7 +137,8 @@ describe.each(["light", "dark"] as const)("keyboard focus draws the 1px ring (%s
 });
 
 describe("a pointer click on a button draws no ring (fields ring on any focus)", () => {
-    it.each(CONTROLS.filter(([n]) => /^(Button|ActionIcon|CloseButton|UnstyledButton)/.test(n)))(
+    // A disabled control takes no click, so only the enabled ones are clicked.
+    it.each(CONTROLS.filter(([n]) => /^(Button|ActionIcon|CloseButton|UnstyledButton)/.test(n) && !/disabled/.test(n)))(
         "%s",
         async (_name, ui) => {
             const { container } = await renderThemed(ui);

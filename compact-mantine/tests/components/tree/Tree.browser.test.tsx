@@ -605,6 +605,19 @@ describe("Tree: pointer", () => {
         expect(onSelect).toHaveBeenLastCalledWith(["leaf"], expect.anything());
     });
 
+    it("in checkbox mode, a folder with a checked row inside it reads partly checked", async () => {
+        await renderThemed(<Tree items={ITEMS} defaultExpanded={["frame", "group"]} checkboxes />);
+        const box = (name: string): HTMLElement => within(row(name)).getByRole("checkbox", { hidden: true });
+        await userEvent.click(row("Text"));
+        await userEvent.click(row("Vector"));
+        expect(box("Group")).not.toBeChecked();
+        expect(box("Group")).toHaveAttribute("data-indeterminate", "true");
+        expect(box("Frame")).toHaveAttribute("data-indeterminate", "true");
+        expect(box("Other")).not.toHaveAttribute("data-indeterminate");
+        await userEvent.click(row("Group"));
+        expect(box("Group")).toBeChecked();
+    });
+
     it("opens and closes one row from the caret without selecting it", async () => {
         const onSelect = vi.fn();
         await renderThemed(<Tree items={ITEMS} onSelect={onSelect} />);

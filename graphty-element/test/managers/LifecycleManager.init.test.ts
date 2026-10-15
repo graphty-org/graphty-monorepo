@@ -114,10 +114,14 @@ describe("LifecycleManager.init", () => {
         ]);
         lifecycle = new LifecycleManager(managers, events(log), ["a", "b"]);
         await lifecycle.init();
-        assert.deepEqual(log, ["init a", "dispose b", "dispose a"]);
+        assert.deepEqual(log, ["init a", "dispose b", "dispose a", "emit lifecycle-disposed"]);
 
         log.length = 0;
         await lifecycle.init();
-        assert.deepEqual(log, ["init a", "dispose b", "dispose a"], "init cleared the disposed flag and ran again");
+        assert.deepEqual(
+            log,
+            ["init a", "dispose b", "dispose a", "emit lifecycle-disposed"],
+            "init cleared the disposed flag and ran again",
+        );
     });
 });

@@ -6,6 +6,7 @@ import type { EdgeId, NodeId } from "../catalog/types";
 import type { NodeIdType } from "../config/GraphBehavior";
 import { Edge } from "../Edge";
 import { SimulationLayoutEngine } from "../layout/SimulationLayoutEngine";
+import { disposeLabelsTogether } from "../meshes/LabelBatch";
 import type { Node, NodeRenderState } from "../Node";
 import type { ElementMask } from "../session/scope/index";
 import type { DataManager } from "./DataManager";
@@ -1016,8 +1017,11 @@ export class UpdateManager implements Manager {
 
         // And before the bounding box is measured for a second reason: a style pass can change a
         // node's SIZE, and zooming to fit a graph whose sizes have just changed must frame what
-        // is about to be drawn rather than what was drawn last frame.
-        this.syncStyles();
+        // is about to be drawn rather than what was drawn last frame. A repaint that takes a label
+        // off, or rebuilds, every element releases all those labels in one pass (issue #2762).
+        disposeLabelsTogether(() => {
+            this.syncStyles();
+        });
 
         this.followSelection();
 

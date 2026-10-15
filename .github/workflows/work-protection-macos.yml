@@ -19,10 +19,6 @@ on:
                 type: string
                 required: true
     workflow_dispatch:
-    # TEMPORARY, removed before this branch leaves draft: workflow_dispatch reaches only a workflow that is
-    # already on master, so until this file merges a push to its own branch is the only way to run it.
-    push:
-        branches: [feat/work-protection]
 permissions: { contents: read }
 concurrency:
     group: work-protection-macos-${{ inputs.ref && format('release-{0}', inputs.ref) || github.ref }}

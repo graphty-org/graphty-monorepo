@@ -60,7 +60,7 @@ const HELP_MENU = {
     OFFSET: ACTIVITY_RAIL_WIDTH - ACTIVITY_RAIL_ITEM_WIDTH + 8,
     /** Box padding (VOCAB section 9 dropdown, 4 px). */
     PADDING: COMPACT_SIZING.SECTION_GAP,
-    /** One CSS pixel: the border and the row gap. */
+    /** One CSS pixel: the row gap and the trailing count's border. */
     HAIRLINE: 1,
     /** The separator's breathing room above and below its rule (Main.dc.html `margin: 3px 0`). */
     SEPARATOR_INSET: 3,
@@ -70,10 +70,10 @@ const HELP_MENU = {
 
 /**
  * The caret's offset from the menu's bottom edge, so its centre sits on the opener's
- * vertical centre: half an item above the shared bottom edge, less half the caret and
- * the border it is measured inside.
+ * vertical centre: half an item above the shared bottom edge, less half the caret. The
+ * shared menu surface draws no border, so there is none to measure inside.
  */
-const CARET_OFFSET = ACTIVITY_RAIL_ITEM_HEIGHT / 2 - HELP_MENU.CARET_SQUARE / 2 - HELP_MENU.HAIRLINE;
+const CARET_OFFSET = ACTIVITY_RAIL_ITEM_HEIGHT / 2 - HELP_MENU.CARET_SQUARE / 2;
 
 /**
  * One row of the menu.
@@ -195,19 +195,14 @@ export function HelpMenu(props: HelpMenuProps): React.JSX.Element {
                     flexDirection: "column",
                     gap: HELP_MENU.HAIRLINE,
                     padding: HELP_MENU.PADDING,
-                    background: PANEL_INK.SURFACE,
-                    border: `${HELP_MENU.HAIRLINE}px solid ${PANEL_INK.BORDER}`,
                 },
-                arrow: { background: PANEL_INK.SURFACE, borderColor: PANEL_INK.BORDER },
                 item: {
                     height: COMPACT_SIZING.HEIGHT,
                     flex: `0 0 ${COMPACT_SIZING.HEIGHT}px`,
                     padding: `0 ${COMPACT_SIZING.CONTROL_PADDING}px`,
-                    color: PANEL_INK.VALUE,
                 },
                 divider: {
                     margin: `${HELP_MENU.SEPARATOR_INSET}px 0`,
-                    borderColor: PANEL_INK.DIVIDER,
                 },
             }}
         >

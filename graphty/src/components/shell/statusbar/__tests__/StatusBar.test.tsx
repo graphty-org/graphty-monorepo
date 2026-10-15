@@ -261,6 +261,28 @@ describe("StatusBar", () => {
             expect(await screen.findByRole("menuitem", { name: "Layout settings..." })).toBeInTheDocument();
         });
 
+        it("tells the model when the layout menu opens", async () => {
+            const onOpenMenu = vi.fn();
+
+            renderBar({ slots: { counts, layout: { ...layout, onOpenMenu } } });
+            fireEvent.click(screen.getByRole("button", { name: LAYOUT_MENU_LABEL }));
+
+            expect(await screen.findByRole("menuitem", { name: "Layout settings..." })).toBeInTheDocument();
+            expect(onOpenMenu).toHaveBeenCalledTimes(1);
+        });
+
+        it("draws the menu's verbs for a model that handles none of them", async () => {
+            const { onRerun: _rerun, onStop: _stop, onOpenSettings: _settings, picks: _picks, ...bare } = layout;
+
+            renderBar({ slots: { counts, layout: bare } });
+            fireEvent.click(screen.getByRole("button", { name: LAYOUT_MENU_LABEL }));
+            const stop = await screen.findByRole("menuitem", { name: "Stop" });
+
+            expect(screen.getByRole("menuitem", { name: "Re-run" })).toBeInTheDocument();
+            expect(screen.getByRole("menuitem", { name: "Layout settings..." })).toBeInTheDocument();
+            expect(() => fireEvent.click(stop)).not.toThrow();
+        });
+
         it("draws no caret when the model asks for none", () => {
             renderBar({ slots: { counts, layout: { ...layout, caret: false } } });
 

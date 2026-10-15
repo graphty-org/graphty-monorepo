@@ -1,7 +1,7 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen } from "@testing-library/react";
 import React from "react";
 import { describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { type ActivationEvent, type ActivationMeta, getActivationMeta } from "../../src/types/events";
 
@@ -61,24 +61,25 @@ describe("getActivationMeta", () => {
         expect(meta).toStrictEqual({ source: "keyboard" });
     });
 
-    it("reports a keyboard source for the click a browser synthesizes from a key", () => {
+    it("reports a keyboard source for the click a browser synthesizes from a key", async () => {
         const onActivate = vi.fn<(event: ActivationEvent, meta: ActivationMeta) => void>();
         render(<ActivationProbe onActivate={onActivate} />);
 
-        // A click with no click count is the browser's own default action for
-        // Enter or Space on a button, never a pointer.
-        fireEvent.click(screen.getByRole("button"), { detail: 0 });
+        // Space on a button: the probe handles only Enter itself, so what it gets is the
+        // browser's own click, which carries no click count.
+        screen.getByRole("button").focus();
+        await userEvent.keyboard(" ");
 
         expect(onActivate).toHaveBeenCalledOnce();
         const [, meta] = onActivate.mock.calls[0];
         expect(meta).toStrictEqual({ source: "keyboard" });
     });
 
-    it("reports a pointer source for a click that carries a click count", () => {
+    it("reports a pointer source for a click that carries a click count", async () => {
         const onActivate = vi.fn<(event: ActivationEvent, meta: ActivationMeta) => void>();
         render(<ActivationProbe onActivate={onActivate} />);
 
-        fireEvent.click(screen.getByRole("button"), { detail: 1 });
+        await userEvent.click(screen.getByRole("button"));
 
         const [, meta] = onActivate.mock.calls[0];
         expect(meta).toStrictEqual({ source: "pointer" });

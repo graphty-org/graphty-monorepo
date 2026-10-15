@@ -16,7 +16,7 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
-import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { findValuePicker, render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { SECTIONS } from "../words";
@@ -301,6 +301,24 @@ describe("the Style tab's sections", () => {
         await waitFor(() => {
             assert.equal(written(session, "Everything", "edge.arrowHead"), "none");
         });
+    });
+
+    it("an end label on an undirected graph's edges says why it is not drawn", async () => {
+        const { session } = await openScene();
+        await openStyle("Everything");
+        await userEvent.click(within(section("edge", "text")).getByRole("button", { name: "Add to edge text" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Label at target end" }));
+        await userEvent.click(within(await findValuePicker()).getByRole("option", { name: "Fixed text" }));
+        await within(section("edge", "text")).findByRole("textbox", { name: /text$/ });
+        await userEvent.keyboard("End{Enter}");
+        // Les Miserables draws no arrowheads, so the element draws the end text on no edge.
+        await waitFor(() => {
+            assert.include(
+                section("edge", "text").textContent,
+                "Not drawn on 254 edges: it shows beside a target arrowhead, and they have none.",
+            );
+        });
+        assert.equal(written(session, "Everything", "edge.arrowHeadText"), "End");
     });
 
     it("names a grouping's field after its method, and a bound row says once who covers it", async () => {

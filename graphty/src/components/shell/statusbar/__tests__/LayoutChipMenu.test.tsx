@@ -1,7 +1,7 @@
-import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
-import { fireEvent, render, screen, TOOLTIP_FIND_OPTIONS, waitFor } from "../../../../test/test-utils";
+import { render, screen, TOOLTIP_FIND_OPTIONS, waitFor } from "../../../../test/test-utils";
 import { COMING_LABEL, LAYOUT_MENU_LABEL, LayoutChipMenu } from "../LayoutChipMenu";
 import type { LayoutQuickPick } from "../statusBarModel";
 
@@ -69,20 +69,19 @@ describe("LayoutChipMenu", () => {
             expect(caret).toHaveAttribute("aria-expanded", "false");
         });
 
-        it("reports an open when it is clicked", () => {
+        it("reports an open when it is clicked", async () => {
             const props = { ...defaultProps(), opened: false };
 
             render(<LayoutChipMenu {...props} />);
-            fireEvent.click(screen.getByRole("button", { name: LAYOUT_MENU_LABEL }));
+            await userEvent.click(screen.getByRole("button", { name: LAYOUT_MENU_LABEL }));
 
             expect(props.onOpenChange).toHaveBeenCalledWith(true);
         });
 
         it("hides its tooltip once the menu it opens is open", async () => {
-            const user = userEvent.setup();
             const { rerender } = render(<LayoutChipMenu {...defaultProps()} opened={false} />);
 
-            await user.hover(screen.getByRole("button", { name: LAYOUT_MENU_LABEL }));
+            await userEvent.hover(screen.getByRole("button", { name: LAYOUT_MENU_LABEL }));
 
             expect(await screen.findByText(LAYOUT_MENU_LABEL, {}, TOOLTIP_FIND_OPTIONS)).toBeInTheDocument();
 
@@ -129,22 +128,23 @@ describe("LayoutChipMenu", () => {
             expect(hierarchical).toHaveAttribute("aria-disabled", "true");
         });
 
-        it("applies the engine when a live pick is clicked", () => {
+        it("applies the engine when a live pick is clicked", async () => {
             const onSelect = vi.fn();
             const props = { ...defaultProps(), picks: quickPicks(onSelect) };
 
             render(<LayoutChipMenu {...props} />);
-            fireEvent.click(screen.getAllByRole("menuitem")[0]);
+            await userEvent.click(screen.getAllByRole("menuitem")[0]);
 
             expect(onSelect).toHaveBeenCalledTimes(1);
         });
 
-        it("does nothing when an unshipped pick is clicked", () => {
+        it("does nothing when an unshipped pick is clicked", async () => {
             const onSelect = vi.fn();
             const props = { ...defaultProps(), picks: quickPicks(onSelect) };
 
             render(<LayoutChipMenu {...props} />);
-            fireEvent.click(screen.getAllByRole("menuitem")[1]);
+            // force: a reader can still press a disabled row, and it must do nothing
+            await userEvent.click(screen.getAllByRole("menuitem")[1], { force: true });
 
             expect(onSelect).not.toHaveBeenCalled();
         });
@@ -161,29 +161,29 @@ describe("LayoutChipMenu", () => {
             expect(rows[6]).toBe("Layout settings...");
         });
 
-        it("runs the active engine again", () => {
+        it("runs the active engine again", async () => {
             const props = defaultProps();
 
             render(<LayoutChipMenu {...props} />);
-            fireEvent.click(screen.getByRole("menuitem", { name: "Re-run" }));
+            await userEvent.click(screen.getByRole("menuitem", { name: "Re-run" }));
 
             expect(props.onRerun).toHaveBeenCalledTimes(1);
         });
 
-        it("stops a running layout", () => {
+        it("stops a running layout", async () => {
             const props = defaultProps();
 
             render(<LayoutChipMenu {...props} />);
-            fireEvent.click(screen.getByRole("menuitem", { name: "Stop" }));
+            await userEvent.click(screen.getByRole("menuitem", { name: "Stop" }));
 
             expect(props.onStop).toHaveBeenCalledTimes(1);
         });
 
-        it("opens Style with the list focused", () => {
+        it("opens Style with the list focused", async () => {
             const props = defaultProps();
 
             render(<LayoutChipMenu {...props} />);
-            fireEvent.click(screen.getByRole("menuitem", { name: "Layout settings..." }));
+            await userEvent.click(screen.getByRole("menuitem", { name: "Layout settings..." }));
 
             expect(props.onOpenSettings).toHaveBeenCalledTimes(1);
         });

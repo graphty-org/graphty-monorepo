@@ -503,7 +503,10 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
         thicknessPx = lineThickness(batch.mesh, mid, p);
         const m = materialColor(batch.mesh.material);
         color = m ? hex(m.rgb) : null;
-        opacity = (m?.alpha ?? 1) * batch.mesh.visibility;
+        // A flat line's style opacity, not its material's alpha: a sub-pixel line is drawn one pixel
+        // wide with its alpha scaled by its width, the same ink as its own width at full opacity.
+        const styled = (batch.mesh.metadata as { lineOpacity?: number } | null)?.lineOpacity;
+        opacity = (styled ?? m?.alpha ?? 1) * batch.mesh.visibility;
     } else if (edge.mesh instanceof PatternedLineMesh) {
         kind = "pattern";
         const pm = edge.mesh;

@@ -5,17 +5,152 @@
  */
 import { assert, describe, it } from "vitest";
 
+import type { SceneNode } from "../../../graph-io/test/fidelity/scene";
 import { EdgeArrowTypes, EdgeLineTypes, NodeShapes } from "../../schema";
 import { FILE_STYLE_SHAPES } from "../../src/session/styles/fileStyles/shapes";
+import type { DrawnNode } from "./drawn-scene";
 import {
     arrowClassOf,
     capClassOf,
     colorOf,
     GRAPHTY_GAPS,
+    groupsOf,
     labelPositionOf,
     lineStyleOf,
+    occluders,
     shapeClassOf,
 } from "./extract-scene";
+
+/**
+ * A drawn node for the occlusion and group readers: a box on screen at a view depth.
+ * @param x0 - left
+ * @param y0 - top
+ * @param x1 - right
+ * @param y1 - bottom
+ * @param near - the depth of its front face (smaller is nearer the camera)
+ * @param fillOpacity - its fill's opacity
+ * @returns the node
+ */
+function drawn(x0: number, y0: number, x1: number, y1: number, near: number, fillOpacity = 1): DrawnNode {
+    return {
+        x: (x0 + x1) / 2,
+        y: (y0 + y1) / 2,
+        box: { x0, y0, x1, y1, near, far: near + 1 },
+        meshName: "box",
+        shapeType: "box",
+        fillDrawn: "#cccccc",
+        fillOpacity,
+        instanceColor: false,
+        visible: true,
+        ring: null,
+        border: null,
+        label: null,
+    };
+}
+
+/**
+ * The scene node of a drawn node, as far as the group reader looks.
+ * @param id - the id
+ * @param d - the drawn node
+ * @param visible - whether it is visible
+ * @returns the scene node
+ */
+function sceneOf(id: string, d: DrawnNode, visible = true): SceneNode {
+    return {
+        id,
+        x: d.x,
+        y: d.y,
+        w: d.box.x1 - d.box.x0,
+        h: d.box.y1 - d.box.y0,
+        shape: "rect",
+        fill: "#cccccc",
+        fillOpacity: 1,
+        border: { color: "#000000", width: 1, style: "solid" },
+        label: null,
+        visible,
+        z: -d.box.near,
+    };
+}
+
+describe("what the graphty scene extractor counts as hidden, and as a group", () => {
+    const member = drawn(40, 40, 60, 60, 35);
+    const other = drawn(70, 40, 90, 60, 35);
+
+    it("counts a node wholly behind an opaque node in front of it as hidden", () => {
+        const group = drawn(0, 0, 100, 100, 24);
+        const hidden = occluders(
+            new Map([
+                ["g", group],
+                ["m", member],
+                ["o", other],
+            ]),
+        );
+        assert.deepEqual(
+            [...hidden],
+            [
+                ["m", "g"],
+                ["o", "g"],
+            ],
+        );
+    });
+
+    it("hides nothing behind a group drawn behind its members, or a translucent one in front", () => {
+        assert.strictEqual(
+            occluders(
+                new Map([
+                    ["g", drawn(0, 0, 100, 100, 36)],
+                    ["m", member],
+                ]),
+            ).size,
+            0,
+        );
+        assert.strictEqual(
+            occluders(
+                new Map([
+                    ["g", drawn(0, 0, 100, 100, 24, 0.5)],
+                    ["m", member],
+                ]),
+            ).size,
+            0,
+        );
+        // In front, but only over part of the node: the rest of it shows.
+        assert.strictEqual(
+            occluders(
+                new Map([
+                    ["g", drawn(50, 0, 100, 100, 24)],
+                    ["m", member],
+                ]),
+            ).size,
+            0,
+        );
+    });
+
+    it("reads a group as the node holding visible leaf nodes, and none when they are hidden", () => {
+        const outer = drawn(0, 0, 200, 100, 37);
+        const inner = drawn(10, 10, 100, 90, 36);
+        const nodes = new Map([
+            ["outer", outer],
+            ["inner", inner],
+            ["m", member],
+            ["o", other],
+        ]);
+        const scene = [...nodes].map(([id, d]) => sceneOf(id, d));
+        assert.deepEqual(
+            groupsOf(scene, nodes).map((g) => [g.id, g.members]),
+            [
+                ["outer", ["m", "o"]],
+                ["inner", ["m", "o"]],
+            ],
+        );
+        // Members hidden (by a group drawn over them): no group lists them, and the inner group,
+        // showing nothing inside it, is only a box inside the outer one.
+        const hidden = [...nodes].map(([id, d]) => sceneOf(id, d, id === "outer" || id === "inner"));
+        assert.deepEqual(
+            groupsOf(hidden, nodes).map((g) => [g.id, g.members]),
+            [["outer", ["inner"]]],
+        );
+    });
+});
 
 describe("the graphty scene extractor's vocabulary", () => {
     it("reads every file shape back as the class it was imported from", () => {

@@ -195,6 +195,7 @@ A channel is one visual property with one name. These are all of them:
 | `node.height`       | 0 or more: the height, in the units of `node.size`                       |
 | `node.depth`        | 0 or more: the depth (3D), in the units of `node.size`                   |
 | `node.planar`       | true or false: draw the node thin, as a flat shape, even in 3D           |
+| `node.zIndex`       | -1000 to 0: in 2D, below 0 draws the node behind edges and higher nodes  |
 | `node.borderColor`  | a colour; black when unset                                               |
 | `node.borderWidth`  | 0 or more, in the units of `node.size`; 0 draws no border                |
 | `node.borderStyle`  | `solid`, `dashed`, `dotted` or `double`                                  |
@@ -297,6 +298,12 @@ The flat shapes -- `rectangle`, `round-rectangle`, `ellipse`, `diamond`, `triang
 `@graphty/graphty-element/schema`) -- are the shapes graph files from 2D tools name. In a 2D view
 they are drawn flat; in a 3D view they are as deep as they are wide, unless `node.planar` asks
 for a thin, flat card. Edges end at their outline.
+
+In a 2D view, `node.zIndex` puts a node behind the rest of the drawing: a node below 0 is drawn
+behind every edge and every node with a higher value, so a group (compound) node at -1 never
+hides the nodes inside it, and an outer group at -2 stays behind an inner one. Loading a file
+with `styles: "file"` sets it on the file's group nodes. A 3D view draws by real depth and
+ignores it.
 
 A border is a ring drawn outside the node's outline, so it never covers the fill, and an edge
 ends at its outer edge. Its width is in the units of `node.size`, so it scales with the node:

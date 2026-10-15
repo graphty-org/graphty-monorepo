@@ -157,6 +157,32 @@ function freeImportId(cy: Core): string {
 }
 
 /**
+ * Sets each added element's style bypass. Cytoscape skips a definition whose id an earlier one took, so the added
+ * collection is walked beside the definitions and a definition gets its bypass only when it is the next element.
+ * @param added - what cy.add returned, in definition order
+ * @param defs - the definitions, whose `data.id` cy.add filled in
+ * @param bypass - one bypass or null per definition
+ */
+function applyBypass(
+    added: CollectionReturnValue,
+    defs: ElementDefinition[],
+    bypass: readonly (Readonly<Record<string, string | number>> | null)[],
+): void {
+    let j = 0;
+    defs.forEach((def, i) => {
+        const ele = added[j];
+        if (ele?.id() !== def.data.id) {
+            return;
+        }
+        j++;
+        const b = bypass[i];
+        if (b !== null && b !== undefined) {
+            ele.style(b as never);
+        }
+    });
+}
+
+/**
  * Registers graphtyGenerate, graphtyDataset, graphtyImport and graphtyExport.
  * @param cytoscape - the cytoscape function
  */
@@ -183,14 +209,12 @@ export function registerGraphData(cytoscape: Register): void {
                 ...(styled && options.importId === undefined ? { importId: freeImportId(this) } : {}),
             });
             const apply = options?.applyStyles === true && r.stylesheet !== undefined;
-            if (apply) {
-                r.bypass?.forEach((b, i) => {
-                    if (b !== null) {
-                        r.elements[i].style = b;
-                    }
-                });
-            }
             const elements = addTo(this, r.elements);
+            if (apply && r.bypass !== undefined) {
+                // Set after the add, not as the definition's `style`: Cytoscape 3.31 applies a creation-time
+                // bypass before the edge has its endpoints, and a `curve-style` there throws in parallelEdges().
+                applyBypass(elements, r.elements, r.bypass);
+            }
             const style = this.style() as unknown as
                 { json(): unknown[]; fromJson(j: unknown[]): { update(): void } } | undefined;
             if (apply && r.stylesheet !== undefined && style !== undefined) {

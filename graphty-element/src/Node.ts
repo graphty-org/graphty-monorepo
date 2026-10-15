@@ -689,6 +689,30 @@ export class Node {
     }
 
     /**
+     * Tell the layout and this node's edges that its size or shape changed. See `paintFrom`.
+     */
+    private geometryChanged(): void {
+        // A layout that keeps nodes apart by their drawn size (`nodeGap`) has to look again;
+        // the frame loop steps it while it is not settled.
+        const engine = this.context.getLayoutManager().layoutEngine;
+        if (engine instanceof NGraphEngine) {
+            engine.wakeForResize();
+        }
+
+        if (resizedSink) {
+            // A repaint of many nodes finds all their edges in one walk afterwards.
+            resizedSink.add(this);
+            return;
+        }
+
+        for (const edge of this.context.getDataManager().edges.values()) {
+            if (edge.srcNode === this || edge.dstNode === this) {
+                edge.invalidatePositionCache();
+            }
+        }
+    }
+
+    /**
      * Build the mesh, the label and the effects one resolved style asks for.
      *
      * The one place a node's appearance is applied, whichever stack resolved it. It is keyed on
@@ -805,24 +829,7 @@ export class Node {
         // that changes every node's shape ever hitches, the answer is a per-node edge index, not
         // removing the guard.
         if (this.size !== oldSize || this.shapeType !== oldShapeType) {
-            // A layout that keeps nodes apart by their drawn size (`nodeGap`) has to look again;
-            // the frame loop steps it while it is not settled.
-            const engine = this.context.getLayoutManager().layoutEngine;
-            if (engine instanceof NGraphEngine) {
-                engine.wakeForResize();
-            }
-
-            if (resizedSink) {
-                // A repaint of many nodes finds all their edges in one walk afterwards.
-                resizedSink.add(this);
-            } else {
-                const dataManager = this.context.getDataManager();
-                for (const edge of dataManager.edges.values()) {
-                    if (edge.srcNode === this || edge.dstNode === this) {
-                        edge.invalidatePositionCache();
-                    }
-                }
-            }
+            this.geometryChanged();
         }
 
         this.mesh = NodeMesh.create(

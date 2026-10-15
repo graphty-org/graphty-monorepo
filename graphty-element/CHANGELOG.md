@@ -1,3 +1,19 @@
+## 3.28.1 (2026-10-15)
+
+### 🩹 Fixes
+
+- **graphty-element:** charge the derivation lane's catch-up to the pass that wrote the keys ([#2844](https://github.com/graphty-org/graphty-monorepo/issues/2844))
+- **graphty-element:** keep the selection when a freeze compacts rows ([#2792](https://github.com/graphty-org/graphty-monorepo/issues/2792))
+
+### 🔥 Performance
+
+- **graphty-element:** remove a node with an edge selected without walking every edge ([#2788](https://github.com/graphty-org/graphty-monorepo/issues/2788))
+- **graphty-element:** draw and remove a label on every element in linear time ([#2762](https://github.com/graphty-org/graphty-monorepo/issues/2762))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.28.0 (2026-10-15)
 
 ### 🚀 Features

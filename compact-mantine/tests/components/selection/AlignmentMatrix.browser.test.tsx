@@ -1,7 +1,7 @@
 import { MantineProvider, type MantineThemeOverride } from "@mantine/core";
-import { fireEvent, render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import {
     ALIGNMENT_MATRIX_VALUES,
@@ -89,22 +89,21 @@ describe("AlignmentMatrix", () => {
 
     // Without tooltips: each arrow focuses the next cell, which would mount its tooltip (see
     // theme-without-tooltips.ts), and the test is about the value and where focus goes.
-    it("moves in two dimensions with the arrows, and stops at the edges", () => {
+    it("moves in two dimensions with the arrows, and stops at the edges", async () => {
         const onChange = vi.fn();
         renderMatrix({ onChange }, compactThemeWithoutTooltips);
         const start = screen.getByRole("radio", { name: "Align top left" });
+        start.focus();
 
-        fireEvent.keyDown(start, { key: "ArrowUp" });
-        fireEvent.keyDown(start, { key: "ArrowLeft" });
+        await userEvent.keyboard("{ArrowUp}{ArrowLeft}");
         expect(onChange).not.toHaveBeenCalled();
 
-        fireEvent.keyDown(start, { key: "ArrowDown" });
+        await userEvent.keyboard("{ArrowDown}");
         expect(checkedValue()).toBe("middle-left");
-        fireEvent.keyDown(document.activeElement as Element, { key: "ArrowRight" });
+        await userEvent.keyboard("{ArrowRight}");
         expect(checkedValue()).toBe("middle-center");
         expect(document.activeElement).toBe(screen.getByRole("radio", { name: "Align center" }));
-        fireEvent.keyDown(document.activeElement as Element, { key: "ArrowDown" });
-        fireEvent.keyDown(document.activeElement as Element, { key: "ArrowDown" });
+        await userEvent.keyboard("{ArrowDown}{ArrowDown}");
         expect(checkedValue()).toBe("bottom-center");
         expect(onChange.mock.calls.map((call) => call[0])).toEqual(["middle-left", "middle-center", "bottom-center"]);
     });
@@ -134,8 +133,11 @@ describe("AlignmentMatrix", () => {
         for (const radio of screen.getAllByRole("radio")) {
             expect(radio).toBeDisabled();
         }
-        fireEvent.keyDown(screen.getAllByRole("radio")[0], { key: "ArrowRight" });
-        await user.click(screen.getAllByRole("radio")[4]);
+        // A disabled radio takes no focus, so the arrow lands on nothing of the matrix.
+        screen.getAllByRole("radio")[0].focus();
+        await user.keyboard("{ArrowRight}");
+        // force: a disabled control fails Playwright's actionability check, but a reader can still press it.
+        await user.click(screen.getAllByRole("radio")[4], { force: true });
         expect(onChange).not.toHaveBeenCalled();
     });
 

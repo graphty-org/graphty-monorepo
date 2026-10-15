@@ -1,7 +1,7 @@
 import { MantineProvider } from "@mantine/core";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import { beforeAll, describe, expect, it } from "vitest";
+import { page, userEvent } from "vitest/browser";
 
 import { Popout, PopoutManager, usePopoutManager } from "../../src/components/popout";
 import { compactTheme } from "../../src/theme";
@@ -12,10 +12,18 @@ import { compactTheme } from "../../src/theme";
 function renderPopout(ui: React.ReactElement) {
     return render(
         <MantineProvider theme={compactTheme}>
-            <PopoutManager>{ui}</PopoutManager>
+            {/* Room on the left: a panel opens to the left of its trigger, and with none it is kept
+                on screen over the triggers, where a real click cannot reach them. */}
+            <div style={{ marginLeft: 600 }}>
+                <PopoutManager>{ui}</PopoutManager>
+            </div>
         </MantineProvider>,
     );
 }
+
+beforeAll(async () => {
+    await page.viewport(1280, 720);
+});
 
 describe("PopoutManager z-index", () => {
     it("assigns incrementing z-index to nested popouts", async () => {
@@ -805,8 +813,9 @@ describe("usePopoutManager", () => {
         await user.click(screen.getByRole("button", { name: "Open" }));
         expect(await screen.findByTestId("panel-content")).toBeInTheDocument();
 
-        // A click event with no pointerdown before it, as a keyboard activation delivers.
-        fireEvent.click(screen.getByRole("button", { name: "Close all" }));
+        // Enter on the button: the browser's own click, with no pointerdown before it.
+        screen.getByRole("button", { name: "Close all" }).focus();
+        await user.keyboard("{Enter}");
 
         await waitFor(() => {
             expect(screen.queryByTestId("panel-content")).toBeNull();

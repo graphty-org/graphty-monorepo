@@ -22,10 +22,15 @@ describe("the value a line starts with", () => {
         session = null;
     });
 
-    it("is the element's own value for every channel a line can add, never an invented one", () => {
+    it("is the element's own value for every channel a line can add, but a pattern count", () => {
         for (const descriptor of addable()) {
             const value = startingValue(descriptor);
-            const own = descriptor.default ?? descriptor.off ?? descriptor.min ?? descriptor.values?.[0] ?? "";
+            // Unset, a pattern count follows the element's spacing rule edge by edge; its floor (2)
+            // draws a mark at each end only, so the app starts it at 10 marks.
+            const own =
+                descriptor.channel === "edge.patternCount"
+                    ? 10
+                    : (descriptor.default ?? descriptor.off ?? descriptor.min ?? descriptor.values?.[0] ?? "");
             assert.deepEqual(value, own, descriptor.channel);
         }
     });

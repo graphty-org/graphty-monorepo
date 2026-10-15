@@ -465,7 +465,7 @@ describe("the Style tab's rows on the real element", () => {
         assert.lengthOf(readerLayers(session), 1, "the bind edited the PageRank row; no new row");
     });
 
-    it("sizes Everything by a run's result on a layer scoped to what it measured, and Stop varying fixes it again", async () => {
+    it("sizes Everything by a run's result on Everything itself, and Stop varying fixes it again", async () => {
         await page.viewport(1366, 768);
         const { session, element } = await openEverything();
         await session.data.addEdges([{ source: "1", target: "3" }]);
@@ -480,7 +480,9 @@ describe("the Style tab's rows on the real element", () => {
             () => {
                 const mine = readerLayers(session).filter((l) => l.userData?.graphtyEverything === true);
                 assert.lengthOf(mine, 1);
-                assert.deepEqual(mine[0].selector, { match: "has", path }, "scoped to what the run measured");
+                // The element skips an element the run did not measure, so the layer keeps its rule.
+                assert.deepEqual(mine[0].selector, { match: "everything" });
+                assert.equal((mine[0].encode?.["node.size"] as { by?: string } | undefined)?.by, path);
                 assert.isAbove(element.getNode("1")?.size ?? 0, element.getNode("2")?.size ?? 0);
             },
             { timeout: TIMEOUT_MS },

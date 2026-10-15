@@ -58,6 +58,7 @@ export interface ExtractStylesOptions extends StyleImportOptions {
     /**
      * The counted work budget to spend (and read back after: `budget.used("node")`); a new one of
      * `STYLE_WORK_BUDGET` operations per target when absent.
+     * @internal
      */
     readonly budget?: StyleBudget;
 }

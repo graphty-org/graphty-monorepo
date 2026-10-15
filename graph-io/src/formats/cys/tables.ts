@@ -281,8 +281,9 @@ export function cellAtt(
     hidden: boolean,
     quoted = false,
 ): AttRec | null {
+    const cell = { line, namespace, hidden };
     if (text.startsWith("=")) {
-        return att(column.name, column.list ? "List" : column.type, null, text, line, namespace, hidden, true);
+        return att(column.name, column.list ? "List" : column.type, null, text, true, cell);
     }
     if (!column.list) {
         // graphty writes an unset style value as an unquoted empty cell, and the empty string quoted (`""`)
@@ -292,17 +293,17 @@ export function cellAtt(
         ) {
             return null;
         }
-        return att(column.name, column.type, null, text, line, namespace, hidden, false);
+        return att(column.name, column.type, null, text, false, cell);
     }
     if (text.length === 0 && column.type !== "String") {
         return null;
     }
-    const list = att(column.name, "List", column.type, null, line, namespace, hidden, false);
+    const list = att(column.name, "List", column.type, null, false, cell);
     for (const item of javaSplitLines(text)) {
         if (item.length === 0 && column.type !== "String") {
             continue;
         }
-        list.children.push(att(column.name, column.type, null, item, line, namespace, hidden, false));
+        list.children.push(att(column.name, column.type, null, item, false, cell));
     }
     return list;
 }
@@ -331,10 +332,11 @@ function javaSplitLines(text: string): string[] {
  * @param cyType - the Cytoscape type
  * @param elementType - a list's item type, or null
  * @param value - the value, or null
- * @param line - the line
- * @param namespace - the table namespace, or null
- * @param hidden - a hidden column
  * @param equation - the value is a formula
+ * @param cell - where the cell sits
+ * @param cell.line - the line
+ * @param cell.namespace - the table namespace, or null
+ * @param cell.hidden - a hidden column
  * @returns the record
  */
 function att(
@@ -342,11 +344,10 @@ function att(
     cyType: string,
     elementType: string | null,
     value: string | null,
-    line: number,
-    namespace: string | null,
-    hidden: boolean,
     equation: boolean,
+    cell: { readonly line: number; readonly namespace: string | null; readonly hidden: boolean },
 ): AttRec {
+    const { line, namespace, hidden } = cell;
     return {
         name,
         type: null,

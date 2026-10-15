@@ -1,3 +1,41 @@
+## 3.28.1 (2026-10-15)
+
+### 🩹 Fixes
+
+- **graphty-element:** charge the derivation lane's catch-up to the pass that wrote the keys ([#2844](https://github.com/graphty-org/graphty-monorepo/issues/2844))
+- **graphty-element:** keep the selection when a freeze compacts rows ([#2792](https://github.com/graphty-org/graphty-monorepo/issues/2792))
+
+### 🔥 Performance
+
+- **graphty-element:** remove a node with an edge selected without walking every edge ([#2788](https://github.com/graphty-org/graphty-monorepo/issues/2788))
+- **graphty-element:** draw and remove a label on every element in linear time ([#2762](https://github.com/graphty-org/graphty-monorepo/issues/2762))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.28.0 (2026-10-15)
+
+### 🚀 Features
+
+- **graphty-element:** report the screen rectangle a node covers in nodeScreenPosition ([#2668](https://github.com/graphty-org/graphty-monorepo/issues/2668))
+
+### 🩹 Fixes
+
+- **graphty-element:** keep an edge's ray aimed from source to destination when it is built ([#2668](https://github.com/graphty-org/graphty-monorepo/issues/2668))
+- **graphty-element:** keep round nodes on the sphere path of nodeGap without reading extents ([#2668](https://github.com/graphty-org/graphty-monorepo/issues/2668))
+- **graphty-element:** measure non-round nodes by their box in edge trim, nodeGap, labels, loops ([#2668](https://github.com/graphty-org/graphty-monorepo/issues/2668))
+
+### 🔥 Performance
+
+- **graphty-element:** add or remove one node or edge in time linear in the run ([#2733](https://github.com/graphty-org/graphty-monorepo/issues/2733))
+- **graphty-element:** restyle every node's shape in linear time ([#2749](https://github.com/graphty-org/graphty-monorepo/issues/2749))
+- **graphty-element:** remove part of a graph in linear time ([#543](https://github.com/graphty-org/graphty-monorepo/issues/543), [#2732](https://github.com/graphty-org/graphty-monorepo/issues/2732))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.27.0 (2026-10-15)
 
 ### 🚀 Features

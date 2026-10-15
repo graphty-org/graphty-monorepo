@@ -526,6 +526,7 @@ export type Channel =
     | "node.height"
     | "node.depth"
     | "node.planar"
+    | "node.zIndex"
     | "node.borderColor"
     | "node.borderWidth"
     | "node.borderStyle"

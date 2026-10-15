@@ -233,9 +233,13 @@ async function writeParts(
     // The parts' old records requested together, not one after another: each answer waits
     // for a turn of the page's event loop, which a busy page takes a long frame to give.
     const written = [...(prepared ?? [])];
-    const olds = (await Promise.all(written.map(([part]) => step(parts.get([entryId, part]))))) as (
-        PartRecord | undefined
-    )[];
+    // Whether each large value is stored already, asked with them.
+    const large = [...new Set(written.flatMap(([, value]) => (value !== null && "blob" in value ? [value.blob] : [])))];
+    const [olds, counts] = await Promise.all([
+        Promise.all(written.map(([part]) => step(parts.get([entryId, part])) as Promise<PartRecord | undefined>)),
+        Promise.all(large.map((hash) => step(blobs.count(hash)))),
+    ]);
+    const stored = new Set(large.filter((_, i) => counts[i] !== 0));
     const released: string[] = [];
     for (const [j, [part, value]] of written.entries()) {
         const old = olds[j];
@@ -247,7 +251,8 @@ async function writeParts(
         } else if ("inline" in value) {
             parts.put({ entryId, part, value: value.inline } satisfies PartRecord);
         } else {
-            if ((await step(blobs.count(value.blob))) === 0) {
+            if (!stored.has(value.blob)) {
+                stored.add(value.blob);
                 blobs.put({ hash: value.blob, value: value.value } satisfies BlobRecord);
             }
             parts.put({ entryId, part, blob: value.blob } satisfies PartRecord);
@@ -269,11 +274,14 @@ async function dropUnreferencedBlobs(
 ): Promise<void> {
     const byBlob = tx.objectStore(PARTS).index("blob");
     const blobs = tx.objectStore(BLOBS);
-    for (const hash of new Set(hashes)) {
-        if ((await step(byBlob.count(hash))) === 0) {
+    const unique = [...new Set(hashes)];
+    // Asked together: each answer waits for a turn of the page's event loop (see writeParts).
+    const counts = await Promise.all(unique.map((hash) => step(byBlob.count(hash))));
+    unique.forEach((hash, i) => {
+        if (counts[i] === 0) {
             blobs.delete(hash);
         }
-    }
+    });
 }
 
 /**

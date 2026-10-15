@@ -9,6 +9,7 @@
 import { assert, describe, it } from "vitest";
 
 import { indexedDbAutosaveStore, type IndexedDbAutosaveStoreOptions } from "../../../src/autosave/indexedDbStore";
+import type { AutosaveWrite } from "../../../src/autosave/types";
 import { describeAutosaveStoreContract, largeText, write } from "../../autosave/store-contract";
 
 let databases = 0;
@@ -68,6 +69,55 @@ async function rejection(promise: Promise<unknown>): Promise<Error> {
     throw new Error("expected the promise to reject");
 }
 
+/**
+ * Records, for every IndexedDB read issued while `run` runs, how many request answers it waited for
+ * one after another: 0 for one issued at once, 1 for one issued once an answer of depth 0 arrived.
+ * Each answer costs the page a turn of its event loop, which a page drawing a large graph in
+ * software gets once per frame, seconds apart, so a commit's deepest read counts the frames it waits.
+ * @param run - The work to measure.
+ * @returns The deepest read.
+ */
+async function deepestRead(run: () => Promise<void>): Promise<number> {
+    const reads = new Set(["get", "getAll", "count", "openKeyCursor", "openCursor"]);
+    const patched: [object, string, unknown][] = [];
+    let current = 0;
+    let deepest = 0;
+    for (const proto of [IDBObjectStore.prototype, IDBIndex.prototype]) {
+        for (const method of ["get", "getAll", "count", "openKeyCursor", "openCursor", "put", "delete"]) {
+            const original = (proto as unknown as Record<string, (...args: unknown[]) => IDBRequest>)[method];
+            if (original === undefined) {
+                continue;
+            }
+            patched.push([proto, method, original]);
+            Object.defineProperty(proto, method, {
+                configurable: true,
+                writable: true,
+                value(this: unknown, ...args: unknown[]): IDBRequest {
+                    const req = original.apply(this, args);
+                    const depth = current;
+                    if (reads.has(method)) {
+                        deepest = Math.max(deepest, depth);
+                    }
+                    // Added before the store's own handler, so it runs first, and the store's
+                    // continuation (a microtask after both) issues its next requests at depth + 1.
+                    req.addEventListener("success", () => {
+                        current = depth + 1;
+                    });
+                    return req;
+                },
+            });
+        }
+    }
+    try {
+        await run();
+    } finally {
+        for (const [proto, method, original] of patched) {
+            Object.defineProperty(proto, method, { configurable: true, writable: true, value: original });
+        }
+    }
+    return deepest;
+}
+
 describeAutosaveStoreContract("IndexedDB", () => {
     const name = databaseName();
     const store = storeFor(name);
@@ -82,6 +132,26 @@ describeAutosaveStoreContract("IndexedDB", () => {
 });
 
 describe("IndexedDB autosave store on a real database", () => {
+    it("a commit asks about all its large parts at once, not one after another", async () => {
+        const name = databaseName();
+        const store = storeFor(name);
+        const big = (seed: string): AutosaveWrite["parts"] => ({
+            data: largeText(`${seed} data `),
+            arrangement: largeText(`${seed} arrangement `),
+            rest: largeText(`${seed} rest `),
+        });
+        await store.commit([write("a", "k", 0, big("first"))]);
+        // Three new blobs to look up, and three old ones released to look up again.
+        const deepest = await deepestRead(() => store.commit([write("a", "k", 1, big("second"))]));
+        // The fence, the sequence number, then the old parts with the new blobs, then the
+        // released blobs: four rounds, however many large parts the commit carries.
+        assert.isAtMost(deepest, 3, "large parts looked up one after another");
+        assert.strictEqual(await countBlobs(name), 3, "the replaced blobs were dropped, the new ones kept");
+        assert.strictEqual((await store.read("a"))?.parts.rest, largeText("second rest "));
+        await store.close();
+        await deleteDatabase(name);
+    });
+
     it("a transaction aborted mid-way leaves the previous commit whole", async () => {
         const name = databaseName();
         let abortNext = false;

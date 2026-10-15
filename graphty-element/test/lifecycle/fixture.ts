@@ -167,7 +167,12 @@ window.addEventListener("pagehide", (e) => report("pagehide", { persisted: e.per
 window.addEventListener("pageshow", (e) => report("pageshow", { persisted: e.persisted }));
 
 const ids = Array.from({ length: n }, (_, i) => "n" + i);
-const nodes = ids.map((id) => ({ id }));
+// On a grid, as a laid-out graph is: with no position every node sits at the origin, and the camera
+// fitted to that one point fills the canvas with n spheres stacked on each other, which a software
+// GPU shades n times over (seconds a frame at 1,000 nodes, half a minute at 5,000). The page's
+// main thread waits for each frame, and every step of a write waits for the main thread.
+const side = Math.ceil(Math.sqrt(n));
+const nodes = ids.map((id, i) => ({ id, position: { x: (i % side) * 3, y: Math.floor(i / side) * 3, z: 0 } }));
 const edges = ids.map((id, i) => ({ source: id, target: ids[(i + 1) % n] }));
 const el = document.createElement("graphty-element");
 el.setAttribute("autosave", params.get("key"));

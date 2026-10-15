@@ -160,6 +160,42 @@ function releaseTogether(batch: readonly LabelResources[]): void {
         return;
     }
 
+    const lists = sceneLists(scene, meshes, materials, textures);
+    const setAside = lists.map(([list, doomed]) => {
+        dropAll(list, doomed);
+        return list.splice(0);
+    });
+    try {
+        disposeAll(meshes, materials, textures);
+    } finally {
+        lists.forEach(([list], at) => {
+            // Anything a disposal added goes after what was there.
+            const added = list.splice(0);
+            for (const item of setAside[at]) {
+                list.push(item);
+            }
+
+            for (const item of added) {
+                list.push(item);
+            }
+        });
+    }
+}
+
+/**
+ * Each scene and engine list a label's disposal searches, with what of the batch's sits in it.
+ * @param scene - The scene.
+ * @param meshes - The labels' meshes.
+ * @param materials - The labels' materials.
+ * @param textures - The labels' textures.
+ * @returns Each list and the members of it the batch owns.
+ */
+function sceneLists(
+    scene: Scene,
+    meshes: ReadonlySet<AbstractMesh>,
+    materials: ReadonlySet<StandardMaterial>,
+    textures: ReadonlySet<DynamicTexture>,
+): [unknown[], ReadonlySet<unknown>][] {
     const buffers = new Set<UniformBuffer>();
     const observers = new Set<Observer<ImageProcessingConfiguration>>();
     const images = new Set<ImageProcessingConfiguration>();
@@ -181,7 +217,7 @@ function releaseTogether(batch: readonly LabelResources[]): void {
     }
 
     const engine = scene.getEngine();
-    const lists: [unknown[], ReadonlySet<unknown>][] = [
+    return [
         [scene.meshes, meshes],
         [scene.textures, textures],
         [engine._uniformBuffers, buffers],
@@ -191,26 +227,6 @@ function releaseTogether(batch: readonly LabelResources[]): void {
             observers,
         ]),
     ];
-
-    const setAside = lists.map(([list, doomed]) => {
-        dropAll(list, doomed);
-        return list.splice(0);
-    });
-    try {
-        disposeAll(meshes, materials, textures);
-    } finally {
-        lists.forEach(([list], at) => {
-            // Anything a disposal added goes after what was there.
-            const added = list.splice(0);
-            for (const item of setAside[at]) {
-                list.push(item);
-            }
-
-            for (const item of added) {
-                list.push(item);
-            }
-        });
-    }
 }
 
 /**

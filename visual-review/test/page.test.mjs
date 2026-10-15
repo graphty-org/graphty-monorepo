@@ -1177,6 +1177,34 @@ describe("review page: a pull request", () => {
         await expect.poll(stageClass).toContain("flash");
     });
 
+    it("shows a compared view's failed image as an error in both panes, under the view's labels", async () => {
+        await page.route("**/api/img/123/compact-mantine/baseline/button--primary.dark.png", (route) =>
+            route.fulfill({ status: 500, body: "broken" }),
+        );
+        await openStory(2);
+        await page.keyboard.press("h");
+        await expect.poll(stageClass).toContain("highlight");
+        const figures = page.locator("#stage figure");
+        await expect.poll(() => figures.locator(".failed.error").count()).toBe(2);
+        expect(await figures.locator(".label").allTextContents()).toEqual([
+            "Baseline, changed pixels in red",
+            "New, changed pixels in red",
+        ]);
+    });
+
+    it("labels a Flash opened from a link as stopped until F is pressed", async () => {
+        await openStory(2);
+        const link = new URL(page.url());
+        const p = new URLSearchParams(link.hash.slice(1));
+        p.set("view", "flash");
+        link.hash = String(p);
+        await page.goto("about:blank");
+        await page.goto(link.href);
+        await expect
+            .poll(() => page.locator("#stage .label").allTextContents())
+            .toEqual(["Baseline", "Flash: baseline (stopped: press F)"]);
+    });
+
     it("lays the changed pixels over both images in red with H, and blinks them with L", async () => {
         await openStory(2);
         await page.keyboard.press("h");
@@ -1769,7 +1797,7 @@ describe("review page: waits that say what they wait for", () => {
                 const gh = onePr()(r);
                 return {
                     gh: async (args, input) => {
-                        if (args[1]?.includes("/pulls?")) {
+                        if (args[1] === "graphql") {
                             await held;
                         }
                         return gh(args, input);
@@ -1932,7 +1960,7 @@ describe("review page: the wait box", () => {
                 const gh = onePr()(r);
                 return {
                     gh: withRetries(async (args, input) => {
-                        if ((args[1] ?? "").includes("/pulls?")) {
+                        if (args[1] === "graphql") {
                             if (github === "refusing") {
                                 throw new Error("HTTP 401: Bad credentials");
                             }
@@ -1967,7 +1995,7 @@ describe("review page: the wait box", () => {
                 const gh = onePr()(r);
                 return {
                     gh: async (args, input) => {
-                        if (down && (args[1] ?? "").includes("/pulls?")) {
+                        if (down && args[1] === "graphql") {
                             throw new Error("HTTP 401: Bad credentials");
                         }
                         return gh(args, input);
@@ -1997,7 +2025,7 @@ describe("review page: the wait box", () => {
                 const gh = onePr()(r);
                 return {
                     gh: async (args, input) => {
-                        if (hold && (args[1] ?? "").includes("/pulls?")) {
+                        if (hold && args[1] === "graphql") {
                             await new Promise((resolve) => (release = resolve));
                         }
                         return gh(args, input);

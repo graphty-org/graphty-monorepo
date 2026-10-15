@@ -16,7 +16,7 @@
  * Only the owner's issues and pull requests are in it. Nothing here changes the state.
  */
 
-import { byOwner, TERMINAL } from "./board.mjs";
+import { byOwner, holderName, TERMINAL } from "./board.mjs";
 import { DEFAULTS } from "./config.mjs";
 import { staleRevert } from "./master-fix.mjs";
 import { orderPosition } from "./owner.mjs";
@@ -469,7 +469,7 @@ export function jobOnPr(state, n, { except = null, review = false, session: call
         const session = j.holder?.session;
         if (!session) return `in flight as ${j.id}`;
         if (session === caller) return `yours: you claimed ${j.id}`;
-        return `claimed by session ${j.holder.name ?? state.sessions?.[session]?.name ?? session}`;
+        return `claimed by session ${holderName(state, j.holder)}`;
     }
     return null;
 }
@@ -553,7 +553,7 @@ export function prHolder(state, n) {
     const job = Object.values(state.jobs ?? {}).find(
         (j) => String(prOf(j)) === k && j.holder?.session && j.state !== "queued" && !TERMINAL.includes(j.state),
     );
-    if (job) return { name: job.holder.name ?? job.holder.session, since: job.claim?.at ?? job.stateSince ?? null };
+    if (job) return { name: holderName(state, job.holder), since: job.claim?.at ?? job.stateSince ?? null };
     const owned = state.prOwners?.[k];
     if (owned) return { name: owned.name, since: owned.at };
     const inferred = state.prInferred?.[k];
@@ -646,7 +646,7 @@ function jobOnIssue(state, job, caller) {
         const session = j.holder?.session;
         if (!session) return `#${n} is in flight in ${j.id}`;
         if (session === caller) return `yours: you claimed ${j.id}, which covers #${n}`;
-        return `#${n} is in ${j.id}, claimed by session ${j.holder.name ?? state.sessions?.[session]?.name ?? session}`;
+        return `#${n} is in ${j.id}, claimed by session ${holderName(state, j.holder)}`;
     }
     return null;
 }

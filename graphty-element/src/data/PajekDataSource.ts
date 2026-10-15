@@ -1,7 +1,7 @@
 import { PAJEK_ISSUE, pajekImporter } from "@graphty/graph-io/pajek";
 
 import { BaseDataSourceConfig, DataSource, DataSourceChunk } from "./DataSource.js";
-import { copyColumns, importWhole, toRecords } from "./graph-io-import.js";
+import { copyColumns, copyPosition, importWhole, toRecords } from "./graph-io-import.js";
 
 // Pajek has no additional config currently, so just use the base config
 type PajekDataSourceConfig = BaseDataSourceConfig;
@@ -10,15 +10,14 @@ type PajekDataSourceConfig = BaseDataSourceConfig;
 const DIRECTED_COLUMN = "graphty.directed";
 
 /**
- * Rebuild the 2.x node record in place: `id`, `label`, and the coordinates as `x`, `y` and `z`.
- * @param record - the record graph-io's columns produced
+ * Add the 2.x flat coordinates `x`, `y` and `z` beside the record's `position`.
+ * @param record - the record, its `position` already written by `copyPosition`
  * @param threeD - whether the file's vertex lines write a z coordinate
  */
-function nodeRecord(record: Record<string, unknown>, threeD: boolean): void {
+function flatCoordinates(record: Record<string, unknown>, threeD: boolean): void {
     const { position } = record;
-    delete record.position;
-    if (Array.isArray(position)) {
-        const [x, y, z] = position as number[];
+    if (position !== undefined) {
+        const { x, y, z } = position as { x: number; y: number; z: number };
         // graph-io fills an unwritten z with 0; a file whose vertex lines write two coordinates stays 2D.
         Object.assign(record, threeD ? { x, y, z } : { x, y });
     }
@@ -28,8 +27,8 @@ function nodeRecord(record: Record<string, unknown>, threeD: boolean): void {
  * Data source for loading graph data from Pajek NET format files, read by `@graphty/graph-io`'s
  * Pajek importer.
  *
- * Vertex records carry `id` (the vertex number, as written), `label` and the coordinates as `x`,
- * `y` and `z`. Edge records carry `source`, `target`, `weight` (the line's value) and `directed`:
+ * Vertex records carry `id` (the vertex number, as written), `label`, and the coordinates as
+ * `position` `{ x, y, z }` and as `x`, `y` and `z`. Edge records carry `source`, `target`, `weight` (the line's value) and `directed`:
  * true for a line under `*Arcs`, false for one under `*Edges`.
  *
  * Pajek states direction by section. A file with both sections is read as DIRECTED, because that
@@ -84,8 +83,9 @@ export class PajekDataSource extends DataSource {
         const directed = snapshot.edges.get(DIRECTED_COLUMN);
         const { nodes, edges } = toRecords(imported, {
             node: (row, record) => {
+                copyPosition(snapshot.nodes, row, record);
                 copyColumns(snapshot.nodes, row, record);
-                nodeRecord(record, threeD);
+                flatCoordinates(record, threeD);
             },
             edge: (row, record) => {
                 copyColumns(snapshot.edges, row, record);

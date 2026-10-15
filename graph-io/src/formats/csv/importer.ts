@@ -575,6 +575,22 @@ function isUnset(text: string, quoted: boolean | undefined): boolean {
     return quoted !== true && isBlank(text);
 }
 
+/**
+ * The number of set neighbor cells of an adjacency row (every cell after the first).
+ * @param row - the cells
+ * @param quoted - whether each cell was quoted
+ * @returns the set neighbor cells
+ */
+function setNeighborCells(row: readonly string[], quoted: readonly boolean[]): number {
+    let neighbors = 0;
+    for (let k = 1; k < row.length; k++) {
+        if (!isUnset(row[k], quoted[k])) {
+            neighbors++;
+        }
+    }
+    return neighbors;
+}
+
 /** Rows between two checks of the cancellation signal on an in-memory input. */
 const ABORT_CHECK_INTERVAL = 64;
 
@@ -1520,12 +1536,7 @@ class TableReader {
         const { where } = this;
         where.line = line;
         where.element = null;
-        let neighbors = 0;
-        for (let k = 1; k < row.length; k++) {
-            if (!isUnset(row[k], quoted[k])) {
-                neighbors++;
-            }
-        }
+        const neighbors = setNeighborCells(row, quoted);
         if (isUnset(row[0], quoted[0])) {
             report.error("missing-value", MISSING_ID_CODE, `blank node cell`, { line });
             counts.skippedNodes++;

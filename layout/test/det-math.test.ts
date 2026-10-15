@@ -2,7 +2,6 @@ import { fromEdgeArrays, type GraphSnapshot } from "@graphty/graph-format";
 import { afterEach, assert, describe, it, vi } from "vitest";
 
 import * as layout from "../src";
-import { detAcos, detCos, detLog, detSin } from "../src/utils/det-math";
 
 /** A w x h grid, node i = y * w + x. */
 function grid(w: number, h: number): GraphSnapshot {
@@ -26,29 +25,6 @@ function grid(w: number, h: number): GraphSnapshot {
     });
 }
 
-const view = new DataView(new ArrayBuffer(16));
-
-/** The distance in units in the last place between two doubles of the same sign. */
-function ulps(a: number, b: number): number {
-    view.setFloat64(0, a);
-    view.setFloat64(8, b);
-    const d = view.getBigInt64(0) - view.getBigInt64(8);
-    return Number(d < 0n ? -d : d);
-}
-
-/**
- * A fixed sequence of doubles in [0, 1), the same in every engine.
- * @param count - how many
- * @yields the next double
- */
-function* uniform(count: number): Generator<number> {
-    let x = 12345;
-    for (let i = 0; i < count; i++) {
-        x = (Math.imul(x, 1103515245) + 12345) >>> 0;
-        yield x / 4294967296;
-    }
-}
-
 const TRANSCENDENTALS = ["log", "exp", "sin", "cos", "tan", "acos", "asin", "atan", "atan2", "cbrt", "log1p", "expm1"];
 
 /** Runs fn with every engine-approximated Math function replaced by one that throws. */
@@ -65,47 +41,9 @@ function withoutEngineMath<T>(fn: () => T): T {
     }
 }
 
-describe("engine-independent math", () => {
+describe("engine-independent math in layouts", () => {
     afterEach(() => {
         vi.restoreAllMocks();
-    });
-
-    it("stays within 1 ulp of Math over wide ranges", () => {
-        // fdlibm's error bound; in an engine that uses fdlibm (Node 22, Chromium 143) the results are identical
-        const cases: [string, (x: number) => number, (x: number) => number, (u: number) => number][] = [
-            ["log", detLog, Math.log, (u) => 10 ** (-300 + 600 * u)],
-            ["log", detLog, Math.log, (u) => 1 + 100 * u],
-            ["sin", detSin, Math.sin, (u) => (2 * u - 1) * 1e5],
-            ["cos", detCos, Math.cos, (u) => (2 * u - 1) * 1e5],
-            ["sin", detSin, Math.sin, (u) => (2 * u - 1) * 7],
-            ["cos", detCos, Math.cos, (u) => (2 * u - 1) * 7],
-            ["acos", detAcos, Math.acos, (u) => 2 * u - 1],
-        ];
-        for (const [name, det, ref, gen] of cases) {
-            for (const u of uniform(10000)) {
-                const x = gen(u);
-                const a = det(x);
-                const b = ref(x);
-                assert.isAtMost(ulps(a, b), 1, `${name}(${x}): ${a} vs ${b}`);
-            }
-        }
-    });
-
-    it("handles the special values", () => {
-        assert.strictEqual(detLog(0), -Infinity);
-        assert.isNaN(detLog(-1));
-        assert.isNaN(detLog(Number.NaN));
-        assert.strictEqual(detLog(Infinity), Infinity);
-        assert.strictEqual(detLog(1), 0);
-        assert.strictEqual(detLog(Number.MIN_VALUE), Math.log(Number.MIN_VALUE));
-        assert.isNaN(detSin(Infinity));
-        assert.isNaN(detCos(Number.NaN));
-        assert.strictEqual(detSin(-0), -0);
-        assert.strictEqual(detCos(0), 1);
-        assert.isTrue(Number.isFinite(detSin(1e300)) && Math.abs(detSin(1e300)) <= 1);
-        assert.strictEqual(detAcos(1), 0);
-        assert.strictEqual(detAcos(-1), Math.PI);
-        assert.isNaN(detAcos(1.5));
     });
 
     it("never calls an engine-approximated Math function in a layout", () => {

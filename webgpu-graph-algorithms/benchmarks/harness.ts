@@ -260,9 +260,12 @@ export function printTable(results: readonly BenchResult[]): void {
     console.log("-".repeat(header.length + 12));
     for (const r of results) {
         const rate = r.rate === null ? "" : `${formatRate(r.rate)} ${r.rateUnit ?? ""}`;
+        const medianText = `${r.medianMs.toFixed(3)} ms`;
+        const minText = `${r.minMs.toFixed(3)} ms`;
+        const maxText = `${r.maxMs.toFixed(3)} ms`;
         console.log(
-            `${r.name.padEnd(nameWidth)}  ${`${r.medianMs.toFixed(3)} ms`.padStart(11)}  ` +
-                `${`${r.minMs.toFixed(3)} ms`.padStart(10)}  ${`${r.maxMs.toFixed(3)} ms`.padStart(10)}  ` +
+            `${r.name.padEnd(nameWidth)}  ${medianText.padStart(11)}  ` +
+                `${minText.padStart(10)}  ${maxText.padStart(10)}  ` +
                 `${formatBytes(r.memoryDeltaBytes).padStart(10)}  ${rate}`,
         );
     }

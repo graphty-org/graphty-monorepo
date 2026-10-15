@@ -23,7 +23,7 @@ import {
     UNWEIGHTED,
 } from "../src/algorithms.js";
 import { DEFAULTS as LAYOUT_DEFAULTS, LAYOUT_NAMES, SIMULATION_DEFAULTS, SIMULATIONS } from "../src/layouts.js";
-import { BUNDLED_DATASET_NAMES, GENERATORS } from "../src/samples.js";
+import { GENERATORS } from "../src/samples.js";
 
 const pkg = fileURLToPath(new URL("..", import.meta.url));
 
@@ -331,6 +331,12 @@ const OVERRIDES: Readonly<Record<string, Override>> = {
     },
     "dot-import.positions": {
         doc: "Read a node's `pos` attribute as its position; `false` keeps `pos` as the text the file wrote.",
+    },
+    "gml-import.keepPositionSource": {
+        doc: "With `positions`, also keep the whole `graphics` record, `x` and `y` included, as the data field `graphics`.",
+    },
+    "dot-import.keepPositionSource": {
+        doc: "With `positions`, also keep `pos` as the text the file wrote.",
     },
     "gml-import.dictionaries": {
         doc: "Store repeated text values compactly while reading; the data you get is the same.",
@@ -1300,11 +1306,12 @@ function generators(src: Source): string[] {
  */
 function datasets(): string[] {
     const out = [
-        "| Name | Nodes | Edges | Directed | Data fields | Where | License | Source |",
+        "| Name | Nodes | Edges | Directed | Data fields | Download | License | Source |",
         "| --- | --- | --- | --- | --- | --- | --- | --- |",
     ];
     for (const d of Object.values(DATASETS)) {
-        const where = BUNDLED_DATASET_NAMES.includes(d.name) ? "bundled" : "hosted";
+        const bytes = d.bytes ?? 0;
+        const download = bytes < 1e6 ? `${Math.ceil(bytes / 1000)} kB` : `${(bytes / 1e6).toFixed(1)} MB`;
         // datasetElements makes a drawn dataset's x and y the node positions
         const drawn = "x" in d.attributes && "y" in d.attributes;
         const nodeFields = Object.keys(d.attributes)
@@ -1316,7 +1323,7 @@ function datasets(): string[] {
             ...(d.weighted ? ["edges: `weight`"] : []),
         ];
         out.push(
-            `| \`${d.name}\` | ${d.nodes} | ${d.edges} | ${d.directed ? "yes" : "no"} | ${fields.join("; ") || "none"} | ${where} | ${cell(d.license)} | <${d.source}> |`,
+            `| \`${d.name}\` | ${d.nodes} | ${d.edges} | ${d.directed ? "yes" : "no"} | ${fields.join("; ") || "none"} | ${download} | ${cell(d.license)} | <${d.source}> |`,
         );
     }
     return out;

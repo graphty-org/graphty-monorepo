@@ -55,6 +55,12 @@ export const LABEL_ATTRIBUTE = "label";
 export const POS_ATTRIBUTE = "pos";
 
 /**
+ * The node position column when the import keeps `pos` as text too (the `keepPositionSource` option).
+ * @category Plugin helpers
+ */
+export const POSITION_COLUMN = "graphty.position";
+
+/**
  * The edge attribute cgraph uses as an edge's identity within its endpoints, mapped to the edge id role.
  * @category Plugin helpers
  */

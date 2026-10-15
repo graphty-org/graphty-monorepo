@@ -237,6 +237,11 @@ export class Node {
     private drawnRadiusScale = 0;
     private drawnRadiusValue = 0;
 
+    /** What {@link Node.drawnHalfExtents} last measured, and the mesh and scaling it measured. */
+    private halfExtentsMesh: AbstractMesh | null = null;
+    private readonly halfExtentsScale = { x: 0, y: 0, z: 0 };
+    private readonly halfExtentsValue = { x: 0, y: 0, z: 0 };
+
     /**
      * What the visibility mask says about this node, as the renderer is currently drawing it.
      *
@@ -1121,6 +1126,45 @@ export class Node {
     }
 
     /**
+     * How far the node's drawn surface reaches from its centre along each axis: its bounding
+     * box's half-size, in the units its position is laid out in (the node's own space, not the
+     * world, for the reason {@link Node.drawnRadius} gives).
+     *
+     * One number per axis because one radius is wrong for most shapes: a box reaches 1.41 times
+     * its half-width at a corner, and a tall cylinder is far narrower than it is tall. Read by
+     * `ngraph`'s `nodeGap` and by edge self-loops. Measured once per mesh and scaling.
+     * @returns The half-extents; the style's own size on every axis when the mesh has no bounds yet.
+     */
+    get drawnHalfExtents(): Readonly<{ x: number; y: number; z: number }> {
+        const own = this.mesh.scaling;
+        const seen = this.halfExtentsScale;
+        const value = this.halfExtentsValue;
+        if (
+            this.halfExtentsMesh !== this.mesh ||
+            seen.x !== own.x ||
+            seen.y !== own.y ||
+            seen.z !== own.z ||
+            value.x <= 0
+        ) {
+            const extent = this.mesh.isDisposed() ? null : this.mesh.getBoundingInfo().boundingBox.extendSize;
+            this.halfExtentsMesh = this.mesh;
+            seen.x = own.x;
+            seen.y = own.y;
+            seen.z = own.z;
+            value.x = extent ? extent.x * Math.abs(own.x) : 0;
+            value.y = extent ? extent.y * Math.abs(own.y) : 0;
+            value.z = extent ? extent.z * Math.abs(own.z) : 0;
+        }
+
+        if (value.x > 0 || value.y > 0 || value.z > 0) {
+            return value;
+        }
+
+        const fallback = this.drawnRadius;
+        return { x: fallback, y: fallback, z: fallback };
+    }
+
+    /**
      * Build one overlay instance for this node.
      *
      * The source mesh is interned in the mesh cache under a fixed name, so the whole graph shares
@@ -1432,7 +1476,7 @@ export class Node {
         // Labels that would overlap on screen are thinned out when `labels.declutter` is on; see
         // LabelDeclutter.
         LabelDeclutter.track(scene, this.context, this);
-        // Its animation starts on the next frame the layout is at rest, or when it settles.
+        // Its animation starts on the first frame at rest with no style paint left to draw.
         oweLabelAnimations(scene);
         return new RichTextLabel(scene, labelOptions);
     }

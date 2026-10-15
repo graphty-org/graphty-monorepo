@@ -1225,7 +1225,8 @@ function lifetimeAttrs(roles: RoleColumns, row: number, plan: ExportPlan): strin
         const text = timeText(column, roles.companions.get(column.meta.name) ?? null, row, timeFormat);
         // GEXF 1.2: `startopen` / `endopen` hold the time of a non-inclusive bound (dynamics.xsd
         // time-type) and replace `start` / `end`
-        out += ` ${open ? `${name}open` : name}="${escapeXmlAttribute(text)}"`;
+        const attribute = open ? `${name}open` : name;
+        out += ` ${attribute}="${escapeXmlAttribute(text)}"`;
     };
     if (roles.timestamp?.isSet(row)) {
         if (version === "1.3" && plan.timeRepresentation === "timestamp") {
@@ -1240,7 +1241,8 @@ function lifetimeAttrs(roles: RoleColumns, row: number, plan: ExportPlan): strin
     }
     if (version === "1.3" && roles.timestamps?.isSet(row)) {
         const items = listItems(roles.timestamps, row).map((t) => formatTimeValue(t as number, timeFormat));
-        out += ` timestamps="${escapeXmlAttribute(`<[${items.join(", ")}]>`)}"`;
+        const stamps = `<[${items.join(", ")}]>`;
+        out += ` timestamps="${escapeXmlAttribute(stamps)}"`;
     }
     return out;
 }

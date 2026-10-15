@@ -225,7 +225,10 @@ describe("replay: the 10-02 GPU balance stretches through the whole daemon", () 
             ]);
             // Both stretches parked the lane with an owner item, which ended once the lane ran.
             expect(parked.size).toBe(2);
-            expect(daemon.state.ownerItems["paid-capacity:gpu"]).toMatchObject({ endedBy: "cleared" });
+            // An ended item leaves the state once its record is in the ledger.
+            expect(daemon.state.ownerItems["paid-capacity:gpu"]).toBeUndefined();
+            const dropped = ledger.filter((e) => e.event === "dropped" && e.item === "paid-capacity:gpu");
+            expect(dropped.map((e) => e.record.endedBy)).toEqual(["cleared", "cleared"]);
             // No incident, so no red-head re-run and no parent re-test; and no backoff re-run, because
             // a run of the lane was in flight (the owner's own re-run, then newer pushes) until the
             // lane went green each time.

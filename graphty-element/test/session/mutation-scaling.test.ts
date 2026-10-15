@@ -366,13 +366,11 @@ const CASES: readonly Case[] = [
         },
     },
     // Notes: one note per node, so a write that walks every note grows with the graph. The write
-    // itself no longer does (#1890, test/session/notes/scaling.test.ts); what still grows here is
-    // the history re-charge after it (#1891, one step per note added) and the derivation pass's
-    // copy of the notes slice (#1906).
+    // itself does not (#1890, test/session/notes/scaling.test.ts), nor does the commit after it,
+    // which no longer republishes the whole step list (#2733).
     {
         method: "NotesApi.update",
         growth: "constant",
-        superlinear: 1891,
         prepare: (session, size) => {
             const notes = ids(size).map((node) => session.notes.add({ text: node, targets: [{ node }] }));
             return Promise.resolve(() => session.notes.update(notes[0], { text: "edited" }));
@@ -381,7 +379,6 @@ const CASES: readonly Case[] = [
     {
         method: "NotesApi.remove",
         growth: "constant",
-        superlinear: 1891,
         prepare: (session, size) => {
             const notes = ids(size).map((node) => session.notes.add({ text: node, targets: [{ node }] }));
             return Promise.resolve(() => session.notes.remove(notes[0]));

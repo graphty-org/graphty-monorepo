@@ -401,6 +401,17 @@ function slotOf(column: Column, domain: "graph" | "node" | "edge", hasLabelRole:
     if (domain !== "node") {
         return "att";
     }
+    return nodeSlotOf(column);
+}
+
+/**
+ * Where a node column goes when it is no XML attribute, label or graphics: one of the node-only
+ * slots, else a typed att.
+ * @param column - the column
+ * @returns the slot
+ */
+function nodeSlotOf(column: Column): ColumnWrite["kind"] {
+    const { meta } = column;
     if (meta.name === Z_COLUMN && meta.dtype === "f64" && meta.role === null) {
         return "z";
     }
@@ -1011,21 +1022,38 @@ function cellOf(column: Column | null, row: number): unknown {
  * @returns the coordinates as XML attributes
  */
 function coordsOf(plan: Plan, zColumn: Column | null, node: number): [string, string][] {
-    const out: [string, string][] = [];
-    const xyz = cellOf(plan.position, node);
-    if (xyz !== null) {
-        const [x, y, z] = Array.from(xyz as ArrayLike<number>);
-        const fmt = plan.position?.dtype === "f32" ? formatF32 : formatF64;
-        if (Number.isFinite(x) && Number.isFinite(y)) {
-            out.push(["x", fmt(x)], ["y", fmt(y === 0 ? 0 : -y)]);
-            if (zColumn === null && z !== undefined && z !== 0 && Number.isFinite(z)) {
-                out.push(["z", fmt(z)]);
-            }
-        }
-    }
+    const out = positionCoordsOf(plan, zColumn, node);
     const z = cellOf(zColumn, node);
     if (typeof z === "number") {
         out.push(["z", formatF64(z)]);
+    }
+    return out;
+}
+
+/**
+ * The graphics coordinates a node's position gives: x, y negated back to screen coordinates, and
+ * z when no z column carries it.
+ * @param plan - the plan
+ * @param zColumn - the z column, or null
+ * @param node - the node
+ * @returns the coordinates as XML attributes (none for an unset or non-finite position)
+ */
+function positionCoordsOf(plan: Plan, zColumn: Column | null, node: number): [string, string][] {
+    const xyz = cellOf(plan.position, node);
+    if (xyz === null) {
+        return [];
+    }
+    const [x, y, z] = Array.from(xyz as ArrayLike<number>);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+        return [];
+    }
+    const fmt = plan.position?.dtype === "f32" ? formatF32 : formatF64;
+    const out: [string, string][] = [
+        ["x", fmt(x)],
+        ["y", fmt(y === 0 ? 0 : -y)],
+    ];
+    if (zColumn === null && z !== undefined && z !== 0 && Number.isFinite(z)) {
+        out.push(["z", fmt(z)]);
     }
     return out;
 }

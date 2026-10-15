@@ -286,6 +286,16 @@ function mergeAt<R extends { readonly index: number }>(list: readonly Row<R>[], 
  * @returns The row in the compacted graph.
  */
 function compacted(row: number, taken: readonly number[]): number {
+    return row - rowsBelow(row, taken);
+}
+
+/**
+ * How many rows of an ascending list are below a row: a binary search.
+ * @param row - The row.
+ * @param taken - The ascending list.
+ * @returns The count.
+ */
+function rowsBelow(row: number, taken: readonly number[]): number {
     let low = 0;
     let high = taken.length;
     while (low < high) {
@@ -297,25 +307,32 @@ function compacted(row: number, taken: readonly number[]): number {
         }
     }
 
-    return row - low;
+    return low;
 }
 
 /**
- * Two ascending lists of distinct rows as one.
- * @param one - One list.
+ * Two ascending lists of distinct rows as one. `other` is inserted into `one` in place, each row
+ * found by a binary search, so a run of one-row removals does not sort the whole run each time.
+ * @param one - One list; the caller gives it up.
  * @param other - The other.
- * @returns Both, ascending.
+ * @returns Both, ascending: `one`, grown.
  */
-function mergeSorted(one: readonly number[], other: readonly number[]): number[] {
-    return [...one, ...other].sort((a, b) => a - b);
+function mergeSorted(one: number[], other: readonly number[]): number[] {
+    for (let at = 0; at < other.length; at++) {
+        one.splice(rowsBelow(other[at], one), 0, other[at]);
+    }
+
+    return one;
 }
 
 /** The removals {@link GraphStore.removeRows} has run since the last freeze, and what they read. */
 interface RemovalRun {
     readonly revision: number;
     readonly snapshot: GraphSnapshot;
-    readonly nodes: readonly number[];
-    readonly edges: readonly number[];
+    /** Ascending; the next removal of the run grows it in place. */
+    readonly nodes: number[];
+    /** Ascending; likewise. */
+    readonly edges: number[];
 }
 
 /**

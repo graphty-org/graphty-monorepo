@@ -356,6 +356,14 @@ export interface StyleInterner<T> {
 }
 
 /**
+ * Invocation counts the counted-work tests read: `comparisons` is held sequences compared with the
+ * one being looked up. A hash compares a new style with the few filed under its hash, so the count
+ * per lookup stays flat however many styles are held; a scan would compare it with every one.
+ * Internal; never reset here.
+ */
+export const internCounters = { comparisons: 0 };
+
+/**
  * Build an interner.
  *
  * One per kind of element: node keys and edge keys are different spaces, and a session that
@@ -467,6 +475,8 @@ export function createStyleInterner<T>(): StyleInterner<T> {
      * @returns True when they hold the same values in the same order.
      */
     const matches = (slot: number): boolean => {
+        internCounters.comparisons++;
+
         if (lengths[slot] !== length) {
             return false;
         }

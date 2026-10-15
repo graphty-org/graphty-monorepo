@@ -1,6 +1,7 @@
 import { assert, describe, it } from "vitest";
 
-import { ABSENT, createProjectStore, deepFreezeArgs } from "../../../src/session/project/draft";
+import { ABSENT, createProjectStore, deepFreezeArgs, type Patch, touchedBy } from "../../../src/session/project/draft";
+import { TouchedIds } from "../../../src/session/project/graphOps";
 import { createCounter, createProjectState } from "../../../src/session/project/state";
 import type { ElementSet } from "../../../src/session/sets/types";
 import type { CompiledLayer } from "../../../src/session/styles/Layer";
@@ -449,5 +450,34 @@ describe("the token and epoch counters", () => {
 
         assert.strictEqual(epoch.next(), 1);
         assert.strictEqual(token.next(), 3);
+    });
+});
+
+describe("touchedBy", () => {
+    it("reports op-log ids, written rows and the node members of fixed sets, in that order", () => {
+        const fixed = (nodes?: string[]): ElementSet =>
+            ({ id: "s", definition: { kind: "fixed", nodes } }) as unknown as ElementSet;
+        const patch = {
+            log: [{ touched: (into: TouchedIds) => into.node("log") }],
+            rows: { ids: ["row"] },
+            entries: [
+                { slice: "sets", key: "s1", prior: ABSENT, next: fixed(["a", "b"]) },
+                { slice: "sets", key: "s2", prior: fixed(["c"]), next: { definition: { kind: "rule" } } },
+                { slice: "sets", key: "s3", prior: undefined, next: fixed() },
+                { slice: "notes", key: "n", prior: ABSENT, next: fixed(["not-a-set"]) },
+            ],
+        } as unknown as Patch;
+
+        const into = new TouchedIds(100);
+        touchedBy(patch, into);
+
+        assert.deepEqual([...into.nodes], ["log", "row", "a", "b", "c"]);
+        assert.strictEqual(into.edges.size, 0);
+    });
+
+    it("reports nothing for an empty patch", () => {
+        const into = new TouchedIds(100);
+        touchedBy({ log: [], rows: null, entries: [] }, into);
+        assert.strictEqual(into.nodes.size, 0);
     });
 });

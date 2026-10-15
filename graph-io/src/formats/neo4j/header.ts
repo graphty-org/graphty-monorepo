@@ -108,28 +108,14 @@ export function parseHeaderField(text: string): HeaderField {
     const space = m[3] === undefined ? null : m[3].trim();
     const options = parseOptions(text, m[4]);
     if (rawType === null) {
-        // `name` alone: a string property
-        if (name.length === 0) {
-            throw headerError(text, "an empty header cell");
-        }
-        if (space !== null || options.size > 0) {
-            throw headerError(text, "an id space or options need a field type");
-        }
-        return { text, name, kind: "PROPERTY", type: null, space: null, options };
+        return untypedField(text, name, space, options);
     }
     if (rawType.length === 0) {
         throw headerError(text, "an empty field type");
     }
     const upper = rawType.toUpperCase();
     if (STRUCTURAL.has(upper)) {
-        const kind = upper as Exclude<FieldKind, "PROPERTY">;
-        if (space !== null && !SPACE_KINDS.has(kind)) {
-            throw headerError(text, `an id space is only allowed on ID, START_ID and END_ID, not ${kind}`);
-        }
-        if (name.length > 0 && kind !== "ID" && kind !== "IGNORE") {
-            throw headerError(text, `a ${kind} field cannot be stored as a property`);
-        }
-        return { text, name, kind, type: null, space: space === "" ? null : space, options };
+        return structuralField(text, name, upper as Exclude<FieldKind, "PROPERTY">, space, options);
     }
     if (name.length === 0) {
         throw headerError(text, "a property column needs a name");
@@ -138,6 +124,54 @@ export function parseHeaderField(text: string): HeaderField {
         throw headerError(text, "an id space is only allowed on ID, START_ID and END_ID");
     }
     return { text, name, kind: "PROPERTY", type: rawType, space: null, options };
+}
+
+/**
+ * The field of a cell with no type: `name` alone is a string property.
+ * @param text - the whole cell, for errors
+ * @param name - the property name
+ * @param space - the id space, or null
+ * @param options - the options
+ * @returns the field
+ */
+function untypedField(
+    text: string,
+    name: string,
+    space: string | null,
+    options: ReadonlyMap<string, string>,
+): HeaderField {
+    if (name.length === 0) {
+        throw headerError(text, "an empty header cell");
+    }
+    if (space !== null || options.size > 0) {
+        throw headerError(text, "an id space or options need a field type");
+    }
+    return { text, name, kind: "PROPERTY", type: null, space: null, options };
+}
+
+/**
+ * The field of a cell with a structural type (ID, START_ID, END_ID, LABEL, TYPE, IGNORE).
+ * @param text - the whole cell, for errors
+ * @param name - the property name, or empty
+ * @param kind - the structural kind
+ * @param space - the id space, or null
+ * @param options - the options
+ * @returns the field
+ */
+function structuralField(
+    text: string,
+    name: string,
+    kind: Exclude<FieldKind, "PROPERTY">,
+    space: string | null,
+    options: ReadonlyMap<string, string>,
+): HeaderField {
+    if (space !== null && !SPACE_KINDS.has(kind)) {
+        throw headerError(text, `an id space is only allowed on ID, START_ID and END_ID, not ${kind}`);
+    }
+    if (name.length > 0 && kind !== "ID" && kind !== "IGNORE") {
+        throw headerError(text, `a ${kind} field cannot be stored as a property`);
+    }
+    return { text, name, kind, type: null, space: space === "" ? null : space, options };
 }
 
 /**

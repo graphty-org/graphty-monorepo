@@ -100,13 +100,20 @@ habit. So a finding on a changed line does not block when master already has it:
   raises them is usually an edit further down: a branch added deep inside a function leaves its
   first line untouched. So the gate judges each one by the whole stretch of code it covers: from
   the reported line to its last secondary location (SonarQube marks every complexity increment as
-  one), and for S107 through the end of the parameter list. When a hunk adds, changes or deletes a
-  line in that stretch, the push edits the function, and the gate compares it with the merge base
-  of the push -- not with master's analysis, which can be hours behind or ahead. It writes the
-  merge base's copies of those files to a scratch directory and scans them into the same scratch
-  project, right after the scan of HEAD and under the same lock (the second scan runs only when
-  such a finding exists, and adds about a minute). The finding blocks when:
-    - the merge base has no such finding there (the function or regex just crossed the limit), or
+  one), and for S107 through the end of the parameter list. Only hunks THIS push introduces count:
+  for a branch already on GitHub, the lines changed since the branch's remote head (the remote sha
+  git hands the pre-push hook) that also differ from the merge base, so a function the branch
+  changed in an earlier push is left alone, and what a merge brought in from master is never the
+  branch's; for a new branch, every hunk against the merge base. When such a hunk adds, changes or
+  deletes a line in that stretch, the push edits the function, and the gate compares it with the
+  version before the push (the remote head; for a new branch the merge base) -- not with master's
+  analysis, which can be hours behind or ahead. It writes that version's copies of those files to
+  a scratch directory and scans them into the same scratch project, right after the scan of HEAD
+  and under the same lock (the second scan runs only when such a finding exists, and adds about a
+  minute). When the push holds a merge commit, the merge base's copies are scanned as well, and a
+  score counts as risen only when it exceeds both. The finding blocks when:
+    - the previous version has no such finding there (the function or regex just crossed the
+      limit), or
     - its score rose (the number in the message: "from 17 to the 15 allowed", or "(9)" parameters),
       or
     - "touch it, fix it": it is S3776 and the function scores 16 to 20. A function that is only a
@@ -235,7 +242,8 @@ off-network push impossible, and the only way through would be `git push --no-ve
 skips Git LFS, the secret scan, the build, lint and the tests. Nothing is lost:
 
 - The gate judges the whole branch against its merge base, not the commits since the last push.
-  The next push from the network re-checks everything a skipped push carried.
+  The next push from the network re-checks everything a skipped push carried, except the
+  whole-function complexity rules, which judge only what each push itself changes.
 - A branch that merges before it is pushed again from the network lands on master, where the
   baseline job's next scan shows its issues as new code. The weekly review (section 3) lists
   them.

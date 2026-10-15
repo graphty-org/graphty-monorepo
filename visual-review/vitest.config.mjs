@@ -1,6 +1,7 @@
 import { defineConfig } from "vitest/config";
 import { ciReporters } from "../vitest.ci-junit.mjs";
 import { workerShare } from "../tools/test-slots.mjs";
+import { TIMING_FUZZ_SETUP, timingFuzzConfig } from "../tools/timing-fuzzer.mjs";
 
 export default defineConfig({
     test: {
@@ -18,7 +19,10 @@ export default defineConfig({
         // No test runs git with the developer's own config (signing, hooks) or a hook's GIT_DIR,
         // none reaches the network, and the temporary directories a test file made (tempDir,
         // helpers.mjs) go when it finishes.
-        setupFiles: ["test/isolate-git.setup.mjs", "test/no-network.setup.mjs"],
+        // Under GRAPHTY_TIMING_FUZZ, the clock and timers are perturbed here and in every page a test
+        // opens through interceptedPage (tools/timing-fuzzer.mjs).
+        setupFiles: [TIMING_FUZZ_SETUP, "test/isolate-git.setup.mjs", "test/no-network.setup.mjs"],
+        ...timingFuzzConfig(),
         // The repository every test's makeRepo copies.
         globalSetup: ["test/repo-template.setup.mjs", "../tools/test-slots.mjs"],
         // At most this run's share of the cores (tools/test-slots.mjs).

@@ -12,6 +12,7 @@ import { fileURLToPath } from "node:url";
 import { inject } from "vitest";
 
 import { isolateGit } from "../../tools/isolated-git-env.mjs";
+import { fuzzPage } from "../../tools/timing-fuzzer.mjs";
 import { contentHash } from "../trusted/gate.mjs";
 import { sha256 } from "../trusted/lib/compare.mjs";
 import { CONFIG_FILE, normalizeConfig } from "../trusted/lib/config.mjs";
@@ -444,6 +445,8 @@ export const withMoved = (r, extra = []) => {
  */
 export async function interceptedPage(browser, options) {
     const page = await browser.newPage(options);
+    // Under GRAPHTY_TIMING_FUZZ the page's clock, frames and timers are perturbed as this process's are.
+    await fuzzPage(page);
     await page.route("**/interception-stays-on", (route) => route.continue());
     return page;
 }

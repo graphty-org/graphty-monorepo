@@ -208,7 +208,7 @@ function logicalStepKey(definition: PathDefinition, nodes: readonly string[], st
     }
 
     const members = Array.isArray(named) ? (named as readonly EdgeMember[]) : [named as EdgeMember];
-    return `e${JSON.stringify(members.map(edgeMemberKey).sort())}`;
+    return `e${JSON.stringify(members.map(edgeMemberKey).sort((a, b) => (a < b ? -1 : Number(a > b))))}`;
 }
 
 /**

@@ -120,6 +120,7 @@ const CHANNEL_UI: Readonly<Record<Channel, ChannelUi>> = {
     "node.height": { step: 0.1 },
     "node.depth": { step: 0.1 },
     "node.planar": {},
+    "node.zIndex": { step: 1 },
     "node.borderColor": {},
     "node.borderWidth": { step: 0.05 },
     "node.borderStyle": { options: BORDER_STYLE_OPTIONS },

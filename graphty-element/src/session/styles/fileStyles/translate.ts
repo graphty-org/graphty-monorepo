@@ -793,6 +793,7 @@ class KindTranslation {
         });
         this.#composites();
         this.#visibility();
+        this.#nesting();
 
         const ordered = [...this.#built].filter(
             (layer) => Object.keys(layer.spec.set).length + Object.keys(layer.spec.encode).length > 0,
@@ -2210,6 +2211,71 @@ class KindTranslation {
     }
 
     /**
+     * Groups behind their members, as every program that draws them does (yEd, Cytoscape): each
+     * node the file nests others in (graph-io's `parent` or `parents` column) is drawn at a
+     * `node.zIndex` below 0, one step lower per level of groups inside it, so an outer group sits
+     * behind an inner one and both behind every member and edge. Only group nodes are painted.
+     */
+    #nesting(): void {
+        if (this.#kind !== "node") {
+            return;
+        }
+
+        const children = childrenOf(this.#input.snapshot);
+        if (children.size === 0) {
+            return;
+        }
+
+        // Levels of groups below each node, computed bottom up; a cycle counts as no further level.
+        const levels = new Map<number, number>();
+        const levelOf = (node: number, seen: Set<number>): number => {
+            const held = levels.get(node);
+            if (held !== undefined) {
+                return held;
+            }
+
+            seen.add(node);
+            let level = 0;
+            for (const child of children.get(node) ?? []) {
+                if (!seen.has(child)) {
+                    level = Math.max(level, 1 + levelOf(child, seen));
+                }
+            }
+
+            seen.delete(node);
+            levels.set(node, level);
+            return level;
+        };
+        const values = Array.from({ length: this.#n }, (_unused, i) =>
+            children.has(i) ? -Math.max(1, levelOf(i, new Set())) : null,
+        );
+        const path = this.#keepNew("zIndex", values);
+        this.#built.push({
+            bucket: this.#rules.length,
+            spec: {
+                name: "node.groups",
+                target: "node",
+                kind: "encoding",
+                selector: this.#scoped({ match: "has", path }),
+                set: {},
+                encode: { "node.zIndex": { by: path, scale: "passthrough" } },
+                fileStyle: {
+                    format: this.#input.format,
+                    importId: this.#input.importId,
+                    ruleId: "node.groups",
+                    role: "group",
+                    origin: "inferred",
+                    column: path,
+                    mapping: "passthrough",
+                    elements: children.size,
+                },
+            },
+            paint: new Map([["node.zIndex", values]]),
+            worth: 0,
+        });
+    }
+
+    /**
      * The layer standing for a folded run: what the run painted, kept per element.
      * @param run - The run.
      * @param paint - What it painted per channel.
@@ -2245,6 +2311,35 @@ class KindTranslation {
             worth: 0,
         };
     }
+}
+
+/**
+ * The nodes each node nests, by row, from graph-io's `parent` (one parent) and `parents` (a list)
+ * node columns.
+ * @param snapshot - The imported graph.
+ * @returns The children of every node that has any.
+ */
+function childrenOf(snapshot: GraphSnapshot): Map<number, number[]> {
+    const out = new Map<number, number[]>();
+    for (const role of ["parent", "parents"] as const) {
+        const column = snapshot.nodes.byRole(role);
+        if (column === null) {
+            continue;
+        }
+
+        for (let row = 0; row < snapshot.nodeCount; row++) {
+            const value = column.isSet(row) ? plain(column.value(row)) : null;
+            for (const parent of Array.isArray(value) ? value : [value]) {
+                if (typeof parent === "number" && parent !== row && parent >= 0 && parent < snapshot.nodeCount) {
+                    const held = out.get(parent) ?? [];
+                    held.push(row);
+                    out.set(parent, held);
+                }
+            }
+        }
+    }
+
+    return out;
 }
 
 /** The first segment after `data.` in an expression, bare or quoted. */

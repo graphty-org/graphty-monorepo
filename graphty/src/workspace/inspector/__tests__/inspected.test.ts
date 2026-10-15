@@ -55,6 +55,20 @@ describe("what the inspector shows", () => {
         assert.deepEqual(resolveInspected({ kind: "measure-row" }, NOTHING), { kind: "graph" });
     });
 
+    it("falls back to the selection when a row has no id, or its id names nothing it can draw", () => {
+        const selection = { nodes: [1], edges: [] };
+        const node = { kind: "node", node: 1 } as const;
+        assert.deepEqual(resolveInspected({ kind: "neighborhood", id: "{}" }, selection), node);
+        assert.deepEqual(resolveInspected({ kind: "neighborhood" }, selection), node);
+        assert.deepEqual(resolveInspected({ kind: "layer-row" }, selection), node);
+        assert.deepEqual(resolveInspected({ kind: "attribute" }, selection), node);
+        assert.deepEqual(resolveInspected({ kind: "group-row" }, selection), node);
+        // A group key whose run is not a name, or whose group is not an id
+        assert.deepEqual(resolveInspected({ kind: "group-row", id: "[3, 3]" }, selection), node);
+        assert.deepEqual(resolveInspected({ kind: "group-row", id: '["louvain", null]' }, selection), node);
+        assert.deepEqual(resolveInspected({ kind: "group-row", id: '{"0": "louvain"}' }, selection), node);
+    });
+
     it("registers every kind it draws, a single node always opening on Values", () => {
         const { kinds } = createRegistry(REGISTRATIONS);
         for (const kind of INSPECTED_KINDS) {

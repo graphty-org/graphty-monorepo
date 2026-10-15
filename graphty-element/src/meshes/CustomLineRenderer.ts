@@ -1,5 +1,6 @@
 import {
     Color3,
+    Constants,
     Effect,
     Mesh,
     MeshBuilder,
@@ -119,6 +120,7 @@ uniform float width;
 varying vec2 vUV;
 varying float vDistance;
 varying float vWorldSpaceLineWidth;  // World-space line width for circular dots
+varying float vCoverage;  // How much of the one pixel a sub-pixel line is widened to it covers
 
 // Instance support - BabylonJS include provides finalWorld matrix
 #include<instancesDeclaration>
@@ -156,9 +158,21 @@ void main() {
         perpendicular = vec2(-screenDir.y, screenDir.x);
     }
 
+    // A LINE THINNER THAN ONE PIXEL IS DRAWN ONE PIXEL WIDE AND FAINTER, the way a canvas or SVG
+    // renderer draws a hairline: its stroke covers a fraction of each pixel it crosses, and
+    // antialiasing paints that fraction. Rasterized at its own width, a sub-pixel triangle covers
+    // a pixel centre only here and there, and the line breaks into dots. The line's width on
+    // screen is 'width / 2' pixels over the clip w (see the offset below); under one pixel, the
+    // offset grows to one pixel and the fragment's alpha takes the fraction it stands for. A
+    // line of one pixel or more is untouched, and a width of 0 still draws nothing.
+    float drawnPx = width * 0.5 / vertexClip.w;
+    bool subPixel = drawnPx > 0.0 && drawnPx < 1.0;
+    float grow = subPixel ? 1.0 / drawnPx : 1.0;
+    vCoverage = subPixel ? drawnPx : 1.0;
+
     // Calculate offset in screen space
     // Half-width because we offset in both directions
-    vec2 offset = perpendicular * width * 0.5 * side;
+    vec2 offset = perpendicular * width * 0.5 * side * grow;
 
     // Apply screen-space sizing with perspective tapering
     // NOTE: Removed * vertexClip.w to enable perspective tapering
@@ -203,6 +217,7 @@ precision highp float;
 varying vec2 vUV;
 varying float vDistance;
 varying float vWorldSpaceLineWidth;  // World-space line width for patterns
+varying float vCoverage;
 
 // Uniforms
 uniform vec3 color;
@@ -213,7 +228,7 @@ void main() {
     // CustomLineRenderer only renders solid lines.
 
     // Simple solid line rendering
-    gl_FragColor = vec4(color, opacity);
+    gl_FragColor = vec4(color, opacity * vCoverage);
 }
 `;
         // Register in both stores
@@ -647,6 +662,27 @@ void main(void) {
     }
 
     /**
+     * Blend a line over what is already drawn, in whichever pass draws it.
+     *
+     * A sub-pixel line is drawn one pixel wide at a fraction of its opacity (the vertex shader),
+     * and that fraction only shows if the fragment blends. An opaque line stays in the opaque
+     * pass, where Babylon draws with blending off, so this turns blending on for this mesh's own
+     * draw and off again after it. Moving the line to the transparent pass instead would reorder
+     * it against labels and every other transparent mesh. A fragment of alpha 1 -- every line of
+     * one pixel or more at full opacity -- blends to exactly the colour it wrote before.
+     * @param mesh - The line mesh.
+     */
+    private static blendInPlace(mesh: Mesh): void {
+        const engine = mesh.getScene().getEngine();
+        mesh.onBeforeBindObservable.add(() => {
+            engine.setAlphaMode(Constants.ALPHA_COMBINE, true);
+        });
+        mesh.onAfterRenderObservable.add(() => {
+            engine.setAlphaMode(Constants.ALPHA_DISABLE, true);
+        });
+    }
+
+    /**
      * Create a custom line mesh
      * @param options - Line configuration
      * @param scene - Babylon.js scene
@@ -733,6 +769,7 @@ void main(void) {
         // Line meshes can have incorrect bounding boxes due to screen-space expansion,
         // causing frustum culling to incorrectly hide lines that are actually on screen
         mesh.alwaysSelectAsActiveMesh = true;
+        this.blendInPlace(mesh);
 
         return mesh;
     }
@@ -848,6 +885,7 @@ void main(void) {
         // Line meshes can have incorrect bounding boxes due to screen-space expansion,
         // causing frustum culling to incorrectly hide lines that are actually on screen
         mesh.alwaysSelectAsActiveMesh = true;
+        this.blendInPlace(mesh);
 
         return mesh;
     }

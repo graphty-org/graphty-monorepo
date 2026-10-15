@@ -8,6 +8,8 @@
  * thing) or a rendering bug (asked for the right thing and drew another).
  *
  * Precedence, so a drawn value nobody can see does not pass:
+ * - a node wholly behind another opaque node (inside its screen box and farther from the camera)
+ *   is not visible, and nor are its fill and its label: a group drawn over its members hides them;
  * - a fill covered by an outline or glow whose inner rim reaches across the node, or on a node
  *   under one pixel across, is no visible fill (null);
  * - a label inside its node's box and behind the node's front face (occluded), or under one pixel
@@ -26,6 +28,7 @@ import {
     type Property,
     type Scene,
     type SceneEdge,
+    type SceneGroup,
     type SceneNode,
     type ShapeClass,
 } from "../../../graph-io/test/fidelity/scene";
@@ -37,9 +40,7 @@ import type { DrawnEdge, DrawnGraph, DrawnNode, ScreenBox } from "./drawn-scene"
  * What the graphty side cannot read off the drawn scene. A property here is scored "unmeasurable
  * (gap)" by the comparer, which counts as a fail. Delete an entry when the reader gains it.
  */
-export const GRAPHTY_GAPS: readonly { property: Property; reason: string }[] = [
-    { property: "groups", reason: "the element draws no group (compound node) boxes to read (#2320)" },
-];
+export const GRAPHTY_GAPS: readonly { property: Property; reason: string }[] = [];
 
 /** graphty-element's 3D node shapes, as the 2D class a reader sees from above. */
 const SHAPES: ReadonlyMap<string, ShapeClass> = new Map<string, ShapeClass>([
@@ -205,6 +206,89 @@ export interface GraphtyProvenance {
 
 const round = (x: number): number => Math.round(x * 1000) / 1000;
 
+/** Half a render pixel: how far a box may poke past another and still count as inside it. */
+const INSIDE_SLACK = 0.5;
+
+/** The least fill opacity that hides what is behind it. */
+const OPAQUE = 0.99;
+
+/**
+ * Whether one screen box lies wholly inside another.
+ * @param inner - the box that may be inside
+ * @param outer - the box that may hold it
+ * @returns true when every side of inner is within outer
+ */
+function boxInside(inner: ScreenBox, outer: ScreenBox): boolean {
+    return (
+        inner.x0 >= outer.x0 - INSIDE_SLACK &&
+        inner.x1 <= outer.x1 + INSIDE_SLACK &&
+        inner.y0 >= outer.y0 - INSIDE_SLACK &&
+        inner.y1 <= outer.y1 + INSIDE_SLACK
+    );
+}
+
+/**
+ * For each drawn node, the node that hides it: a visible, opaque node whose screen box holds the
+ * whole of its box and whose front is nearer the camera than its own. A group drawn in front of
+ * its members hides every one of them this way.
+ * @param nodes - what was drawn, by id
+ * @returns the hiding node's id, by the hidden node's id; a node nothing hides is absent
+ */
+export function occluders(nodes: ReadonlyMap<string, DrawnNode>): Map<string, string> {
+    const out = new Map<string, string>();
+    const covers = [...nodes].filter(([, b]) => b.visible && b.fillDrawn !== null && b.fillOpacity >= OPAQUE);
+    for (const [id, a] of nodes) {
+        const hit = covers.find(([other, b]) => other !== id && b.box.near < a.box.near && boxInside(a.box, b.box));
+        if (hit !== undefined) {
+            out.set(id, hit[0]);
+        }
+    }
+    return out;
+}
+
+/**
+ * The groups as drawn: every node whose screen box holds the whole box of a visible node, with
+ * the visible leaf nodes (nodes holding no other) inside it as its members, the way the reference
+ * extractors list a group's members (its leaf descendants). A group drawn over its members shows
+ * none of them, so it has no members and is not a group here.
+ * @param scene - the scene's nodes, with their visibility already decided
+ * @param nodes - what was drawn, by id
+ * @returns the groups
+ */
+export function groupsOf(scene: readonly SceneNode[], nodes: ReadonlyMap<string, DrawnNode>): SceneGroup[] {
+    const visible = scene.filter((n) => n.visible);
+    const inside = new Map(
+        scene.map((g) => {
+            const box = nodes.get(g.id)?.box;
+            const held = box
+                ? visible.filter((n) => {
+                      const own = nodes.get(n.id)?.box;
+                      return n !== g && own !== undefined && boxInside(own, box);
+                  })
+                : [];
+            return [g, held] as const;
+        }),
+    );
+    const leaves = new Set(visible.filter((n) => (inside.get(n) ?? []).length === 0));
+    return scene.flatMap((g) => {
+        const box = nodes.get(g.id)?.box;
+        const members = (inside.get(g) ?? []).filter((n) => leaves.has(n));
+        if (!box || members.length === 0) {
+            return [];
+        }
+        return [
+            {
+                id: g.id,
+                members: members.map((n) => n.id),
+                bbox: { x: box.x0, y: box.y0, w: box.x1 - box.x0, h: box.y1 - box.y0 },
+                fill: g.fill,
+                border: g.border.color,
+                label: g.label?.visible === true ? g.label.text : null,
+            },
+        ];
+    });
+}
+
 /**
  * Where a label sits relative to its node, from their boxes on screen.
  * @param label - the label's screen box
@@ -248,9 +332,15 @@ function drawnBorderOf(d: DrawnNode): SceneNode["border"] {
  * @param id - the node id
  * @param d - what the renderer drew
  * @param merged - the node's merged requested style
+ * @param hiddenBy - the node drawn in front of all of it, or null
  * @returns the scene node
  */
-function sceneNode(id: string, d: DrawnNode, merged: Readonly<Record<string, unknown>>): SceneNode {
+function sceneNode(
+    id: string,
+    d: DrawnNode,
+    merged: Readonly<Record<string, unknown>>,
+    hiddenBy: string | null,
+): SceneNode {
     const w = d.box.x1 - d.box.x0;
     const h = d.box.y1 - d.box.y0;
     const { ring } = d;
@@ -258,6 +348,7 @@ function sceneNode(id: string, d: DrawnNode, merged: Readonly<Record<string, unk
     // as far as they reach; reaching across the whole node, they cover the fill.
     const covered = ring !== null && ring.inner && 2 * ring.reachPx >= Math.min(w, h);
     const subPixel = Math.min(w, h) < 1;
+    const visible = d.visible && hiddenBy === null;
     const { label } = d;
     const place = label ? labelPlace(label.box, d) : "other";
     const occluded =
@@ -272,7 +363,7 @@ function sceneNode(id: string, d: DrawnNode, merged: Readonly<Record<string, unk
         w,
         h,
         shape: shapeClassOf(SHAPE_NAMES.has(d.meshName) ? d.meshName : d.shapeType),
-        fill: d.visible && !covered && !subPixel ? d.fillDrawn : null,
+        fill: visible && !covered && !subPixel ? d.fillDrawn : null,
         fillOpacity: d.fillOpacity,
         border: drawnBorderOf(d),
         label:
@@ -283,9 +374,9 @@ function sceneNode(id: string, d: DrawnNode, merged: Readonly<Record<string, unk
                       fontSize: label.fontPx,
                       color: label.color,
                       position: place,
-                      visible: d.visible && label.enabled && !occluded && label.fontPx >= 1,
+                      visible: visible && label.enabled && !occluded && label.fontPx >= 1,
                   },
-        visible: d.visible,
+        visible,
         z: -d.box.near,
         requested: {
             size: channel(merged, "node.size"),
@@ -308,6 +399,7 @@ function sceneNode(id: string, d: DrawnNode, merged: Readonly<Record<string, unk
             border: d.border ? { ...d.border, widthPx: round(d.border.widthPx) } : null,
             labelFontPx: label ? round(label.fontPx) : null,
             labelOccluded: occluded,
+            hiddenBy,
         },
     };
 }
@@ -384,12 +476,13 @@ export function extractScene(element: Graphty, drawn: DrawnGraph, provenance: Gr
     // `explain().merged` is typed ResolvedStyle, which no entry point exports; read as a record.
     const styleOf = (target: { node: string } | { edge: string }): Readonly<Record<string, unknown>> =>
         session.styles.explain(target).merged;
+    const hidden = occluders(drawn.nodes);
     const nodes: SceneNode[] = [];
     for (const record of session.data.nodes()) {
         const id = String(record.id);
         const d = drawn.nodes.get(id);
         if (d !== undefined) {
-            nodes.push(sceneNode(id, d, styleOf({ node: id })));
+            nodes.push(sceneNode(id, d, styleOf({ node: id }), hidden.get(id) ?? null));
         }
     }
     const edges: SceneEdge[] = [];
@@ -418,7 +511,7 @@ export function extractScene(element: Graphty, drawn: DrawnGraph, provenance: Gr
         canCarry: canCarry("graphty", PROPERTIES),
         nodes,
         edges,
-        groups: [],
+        groups: groupsOf(nodes, drawn.nodes),
         background,
         gaps: [...GRAPHTY_GAPS],
     };

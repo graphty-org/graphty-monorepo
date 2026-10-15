@@ -58,4 +58,26 @@ describe("ColorPickerPanel change-end", () => {
         expect(onChangeEnd).toHaveBeenCalledTimes(1);
         expect(onChangeEnd).toHaveBeenCalledWith("#00FF00FF");
     });
+
+    it("groups the swatches in a native fieldset a keyboard reaches and presses", async () => {
+        const onChangeEnd = vi.fn();
+        renderPanel(
+            <ColorPickerPanel
+                value="#FF0000FF"
+                onChange={vi.fn()}
+                onChangeEnd={onChangeEnd}
+                swatches={["#00FF00FF"]}
+            />,
+        );
+        const group = screen.getByRole("group", { name: "Swatches" });
+        expect(group.tagName).toBe("FIELDSET");
+
+        const swatch = screen.getByRole("button", { name: "#00FF00FF" });
+        expect(group).toContainElement(swatch);
+        while (document.activeElement !== swatch) {
+            await userEvent.tab();
+        }
+        await userEvent.keyboard("{Enter}");
+        expect(onChangeEnd).toHaveBeenCalledWith("#00FF00FF");
+    });
 });

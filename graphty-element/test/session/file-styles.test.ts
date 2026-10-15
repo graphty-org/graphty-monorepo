@@ -372,6 +372,56 @@ async function graphtyWritten(prefix: string, where: string): Promise<string> {
     return exportGraphToString(snapshot, "gexf", { styles: { ...styles, styles: { ...styles.styles, rules } } });
 }
 
+describe("a file's groups (compound nodes)", () => {
+    const zIndex = (session: GraphSession, id: string): unknown => drawn(session, { node: id }, "node.zIndex");
+
+    it("draws every Cytoscape.js compound behind what it holds, an outer one behind an inner one", async () => {
+        const doc = JSON.stringify({
+            elements: [
+                { data: { id: "outer" } },
+                { data: { id: "inner", parent: "outer" } },
+                { data: { id: "a", parent: "inner" } },
+                { data: { id: "b", parent: "inner" } },
+                { data: { id: "c", parent: "outer" } },
+                { data: { id: "free" } },
+                { data: { id: "ab", source: "a", target: "b" } },
+            ],
+            style: [{ selector: "node", style: { "background-color": "#ff0000" } }],
+        });
+        const session = createGraphSession();
+        await session.data.import({ type: "json", config: { data: doc } }, { styles: "file" });
+
+        assert.strictEqual(zIndex(session, "outer"), -2);
+        assert.strictEqual(zIndex(session, "inner"), -1);
+        for (const id of ["a", "b", "c", "free"]) {
+            assert.isUndefined(zIndex(session, id), id);
+        }
+        // Only the groups are painted: the layer that sets it is scoped to them.
+        const layer = winner(session, "outer", "node.zIndex");
+        assert.strictEqual(fileStyleOf(layer as Layer)?.ruleId, "node.groups");
+        session.dispose();
+    });
+
+    it("draws every yEd group node behind its members, and nothing when the file's styles are not drawn", async () => {
+        const voctomix = readFileSync(
+            join(CORPUS, "graphml", "yed-shapenode", "voc__voctomix__schema.graphml"),
+            "utf8",
+        );
+        const styled = createGraphSession();
+        await styled.data.import({ type: "graphml", config: { data: voctomix } }, { styles: "file" });
+        for (const group of ["n0", "n1", "n2", "n3"]) {
+            assert.strictEqual(zIndex(styled, group), -1, group);
+        }
+        assert.isUndefined(zIndex(styled, "n2::n0"));
+
+        const plain = createGraphSession();
+        await plain.data.import({ type: "graphml", config: { data: voctomix } });
+        assert.isUndefined(zIndex(plain, "n2"));
+        styled.dispose();
+        plain.dispose();
+    });
+});
+
 describe("a file graphty wrote", () => {
     it("rebuilds graphty's own layers in each merged file's namespace, and sets aside one over 8 terms", async () => {
         const short = await graphtyWritten("a", "data.group == 'x'");

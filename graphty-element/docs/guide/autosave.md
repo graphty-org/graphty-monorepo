@@ -89,6 +89,24 @@ then run as ordinary changes.
 
 Restored work that was never saved to a file stays unsaved (`session.project.dirty` is true).
 
+## What each browser guarantees
+
+Autosave keeps what it has written. What it has not yet written when the page dies is lost, so
+the guarantee is about timing: a change is safe once its write commits, about half a second after
+it while the page is visible (up to 10 seconds for a change to the data itself), and `status.state`
+reads `"saved"` from then on. The write the element starts as the page is hidden or closed is a
+last attempt, not a promise: browsers often end the page before it commits.
+
+| Browser                | Kept across                                                                                                                                                                    | Not kept, or not in the page's hands                                                                   |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| Chrome, Edge (desktop) | reload, close and reopen, a tab discarded by Memory Saver or an extension, a frozen background tab, a renderer crash or kill, the whole browser killed, the back/forward cache | a private window's storage, which ends with the window; site data the reader clears                    |
+| Firefox (desktop)      | reload, close and reopen, the page or the browser killed, the low-memory tab unloader (it skips a tab whose work is unwritten, see below), a full quota reported               | a private window's storage; site data the reader clears                                                |
+| Safari (macOS)         | reload, close and reopen, the browser or its page process killed, a window minimized with a write pending                                                                      | storage of a site not visited for seven days (Home Screen apps are exempt); `persist()` is not granted |
+| Safari (iPhone, iPad)  | the page ended while the reader is in another app, Safari terminated, the page process killed                                                                                  | no question before closing (`beforeunload` never fires); the seven-day rule above                      |
+
+Where the browser gives the page no working WebGL (some iOS devices end up there), the element
+draws nothing but still loads the data and restores the work, so the reader can save a file.
+
 ## Choices
 
 | Option, on `autosaveOptions` | Default       | What it does                                                                     |
@@ -187,5 +205,25 @@ ephemeral, problem }`, and `graphty-autosave-status` fires whenever it changes (
 
 While `failing`, the work is still in memory, the last good entry is kept, and the next change
 tries again.
+
+An entry that was not restored by itself is reported by `graphty-autosave-available`, whose detail
+is `{ entry, reason, problem }`:
+
+| `reason`              | When                                                               |
+| --------------------- | ------------------------------------------------------------------ |
+| `"manual"`            | `restore: "manual"` is set and an entry exists                     |
+| `"page-data-changed"` | the page supplied different data, which replaced the restored work |
+| `"held-by-other-tab"` | the newest entry belongs to a tab that is still open               |
+| `"restore-failed"`    | the entry could not be opened; `problem` says why (below)          |
+
+| `problem.code`               | When                                                                                             |
+| ---------------------------- | ------------------------------------------------------------------------------------------------ |
+| `E_AUTOSAVE_RESTORE_CRASHED` | two restores of this entry never finished (the page died), so it is no longer restored by itself |
+| `E_AUTOSAVE_FORMAT_NEWER`    | a newer version of graphty-element wrote it                                                      |
+| `E_BAD_DOCUMENT`             | part of it is unreadable; the entry is left exactly as it was                                    |
+| `E_AUTOSAVE_FAILED`          | reading it failed; another code is the one opening the project file failed with                  |
+
+With autosave off, `autosaver.restore()` and `autosaver.remove()` refuse with `E_UNSUPPORTED`
+(`details.reason: "autosave-off"`); `list()` answers with no entries.
 
 See [Events](./events#autosave-events) for the four events.

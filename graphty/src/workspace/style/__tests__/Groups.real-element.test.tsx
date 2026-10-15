@@ -259,7 +259,7 @@ describe("per-group settings", () => {
         assert.isTrue(binding !== undefined && "by" in binding && binding.by !== path, "size still varies by degree");
     });
 
-    it("Les Miserables: several groups picked with Shift+arrow open together, Mixed, and write in one step", async () => {
+    it("Les Miserables: back from a group, Shift+arrow picks two, Enter opens both, Mixed, one undo step", async () => {
         await page.viewport(1440, 900);
         const { session, store } = await openSample("Les Miserables", 77);
         const { layer, path } = await runGroups(session, "louvain");
@@ -273,11 +273,16 @@ describe("per-group settings", () => {
         ]);
         await session.styles.settled();
 
-        // Control-click picks the first row without opening it; Shift+ArrowDown adds the second.
+        // A click opens the first group; Escape comes back to its row; Shift+ArrowDown adds the
+        // second; Enter opens both.
         const [first] = gridRows(popover);
-        await userEvent.keyboard("{Control>}");
+        const firstName = nameCell(first).firstChild?.textContent ?? "";
         await userEvent.click(nameCell(first));
-        await userEvent.keyboard("{/Control}");
+        await screen.findByRole("group", { name: `${firstName} properties` });
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.equal(document.activeElement?.getAttribute("role"), "gridcell");
+        });
         await userEvent.keyboard("{Shift>}{ArrowDown}{/Shift}");
         await waitFor(() => {
             assert.lengthOf(

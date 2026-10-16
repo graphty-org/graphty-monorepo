@@ -1,3 +1,14 @@
+## 0.1.12 (2026-10-16)
+
+### 🩹 Fixes
+
+- **githerd:** do not page the owner while the rate-limit reserve holds reads back ([#2986](https://github.com/graphty-org/graphty-monorepo/issues/2986))
+- **githerd:** page no one when a poll fails only on an error githerd waits out ([e1a561c31](https://github.com/graphty-org/graphty-monorepo/commit/e1a561c31))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.1.11 (2026-10-15)
 
 ### 🧱 Updated Dependencies

@@ -132,6 +132,15 @@ describe("GraphML styles: yEd", () => {
         expect(resolveStyles(styles, "node", "fill", snapshot)).toEqual(["#ffcc00"]);
         const bare = await load(doc, false);
         expect(bare.styles.styles.rules.filter((r) => r.origin === "tool")).toEqual([]);
+        expect(bare.styles.styles.graph.background).toBeUndefined();
+    });
+
+    it("paints a yEd file white, as yEd's canvas does: the file holds no background", async () => {
+        const { styles } = await load(
+            `${YED_HEAD}<node id="a"><data key="d6"><y:ShapeNode><y:Fill color="#FF0000"/></y:ShapeNode></data></node></graph></graphml>`,
+        );
+        expect(styles.styles.source.tool).toBe("yed");
+        expect(styles.styles.graph.background).toBe("#ffffff");
     });
 
     it("leaves the yfiles columns as they were", async () => {

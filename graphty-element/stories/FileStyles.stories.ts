@@ -54,7 +54,10 @@ export default meta;
 
 type Story = StoryObj<StoryArgs>;
 
-/** The nodes and edges a file declares. */
+/**
+ * The nodes and edges a file declares. Named, so the helper below has no braces in its signature:
+ * the determinism check finds a helper's body at the first brace after its name.
+ */
 interface FileCounts {
     readonly nodes: number;
     readonly edges: number;
@@ -69,6 +72,7 @@ interface FileCounts {
  * @param counts.edges - The edges.
  * @param colors - Some node ids and the color the file gives each.
  * @param larger - Pairs of node ids, the first of which the file draws larger than the second.
+ * @param labels - Some node ids and the label the file gives each, drawn on a label plane with ink.
  */
 async function drewFileStyles(
     canvasElement: HTMLElement,
@@ -76,6 +80,7 @@ async function drewFileStyles(
     counts: FileCounts,
     colors: Readonly<Record<string, string>>,
     larger: readonly (readonly [string, string])[] = [],
+    labels?: Readonly<Record<string, string>>,
 ): Promise<void> {
     await waitForGraphSettled(canvasElement);
     const element = await renderedElement(canvasElement, `${story}: no <graphty-element> rendered`);
@@ -93,6 +98,20 @@ async function drewFileStyles(
     await holds(
         smaller.length === 0,
         `${story}: the file draws the first node of each pair larger, the element does not -- ${smaller.join(", ")}`,
+    );
+
+    const unlabeled = Object.entries(labels ?? {})
+        .filter(([id, text]) => {
+            const painted = (element.session.styles.explain({ node: id }).merged as Record<string, unknown>)[
+                "node.label"
+            ];
+            const node = scene.nodes.find((entry) => entry.id === id);
+            return painted !== text || node?.hasLabelMesh !== true || node.labelInk < 1;
+        })
+        .map(([id, text]) => `${id} (${JSON.stringify(text)})`);
+    await holds(
+        unlabeled.length === 0,
+        `${story}: the file labels these nodes and the element draws no such label -- ${unlabeled.join(", ")}`,
     );
 }
 
@@ -164,6 +183,9 @@ export const Dot: Story = {
             "Dot",
             { nodes: 61, edges: 85 },
             { main: "#ccd1ff", sort: "#80ffb8", cmpa: "#ff0000", wline: "#d7ff3e" },
+            [],
+            // Graphviz labels a node with its name.
+            { main: "main", cmpa: "cmpa" },
         );
     },
 };
@@ -187,6 +209,8 @@ export const GraphmlYed: Story = {
                 "n2::n5": "#99cc00",
                 "n2::n9": "#ff6600",
             },
+            [],
+            { "n0::n0": "Source\nView", "n2::n1": "Recording\nCompositor" },
         );
     },
 };
@@ -221,6 +245,8 @@ export const Pajek: Story = {
             "Pajek",
             { nodes: 311, edges: 292 },
             { "5": "#0000ff", "87": "#0000ff", "123": "#ff0000", "207": "#ff0000" },
+            [],
+            { "5": "Achilles", "123": "Hector" },
         );
     },
 };
@@ -238,6 +264,8 @@ export const Xgmml: Story = {
             "Xgmml",
             { nodes: 45, edges: 62 },
             { "1": "#f3f60e", "3": "#6ac94b", "5": "#0234bf", "7": "#a95d32" },
+            [],
+            { "1": "05-4424.TP(1)", "2": "05-4424.NB(2)" },
         );
     },
 };

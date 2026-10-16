@@ -43,9 +43,10 @@ type FixedLayoutOpts = Partial<FixedLayoutConfigType>;
  * array -- switching to "fixed" means "put the nodes where the data says". After that the engine
  * keeps what the array holds, so a drag survives a later recompute; a node added later reaches the
  * array from its own `data.position` when the graph is frozen. A node with no coordinates at all
- * is placed at the origin. `scale` (1 by default) multiplies every data position on top of
- * `positionScale`: a load that draws a file's styles sets it so the stored drawing is in the same
- * unit as the file's node sizes.
+ * is placed at the origin. Either way, nodes whose data gave no position are reported as a
+ * `layout-warning` event with code `W_NO_POSITION`, so a misspelled position is never silent.
+ * `scale` (1 by default) multiplies every data position on top of `positionScale`: a load that
+ * draws a file's styles sets it so the stored drawing is in the same unit as the file's node sizes.
  */
 export class FixedLayout extends SnapshotLayoutEngine {
     static type = "fixed";
@@ -108,15 +109,24 @@ export class FixedLayout extends SnapshotLayoutEngine {
 
         const { initial } = input;
         const positions = new Float32Array(initial.length);
+        // Rows the data gave no position: on the first run, every row without a data position;
+        // later, every row nothing has placed (a newcomer is seeded from its data when it arrives).
+        let missing = 0;
         for (let i = 0; i < positions.length; i += 3) {
             // A placed row is written back unchanged, which is what keeps it from being mistaken
             // for an unplaced one by a reader of what this engine computed.
             let from: F32 | null = Number.isNaN(initial[i]) ? null : initial;
             if (seeds !== null && !Number.isNaN(seeds[i])) {
                 from = seeds;
+            } else if (seeds !== null || from === null) {
+                missing++;
             }
 
             positions.set(from === null ? [0, 0, 0] : from.subarray(i, i + 3), i);
+        }
+
+        if (missing > 0) {
+            input.warn({ code: "W_NO_POSITION", params: { missing, total: positions.length / 3 } });
         }
 
         return positions;

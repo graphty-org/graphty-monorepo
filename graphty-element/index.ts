@@ -228,6 +228,7 @@ export type {
     SnapshotLayoutInput,
     SnapshotLayoutProgress,
     SnapshotLayoutRegistration,
+    SnapshotLayoutWarning,
 } from "./src/layout/SnapshotLayoutEngine";
 export { registerSnapshotLayout } from "./src/layout/SnapshotLayoutEngine";
 // The simple tier's verbs, so a page with no build step reaches them from the bundle too.
@@ -271,6 +272,7 @@ export type {
     InputTouchEvent,
     InputWheelEvent,
     LayoutChangedEvent,
+    LayoutWarningEvent,
     NodeAddEvent,
     NodeClickEvent,
     NodeDragEndEvent,

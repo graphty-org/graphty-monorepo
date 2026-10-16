@@ -95,10 +95,15 @@ cat > "$OUT/storybook/index.html" << 'EOF'
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Graphty Storybooks</title>
+  <title>graphty Storybooks</title>
+  <link rel="icon" href="/docs/favicon.ico" sizes="48x48">
+  <link rel="icon" href="/docs/favicon.svg" type="image/svg+xml">
   <style>
     body { font-family: system-ui, sans-serif; max-width: 800px; margin: 2rem auto; padding: 1rem; }
-    h1 { color: #333; }
+    body { background: #ffffff; }
+    h1 { color: #333; margin: 0; }
+    h1 img { display: block; }
+    .subtitle { color: #333; font-size: 1.5rem; margin: 1rem 0 0; }
     ul { list-style: none; padding: 0; }
     li { margin: 1rem 0; }
     a { color: #0066cc; text-decoration: none; font-size: 1.2rem; }
@@ -107,7 +112,8 @@ cat > "$OUT/storybook/index.html" << 'EOF'
   </style>
 </head>
 <body>
-  <h1>Graphty Storybooks</h1>
+  <h1><img src="/docs/brand/graphty-lockup-color-on-light.svg" alt="graphty" height="48"></h1>
+  <p class="subtitle">Storybooks</p>
   <ul>
     <li>
       <a href="/storybook/graphty-element/">graphty-element</a>

@@ -576,3 +576,74 @@ async function waitFor(done: () => boolean): Promise<void> {
 
     assert.isTrue(done(), "the condition held within 5 seconds");
 }
+
+describe("the label counts are published once the labels have settled, not after a fixed count of frames", () => {
+    it("publishes to a waiter on the first frame with nothing to re-decide, and never while labels move", async () => {
+        const container = document.createElement("div");
+        container.style.width = `${String(WIDTH)}px`;
+        container.style.height = `${String(HEIGHT)}px`;
+        document.body.appendChild(container);
+        const g = new Graph(container);
+        try {
+            await g.init();
+            g.setLayoutBehavior({ labels: { declutter: true } });
+            await g.addNodes(PILED);
+            await g.addEdges(EDGES);
+            await g.setLayout("fixed", { dim: 3 });
+            await g.getSession().styles.add({
+                name: "labels",
+                target: "node",
+                selector: { match: "everything" },
+                set: { "node.label": "A LONG LABEL FOR THIS NODE" },
+            });
+            await g.setCameraState(PILED_VIEW);
+            await g.waitForStableFrame();
+
+            // From here every frame is one this test draws.
+            g.engine.stopRenderLoop();
+            const declutter: unknown = g.scene.metadata?.labelDeclutter;
+            if (!(declutter instanceof LabelDeclutter)) {
+                throw new Error("the labels have no declutter pass");
+            }
+
+            const heard: NodeLabelCounts[] = [];
+            const observer = g.onNodeLabelCounts.add((counts) => heard.push(counts));
+
+            // Turning declutter off shows every label: there are new counts to publish.
+            g.setLayoutBehavior({ labels: { declutter: false } });
+            let published = false;
+            void declutter.whenPublished().then(() => {
+                published = true;
+            });
+
+            // A node keeps moving: every frame has a label to re-decide, so nothing is published.
+            const left = g.getNode("left");
+            assert.isDefined(left);
+            for (let at = 0; at < 20; at++) {
+                left.mesh.position.x += 0.01;
+                g.scene.render();
+                await Promise.resolve();
+            }
+
+            assert.isFalse(published, "the counts were published while a label was still moving");
+            assert.lengthOf(heard, 0, "graphty-label-change fired while a label was still moving");
+
+            // It stops: the next frame has nothing to re-decide, and that is when they publish.
+            let frames = 0;
+            while (!published && frames < 30) {
+                g.scene.render();
+                frames++;
+                await Promise.resolve();
+                await Promise.resolve();
+            }
+
+            assert.isTrue(published, "the counts were never published");
+            assert.isAtMost(frames, 2, "the counts waited for frames after the labels had settled");
+            assert.deepEqual(heard, [{ labeled: 3, nodeHidden: 0, hiddenByOverlap: 0 }]);
+            g.onNodeLabelCounts.remove(observer);
+        } finally {
+            g.dispose();
+            container.remove();
+        }
+    });
+});

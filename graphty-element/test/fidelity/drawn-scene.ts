@@ -177,6 +177,7 @@ interface EdgeInternals {
     lineBatch: EdgeLineBatch | null;
     lineSlots: number[];
     lineIsCurve: boolean;
+    drawnStyle: { line?: { bezier?: boolean } } | null;
 }
 interface PatternInternals {
     width: number;
@@ -493,8 +494,10 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
         const slots = internal.lineSlots;
         const flat = (batch.mesh.metadata as { is2DLine?: boolean } | null)?.is2DLine === true;
         if (internal.lineIsCurve) {
+            // a run of slots: a curve, or straight segments through the line's bends
             world = edge.drawnCurve ?? [];
-            kind = "curve";
+            const straight = flat ? "line-2d" : "screen-line";
+            kind = internal.drawnStyle?.line?.bezier === true ? "curve" : straight;
         } else {
             world = slots.length > 0 ? batch.endsOf(slots[0]) : [];
             kind = flat ? "line-2d" : "screen-line";

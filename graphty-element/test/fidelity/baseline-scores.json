@@ -56,7 +56,7 @@
         "edgeWidth": 1,
         "lineStyle": 0.9583333333333334,
         "arrows": 1,
-        "edgePath": 0.6666666666666666,
+        "edgePath": 0.8958333333333334,
         "edgeLabel": 1,
         "groups": 1
     },
@@ -170,7 +170,7 @@
         "edgeWidth": 1,
         "lineStyle": 1,
         "arrows": 1,
-        "edgePath": 0.6842105263157895,
+        "edgePath": 1,
         "edgeLabel": 1
     },
     "pajek-iliad": {

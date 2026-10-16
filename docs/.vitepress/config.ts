@@ -48,9 +48,27 @@ export default defineConfig({
         },
     },
 
-    title: "Graphty",
+    title: "graphty",
     description: "Modular graph visualization ecosystem",
     base: "/docs/",
+
+    // head hrefs are not rewritten by `base`, so they carry /docs/ themselves
+    head: [
+        ["link", { rel: "icon", href: "/docs/favicon.ico", sizes: "48x48" }],
+        ["link", { rel: "icon", href: "/docs/favicon.svg", type: "image/svg+xml" }],
+        ["meta", { name: "theme-color", media: "(prefers-color-scheme: light)", content: "#ffffff" }],
+        ["meta", { name: "theme-color", media: "(prefers-color-scheme: dark)", content: "#14161f" }],
+        ["meta", { property: "og:type", content: "website" }],
+        ["meta", { property: "og:site_name", content: "graphty" }],
+        ["meta", { property: "og:title", content: "graphty documentation" }],
+        ["meta", { property: "og:description", content: "Modular graph visualization ecosystem" }],
+        ["meta", { property: "og:image", content: "https://graphty.app/docs/open-graph-1200x630.png" }],
+        ["meta", { name: "twitter:card", content: "summary_large_image" }],
+        ["meta", { name: "twitter:image", content: "https://graphty.app/docs/open-graph-1200x630.png" }],
+        // A package lockup is wide; the hero's default 192 px cap on phones would shrink it below the
+        // brand's 24 px minimum height, so it may use the hero image box's full width.
+        ["style", {}, ".VPHero .image-src[src*='-lockup-color-on-']:not([src*='stacked']) { max-width: 100%; }"],
+    ],
 
     vue: {
         template: {
@@ -61,6 +79,13 @@ export default defineConfig({
     },
 
     themeConfig: {
+        // the lockup already spells the name, so the typed site title is hidden
+        logo: {
+            light: "/brand/graphty-lockup-color-on-light.svg",
+            dark: "/brand/graphty-lockup-color-on-dark.svg",
+            alt: "graphty",
+        },
+        siteTitle: false,
         nav: [
             { text: "Home", link: "/" },
             {

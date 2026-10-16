@@ -234,6 +234,34 @@ function activeRealizer(proxy: unknown): Realizer | null {
     return all[Number.isInteger(active) && active >= 0 && active < all.length ? active : 0] ?? null;
 }
 
+/**
+ * yEd's flowchart palette (`com.yworks.flowchart.<name>`), by name, to the shape each draws. Matched whole, before
+ * the words below: "data" is a parallelogram, but "storedData" and "directData" are not.
+ */
+const FLOWCHART_SHAPES: ReadonlyMap<string, string> = new Map([
+    ["process", "rectangle"],
+    ["decision", "diamond"],
+    ["terminator", "round-rectangle"],
+    ["start1", "ellipse"],
+    ["start2", "ellipse"],
+    ["data", "parallelogram"],
+    ["preparation", "hexagon"],
+]);
+
+const FLOWCHART_PREFIX = "com.yworks.flowchart.";
+
+/**
+ * The shape a yEd flowchart configuration draws: a GraphML GenericNode's `configuration`, or a yEd GML node's
+ * `customconfiguration`.
+ * @param configuration - the configuration
+ * @returns the neutral shape, or null for a configuration that is not one of the flowchart shapes known here
+ */
+export function flowchartShape(configuration: string): string | null {
+    return configuration.startsWith(FLOWCHART_PREFIX)
+        ? (FLOWCHART_SHAPES.get(configuration.slice(FLOWCHART_PREFIX.length)) ?? null)
+        : null;
+}
+
 /** GenericNode configurations, by a word they contain, to the shape they draw; the first match wins. */
 const GENERIC_SHAPES: readonly (readonly [string, string])[] = [
     ["ellipse", "ellipse"],
@@ -380,6 +408,10 @@ function realizerShape(real: Realizer, at: SiteOf): string | null {
     }
     if (real.type === "GenericNode") {
         const conf = treeAttr(real.r, "configuration") ?? "";
+        const flowchart = flowchartShape(conf);
+        if (flowchart !== null) {
+            return flowchart;
+        }
         const lower = conf.slice(0, MAX_STYLE_VALUE_LENGTH).toLowerCase();
         for (const [word, value] of GENERIC_SHAPES) {
             if (lower.includes(word)) {

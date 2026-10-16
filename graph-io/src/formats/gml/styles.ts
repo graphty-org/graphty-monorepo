@@ -49,6 +49,7 @@ import type {
 import type { LossNote } from "../../types.js";
 import { gephiRules } from "../gexf/styles.js";
 import {
+    flowchartShape,
     FONT_STYLES,
     type ValueColumns,
     valueColumns,
@@ -337,6 +338,9 @@ function readNodeGraphics(g: Rec, writer: GmlWriter, put: Put, at: At): void {
         const raw =
             v === "ogdf" && typeof g.type === "string" ? (OGDF_SHAPES.get(g.type.toLowerCase()) ?? g.type) : g.type;
         put("shape", canonEnum("shape", raw, writer.spelling, at("shape")));
+    } else if (v === "yed" && typeof g.customconfiguration === "string") {
+        // yEd's flowchart palette keeps a node's shape as a configuration, not a `type`.
+        put("shape", flowchartShape(g.customconfiguration));
     }
 }
 

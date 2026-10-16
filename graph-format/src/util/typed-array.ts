@@ -64,10 +64,10 @@ export const STAGING_RESERVE_BYTES = 1024 * 1024;
  * How much larger a resizable staging buffer's next reservation is than its last, until it reaches
  * STAGING_RESERVE_FAST_LIMIT: 16, so a column grows from 1 MiB to 256 MiB with two copies.
  */
-export const STAGING_RESERVE_GROWTH = 16;
+const STAGING_RESERVE_GROWTH = 16;
 
 /** Above this reservation, a reallocated staging buffer doubles its reservation instead. */
-export const STAGING_RESERVE_FAST_LIMIT = 256 * 1024 * 1024;
+const STAGING_RESERVE_FAST_LIMIT = 256 * 1024 * 1024;
 
 // ============================================================ rounding and alignment
 

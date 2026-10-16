@@ -453,7 +453,7 @@
         },
         "dot-synth-nodes": {
             "position": 0,
-            "shape": 0.5943396226415094,
+            "shape": 0.6037735849056604,
             "fillOpacity": 1,
             "borderColor": 1,
             "borderStyle": 1,
@@ -632,7 +632,7 @@
         },
         "graphml-synthetic-nodes": {
             "position": 0,
-            "shape": 0.704225352112676,
+            "shape": 0.7323943661971831,
             "fill": 0.9295774647887324,
             "fillOpacity": 1,
             "borderColor": 1,
@@ -690,7 +690,7 @@
         "gml-synthetic-coverage": {
             "position": 1,
             "size": 1,
-            "shape": 0.75,
+            "shape": 0.875,
             "fill": 0.8875,
             "fillOpacity": 1,
             "borderColor": 1,

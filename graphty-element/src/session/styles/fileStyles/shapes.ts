@@ -1,6 +1,6 @@
 /**
- * @file How a file's flat drawing vocabulary is drawn by graphty-element: the 2D node shapes as 3D
- * ones, and the line styles and arrows of the file's vocabulary as the element's own.
+ * @file How a file's flat drawing vocabulary is drawn by graphty-element: the 2D node shapes as
+ * the element's flat ones, and the line styles and arrows of the file's vocabulary as the element's own.
  *
  * The shape table is a choice another consumer may make differently, so a load takes its own
  * (`styleOptions.shapes`) and this one is only the default. The line and arrow tables are not
@@ -19,24 +19,24 @@
 export type FileStyleShapeTable = Readonly<Record<string, string>>;
 
 /**
- * The default shape table. A rounded rectangle and a parallelogram are drawn as the element's own
- * flat shapes of the same name, exactly; every other 2D shape is drawn as the nearest solid, and
- * the load notes every element drawn that way.
+ * The default shape table. Every 2D shape is drawn as the element's own flat shape of the same
+ * name, exactly; `none` (a node with no body of its own) is drawn as the flat ellipse, and the load
+ * notes every element drawn that way.
  */
 export const FILE_STYLE_SHAPES: FileStyleShapeTable = Object.freeze({
-    ellipse: "sphere",
-    rectangle: "box",
+    ellipse: "ellipse",
+    rectangle: "rectangle",
     "round-rectangle": "round-rectangle",
-    triangle: "triangular_prism",
-    diamond: "octahedron",
-    pentagon: "pentagonal_prism",
-    hexagon: "hexagonal_prism",
-    octagon: "dodecahedron",
+    triangle: "triangle",
+    diamond: "diamond",
+    pentagon: "pentagon",
+    hexagon: "hexagon",
+    octagon: "octagon",
     parallelogram: "parallelogram",
-    trapezoid: "box",
-    star: "icosahedron",
-    vee: "cone",
-    none: "sphere",
+    trapezoid: "trapezoid",
+    star: "star",
+    vee: "vee",
+    none: "ellipse",
 });
 
 /** The element's line pattern for each line style of a file. */

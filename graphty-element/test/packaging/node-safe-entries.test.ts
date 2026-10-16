@@ -225,7 +225,7 @@ describe("the Node-safe entry points", () => {
 
         assert.include(session.FILE_STYLE_CODES, code);
         assert.include(session.FILE_STYLE_CODES, "W_STYLE_LAYER_CAP");
-        assert.strictEqual(session.FILE_STYLE_SHAPES.ellipse, "sphere");
+        assert.strictEqual(session.FILE_STYLE_SHAPES.ellipse, "ellipse");
         assert.include(session.FILE_STYLE_REASONS, "NO_EXPLANATION");
     });
 });

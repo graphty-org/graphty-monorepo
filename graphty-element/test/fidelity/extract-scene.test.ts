@@ -161,7 +161,7 @@ describe("the graphty scene extractor's vocabulary", () => {
             rectangle: "rect",
             "round-rectangle": "roundrect",
             parallelogram: "parallelogram",
-            trapezoid: "rect",
+            trapezoid: "other",
             triangle: "triangle",
             diamond: "diamond",
             hexagon: "hexagon",

@@ -1,3 +1,13 @@
+## 0.9.26 (2026-10-16)
+
+### 🩹 Fixes
+
+- **compact-mantine:** start a vertical pill tab's label at its leading edge ([#2905](https://github.com/graphty-org/graphty-monorepo/issues/2905))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.9.25 (2026-10-16)
 
 ### 🩹 Fixes

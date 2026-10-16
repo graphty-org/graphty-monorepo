@@ -5,6 +5,8 @@
  * other JSON dialect.
  */
 
+import "../../src/data/index";
+
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -13,7 +15,6 @@ import { assert, describe, it } from "vitest";
 
 import { createGraphSession } from "../../session";
 import { DataSource } from "../../src/data/DataSource";
-import "../../src/data/index";
 
 const FIXTURES = join(__dirname, "..", "..", "..", "graph-io", "test", "conformance", "fixtures", "json");
 

@@ -43,6 +43,7 @@ import { defaultEdgeStyle } from "../config/EdgeStyle";
 import { defaultNodeStyle } from "../config/NodeStyle";
 import { createEdgeCounter, pairsOrdered } from "../data/edgeIdentity";
 import { GraphStore, type Renumbering } from "../data/GraphStore";
+import { GROUPS_VALUE, groupsOf } from "../data/groups";
 import { readonlyPositions } from "../data/lane";
 import { otherIdSpelling, rowOfEitherSpelling } from "../data/nodeIdSpelling";
 import type { ElementPositions } from "../data/positions";
@@ -516,7 +517,12 @@ class Session implements ElementSession {
         this.layout = layoutOf(this.dispatcher, (command) => this.dispatcher.dispatch(command));
         // What an import asking for a recommended layout chooses, for the graph it loaded.
         this.dispatcher.services.layoutAdvice = () => {
-            const advice = recommendLayout(this.data.statistics(), { placedNodes: this.store.seededNodeCount });
+            // A group with no stored position is drawn as the box around its members, so it is
+            // placed whenever they are.
+            const following = groupsOf(this.dispatcher.state.graph.values.get(GROUPS_VALUE)).length;
+            const advice = recommendLayout(this.data.statistics(), {
+                placedNodes: this.store.seededNodeCount + following,
+            });
             return advice === undefined ? undefined : { id: advice.layout.id, engine: advice.layout.engine };
         };
         this.config = configOf(this.dispatcher, parts.readProject, parts.controller);

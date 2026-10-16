@@ -985,6 +985,11 @@ class ChunkCursor {
     /** The line number of buf's first character. */
     private linesBefore = 1;
 
+    /** The last position line() counted to in buf, and the line breaks before it: line() counts on from there. */
+    private countedTo = 0;
+
+    private countedLines = 0;
+
     private parts: string[] | null = null;
 
     private captureStart = 0;
@@ -1010,6 +1015,8 @@ class ChunkCursor {
             this.captureStart = 0;
         }
         this.linesBefore += countNewlines(this.buf, 0, this.buf.length);
+        this.countedTo = 0;
+        this.countedLines = 0;
         const endsWithCr = this.buf.endsWith("\r");
         for (;;) {
             const next = await this.iterator.next();
@@ -1035,7 +1042,15 @@ class ChunkCursor {
      * @returns the line
      */
     line(): number {
-        return this.linesBefore + countNewlines(this.buf, 0, Math.min(this.pos, this.buf.length));
+        // counted on from the last call, so reading every element of a one-chunk document stays linear
+        const to = Math.min(this.pos, this.buf.length);
+        if (to < this.countedTo) {
+            this.countedTo = 0;
+            this.countedLines = 0;
+        }
+        this.countedLines += countNewlines(this.buf, this.countedTo, to);
+        this.countedTo = to;
+        return this.linesBefore + this.countedLines;
     }
 
     /**
@@ -1190,18 +1205,13 @@ class ChunkCursor {
  * @returns the count
  */
 function countNewlines(text: string, from: number, to: number): number {
+    // one pass over the slice only: an indexOf() past `to` made each call cost the whole rest of the text
     let count = 0;
-    let i = text.indexOf("\n", from);
-    while (i >= 0 && i < to) {
-        count++;
-        i = text.indexOf("\n", i + 1);
-    }
-    i = text.indexOf("\r", from);
-    while (i >= 0 && i < to) {
-        if (text[i + 1] !== "\n") {
+    for (let i = from; i < to; i++) {
+        const c = text.charCodeAt(i);
+        if (c === 10 || (c === 13 && text.charCodeAt(i + 1) !== 10)) {
             count++;
         }
-        i = text.indexOf("\r", i + 1);
     }
     return count;
 }

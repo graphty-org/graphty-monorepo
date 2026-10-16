@@ -794,10 +794,14 @@ function checkContinuation(bytes: Uint8Array, i: number, sequence: Utf8Sequence)
  */
 function controlByte(bytes: Uint8Array, final: boolean): number {
     const last = bytes.byteLength - 1;
-    return bytes.findIndex(
-        (b, i) =>
-            b < 0x20 && b !== 0x09 && b !== 0x0a && b !== 0x0c && b !== 0x0d && !(b === 0x1a && final && i === last),
-    );
+    // a plain loop: findIndex() with a callback per byte was a measurable share of reading a large file
+    for (let i = 0; i <= last; i++) {
+        const b = bytes[i];
+        if (b < 0x20 && b !== 0x09 && b !== 0x0a && b !== 0x0c && b !== 0x0d && !(b === 0x1a && final && i === last)) {
+            return i;
+        }
+    }
+    return -1;
 }
 
 /**

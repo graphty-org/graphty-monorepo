@@ -373,13 +373,22 @@ export function isXmlName(text: string): boolean {
     if (text.length === 0) {
         return false;
     }
-    let first = true;
-    for (const ch of text) {
-        const cp = ch.codePointAt(0);
-        if (cp === undefined || (first ? !isNameStart(cp) : !isNameChar(cp))) {
+    // the ASCII tables for the common case, as readName() does: a string iterator and the code point classes per
+    // character cost a second in a 5,000-node GraphML file, which checks every end tag
+    for (let i = 0; i < text.length;) {
+        const c = text.charCodeAt(i);
+        if (c < 0x80) {
+            if ((i === 0 ? ASCII_NAME_START[c] : ASCII_NAME_CHAR[c]) === 0) {
+                return false;
+            }
+            i++;
+            continue;
+        }
+        const cp = text.codePointAt(i) ?? 0;
+        if (i === 0 ? !isNameStart(cp) : !isNameChar(cp)) {
             return false;
         }
-        first = false;
+        i += cp > 0xffff ? 2 : 1;
     }
     return true;
 }

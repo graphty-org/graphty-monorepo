@@ -90,12 +90,7 @@ interface RoundTrip {
  */
 function takeBlockValues(target: StyleTarget, n: number, block: BlockValues, trip: RoundTrip): void {
     const { values } = trip;
-    const get =
-        trip.writes === undefined
-            ? (i: number): ElementValues =>
-                  (p) =>
-                      block(target, p)[i] ?? null
-            : elementValues(block, target, trip.writes);
+    const get = blockGetter(target, block, trip.writes);
     const properties = [...trip.properties];
     const changed = new Map<string, (StyleValue | null)[]>();
     for (let i = 0; i < n; i++) {
@@ -105,23 +100,76 @@ function takeBlockValues(target: StyleTarget, n: number, block: BlockValues, tri
             continue;
         }
         for (const property of properties) {
-            const native = values[property]?.[i] ?? null;
             const w = want(property);
-            if (trip.take?.(property, w, native) === false || native === w || native !== (back(property) ?? null)) {
-                continue;
+            if (takes(trip, property, w, values[property]?.[i] ?? null, back)) {
+                columnOf(changed, values, property, n)[i] = w;
             }
-            let column = changed.get(property);
-            if (column === undefined) {
-                const own = values[property];
-                column = own === undefined ? new Array<StyleValue | null>(n).fill(null) : [...own];
-                changed.set(property, column);
-            }
-            column[i] = w;
         }
     }
     for (const [property, column] of changed) {
         values[property] = column;
     }
+}
+
+/**
+ * Each element's block values, limited to the properties the writer is given when it is given only some.
+ * @param target - nodes or edges
+ * @param block - the block's values
+ * @param writes - the properties the writer is given, or undefined for every one
+ * @returns the element's values, by element
+ */
+function blockGetter(
+    target: StyleTarget,
+    block: BlockValues,
+    writes: readonly string[] | undefined,
+): (i: number) => ElementValues {
+    if (writes !== undefined) {
+        return elementValues(block, target, writes);
+    }
+    return (i) => (p) => block(target, p)[i] ?? null;
+}
+
+/**
+ * Whether the block's value replaces the value read: the format allows it, they differ, and the value read is what the
+ * writer writes for the block's value.
+ * @param trip - the target's round trip
+ * @param property - the property
+ * @param wanted - the block's value
+ * @param native - the value read
+ * @param back - the element's block values written and read back
+ * @returns whether to take the block's value
+ */
+function takes(
+    trip: RoundTrip,
+    property: string,
+    wanted: StyleValue | null,
+    native: StyleValue | null,
+    back: ElementValues,
+): boolean {
+    return trip.take?.(property, wanted, native) !== false && native !== wanted && native === (back(property) ?? null);
+}
+
+/**
+ * The changed copy of a property's values, made on first use.
+ * @param changed - the changed copies so far
+ * @param values - the values read
+ * @param property - the property
+ * @param n - the element count
+ * @returns the property's changed copy
+ */
+function columnOf(
+    changed: Map<string, (StyleValue | null)[]>,
+    values: Partial<Record<string, StyleColumn>>,
+    property: string,
+    n: number,
+): (StyleValue | null)[] {
+    let column = changed.get(property);
+    if (column === undefined) {
+        const own = values[property];
+        column = own === undefined ? new Array<StyleValue | null>(n).fill(null) : [...own];
+        changed.set(property, column);
+    }
+    return column;
 }
 
 /**

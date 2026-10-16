@@ -263,13 +263,7 @@ export function hideGroupsCytoscapeHides(snapshot: GraphSnapshot, values: Partia
         return;
     }
     const n = snapshot.nodeCount;
-    const members = new Map<number, number[]>();
-    for (let i = 0; i < n; i++) {
-        const g = parent.isSet(i) ? plainCell(parent.value(i)) : null;
-        if (typeof g === "number" && g !== i) {
-            members.set(g, [...(members.get(g) ?? []), i]);
-        }
-    }
+    const members = membersOf(parent, n);
     if (members.size === 0) {
         return;
     }
@@ -280,18 +274,52 @@ export function hideGroupsCytoscapeHides(snapshot: GraphSnapshot, values: Partia
             visible[group] = false;
             continue;
         }
-        // every node inside, at any depth
-        const stack = [...inside];
-        const seen = new Set<number>([group]);
-        for (let i = stack.pop(); i !== undefined; i = stack.pop()) {
-            if (!seen.has(i)) {
-                seen.add(i);
-                visible[i] = false;
-                stack.push(...(members.get(i) ?? []));
-            }
+        for (const i of insideAtAnyDepth(group, inside, members)) {
+            visible[i] = false;
         }
     }
     values.visible = visible;
+}
+
+/**
+ * Each group node's direct members.
+ * @param parent - the node parent column
+ * @param n - the node count
+ * @returns group node to its members
+ */
+function membersOf(
+    parent: NonNullable<ReturnType<GraphSnapshot["nodes"]["byRole"]>>,
+    n: number,
+): Map<number, number[]> {
+    const members = new Map<number, number[]>();
+    for (let i = 0; i < n; i++) {
+        const g = parent.isSet(i) ? plainCell(parent.value(i)) : null;
+        if (typeof g === "number" && g !== i) {
+            members.set(g, [...(members.get(g) ?? []), i]);
+        }
+    }
+    return members;
+}
+
+/**
+ * Every node inside a group, at any depth.
+ * @param group - the group node
+ * @param inside - its direct members
+ * @param members - each group node's direct members
+ * @returns the nodes inside
+ */
+function insideAtAnyDepth(group: number, inside: readonly number[], members: Map<number, number[]>): Set<number> {
+    const stack = [...inside];
+    const seen = new Set<number>([group]);
+    const out = new Set<number>();
+    for (let i = stack.pop(); i !== undefined; i = stack.pop()) {
+        if (!seen.has(i)) {
+            seen.add(i);
+            out.add(i);
+            stack.push(...(members.get(i) ?? []));
+        }
+    }
+    return out;
 }
 
 /**

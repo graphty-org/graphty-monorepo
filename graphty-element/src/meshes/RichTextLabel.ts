@@ -196,16 +196,18 @@ function placeBeside(
     bounds: { min: Vector3; max: Vector3 },
     label: { width: number; height: number },
     offset: number,
-    stretch: { x: number; y: number } = { x: 1, y: 1 },
+    stretch?: { x: number; y: number },
 ): void {
+    const sx = stretch?.x ?? 1;
+    const sy = stretch?.y ?? 1;
     const side = Object.hasOwn(SIDES, position) ? SIDES[position] : null;
     if (side === null) {
-        at.y = bounds.max.y + (label.height / 2 + offset) / stretch.y;
+        at.y = bounds.max.y + (label.height / 2 + offset) / sy;
         return;
     }
 
-    at.x = along(side.x, bounds.min.x, bounds.max.x, (label.width / 2 + offset) / stretch.x);
-    at.y = along(side.y, bounds.min.y, bounds.max.y, (label.height / 2 + offset) / stretch.y);
+    at.x = along(side.x, bounds.min.x, bounds.max.x, (label.width / 2 + offset) / sx);
+    at.y = along(side.y, bounds.min.y, bounds.max.y, (label.height / 2 + offset) / sy);
 }
 
 /**
@@ -484,43 +486,11 @@ export class RichTextLabel {
         // to anything more. Without this a three-line label squeezed its canvas into one line's
         // height and drew its letters at a third of the size, and a line height of 2.5 shrank the
         // letters instead of spreading the lines.
-        // The first line WITH WORDS: a blank line has no height of its own to measure.
-        const firstLine = this.parsedContent.find((line) => line.length > 0);
-        if (firstLine === undefined) {
-            this.heightInLines = 1;
-        } else {
-            const { lineBox } = measureLine(tempCtx, firstLine, {
-                lineHeight: DEFAULT_LINE_HEIGHT,
-                textOutline: this.options.textOutline,
-                textOutlineWidth: this.options.textOutlineWidth,
-            });
-            const oneLine = this.actualDimensions.height - totalHeight + lineBox;
-            this.heightInLines = oneLine > 0 ? this.actualDimensions.height / oneLine : 1;
-        }
+        this.heightInLines = this.measureHeightInLines(tempCtx, totalHeight);
 
         if (this.options.pointer) {
             this._calculatePointerDimensions();
-
-            if (this.pointerInfo) {
-                switch (this.pointerInfo.direction) {
-                    case "top":
-                        this.actualDimensions.height += this.options.pointerHeight;
-                        this.contentArea.y = this.totalBorderWidth + this.options.pointerHeight;
-                        break;
-                    case "bottom":
-                        this.actualDimensions.height += this.options.pointerHeight;
-                        break;
-                    case "left":
-                        this.actualDimensions.width += this.options.pointerHeight;
-                        this.contentArea.x = this.totalBorderWidth + this.options.pointerHeight;
-                        break;
-                    case "right":
-                        this.actualDimensions.width += this.options.pointerHeight;
-                        break;
-                    default:
-                        break;
-                }
-            }
+            this.makeRoomForPointer();
         }
 
         if (this.options._smartSizing) {
@@ -531,6 +501,57 @@ export class RichTextLabel {
                 this.contentArea.x += extraWidth / 2;
             }
         }
+    }
+
+    /**
+     * Grow the label to make room for its pointer, on the side the pointer points.
+     */
+    private makeRoomForPointer(): void {
+        if (!this.pointerInfo) {
+            return;
+        }
+
+        switch (this.pointerInfo.direction) {
+            case "top":
+                this.actualDimensions.height += this.options.pointerHeight;
+                this.contentArea.y = this.totalBorderWidth + this.options.pointerHeight;
+                break;
+            case "bottom":
+                this.actualDimensions.height += this.options.pointerHeight;
+                break;
+            case "left":
+                this.actualDimensions.width += this.options.pointerHeight;
+                this.contentArea.x = this.totalBorderWidth + this.options.pointerHeight;
+                break;
+            case "right":
+                this.actualDimensions.width += this.options.pointerHeight;
+                break;
+            default:
+                break;
+        }
+    }
+
+    /**
+     * How many lines tall the label's plane is, measured by its first line with words: one line's
+     * plane is the canvas a single line at the default line height would need.
+     * @param ctx - A canvas to measure on.
+     * @param totalHeight - The text's whole height on the canvas.
+     * @returns The plane's height in lines.
+     */
+    private measureHeightInLines(ctx: CanvasRenderingContext2D, totalHeight: number): number {
+        // The first line WITH WORDS: a blank line has no height of its own to measure.
+        const firstLine = this.parsedContent.find((line) => line.length > 0);
+        if (firstLine === undefined) {
+            return 1;
+        }
+
+        const { lineBox } = measureLine(ctx, firstLine, {
+            lineHeight: DEFAULT_LINE_HEIGHT,
+            textOutline: this.options.textOutline,
+            textOutlineWidth: this.options.textOutlineWidth,
+        });
+        const oneLine = this.actualDimensions.height - totalHeight + lineBox;
+        return oneLine > 0 ? this.actualDimensions.height / oneLine : 1;
     }
 
     private _calculatePointerDimensions(): void {
@@ -1121,14 +1142,7 @@ export class RichTextLabel {
         const newPos = target instanceof Vector3 ? target.clone() : this.parentTo(target, frontBounds);
         // A target drawn stretched (a group over its members' box) leaves its label the size the
         // label's style gives: the label undoes the stretch and its gaps are measured in it.
-        const scaled = target instanceof Vector3 ? null : target.scaling;
-        const stretch = scaled === null || scaled.equals(Vector3.OneReadOnly) ? null : scaled;
-        if (stretch !== null || this.undoesStretch) {
-            const unstretched = this.centerPivot ?? this.mesh;
-            const by = stretch ?? Vector3.OneReadOnly;
-            unstretched.scaling.set(1 / (by.x || 1), 1 / (by.y || 1), 1 / (by.z || 1));
-            this.undoesStretch = stretch !== null;
-        }
+        const stretch = target instanceof Vector3 ? null : this.undoStretchOf(target);
 
         if (inFront) {
             // In front of the node, toward the camera: see `parentTo`. Measured across the target
@@ -1152,6 +1166,24 @@ export class RichTextLabel {
         if (this.animator) {
             this.animator.updateOriginalPosition(newPos);
         }
+    }
+
+    /**
+     * Undo a target's stretch on the label, or reset an undo once the target is back at its own size.
+     * @param target - The mesh the label belongs to.
+     * @returns The target's stretch, or null when it is drawn at its own size.
+     */
+    private undoStretchOf(target: AbstractMesh): Vector3 | null {
+        const scaled = target.scaling;
+        const stretch = scaled.equals(Vector3.OneReadOnly) ? null : scaled;
+        if (stretch !== null || this.undoesStretch) {
+            const unstretched = this.centerPivot ?? this.mesh;
+            const by = stretch ?? Vector3.OneReadOnly;
+            unstretched?.scaling.set(1 / (by.x || 1), 1 / (by.y || 1), 1 / (by.z || 1));
+            this.undoesStretch = stretch !== null;
+        }
+
+        return stretch;
     }
 
     /**

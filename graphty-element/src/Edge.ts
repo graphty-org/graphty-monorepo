@@ -709,16 +709,7 @@ export class Edge {
 
         const src = new Vector3(lnk.src.x, lnk.src.y, lnk.src.z ?? 0);
         const dst = new Vector3(lnk.dst.x, lnk.dst.y, lnk.dst.z ?? 0);
-        const drawsLine = this.lineBatch !== null && this.drawnStyle?.line?.width !== 0;
-        const bent = this.lineBends !== null && drawsLine;
-        const route = !bent && drawsLine ? this.bundleRoute(src, dst) : null;
-        this.bundled = route !== null && this.lineBatch !== null && this.placeRoute(this.lineBatch, src, dst, route);
-        if (bent && this.lineBatch && this.lineBends) {
-            this.placeBent(this.lineBatch, src, dst, this.lineBends);
-        } else if (!this.bundled) {
-            const { srcPoint, dstPoint } = this.transformArrowCap();
-            this.transformEdgeMesh(srcPoint ?? src, dstPoint ?? dst);
-        }
+        const bent = this.placeLine(src, dst);
 
         // Update label position if exists
         if (this.label) {
@@ -734,6 +725,28 @@ export class Edge {
         this._lastDstPos = dstPos.clone();
 
         this.context.getStatsManager().endMeasurement("Edge.update");
+    }
+
+    /**
+     * Lay the edge's line between its ends: along its bends, along its bundle's route (a fanned
+     * arc or a self-loop), or straight with its arrow caps.
+     * @param src - The source end.
+     * @param dst - The target end.
+     * @returns Whether the line was laid along its bends.
+     */
+    private placeLine(src: Vector3, dst: Vector3): boolean {
+        const drawsLine = this.lineBatch !== null && this.drawnStyle?.line?.width !== 0;
+        const bent = this.lineBends !== null && drawsLine;
+        const route = !bent && drawsLine ? this.bundleRoute(src, dst) : null;
+        this.bundled = route !== null && this.lineBatch !== null && this.placeRoute(this.lineBatch, src, dst, route);
+        if (bent && this.lineBatch && this.lineBends) {
+            this.placeBent(this.lineBatch, src, dst, this.lineBends);
+        } else if (!this.bundled) {
+            const { srcPoint, dstPoint } = this.transformArrowCap();
+            this.transformEdgeMesh(srcPoint ?? src, dstPoint ?? dst);
+        }
+
+        return bent;
     }
 
     /** Put each arrow cap's caption, if it has one, beside the cap where the cap now sits. */

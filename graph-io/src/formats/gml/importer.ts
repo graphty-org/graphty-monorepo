@@ -1254,34 +1254,46 @@ class GmlImport {
         }
         this.beginElement(this.seq++);
         try {
-            const graphics: number[] = [];
-            let graphicsPlan: ColumnPlan | null = null;
-            for (let p = open + 1; p < close; p = t.nextPair(p)) {
-                const key = t.textOf(p);
-                if (key === "id" || (key === ORIGINAL_ID_KEY && options.restoreMangledIds)) {
-                    continue;
-                }
-                if (key === "gid") {
-                    this.groupRefs.push([index, p + 1]);
-                }
-                const plan = this.nodePlans.get(key);
-                if (plan !== undefined && plan.position !== null) {
-                    graphicsPlan = plan;
-                    graphics.push(p + 1);
-                } else if (plan !== undefined) {
-                    this.writeNode(plan, index, p + 1);
-                }
-            }
-            if (graphicsPlan !== null) {
-                this.writeGraphics(graphicsPlan, index, graphics, {
-                    line: t.line[graphics[0]],
-                    element: String(sinkId),
-                });
-            }
+            this.writeNodeKeys(open, index, sinkId);
             this.flushLists("node", index);
         } catch (err) {
             this.touched.length = 0;
             report.recordError(err, { line, element: String(sinkId) });
+        }
+    }
+
+    /**
+     * Write one node block's keys into its columns: its graphics record into the position plan, a yEd `gid` noted
+     * for the group hierarchy, and every other planned key as it is.
+     * @param open - the block's `[`
+     * @param index - the node's index
+     * @param sinkId - the node's id, for the report
+     */
+    private writeNodeKeys(open: number, index: number, sinkId: NodeId): void {
+        const t = this.requireTokens();
+        const graphics: number[] = [];
+        let graphicsPlan: ColumnPlan | null = null;
+        for (let p = open + 1; p < t.match[open]; p = t.nextPair(p)) {
+            const key = t.textOf(p);
+            if (key === "id" || (key === ORIGINAL_ID_KEY && this.options.restoreMangledIds)) {
+                continue;
+            }
+            if (key === "gid") {
+                this.groupRefs.push([index, p + 1]);
+            }
+            const plan = this.nodePlans.get(key);
+            if (plan !== undefined && plan.position !== null) {
+                graphicsPlan = plan;
+                graphics.push(p + 1);
+            } else if (plan !== undefined) {
+                this.writeNode(plan, index, p + 1);
+            }
+        }
+        if (graphicsPlan !== null) {
+            this.writeGraphics(graphicsPlan, index, graphics, {
+                line: t.line[graphics[0]],
+                element: String(sinkId),
+            });
         }
     }
 

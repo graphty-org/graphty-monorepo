@@ -73,6 +73,8 @@ export const STYLE_REASON_WORDS: Readonly<Record<FileStyleReason, string>> = {
     STYLE_CLASS: "grouped by the styles elements share",
     LAYER_CAP: "combined to keep the number of layers small",
     SOURCE_NODE_COLOR: "each edge takes its source node's color, as the program draws it",
+    END_NODES_COLOR: "each edge takes the mix of its two nodes' colors, as the program draws it",
+    FILL_BORDER: "each node's border is a darker shade of its fill, as the program draws it",
     EDGE_WEIGHT: "each edge is as thick as its weight, as the program draws it",
     NODE_NAME: "each node without a label shows its name, as the program draws it",
     FUNCTION: "the file computes them with a function",

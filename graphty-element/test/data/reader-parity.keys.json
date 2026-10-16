@@ -1241,6 +1241,8 @@
     "gexf/generated/graphty-written.gexf": {
         "nodes": [
             "color",
+            "graphty.style.node.border-color",
+            "graphty.style.node.border-width",
             "graphty.style.node.class",
             "graphty.style.node.copy.height",
             "graphty.style.node.copy.width",
@@ -1280,6 +1282,8 @@
     "gexf/generated/tamper-block-truncated.gexf": {
         "nodes": [
             "color",
+            "graphty.style.node.border-color",
+            "graphty.style.node.border-width",
             "graphty.style.node.class",
             "graphty.style.node.copy.height",
             "graphty.style.node.copy.width",
@@ -1299,6 +1303,8 @@
     "gexf/generated/tamper-native-edited.gexf": {
         "nodes": [
             "color",
+            "graphty.style.node.border-color",
+            "graphty.style.node.border-width",
             "graphty.style.node.class",
             "graphty.style.node.copy.height",
             "graphty.style.node.copy.width",
@@ -1318,6 +1324,8 @@
     "gexf/generated/tamper-node-added.gexf": {
         "nodes": [
             "color",
+            "graphty.style.node.border-color",
+            "graphty.style.node.border-width",
             "graphty.style.node.class",
             "graphty.style.node.copy.height",
             "graphty.style.node.copy.width",

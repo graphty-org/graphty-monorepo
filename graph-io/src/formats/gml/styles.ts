@@ -686,15 +686,15 @@ export function gmlStyles(snapshot: GraphSnapshot, context: StyleReadContext): I
     }
     const gephi =
         writer.tool === "gephi"
-            ? gephiRules(snapshot, values.node.fill, values.edge.color, context.budget, values.edge.width)
-            : { rules: [], columns: new Map<string, StyleColumn>() };
+            ? gephiRules(snapshot, values.node, values.edge, context.budget)
+            : { node: {}, edge: {} };
     return {
         canonical: true,
         dialect: writer.dialect,
         tool: writer.tool,
         units: writer.units,
-        node: { values: values.node },
-        edge: { values: values.edge, rules: gephi.rules, columns: gephi.columns },
+        node: { values: values.node, ...gephi.node },
+        edge: { values: values.edge, ...gephi.edge },
         notes: notes.list(),
         opacityInColor: true,
         block,

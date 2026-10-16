@@ -525,9 +525,9 @@ function checkToolRule(
     tool: ReturnType<typeof toolDefaults>,
     fail: (line: string) => void,
 ): void {
-    // a default that is itself per element (Gephi's edge in its source node's color and as thick as its weight,
-    // Graphviz's node named by its name) maps a style column
-    const perElement = new Set(["SOURCE_NODE_COLOR", "EDGE_WEIGHT", "NODE_NAME"]);
+    // a default that is itself per element (Gephi's edge in its nodes' mixed color and as thick as its weight, its
+    // node's border darker than its fill and its node labeled, Graphviz's node named by its name) maps a style column
+    const perElement = new Set(["SOURCE_NODE_COLOR", "END_NODES_COLOR", "FILL_BORDER", "EDGE_WEIGHT", "NODE_NAME"]);
     if (rule.map !== undefined && !perElement.has(rule.facts?.reason ?? "")) {
         fail(`the tool-defaults rule ${rule.id} maps values instead of setting them`);
     }

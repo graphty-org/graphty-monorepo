@@ -1608,9 +1608,7 @@ describe("AppShell", () => {
             await userEvent.click(screen.getByRole("button", { name: "History" }));
             expect(await screen.findByText(/entries|entry/)).toBeInTheDocument();
 
-            act(() => {
-                window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true }));
-            });
+            await userEvent.keyboard("{Meta>}k{/Meta}");
             await screen.findByTestId("command-palette");
             await waitFor(() => {
                 expect(screen.queryByText(/entries|entry/)).toBeNull();
@@ -1624,9 +1622,7 @@ describe("AppShell", () => {
             await userEvent.click(await screen.findByRole("menuitem", { name: /Keyboard shortcuts/ }));
             expect(screen.getByTestId("keyboard-shortcuts")).toBeInTheDocument();
 
-            act(() => {
-                window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true }));
-            });
+            await userEvent.keyboard("{Meta>}k{/Meta}");
             await screen.findByTestId("command-palette");
             await userEvent.click(screen.getByRole("option", { name: /^Go to\s*Settings/ }));
 
@@ -4045,9 +4041,7 @@ describe("AppShell", () => {
         it("undoes once for Ctrl+Z pressed outside the canvas", async () => {
             const { session } = await shellWithTwoSteps();
 
-            act(() => {
-                window.dispatchEvent(new KeyboardEvent("keydown", { key: "z", ctrlKey: true, bubbles: true }));
-            });
+            await userEvent.keyboard("{Control>}z{/Control}");
             await flushMicrotasks();
 
             expect(session.history.position).toBe(1);
@@ -4060,16 +4054,20 @@ describe("AppShell", () => {
             const { container, session } = await shellWithTwoSteps();
             const element = container.querySelector("graphty-element") as HTMLElement;
 
+            // Like the element, this stand-in claims only the chord, not the Control press before it.
             element.addEventListener("keydown", (event) => {
+                if (event.key !== "z" || !event.ctrlKey) {
+                    return;
+                }
+
                 event.preventDefault();
                 void session.undo();
             });
 
-            act(() => {
-                element.dispatchEvent(
-                    new KeyboardEvent("keydown", { key: "z", ctrlKey: true, bubbles: true, cancelable: true }),
-                );
-            });
+            element.tabIndex = 0;
+            element.focus();
+            expect(document.activeElement).toBe(element);
+            await userEvent.keyboard("{Control>}z{/Control}");
             await flushMicrotasks();
 
             expect(session.history.position).toBe(1);

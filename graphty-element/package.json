@@ -97,7 +97,7 @@
         "url": "git+https://github.com/graphty-org/graphty-monorepo.git",
         "directory": "graphty-element"
     },
-    "homepage": "https://github.com/graphty-org/graphty-monorepo/tree/master/graphty-element#readme",
+    "homepage": "https://graphty.app/docs/graphty-element/",
     "bugs": {
         "url": "https://github.com/graphty-org/graphty-monorepo/issues"
     },

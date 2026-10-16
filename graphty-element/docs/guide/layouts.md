@@ -66,7 +66,7 @@ graph.setLayout("ngraph", {
     springLength: 100,
     springCoefficient: 0.0008,
     gravity: -1.2,
-    dimensions: 3,
+    dim: 3,
 });
 ```
 
@@ -87,7 +87,7 @@ graph.setLayout("ngraph", {
     springLength: 100, // Ideal edge length
     springCoefficient: 0.0008, // Spring stiffness
     gravity: -1.2, // Global attraction/repulsion
-    dimensions: 3, // 2 or 3
+    dim: 3, // 2 or 3
     dragCoefficient: 0.02, // Damping
     theta: 0.8, // Barnes-Hut approximation
     seed: 7, // Starting positions; unset, they differ on every load
@@ -213,24 +213,38 @@ Random positions. Useful for:
 ```typescript
 graph.setLayout("random", {
     seed: 42, // For reproducible layouts
-    dimensions: 3,
+    dim: 3,
 });
 ```
 
 ### fixed
 
-Use pre-computed positions from node data:
+Use pre-computed positions from node data. Each node carries its coordinates in a `position` field,
+either `{ x, y, z }` or `[x, y, z]` (`z` may be left out and is then 0). Top-level `x`, `y` and `z`
+fields are ordinary attributes, not a position:
 
 ```typescript
-// Node data includes positions
 const nodes = [
-    { id: "a", x: 0, y: 0, z: 0 },
-    { id: "b", x: 100, y: 0, z: 0 },
-    { id: "c", x: 50, y: 100, z: 0 },
+    { id: "a", position: { x: 0, y: 0, z: 0 } },
+    { id: "b", position: { x: 100, y: 0, z: 0 } },
+    { id: "c", position: { x: 50, y: 100, z: 0 } },
 ];
 
 await graph.addNodes(nodes);
-graph.setLayout("fixed");
+await graph.setLayout("fixed");
+```
+
+The coordinates are multiplied by the element's `positionScale` (default 1). A node with no usable
+`position` is put at the origin (or stays where an earlier layout put it), and the element emits a
+`layout-warning` event with code `W_NO_POSITION` and `params: { missing, total }`, the number of
+nodes without one and the number placed:
+
+```typescript
+graph.addListener("layout-warning", (event) => {
+    if (event.code === "W_NO_POSITION") {
+        console.warn(`${event.params.missing} of ${event.params.total} nodes have no position`);
+    }
+});
 ```
 
 ### forceatlas2 (Force-Directed, live)
@@ -364,10 +378,10 @@ Most layouts support both dimensions:
 
 ```typescript
 // 3D layout (default)
-graph.setLayout("ngraph", { dimensions: 3 });
+graph.setLayout("ngraph", { dim: 3 });
 
 // 2D layout
-graph.setLayout("ngraph", { dimensions: 2 });
+graph.setLayout("ngraph", { dim: 2 });
 ```
 
 For 2D layouts, also set the view mode:

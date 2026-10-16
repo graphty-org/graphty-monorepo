@@ -2547,7 +2547,7 @@ export class Graph implements GraphContext {
      *   springLength: 100,
      *   springCoefficient: 0.0008,
      *   gravity: -1.2,
-     *   dimensions: 3
+     *   dim: 3
      * });
      *
      * // Wait for layout to settle then zoom to fit
@@ -2555,7 +2555,7 @@ export class Graph implements GraphContext {
      * graph.zoomToFit();
      *
      * // Switch to circular layout
-     * await graph.setLayout('circular', { radius: 5 });
+     * await graph.setLayout('circular', { scale: 2 });
      * ```
      */
     async setLayout(type: string, opts: object = {}, options: SetLayoutOptions = {}): Promise<void> {

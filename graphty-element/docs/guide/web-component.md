@@ -312,7 +312,7 @@ Set the layout algorithm via the `layout` attribute:
 ```html
 <graphty-element layout="ngraph"></graphty-element>
 <graphty-element layout="circular"></graphty-element>
-<graphty-element layout="hierarchical"></graphty-element>
+<graphty-element layout="hierarchical" layout-config='{"start": "a"}'></graphty-element>
 <graphty-element layout="grid"></graphty-element>
 <graphty-element layout="random"></graphty-element>
 ```
@@ -320,9 +320,9 @@ Set the layout algorithm via the `layout` attribute:
 Available layouts:
 
 - `ngraph` - Force-directed (default, 2D/3D)
-- `d3-force` - D3's force simulation (2D)
+- `d3` - D3's force simulation (2D/3D)
 - `circular` - Nodes arranged in a circle
-- `hierarchical` - Tree-like structure
+- `hierarchical` - Tree-like structure, grown from the node `start` names (required)
 - `grid` - Regular grid pattern
 - `random` - Random positions
 

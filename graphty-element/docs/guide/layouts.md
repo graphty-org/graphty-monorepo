@@ -25,7 +25,7 @@ Layout algorithms determine how nodes are positioned in the visualization. Choos
 | `circular`          | Geometric      | Cycles, small graphs                      | 2D/3D      |
 | `grid`              | Geometric      | Regular structures                        | 2D         |
 | `radial`            | Geometric      | Distance from one node                    | 2D         |
-| `hierarchical`      | Layered        | Trees, DAGs                               | 2D/3D      |
+| `hierarchical`      | Layered        | Trees, DAGs                               | 2D         |
 | `random`            | Random         | Testing, initial state                    | 2D/3D      |
 | `fixed`             | Manual         | Pre-computed positions                    | 2D/3D      |
 | `forceatlas2`       | Force-directed | Clusters and communities                  | 2D/3D      |
@@ -147,13 +147,16 @@ await element.setLayout("force", { seed: 7 });
 
 ### d3 (Force-Directed)
 
-D3's force simulation (d3-force-3d). Industry-standard for web visualizations:
+D3's force simulation (`d3-force-3d`). Industry-standard for web visualizations. It runs until its
+"alpha" cools from 1 down to `alphaMin`:
 
 ```typescript
 graph.setLayout("d3", {
+    alphaMin: 0.1, // Stop once alpha cools below this
+    alphaTarget: 0, // The alpha the simulation cools towards
+    alphaDecay: 0.0228, // How fast alpha cools each tick
+    velocityDecay: 0.4, // Friction: how much speed each node loses each tick
     dim: 3, // 2 or 3
-    alphaDecay: 0.0228, // How quickly the simulation cools
-    velocityDecay: 0.4, // Damping
 });
 ```
 
@@ -167,9 +170,9 @@ Arranges nodes in a circle. Good for:
 
 ```typescript
 graph.setLayout("circular", {
-    radius: 100, // Circle radius
-    startAngle: 0, // Starting angle (radians)
-    endAngle: Math.PI * 2, // Ending angle
+    scale: 1, // Radius of the circle, before scalingFactor
+    scalingFactor: 80, // Multiplies every position; the drawn radius is scale * scalingFactor
+    dim: 2, // 2 or 3
 });
 ```
 
@@ -198,13 +201,16 @@ graph.setLayout("radial", {
 
 ### hierarchical
 
-Tree-like layout for directed graphs:
+Puts nodes in rows by how many steps they are from a starting node, so the graph reads as a tree
+growing away from it. It runs the `bfs` engine, and `start` is required: without it the layout is
+refused with `E_OPTION_RANGE`.
 
 ```typescript
 graph.setLayout("hierarchical", {
-    direction: "TB", // TB, BT, LR, RL
-    levelSeparation: 100, // Vertical spacing
-    nodeSeparation: 50, // Horizontal spacing
+    start: "root", // The node the tree grows from (required)
+    align: "vertical", // "vertical" or "horizontal"
+    scale: 1, // Size of the layout, before scalingFactor
+    scalingFactor: 20, // Multiplies every position
 });
 ```
 
@@ -304,24 +310,15 @@ graph.setLayout("spring-electrical", {
 
 See the [acceleration guide](./acceleration) for how to attach one.
 
-## Layout Transitions
+## Switching Layouts
 
-Animate between layouts for smooth visual transitions:
+Set another layout at any time; the new one starts from where the nodes are:
 
 ```typescript
-// Current layout
 graph.setLayout("random");
 await graph.waitForSettled();
 
-// Transition to new layout
-graph.setLayout(
-    "circular",
-    {},
-    {
-        animate: true,
-        duration: 1000,
-    },
-);
+graph.setLayout("circular");
 ```
 
 ## Waiting for Settled
@@ -367,7 +364,19 @@ in `details.option`:
 | `E_ATTRIBUTE_TYPE`    | an option names a node attribute whose values the layout cannot read                   |
 | `E_BAD_WEIGHT`        | an edge weight the layout cannot use, such as a negative `kamada-kawai` distance       |
 
-What to do about it is the application's choice, such as picking another layout:
+`ngraph`, `forceatlas2`, `spring` and `spring-electrical` do not refuse an option they do not take:
+they run without it and emit a `layout-warning` event with code `W_UNKNOWN_OPTION`, whose
+`params.options` lists the names they ignored and `params.available` the names they take:
+
+```typescript
+graph.addListener("layout-warning", (event) => {
+    if (event.code === "W_UNKNOWN_OPTION") {
+        console.warn(`${event.layoutType} ignored ${String(event.params.options)}`);
+    }
+});
+```
+
+What to do about a refusal is the application's choice, such as picking another layout:
 
 ```typescript
 element.addEventListener("error", (event) => {

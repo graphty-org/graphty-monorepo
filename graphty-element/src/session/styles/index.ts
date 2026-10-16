@@ -26,6 +26,7 @@ export type { ColorWrite, StyleColor } from "./colors";
 export type { EncodingSuggestion, HighlightSuggestion, StyleSuggestion } from "./derive";
 export { suggestStyles } from "./derive";
 export type { BindingPreview, BindingPreviewBin, PreviewDefaultedPart, PreviewSpan, StyleSequence } from "./encoding";
+export { OVERFLOW_PATTERNS, OVERFLOW_SHAPES } from "./encoding";
 export type {
     ColumnEncodingSpec,
     EncodingOptions,

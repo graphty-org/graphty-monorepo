@@ -2161,6 +2161,12 @@ export interface NumericColumnView {
 }
 
 // @public
+export const OVERFLOW_PATTERNS: readonly EdgeLineValue[];
+
+// @public
+export const OVERFLOW_SHAPES: readonly NodeShapeValue[];
+
+// @public
 export interface PageColumn {
     readonly field: string;
     readonly path: Path;

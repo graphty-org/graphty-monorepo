@@ -247,7 +247,9 @@ const QUANTILE_GROUPS = 4;
  * way they would have without the policy. The rest are chosen for silhouettes that stay apart at
  * a node's size from any angle: a cube, a double pyramid, an upright column, a point and a ring.
  * The Platonic solids with many faces (dodecahedron, icosahedron) are left out because at node
- * size they read as the sphere.
+ * size they read as the sphere. A list meant to keep its shapes apart, such as one shape per
+ * layer, can start with these.
+ * @since 3.30.0
  */
 export const OVERFLOW_SHAPES: readonly NodeShapeValue[] = Object.freeze([
     "icosphere",

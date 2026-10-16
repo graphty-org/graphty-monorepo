@@ -105,4 +105,28 @@ describe("styles.sequence", () => {
         await session.styles.updateMany(layers.map((id, i) => ({ id, patch: { set: { "node.color": values[i] } } })));
         assert.lengthOf(new Set(layers.map((id) => hex(session.styles.get(id)?.set?.["node.color"]))), 3);
     });
+
+    it("keeps a map entry for one item and the palette's order for the rest, past ten items", () => {
+        const s = createGraphSession();
+        const plain = s.styles.sequence(
+            { palette: "okabe-ito", overflow: "extend" },
+            { channel: "node.color", count: 12 },
+        );
+        const seq = s.styles.sequence(
+            { palette: "okabe-ito", overflow: "extend", map: { "1": "#000000", "11": "#ffffff" } },
+            { channel: "node.color", count: 12 },
+        );
+        assert.strictEqual(hex(seq.values[1]), "#000000");
+        assert.strictEqual(hex(seq.values[11]), "#ffffff");
+        assert.deepEqual(
+            [0, 2, 3, 9, 10].map((at) => hex(seq.values[at])),
+            [0, 2, 3, 9, 10].map((at) => hex(plain.values[at])),
+            "the other items keep their colours, in item order",
+        );
+        const shapes = s.styles.sequence(
+            { choices: [...OVERFLOW_SHAPES], map: { "2": "torus" } },
+            { channel: "node.shape", count: 4 },
+        );
+        assert.deepEqual(shapes.values, [OVERFLOW_SHAPES[0], OVERFLOW_SHAPES[1], "torus", OVERFLOW_SHAPES[3]]);
+    });
 });

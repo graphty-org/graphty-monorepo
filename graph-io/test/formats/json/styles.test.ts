@@ -184,7 +184,7 @@ describe("JSON styles: reading", () => {
         expect(r.styles.styles.units.length).toBe("relative");
         expect(values(r, "node", "fill")).toEqual(["#ff0000", "#999999"]);
         expect(values(r, "node", "fillOpacity")[0]).toBe(0.5);
-        expect(values(r, "node", "width")).toEqual([4, 2]);
+        expect(values(r, "node", "width")).toEqual([8, 4]); // sigma draws size as a radius
         expect(values(r, "node", "label")[0]).toBe("A");
         expect(values(r, "node", "visible")[1]).toBe(false);
         expect(values(r, "edge", "color")).toEqual(["#0000ff"]);

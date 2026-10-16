@@ -344,7 +344,7 @@ Tool values are elements drawn with the writing program's default.
 | json/fidelity/cyjs-tokyo.json.gz | ok | 943 | 860 | 2 | 4 | 410 | 0% | 0% | 0 | 14424 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR |
 | json/fidelity/cyjs-winecheese.json.gz | ok | 369 | 1333 | 6 | 3 | 2131 | 0% | 0% | 0 | 15914 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR, W_STYLE_SELECTOR_AS_COLUMN |
 | json/fidelity/graphology-synth.json | ok | 100 | 270 | 3 | 3 | 584 | 54% | 0% | 0 | 1237 | 0 |  |
-| json/fidelity/sigma-lesmis.json | ok | 77 | 254 | 3 | 2 | 337 | 47% | 0% | 0 | 1147 | 0 |  |
+| json/fidelity/sigma-lesmis.json | ok | 77 | 254 | 3 | 2 | 227 | 69% | 0% | 110 | 1147 | 0 | W_STYLE_RAMP_ROUNDED |
 | json/fidelity/vis-lesmiserables.json | ok | 77 | 254 | 14 | 2 | 126 | 0% | 0% | 0 | 2417 | 0 |  |
 | json/fidelity/vis-siblings.json | ok | 200 | 284 | 6 | 3 | 158 | 0% | 0% | 0 | 2704 | 0 |  |
 | json/fidelity/vis-synth.json | ok | 72 | 84 | 9 | 5 | 148 | 46% | 45% | 0 | 475 | 0 | W_STYLE_GRADIENT, W_STYLE_UNKNOWN_VALUE |
@@ -360,14 +360,14 @@ Tool values are elements drawn with the writing program's default.
 | json/generated/graphology-tamper-native-edited.json | ok | 4 | 3 | 7 | 4 | 7 | 86% | 71% | 0 | 46 | 0 |  |
 | json/generated/graphology-tamper-node-added.json | ok | 5 | 3 | 2 | 2 | 7 | 100% | 0% | 0 | 34 | 0 | W_STYLE_BLOCK_IGNORED |
 | json/graphology-arctic.json.gz | ok | 1715 | 6228 | 1 | 1 | 0 | - | - | 0 | 38632 | 0 |  |
-| json/graphology-eurosis.json.gz | ok | 1285 | 7524 | 4 | 1 | 3136 | 0% | 0% | 4 | 36521 | 0 | W_STYLE_RAMP_ROUNDED |
+| json/graphology-eurosis.json.gz | ok | 1285 | 7524 | 4 | 1 | 2118 | 0% | 0% | 1540 | 36521 | 0 | W_STYLE_RAMP_ROUNDED |
 | json/iVis-at-Bilkent_cytoscape.js-cosep__glycolysis.json | ok | 44 | 44 | 5 | 4 | 30 | 0% | 0% | 0 | 822 | 0 | W_STYLE_NOT_CARRIED |
 | json/sciluna_cytoscape.js-sbgn-layout__9613829.json | ok | 52 | 53 | 9 | 3 | 108 | 0% | 0% | 0 | 975 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN |
 | json/scsweb2020_graph-maker__aggregate-cy-graph.json.gz | ok | 211 | 271 | 4 | 4 | 112 | 0% | 0% | 0 | 4435 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN |
 | json/sigma-website-airports.json.gz | ok | 3257 | 37042 | 1 | 1 | 0 | - | - | 0 | 174224 | 0 |  |
 | json/sigma-website-euroSIS.json.gz | ok | 1285 | 7524 | 2 | 1 | 0 | - | - | 0 | 40376 | 0 |  |
 | json/sigma-website-wikipedia.json.gz | ok | 2085 | 0 | 1 | 1 | 0 | - | - | 0 | 16680 | 0 |  |
-| json/vis-WorldCup2014.json.gz | ok | 736 | 9228 | 4 | 3 | 10361 | 84% | 0% | 0 | 22136 | 0 |  |
+| json/vis-WorldCup2014.json.gz | ok | 736 | 9228 | 4 | 3 | 9645 | 90% | 0% | 716 | 22136 | 0 | W_STYLE_RAMP_ROUNDED |
 | json/vis-dot-to-graph-softmaint.json | ok | 213 | 269 | 4 | 3 | 0 | - | - | 0 | 3004 | 0 |  |
 | pajek/SamTseng_CATAR__Pajek_format.net | ok | 3 | 8 | 3 | 3 | 11 | 55% | 0% | 0 | 41 | 0 |  |
 | pajek/fidelity/synth-lines.net | ok | 40 | 111 | 3 | 4 | 92 | 24% | 0% | 0 | 522 | 0 | W_STYLE_BAD_VALUE |

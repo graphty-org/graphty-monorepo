@@ -110,3 +110,36 @@ describe("labels Cytoscape draws by default", () => {
         expect(rule?.origin).toBe("tool");
     });
 });
+
+describe("sigma's node size", () => {
+    const doc = JSON.stringify({
+        attributes: {},
+        options: { type: "undirected", multi: false, allowSelfLoops: true },
+        nodes: [
+            { key: "a", attributes: { size: 5, x: 0, y: 0 } },
+            { key: "b", attributes: { x: 1, y: 1 } },
+        ],
+        edges: [{ source: "a", target: "b", attributes: { size: 3 } }],
+    });
+
+    it("is a radius: a node is twice its size across, and sigma's default size 2 is 4 across", async () => {
+        const r = await load(doc, "json");
+        expect(r.styles?.styles.source.tool).toBe("sigma");
+        expect(planned(r, "node", "width")).toEqual([10, 4]);
+        expect(planned(r, "node", "height")).toEqual([10, 4]);
+        // an edge's size is its thickness
+        expect(planned(r, "edge", "width")).toEqual([3]);
+    });
+
+    it("is written back as the radius", async () => {
+        const r = await load(doc, "json");
+        const bytes = await registry.exportGraphToBytes(r.snapshot, "json", {
+            styles: r.styles,
+            dialect: "graphology",
+        });
+        const text = new TextDecoder().decode(bytes);
+        expect(text).toContain('"size":5');
+        const back = await load(text, "json");
+        expect(planned(back, "node", "width")[0]).toBe(10);
+    });
+});

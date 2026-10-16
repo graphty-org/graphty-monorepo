@@ -391,8 +391,8 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 node: {
                     fill: v("#999999", `${SIGMA}/settings.ts lines 119-126`),
                     shape: v("ellipse", `${SIGMA}/settings.ts lines 119-126`),
-                    width: v(2, `${SIGMA}/sigma.ts line 76`),
-                    height: v(2, `${SIGMA}/sigma.ts line 76`),
+                    width: v(4, `${SIGMA}/sigma.ts line 76 (size 2 is a radius)`),
+                    height: v(4, `${SIGMA}/sigma.ts line 76 (size 2 is a radius)`),
                     labelColor: v("#000000", `${SIGMA}/settings.ts lines 119-126`),
                     labelFont: v("Arial", `${SIGMA}/settings.ts lines 119-126`),
                     labelSize: v(14, `${SIGMA}/settings.ts lines 119-126`),

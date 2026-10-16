@@ -5,7 +5,7 @@
  * - Cytoscape.js: the stylesheet (an array or a CSS-like text) over the raw element JSON, through graph-io's
  *   Cytoscape.js engine, with Cytoscape.js's defaults beneath it; an element's own `style` is a bypass. Cytoscape
  *   desktop's export without a stylesheet gets Cytoscape desktop's default style instead.
- * - graphology: the keys sigma.js draws (`color`, `size`, `label`, `hidden`), with sigma's defaults. Gephi's JSON
+ * - graphology: the keys sigma.js draws (`color`, `size` (a radius), `label`, `hidden`), with sigma's defaults. Gephi's JSON
  *   export for sigma.js is read the same way.
  * - vis.js: the keys vis-network draws, `options.nodes` and `options.edges` as declared defaults and
  *   `options.groups` as group rules, with vis-network's defaults, its palette for groups the file does not define,
@@ -382,9 +382,13 @@ function readSigmaRow(
     }
     if (size !== null) {
         const v = canonNumber(size(i), site("width"));
-        put("width", i, v);
         if (target === "node") {
-            put("height", i, v);
+            // sigma draws a node's size as its radius
+            const d = v === null ? null : v * 2;
+            put("width", i, d);
+            put("height", i, d);
+        } else {
+            put("width", i, v);
         }
     }
     if (label !== null) {
@@ -1928,7 +1932,11 @@ function writeGraphology(
         writeKey(
             table,
             "size",
-            target === "node" ? nodeSizes(p("node", "width"), p("node", "height"), approximated) : p("edge", "width"),
+            target === "node"
+                ? nodeSizes(p("node", "width"), p("node", "height"), approximated).map((d) =>
+                      d === null ? null : d / 2,
+                  )
+                : p("edge", "width"),
             replaced,
         );
         writeKey(table, "label", p(target, "label"), replaced);

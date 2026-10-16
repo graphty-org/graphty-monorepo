@@ -266,8 +266,8 @@
         "node": {
             "fill": "#999999",
             "shape": "ellipse",
-            "width": 2,
-            "height": 2,
+            "width": 4,
+            "height": 4,
             "labelColor": "#000000",
             "labelFont": "Arial",
             "labelSize": 14,

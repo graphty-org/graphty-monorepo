@@ -24,6 +24,9 @@ interface LineGeometry {
     segmentEnds: number[]; // Segment end positions (for consistent perpendicular calculation)
 }
 
+/** The per-vertex arrays addVertexPair appends to: every LineGeometry array but the indices. */
+type VertexPairBuffers = Omit<LineGeometry, "indices">;
+
 interface CustomLineOptions {
     points: Vector3[]; // Path points
     width: number; // Line width in pixels
@@ -408,6 +411,7 @@ void main(void) {
         const indices: number[] = [];
         const segmentStarts: number[] = [];
         const segmentEnds: number[] = [];
+        const buffers: VertexPairBuffers = { positions, directions, sides, distances, uvs, segmentStarts, segmentEnds };
 
         let cumulativeDistance = 0;
 
@@ -423,37 +427,11 @@ void main(void) {
             const segmentLength = direction.length();
 
             // Add start vertices (at p0)
-            this.addVertexPair(
-                positions,
-                directions,
-                sides,
-                distances,
-                uvs,
-                segmentStarts,
-                segmentEnds,
-                p0,
-                direction,
-                cumulativeDistance,
-                p0,
-                p1,
-            );
+            this.addVertexPair(buffers, p0, direction, cumulativeDistance, p0, p1);
 
             // Add end vertices (at p1)
             cumulativeDistance += segmentLength;
-            this.addVertexPair(
-                positions,
-                directions,
-                sides,
-                distances,
-                uvs,
-                segmentStarts,
-                segmentEnds,
-                p1,
-                direction,
-                cumulativeDistance,
-                p0,
-                p1,
-            );
+            this.addVertexPair(buffers, p1, direction, cumulativeDistance, p0, p1);
 
             // Add indices for two triangles forming a quad
             const baseIndex = i * 4; // 4 vertices per segment
@@ -600,13 +578,7 @@ void main(void) {
      * Vertices are positioned along the segment at the specified position
      * Both vertices store segment start/end to ensure consistent perpendicular calculation
      * Shader will offset them perpendicular based on 'side' attribute
-     * @param positions - Array to append vertex position data
-     * @param directions - Array to append vertex direction vectors
-     * @param sides - Array to append side indicators (-1 or +1)
-     * @param distances - Array to append cumulative distances along path
-     * @param uvs - Array to append UV coordinates
-     * @param segmentStarts - Array to append segment start positions
-     * @param segmentEnds - Array to append segment end positions
+     * @param buffers - The vertex arrays to append to
      * @param actualPosition - Actual 3D position of this vertex
      * @param direction - Direction vector for this segment
      * @param distance - Cumulative distance at this position
@@ -614,19 +586,14 @@ void main(void) {
      * @param segmentEnd - End position of the current segment
      */
     private static addVertexPair(
-        positions: number[],
-        directions: number[],
-        sides: number[],
-        distances: number[],
-        uvs: number[],
-        segmentStarts: number[],
-        segmentEnds: number[],
+        buffers: VertexPairBuffers,
         actualPosition: Vector3, // Actual 3D position (start or end)
         direction: Vector3,
         distance: number,
         segmentStart: Vector3, // Segment start for consistent perpendicular
         segmentEnd: Vector3, // Segment end for consistent perpendicular
     ): void {
+        const { positions, directions, sides, distances, uvs, segmentStarts, segmentEnds } = buffers;
         // Left vertex (side = -1)
         positions.push(actualPosition.x, actualPosition.y, actualPosition.z);
         directions.push(direction.x, direction.y, direction.z);

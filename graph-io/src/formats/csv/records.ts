@@ -410,22 +410,31 @@ export function sniffDelimiter(
         if (rows.length === 0) {
             continue;
         }
-        let total = 0;
-        let delta = 0;
-        for (let i = 0; i < rows.length; i++) {
-            const count = rows[i].length;
-            total += count;
-            if (i > 0) {
-                delta += Math.abs(count - rows[i - 1].length);
-            }
-        }
-        const average = total / rows.length;
+        const { average, delta } = rowWidths(rows);
         if (average > 1.99 && delta < bestDelta) {
             best = delimiter;
             bestDelta = delta;
         }
     }
     return best;
+}
+
+/**
+ * The average width of the rows and the sum of the width changes from each row to the next.
+ * @param rows - the rows (at least one)
+ * @returns the average and the delta
+ */
+function rowWidths(rows: readonly (readonly string[])[]): { average: number; delta: number } {
+    let total = 0;
+    let delta = 0;
+    for (let i = 0; i < rows.length; i++) {
+        const count = rows[i].length;
+        total += count;
+        if (i > 0) {
+            delta += Math.abs(count - rows[i - 1].length);
+        }
+    }
+    return { average: total / rows.length, delta };
 }
 
 /**
@@ -577,14 +586,8 @@ export class RecordReader implements AsyncIterable<number> {
         }
         const pieces: string[] = [];
         let length = 0;
-        let breaks = 0;
-        let lastWasCr = false;
         let sniffed = false;
-        // the leading comment lines are left out of the sniff, so they do not count toward its rows
-        const commentCodes = (this.syntax.comments ?? []).map((c) => c.codePointAt(0));
-        let leading = commentCodes.length > 0;
-        let lineStart = true;
-        let inComment = false;
+        const preview = new PreviewBreaks((this.syntax.comments ?? []).map((c) => c.codePointAt(0)));
         for await (const chunk of source) {
             if (sniffed) {
                 yield chunk;
@@ -592,24 +595,8 @@ export class RecordReader implements AsyncIterable<number> {
             }
             pieces.push(chunk);
             length += chunk.length;
-            for (let i = 0; i < chunk.length && breaks < PREVIEW_ROWS; i++) {
-                const c = chunk.charCodeAt(i);
-                if (c === LF || c === CR) {
-                    if (!(c === LF && lastWasCr) && !inComment) {
-                        breaks++;
-                    }
-                    inComment = false;
-                    lineStart = true;
-                } else {
-                    if (lineStart && leading) {
-                        inComment = commentCodes.includes(c);
-                        leading = inComment;
-                    }
-                    lineStart = false;
-                }
-                lastWasCr = c === CR;
-            }
-            if (breaks < PREVIEW_ROWS && length < PREVIEW_CHARS) {
+            preview.scan(chunk);
+            if (preview.breaks < PREVIEW_ROWS && length < PREVIEW_CHARS) {
                 continue;
             }
             const text = pieces.join("");
@@ -656,6 +643,74 @@ export class RecordReader implements AsyncIterable<number> {
                 this.syntax.skipQuoteErrors,
                 this.syntax.collapseSpaces,
             ) ?? candidates[0];
+    }
+}
+
+/**
+ * Counts the line breaks of the text buffered for the delimiter sniff, up to PREVIEW_ROWS. The
+ * leading comment lines are left out of the sniff, so they do not count toward its rows.
+ */
+class PreviewBreaks {
+    /** The line breaks counted so far (at most PREVIEW_ROWS). */
+    breaks = 0;
+
+    private readonly commentCodes: readonly (number | undefined)[];
+
+    private lastWasCr = false;
+
+    private leading: boolean;
+
+    private lineStart = true;
+
+    private inComment = false;
+
+    /**
+     * Start counting at the start of the input.
+     * @param commentCodes - the code points of the comment characters
+     */
+    constructor(commentCodes: readonly (number | undefined)[]) {
+        this.commentCodes = commentCodes;
+        this.leading = commentCodes.length > 0;
+    }
+
+    /**
+     * Count the line breaks of the next chunk, stopping at PREVIEW_ROWS.
+     * @param chunk - the chunk
+     */
+    scan(chunk: string): void {
+        for (let i = 0; i < chunk.length && this.breaks < PREVIEW_ROWS; i++) {
+            const c = chunk.charCodeAt(i);
+            if (c === LF || c === CR) {
+                this.lineBreak(c);
+            } else {
+                this.character(c);
+            }
+            this.lastWasCr = c === CR;
+        }
+    }
+
+    /**
+     * A line break: counted unless it is the LF of a CR LF or ends a leading comment line.
+     * @param c - LF or CR
+     */
+    private lineBreak(c: number): void {
+        if (!(c === LF && this.lastWasCr) && !this.inComment) {
+            this.breaks++;
+        }
+        this.inComment = false;
+        this.lineStart = true;
+    }
+
+    /**
+     * Any other character: the first of a line decides whether a leading comment line starts.
+     * @param c - the character code
+     */
+    private character(c: number): void {
+        if (this.lineStart && this.leading) {
+            this.inComment = this.commentCodes.includes(c);
+            this.leading = this.inComment;
+        }
+        this.lineStart = false;
     }
 }
 

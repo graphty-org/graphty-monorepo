@@ -127,7 +127,15 @@ import { createIncidentActions, laneNotProgressing } from "./incident-actions.mj
 import { releaseFailedSummary, releaseHold } from "./release.mjs";
 import { failureKey, isSummaryJob, notePickups, queueAges } from "./lanes.mjs";
 import { createMcpServer, servedProtocols } from "./mcp.mjs";
-import { accumulateMerged, backfillRefs, commitRefs, landStacked, searchMerged } from "./merged.mjs";
+import {
+    accumulateMerged,
+    backfillRefs,
+    commitRefs,
+    droppableMergedIssues,
+    landStacked,
+    restoreMergedIssues,
+    searchMerged,
+} from "./merged.mjs";
 import { sessionWriteCheck } from "./session-writes.mjs";
 import {
     foldHead,
@@ -237,6 +245,12 @@ export const PROTOCOL = 1;
 const GIT_TIMEOUT_MS = 60_000;
 /** GitHub unreachable this long raises a `blocked` escalation. */
 const GITHUB_DOWN_MS = 30 * 60_000;
+/**
+ * GitHub errors githerd waits out on its own: the hourly budget (it resets within the hour), the
+ * secondary limit and a network or DNS blip (an outage of 30 minutes raises `github-down`). The
+ * owner can do nothing about them, so a poll that failed only with these never pages him.
+ */
+const WAIT_KINDS = new Set(["rate", "secondary", "network", "timeout"]);
 /** Largest request body accepted. */
 /** How many handled hook event ids are remembered, to skip a spooled copy of one. */
 const HOOK_IDS = 500;
@@ -932,6 +946,7 @@ export async function startDaemon({
         if (!mayWrite()) return;
         await dropEndedItems();
         await dropFinished();
+        await dropMergedIssues();
         for (const line of recordLines(state, recorded)) void ledger(line);
         await saveState(stateDir, state, { durable });
         writeChangedNews();
@@ -1048,6 +1063,43 @@ export async function startDaemon({
         for (const key of Object.keys(covers)) {
             if (!state.notified?.[key] && !n.failed?.[key] && !n.pending?.[key]) delete covers[key];
         }
+    }
+
+    /**
+     * Drops the merge record (`state.merged.refs` and `closed`) of each issue no longer in the state
+     * (`droppableMergedIssues`, issue #2661), once its record is in the ledger (a
+     * `merged-issue-dropped` line). `droppedMax` is the highest such issue: a new issue is numbered
+     * above it, so only an issue at or below it can come back (`restoreReturned`).
+     * @returns {Promise<void>}
+     */
+    async function dropMergedIssues() {
+        const m = state.merged;
+        if (!m) return;
+        for (const n of droppableMergedIssues(state)) {
+            try {
+                const record = { refs: m.refs?.[n] ?? [], closed: (m.closed ?? []).includes(Number(n)) };
+                await appendLedger(stateDir, { kind: "merged-issue-dropped", issue: Number(n), record }, { now });
+                m.droppedMax = Math.max(m.droppedMax ?? 0, Number(n));
+                delete m.refs?.[n];
+                m.closed = (m.closed ?? []).filter((c) => c !== Number(n));
+            } catch (err) {
+                say("error", `ledger: ${/** @type {Error} */ (err).message}; merge record of #${n} kept`);
+            }
+        }
+    }
+
+    /**
+     * Puts back from the ledger the merge record of each issue that came back into the state this
+     * poll (a reopen, or a closed one a reference keeps) and was dropped before (issue #2661), so
+     * its issue job still knows which merged pull requests closed or named it.
+     * @param {Set<string>} known the issues in the state before this poll
+     * @returns {Promise<void>}
+     */
+    async function restoreReturned(known) {
+        const most = state.merged?.droppedMax ?? 0;
+        const back = Object.keys(state.issues.byNumber).filter((n) => !known.has(n) && Number(n) <= most);
+        if (!back.length) return;
+        restoreMergedIssues(state.merged, await readLedger(stateDir, { since: new Date(0) }), back);
     }
 
     /** @type {Map<string, string>} each job's news as last written to `jobs/<id>/news` */
@@ -2082,6 +2134,7 @@ export async function startDaemon({
         // rest still run, so one bad item never stops the whole poll.
         /** @type {string[]} the steps that threw, with their errors */
         const failed = [];
+        let waitsOnly = true;
         /**
          * Runs one step, recording an error instead of throwing it.
          * @param {string} name the step's name, for the error
@@ -2092,6 +2145,7 @@ export async function startDaemon({
                 await fn();
             } catch (err) {
                 failed.push(`${name}: ${/** @type {Error} */ (err).message}`);
+                if (!WAIT_KINDS.has(/** @type {any} */ (err)?.kind)) waitsOnly = false;
             }
         };
         await run("master", async () => {
@@ -2203,7 +2257,7 @@ export async function startDaemon({
             });
         }
         // A step that threw may not have re-raised what still holds: nothing derived is cleared.
-        if (failed.length) throw new Error(failed.join("; "));
+        if (failed.length) throw Object.assign(new Error(failed.join("; ")), { waitsOnly });
         for (const key of board.resolveDerived(state, (esc) => holding.has(esc.key), t)) {
             void ledger({ kind: "escalation", key, resolved: true, by: "daemon" });
         }
@@ -3113,10 +3167,12 @@ export async function startDaemon({
         for (const line of carryGitherdMoves(state)) void ledger(line);
         await inheritedUpdates(branch);
 
+        const known = new Set(Object.keys(state.issues?.byNumber ?? {}));
         const issues = await pollIssues(gh, config.repo, state.issues);
         state.issues = { since: issues.since, byNumber: issues.byNumber };
         for (const line of pruneSettledFlakes(state)) void ledger(line);
         pruneClosedIssues(state);
+        await restoreReturned(known);
         await pruneFinishedJobs();
         await checkOverrides();
     }
@@ -3452,7 +3508,8 @@ export async function startDaemon({
             state.github.lastError = lastPollError;
             say("error", `poll: ${lastPollError}`);
             void ledger({ kind: "error", where: "poll", error: lastPollError });
-            await pollEnded(lastPollError);
+            const e = /** @type {any} */ (err);
+            await pollEnded(lastPollError, e.waitsOnly ?? WAIT_KINDS.has(e.kind));
         }
         if (!waited && !state.rate.downSince) await heartbeat({});
     }
@@ -3461,10 +3518,12 @@ export async function startDaemon({
      * Keeps count of the polls that failed in a row (`state.github.failing`, since the first, with its
      * error). The second in a row raises the `poll-failing` owner item and pages it at once, since a
      * failing poll may never reach its own owner-item step; the next complete poll ends it. Two, so
-     * one transient error pages nobody.
+     * one transient error pages nobody. A poll that failed only with errors githerd waits out
+     * (`WAIT_KINDS`) is recorded but counts toward no page.
      * @param {string | null} error the poll's error, or null when it completed
+     * @param {boolean} [waiting] every error was one githerd waits out
      */
-    async function pollEnded(error) {
+    async function pollEnded(error, waiting = false) {
         const g = state.github;
         const id = "poll-failing";
         if (!error) {
@@ -3473,6 +3532,7 @@ export async function startDaemon({
             endItem(state, id, "cleared", now());
             return;
         }
+        if (waiting) return;
         g.failing ??= { since: loopTickAt, error: firstLine(error), count: 0 };
         g.failing.count += 1;
         if (g.failing.count < 2) return;

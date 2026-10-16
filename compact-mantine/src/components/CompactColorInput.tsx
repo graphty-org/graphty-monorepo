@@ -453,10 +453,9 @@ export function CompactColorInput({
     }
 
     return (
-        <div
+        <fieldset
             data-testid="compact-color-input-labeled"
-            className="cm-paint-labeled"
-            role="group"
+            className="cm-fieldset cm-paint-labeled"
             aria-labelledby={labelId}
             title={annotation.title}
         >
@@ -464,6 +463,6 @@ export function CompactColorInput({
                 {label}
             </div>
             {controls}
-        </div>
+        </fieldset>
     );
 }

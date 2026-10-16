@@ -182,8 +182,9 @@ export class RepulsionGrid {
      * @param overrides - the override set G6 / G7 / K4 were compiled with
      * @param spec - the grid
      * @param box - the lease box the scope's scratch() and params() read
-     * @param build - the T8 planner (G1-G3)
-     * @param pyramid - the T9 planner (G4-G5)
+     * @param planners - the planners
+     * @param planners.build - the T8 planner (G1-G3)
+     * @param planners.pyramid - the T9 planner (G4-G5)
      * @param kernels - G6 (`far`), G7 (`near`) and K4 (`speedFinalize`)
      */
     private constructor(
@@ -192,8 +193,7 @@ export class RepulsionGrid {
         overrides: RepulsionGridOverrides,
         spec: GridSpec,
         box: LeaseBox,
-        build: GridBuildPlanner,
-        pyramid: GridPyramidPlanner,
+        planners: { readonly build: GridBuildPlanner; readonly pyramid: GridPyramidPlanner },
         kernels: FieldKernels,
     ) {
         this.caps = scope.caps;
@@ -206,8 +206,8 @@ export class RepulsionGrid {
             LAW: overrides.LAW,
         });
         this.spec = spec;
-        this.build = build;
-        this.pyramid = pyramid;
+        this.build = planners.build;
+        this.pyramid = planners.pyramid;
         this.far = kernels.far;
         this.near = kernels.near;
         this.speedFinalize = kernels.speedFinalize;
@@ -303,11 +303,15 @@ export class RepulsionGrid {
             const speedFinalize = await scope.pipelines.kernel(
                 kernelSpec("fa2-speed-finalize", { SWING_MODE: overrides.SWING_MODE }),
             );
-            return new RepulsionGrid(scope, workgroupSize, overrides, spec, box, build, pyramid, {
-                far,
-                near,
-                speedFinalize,
-            });
+            return new RepulsionGrid(
+                scope,
+                workgroupSize,
+                overrides,
+                spec,
+                box,
+                { build, pyramid },
+                { far, near, speedFinalize },
+            );
         } catch (error) {
             leaseOf(box).release();
             throw error;

@@ -689,21 +689,7 @@ class PajekParser {
                 this.section = "none";
                 return;
             case "vertices":
-                if (afterObjectHeader) {
-                    // the `*Vertices N` line of a project object (*Partition, *Vector, a skipped
-                    // section), wherever it stands: never the network's own
-                    this.section = previous;
-                    if (previous === "object") {
-                        this.objects[this.objects.length - 1].count = h.count;
-                    }
-                    return;
-                }
-                if (this.vertexCount >= 0) {
-                    // a second `*Vertices` without a `*Network` header starts the next network
-                    this.ended = true;
-                    return;
-                }
-                this.verticesHeader(h, line);
+                this.verticesSectionLine(h, line, previous, afterObjectHeader);
                 return;
             case "arcs":
             case "edges":
@@ -740,6 +726,32 @@ class PajekParser {
                 throw new Error(`unknown section kind ${name}`);
             }
         }
+    }
+
+    /**
+     * A `*Vertices` line: a project object's own count, the start of the next network, or the
+     * network's vertices header.
+     * @param h - the header
+     * @param line - the line number
+     * @param previous - the section before this header
+     * @param afterObjectHeader - the previous line was a `*Partition`, `*Vector` or skipped section header
+     */
+    private verticesSectionLine(h: SectionHeader, line: number, previous: Section, afterObjectHeader: boolean): void {
+        if (afterObjectHeader) {
+            // the `*Vertices N` line of a project object (*Partition, *Vector, a skipped
+            // section), wherever it stands: never the network's own
+            this.section = previous;
+            if (previous === "object") {
+                this.objects[this.objects.length - 1].count = h.count;
+            }
+            return;
+        }
+        if (this.vertexCount >= 0) {
+            // a second `*Vertices` without a `*Network` header starts the next network
+            this.ended = true;
+            return;
+        }
+        this.verticesHeader(h, line);
     }
 
     /**

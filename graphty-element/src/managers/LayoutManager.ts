@@ -16,7 +16,7 @@ import { type OptionsSchema, toZodSchema } from "../config/OptionsSchema";
 import { WRITABLE_LANE } from "../data/lane";
 import type { Edge } from "../Edge";
 import { GraphtyError, isGraphtyError } from "../errors";
-import type { GraphSnapshotReplacedEvent, LayoutChangedEvent } from "../events";
+import type { GraphSnapshotReplacedEvent, LayoutChangedEvent, LayoutWarningEvent } from "../events";
 import { ForceAtlas2Layout } from "../layout/ForceAtlas2LayoutEngine";
 import { LayoutEngine, layoutEngineInternals, StaticLayoutEngine } from "../layout/LayoutEngine";
 import { NGraphEngine } from "../layout/NGraphLayoutEngine";
@@ -1159,6 +1159,16 @@ export class LayoutManager implements Manager {
             snapshotLayoutInternals.connect(built, {
                 progress: (progress) => {
                     this.eventManager.emit("layout-progress", { layoutType: type, ...progress });
+                },
+                warn: (warning) => {
+                    this.logger.warn("The layout could not place every node as the data asked", {
+                        layoutType: type,
+                        ...warning,
+                    });
+                    this.eventManager.emit("layout-warning", {
+                        layoutType: type,
+                        ...warning,
+                    } satisfies Omit<LayoutWarningEvent, "type">);
                 },
                 fail: (error) => {
                     if (this.layoutEngine === built) {

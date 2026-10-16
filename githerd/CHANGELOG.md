@@ -1,3 +1,44 @@
+## 0.1.11 (2026-10-15)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.56
+- Updated visual-review to 0.2.31
+
+## 0.1.10 (2026-10-15)
+
+### 🩹 Fixes
+
+- **githerd:** tell workers to rework a pull request as a draft ([#2727](https://github.com/graphty-org/graphty-monorepo/issues/2727))
+
+### 🧱 Updated Dependencies
+
+- Updated visual-review to 0.2.30
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.1.9 (2026-10-15)
+
+### 🩹 Fixes
+
+- **githerd:** drop a closed issue's merge record from state and restore it on reopen ([#2661](https://github.com/graphty-org/graphty-monorepo/issues/2661), [#2270](https://github.com/graphty-org/graphty-monorepo/issues/2270))
+- **githerd:** keep the pull request page size private to the daemon ([#2700](https://github.com/graphty-org/graphty-monorepo/issues/2700))
+- **githerd:** page the open pull request list so GitHub answers it in time ([#2700](https://github.com/graphty-org/graphty-monorepo/issues/2700))
+- **githerd:** read a large ledger without spreading its lines as arguments ([512eee55c](https://github.com/graphty-org/graphty-monorepo/commit/512eee55c))
+- **githerd:** read the visual gate's steps again until GitHub has finished them ([#1727](https://github.com/graphty-org/graphty-monorepo/issues/1727), [#2081](https://github.com/graphty-org/graphty-monorepo/issues/2081))
+- **githerd:** drop finished incidents, proposals, escalations and page records from state ([#2552](https://github.com/graphty-org/graphty-monorepo/issues/2552), [#2270](https://github.com/graphty-org/graphty-monorepo/issues/2270))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.55
+- Updated visual-review to 0.2.29
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.1.8 (2026-10-14)
 
 ### 🚀 Features

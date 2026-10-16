@@ -82,6 +82,14 @@ describe("the test matrix", () => {
         assert.equal(include.length, 17);
     });
 
+    // A shard's nx target can depend on builds (cytoscape-extensions:coverage dependsOn ^build), and
+    // running them would rewrite another package's dist while the shards beside it read it (#2858).
+    it("never lets a shard's nx command rebuild what the Build step built", () => {
+        const nx = SHARDS.filter((s) => /\bnx run\b/.test(s["test-command"]));
+        assert.ok(nx.length > 0);
+        for (const s of nx) assert.match(s["test-command"], /--exclude-task-dependencies\b/, s.shard);
+    });
+
     it("puts only the affected members into a group's job", () => {
         const include = plan(["graph-io"]);
         assert.equal(include.length, 1);
@@ -628,7 +636,9 @@ exec ${realGit} "$@"
             .map((l) => l.trim())
             .filter((l) => l && !l.startsWith("#!"));
         assert.equal(commands[0], 'GATE_DIR="$(cd "$(dirname "$0")/.." && pwd)"');
-        assert.equal(commands[1], '"$GATE_DIR/tools/lfs-pre-push.sh" "$@" || exit 1');
+        // git's ref lines are read once: the LFS upload gets them, and the remote sha is kept.
+        assert.equal(commands[1], "PUSH_REFS=$(cat)");
+        assert.equal(commands[2], `printf '%s\\n' "$PUSH_REFS" | "$GATE_DIR/tools/lfs-pre-push.sh" "$@" || exit 1`);
     });
 });
 

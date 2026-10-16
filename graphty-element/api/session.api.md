@@ -203,7 +203,7 @@ export interface Caveats {
 }
 
 // @public
-export type Channel = "node.color" | "node.size" | "node.shape" | "node.label" | "node.labelStyle" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.glow" | "node.glowStrength" | "node.wireframe" | "node.flat" | "node.marker" | "edge.color" | "edge.width" | "edge.opacity" | "edge.style" | "edge.patternCount" | "edge.curvature" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailColor" | "edge.arrowTailOpacity" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle";
+export type Channel = "node.color" | "node.size" | "node.sizeMode" | "node.shape" | "node.label" | "node.labelStyle" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.glow" | "node.glowStrength" | "node.wireframe" | "node.flat" | "node.marker" | "edge.color" | "edge.width" | "edge.opacity" | "edge.style" | "edge.patternCount" | "edge.curvature" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailColor" | "edge.arrowTailOpacity" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle";
 
 // @public
 export type ChannelAgreement = {
@@ -1317,7 +1317,14 @@ export type GraphtyWarningCode =
 * draw it translucent, so the color is drawn opaque. `params.channel` is the channel and
 * `params.path` where in the layer the color sits. Today only `node.outline` cannot.
 */
-| "W_ALPHA_IGNORED";
+| "W_ALPHA_IGNORED"
+/**
+* A layout that places nodes from their data found no usable `data.position` (`{ x, y, z? }`
+* or `[x, y, z?]`) for some nodes, and put them at the origin or left them where they were.
+* Emitted as a `layout-warning` event. `params.missing` is how many nodes had none and
+* `params.total` how many the layout placed. Today only the `fixed` layout reports it.
+*/
+| "W_NO_POSITION";
 
 // @public
 export interface HighlightSpec {

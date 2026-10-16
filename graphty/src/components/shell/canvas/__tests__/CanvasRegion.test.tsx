@@ -283,7 +283,7 @@ describe("CanvasRegion", () => {
             renderCanvas({ docks: { ...NO_DOCKS, drawerOpen: true, drawerMaximised: true } });
 
             expect(screen.getByRole("radio", { name: "Graph" })).toBeInTheDocument();
-            expect(screen.getByRole("radio", { name: "Table" })).toHaveAttribute("aria-checked", "true");
+            expect(screen.getByRole("radio", { name: "Table" })).toBeChecked();
         });
     });
 

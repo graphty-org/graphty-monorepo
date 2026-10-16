@@ -3870,27 +3870,53 @@ function importCytoscapeEdges(ctx: ImportContext, edges: readonly unknown[], edg
             ctx.missingEndpoint(element, `data.${present(data, "source") ? "target" : "source"}`);
             continue;
         }
-        try {
-            const u = ctx.coerceId(data.source, `${element}.data.source`);
-            const v = ctx.coerceId(data.target, `${element}.data.target`);
-            if (u === null || v === null) {
-                ctx.countSkipped("edge");
-                continue;
-            }
-            const idValue = ctx.edgeIdValue(ids, data.id);
-            const edge = ctx.pushEdge(u, v, kind, ctx.weightOf(data), element);
-            ctx.setEdgeId(ids, edge, idValue);
-            const { weightFrom } = ctx.options;
-            for (const key of Object.keys(data)) {
-                if (key !== "id" && key !== "source" && key !== "target" && key !== weightFrom) {
-                    ctx.edges.write(edge, key, data[key], SUFFIX.data, element);
-                }
-            }
-            writeClasses(ctx, ctx.edges, edgeClassesColumn, edge, record.classes, element);
-            writeElementKeys(ctx.edges, edge, record, element);
-        } catch (err) {
-            ctx.skip(err, "edge", element);
+        importCytoscapeEdge(ctx, { ids, kind, edgeClassesColumn }, record, data, element);
+    }
+}
+
+/**
+ * Read one Cytoscape edge element whose data object holds both endpoints.
+ * @param ctx - the context
+ * @param shared - the edge ids, the uniform kind and the classes column of the whole section
+ * @param shared.ids - the declared edge ids
+ * @param shared.kind - the uniform edge kind
+ * @param shared.edgeClassesColumn - the edge classes column, or INVALID_INDEX
+ * @param record - the edge element
+ * @param data - its data object
+ * @param element - the element's name in messages
+ */
+function importCytoscapeEdge(
+    ctx: ImportContext,
+    shared: {
+        readonly ids: ReturnType<ImportContext["declareEdgeIds"]>;
+        readonly kind: ReturnType<ImportContext["uniformKind"]>;
+        readonly edgeClassesColumn: ColumnHandle;
+    },
+    record: JsonRecord,
+    data: JsonRecord,
+    element: string,
+): void {
+    const { ids, kind, edgeClassesColumn } = shared;
+    try {
+        const u = ctx.coerceId(data.source, `${element}.data.source`);
+        const v = ctx.coerceId(data.target, `${element}.data.target`);
+        if (u === null || v === null) {
+            ctx.countSkipped("edge");
+            return;
         }
+        const idValue = ctx.edgeIdValue(ids, data.id);
+        const edge = ctx.pushEdge(u, v, kind, ctx.weightOf(data), element);
+        ctx.setEdgeId(ids, edge, idValue);
+        const { weightFrom } = ctx.options;
+        for (const key of Object.keys(data)) {
+            if (key !== "id" && key !== "source" && key !== "target" && key !== weightFrom) {
+                ctx.edges.write(edge, key, data[key], SUFFIX.data, element);
+            }
+        }
+        writeClasses(ctx, ctx.edges, edgeClassesColumn, edge, record.classes, element);
+        writeElementKeys(ctx.edges, edge, record, element);
+    } catch (err) {
+        ctx.skip(err, "edge", element);
     }
 }
 

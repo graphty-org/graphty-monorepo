@@ -133,16 +133,7 @@ export function staleGraphicsRows(column: Column, table: Iterable<Column>, domai
     }
     let stale = 0;
     for (let r = 0; r < column.length; r++) {
-        const wants = new Set<string>();
-        for (const tree of trees) {
-            const want = graphicsValues(domain, tree.values[r]).find(([f]) => f === field);
-            if (want !== undefined) {
-                wants.add(JSON.stringify(want[1]));
-            }
-        }
-        if (wants.size === 0) {
-            wants.add(JSON.stringify(undefined));
-        }
+        const wants = wantedGraphics(trees, domain, field, r);
         const value = column.value(r);
         const have = column.meta.components > 1 && value !== undefined ? Array.from(value as ArrayLike<number>) : value;
         if (!wants.has(JSON.stringify(have))) {
@@ -150,6 +141,28 @@ export function staleGraphicsRows(column: Column, table: Iterable<Column>, domai
         }
     }
     return stale;
+}
+
+/**
+ * The serialized values the trees want for one row of a mapped column.
+ * @param trees - the yFiles tree columns of the table
+ * @param domain - node or edge
+ * @param field - the mapped field name
+ * @param r - the row
+ * @returns the wanted values as JSON text; just `undefined`'s when no tree wants one
+ */
+function wantedGraphics(trees: JsonColumn[], domain: "node" | "edge", field: string, r: number): Set<string> {
+    const wants = new Set<string>();
+    for (const tree of trees) {
+        const want = graphicsValues(domain, tree.values[r]).find(([f]) => f === field);
+        if (want !== undefined) {
+            wants.add(JSON.stringify(want[1]));
+        }
+    }
+    if (wants.size === 0) {
+        wants.add(JSON.stringify(undefined));
+    }
+    return wants;
 }
 
 /**

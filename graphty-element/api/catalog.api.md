@@ -275,7 +275,7 @@ export interface CatalogApi {
 }
 
 // @public
-export type Channel = "node.color" | "node.size" | "node.shape" | "node.label" | "node.labelStyle" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.glow" | "node.glowStrength" | "node.wireframe" | "node.flat" | "node.marker" | "edge.color" | "edge.width" | "edge.opacity" | "edge.style" | "edge.patternCount" | "edge.curvature" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailColor" | "edge.arrowTailOpacity" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle";
+export type Channel = "node.color" | "node.size" | "node.sizeMode" | "node.shape" | "node.label" | "node.labelStyle" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.glow" | "node.glowStrength" | "node.wireframe" | "node.flat" | "node.marker" | "edge.color" | "edge.width" | "edge.opacity" | "edge.style" | "edge.patternCount" | "edge.curvature" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailColor" | "edge.arrowTailOpacity" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle";
 
 // @public
 export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>>;

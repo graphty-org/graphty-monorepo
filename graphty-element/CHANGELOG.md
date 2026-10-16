@@ -1,3 +1,85 @@
+## 3.28.2 (2026-10-15)
+
+### 🩹 Fixes
+
+- **graphty-element:** release removed labels together in bulk teardown ([#2804](https://github.com/graphty-org/graphty-monorepo/issues/2804))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.56
+- Updated @graphty/remote-logger to 2.0.19
+- Updated graph-samples to 0.1.34
+- Updated graph-format to 1.4.2
+- Updated algorithms to 3.4.9
+- Updated graph-io to 0.3.41
+- Updated layout to 2.5.5
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.28.1 (2026-10-15)
+
+### 🩹 Fixes
+
+- **graphty-element:** charge the derivation lane's catch-up to the pass that wrote the keys ([#2844](https://github.com/graphty-org/graphty-monorepo/issues/2844))
+- **graphty-element:** keep the selection when a freeze compacts rows ([#2792](https://github.com/graphty-org/graphty-monorepo/issues/2792))
+
+### 🔥 Performance
+
+- **graphty-element:** remove a node with an edge selected without walking every edge ([#2788](https://github.com/graphty-org/graphty-monorepo/issues/2788))
+- **graphty-element:** draw and remove a label on every element in linear time ([#2762](https://github.com/graphty-org/graphty-monorepo/issues/2762))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.28.0 (2026-10-15)
+
+### 🚀 Features
+
+- **graphty-element:** report the screen rectangle a node covers in nodeScreenPosition ([#2668](https://github.com/graphty-org/graphty-monorepo/issues/2668))
+
+### 🩹 Fixes
+
+- **graphty-element:** keep an edge's ray aimed from source to destination when it is built ([#2668](https://github.com/graphty-org/graphty-monorepo/issues/2668))
+- **graphty-element:** keep round nodes on the sphere path of nodeGap without reading extents ([#2668](https://github.com/graphty-org/graphty-monorepo/issues/2668))
+- **graphty-element:** measure non-round nodes by their box in edge trim, nodeGap, labels, loops ([#2668](https://github.com/graphty-org/graphty-monorepo/issues/2668))
+
+### 🔥 Performance
+
+- **graphty-element:** add or remove one node or edge in time linear in the run ([#2733](https://github.com/graphty-org/graphty-monorepo/issues/2733))
+- **graphty-element:** restyle every node's shape in linear time ([#2749](https://github.com/graphty-org/graphty-monorepo/issues/2749))
+- **graphty-element:** remove part of a graph in linear time ([#543](https://github.com/graphty-org/graphty-monorepo/issues/543), [#2732](https://github.com/graphty-org/graphty-monorepo/issues/2732))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.27.0 (2026-10-15)
+
+### 🚀 Features
+
+- **graphty-element:** add node.sizeMode so every shape can be drawn at one extent ([#2495](https://github.com/graphty-org/graphty-monorepo/issues/2495))
+- **graphty-element:** an option to make the selected nodes the camera pivot ([#2293](https://github.com/graphty-org/graphty-monorepo/issues/2293), [#2294](https://github.com/graphty-org/graphty-monorepo/issues/2294))
+
+### 🩹 Fixes
+
+- **graphty-element:** the picture is not final while the camera glides to the selection ([#2293](https://github.com/graphty-org/graphty-monorepo/issues/2293))
+- **graphty-element:** turn the 3D camera by a steady angle while an arrow key is held ([#2292](https://github.com/graphty-org/graphty-monorepo/issues/2292))
+- **graphty-element:** planar story captions keep a fixed height ([dd0cf8c9e](https://github.com/graphty-org/graphty-monorepo/commit/dd0cf8c9e))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.55
+- Updated graph-samples to 0.1.33
+- Updated algorithms to 3.4.8
+- Updated layout to 2.5.4
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.26.0 (2026-10-14)
 
 ### 🚀 Features

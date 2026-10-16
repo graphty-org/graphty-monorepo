@@ -174,6 +174,35 @@ function ranked(sources: number[], targets: number[], scores: number[], end: num
     };
 }
 
+/**
+ * Append the pair (u, v) with its score, and its reverse with the same score when `mirror` is set.
+ * @param sources - Pair sources
+ * @param targets - Pair targets
+ * @param scores - Pair scores
+ * @param u - The pair's source
+ * @param v - The pair's target
+ * @param x - The pair's score
+ * @param mirror - Whether to list the reverse pair too
+ */
+function addPair(
+    sources: number[],
+    targets: number[],
+    scores: number[],
+    u: number,
+    v: number,
+    x: number,
+    mirror: boolean,
+): void {
+    sources.push(u);
+    targets.push(v);
+    scores.push(x);
+    if (mirror) {
+        sources.push(v);
+        targets.push(u);
+        scores.push(x);
+    }
+}
+
 function predict(s: GraphSnapshot, o: LinkPredictionOptions, score: PairScore): LinkPredictionResult {
     const sources: number[] = [];
     const targets: number[] = [];
@@ -188,14 +217,7 @@ function predict(s: GraphSnapshot, o: LinkPredictionOptions, score: PairScore): 
             }
             const x = score(u, v);
             if (x > 0) {
-                sources.push(u);
-                targets.push(v);
-                scores.push(x);
-                if (mirror) {
-                    sources.push(v);
-                    targets.push(u);
-                    scores.push(x);
-                }
+                addPair(sources, targets, scores, u, v, x, mirror);
             }
         }
     }

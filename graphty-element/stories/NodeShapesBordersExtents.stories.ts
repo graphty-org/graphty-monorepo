@@ -87,8 +87,8 @@ export const ShapesIn2D: Story = {
 };
 
 /**
- * The same flat shapes in a 3D view with `node.planar` set, so each is drawn as a thin card
- * rather than a solid as deep as it is wide.
+ * The same flat shapes in a 3D view, where each is drawn as a thin card (`node.planar` is set too,
+ * and changes nothing for a flat shape).
  */
 export const PlanarShapes: Story = {
     play: async ({ canvasElement }) => {

@@ -45,9 +45,8 @@ export const NodeSizeModes = z.enum(["scale", "diameter"]);
  * WHY "plane" AND "disc" ARE NOT HERE: `MeshBuilder.CreatePlane` produces a zero-thickness,
  * single-sided quad, which vanishes edge-on and which an edge's ray misses for most angles. Flat
  * shapes are therefore the FLAT_NODE_SHAPES below: a closed outline extruded into a slab, so a ray
- * always meets a wall and the shape is seen from both sides. In a 2D view, or with
- * `shape.planar`, the slab is thin and reads as a flat 2D shape; in a 3D view it is as deep as it
- * is wide.
+ * always meets a wall and the shape is seen from both sides. The slab is thin in every view, so it
+ * reads as a flat 2D shape (a plaque in a 3D view); `shape.depth` makes it deeper.
  * @public
  */
 export const NodeShapes = z.enum([
@@ -93,8 +92,8 @@ export const NodeShapes = z.enum([
 
 /**
  * The node shapes that are a 2D outline rather than a solid: the shapes graph files from 2D tools
- * name. Each is an outline extruded into a slab. In a 2D view, or when `shape.planar` is set, the
- * slab is thin and the node reads as the flat shape; otherwise it is as deep as it is wide.
+ * name. Each is an outline extruded into a thin slab, so in 2D and 3D views alike the node reads
+ * as the flat shape; `shape.depth` makes it deeper.
  * @public
  */
 export const FLAT_NODE_SHAPES: readonly z.infer<typeof NodeShapes>[] = [

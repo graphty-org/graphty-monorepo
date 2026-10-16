@@ -242,9 +242,7 @@ describe.each(["2d", "3d"] as const)("flat node shapes in %s (#2318)", (viewMode
             const { x, y, z } = sizeOf(meshOf(element, shape));
             assert.approximately(Math.max(x, y), NODE_EXTENT_PER_SIZE, 1e-6, `${shape} is one node wide`);
 
-            if (viewMode === "2d") {
-                assert.isBelow(z, 0.1, `${shape} is drawn flat in 2D`);
-            }
+            assert.isBelow(z, 0.1, `${shape} is drawn flat in ${viewMode}`);
 
             const { srcPoint } = edgeOf(element, shape, `${shape}-target`).getInterceptPoints();
             assert.isNotNull(srcPoint, `the edge from ${shape} found its outline`);
@@ -253,8 +251,9 @@ describe.each(["2d", "3d"] as const)("flat node shapes in %s (#2318)", (viewMode
             assert.approximately(srcPoint.x, expected, 0.02, `the edge leaves ${shape} at its outline`);
         }
 
-        // The front faces are the ones turned to the camera: a culled face would draw nothing.
-        const red = pixelsOf(await frameOf(element), FILL);
+        // The front faces are the ones turned to the camera: a culled face would draw nothing. A
+        // 3D view lights them, so any red pixel counts.
+        const red = pixelsOf(await frameOf(element), isTouchedByRed);
         assert.isAbove(red.count, 200, "the flat shapes are drawn");
     });
 });
@@ -268,10 +267,7 @@ describe("planar nodes in 3D (#2318)", () => {
                 { id: "b", position: { x: 4, y: 0, z: 0 } },
             ],
             [],
-            [
-                layerFor(["a"], { "node.shape": "diamond", "node.planar": true }),
-                layerFor(["b"], { "node.shape": "diamond" }),
-            ],
+            [layerFor(["a"], { "node.shape": "box", "node.planar": true }), layerFor(["b"], { "node.shape": "box" })],
         );
 
         assert.isBelow(sizeOf(meshOf(element, "a")).z, 0.1);

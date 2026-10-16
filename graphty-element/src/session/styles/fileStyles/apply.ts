@@ -36,6 +36,11 @@ export interface FileStylesRead {
     readonly path: ReaderColumnPath;
     /** The graph-io format id or JSON dialect the file was read as. */
     readonly format: string;
+    /**
+     * How many of the styles' px lengths one unit of the file's stored positions is, when the
+     * positions are in another known unit (Graphviz input inches: 72); absent when they share it.
+     */
+    readonly positionPxPerUnit?: number;
 }
 
 /** What a data source gives a load about the styles of what it read. */
@@ -288,7 +293,9 @@ async function applyRead(
             });
     }
 
-    return { layers, notes, sceneScale: translation.sceneScale };
+    // The stored positions take the styles' unit, so they are drawn at the file's proportions.
+    const sceneScale = translation.sceneScale === null ? null : translation.sceneScale * (read.positionPxPerUnit ?? 1);
+    return { layers, notes, sceneScale };
 }
 
 /**

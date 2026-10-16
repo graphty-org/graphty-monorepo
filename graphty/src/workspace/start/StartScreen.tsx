@@ -1,9 +1,10 @@
 import "./start.css";
 
 import { Button, Kbd, Paper, Stack, Text, Title, UnstyledButton } from "@mantine/core";
-import { FilePlus, FolderOpen, Lock, Network, Settings, Upload } from "lucide-react";
+import { FilePlus, FolderOpen, Lock, Settings, Upload } from "lucide-react";
 import React, { useEffect, useState } from "react";
 
+import { BrandLogo } from "../../components/BrandLogo";
 import { START_SAMPLES } from "../../data/sampleManifest";
 import { CommandButton } from "../frame/CommandButton";
 import { formatKey } from "../keys/keys";
@@ -103,8 +104,7 @@ export function StartScreen(): React.JSX.Element {
         <div className="ws-start">
             <header className="ws-start-head">
                 <h1 className="ws-start-brand">
-                    <Network size={16} aria-hidden />
-                    graphty
+                    <BrandLogo variant="lockup" height={24} />
                 </h1>
                 <span className="ws-start-grow" />
                 <PrivacyChip />

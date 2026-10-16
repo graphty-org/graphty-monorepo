@@ -207,15 +207,13 @@ describe("AppShell accessibility", () => {
             await expectNoSeriousViolations();
         });
 
-        // Fails until #2948: the insights strip's "Try it" text measures 2.64:1 in the dark scheme
-        it.fails("with a graph loaded", async () => {
+        it("with a graph loaded", async () => {
             await renderLoadedShell();
 
             await expectNoSeriousViolations();
         });
 
-        // Fails until #2948: the insights strip's "Try it" text measures 2.64:1 in the dark scheme
-        it.fails.each(["Explore", "Analyze", "Style", "Present"])("with the %s panel open", async (panel) => {
+        it.each(["Explore", "Analyze", "Style", "Present"])("with the %s panel open", async (panel) => {
             await renderLoadedShell();
             await userEvent.click(railButton(panel));
 

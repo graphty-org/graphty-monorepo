@@ -498,6 +498,7 @@ export type {
     HighlightSpec,
     HighlightSuggestion,
     Layer,
+    LayerGroup,
     LayerPatch,
     LayerPosition,
     LayerProblem,

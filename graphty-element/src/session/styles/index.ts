@@ -99,4 +99,4 @@ export type {
 } from "./StylesApi";
 export { createStylesApi } from "./StylesApi";
 export type { StyleRow, StyleRowId, StyleRowPin, StyleRowPlace } from "./tree";
-export type { ValueCategory, ValueEntryWrite, ValueGroup } from "./values";
+export type { LayerGroup, ValueCategory, ValueEntryWrite, ValueGroup } from "./values";

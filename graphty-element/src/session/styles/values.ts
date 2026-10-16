@@ -23,6 +23,7 @@ import type {
     Channel,
     ChannelValue,
     Encoding,
+    LayerId,
     LayerSpec,
     LayerUnmatchedGroup,
     Path,
@@ -33,7 +34,7 @@ import type {
 import { OTHER_GROUP_COLOR } from "../../config/palettes/categorical";
 import { GraphtyError } from "../../errors";
 import { channelDescriptor } from "./channels";
-import type { PreparedBinding } from "./encoding";
+import type { EncodedValue, PreparedBinding } from "./encoding";
 import type { Layer } from "./Layer";
 
 /**
@@ -59,6 +60,27 @@ export interface ValueGroup {
      * @since 3.27.0
      */
     readonly folded?: true;
+}
+
+/**
+ * One layer of several read as one group of a binding across them, item i being the i-th layer
+ * from the top: what `styles.layerGroups` answers. The same fields as a {@link ValueGroup} of a
+ * data value, so one group editor lists both.
+ * @since 3.30.0
+ */
+export interface LayerGroup extends ValueGroup {
+    /** The layer's id: the group's value, and the key of its entry in the binding's `map`. */
+    readonly value: LayerId;
+    /** The name the layer list shows: its row's, else the layer's own. */
+    readonly name: string;
+    /** The style row that holds the layer (`styles.hideRow`, `styles.renameRow` take it). */
+    readonly row: LayerId;
+    /** How many elements the layer matches. */
+    readonly count: number;
+    /** Whether the layer or its row is hidden. */
+    readonly hidden: boolean;
+    /** What the binding paints this layer: its channel's value, and the overflow's second cue's. */
+    readonly paints: Readonly<Partial<Record<Channel, EncodedValue>>>;
 }
 
 /**

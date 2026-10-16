@@ -1612,6 +1612,16 @@ export interface Layer {
 }
 
 // @public
+export interface LayerGroup extends ValueGroup {
+    readonly count: number;
+    readonly hidden: boolean;
+    readonly name: string;
+    readonly paints: Readonly<Partial<Record<Channel, EncodedValue>>>;
+    readonly row: LayerId;
+    readonly value: LayerId;
+}
+
+// @public
 export type LayerId = string;
 
 // @public
@@ -4042,6 +4052,9 @@ export interface StylesApi {
     hideRow(id: StyleRowId, hidden: boolean, options?: RunOptions): Run<StyleRow>;
     highlight(spec: HighlightSpec, options?: RunOptions): Run<readonly Layer[]>;
     highlightStyle(target: SelectorTarget): StaticStyle;
+    layerGroups(ids: readonly LayerId[], binding: Omit<RuleBinding, "by">, options: {
+        readonly channel: Channel;
+    }): readonly LayerGroup[];
     layersUnder(rowIds: readonly StyleRowId[]): readonly LayerReach[];
     legend(): readonly LegendBlock[];
     legendOf(id: LayerId): readonly LegendBlock[];

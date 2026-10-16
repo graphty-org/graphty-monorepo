@@ -238,6 +238,7 @@ import {
     categoriesOf,
     foldPatch,
     groupsOf,
+    type LayerGroup,
     type ValueCategory,
     valueEntriesPatch,
     valueEntryPatch,
@@ -818,6 +819,34 @@ export interface StylesApi {
         binding: Omit<RuleBinding, "by">,
         options: { readonly channel: Channel; readonly count: number },
     ): StyleSequence;
+    /**
+     * Several layers read as the groups of one binding across them, so a group editor built for a
+     * data value's groups (`styles.groups`) lists layers the same way: each layer is one group,
+     * top of the stack first, with its name, how many elements it matches, whether it is hidden,
+     * its own entry and what the binding paints it ({@link StylesApi.sequence}, item i being the
+     * i-th layer). Writes nothing: give each layer its `paints` as plain values to apply it.
+     *
+     * ```ts
+     * const groups = session.styles.layerGroups(folderLayerIds, { palette: "okabe-ito" }, { channel: "node.color" });
+     * groups[0].paints["node.color"]; // the top layer's colour
+     * ```
+     *
+     * The binding's `map` is keyed by layer id: an entry gives that layer its own value in place of
+     * the sequence's, and comes back in `entries`.
+     * @param ids - The layers, in any order.
+     * @param binding - The binding without `by`, as {@link StylesApi.sequence} takes it.
+     * @param options - What to paint.
+     * @param options.channel - The channel.
+     * @returns One group per layer, top first.
+     * @throws A `GraphtyError`: `E_UNKNOWN_LAYER` for an id the stack does not hold, and what
+     *     {@link StylesApi.sequence} throws for a binding the channel cannot take.
+     * @since 3.30.0
+     */
+    layerGroups(
+        ids: readonly LayerId[],
+        binding: Omit<RuleBinding, "by">,
+        options: { readonly channel: Channel },
+    ): readonly LayerGroup[];
     /**
      * How many elements one layer covers, and on how many it decides each channel it writes.
      *
@@ -4354,6 +4383,65 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 binding: palette === undefined ? rule : { ...rule, palette },
                 count: options.count,
                 scales,
+            });
+        },
+
+        layerGroups(
+            ids: readonly LayerId[],
+            binding: Omit<RuleBinding, "by">,
+            options: { readonly channel: Channel },
+        ): readonly LayerGroup[] {
+            const entries = byId();
+            const stack = listLayers().map((layer) => layer.id);
+            for (const id of ids) {
+                if (!entries.has(id)) {
+                    throw unknownLayer(id, stack);
+                }
+            }
+            // Top of the stack first, as a layer list draws it.
+            const layers = [...new Set(ids)]
+                .sort((a, b) => stack.indexOf(b) - stack.indexOf(a))
+                .flatMap((id) => {
+                    const layer = entries.get(id)?.layer;
+                    return layer === undefined ? [] : [layer];
+                });
+            // The map is keyed by layer id; the sequence reads item i as the value i.
+            const { map, ...rest } = binding;
+            const byIndex = Object.fromEntries(
+                layers.flatMap((layer, at) => {
+                    const own = map?.[layer.id];
+                    return own === undefined ? [] : [[String(at), own]];
+                }),
+            );
+            const seq = api.sequence(Object.keys(byIndex).length === 0 ? rest : { ...rest, map: byIndex }, {
+                channel: options.channel,
+                count: layers.length,
+            });
+            const rows = new Map<string, StyleRow>();
+            const walk = (list: readonly StyleRow[], hidden: boolean): void => {
+                for (const row of list) {
+                    rows.set(row.id, { ...row, hidden: hidden || row.hidden });
+                    walk(row.children, hidden || row.hidden);
+                }
+            };
+            walk(api.tree(), false);
+            return layers.map((layer, at) => {
+                const row = rows.get(layer.row ?? layer.id);
+                const own = map?.[layer.id];
+                const value = seq.values[at];
+                const cue = seq.cue?.values[at];
+                return Object.freeze({
+                    value: layer.id,
+                    name: row?.name ?? layer.name,
+                    row: layer.row ?? layer.id,
+                    count: api.counts(layer.id).matched,
+                    hidden: layer.hidden === true || row?.hidden === true,
+                    entries: Object.freeze(own === undefined ? {} : { [seq.channel]: own }),
+                    paints: Object.freeze({
+                        ...(value === undefined ? {} : { [seq.channel]: value }),
+                        ...(cue === undefined || seq.cue === null ? {} : { [seq.cue.channel]: cue }),
+                    }),
+                });
             });
         },
 

@@ -86,7 +86,7 @@
     "bugs": {
         "url": "https://github.com/graphty-org/graphty-monorepo/issues"
     },
-    "homepage": "https://github.com/graphty-org/graphty-monorepo/tree/master/cytoscape-extensions#readme",
+    "homepage": "https://graphty.app/docs/cytoscape-extensions/",
     "dependencies": {
         "@graphty/graph-io": "workspace:^",
         "@graphty/graph-samples": "workspace:^",

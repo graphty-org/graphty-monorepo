@@ -186,6 +186,18 @@ describe("2D Camera Controls", () => {
             .toBeLessThan(initialZoom);
     });
 
+    test("a wheel turn on two axes zooms one step", async () => {
+        const range = (): number =>
+            (cameraController.camera.orthoTop ?? 1) - (cameraController.camera.orthoBottom ?? -1);
+        const before = range();
+
+        // A trackpad turn: Babylon raises one POINTERWHEEL per changed axis (issue #2937)
+        await wheel(graph.canvas, { x: 100, y: 100 }, 100, 10);
+
+        await expect.poll(range, { message: "the wheel zoomed out" }).toBeGreaterThan(before);
+        assert.closeTo(range() / before, 1.1, 1e-6, "exactly one zoom step of mouseWheelZoomSpeed");
+    });
+
     test("canvas gains focus on pointer down", async () => {
         const { canvas } = graph;
 

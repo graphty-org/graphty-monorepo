@@ -370,12 +370,14 @@ export class DataManager implements Manager {
         };
         dataManagerInternals.adoptNode = (manager, node) => {
             manager.nodeMap.set(node.id, node);
+            manager.nodeVersion++;
         };
         dataManagerInternals.flushReleasing = (manager) => {
             manager.flushReleasing();
         };
         dataManagerInternals.adoptEdge = (manager, edge) => {
             manager.edgeMap.set(edge.id, edge);
+            manager.edgeVersion++;
             if (edge.index !== INVALID_INDEX) {
                 manager.edgeRows[edge.index] = edge;
             }
@@ -411,6 +413,8 @@ export class DataManager implements Manager {
 
     /** Goes up on every edge added or removed, so a cache over the edge set knows it is stale. */
     edgeVersion = 0;
+    /** Goes up on every node added or removed, so a cache over the node set knows it is stale. */
+    nodeVersion = 0;
     nodeCache = new Map<NodeIdType, Node>();
 
     /**
@@ -990,6 +994,7 @@ export class DataManager implements Manager {
         this.disposeNodesAndEdges();
         this.nodeMap.clear();
         this.edgeMap.clear();
+        this.nodeVersion++;
         this.edgeVersion++;
         this.nodeCache.clear();
         this.edgeRows.length = 0;
@@ -1010,6 +1015,7 @@ export class DataManager implements Manager {
      */
     private disposeRenderNode(node: Node, later = false): void {
         this.nodeMap.delete(node.id);
+        this.nodeVersion++;
         this.nodeCache.delete(node.id);
         placeNodeRow(node, INVALID_INDEX);
         if (this.layoutEngine) {
@@ -1430,6 +1436,7 @@ export class DataManager implements Manager {
         // Clear all collections
         this.nodeMap.clear();
         this.edgeMap.clear();
+        this.nodeVersion++;
         this.edgeVersion++;
         this.nodeCache.clear();
 
@@ -1512,6 +1519,7 @@ export class DataManager implements Manager {
         placeNodeRow(n, index);
         this.nodeCache.set(nodeId, n);
         this.nodeMap.set(nodeId, n);
+        this.nodeVersion++;
 
         // Add to layout engine if it exists
         if (this.layoutEngine) {

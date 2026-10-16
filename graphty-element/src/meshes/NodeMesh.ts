@@ -339,7 +339,7 @@ export class NodeMesh {
             const size = Math.max(createOptions.shape.size ?? options.size, MIN_NODE_SIZE);
 
             return this.createFlatShape(
-                createOptions.shape.type,
+                createOptions.shape,
                 this.extentsOf(createOptions.shape, size, options.is2D),
                 scene,
             );
@@ -407,16 +407,19 @@ export class NodeMesh {
     /**
      * Build a flat shape at its final width and height, so a rounded corner stays round however
      * long and thin the node is.
-     * @param type - The flat shape.
+     * @param shape - The node's shape block; its type is a flat shape.
      * @param extents - The node's extents.
      * @param scene - The scene.
      * @returns The mesh.
      */
-    private static createFlatShape(type: string, extents: NodeExtents, scene?: Scene): Mesh {
-        const width = extents.x ?? extents.across;
-        const height = extents.y ?? extents.across;
+    private static createFlatShape(
+        shape: NonNullable<NodeStyleConfig["shape"]>,
+        extents: NodeExtents,
+        scene?: Scene,
+    ): Mesh {
+        const type = shape.type ?? "";
 
-        return outlineSlab(type, flatShapeOutline(type, width, height), extents.z ?? extents.across, scene);
+        return outlineSlab(type, this.flatOutline(shape, extents), extents.z ?? extents.across, scene);
     }
 
     /**
@@ -451,7 +454,7 @@ export class NodeMesh {
         const flat = isFlatShape(shape.type);
         const instance = cache.get(`node-border-${options.styleId}-${options.is2D ? "2d" : "3d"}`, () => {
             const extents = this.extentsOf(shape, Math.max(shape.size ?? options.size, MIN_NODE_SIZE), options.is2D);
-            const outline = flat ? this.flatOutline(shape.type ?? "", extents) : this.solidOutline(fill);
+            const outline = flat ? this.flatOutline(shape, extents) : this.solidOutline(fill);
             const depth = flat ? (extents.z ?? extents.across) : THIN_DEPTH_RATIO * extents.across;
             const mesh = ringSlab("node-border", borderRing(outline, width, border?.style ?? "solid"), depth, scene);
             placeByZIndex(mesh, shape, options.is2D);
@@ -472,8 +475,10 @@ export class NodeMesh {
         return instance;
     }
 
-    private static flatOutline(type: string, extents: NodeExtents): Point2[] {
-        return flatShapeOutline(type, extents.x ?? extents.across, extents.y ?? extents.across);
+    private static flatOutline(shape: NonNullable<NodeStyleConfig["shape"]>, extents: NodeExtents): Point2[] {
+        const corner = shape.cornerRadius === undefined ? undefined : shape.cornerRadius * this.extentPerSize(shape);
+
+        return flatShapeOutline(shape.type ?? "", extents.x ?? extents.across, extents.y ?? extents.across, corner);
     }
 
     private static solidOutline(fill: AbstractMesh): Point2[] {

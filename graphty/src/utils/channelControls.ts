@@ -127,6 +127,7 @@ const CHANNEL_UI: Readonly<Record<Channel, ChannelUi>> = {
     "node.borderColor": {},
     "node.borderWidth": { step: 0.05 },
     "node.borderStyle": { options: BORDER_STYLE_OPTIONS },
+    "node.cornerRadius": { step: 0.05 },
     "edge.color": {},
     "edge.width": { step: 0.5 },
     "edge.opacity": { step: 0.05 },

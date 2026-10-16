@@ -432,6 +432,34 @@ describe("a file's groups (compound nodes)", () => {
         session.dispose();
     });
 
+    it("caps a file's rounded corners at 8 file units, or at the radius the file gives", async () => {
+        const voctomix = readFileSync(
+            join(CORPUS, "graphml", "yed-shapenode", "voc__voctomix__schema.graphml"),
+            "utf8",
+        );
+        const yed = createGraphSession();
+        await yed.data.import({ type: "graphml", config: { data: voctomix } }, { styles: "file" });
+        // Group n0 is 112 x 734 in the file: its corners are 8 of those units, not 28.
+        const ratio = (session: GraphSession, id: string): number =>
+            (drawn(session, { node: id }, "node.cornerRadius") as number) /
+            (drawn(session, { node: id }, "node.width") as number);
+        assert.approximately(ratio(yed, "n0"), 8 / 112, 1e-6);
+        yed.dispose();
+
+        const cy = createGraphSession();
+        const doc = JSON.stringify({
+            elements: { nodes: [{ data: { id: "a" } }, { data: { id: "b" } }] },
+            style: [
+                { selector: "node", style: { shape: "round-rectangle", width: 40, height: 20 } },
+                { selector: "#a", style: { "corner-radius": 3 } },
+            ],
+        });
+        await cy.data.import({ type: "json", config: { data: doc } }, { styles: "file" });
+        assert.approximately(ratio(cy, "a"), 3 / 40, 1e-6);
+        assert.approximately(ratio(cy, "b"), 8 / 40, 1e-6);
+        cy.dispose();
+    });
+
     it("draws every yEd group node behind its members, and nothing when the file's styles are not drawn", async () => {
         const voctomix = readFileSync(
             join(CORPUS, "graphml", "yed-shapenode", "voc__voctomix__schema.graphml"),

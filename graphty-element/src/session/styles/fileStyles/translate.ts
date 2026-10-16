@@ -479,6 +479,7 @@ function channelPlans(
             // outline's screen-space glow it covers the fill once the graph is framed (issue #2252).
             ["borderColor", [id(graphty ? "node.outline" : "node.borderColor")]],
             ["borderWidth", [length("node.borderWidth")]],
+            ["cornerRadius", [length("node.cornerRadius")]],
             // Drawn in a pass of their own (`#extents`), only where some node's sides differ.
             ["width", [length("node.width")]],
             ["height", [length("node.height")]],
@@ -524,6 +525,33 @@ function channelPlans(
         ["labelWeight", [label("labelWeight")]],
         ["labelItalic", [label("labelItalic")]],
     ]);
+}
+
+/**
+ * The largest corner radius, in the file's units, of a rounded rectangle whose file gives none:
+ * Cytoscape.js's (`getRoundRectangleRadius`, cytoscape.js 3.34.3 dist/cytoscape.cjs.js line 4386),
+ * the one program that publishes its rule. yEd and the rest draw barely rounded corners too, so a
+ * 513 x 453 group keeps small corners instead of a quarter of its side.
+ */
+const FILE_CORNER_RADIUS = 8;
+
+/**
+ * A node rule of the writing program's defaults with the corner radius it draws when the file gives
+ * none. Every other rule, and a file graphty wrote, is unchanged.
+ * @param rule - The rule.
+ * @param tool - The program that wrote the file.
+ * @returns The rule.
+ */
+function withCornerCap(rule: StyleRule, tool: string | null): StyleRule {
+    if (
+        rule.origin !== "tool" ||
+        rule.target !== "node" ||
+        tool === "graphty" ||
+        rule.set?.cornerRadius !== undefined
+    ) {
+        return rule;
+    }
+    return { ...rule, set: { ...rule.set, cornerRadius: FILE_CORNER_RADIUS } };
 }
 
 /** The properties the element draws nothing for, per kind. */
@@ -788,9 +816,9 @@ class KindTranslation {
             input.extracted.styles.source.tool === "graphty",
         );
         this.#keys = new Set(input.extracted.columns[kind].keys());
-        this.#rules = input.extracted.styles.rules.filter(
-            (rule) => rule.target === kind && (input.options.toolDefaults !== false || rule.origin !== "tool"),
-        );
+        this.#rules = input.extracted.styles.rules
+            .filter((rule) => rule.target === kind && (input.options.toolDefaults !== false || rule.origin !== "tool"))
+            .map((rule) => withCornerCap(rule, input.extracted.styles.source.tool));
     }
 
     /**

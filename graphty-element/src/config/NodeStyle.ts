@@ -156,6 +156,9 @@ export const NodeStyle = z.strictObject({
             // Which of two overlapping nodes at z-index 0 is drawn on top in a 2D view: the higher.
             // Set, a node is drawn in front of every edge and every node without one. 3D ignores it.
             drawOrder: z.number().min(0).max(100).optional(),
+            // A round-rectangle's largest corner radius, in the units of `size`. Unset, the
+            // corners are a quarter of the shorter side; set, they are never larger than that.
+            cornerRadius: z.number().nonnegative().optional(),
             // custom mesh https://doc.babylonjs.com/features/featuresDeepDive/mesh/creation/custom/custom
             // import mesh https://doc.babylonjs.com/typedoc/functions/BABYLON.ImportMeshAsync
         })

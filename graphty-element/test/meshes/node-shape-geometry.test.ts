@@ -61,6 +61,16 @@ describe("flat shape outlines", () => {
         assert.approximately(Math.max(...top), 2 - 0.25, 1e-9);
     });
 
+    test("a rounded rectangle's corner radius is capped, so a large box keeps small corners", () => {
+        const topEnd = (outline: Point2[], halfHeight: number): number =>
+            Math.max(...outline.filter(([, y]) => Math.abs(y - halfHeight) < 1e-9).map(([x]) => x));
+
+        // A 513 x 453 yEd group: 8 across each corner, not a quarter of 453.
+        assert.approximately(topEnd(flatShapeOutline("round-rectangle", 513, 453, 8), 226.5), 256.5 - 8, 1e-9);
+        // A cap above a quarter of the shorter side changes nothing.
+        assert.approximately(topEnd(flatShapeOutline("round-rectangle", 4, 1, 5), 0.5), 2 - 0.25, 1e-9);
+    });
+
     test("a solid's outline is the hull of its points", () => {
         const hull = convexHull([
             [-1, -1],

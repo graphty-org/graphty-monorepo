@@ -64,6 +64,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.borderColor": "Border",
     "node.borderWidth": "Border",
     "node.borderStyle": "Border",
+    "node.cornerRadius": "Shape",
     "edge.color": "Color",
     "edge.width": "Width",
     "edge.opacity": "Opacity",

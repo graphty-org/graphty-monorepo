@@ -294,6 +294,7 @@ export interface ChannelValues {
     "node.borderColor": ColorValue;
     "node.borderWidth": number;
     "node.borderStyle": NodeBorderStyleValue;
+    "node.cornerRadius": number;
     "edge.color": ColorValue;
     "edge.width": number;
     "edge.opacity": number;
@@ -1023,6 +1024,21 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         stylePath: "border.style",
         renderable: true,
         caveat: NODE_BORDER_CAVEAT,
+    },
+    "node.cornerRadius": {
+        channel: "node.cornerRadius",
+        target: "node",
+        plainName: "Node Corner Radius",
+        shortName: "Corner radius",
+        group: "shape",
+        accepts: "number",
+        min: 0,
+        stylePath: "shape.cornerRadius",
+        renderable: true,
+        caveat:
+            "The largest radius of a round-rectangle's corners, in the units of `node.size`. Unset, " +
+            "the corners are a quarter of the shorter side; set, they are never larger than that, so " +
+            "a large box keeps small corners. Other shapes ignore it.",
     },
     "edge.color": {
         channel: "edge.color",

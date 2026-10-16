@@ -26,6 +26,7 @@ import {
 
 import type { Edge } from "../../src/Edge";
 import type { Graph } from "../../src/Graph";
+import type { AnnotationMeshMetadata } from "../../src/meshes/AnnotationMeshes";
 import type { ArrowCap } from "../../src/meshes/ArrowCapBatch";
 import type { EdgeLineBatch } from "../../src/meshes/EdgeLineBatch";
 import { PatternedLineMesh } from "../../src/meshes/PatternedLineMesh";
@@ -541,10 +542,45 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
     };
 }
 
+/** One file annotation as drawn: its kind, its text and the screen box of its geometry. */
+export interface DrawnAnnotation {
+    kind: "shape" | "text" | "arrow";
+    text?: string;
+    box: ScreenBox;
+}
+
+/**
+ * Reads the file annotations off the scene: the meshes whose metadata names an annotation.
+ * @param scene - the scene
+ * @param p - the projector
+ * @returns the annotations
+ */
+export function readAnnotations(scene: Scene, p: Projector): DrawnAnnotation[] {
+    return scene.meshes.flatMap((mesh) => {
+        const a = (mesh.metadata as Partial<AnnotationMeshMetadata> | null)?.annotation;
+        if (a === undefined || !mesh.isEnabled()) {
+            return [];
+        }
+        const { z } = mesh.getAbsolutePosition();
+        const corners = [p.point(new Vector3(a.box.x0, a.box.y0, z)), p.point(new Vector3(a.box.x1, a.box.y1, z))];
+        const box: ScreenBox = {
+            x0: Math.min(...corners.map((c) => c.x)),
+            x1: Math.max(...corners.map((c) => c.x)),
+            y0: Math.min(...corners.map((c) => c.y)),
+            y1: Math.max(...corners.map((c) => c.y)),
+            near: Math.min(...corners.map((c) => c.depth)),
+            far: Math.max(...corners.map((c) => c.depth)),
+        };
+        return [{ kind: a.kind, ...(a.text === undefined ? {} : { text: a.text }), box }];
+    });
+}
+
 /** Everything drawn, keyed by node and edge id. */
 export interface DrawnGraph {
     nodes: Map<string, DrawnNode>;
     edges: Map<string, DrawnEdge>;
+    /** The file annotations drawn beside the graph. */
+    annotations: DrawnAnnotation[];
     /** The clear color, and its alpha: below 1 the page behind the canvas shows through. */
     background: { hex: string; alpha: number };
     width: number;
@@ -572,6 +608,7 @@ export function readDrawn(graph: Graph): DrawnGraph {
     return {
         nodes,
         edges,
+        annotations: readAnnotations(scene, p),
         background: { hex: hex(scene.clearColor), alpha: scene.clearColor.a },
         width: p.width,
         height: p.height,

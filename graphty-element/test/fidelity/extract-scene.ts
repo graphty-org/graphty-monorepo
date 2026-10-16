@@ -522,6 +522,11 @@ export function extractScene(element: Graphty, drawn: DrawnGraph, provenance: Gr
         nodes,
         edges,
         groups: groupsOf(nodes, drawn.nodes),
+        annotations: drawn.annotations.map((a) => ({
+            kind: a.kind,
+            bbox: { x: a.box.x0, y: a.box.y0, w: a.box.x1 - a.box.x0, h: a.box.y1 - a.box.y0 },
+            ...(a.text === undefined ? {} : { text: a.text }),
+        })),
         background,
         gaps: [...GRAPHTY_GAPS],
     };

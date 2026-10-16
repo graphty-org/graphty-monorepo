@@ -373,24 +373,29 @@ export function isXmlName(text: string): boolean {
     if (text.length === 0) {
         return false;
     }
-    // the ASCII tables for the common case, as readName() does: a string iterator and the code point classes per
-    // character cost a second in a 5,000-node GraphML file, which checks every end tag
+    // by index, with the ASCII tables for the common case as readName() does: a string iterator and the code point
+    // classes per character cost a second in a 5,000-node GraphML file, which checks every end tag
     for (let i = 0; i < text.length;) {
-        const c = text.charCodeAt(i);
-        if (c < 0x80) {
-            if ((i === 0 ? ASCII_NAME_START[c] : ASCII_NAME_CHAR[c]) === 0) {
-                return false;
-            }
-            i++;
-            continue;
-        }
         const cp = text.codePointAt(i) ?? 0;
-        if (i === 0 ? !isNameStart(cp) : !isNameChar(cp)) {
+        if (!isNameCodePoint(cp, i === 0)) {
             return false;
         }
         i += cp > 0xffff ? 2 : 1;
     }
     return true;
+}
+
+/**
+ * Whether a code point may stand in an XML Name, at its start or after it.
+ * @param cp - the code point
+ * @param first - whether it starts the name
+ * @returns true for a NameStartChar (first) or a NameChar
+ */
+function isNameCodePoint(cp: number, first: boolean): boolean {
+    if (cp < 0x80) {
+        return (first ? ASCII_NAME_START[cp] : ASCII_NAME_CHAR[cp]) === 1;
+    }
+    return first ? isNameStart(cp) : isNameChar(cp);
 }
 
 /**

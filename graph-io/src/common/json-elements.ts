@@ -1208,8 +1208,8 @@ function countNewlines(text: string, from: number, to: number): number {
     // one pass over the slice only: an indexOf() past `to` made each call cost the whole rest of the text
     let count = 0;
     for (let i = from; i < to; i++) {
-        const c = text.charCodeAt(i);
-        if (c === 10 || (c === 13 && text.charCodeAt(i + 1) !== 10)) {
+        const c = text.codePointAt(i);
+        if (c === 10 || (c === 13 && text.codePointAt(i + 1) !== 10)) {
             count++;
         }
     }

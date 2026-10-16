@@ -1386,6 +1386,36 @@ describe("the poll loop", () => {
         expect(pages().filter((p) => p.message.includes("poll is failing"))).toEqual([]);
     });
 
+    it("waits out a reserve hold-back until the reset, and pages when the poll still fails after it", async () => {
+        const reset = Date.parse("2026-10-02T12:10:00Z");
+        const daemon = await start({
+            peers: {
+                ownerFacts: async () => {
+                    throw new GitHubError("rate", "read call held back: 48 core calls left, below 300", {
+                        retryAt: reset,
+                    });
+                },
+            },
+        });
+        const failing = () => pages().filter((p) => p.message.includes("poll is failing"));
+        for (const at of ["12:00", "12:03", "12:06", "12:09"]) {
+            clock = new Date(`2026-10-02T${at}:00Z`);
+            await poll(daemon);
+        }
+        expect(daemon.state.github.waitUntil).toBe("2026-10-02T12:10:00.000Z");
+        expect(daemon.state.ownerItems?.["poll-failing"]).toBeUndefined();
+        expect(failing()).toEqual([]);
+
+        // Past the reset the poll is still held back: that is a real failure, two in a row page.
+        clock = new Date("2026-10-02T12:12:00Z");
+        await poll(daemon);
+        expect(failing()).toEqual([]);
+        clock = new Date("2026-10-02T12:15:00Z");
+        await poll(daemon);
+        expect(failing()).toHaveLength(1);
+        expect(daemon.state.ownerItems["poll-failing"].question).toContain("held back");
+    });
+
     it("keeps its ETags in etags.json, so a restarted daemon asks conditionally", async () => {
         const isRuns = (/** @type {string[]} */ args) => args.some((a) => a.includes("/workflows/ci.yml/runs?"));
         gh = createFakeGh((call) =>

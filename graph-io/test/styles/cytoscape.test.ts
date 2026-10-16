@@ -4,7 +4,7 @@ import { basename, resolve } from "node:path";
 import { GraphBuilder, type GraphSnapshot } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import { importGraph } from "../../src/registry.js";
+import { createRegistry, importGraph } from "../../src/registry.js";
 import {
     cx1Definition,
     type CytoscapeBypass,
@@ -21,6 +21,7 @@ import {
     emitCytoscapeStyle,
     emptyCytoscapeStyle,
     type ExtractedStyles,
+    type Mapping,
     mappingFromCx1,
     mappingFromCx2,
     normalizeVisualProperties,
@@ -723,6 +724,67 @@ describe("emit then translate returns the same rules", () => {
         const cx2 = new StyleNotes();
         emitCytoscapeStyle(ex, s, { dialect: "cx2", notes: cx2 });
         expect(codes(cx2)).toContain("W_STYLE_NOT_WRITTEN edge tooltip");
+    });
+
+    it("notes a ramp of a whole-number visual property, which Cytoscape draws rounded, and not once it rounds", () => {
+        const b = new GraphBuilder({ directed: true });
+        const num = b.declareNodeColumn({ name: "num", dtype: "f64" });
+        for (let i = 0; i < 4; i++) {
+            b.setNodeValue(num, b.addNode(`n${String(i)}`), i);
+        }
+        const s = b.freeze();
+        const ramp = (lo: number, hi: number): Mapping => ({
+            kind: "continuous",
+            by: { data: "num" },
+            points: [
+                { at: 0, below: lo, value: lo, above: lo },
+                { at: 4, below: hi, value: hi, above: hi },
+            ],
+        });
+        const rules: StyleRule[] = [
+            {
+                id: "r",
+                target: "node",
+                role: "mapping",
+                origin: "declared",
+                where: { all: true },
+                map: { labelSize: ramp(10, 20), fillOpacity: ramp(0.2, 0.8) },
+            },
+        ];
+        const ex = extracted(s, rules);
+        const approximated = (
+            notes: readonly { code: string; style?: { property: string }; count: number | null }[],
+        ): string[] =>
+            notes
+                .filter((n) => n.code === "W_STYLE_APPROXIMATED")
+                .map((n) => `${String(n.style?.property)} ${String(n.count)}`)
+                .sort();
+        // 12.5 and 17.5 draw as 13 and 18; 0.35, 0.5 and 0.65 as 89, 128 and 166 out of 255 where the opacity is
+        // a 0..255 transparency (CX2 holds it as a fraction)
+        const rounded = ["fillOpacity 3", "labelSize 2"];
+        for (const [format, want] of [
+            ["cys", rounded],
+            ["cx", rounded],
+            ["xgmml", rounded],
+            ["cx2", ["labelSize 2"]],
+        ] as const) {
+            const losses = createRegistry().checkExport(s, format, { styles: ex });
+            expect([format, approximated(losses)]).toEqual([format, want]);
+        }
+        for (const dialect of ["desktop", "cx2"] as const) {
+            const out = emitCytoscapeStyle(ex, s, { dialect });
+            const els = emittedElements(s, "node", out.bypasses.node, out.columns.node);
+            const file = throughFile(out.style, dialect);
+            const drawn = resolveCytoscape("node", file, els);
+            expect(drawn.labelSize).toEqual([10, 13, 15, 18]);
+            expect(drawn.fillOpacity).toEqual(
+                dialect === "cx2" ? [0.2, 0.35, 0.5, 0.65] : [0.2, 0.34902, 0.501961, 0.65098],
+            );
+            // read back, the ramps round as Cytoscape draws them, so writing them again loses nothing
+            const again = new StyleNotes();
+            emitCytoscapeStyle(extracted(s, cytoscapeRules("node", file, els).rules), s, { dialect, notes: again });
+            expect(again.list().filter((n) => n.code === "W_STYLE_APPROXIMATED")).toEqual([]);
+        }
     });
 
     it("writes another program's shape as its nearest Cytoscape shape, and Cytoscape's own other values as they are", () => {

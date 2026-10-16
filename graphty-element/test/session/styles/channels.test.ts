@@ -59,6 +59,7 @@ const DECLARED = [
     "edge.style",
     "edge.patternCount",
     "edge.curvature",
+    "edge.bends",
     "edge.arrowHead",
     "edge.arrowHeadSize",
     "edge.arrowHeadColor",
@@ -105,9 +106,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into twenty-eight node channels and twenty-six edge channels", () => {
+    it("splits into twenty-eight node channels and twenty-seven edge channels", () => {
         assert.strictEqual(channelsFor("node").length, 28);
-        assert.strictEqual(channelsFor("edge").length, 26);
+        assert.strictEqual(channelsFor("edge").length, 27);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -303,6 +304,8 @@ describe("what a style editor needs to draw a row", () => {
         "node.height",
         "node.depth",
         "edge.patternCount",
+        // Unset, an edge runs straight from node to node.
+        "edge.bends",
         "edge.arrowHeadText",
         "edge.arrowHeadTextStyle",
         "edge.arrowTailText",

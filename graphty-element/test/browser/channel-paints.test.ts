@@ -104,7 +104,8 @@ function probeFor(descriptor: ChannelDescriptor): unknown {
             return descriptor.max === undefined ? low + 4 : low + (descriptor.max - low) * 0.35;
         }
         case "text":
-            return "CHANNEL PROBE WORDS";
+            // A route is text in a grammar of its own: one bend halfway along, half a length off.
+            return descriptor.channel === "edge.bends" ? "0.5,0.5" : "CHANNEL PROBE WORDS";
         case "boolean":
             return true;
         case "enum": {

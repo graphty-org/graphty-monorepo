@@ -201,6 +201,7 @@ const PLANS: Readonly<Record<StyleTarget, ReadonlyMap<string, PropertyPlan>>> = 
         ["edge.style", plan(table(LINE_OF), "lineStyle")],
         ["edge.arrowHead", plan(table(ARROW_OF), "targetArrow")],
         ["edge.arrowTail", plan(table(ARROW_OF), "sourceArrow")],
+        ["edge.bends", plan(text, "bends")],
         ["edge.arrowHeadColor", plan(color, "targetArrowColor")],
         ["edge.arrowTailColor", plan(color, "sourceArrowColor")],
         ["edge.label", plan(text, "label")],

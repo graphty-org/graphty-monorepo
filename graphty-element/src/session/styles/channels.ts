@@ -299,6 +299,7 @@ export interface ChannelValues {
     "edge.style": EdgeLineValue;
     "edge.patternCount": number;
     "edge.curvature": boolean;
+    "edge.bends": string;
     "edge.arrowHead": ArrowValue;
     "edge.arrowHeadSize": number;
     "edge.arrowHeadColor": ColorValue;
@@ -1078,6 +1079,21 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         caveat:
             "A switch, not an amount: the renderer offsets its control points by a fixed " +
             "fraction of the edge's length, so how far an edge bows cannot be set.",
+    },
+    "edge.bends": {
+        channel: "edge.bends",
+        target: "edge",
+        plainName: "Edge Bends",
+        shortName: "Bends",
+        group: "line",
+        accepts: "text",
+        stylePath: "line.bends",
+        renderable: true,
+        caveat:
+            "The points the edge's route passes through, as `along,across` pairs separated by spaces: " +
+            "`along` is the fraction of the way from the source node's center to the target's, " +
+            "`across` the distance to the left of that line as a fraction of its length. The edge is " +
+            "drawn as straight segments through them, with rounded corners when it is also curved.",
     },
     ...arrowEndChannels("Head"),
     ...arrowEndChannels("Tail"),

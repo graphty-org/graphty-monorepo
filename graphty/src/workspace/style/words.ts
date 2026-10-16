@@ -126,6 +126,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.style": "Pattern",
     "edge.patternCount": "Pattern count",
     "edge.curvature": "Curved",
+    "edge.bends": "Bends",
     "edge.arrowHead": "Head",
     "edge.arrowHeadSize": "Head size",
     "edge.arrowHeadColor": "Head color",

@@ -11,7 +11,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { createRegistry } from "../../src/registry.js";
-import { resolveStyles, type StyleTarget } from "../../src/styles/internal.js";
+import { resolveStyles, type StyleProperty, type StyleTarget } from "../../src/styles/internal.js";
 
 const registry = createRegistry();
 const CORPUS = resolve(import.meta.dirname, "../corpus/styles");
@@ -46,7 +46,7 @@ function corpus(path: string): Uint8Array {
  * @param property - the property
  * @returns the values by element index
  */
-function planned(r: Awaited<ReturnType<typeof load>>, target: StyleTarget, property: string): unknown[] {
+function planned(r: Awaited<ReturnType<typeof load>>, target: StyleTarget, property: StyleProperty): unknown[] {
     if (!r.styles) {
         throw new Error("no styles");
     }
@@ -78,5 +78,35 @@ describe("Cytoscape's shared name and shared interaction", () => {
         expect(planned(r, "edge", "lineStyle").slice(2, 4)).toEqual(["dotted", "dashed"]);
         expect(planned(r, "node", "label").slice(0, 2)).toEqual(["S0", "S1"]);
         expect(r.styles?.styles.notes.map((n) => n.code)).not.toContain("W_STYLE_MAPPING_COLUMN_MISSING");
+    });
+});
+
+describe("labels Cytoscape draws by default", () => {
+    it("label an XGMML node by its name, else by its label= when it has no name", async () => {
+        const r = await load(corpus("xgmml/fidelity/repro-name-only-labels.xgmml"), "xgmml");
+        // even nodes carry a name att, odd ones only label=; every node shows DB-<index>
+        const want = Array.from({ length: 14 }, (_v, i) => `DB-${String(i).padStart(2, "0")}`);
+        expect(planned(r, "node", "label")).toEqual(want);
+    });
+
+    it("label a node by the tool's label column when the reader gives no label (Cytoscape: name)", async () => {
+        const doc = JSON.stringify([
+            { CXVersion: "2.0", hasFragments: false },
+            {
+                attributeDeclarations: [{ nodes: { name: { d: "string" } } }],
+            },
+            {
+                nodes: [
+                    { id: 1, v: { name: "alpha" } },
+                    { id: 2, v: {} },
+                ],
+            },
+            { edges: [] },
+            { visualProperties: [{ default: { node: { NODE_BACKGROUND_COLOR: "#FF0000" } } }] },
+        ]);
+        const r = await load(doc, "cx2");
+        expect(planned(r, "node", "label")).toEqual(["alpha", null]);
+        const rule = r.styles?.styles.rules.find((x) => x.id === "node.tool.label");
+        expect(rule?.origin).toBe("tool");
     });
 });

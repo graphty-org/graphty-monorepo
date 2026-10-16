@@ -121,6 +121,9 @@ export function readXgmmlStyles(
             ? resolveCytoscapeBypasses(target, maps, { notes, budget: context.budget })
             : {};
         hiddenToVisible(table, settings.hiddenColumn ?? null, n, values);
+        if (target === "node" && settings.tool === "cytoscape" && values.label === undefined) {
+            nameLabels(table, n, values);
+        }
         exactFromBlock(snapshot, target, values);
         out[target] = { values: nonEmpty(values) };
     }
@@ -134,6 +137,25 @@ export function readXgmmlStyles(
         graph: graphStyleOf(snapshot, notes),
         notes: notes.list(),
     };
+}
+
+/**
+ * The labels Cytoscape shows for nodes whose graphics state none: its default style labels a node by its name, and
+ * a node with no `name` att is named by its `label=` (Cytoscape 2.x files often carry only that).
+ * @param table - the node table
+ * @param n - the node count
+ * @param values - the values per property, changed in place
+ */
+function nameLabels(table: Table, n: number, values: Partial<Record<string, StyleColumn>>): void {
+    const label = table.byRole("label")?.meta.name ?? null;
+    const text = (column: string | null, i: number): string | null => {
+        const v = column !== null && table.has(column) ? plainCell(table.value(column, i)) : null;
+        return typeof v === "string" || typeof v === "number" ? String(v) : null;
+    };
+    const labels = Array.from({ length: n }, (_v, i) => text("name", i) ?? text(label, i));
+    if (labels.some((v) => v !== null)) {
+        values.label = labels;
+    }
 }
 
 /**

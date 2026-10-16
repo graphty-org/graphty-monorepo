@@ -298,9 +298,10 @@ an axis left unset keeps the shape's own proportions at `node.size`.
 
 The flat shapes -- `rectangle`, `round-rectangle`, `ellipse`, `diamond`, `triangle`, `pentagon`,
 `hexagon`, `octagon`, `parallelogram`, `trapezoid`, `star` and `vee` (`FLAT_NODE_SHAPES` in
-`@graphty/graphty-element/schema`) -- are the shapes graph files from 2D tools name. In a 2D view
-they are drawn flat; in a 3D view they are as deep as they are wide, unless `node.planar` asks
-for a thin, flat card. Edges end at their outline.
+`@graphty/graphty-element/schema`) -- are the shapes graph files from 2D tools name. They are
+drawn flat in every view: in a 3D view, a thin card facing the 2D camera, with its border drawn
+round its faces. `node.depth` makes one deeper, and `node.planar` makes a solid shape thin too.
+Edges end at their outline.
 
 In a 2D view, `node.zIndex` puts a node behind the rest of the drawing: a node below 0 is drawn
 behind every edge and every node with a higher value, so a group (compound) node at -1 never

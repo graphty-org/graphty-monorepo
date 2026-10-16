@@ -949,8 +949,8 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         renderable: true,
         caveat:
             "A planar node is drawn thin along z, as a flat shape facing a 2D camera, even in a 3D " +
-            "view. The flat shapes (rectangle, ellipse, diamond and the rest) are always drawn thin " +
-            "in a 2D view; in a 3D view they are as deep as they are wide unless this is set.",
+            "view. The flat shapes (rectangle, ellipse, diamond and the rest) are always drawn thin, " +
+            "in 2D and 3D views alike; this makes a solid shape thin too.",
     },
     "node.zIndex": {
         channel: "node.zIndex",

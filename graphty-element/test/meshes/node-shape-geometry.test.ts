@@ -180,9 +180,18 @@ describe("node extents", () => {
         }
     });
 
-    test("a flat shape is thin in 2D and as deep as it is wide in 3D", () => {
-        assert.isBelow(extentOf(build({ type: "diamond", size: 1 }, true)).z, 0.1);
-        assert.approximately(extentOf(build({ type: "diamond", size: 1 })).z, NODE_EXTENT_PER_SIZE, 1e-6);
+    for (const type of FLAT_NODE_SHAPES) {
+        test(`a ${type} is a thin plaque in 2D and 3D alike`, () => {
+            for (const is2D of [true, false]) {
+                const { x, y, z } = extentOf(build({ type, size: 4 }, is2D));
+
+                assert.isBelow(z, Math.min(x, y) * 0.05, `${type} ${is2D ? "2D" : "3D"}`);
+            }
+        });
+    }
+
+    test("depth still makes a flat shape deep", () => {
+        assert.approximately(extentOf(build({ type: "diamond", size: 1, depth: 1 })).z, NODE_EXTENT_PER_SIZE, 1e-6);
     });
 
     test("planar draws any shape thin, and depth overrides it", () => {
@@ -248,6 +257,27 @@ describe("node borders", () => {
         );
 
         assert.isNull(border);
+    });
+
+    test("a flat shape's border in 3D is a ring on its faces, no deeper than the shape, never a wall", () => {
+        const options = { styleId: "deep", is2D: false, size: 1 };
+        const shape = { type: "round-rectangle" as const, size: 1, width: 20, height: 10 };
+        const fill = NodeMesh.create(cache, options, { shape }, scene);
+        const border = NodeMesh.createBorder(
+            cache,
+            options,
+            { shape, border: { width: 0.2, style: "dashed" } },
+            fill,
+            scene,
+        );
+
+        assert.isNotNull(border);
+        const fillBox = fill.getBoundingInfo().boundingBox.extendSize;
+        const ringBox = border.sourceMesh.getBoundingInfo().boundingBox.extendSize;
+
+        // A wall would reach as deep as the shape is wide; a ring on the faces is as thin as it.
+        assert.isAtMost(ringBox.z, fillBox.z + 1e-6, "the ring is no deeper than the plaque");
+        assert.isBelow(ringBox.z * 2, fillBox.y * 2 * 0.05, "the ring is thin against the shape's height");
     });
 
     for (const type of ["rectangle", "sphere"] as const) {

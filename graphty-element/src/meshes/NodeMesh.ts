@@ -338,11 +338,7 @@ export class NodeMesh {
         if (isFlatShape(createOptions.shape.type)) {
             const size = Math.max(createOptions.shape.size ?? options.size, MIN_NODE_SIZE);
 
-            return this.createFlatShape(
-                createOptions.shape,
-                this.extentsOf(createOptions.shape, size, options.is2D),
-                scene,
-            );
+            return this.createFlatShape(createOptions.shape, this.extentsOf(createOptions.shape, size), scene);
         }
 
         const creator = this.shapeCreators.get(createOptions.shape.type);
@@ -354,7 +350,7 @@ export class NodeMesh {
         // of size 0 used to draw larger than a node of size 0.01. Flooring here keeps size 0 the
         // smallest visible node for every shape creator, built-in or registered (#117).
         const size = Math.max(createOptions.shape.size ?? options.size, MIN_NODE_SIZE);
-        const extents = this.extentsOf(createOptions.shape, size, options.is2D);
+        const extents = this.extentsOf(createOptions.shape, size);
         const mesh = creator(size, scene);
         fitNodeMesh(mesh, extents);
         if (createOptions.shape.sizeMode === "diameter" && !this.hasExplicitExtent(createOptions.shape)) {
@@ -368,17 +364,18 @@ export class NodeMesh {
      * How big a node is drawn along each axis, in world units.
      * @param shape - The node's shape block.
      * @param size - Its size, already floored.
-     * @param is2D - Whether the graph is drawn in 2D.
-     * @returns The extents to fit its mesh to.
+     * @returns The extents to fit its mesh to. A flat shape, or any shape with `planar` set, is
+     *   thin along z in every view: a plaque, so its border is a ring on its faces rather than a
+     *   wall around a slab.
      */
-    static extentsOf(shape: NonNullable<NodeStyleConfig["shape"]>, size: number, is2D: boolean): NodeExtents {
+    static extentsOf(shape: NonNullable<NodeStyleConfig["shape"]>, size: number): NodeExtents {
         const perSize = this.extentPerSize(shape);
         const world = (value: number | undefined): number | undefined =>
             value === undefined ? undefined : Math.max(value, MIN_NODE_SIZE) * perSize;
         const across = size * perSize;
         const x = world(shape.width);
         const y = world(shape.height);
-        const thin = shape.planar === true || (is2D && isFlatShape(shape.type ?? ""));
+        const thin = shape.planar === true || isFlatShape(shape.type ?? "");
         const z = world(shape.depth) ?? (thin ? THIN_DEPTH_RATIO * Math.min(x ?? across, y ?? across) : undefined);
 
         return { across, x, y, z };
@@ -453,7 +450,7 @@ export class NodeMesh {
 
         const flat = isFlatShape(shape.type);
         const instance = cache.get(`node-border-${options.styleId}-${options.is2D ? "2d" : "3d"}`, () => {
-            const extents = this.extentsOf(shape, Math.max(shape.size ?? options.size, MIN_NODE_SIZE), options.is2D);
+            const extents = this.extentsOf(shape, Math.max(shape.size ?? options.size, MIN_NODE_SIZE));
             const outline = flat ? this.flatOutline(shape, extents) : this.solidOutline(fill);
             const depth = flat ? (extents.z ?? extents.across) : THIN_DEPTH_RATIO * extents.across;
             const mesh = ringSlab("node-border", borderRing(outline, width, border?.style ?? "solid"), depth, scene);

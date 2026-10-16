@@ -6,7 +6,9 @@ of short straight pieces. This records the problem, every option measured, the o
 what is left.
 
 Decision (owner, 2026-10-16): build option D, the miter join computed in the vertex shader, with
-its three defects fixed. It ships as `graphty-element/src/meshes/edgeJoinShader.ts`.
+its three defects fixed. It ships as `graphty-element/src/meshes/edgeJoinShader.ts`. Past the miter
+limit a corner is drawn as SVG 2's `miter-clip`, not a bevel (owner, 2026-10-16; see "Past the
+miter limit" below).
 
 ## The problem
 
@@ -74,7 +76,8 @@ indices per bend, 11.4 ms update at 50,000 edges.
 
 One instance per piece that reads four points: the corner before it, its own start and end, and
 the corner after it. The vertex shader moves the piece's end vertices onto the miter points it
-shares with its neighbour, and past the miter limit draws its half of a bevel. Neighbours compute
+shares with its neighbour, and past the miter limit draws its half of the miter clipped flat (see
+"Past the miter limit"). Neighbours compute
 the shared vertices from the same points with the same arithmetic, so they meet exactly. It works
 in screen pixels, so one shader serves 2D and 3D. One draw call, no extra instances, 14 floats per
 piece instead of a 16-float matrix, and no trigonometry on the CPU: the 50,000-edge update fell
@@ -117,6 +120,7 @@ bug. 17.3 ms update at 50,000 edges.
 | E GreasedLine          | filled, pinched | mostly none             | slanted, broken             |          1 |                    37.7 / 36.2 |                   0.89 / 0.38 |
 | F lengthened           | filled          | larger than A           | like B                      |          2 |                       17.3 / - |                      0.99 / - |
 | **Shipped (D, fixed)** | filled          | none (see limits)       | continuous                  |          1 |                  **4.6 / 4.4** |               **0.87 / 0.52** |
+| Shipped, miter-clip    | filled, clipped | none (see limits)       | continuous                  |          1 |                      4.9 / 4.8 |                   0.89 / 0.62 |
 
 Render times under about 1 ms move by up to 2x between runs; the update column is stable to about
 10%. Against the canvas reference, over every bend of the 2D scene: the prototype D had 5,189
@@ -145,8 +149,8 @@ three defects.
 
 1. **Bends too sharp to miter (5 degrees, the U-turn, 20 degrees at 24 px).** The square-ended
    fallback overlapped, so translucent lines went dark again. Now every piece always draws its full
-   rectangle with square ends, plus the outer half of the join -- the miter up to the limit, the
-   bevel past it -- and the overlap on the inside is resolved per fragment. The line through the
+   rectangle with square ends, plus the outer half of the join -- the miter up to the limit,
+   clipped past it -- and the overlap on the inside is resolved per fragment. The line through the
    corner along the bisector splits the overlap: each piece keeps the fragments on its own side,
    and gives up a fragment on its neighbour's side only when the neighbour's rectangle covers it.
    Both pieces compute that line from the same three points with the same arithmetic, so the two
@@ -154,8 +158,8 @@ three defects.
    including a U-turn.
 2. **Pieces shorter than the line is wide (the short-middle U drew a five-sided blob).** With no
    inner miter point there is nothing to reach past a short piece, so the U draws its true mitered
-   outline. The outer miter is also limited: a corner bevels when its miter tip would reach further
-   than the shorter of its two pieces.
+   outline. The outer miter is also limited: it is clipped where it would reach further past the
+   corner than the shorter of its two pieces is long.
 3. **Dashes at a bend (a white sliver inside sharp bends).** Each piece measured dash distance
    along itself, so on each side of the corner's bisector the inside of the bend got a different
    distance. Now a fragment in the overlap is drawn when either piece's dash covers it, measured
@@ -164,6 +168,75 @@ three defects.
 
 The browser test `graphty-element/test/browser/edge-corner-joins.test.ts` draws the scene above and
 checks every bend against the canvas reference, for all three.
+
+## Past the miter limit
+
+Every miter join needs a rule for a corner so sharp that its point would reach far beyond the
+line: SVG and Canvas stop at a miter limit, the point's length over half the line's width, of 4 by
+default. The shader first did what `stroke-linejoin: miter` does past the limit, and drew a bevel.
+
+That is right for a fixed drawing, but in 3D the angle a reader sees is the angle on screen, which
+changes as the camera turns. In the 3D bends story (`Styles/Edge`, `ThreeDBends`), turning the
+camera sideways foreshortens the 60 degree bend until its screen angle is sharper than the limit
+allows. Measured by turning the camera in steps and computing each step's screen-space join as the
+shader does, then measuring how far the drawn point reaches along the miter direction:
+
+| Camera turned | Screen angle | Miter length / half-width | Drawn point (bevel past limit) | Drawn point (miter-clip) |
+| ------------: | -----------: | ------------------------: | -----------------------------: | -----------------------: |
+|        66 deg |     33.0 deg |                      3.52 |                        11.3 px |                  11.3 px |
+|        68 deg |     30.7 deg |                      3.78 |                        11.3 px |                  11.3 px |
+|        70 deg |     28.2 deg |                      4.10 |                     **1.8 px** |                  13.8 px |
+|        72 deg |     25.7 deg |                      4.50 |                         1.0 px |                  13.0 px |
+|        80 deg |     14.8 deg |                      7.77 |                         1.0 px |                  13.0 px |
+
+The point vanished between 68 and 70 degrees, exactly where the ratio crossed 4 (the half-width
+there is 3.1 px, so a clipped point reaches 4 x 3.1 = 12.4 px plus anti-aliasing).
+
+SVG 2 defines `stroke-linejoin: miter-clip` for this: "the same as miter but if the
+stroke-miterlimit is exceeded, the miter is clipped at a distance equal to half the
+stroke-miterlimit value multiplied by the stroke width from the intersection of the path
+segments", by a line perpendicular to the bisector (https://www.w3.org/TR/SVG2/painting.html#LineJoin
+and the editor's draft https://svgwg.org/svg2-draft/painting.html). At the limit the clip line
+passes through the miter's tip, so the point never jumps: it grows up to the limit and then stays
+4 half-widths long, flat-topped, however sharp the bend gets. A U-turn is the limit of that: the
+line runs on 4 half-widths past the corner, or as far as the shorter piece, whichever is less.
+
+![The 60 degree bend as the camera turns from 60 to 80 degrees: bevel above, miter-clip below](images/corner-rotation-3d.png)
+
+The shader keeps one draw call and one instance per piece: each piece's half of the join is two
+triangles, centre to side to where the side meets the clip line, and centre to there to the clip
+line's point on the bisector. Unclipped, both join vertices sit on the miter tip and the second
+triangle is empty. The template grows from 10 to 14 vertices and from 6 to 8 triangles. The extent
+is computed along the line, `(limit - cos h) * hw / sin h` past the corner where `h` is half the
+turn, which stays exact at a U-turn. The same rule replaces the short-piece bevel: the join is
+clipped where it would reach past the shorter piece, so that limit has no jump either.
+
+The cost, measured on the stress scene (3 pieces an edge, every point rewritten each moving frame)
+with the shader before and after the change, in one session. GPU figures are medians of three runs
+on the RTX 4070 SUPER; SwiftShader figures are one run each, since one frame there takes 0.2 to 1.1
+seconds:
+
+| Scene                   | Update ms, before / after | Moving frame ms, before / after | Still frame ms, before / after |
+| ----------------------- | ------------------------: | ------------------------------: | -----------------------------: |
+| GPU, 10,000, 2D         |               0.80 / 0.80 |                     0.60 / 0.60 |                    0.26 / 0.26 |
+| GPU, 10,000, 3D         |               0.80 / 0.80 |                     0.60 / 0.50 |                    0.19 / 0.22 |
+| GPU, 50,000, 2D         |               4.80 / 4.90 |                     2.20 / 2.20 |                    0.90 / 0.89 |
+| GPU, 50,000, 3D         |               4.80 / 4.80 |                     1.60 / 1.80 |                    0.47 / 0.62 |
+| SwiftShader, 10,000, 2D |               1.30 / 1.10 |                       225 / 179 |                      223 / 211 |
+| SwiftShader, 10,000, 3D |               1.20 / 1.10 |                       224 / 216 |                      223 / 209 |
+| SwiftShader, 50,000, 2D |               4.80 / 4.60 |                   1,083 / 1,076 |                  1,128 / 1,087 |
+| SwiftShader, 50,000, 3D |               5.00 / 6.20 |                   1,074 / 1,136 |                  1,130 / 1,061 |
+
+The update is the same JavaScript, so it does not change; the frame times move within the run to
+run spread noted under "Results" (render times under about 1 ms move by up to 2x). Four more
+vertices a piece cost nothing measurable on either renderer, which matches the SwiftShader finding:
+its cost follows the instance count, not the vertices.
+
+No browser draws `miter-clip` in a 2D canvas (Canvas has only `miter`, `round` and `bevel`), so the
+corner test fills the clipped shape from its geometry over the canvas stroke at corners past the
+limit, and a sweep of bends from 40 to 18 degrees, half a degree apart at 3, 8 and 24 px, checks
+that the point moves by no more than 1.5 px plus a tenth of a half-width per step (it jumped by
+about 3 half-widths before) and reaches as far as the reference's.
 
 ## Widths in 2D and 3D
 
@@ -258,6 +331,8 @@ the shipped shader, read from graphty-element's source, and `ref=1` adds the can
 Serve the folder with Vite through servherd (`vite.config.js` reads `PORT` and `HOST`), then:
 
 - `node check.mjs <url> <variant> 2d|3d 0|1` captures one scene into `shots/` with its reference,
+  which is the canvas's `miter` stroke, so G's clipped corners at 20 degrees and sharper score as
+  spill there (the corner test in graphty-element draws the `miter-clip` reference);
   and `python3 metrics.py <variant>-2d-solid` (or `-dash`) scores every bend.
 - `node perf.mjs <url> gpu|swiftshader <edges> <variant>-<mode> ...` measures the stress scene.
 

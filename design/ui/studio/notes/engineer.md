@@ -11,6 +11,20 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-16) **Vary by Layer replaces Selection colors (owner feedback).** With a folder or
+  several layers selected, every property's Vary list starts with "Layer" (section "Selected
+  layers", shown when a write reaches 2+ layers). It opens `LayerVary.tsx` under the field: the
+  property's own control (categorical palette, plus "More layers than colors" -- Extend or Repeat
+  colors with a shape/pattern cue -- for a color; the binding popover's `Range` for a number;
+  nothing extra for a list value), one line per layer, top first, each an editable compact
+  `ValueField`, then Apply. Values come from the element's new `styles.sequence(binding, {
+channel, count })` (item i read as value i; overflow's second cue in `cue`); the app never
+  computes a palette. Apply writes plain values through `MultiRowPanel`'s write rule as one
+  `updateMany` step with the usual receipt; "Also set those" continues the sequence after the
+  layers already written. `SelectionColors.tsx` is deleted (the element's `styles.colors` /
+  `replaceColor` stay public). A data value whose layers do not each hold one group no longer
+  disables Vary (Layer is still there); its preview's Apply is off instead.
+
 - (2026-10-15) **Bulk edit pilot fixed (24 defects).** Decisions: a bulk field shows the value the
   layers that SET it agree on (Mixed only when setters differ), with the breakdown naming the unset
   and locked layers -- same in a folder and a multi-select, and it matches the write rule. Vary on

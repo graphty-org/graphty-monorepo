@@ -284,6 +284,10 @@ export const COLOR_BRANCHES: Readonly<Record<string, { readonly count: number; r
         count: 7,
         reason: "The color field beside the number, choice and words fields; 'one color' against 'one value' in Stop varying's words; a bound color's swatch strip, where other kinds show their source and range, and a pill without a swatch shows its source rather than the property's name; Vary on several layers draws a color as a chit and every other kind as its value's words, and only a color has a palette to pick (other kinds keep the element's own proposal)",
     },
+    "workspace/style/LayerVary.tsx": {
+        count: 5,
+        reason: "Vary by Layer offers a palette, and what happens past it, only for a color: a number spreads over Range, a shape or pattern steps through the channel's own list, and every layer's own value is a ValueField for every kind",
+    },
     "workspace/style/words.ts": {
         count: 2,
         reason: "takesBinding lists color with number, choice and words; valueWords names a color, and names every other kind in its own branch",

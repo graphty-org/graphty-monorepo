@@ -202,8 +202,14 @@ College football + Leiden:
 12. Make a hand-made folder "Story highlights" with two layers on unrelated rules; select it:
     Vary is off and says why; a typed Fill still writes to both.
 
+## Owner feedback 2026-10-16: Vary by Layer
+
+Selection colors is removed (bulk-only, color-only). In its place, the Vary list of any property
+on a folder or several layers offers "Layer": the property's per-value control spread over the
+layers in list order (graphty-element `styles.sequence`), a preview line per layer, Apply writes
+each layer its own plain value in one undo step under the usual write rule and receipt.
+
 ## Not built now
 
-- Distribute (a value per layer from a list): deferred by the owner.
 - Edge layers per group ("edges inside a community"): needs the element to read an edge's
   endpoints' values; add when a walk needs a group's edges styled.

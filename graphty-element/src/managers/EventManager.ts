@@ -540,6 +540,7 @@ export class EventManager implements Manager {
             case "selection-changed":
             case "graph-started":
             case "layout-changed":
+            case "layout-warning":
             case "operation-cancelled":
             case "stats-update":
             case "input-enabled-changed":

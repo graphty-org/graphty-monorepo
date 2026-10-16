@@ -1,6 +1,6 @@
 {
     "name": "@graphty/graphty-element",
-    "version": "3.28.0",
+    "version": "3.28.2",
     "description": "A Web Component library for 3D/2D graph visualization built with Lit and Babylon.js",
     "type": "module",
     "customElements": "./dist/custom-elements.json",
@@ -97,7 +97,7 @@
         "url": "git+https://github.com/graphty-org/graphty-monorepo.git",
         "directory": "graphty-element"
     },
-    "homepage": "https://github.com/graphty-org/graphty-monorepo/tree/master/graphty-element#readme",
+    "homepage": "https://graphty.app/docs/graphty-element/",
     "bugs": {
         "url": "https://github.com/graphty-org/graphty-monorepo/issues"
     },

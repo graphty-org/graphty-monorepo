@@ -1,8 +1,9 @@
 import { PANEL_GRID } from "@graphty/compact-mantine";
 import { describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { makeLayer } from "../../../../test/layerFixture";
-import { fireEvent, render, screen, within } from "../../../../test/test-utils";
+import { render, screen, within } from "../../../../test/test-utils";
 import { ShellProvider } from "../../ShellContext";
 import type { LayerItem } from "../StyleLayerList";
 import { StylePanel, type StylePanelProps } from "../StylePanel";
@@ -169,17 +170,17 @@ describe("StylePanel", () => {
         it("opens the re-homed layout dialog from the gear", async () => {
             renderPanel();
 
-            fireEvent.click(screen.getByRole("button", { name: "Layout parameters" }));
+            await userEvent.click(screen.getByRole("button", { name: "Layout parameters" }));
 
             expect(await screen.findByRole("dialog")).toBeInTheDocument();
         });
     });
 
     describe("the Styles library", () => {
-        it("draws the five built-ins first, each with its trailing word", () => {
+        it("draws the five built-ins first, each with its trailing word", async () => {
             renderPanel();
 
-            fireEvent.click(screen.getByRole("button", { name: "Expand Styles" }));
+            await userEvent.click(screen.getByRole("button", { name: "Expand Styles" }));
 
             BUILT_INS.forEach((name) => {
                 expect(screen.getByText(name)).toBeInTheDocument();
@@ -190,7 +191,7 @@ describe("StylePanel", () => {
         it("keeps the saved-thing verbs in the section's own overflow", async () => {
             renderPanel();
 
-            fireEvent.click(screen.getByTestId("style-styles-more"));
+            await userEvent.click(screen.getByTestId("style-styles-more"));
 
             const rows = await screen.findAllByRole("menuitem");
             expect(rows.map((row) => row.textContent)).toEqual([
@@ -216,10 +217,10 @@ describe("StylePanel", () => {
     });
 
     describe("the canvas legend switch", () => {
-        it("draws the switch with its binding in the row's title", () => {
+        it("draws the switch with its binding in the row's title", async () => {
             renderPanel();
 
-            fireEvent.click(screen.getByRole("button", { name: "Expand Canvas" }));
+            await userEvent.click(screen.getByRole("button", { name: "Expand Canvas" }));
 
             expect(screen.getByTestId("style-legend-row").getAttribute("title")).toContain("Show legend");
         });
@@ -229,8 +230,8 @@ describe("StylePanel", () => {
 
             renderPanel({ onLegendShownChange, legendShown: true });
 
-            fireEvent.click(screen.getByRole("button", { name: "Expand Canvas" }));
-            fireEvent.click(await screen.findByRole("switch", { name: "Show legend" }));
+            await userEvent.click(screen.getByRole("button", { name: "Expand Canvas" }));
+            await userEvent.click(await screen.findByRole("switch", { name: "Show legend" }));
 
             expect(onLegendShownChange).toHaveBeenCalledWith(false);
         });
@@ -246,7 +247,7 @@ describe("StylePanel", () => {
         it("disables the switch and states the reason in its title when nothing is encoded", async () => {
             renderPanel({ legendShown: true, legendAvailable: false });
 
-            fireEvent.click(screen.getByRole("button", { name: "Expand Canvas" }));
+            await userEvent.click(screen.getByRole("button", { name: "Expand Canvas" }));
 
             expect(screen.getByTestId("style-legend-row").getAttribute("title")).toBe(
                 "Show legend (L). Nothing is encoded yet",
@@ -257,7 +258,7 @@ describe("StylePanel", () => {
         it("leaves the switch live, and its title without a reason, once a channel is encoded", async () => {
             renderPanel({ legendShown: true, legendAvailable: true });
 
-            fireEvent.click(screen.getByRole("button", { name: "Expand Canvas" }));
+            await userEvent.click(screen.getByRole("button", { name: "Expand Canvas" }));
 
             expect(screen.getByTestId("style-legend-row").getAttribute("title")).toBe("Show legend (L)");
             expect(await screen.findByRole("switch", { name: "Show legend" })).toBeEnabled();

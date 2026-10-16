@@ -2,6 +2,10 @@
 layout: home
 
 hero:
+    image:
+        light: /brand/graphty-cytoscape-extensions-lockup-color-on-light.svg
+        dark: /brand/graphty-cytoscape-extensions-lockup-color-on-dark.svg
+        alt: graphty cytoscape-extensions
     name: cytoscape-extensions
     text: Graph layouts and algorithms for Cytoscape.js
     tagline: 16 layouts, 63 algorithms, WebGPU acceleration, generators, datasets and file formats, added with one cytoscape.use() call

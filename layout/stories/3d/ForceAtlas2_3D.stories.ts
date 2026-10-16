@@ -25,6 +25,7 @@ import {
     update3DPositions,
     update3DStatus,
 } from "../utils/visualization-3d.js";
+import { storyWaitOptions } from "../utils/wait.js";
 
 /**
  * Story arguments interface.
@@ -198,12 +199,9 @@ export const ForceAtlas2_3D: Story = {
         await userEvent.click(applyButton);
 
         // Wait for animation and status update
-        await waitFor(
-            async () => {
-                const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
-                await expect(statusText).toContain("applied");
-            },
-            { timeout: 5000 },
-        );
+        await waitFor(async () => {
+            const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
+            await expect(statusText).toContain("applied");
+        }, storyWaitOptions(5000));
     },
 };

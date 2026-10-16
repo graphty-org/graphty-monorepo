@@ -366,10 +366,11 @@ async function update(args) {
         for (const path of out.taken) {
             console.log(`  took ${config.defaultBranch}'s side: ${path}`);
         }
+        const recaptured = out.recapture.map((p) => `  ${p}`).join("\n");
         console.log(
             out.recapture.length === 0
                 ? "CI captures again; no baseline changed on the branch."
-                : `CI captures again and compares these with their new baselines:\n${out.recapture.map((p) => `  ${p}`).join("\n")}`,
+                : `CI captures again and compares these with their new baselines:\n${recaptured}`,
         );
         return 0;
     } catch (err) {
@@ -398,8 +399,13 @@ async function compare(args) {
         return 2;
     }
     const pngs = async (dir) => (await readdir(dir)).filter((f) => f.endsWith(".png"));
-    const read = (dir, file, present) =>
-        present.includes(file) ? (dir === values.baselines ? readBaseline : readFile)(join(dir, file)) : null;
+    const read = (dir, file, present) => {
+        if (!present.includes(file)) {
+            return null;
+        }
+        const reader = dir === values.baselines ? readBaseline : readFile;
+        return reader(join(dir, file));
+    };
     const [baselines, captures] = await Promise.all([pngs(values.baselines), pngs(values.captures)]);
     const counts = {};
     for (const file of [...new Set([...baselines, ...captures])].sort()) {

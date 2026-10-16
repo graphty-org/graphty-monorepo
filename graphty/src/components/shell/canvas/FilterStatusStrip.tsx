@@ -120,7 +120,7 @@ export function FilterStatusStrip(props: FilterStatusStripProps): React.JSX.Elem
                                 padding: 0,
                                 border: "none",
                                 background: "transparent",
-                                color: PANEL_INK.ACCENT,
+                                color: PANEL_INK.BRAND_TEXT,
                                 fontSize: CANVAS_TYPE.SMALL,
                                 lineHeight: CANVAS_LEADING.TIGHT,
                                 whiteSpace: "nowrap",

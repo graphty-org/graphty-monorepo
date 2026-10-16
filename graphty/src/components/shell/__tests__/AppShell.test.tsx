@@ -1959,8 +1959,9 @@ describe("AppShell", () => {
             expect(canvas?.tabIndex).toBe(-1);
         });
 
-        // Fails until #2950: the More menu returns focus to its trigger after the shell moved it
-        it.fails("moves focus to the canvas region, not the page body, when the dataset is closed", async () => {
+        /* The More menu used to return focus to its trigger 10ms after the shell had moved it
+           to the canvas, so a keyboard reader ended on the More button (issue #2950). */
+        it("moves focus to the canvas region, not the page body, when the dataset is closed", async () => {
             const { container } = await renderMeasuredShell();
 
             captureLoads(container);

@@ -20,11 +20,11 @@ import { canonNumber } from "../../styles/canon/number.js";
 import type { CanonSite } from "../../styles/canon/site.js";
 import { canonText } from "../../styles/canon/text.js";
 import { StyleApproximations } from "../../styles/io/approximations.js";
-import { blockStyles, parseStyleBlock, styleBlockLosses, writeStyleBlock } from "../../styles/io/block.js";
+import { styleBlockLosses, writeStyleBlock } from "../../styles/io/block.js";
+import { elementValues, takeFromBlock } from "../../styles/io/round-trip.js";
 import type { ExporterStyleInput } from "../../styles/io/writer.js";
 import { StyleNotes } from "../../styles/notes.js";
-import { styleFingerprint } from "../../styles/plan/features.js";
-import { plainCell, resolveStyles } from "../../styles/plan/resolve.js";
+import { plainCell } from "../../styles/plan/resolve.js";
 import type {
     ImporterStyles,
     StyleColumn,
@@ -461,23 +461,6 @@ function pajekDots(lineStyle: string, approximate: Approximate): boolean {
 }
 
 /**
- * Each element's values of the properties the writer writes, as a getter per element.
- * @param picture - each element's value of a property
- * @param target - nodes or edges
- * @returns the getter
- */
-function getter(
-    picture: (target: StyleTarget, property: string) => readonly (StyleValue | null)[],
-    target: StyleTarget,
-): (i: number) => Get {
-    const columns = new Map<string, readonly (StyleValue | null)[]>();
-    for (const p of PAJEK_STYLE_CAPABILITIES[target]) {
-        columns.set(p, picture(target, p));
-    }
-    return (i) => (property) => columns.get(property)?.[i] ?? null;
-}
-
-/**
  * For a file graphty wrote: where a value read from the parameters is what the writer writes for the block's own
  * value (a hexagon written as an ellipse, a dashed line as Dots), the block's exact value is the truth, so a re-import
  * gives back the same rules; a value another program changed since stays the truth.
@@ -492,30 +475,18 @@ function exactFromBlock(
     text: string,
     read: { readonly node: ValueColumns; readonly edge: ValueColumns },
 ): void {
-    const parsed = parseStyleBlock(text, styleFingerprint(snapshot));
-    const ex = parsed.ok ? blockStyles(parsed.block, snapshot, "pajek") : null;
-    if (ex === null) {
-        return;
-    }
     const notes = new StyleNotes();
     const directed = directedEdges(snapshot);
-    for (const target of ["node", "edge"] as const) {
-        const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
-        const get = getter((t, p) => resolveStyles(ex, t, p as never, snapshot), target);
-        const values = read[target];
-        for (let i = 0; i < n; i++) {
-            const want = get(i);
+    takeFromBlock(snapshot, text, "pajek", (target) => ({
+        values: read[target],
+        properties: READ[target],
+        writes: PAJEK_STYLE_CAPABILITIES[target],
+        readBack: (i, want) => {
             const back = writtenAndReadBack(target, want, directed[i], notes);
-            for (const property of READ[target]) {
-                const native = values[property]?.[i] ?? null;
-                const w = want(property);
-                if (w !== null && native !== w && native === (back.get(property) ?? null)) {
-                    values[property] ??= new Array<StyleValue | null>(n).fill(null);
-                    values[property][i] = w;
-                }
-            }
-        }
-    }
+            return (property) => back.get(property) ?? null;
+        },
+        take: (_property, wanted) => wanted !== null,
+    }));
 }
 
 /**
@@ -584,7 +555,7 @@ export function pajekStyledExport(
         const approximate: Approximate = (property, value) => {
             approximated.add(target, property, value);
         };
-        const get = getter((t, p) => input.picture(t, p as never), target);
+        const get = elementValues((t, p) => input.picture(t, p as never), target, PAJEK_STYLE_CAPABILITIES[target]);
         const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
         const params = (i: number): Map<string, Written> =>
             target === "node" ? vertexParams(get(i), approximate) : lineParams(get(i), directed[i], approximate);

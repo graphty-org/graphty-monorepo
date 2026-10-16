@@ -26,17 +26,17 @@ import { STYLE_ISSUE } from "../../styles/codes.js";
 import { CYTOSCAPE_LEXICON } from "../../styles/cytoscape/lexicon.js";
 import { StyleApproximations } from "../../styles/io/approximations.js";
 import {
-    blockStyles,
     parseStyleBlock,
     STYLE_BLOCK_NAME,
     styleBlockLosses,
     styleTag,
     writeStyleBlock,
 } from "../../styles/io/block.js";
+import { elementValues, takeFromBlock } from "../../styles/io/round-trip.js";
 import { dataRead, type ExporterStyleInput } from "../../styles/io/writer.js";
 import { StyleNotes } from "../../styles/notes.js";
 import { styleFingerprint } from "../../styles/plan/features.js";
-import { plainCell, resolveStyles } from "../../styles/plan/resolve.js";
+import { plainCell } from "../../styles/plan/resolve.js";
 import type {
     ImporterStyles,
     StyleColumn,
@@ -1030,23 +1030,6 @@ function mergedLabels(old: unknown, written: Rec | null): unknown {
 }
 
 /**
- * Each element's values of the properties the writer writes, as a getter per element.
- * @param picture - each element's value of a property
- * @param target - nodes or edges
- * @returns the getter
- */
-function getter(
-    picture: (target: StyleTarget, property: string) => readonly (StyleValue | null)[],
-    target: StyleTarget,
-): (i: number) => Get {
-    const columns = new Map<string, readonly (StyleValue | null)[]>();
-    for (const p of GML_STYLE_CAPABILITIES[target]) {
-        columns.set(p, picture(target, p));
-    }
-    return (i) => (property) => columns.get(property)?.[i] ?? null;
-}
-
-/**
  * For a file graphty wrote: where a value read from the graphics is what the writer writes for the block's own value
  * (a pentagon written as a rectangle, an opacity rounded to 255 steps), the block's exact value is the truth, so a
  * re-import gives back the same rules; a value another program changed since stays the truth.
@@ -1061,29 +1044,16 @@ function exactFromBlock(
     text: string,
     read: { readonly node: ValueColumns; readonly edge: ValueColumns },
 ): void {
-    const parsed = parseStyleBlock(text, styleFingerprint(snapshot));
-    const ex = parsed.ok ? blockStyles(parsed.block, snapshot, "gml") : null;
-    if (ex === null) {
-        return;
-    }
     const notes = new StyleNotes();
-    for (const target of ["node", "edge"] as const) {
-        const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
-        const get = getter((t, p) => resolveStyles(ex, t, p as never, snapshot), target);
-        const values = read[target];
-        for (let i = 0; i < n; i++) {
-            const want = get(i);
+    takeFromBlock(snapshot, text, "gml", (target) => ({
+        values: read[target],
+        properties: GML_STYLE_CAPABILITIES[target],
+        writes: GML_STYLE_CAPABILITIES[target],
+        readBack: (_i, want) => {
             const back = writtenAndReadBack(target, want, notes);
-            for (const property of GML_STYLE_CAPABILITIES[target]) {
-                const native = values[property]?.[i] ?? null;
-                const w = want(property);
-                if (native !== w && native === (back.get(property) ?? null)) {
-                    values[property] ??= new Array<StyleValue | null>(n).fill(null);
-                    values[property][i] = w;
-                }
-            }
-        }
-    }
+            return (property) => back.get(property) ?? null;
+        },
+    }));
 }
 
 /**
@@ -1191,7 +1161,7 @@ function writeGraphicsColumns(
     const approximate: Approximate = (property, value) => {
         approximated.add(target, property, value);
     };
-    const get = getter((t, p) => input.picture(t, p as never), target);
+    const get = elementValues((t, p) => input.picture(t, p as never), target, GML_STYLE_CAPABILITIES[target]);
     const graphics: unknown[] = [];
     const labels: unknown[] = [];
     for (let i = 0; i < n; i++) {

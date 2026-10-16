@@ -16,11 +16,11 @@ import {
 import { normalizeVisualProperties } from "../../styles/cytoscape/lexicon.js";
 import { emptyCytoscapeStyle } from "../../styles/cytoscape/mappings.js";
 import { cytoscapeBackground, type CytoscapeBypass, resolveCytoscapeBypasses } from "../../styles/cytoscape/resolve.js";
-import { blockStyles, parseStyleBlock, STYLE_BLOCK_NAME } from "../../styles/io/block.js";
+import { STYLE_BLOCK_NAME } from "../../styles/io/block.js";
+import { takeFromBlock } from "../../styles/io/round-trip.js";
 import type { ExporterStyleInput } from "../../styles/io/writer.js";
 import { StyleNotes } from "../../styles/notes.js";
-import { styleFingerprint } from "../../styles/plan/features.js";
-import { plainCell, resolveStyles } from "../../styles/plan/resolve.js";
+import { plainCell } from "../../styles/plan/resolve.js";
 import type {
     EdgeStyleProperty,
     GraphStyle,
@@ -197,59 +197,28 @@ export function exactFromBlock(
     if (typeof text !== "string") {
         return;
     }
-    const parsed = parseStyleBlock(text, styleFingerprint(snapshot));
-    const ex = parsed.ok ? blockStyles(parsed.block, snapshot, "xgmml") : null;
-    if (ex === null) {
-        return;
-    }
-    const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
-    const want = new Map<string, readonly (StyleValue | null)[]>();
-    const exact = (property: string): readonly (StyleValue | null)[] => {
-        let held = want.get(property);
-        if (held === undefined) {
-            held = resolveStyles(ex, target, property as StyleProperty, snapshot);
-            want.set(property, held);
+    takeFromBlock(snapshot, text, "xgmml", (t, block) => {
+        if (t !== target) {
+            return null;
         }
-        return held;
-    };
-    // What each element's exact values are written as, read back the way the file is read.
-    const written = Array.from({ length: n }, (_v, i) =>
-        cytoscapeElementProperties(
-            target,
-            (property) => exact(property)[i] ?? null,
-            dialect,
-            () => undefined,
-        ),
-    );
-    const readBack = resolveCytoscapeBypasses(target, written, { notes: new StyleNotes() });
-    for (const [property, native] of Object.entries(values)) {
-        const back = readBack[property];
-        if (native !== undefined && back !== undefined) {
-            values[property] = withBlockValues(native, back, exact(property));
-        }
-    }
-}
-
-/**
- * A property's values with the block's exact value wherever the file's value is what the writer wrote for it.
- * @param native - the file's values
- * @param back - what the writer wrote for the block's values, read back
- * @param w - the block's values
- * @returns the values, the file's own array when none changes
- */
-function withBlockValues(
-    native: StyleColumn,
-    back: readonly (StyleValue | null)[],
-    w: readonly (StyleValue | null)[],
-): StyleColumn {
-    let changed: (StyleValue | null)[] | null = null;
-    for (let i = 0; i < native.length; i++) {
-        if (w[i] !== null && native[i] !== w[i] && native[i] === back[i]) {
-            changed ??= [...native];
-            changed[i] = w[i];
-        }
-    }
-    return changed ?? native;
+        const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
+        // What each element's exact values are written as, read back the way the file is read.
+        const written = Array.from({ length: n }, (_v, i) =>
+            cytoscapeElementProperties(
+                target,
+                (property) => block(target, property)[i] ?? null,
+                dialect,
+                () => undefined,
+            ),
+        );
+        const readBack = resolveCytoscapeBypasses(target, written, { notes: new StyleNotes() });
+        return {
+            values,
+            properties: Object.keys(values).filter((p) => values[p] !== undefined && readBack[p] !== undefined),
+            readBack: (i) => (property) => readBack[property]?.[i] ?? null,
+            take: (_property, wanted) => wanted !== null,
+        };
+    });
 }
 
 /**

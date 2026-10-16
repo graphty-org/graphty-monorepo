@@ -14,11 +14,11 @@ import { canonNumber } from "../../styles/canon/number.js";
 import type { CanonSite } from "../../styles/canon/site.js";
 import { canonText } from "../../styles/canon/text.js";
 import { StyleApproximations } from "../../styles/io/approximations.js";
-import { blockStyles, parseStyleBlock, STYLE_BLOCK_NAME } from "../../styles/io/block.js";
+import { STYLE_BLOCK_NAME } from "../../styles/io/block.js";
+import { type ElementValues, takeFromBlock } from "../../styles/io/round-trip.js";
 import type { ExporterStyleInput } from "../../styles/io/writer.js";
 import { StyleNotes } from "../../styles/notes.js";
-import { styleFingerprint } from "../../styles/plan/features.js";
-import { plainCell, resolveStyles } from "../../styles/plan/resolve.js";
+import { plainCell } from "../../styles/plan/resolve.js";
 import type {
     ImporterStyles,
     StyleColumn,
@@ -464,49 +464,33 @@ function exactFromBlock(
     node: Record<string, (StyleValue | null)[]>,
     edge: Record<string, (StyleValue | null)[]>,
 ): void {
-    const parsed = parseStyleBlock(text, styleFingerprint(snapshot));
-    const ex = parsed.ok ? blockStyles(parsed.block, snapshot, "gexf") : null;
-    if (ex === null) {
-        return;
-    }
-    const exact = (
-        values: Record<string, (StyleValue | null)[]>,
-        target: StyleTarget,
-        property: string,
-        written: (v: StyleValue, i: number) => StyleValue | null,
-    ): void => {
-        const native = values[property];
-        if (native === undefined) {
-            return;
-        }
-        const want = resolveStyles(ex, target, property as never, snapshot);
-        for (let i = 0; i < native.length; i++) {
-            const w = want[i];
-            // a size is written from the width and the height together: one the block leaves unset reads back too
-            const writable = w !== null || property === "width" || property === "height";
-            if (writable && native[i] !== w && native[i] !== null && native[i] === written(w as StyleValue, i)) {
-                native[i] = w;
-            }
-        }
-    };
-    const width = resolveStyles(ex, "node", "width", snapshot);
-    const height = resolveStyles(ex, "node", "height", snapshot);
-    const size = (i: number): StyleValue | null => {
-        const w = width[i];
-        const h = height[i];
-        return typeof w === "number" && typeof h === "number" ? Math.max(w, h) : (w ?? h);
-    };
-    const read = new Map([
+    const shapeRead = new Map([
         ["disc", "ellipse"],
         ["square", "rectangle"],
     ]);
-    exact(node, "node", "shape", (v) => {
-        const written = gexfNodeShape(String(v)).value;
-        return read.get(written) ?? written;
-    });
-    exact(edge, "edge", "lineStyle", (v) => gexfEdgeShape(String(v)).value);
-    exact(node, "node", "width", (_v, i) => size(i));
-    exact(node, "node", "height", (_v, i) => size(i));
+    const size = (want: ElementValues): StyleValue | null => {
+        const w = want("width");
+        const h = want("height");
+        return typeof w === "number" && typeof h === "number" ? Math.max(w, h) : (w ?? h);
+    };
+    // what the viz element written for an element's block values reads back as
+    const written: Readonly<Record<string, (want: ElementValues) => StyleValue | null>> = {
+        shape: (want) => {
+            const { value } = gexfNodeShape(String(want("shape")));
+            return shapeRead.get(value) ?? value;
+        },
+        width: size,
+        height: size,
+        lineStyle: (want) => gexfEdgeShape(String(want("lineStyle"))).value,
+    };
+    takeFromBlock(snapshot, text, "gexf", (target) => ({
+        values: target === "node" ? node : edge,
+        properties: target === "node" ? ["shape", "width", "height"] : ["lineStyle"],
+        readBack: (_i, want) => (property) => written[property](want),
+        // a size is written from the width and the height together: one the block leaves unset reads back too
+        take: (property, wanted, native) =>
+            native !== null && (wanted !== null || property === "width" || property === "height"),
+    }));
 }
 
 // ============================================================ writing

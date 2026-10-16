@@ -36,11 +36,12 @@ import {
 import { CYJS_EDGE_PROPERTIES, CYJS_NODE_PROPERTIES } from "../../styles/cyjs/mappers.js";
 import { toolDefaults } from "../../styles/defaults.js";
 import { StyleApproximations } from "../../styles/io/approximations.js";
-import { blockStyles, parseStyleBlock, STYLE_BLOCK_NAME } from "../../styles/io/block.js";
+import { parseStyleBlock, STYLE_BLOCK_NAME } from "../../styles/io/block.js";
+import { takeFromBlock } from "../../styles/io/round-trip.js";
 import type { ExporterStyleInput } from "../../styles/io/writer.js";
 import { StyleNotes } from "../../styles/notes.js";
 import { styleFingerprint } from "../../styles/plan/features.js";
-import { plainCell, resolveStyles } from "../../styles/plan/resolve.js";
+import { plainCell } from "../../styles/plan/resolve.js";
 import type {
     ColumnRef,
     EdgeStyleProperty,
@@ -479,25 +480,8 @@ function exactFromBlock(
     written: Written,
     holdsExactly?: (target: StyleTarget, property: string, value: StyleValue) => boolean,
 ): void {
-    if (text === null) {
-        return;
-    }
-    const parsed = parseStyleBlock(text, styleFingerprint(snapshot));
-    const ex = parsed.ok ? blockStyles(parsed.block, snapshot, "json") : null;
-    if (ex === null) {
-        return;
-    }
-    for (const target of TARGETS) {
+    takeFromBlock(snapshot, text, "json", (target, block, ex) => {
         const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
-        const cache = new Map<string, readonly (StyleValue | null)[]>();
-        const resolved = (p: string): readonly (StyleValue | null)[] => {
-            let r = cache.get(p);
-            if (r === undefined) {
-                r = resolveStyles(ex, target, p as never, snapshot);
-                cache.set(p, r);
-            }
-            return r;
-        };
         if (holdsExactly !== undefined) {
             const properties = new Set(
                 ex.styles.rules
@@ -506,42 +490,19 @@ function exactFromBlock(
             );
             for (const property of properties) {
                 const held = (w: StyleValue): boolean => holdsExactly(target, property, w);
-                takeUnheld(values[target], property, resolved(property), n, held);
+                takeUnheld(values[target], property, block(target, property), n, held);
             }
         }
-        for (const [property, write] of Object.entries(written[target] ?? {})) {
-            takeWritten(values[target], property, n, resolved, write, snapshot);
-        }
-    }
-}
-
-/**
- * Takes the block's value of a property wherever the native value is what the writer writes for the block's values.
- * @param column - the native values of the target, changed in place
- * @param property - the property
- * @param n - the element count
- * @param resolved - the block's values of a property
- * @param write - what the writer writes for an element, from the block's values
- * @param snapshot - the graph
- */
-function takeWritten(
-    column: Values,
-    property: string,
-    n: number,
-    resolved: (p: string) => readonly (StyleValue | null)[],
-    write: (want: (p: string) => StyleValue | null, i: number, snapshot: GraphSnapshot) => StyleValue | null,
-    snapshot: GraphSnapshot,
-): void {
-    const want = resolved(property);
-    for (let i = 0; i < n; i++) {
-        const w = want[i];
-        const native = column[property]?.[i] ?? null;
-        // a native value the writer made from the block's other values (vis.js's one size for a width) is the
-        // block's own value, none included
-        if (native !== w && native !== null && native === write((p) => resolved(p)[i], i, snapshot)) {
-            setValue(column, property, n, i, w);
-        }
-    }
+        const writes = written[target] ?? {};
+        return {
+            values: values[target],
+            properties: Object.keys(writes),
+            // a native value the writer made from the block's other values (vis.js's one size for a width) is the
+            // block's own value, none included
+            readBack: (i, want) => (property) => writes[property](want, i, snapshot),
+            take: (_property, _wanted, native) => native !== null,
+        };
+    });
 }
 
 /**

@@ -45,6 +45,7 @@ export const STYLE_PROPERTIES: {
         ["width", "number"],
         ["height", "number"],
         ["borderWidth", "number"],
+        ["cornerRadius", "number"],
         ["labelSize", "number"],
         ["shape", "shape"],
         ["borderStyle", "borderStyle"],

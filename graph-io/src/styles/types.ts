@@ -111,6 +111,8 @@ export interface NodeStyleValues {
     readonly height: number;
     /** The border width (0 is no border). */
     readonly borderWidth: number;
+    /** A rounded rectangle's corner radius, in the units of `width` and `height`. */
+    readonly cornerRadius: number;
     /** The label's font size. */
     readonly labelSize: number;
     /** The shape. */

@@ -153,6 +153,7 @@ is kept as `other:<the file's spelling>` and noted.
 | `width`            | yes   | yes   |       | a number                                                                                                                                                |
 | `height`           | yes   |       |       | a number                                                                                                                                                |
 | `borderWidth`      | yes   |       |       | a number                                                                                                                                                |
+| `cornerRadius`     | yes   |       |       | a number                                                                                                                                                |
 | `labelSize`        | yes   | yes   |       | a number                                                                                                                                                |
 | `shape`            | yes   |       |       | `ellipse`, `rectangle`, `round-rectangle`, `triangle`, `diamond`, `pentagon`, `hexagon`, `octagon`, `parallelogram`, `trapezoid`, `star`, `vee`, `none` |
 | `borderStyle`      | yes   |       |       | `solid`, `dashed`, `dotted`, `dash-dot`, `double`                                                                                                       |

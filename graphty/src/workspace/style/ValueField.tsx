@@ -21,13 +21,27 @@ function choiceOptions(descriptor: ChannelDescriptor): StyleSelectOption[] {
         return {
             value,
             label: glyph?.plainName ?? enumWords(value),
-            // The catalog's own static SVG, drawn in currentColor; the app keeps no picture of its own.
-            glyph:
-                glyph === undefined ? undefined : (
-                    <span dangerouslySetInnerHTML={{ __html: glyph.glyph }} style={{ display: "inline-flex" }} />
-                ),
+            glyph: <CatalogGlyph channel={descriptor.channel} value={value} />,
         };
     });
+}
+
+/**
+ * The picture graphty-element's catalog draws for a shape, a line pattern or an arrow: its own
+ * static SVG, in currentColor; the app keeps no picture of its own.
+ * @param props - Component props
+ * @param props.channel - the property
+ * @param props.value - the value it paints
+ * @returns The picture, or nothing for a value the catalog draws none for
+ */
+export function CatalogGlyph({
+    channel,
+    value,
+}: Readonly<{ channel: ChannelDescriptor["channel"]; value: unknown }>): React.JSX.Element | null {
+    const glyph = GLYPH_TABLES[channel]?.find((g) => g.id === value);
+    return glyph === undefined ? null : (
+        <span aria-hidden dangerouslySetInnerHTML={{ __html: glyph.glyph }} style={{ display: "inline-flex" }} />
+    );
 }
 
 /** Props for ValueField. */

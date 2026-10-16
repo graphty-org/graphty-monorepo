@@ -200,6 +200,14 @@ describe("bulk editing a run's folder of group layers, after the first pilot", (
         const legend = screen.getByRole("region", { name: "Legend" });
         assert.lengthOf(within(legend).getAllByRole("group", { name: "Color: Louvain" }), 1);
         assert.lengthOf(within(legend).getAllByRole("group", { name: "Shape: Louvain" }), 1);
+        // Each shape row draws the shape picker's own picture beside the shape's name.
+        const shapeRows = within(within(legend).getByRole("group", { name: "Shape: Louvain" })).getAllByTestId(
+            "data-row-icon",
+        );
+        assert.isNotEmpty(shapeRows);
+        for (const icon of shapeRows) {
+            assert.isNotNull(icon.querySelector("svg"), "a shape's picture");
+        }
 
         const before = paintedGroups(session);
         const run = session.runs.get(runId);

@@ -5,6 +5,7 @@ import React, { useLayoutEffect, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
+import { CatalogGlyph } from "../style/ValueField";
 import { isSizeBlock, keyNames, keySections, overflowLine, swatchName, swatchText, swatchValue } from "./legendWords";
 
 /** Props for LegendCard. */
@@ -43,8 +44,8 @@ function Ramp({ block, title }: Readonly<{ block: LegendBlock; title: string }>)
 }
 
 /**
- * One block as a list: a row per value with what it paints -- a color chip, or a shape, line
- * pattern or size in words -- the Other row last. A color row's value is how many elements carry
+ * One block as a list: a row per value with what it paints -- a color chip; a shape, line pattern
+ * or arrow as its picture and its name; or a size in words -- the Other row last. A color row's value is how many elements carry
  * it, when the element can say.
  * @param props - Component props
  * @param props.block - the block
@@ -60,7 +61,10 @@ function List({ block, entry }: Readonly<{ block: LegendBlock; entry: string }>)
                     name={swatchName(block, swatch, entry)}
                     value={swatchValue(block, swatch, entry)}
                     icon={
-                        swatch.color === undefined ? undefined : (
+                        swatch.color === undefined ? (
+                            // A shape, line pattern or arrow: the picture the Style tab's picker draws.
+                            <CatalogGlyph channel={block.channel} value={swatch.paints} />
+                        ) : (
                             <ColorSwatch className="ws-legend-chit" color={swatch.color} size={12} />
                         )
                     }

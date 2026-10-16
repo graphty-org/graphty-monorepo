@@ -23,8 +23,11 @@ import { eventWaitingDecorator, renderFn, type StoryArgs, waitForGraphSettled } 
  * checks the layout it picked and a few nodes' coordinates against the file's own numbers, converted
  * by hand: the node's center, y growing upward, times `positionScale`.
  *
- * `positionScale` is set per file only so nodes of size one are neither specks nor overlapping;
- * the camera frames the drawing either way.
+ * `positionScale` is set per file. For the DOT, yEd, CX, CX2 and GEXF files it makes the element's
+ * default node (1.5 scene units across) stand for the median node the file's own program draws:
+ * 1.5 over that median size in the file's unit (`perNode`), so the drawing keeps the reference
+ * drawing's proportions instead of crowding its nodes. The others keep a scale at which nodes of
+ * size one are neither specks nor overlapping. The camera frames the drawing either way.
  */
 const meta: Meta = {
     title: "Data/File positions",
@@ -41,6 +44,13 @@ const meta: Meta = {
 export default meta;
 
 type Story = StoryObj<StoryArgs>;
+
+/**
+ * The `positionScale` at which a default node is as wide as the file's median node.
+ * @param size - The median node size the file's program draws, in the file's unit.
+ * @returns The scale.
+ */
+const perNode = (size: number): number => 1.5 / size;
 
 /** A node's coordinates as the file stores them, converted to its center with y up. */
 type Expected = Readonly<Record<string, readonly [number, number, number]>>;
@@ -83,6 +93,15 @@ const atFilePositions = async (
 
     await holds(off.length === 0, `${story}: nodes not where the file put them -- ${off.join("; ")}`);
 };
+
+// The median node each file's program draws (graph-io's styles, the program's own defaults for a
+// node the file does not size): Graphviz's 0.75 inch (54 points), the yEd sample's 60 x 30 boxes,
+// WP4742's 25-pixel nodes in Cytoscape, WP5049's 61-pixel ones, Gephi's viz:size in Les Miserables.
+const DOT_SCALE = perNode(54);
+const YED_SCALE = perNode(60);
+const CX_SCALE = perNode(25);
+const CX2_SCALE = perNode(61);
+const GEXF_SCALE = perNode(19.2857);
 
 // GML (y grows downward, as the GML specification says): SNDlib's germany50 network from
 // di-unipi-socc/dgLBF (MIT). Flensburg is at y 0, so the north of Germany is drawn at the top.
@@ -143,10 +162,10 @@ export const DOT: Story = {
     args: {
         dataSource: "dot",
         dataSourceConfig: { url: dotUrl, layout: "recommended" },
-        positionScale: 0.025,
+        positionScale: DOT_SCALE,
     },
     play: async ({ canvasElement }) => {
-        await atFilePositions(canvasElement, "DOT", { nodes: 11, edges: 30 }, 0.025, {
+        await atFilePositions(canvasElement, "DOT", { nodes: 11, edges: 30 }, DOT_SCALE, {
             // 1 [pos="99,162"]
             "1": [99, 162, 0],
             "11": [243, 18, 0],
@@ -159,10 +178,10 @@ export const GEXF: Story = {
     args: {
         dataSource: "gexf",
         dataSourceConfig: { url: gexfUrl, layout: "recommended" },
-        positionScale: 0.025,
+        positionScale: GEXF_SCALE,
     },
     play: async ({ canvasElement }) => {
-        await atFilePositions(canvasElement, "GEXF", { nodes: 77, edges: 254 }, 0.025, {
+        await atFilePositions(canvasElement, "GEXF", { nodes: 77, edges: 254 }, GEXF_SCALE, {
             // <viz:position x="268.72385" y="91.18155" z="0.0"/>
             "0.0": [268.72385, 91.18155, 0],
             "76.0": [-382.06223, 47.045475, 0],
@@ -175,10 +194,10 @@ export const GraphMLYEd: Story = {
     args: {
         dataSource: "graphml",
         dataSourceConfig: { url: yedUrl, layout: "recommended" },
-        positionScale: 0.02,
+        positionScale: YED_SCALE,
     },
     play: async ({ canvasElement }) => {
-        await atFilePositions(canvasElement, "GraphMLYEd", { nodes: 4, edges: 4 }, 0.02, {
+        await atFilePositions(canvasElement, "GraphMLYEd", { nodes: 4, edges: 4 }, YED_SCALE, {
             // <y:Geometry x="0.0" y="0.0" width="60.0" height="30.0"/>: its center is (30, 15)
             n0: [30, -15, 0],
             n1: [130, -15, 0],
@@ -207,10 +226,10 @@ export const CX: Story = {
     args: {
         dataSource: "cx",
         dataSourceConfig: { url: cxUrl, layout: "recommended" },
-        positionScale: 0.015,
+        positionScale: CX_SCALE,
     },
     play: async ({ canvasElement }) => {
-        await atFilePositions(canvasElement, "CX", { nodes: 58, edges: 48 }, 0.015, {
+        await atFilePositions(canvasElement, "CX", { nodes: 58, edges: 48 }, CX_SCALE, {
             // "node":748082,"x":1013.0647554680585,"y":245.38436346058725
             "748082": [1013.0647554680585, -245.38436346058725, 0],
         });
@@ -222,10 +241,10 @@ export const CX2: Story = {
     args: {
         dataSource: "cx2",
         dataSourceConfig: { url: cx2Url, layout: "recommended" },
-        positionScale: 0.015,
+        positionScale: CX2_SCALE,
     },
     play: async ({ canvasElement }) => {
-        await atFilePositions(canvasElement, "CX2", { nodes: 45, edges: 30 }, 0.015, {
+        await atFilePositions(canvasElement, "CX2", { nodes: 45, edges: 30 }, CX2_SCALE, {
             "513879": [431.373463714484, -365.9920745407425, 0],
             "513923": [550.44875, -60.030000000000086, 0],
         });

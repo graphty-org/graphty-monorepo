@@ -1612,5 +1612,11 @@ function prepare(
     const styled = graphmlStyledExport(snapshot, options?.styles);
     const written = styled?.snapshot ?? snapshot;
     const plan = planExport(written, resolveExportOptions(options), resolveFormatOptions(options), styled !== null);
-    return { plan: styled === null ? plan : { ...plan, yedGraphics: true }, written, styled };
+    if (styled === null) {
+        return { plan, written, styled };
+    }
+    // the yEd graphics carry each node's position in its y:Geometry, so the position column is not lost
+    const position = written.nodes.byRole("position")?.meta.name;
+    const notes = plan.notes.filter((n) => n.code !== LOSS.POSITIONS || n.column !== position);
+    return { plan: { ...plan, notes, yedGraphics: true }, written, styled };
 }

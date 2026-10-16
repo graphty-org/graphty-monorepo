@@ -16,7 +16,9 @@ import {
     type ImportIssue,
     type ImportReport,
     type LossNote,
+    registry,
 } from "@graphty/graph-io";
+import { extractPositions } from "@graphty/graph-io/positions";
 import {
     type CytoscapeStylesheetRule,
     type ExtractedStyles,
@@ -119,7 +121,8 @@ export interface ImportedElements {
     readonly report: ImportReport;
     /**
      * With `styles`, the file's styles as a Cytoscape.js stylesheet scoped to this import; append it to the core's
-     * (`cy.style().fromJson([...cy.style().json(), ...stylesheet]).update()`). Absent without `styles`.
+     * rule by rule (`cy.style().selector(r.selector).style(r.style)` for each, then `cy.style().update()`). Absent
+     * without `styles`.
      */
     readonly stylesheet?: CytoscapeStylesheetRule[];
     /**
@@ -203,10 +206,17 @@ export async function importElements(
             }),
         r.styles !== undefined && r.styles !== null,
     );
-    // graph-io stores positions with y growing upward; Cytoscape's y grows downward
-    for (const el of elements) {
-        if (el.position !== undefined) {
-            el.position.y = flipY(el.position.y);
+    // each format spells its coordinates its own way (yEd: a box's top-left corner, y down; Gephi: the
+    // center, y up); graph-io's extractPositions reads them all as the center with y up, and Cytoscape's y
+    // grows downward
+    const positions = extractPositions(registry.importer(r.format), r.snapshot, r.report);
+    for (let i = 0; i < r.snapshot.nodeCount; i++) {
+        const el = elements[i];
+        const x = positions?.usable === true ? positions.coords[3 * i] : Number.NaN;
+        if (Number.isNaN(x)) {
+            delete el.position;
+        } else {
+            el.position = { x, y: flipY(positions?.coords[3 * i + 1] ?? 0) };
         }
     }
     let styled: Pick<ImportedElements, "stylesheet" | "bypass"> = {};
@@ -388,6 +398,7 @@ export async function exportElements(
     const { directed, onLoss, styles, ...rest } = options;
     const snapshot = elementsToSnapshot(eles, {
         directed,
+        format,
         integerIds: INTEGER_ID_FORMATS.has(format),
     });
     const extracted = styles === true ? coreStyles(eles, snapshot) : null;

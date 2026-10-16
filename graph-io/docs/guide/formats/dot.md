@@ -158,7 +158,7 @@ the rules for graphty as the quoted graph attribute `graphty.styles`, which Grap
 | Edge properties written             | `color`, `opacity`, `width`, `lineStyle`, `sourceArrow`, `targetArrow`, `arrowSize`, `label`, `sourceLabel`, `targetLabel`, `labelColor`, `labelSize`, `labelFont`, `tooltip`, `visible` |
 | Graph properties written            | `background`                                                                                                                                                                             |
 | Rules kept for graphty              | yes, in the file's own `graphty.styles` block                                                                                                                                            |
-| Not written (`W_STYLE_NOT_WRITTEN`) | node: `opacity`, `labelWeight`, `labelItalic`, `labelPosition`, `image`; edge: `sourceArrowColor`, `targetArrowColor`, `curved`, `labelWeight`, `labelItalic`                            |
+| Not written (`W_STYLE_NOT_WRITTEN`) | node: `opacity`, `labelWeight`, `labelItalic`, `labelPosition`, `image`; edge: `sourceArrowColor`, `targetArrowColor`, `curved`, `bends`, `labelWeight`, `labelItalic`                   |
 
 <!-- generated:end -->
 

@@ -125,7 +125,7 @@ What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-
 | [`graphAttributes`](./index.md#graphattributes) | yes                         |
 | [`positions`](./index.md#positions)             | no                          |
 | [`viz`](./index.md#viz)                         | no                          |
-| [`styles`](./index.md#styles)                   | 28 properties, rules kept   |
+| [`styles`](./index.md#styles)                   | 29 properties, rules kept   |
 
 <!-- generated:end -->
 
@@ -156,7 +156,7 @@ keeps where the nodes are and reports no `W_POSITIONS_DROPPED`. See [Styles](../
 | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Reads styles                        | yes, with `styles: true`                                                                                                                                                                       |
 | Node properties written             | `fill`, `fillOpacity`, `borderColor`, `borderWidth`, `borderStyle`, `shape`, `width`, `height`, `label`, `labelColor`, `labelSize`, `labelFont`, `labelWeight`, `labelItalic`, `labelPosition` |
-| Edge properties written             | `color`, `opacity`, `width`, `lineStyle`, `sourceArrow`, `targetArrow`, `curved`, `label`, `labelColor`, `labelSize`, `labelFont`, `labelWeight`, `labelItalic`                                |
+| Edge properties written             | `color`, `opacity`, `width`, `lineStyle`, `sourceArrow`, `targetArrow`, `curved`, `bends`, `label`, `labelColor`, `labelSize`, `labelFont`, `labelWeight`, `labelItalic`                       |
 | Graph properties written            | none                                                                                                                                                                                           |
 | Rules kept for graphty              | yes, as the `graphty.styles` graph attribute                                                                                                                                                   |
 | Not written (`W_STYLE_NOT_WRITTEN`) | node: `opacity`, `tooltip`, `image`, `visible`; edge: `sourceArrowColor`, `targetArrowColor`, `arrowSize`, `tooltip`, `sourceLabel`, `targetLabel`, `visible`; graph: `background`             |

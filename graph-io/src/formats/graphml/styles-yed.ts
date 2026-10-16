@@ -11,6 +11,7 @@ import type { GraphSnapshot } from "@graphty/graph-format";
 
 import { toFilePositions, toNeutral } from "../../positions/convert.js";
 import type { PositionColumnExtra } from "../../positions/types.js";
+import { type BendPoint, bendsToPoints, canonBends } from "../../styles/canon/bends.js";
 import { canonColor, colorOpacity } from "../../styles/canon/color.js";
 import { canonEnum } from "../../styles/canon/enums.js";
 import { canonNumber } from "../../styles/canon/number.js";
@@ -507,6 +508,24 @@ function edgeCurved(real: Realizer): boolean | null {
     return smoothed === undefined ? null : smoothed === "true" && bent;
 }
 
+/**
+ * An edge's bends: the points of its `y:Path`, relative to the centers of its two nodes. yEd draws a polyline through
+ * them; a curve type (Bezier, quad curve, spline) passes near them as its control points.
+ * @param real - the edge realizer
+ * @param centers - each node's center, x and y
+ * @param source - the source node's index
+ * @param target - the target node's index
+ * @returns the `bends` value, or null without bends
+ */
+function edgeBends(real: Realizer, centers: Float64Array, source: number, target: number): string | null {
+    const points = treeChildren(treeChild(real.r, "Path"), "Point").map((p): BendPoint => [
+        Number(treeAttr(p, "x")),
+        Number(treeAttr(p, "y")),
+    ]);
+    const at = (k: number): BendPoint => [centers[2 * k], centers[2 * k + 1]];
+    return canonBends(at(source), at(target), points, true);
+}
+
 /** Canonical values per property, by element index. */
 export type ValueColumns = Record<string, (StyleValue | null)[]>;
 
@@ -548,6 +567,8 @@ export interface YedRead {
  */
 export function readYedStyles(snapshot: GraphSnapshot, notes: StyleNotes, budget: StyleWorkBudget): YedRead | null {
     let found = false;
+    // each node's center, read with the node, for its edges' bends; NaN for a node without yEd graphics
+    const centers = new Float64Array(2 * snapshot.nodeCount).fill(Number.NaN);
     const read = (target: StyleTarget): ValueColumns => {
         const table = target === "node" ? snapshot.nodes : snapshot.edges;
         const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
@@ -573,8 +594,12 @@ export function readYedStyles(snapshot: GraphSnapshot, notes: StyleNotes, budget
             };
             if (target === "node") {
                 readNode(real, put, at);
+                const geometry = treeChild(real.r, "Geometry");
+                centers[2 * i] = Number(treeAttr(geometry, "x")) + Number(treeAttr(geometry, "width")) / 2;
+                centers[2 * i + 1] = Number(treeAttr(geometry, "y")) + Number(treeAttr(geometry, "height")) / 2;
             } else {
                 readEdge(real, put, at);
+                put("bends", edgeBends(real, centers, snapshot.edgeSource(i), snapshot.edgeTarget(i)));
             }
         }
         return out.values;
@@ -617,6 +642,7 @@ export const GRAPHML_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze(
         "sourceArrow",
         "targetArrow",
         "curved",
+        "bends",
         "label",
         "labelColor",
         "labelSize",
@@ -1084,6 +1110,28 @@ function keptPath(table: GraphSnapshot["edges"], columns: readonly string[], e: 
 }
 
 /**
+ * An edge's `y:Path` with its points placed from its `bends` value between the written node centers, so the bends
+ * read back as written; the ports of the path it had are kept. Without a value, or without both centers, the path it
+ * had.
+ * @param kept - the path from the graphics the edge had, or undefined
+ * @param bends - the edge's `bends` value
+ * @param ends - the written centers of its source and target
+ * @returns the path, or undefined
+ */
+function pathWithBends(kept: unknown, bends: StyleValue | null, ends: readonly [BendPoint, BendPoint]): unknown {
+    const points = typeof bends === "string" ? bendsToPoints(ends[0], ends[1], bends, true) : null;
+    if (points === null) {
+        return kept;
+    }
+    const path: Tree = {};
+    for (const port of ["sx", "sy", "tx", "ty"]) {
+        path[`@_${port}`] = treeAttr(kept, port) ?? "0.0";
+    }
+    path["y:Point"] = points.map(([x, y]) => ({ "@_x": String(x), "@_y": String(y) }));
+    return path;
+}
+
+/**
  * A column name not yet taken in a table.
  * @param table - the table
  * @param base - the preferred name
@@ -1133,9 +1181,20 @@ export function graphmlStyledExport(
         const at = keptPosition(snapshot.nodes, nodeColumns, i) ?? columnPosition(snapshot, i, get);
         nodeTrees.push(shapeNodeTree(get, at, approximateFor("node")));
     }
+    const centers = nodeTrees.map((tree): BendPoint => {
+        const geometry = treeChild(treeChild(tree, "ShapeNode"), "Geometry");
+        const at = (k: string): number => Number(treeAttr(geometry, k) ?? Number.NaN);
+        return [at("x") + at("width") / 2, at("y") + at("height") / 2];
+    });
     const edgeTrees: (Tree | null)[] = [];
     for (let e = 0; e < snapshot.edgeCount; e++) {
-        edgeTrees.push(polyLineEdgeTree(getEdge(e), keptPath(snapshot.edges, edgeColumns, e), approximateFor("edge")));
+        const get = getEdge(e);
+        const ends: readonly [BendPoint, BendPoint] = [
+            centers[snapshot.edgeSource(e)],
+            centers[snapshot.edgeTarget(e)],
+        ];
+        const path = pathWithBends(keptPath(snapshot.edges, edgeColumns, e), get("bends"), ends);
+        edgeTrees.push(polyLineEdgeTree(get, path, approximateFor("edge")));
     }
     const out = snapshot.withColumns();
     for (const [table, trees, target] of [

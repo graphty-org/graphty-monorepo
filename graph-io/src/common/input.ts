@@ -506,46 +506,81 @@ class ByteDecoder {
         const bad = this.encoding === "utf-8" ? invalidUtf8(all) : null;
         const at = base + (bad === null ? 0 : bad.index);
         if (this.mayFallBack && this.asciiSoFar) {
-            // windows-1252 text holds no control bytes but TAB, LF, FF and CR: one anywhere in
-            // undeclared input that is not UTF-8 marks binary data (watch() saw every byte so far)
-            if (this.control !== null) {
-                return this.binary(this.control);
-            }
-            if (this.textFollows && bad?.cut === true) {
-                return this.report.fail(
-                    INVALID_UTF8_CODE,
-                    `invalid UTF-8 at byte ${at}: a byte chunk ends inside a multi-byte sequence and a text chunk follows`,
-                    undefined,
-                    { byteOffset: at },
-                );
-            }
-            if (!stream && bad?.truncated === true) {
-                return this.report.fail(
-                    INVALID_UTF8_CODE,
-                    `the input ends in the middle of a UTF-8 sequence at byte ${at} (it may be truncated)`,
-                    undefined,
-                    { byteOffset: at },
-                );
-            }
-            if (!startsWithUtf8(all)) {
-                const cutNote =
-                    !stream && bad?.cut === true
-                        ? ": it ends inside a multi-byte UTF-8 sequence, so it may be truncated"
-                        : "";
-                this.report.warning(
-                    "coercion",
-                    ENCODING_FALLBACK_CODE,
-                    this.declaredUtf8
-                        ? `the input declares UTF-8 but is not valid UTF-8 (at byte ${at}); everything before was ASCII, so it is read as windows-1252 (pass the encoding option to choose another)`
-                        : `the input is not valid UTF-8 (at byte ${at}${cutNote}) and declares no encoding; read as windows-1252 (pass the encoding option to choose another)`,
-                );
-                this.use("windows-1252", false);
-                this.fellBack = true;
-                this.mixedPending = true;
-                this.reportUtf8After(all, base);
-                return (this.decoder as TextDecoder).decode(all, { stream });
+            const text = this.fallBack(all, bad, at, base, stream);
+            if (text !== null) {
+                return text;
             }
         }
+        return this.failDecode(bytes, at, base, stream);
+    }
+
+    /**
+     * Undeclared input that was ASCII so far failed to decode: fail on binary data or a cut
+     * sequence, else switch to windows-1252 with a warning unless the bytes start with valid
+     * non-ASCII UTF-8.
+     * @param all - the held-back bytes followed by the bytes that failed
+     * @param bad - the first invalid UTF-8 sequence, or null when the encoding is not UTF-8
+     * @param at - the byte offset of the first invalid byte
+     * @param base - the byte offset of `all`
+     * @param stream - whether more bytes follow
+     * @returns the bytes decoded as windows-1252, or null when they do not fall back
+     */
+    private fallBack(
+        all: Uint8Array,
+        bad: Utf8Problem | null,
+        at: number,
+        base: number,
+        stream: boolean,
+    ): string | null {
+        // windows-1252 text holds no control bytes but TAB, LF, FF and CR: one anywhere in
+        // undeclared input that is not UTF-8 marks binary data (watch() saw every byte so far)
+        if (this.control !== null) {
+            return this.binary(this.control);
+        }
+        if (this.textFollows && bad?.cut === true) {
+            return this.report.fail(
+                INVALID_UTF8_CODE,
+                `invalid UTF-8 at byte ${at}: a byte chunk ends inside a multi-byte sequence and a text chunk follows`,
+                undefined,
+                { byteOffset: at },
+            );
+        }
+        if (!stream && bad?.truncated === true) {
+            return this.report.fail(
+                INVALID_UTF8_CODE,
+                `the input ends in the middle of a UTF-8 sequence at byte ${at} (it may be truncated)`,
+                undefined,
+                { byteOffset: at },
+            );
+        }
+        if (startsWithUtf8(all)) {
+            return null;
+        }
+        const cutNote =
+            !stream && bad?.cut === true ? ": it ends inside a multi-byte UTF-8 sequence, so it may be truncated" : "";
+        this.report.warning(
+            "coercion",
+            ENCODING_FALLBACK_CODE,
+            this.declaredUtf8
+                ? `the input declares UTF-8 but is not valid UTF-8 (at byte ${at}); everything before was ASCII, so it is read as windows-1252 (pass the encoding option to choose another)`
+                : `the input is not valid UTF-8 (at byte ${at}${cutNote}) and declares no encoding; read as windows-1252 (pass the encoding option to choose another)`,
+        );
+        this.use("windows-1252", false);
+        this.fellBack = true;
+        this.mixedPending = true;
+        this.reportUtf8After(all, base);
+        return (this.decoder as TextDecoder).decode(all, { stream });
+    }
+
+    /**
+     * Fail the import on bytes that are not valid in the encoding.
+     * @param bytes - the bytes that failed
+     * @param at - the byte offset of the first invalid UTF-8 byte
+     * @param base - the byte offset of the held-back bytes and these
+     * @param stream - whether more bytes follow
+     * @returns never: it throws
+     */
+    private failDecode(bytes: Uint8Array, at: number, base: number, stream: boolean): never {
         if (this.encoding === "utf-8") {
             const after = this.mayFallBack ? " after valid non-ASCII UTF-8 text; pass the encoding option" : "";
             return this.report.fail(INVALID_UTF8_CODE, `invalid UTF-8 at byte ${at}${after}`, undefined, {
@@ -1666,81 +1701,174 @@ export class LineReader implements AsyncIterable<string> {
      * @returns nothing
      */
     async *[Symbol.asyncIterator](): AsyncGenerator<string, void, undefined> {
-        // The pieces of the line in progress (none of them holds a line break, except that the last
-        // may end with a `\r` whose meaning the next chunk decides); joined once when the line ends,
-        // so a line spanning many chunks costs its length, not its length times the chunk count.
-        const pending: string[] = [];
-        let pendingLength = 0;
+        // The pieces of the line in progress, joined once when the line ends, so a line spanning
+        // many chunks costs its length, not its length times the chunk count.
+        const pending = new PendingLine((line) => tooLarge(this.report, this.lineTooLong(), line));
         let trailingCr = false;
         for await (const chunk of textChunks(this.input, this.report, this.options)) {
             let start = 0;
-            const end = chunk.length;
             if (trailingCr) {
                 // the previous chunk ended with `\r`: that ended a line, and a leading `\n` here is
                 // the second half of the same terminator
                 trailingCr = false;
                 this.lineNumber++;
-                const joined = pending.join("");
-                pending.length = 0;
-                pendingLength = 0;
-                yield joined.slice(0, -1);
+                yield pending.take().slice(0, -1);
                 if (chunk.charCodeAt(0) === 10) {
                     start = 1;
                 }
             }
-            // the next `\n` and `\r` at or after `start`; each is searched for once per chunk and
-            // again only after it was consumed, so a chunk is scanned once whatever its line count
-            let nl = chunk.indexOf("\n", start);
-            let cr = chunk.indexOf("\r", start);
-            while (nl >= 0 || cr >= 0) {
-                let cut: number;
-                let next: number;
-                if (cr >= 0 && (nl < 0 || cr < nl)) {
-                    if (cr === end - 1) {
-                        // a trailing \r may be the first half of \r\n split across chunks
-                        break;
-                    }
-                    cut = cr;
-                    next = chunk.charCodeAt(cr + 1) === 10 ? cr + 2 : cr + 1;
-                } else {
-                    cut = nl;
-                    next = nl + 1;
-                }
+            const breaks = new LineBreaks(chunk, start);
+            while (breaks.advance()) {
                 this.lineNumber++;
-                const piece = chunk.slice(start, cut);
-                if (pending.length === 0) {
-                    yield piece;
-                } else {
-                    if (pendingLength + piece.length > MAX_TEXT_LENGTH) {
-                        tooLarge(this.report, this.lineTooLong(), this.lineNumber);
-                    }
-                    pending.push(piece);
-                    const joined = pending.join("");
-                    pending.length = 0;
-                    pendingLength = 0;
-                    yield joined;
-                }
-                start = next;
-                if (nl >= 0 && nl < next) {
-                    nl = chunk.indexOf("\n", next);
-                }
-                if (cr >= 0 && cr < next) {
-                    cr = chunk.indexOf("\r", next);
-                }
+                yield pending.finish(chunk.slice(start, breaks.cut), this.lineNumber);
+                start = breaks.next;
             }
-            if (start < end) {
-                pendingLength += end - start;
-                if (pendingLength > MAX_TEXT_LENGTH) {
-                    tooLarge(this.report, this.lineTooLong(), this.lineNumber + 1);
-                }
-                pending.push(start === 0 ? chunk : chunk.slice(start));
-                trailingCr = chunk.charCodeAt(end - 1) === 13;
+            if (start < chunk.length) {
+                pending.appendRest(chunk, start, this.lineNumber + 1);
+                trailingCr = chunk.codePointAt(chunk.length - 1) === 13;
             }
         }
-        if (pending.length > 0) {
+        if (!pending.empty) {
             this.lineNumber++;
-            const joined = pending.join("");
+            const joined = pending.take();
             yield joined.endsWith("\r") ? joined.slice(0, -1) : joined;
         }
+    }
+}
+
+/**
+ * The pieces of a line that spans chunks. None of them holds a line break, except that the last
+ * may end with a `\r` whose meaning the next chunk decides.
+ */
+class PendingLine {
+    private readonly pieces: string[] = [];
+
+    private length = 0;
+
+    private readonly tooLong: (line: number) => never;
+
+    /**
+     * Start an empty line.
+     * @param tooLong - fails the import when the line grows longer than one string can hold
+     */
+    constructor(tooLong: (line: number) => never) {
+        this.tooLong = tooLong;
+    }
+
+    /**
+     * Whether no piece is held.
+     * @returns true when the line in progress is empty
+     */
+    get empty(): boolean {
+        return this.pieces.length === 0;
+    }
+
+    /**
+     * Hold the rest of a chunk from `start`: the line goes on in the next chunk.
+     * @param chunk - the chunk
+     * @param start - where the unfinished line starts in it
+     * @param line - the 1-based number of the line, for the too-long error
+     */
+    appendRest(chunk: string, start: number, line: number): void {
+        this.append(start === 0 ? chunk : chunk.slice(start), line);
+    }
+
+    /**
+     * End the line with its last piece.
+     * @param piece - the text from the start of the chunk (or the last break) to the line break
+     * @param line - the 1-based number of the line, for the too-long error
+     * @returns the whole line
+     */
+    finish(piece: string, line: number): string {
+        if (this.pieces.length === 0) {
+            return piece;
+        }
+        this.append(piece, line);
+        return this.take();
+    }
+
+    /**
+     * Join the held pieces and start a new line.
+     * @returns the joined text
+     */
+    take(): string {
+        const joined = this.pieces.join("");
+        this.pieces.length = 0;
+        this.length = 0;
+        return joined;
+    }
+
+    /**
+     * Hold one more piece.
+     * @param piece - the piece
+     * @param line - the 1-based number of the line, for the too-long error
+     */
+    private append(piece: string, line: number): void {
+        this.length += piece.length;
+        if (this.length > MAX_TEXT_LENGTH) {
+            this.tooLong(line);
+        }
+        this.pieces.push(piece);
+    }
+}
+
+/**
+ * The line breaks of one chunk, in order: `\n`, `\r\n` and a lone `\r`. Each of `\n` and `\r` is
+ * searched for once per chunk and again only after it was consumed, so a chunk is scanned once
+ * whatever its line count.
+ */
+class LineBreaks {
+    /** Where the line just found ends (its terminator starts there). */
+    cut = 0;
+
+    /** Where the next line starts. */
+    next: number;
+
+    private readonly chunk: string;
+
+    private nl: number;
+
+    private cr: number;
+
+    /**
+     * Scan a chunk from a position.
+     * @param chunk - the chunk
+     * @param start - where scanning starts
+     */
+    constructor(chunk: string, start: number) {
+        this.chunk = chunk;
+        this.next = start;
+        this.nl = chunk.indexOf("\n", start);
+        this.cr = chunk.indexOf("\r", start);
+    }
+
+    /**
+     * Find the next line break.
+     * @returns false when none is left, or the only one left is a trailing `\r` (it may be the first
+     * half of a `\r\n` split across chunks)
+     */
+    advance(): boolean {
+        const { chunk, next } = this;
+        if (this.nl >= 0 && this.nl < next) {
+            this.nl = chunk.indexOf("\n", next);
+        }
+        if (this.cr >= 0 && this.cr < next) {
+            this.cr = chunk.indexOf("\r", next);
+        }
+        const { nl, cr } = this;
+        if (cr >= 0 && (nl < 0 || cr < nl)) {
+            if (cr === chunk.length - 1) {
+                return false;
+            }
+            this.cut = cr;
+            this.next = chunk.codePointAt(cr + 1) === 10 ? cr + 2 : cr + 1;
+            return true;
+        }
+        if (nl < 0) {
+            return false;
+        }
+        this.cut = nl;
+        this.next = nl + 1;
+        return true;
     }
 }

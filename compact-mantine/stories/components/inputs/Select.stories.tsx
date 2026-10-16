@@ -17,7 +17,7 @@ import { LabelsProvider, StyleSelect } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";
 import { StateGrid } from "../../helpers/input-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
-import { untilPasses } from "../../helpers/settled";
+import { storyWaitOptions, untilPasses } from "../../helpers/settled";
 // Imported from "../../../src", the package's published entry point, so the stories exercise
 // exactly what a consumer gets from `@graphty/compact-mantine`.
 
@@ -284,7 +284,7 @@ export const Keyboard: Story = {
         await expect(trigger).toHaveFocus();
         await userEvent.keyboard("{Enter}");
         const body = within(canvasElement.ownerDocument.body);
-        const inside = await body.findByRole("option", { name: "Inside" });
+        const inside = await body.findByRole("option", { name: "Inside" }, storyWaitOptions(1000));
         // floating-ui places the list on a later frame: wait on the placement, not a deadline (#2719).
         const offset = (): number =>
             Math.abs(

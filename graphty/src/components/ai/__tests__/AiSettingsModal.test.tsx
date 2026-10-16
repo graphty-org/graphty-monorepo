@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
-import { fireEvent, render, screen } from "../../../test/test-utils";
+import { render, screen } from "../../../test/test-utils";
 import { AiSettingsModal } from "../AiSettingsModal";
 
 /**
@@ -48,12 +49,12 @@ describe("AiSettingsModal", () => {
         expect(screen.getByLabelText("API key")).toBeInTheDocument();
     });
 
-    it("closes on Escape, the one Escape ladder the shell already uses", () => {
+    it("closes on Escape, the one Escape ladder the shell already uses", async () => {
         const onClose = vi.fn();
 
         render(<AiSettingsModal {...modalProps()} onClose={onClose} />);
 
-        fireEvent.keyDown(document.body, { key: "Escape" });
+        await userEvent.keyboard("{Escape}");
 
         expect(onClose).toHaveBeenCalledTimes(1);
     });

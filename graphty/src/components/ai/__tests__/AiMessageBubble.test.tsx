@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
-import { fireEvent, render, screen } from "../../../test/test-utils";
+import { render, screen } from "../../../test/test-utils";
 import { AiMessageBubble, type ChatMessage } from "../AiMessageBubble";
 
 describe("AiMessageBubble", () => {
@@ -90,13 +91,13 @@ describe("AiMessageBubble", () => {
             expect(screen.queryByRole("button")).not.toBeInTheDocument();
         });
 
-        it("calls onRetry with message when retry button clicked", () => {
+        it("calls onRetry with message when retry button clicked", async () => {
             const onRetry = vi.fn();
             const message = createMessage({ role: "assistant", isError: true, content: "Failed" });
             render(<AiMessageBubble message={message} onRetry={onRetry} />);
 
             const button = screen.getByRole("button");
-            fireEvent.click(button);
+            await userEvent.click(button);
 
             expect(onRetry).toHaveBeenCalledTimes(1);
             expect(onRetry).toHaveBeenCalledWith(message);

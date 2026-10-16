@@ -142,6 +142,20 @@ describe("GEXF styles: reading", () => {
         expect(resolveStyles(bare.styles, "node", "borderWidth", bare.snapshot)).toEqual([null]);
     });
 
+    it("sizes each label with its node and draws arrows at their normal size, as Gephi Preview does", async () => {
+        const { snapshot, styles } = await load(
+            `<gexf version="1.3" xmlns:viz="http://gexf.net/1.3/viz"><graph defaultedgetype="directed"><nodes>
+            <node id="a" label="A"><viz:size value="25"/></node><node id="b" label="B"/></nodes>
+            <edges><edge source="a" target="b"/></edges></graph></gexf>`,
+        );
+        // Arial 12 x (twice the size) x 0.05 (NodeLabelRenderer.java lines 165-173): 12 for a size-10 node
+        expect(resolveStyles(styles, "node", "labelSize", snapshot)).toEqual([30, 12]);
+        // ARROW_SIZE 3 is Preview's normal arrow (DefaultPreset.java line 62); the vocabulary's 1 is that normal
+        expect(resolveStyles(styles, "edge", "arrowSize", snapshot)).toEqual([1]);
+        const bare = await load(`<gexf version="1.3"><graph><nodes><node id="a"/></nodes></graph></gexf>`, false);
+        expect(resolveStyles(bare.styles, "node", "labelSize", bare.snapshot)).toEqual([null]);
+    });
+
     it("draws an edge with no thickness as thick as its weight, as Gephi does, and one with a thickness with it", async () => {
         const { snapshot, styles } = await load(
             `<gexf version="1.3" xmlns:viz="http://gexf.net/1.3/viz"><graph><nodes><node id="a"/><node id="b"/></nodes>

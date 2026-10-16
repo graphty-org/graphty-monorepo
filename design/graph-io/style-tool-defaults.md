@@ -244,6 +244,15 @@ in its fill with each channel times 0.498, 0.08 of the node's width wide (`SizeU
 color is kept, although Preview's mixed mode draws over it: the file states it, and the Overview,
 Preview's "original" mode, sigma.js and gexf-js draw it.
 
+Preview draws each node's label Arial 12 scaled with the node (`NODE_LABEL_PROPORTIONAL_SIZE`,
+`DefaultPreset.java:98`; `NodeLabelRenderer.java:165-173`: 12 x the node's drawn size x 0.05, the
+node drawn twice its `viz:size` wide), so graph-io gives every node without a label size of its own
+a label size of 1.2 x its size: 12 for a size-10 node. Preview's arrow is `ARROW_SIZE` 3 times the
+edge's weight long (`DefaultPreset.java:62`, `EdgeRenderer.java:255-256`); that is Gephi's normal
+arrow, and the vocabulary's `arrowSize` is a factor of the writing tool's normal arrow, so Gephi's
+default is 1, as Cytoscape.js's `arrow-scale` 1 and Graphviz's `arrowsize` 1 are each program's own
+normal.
+
 Labels are the one place graph-io departs from both drawings: it shows each node's `label` (black
 Arial, as Gephi draws a label it shows), as sigma.js and gexf-js (`js/gexfjs.js:1019-1040`) do. A
 label is what the file states about a node; Gephi hiding it is a view switch, which an application

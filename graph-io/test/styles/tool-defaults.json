@@ -209,12 +209,14 @@
             "shape": "ellipse",
             "opacity": 1,
             "labelColor": "#000000",
-            "labelFont": "Arial"
+            "labelFont": "Arial",
+            "labelSize": 12
         },
         "edge": {
             "curved": true,
             "sourceArrow": "none",
             "targetArrow": "none",
+            "arrowSize": 1,
             "opacity": 1
         },
         "graph": {
@@ -232,6 +234,10 @@
                 "kind": "borderFromFill",
                 "darken": 0.498,
                 "widthFactor": 0.08
+            },
+            {
+                "kind": "labelSizeFromWidth",
+                "factor": 1.2
             },
             {
                 "kind": "widthFromWeight"

@@ -1246,6 +1246,7 @@
             "graphty.style.node.class",
             "graphty.style.node.copy.height",
             "graphty.style.node.copy.width",
+            "graphty.style.node.label-size",
             "id",
             "label",
             "size"
@@ -1287,6 +1288,7 @@
             "graphty.style.node.class",
             "graphty.style.node.copy.height",
             "graphty.style.node.copy.width",
+            "graphty.style.node.label-size",
             "id",
             "label",
             "size"
@@ -1308,6 +1310,7 @@
             "graphty.style.node.class",
             "graphty.style.node.copy.height",
             "graphty.style.node.copy.width",
+            "graphty.style.node.label-size",
             "id",
             "label",
             "size"
@@ -1329,6 +1332,7 @@
             "graphty.style.node.class",
             "graphty.style.node.copy.height",
             "graphty.style.node.copy.width",
+            "graphty.style.node.label-size",
             "id",
             "label",
             "size"

@@ -7,7 +7,7 @@ import { render, screen } from "./test/test-utils";
 /**
  * The width these boards lay the shell out at.
  *
- * `App` renders `<AppShell />` with no `initialShellWidth`, so the store measures the
+ * `App` at `?legacy` renders `<AppShell />` with no `initialShellWidth`, so the store measures the
  * real window -- and since 2026-09-14 the shell does not lay out at all below
  * {@link NARROW_BREAKPOINT}: it draws a "screen too small" state instead (product owner:
  * "there will be no more auto-hide. below 1280 should just say 'screen too small' or
@@ -52,30 +52,21 @@ describe("App", () => {
     });
 
     describe("the default surface", () => {
-        it("renders the app shell", () => {
+        it("renders the tier 1 workspace, on its start screen", () => {
             render(<App />);
 
-            expect(screen.getByTestId("app-shell")).toBeInTheDocument();
-        });
-
-        it("draws the activity rail, which is the shell's left column", () => {
-            render(<App />);
-
-            expect(screen.getByRole("navigation", { name: "Activity rail" })).toBeInTheDocument();
+            expect(screen.queryByTestId("app-shell")).not.toBeInTheDocument();
+            expect(screen.getByRole("region", { name: "Samples" })).toBeInTheDocument();
         });
     });
 
     describe("the other branches", () => {
-        // The superseded AppLayout shell and its ?legacy route were removed 2026-09
-        // at the product owner's request. The parameter is not special-cased on the
-        // way out, so it must fall through to the shell rather than error -- that
-        // fall-through is the behaviour this asserts, in place of the old
-        // "keeps the superseded shell reachable at ?legacy".
-        it("falls through to the app shell at the retired ?legacy parameter", () => {
+        it("keeps the superseded app shell reachable at ?legacy", () => {
             withSearch("?legacy", () => {
                 render(<App />);
 
                 expect(screen.getByTestId("app-shell")).toBeInTheDocument();
+                expect(screen.getByRole("navigation", { name: "Activity rail" })).toBeInTheDocument();
             });
         });
 
@@ -87,7 +78,7 @@ describe("App", () => {
             });
         });
 
-        it("renders the tier 1 workspace at ?next, on its start screen", () => {
+        it("still renders the tier 1 workspace at ?next, so old links keep working", () => {
             withSearch("?next", () => {
                 render(<App />);
 

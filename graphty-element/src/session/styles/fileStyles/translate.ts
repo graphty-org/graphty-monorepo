@@ -804,6 +804,7 @@ class KindTranslation {
         this.#composites();
         this.#visibility();
         this.#nesting();
+        this.#drawOrder();
 
         const ordered = [...this.#built].filter(
             (layer) => Object.keys(layer.spec.set).length + Object.keys(layer.spec.encode).length > 0,
@@ -2281,6 +2282,46 @@ class KindTranslation {
                 },
             },
             paint: new Map([["node.zIndex", values]]),
+            worth: 0,
+        });
+    }
+
+    /**
+     * Overlapping nodes in the file's own order, as every program that draws them does
+     * (Cytoscape, Pajek, yEd, Graphviz): a node later in the file is drawn on top of one before
+     * it. Each node gets a `node.drawOrder` level from its place in the file, 0 for the first and
+     * 100 for the last. A file graphty wrote is left alone: graphty drew it with no order, and its
+     * own layers come back as they were.
+     */
+    #drawOrder(): void {
+        if (this.#kind !== "node" || this.#n < 2 || this.#input.extracted.styles.source.tool === "graphty") {
+            return;
+        }
+
+        const last = this.#n - 1;
+        const values = Array.from({ length: this.#n }, (_unused, i) => Math.round((i * 100) / last));
+        const path = this.#keepNew("drawOrder", values);
+        this.#built.push({
+            bucket: this.#rules.length,
+            spec: {
+                name: "node.drawOrder",
+                target: "node",
+                kind: "encoding",
+                selector: this.#scoped({ match: "has", path }),
+                set: {},
+                encode: { "node.drawOrder": { by: path, scale: "passthrough" } },
+                fileStyle: {
+                    format: this.#input.format,
+                    importId: this.#input.importId,
+                    ruleId: "node.drawOrder",
+                    role: "passthrough",
+                    origin: "inferred",
+                    column: path,
+                    mapping: "passthrough",
+                    elements: this.#n,
+                },
+            },
+            paint: new Map([["node.drawOrder", values]]),
             worth: 0,
         });
     }

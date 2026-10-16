@@ -290,6 +290,7 @@ export interface ChannelValues {
     "node.depth": number;
     "node.planar": boolean;
     "node.zIndex": number;
+    "node.drawOrder": number;
     "node.borderColor": ColorValue;
     "node.borderWidth": number;
     "node.borderStyle": NodeBorderStyleValue;
@@ -966,6 +967,24 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "Drawing order in a 2D view, from -1000 to 0. A node below 0 is drawn " +
             "behind every edge and every node with a higher z-index, so a group (compound) node " +
             "drawn at -1 never hides its members. 3D views draw by real depth and ignore it.",
+    },
+    "node.drawOrder": {
+        channel: "node.drawOrder",
+        target: "node",
+        plainName: "Node Draw Order",
+        shortName: "Draw order",
+        group: "shape",
+        accepts: "number",
+        min: 0,
+        max: 100,
+        stylePath: "shape.drawOrder",
+        renderable: true,
+        caveat:
+            "Which of two overlapping nodes is drawn on top in a 2D view, from 0 to 100: the higher " +
+            "one. Every node with a draw order is drawn in front of the edges, and in front of every " +
+            "node with none; a node with none is drawn as it always was. Only nodes at z-index 0 " +
+            "are ordered, and 3D views draw by real depth and ignore it. Each distinct value is its " +
+            "own source mesh, so a few levels keep instancing cheap.",
     },
     "node.borderColor": {
         channel: "node.borderColor",

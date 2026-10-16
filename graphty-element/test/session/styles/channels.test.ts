@@ -50,6 +50,7 @@ const DECLARED = [
     "node.depth",
     "node.planar",
     "node.zIndex",
+    "node.drawOrder",
     "node.borderColor",
     "node.borderWidth",
     "node.borderStyle",
@@ -106,8 +107,8 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into twenty-eight node channels and twenty-seven edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 28);
+    it("splits into twenty-nine node channels and twenty-seven edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 29);
         assert.strictEqual(channelsFor("edge").length, 27);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
@@ -303,6 +304,8 @@ describe("what a style editor needs to draw a row", () => {
         "node.width",
         "node.height",
         "node.depth",
+        // Unset, a node is drawn where it always was, with no order among its neighbours.
+        "node.drawOrder",
         "edge.patternCount",
         // Unset, an edge runs straight from node to node.
         "edge.bends",

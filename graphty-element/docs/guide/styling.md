@@ -196,6 +196,7 @@ A channel is one visual property with one name. These are all of them:
 | `node.depth`        | 0 or more: the depth (3D), in the units of `node.size`                   |
 | `node.planar`       | true or false: draw the node thin, as a flat shape, even in 3D           |
 | `node.zIndex`       | -1000 to 0: in 2D, below 0 draws the node behind edges and higher nodes  |
+| `node.drawOrder`    | 0 to 100: in 2D, which of two overlapping nodes is drawn on top          |
 | `node.borderColor`  | a colour; black when unset                                               |
 | `node.borderWidth`  | 0 or more, in the units of `node.size`; 0 draws no border                |
 | `node.borderStyle`  | `solid`, `dashed`, `dotted` or `double`                                  |
@@ -305,6 +306,13 @@ behind every edge and every node with a higher value, so a group (compound) node
 hides the nodes inside it, and an outer group at -2 stays behind an inner one. Loading a file
 with `styles: "file"` sets it on the file's group nodes. A 3D view draws by real depth and
 ignores it.
+
+`node.drawOrder` decides which of two overlapping nodes is drawn on top in a 2D view: the one with
+the higher value, from 0 to 100. A node with a draw order is drawn in front of every edge and of
+every node without one; a node without one is drawn as before. Loading a file with
+`styles: "file"` sets it from the file's own order, so a node later in the file is drawn on top,
+as the program that wrote it draws it. Each distinct value is its own source mesh, so use a few
+levels on a large graph. A 3D view draws by real depth and ignores it.
 
 A border is a ring drawn outside the node's outline, so it never covers the fill, and an edge
 ends at its outer edge. Its width is in the units of `node.size`, so it scales with the node:

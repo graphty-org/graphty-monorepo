@@ -11,6 +11,7 @@ import {
     Scene,
     StandardMaterial,
     TransformNode,
+    VertexBuffer,
 } from "@babylonjs/core";
 
 import { SharedImplementationMap } from "../catalog/pluginRegistry";
@@ -62,13 +63,56 @@ const Z_INDEX_STEP = 0.05;
  */
 function placeByZIndex(mesh: Mesh, shape: NodeStyleConfig["shape"], is2D: boolean): void {
     const zIndex = shape?.zIndex ?? 0;
-    if (!is2D || zIndex >= 0) {
+    if (!is2D) {
+        return;
+    }
+
+    if (zIndex >= 0) {
+        placeByDrawOrder(mesh, shape?.drawOrder);
         return;
     }
 
     mesh.refreshBoundingInfo();
     const front = mesh.getBoundingInfo().boundingBox.minimum.z;
     mesh.bakeTransformIntoVertices(Matrix.Translation(0, 0, -zIndex * Z_INDEX_STEP - front));
+    mesh.refreshBoundingInfo();
+}
+
+/**
+ * How far apart along the 2D camera's view the front faces of two neighbouring `drawOrder`
+ * levels are drawn: about ten times the depth buffer's resolution at the 2D camera's range, so
+ * the 101 levels together stay well under a unit deep.
+ */
+const DRAW_ORDER_STEP = Z_INDEX_STEP / 8;
+
+/**
+ * In a 2D view, flatten the camera-facing half of a node mesh onto one plane `drawOrder + 1`
+ * steps in front of the plane the edges are drawn on, leaving the other half where it is.
+ *
+ * WHY FLAT. A node drawn in 2D can still be a solid (the default sphere), and two solids that
+ * overlap cut through each other: each shows where its own surface is nearer, so neither is on
+ * top, and a large node pokes through a small one in front of it. A flat face per order level
+ * means that wherever two ordered nodes overlap, the higher order is nearer everywhere. The
+ * vertices keep their normals, so the shading seen head-on is unchanged, and the half behind the
+ * edges' plane keeps the outline an edge's end is found on. No `drawOrder` leaves the mesh exactly
+ * as it was.
+ * @param mesh - The source mesh, before any instance is made of it.
+ * @param drawOrder - The node's draw order, 0 to 100.
+ */
+function placeByDrawOrder(mesh: Mesh, drawOrder: number | undefined): void {
+    const positions = drawOrder === undefined ? null : mesh.getVerticesData(VertexBuffer.PositionKind);
+    if (drawOrder === undefined || positions === null) {
+        return;
+    }
+
+    const front = -(drawOrder + 1) * DRAW_ORDER_STEP;
+    for (let z = 2; z < positions.length; z += 3) {
+        if (positions[z] < 0) {
+            positions[z] = front;
+        }
+    }
+
+    mesh.setVerticesData(VertexBuffer.PositionKind, positions);
     mesh.refreshBoundingInfo();
 }
 

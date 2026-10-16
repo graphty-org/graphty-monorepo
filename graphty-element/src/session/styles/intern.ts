@@ -90,6 +90,8 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.planar": "mesh",
     // Baked into the source mesh's vertices in 2D, like its depth (NodeMesh.placeByZIndex).
     "node.zIndex": "mesh",
+    // Baked into the source mesh's vertices in 2D the same way (NodeMesh.placeByZIndex).
+    "node.drawOrder": "mesh",
     "node.borderColor": "mesh",
     "node.borderWidth": "mesh",
     "node.borderStyle": "mesh",

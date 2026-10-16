@@ -452,6 +452,35 @@ describe("a file's groups (compound nodes)", () => {
     });
 });
 
+describe("a file's drawing order", () => {
+    const order = (session: GraphSession, id: string): unknown => drawn(session, { node: id }, "node.drawOrder");
+    const doc = JSON.stringify({
+        elements: ["first", "second", "third"].map((id) => ({ data: { id } })),
+        style: [{ selector: "node", style: { "background-color": "#ff0000" } }],
+    });
+
+    it("draws a node later in the file on top of one before it", async () => {
+        const session = createGraphSession();
+        await session.data.import({ type: "json", config: { data: doc } }, { styles: "file" });
+
+        assert.strictEqual(order(session, "first"), 0);
+        assert.strictEqual(order(session, "second"), 50);
+        assert.strictEqual(order(session, "third"), 100);
+        assert.strictEqual(fileStyleOf(winner(session, "third", "node.drawOrder") as Layer)?.ruleId, "node.drawOrder");
+        session.dispose();
+    });
+
+    it("orders nothing when the file's styles are not drawn", async () => {
+        const session = createGraphSession();
+        await session.data.import({ type: "json", config: { data: doc } });
+
+        for (const id of ["first", "second", "third"]) {
+            assert.isUndefined(order(session, id), id);
+        }
+        session.dispose();
+    });
+});
+
 describe("a file graphty wrote", () => {
     it("rebuilds graphty's own layers in each merged file's namespace, and sets aside one over 8 terms", async () => {
         const short = await graphtyWritten("a", "data.group == 'x'");

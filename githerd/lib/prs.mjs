@@ -457,12 +457,13 @@ function summaryKeys(required, underlying) {
  * When the pull request's own code last changed, from a new commit list or else the same head's
  * record. A merge of the base branch is no new code: the owner's rejects of the code before it stand.
  * @param {Detail} detail what the poll fetched
- * @param {PrRecord | undefined} same the saved record when the head is the same
+ * @param {PrRecord | undefined} prev the saved record
+ * @param {boolean} sameHead whether `prev` is of this head
  * @returns {string | null | undefined} the date; null when unknown, undefined when never read
  */
-function codeChangedOf(detail, same) {
+function codeChangedOf(detail, prev, sameHead) {
     if (detail.commits) return detail.commits.codeAt ?? null;
-    return same?.codeChangedAt;
+    return sameHead ? prev?.codeChangedAt : undefined;
 }
 
 /**
@@ -533,7 +534,7 @@ function foldPr(node, prev, config, now, master) {
         ownerGate: captureFailed.length === 0 && ownerGateOf(config, checks, ownerSteps),
         ownerSteps,
         ownerRejected: kept.ownerRejected,
-        codeChangedAt: codeChangedOf(detail, sameHead ? prev : undefined),
+        codeChangedAt: codeChangedOf(detail, prev, sameHead),
         stackedOn: null,
         lastActivityAt: node.updatedAt,
         underlying: detail.underlying ?? null,

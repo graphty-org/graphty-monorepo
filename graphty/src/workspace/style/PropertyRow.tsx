@@ -695,11 +695,14 @@ function manyBinding(
     if (descriptor.accepts !== "color") {
         return plain.ok ? plain.binding : null;
     }
+    // A categorical palette unless the reader picks another: past its colors, each group still
+    // gets one of its own ("extend"), never a ramp chosen for the number of groups.
+    const named = palette ?? groupPalettes(session)[0]?.id;
     const options = {
         channel: descriptor.channel,
         scale: "ordinal",
         overflow: "extend",
-        ...(palette === undefined ? {} : { palette }),
+        ...(named === undefined ? {} : { palette: named }),
     } as const;
     const proposal =
         choice.kind === "column"
@@ -779,7 +782,7 @@ function VaryPreview({
                     const rowName = layerWord(session, layer.id) ?? layer.name;
                     return (
                         <li key={layer.id} data-layer={layer.id} aria-label={rowName}>
-                            <Text size="xs" span truncate className="ws-bulk-vary-name">
+                            <Text span truncate className="ws-bulk-vary-name ws-bulk-words">
                                 {rowName}
                             </Text>
                             {shown.map((bin, at) => {

@@ -119,7 +119,10 @@ function groupMarks(
     if (layer?.source.by !== "run" || where?.kind !== "categories" || where.values.length !== 1) {
         return undefined;
     }
-    const hex = hexOf(layer.set?.["node.color"]);
+    // A fixed color, or the one color a rule copied into the layer keeps for its group.
+    const bound = layer.encode?.["node.color"];
+    const kept = bound !== undefined && "by" in bound ? Object.values(bound.map ?? {}) : [];
+    const hex = hexOf(layer.set?.["node.color"] ?? (kept.length === 1 ? kept[0] : undefined));
     return {
         ...(hex === null
             ? {}

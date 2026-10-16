@@ -256,10 +256,12 @@ function manyOf(
         },
         varies: (channel) => {
             const { take, leave } = varyRows(channel);
-            return {
-                layers: take.map((row) => homeOf(row, channel)).filter((l): l is Layer => l !== undefined),
-                left: leave.map((row) => row.row.name),
-            };
+            // Top first, as the tree draws them.
+            const layers = take
+                .map((row) => homeOf(row, channel))
+                .filter((layer): layer is Layer => layer !== undefined)
+                .sort((a, b) => stack.indexOf(b.id) - stack.indexOf(a.id));
+            return { layers, left: leave.map((row) => row.row.name) };
         },
         vary: async (channel, binding) => {
             const { take, leave } = varyRows(channel);

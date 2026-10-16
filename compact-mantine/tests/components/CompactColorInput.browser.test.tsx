@@ -36,6 +36,13 @@ describe("CompactColorInput accessible names", () => {
         await expect.element(page.getByRole("button", { name: /swatch/i })).not.toBeInTheDocument();
     });
 
+    it("keeps the hex and drops the opacity box when the field is too narrow for both", async () => {
+        renderField(<CompactColorInput label="Fill" defaultColor="#3B82F6" width={80} />);
+
+        await expect.element(page.getByRole("textbox", { name: "Fill color", exact: true })).toBeVisible();
+        await expect.element(page.getByRole("textbox", { name: "Fill opacity", exact: true })).not.toBeInTheDocument();
+    });
+
     it("does not double the word color when the label already says it", async () => {
         renderField(<CompactColorInput label="Text color" defaultColor="#000000" showOpacity={false} />);
 

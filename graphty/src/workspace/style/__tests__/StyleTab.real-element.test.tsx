@@ -12,7 +12,7 @@ import { channelsFor } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import userEvent from "@testing-library/user-event";
 import { assert, beforeAll, describe, it } from "vitest";
-import { page } from "vitest/browser";
+import { page, userEvent as realInput } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
@@ -110,7 +110,7 @@ describe("the Style tab on the real element", () => {
         await openWithGraph();
         const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
         const fill = within(tab).getByRole("group", { name: "Fill" });
-        assert.isNotNull(within(fill).getByRole("button", { name: /^Color #6366F1 100%$/ }));
+        assert.strictEqual(within(fill).getByRole<HTMLInputElement>("textbox", { name: "Color" }).value, "6366F1");
         // The app's own words: the shape line is Shape.
         assert.isNotNull(
             within(within(tab).getByRole("group", { name: "Shape" })).getByRole("button", { name: /^Shape / }),
@@ -211,7 +211,10 @@ describe("the Style tab on the real element", () => {
         store.set({ inspected: { kind: "everything-row", id: "everything" } });
         await waitFor(() => {
             assert.isNull(within(styleTab()).queryByRole("button", { name: /Detach Color/ }));
-            assert.isNotNull(within(styleTab()).getByRole("button", { name: /^Color #6366F1 100%$/ }));
+            assert.strictEqual(
+                within(styleTab()).getByRole<HTMLInputElement>("textbox", { name: "Color" }).value,
+                "6366F1",
+            );
         });
     });
 
@@ -420,17 +423,40 @@ describe("editing lines on the real element", () => {
         return screen.findByRole("group", { name: "Color binding" });
     }
 
-    it("the Color popover writes a color, and the Shape popover a shape", async () => {
+    it("the color field writes a color from its picker and from its hex box", async () => {
         const { session } = await openWithGraph();
         const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
-        await userEvent.click(within(tab).getByRole("button", { name: /^Color #/ }));
-        const hex = await screen.findByTestId("color-picker-value");
-        await userEvent.clear(hex);
-        await userEvent.type(hex, "FF0000{Enter}");
+        // The picker, opened from the field's chit.
+        await realInput.click(within(tab).getByRole("button", { name: "Pick Color" }));
+        const picked = await screen.findByTestId("color-picker-value");
+        await realInput.clear(picked);
+        await realInput.type(picked, "FF0000{Enter}");
         await waitFor(() => {
             assert.match(String(mine(session, "node.color")), /^#FF0000/i);
         });
-        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.strictEqual(
+                within(styleTab()).getByRole<HTMLInputElement>("textbox", { name: "Color" }).value,
+                "FF0000",
+            );
+        });
+        await realInput.keyboard("{Escape}");
+
+        // The hex box, typed into in place.
+        const hex = within(styleTab()).getByRole("textbox", { name: "Color" });
+        await realInput.clear(hex);
+        await realInput.type(hex, "00FF00{Enter}");
+        await waitFor(() => {
+            assert.match(String(mine(session, "node.color")), /^#00FF00/i);
+        });
+        assert.strictEqual(
+            within(styleTab()).getByRole<HTMLInputElement>("textbox", { name: "Color" }).value,
+            "00FF00",
+        );
+    });
+
+    it("the Shape popover writes a shape", async () => {
+        const { session } = await openWithGraph();
 
         await userEvent.click(within(styleTab()).getByRole("button", { name: /^Shape / }));
         const shapes = await screen.findByRole("dialog", { name: "Shapes" });

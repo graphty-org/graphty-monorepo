@@ -4,6 +4,8 @@ import "@babylonjs/core/Meshes/thinInstanceMesh";
 
 import { Matrix, type Mesh, Quaternion, type Scene, Vector3 } from "@babylonjs/core";
 
+import { batchUploadFrames } from "./FrameRoster";
+
 /** Floats in one 4x4 world matrix, which is what a thin-instance slot holds. */
 const FLOATS_PER_SLOT = 16;
 
@@ -105,7 +107,8 @@ export class EdgeLineBatch {
 
     private gone = false;
 
-    private readonly flushOnRender: () => void;
+    /** Ends this batch's per-frame upload; see {@link batchUploadFrames}. */
+    private readonly stopFlush: () => void;
 
     /**
      * Whether every slot lies in the XY plane: a batch of 2D lines (`Simple2DLineRenderer`).
@@ -164,11 +167,9 @@ export class EdgeLineBatch {
         // than on the update loop means a render from anywhere -- the element's own frame, a
         // story that steps the graph by hand, a test that renders once -- draws what was written
         // for it, and still uploads once rather than once per edge.
-        this.flushOnRender = (): void => {
+        this.stopFlush = batchUploadFrames.join(scene, () => {
             this.flush();
-        };
-
-        scene.onBeforeRenderObservable.add(this.flushOnRender);
+        });
     }
 
     /**
@@ -348,7 +349,7 @@ export class EdgeLineBatch {
         }
 
         this.gone = true;
-        this.mesh.getScene().onBeforeRenderObservable.removeCallback(this.flushOnRender);
+        this.stopFlush();
         this.mesh.dispose(false, true);
     }
 

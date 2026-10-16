@@ -130,13 +130,16 @@ export async function launchChrome(userDataDir: string, args: readonly string[] 
         writeFileSync(localState, '{ "internal_only_uis_enabled": true }');
     }
 
-    // Through a shell that turns core dumps off: Page.crash kills the renderer with a signal that
-    // would leave a core file of about 900 MB in the working directory.
+    // With core dumps off: Page.crash kills the renderer with a signal that dumps a core of about
+    // 900 MB. `ulimit -c 0` stops a core written to a file, but where the kernel pipes cores to a
+    // program (apport on GitHub's Ubuntu runners and Ubuntu desktops, systemd-coredump elsewhere) it
+    // ignores the limit (core(5)), and the renderer is not gone -- no Inspector.targetCrashed -- until
+    // that program has read the whole dump. A limit of exactly 1 byte is the kernel's own signal to
+    // skip a piped dump, and below the smallest core it writes to a file, so on Linux prlimit sets it.
     const child = spawn(
-        "/bin/sh",
+        process.platform === "linux" ? "prlimit" : "/bin/sh",
         [
-            "-c",
-            'ulimit -c 0 && exec "$0" "$@"',
+            ...(process.platform === "linux" ? ["--core=1", "--"] : ["-c", 'ulimit -c 0 && exec "$0" "$@"']),
             chromium.executablePath(),
             `--user-data-dir=${userDataDir}`,
             "--remote-debugging-port=0",

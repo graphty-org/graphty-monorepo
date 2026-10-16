@@ -342,6 +342,15 @@ describe("Chrome for Testing, without Playwright's lifecycle flags", () => {
         await saved(tab("a"), await next(a));
         const before = (await check(a)).entries.map((entry) => entry.id);
         await next(a);
+        if (process.platform === "linux") {
+            // A renderer that dumps core into a piped core_pattern (apport on CI) is not gone until the
+            // whole dump is read: a limit of 1 byte is the one the kernel skips a piped dump for.
+            for (const proc of chrome.renderers()) {
+                const limits = readFileSync(`/proc/${proc.pid}/limits`, "utf8");
+                assert.match(limits, /^Max core file size\s+1\s+1\s+bytes/m, `renderer ${proc.pid} dumps no core`);
+            }
+        }
+
         // Page.crash never answers: the renderer is gone before it can.
         void a.send("Page.crash").catch(() => undefined);
         await a.waitEvent("Inspector.targetCrashed");

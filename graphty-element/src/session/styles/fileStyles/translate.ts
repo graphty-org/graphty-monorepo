@@ -2319,7 +2319,7 @@ class KindTranslation {
  * @param snapshot - The imported graph.
  * @returns The children of every node that has any.
  */
-function childrenOf(snapshot: GraphSnapshot): Map<number, number[]> {
+export function childrenOf(snapshot: GraphSnapshot): Map<number, number[]> {
     const out = new Map<number, number[]>();
     for (const role of ["parent", "parents"] as const) {
         const column = snapshot.nodes.byRole(role);

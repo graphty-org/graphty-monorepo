@@ -102,7 +102,7 @@ describe("ResultInspector", () => {
             expect(screen.getAllByText(/^#\d+$/)).toHaveLength(1);
         });
 
-        it("makes a row with onSelect a real control, and leaves one without it inert", () => {
+        it("makes a row with onSelect a real control, and leaves one without it inert", async () => {
             const onSelect = vi.fn();
 
             renderResult({
@@ -115,7 +115,7 @@ describe("ResultInspector", () => {
             const row = screen.getByRole("button", { name: /Chonky_Boy/ });
 
             expect(row).toBeInTheDocument();
-            row.click();
+            await userEvent.click(row);
             expect(onSelect).toHaveBeenCalledTimes(1);
 
             // RT-6: a row that selects nothing is text, and takes no focus.

@@ -27,6 +27,8 @@ import {
     FILE_STYLES_VALUE,
     fileLengthScale,
     type FileStyleColumnValues,
+    type FileStyleLoadValues,
+    type FileStyleStore,
     fileStyleValuesOf,
     recordPositionScale,
 } from "./store";
@@ -237,14 +239,8 @@ async function applyRead(
         }
     }
 
-    // Held only when the lengths were scaled, so a merge can tell a kept file from a scaled one.
-    const { sceneScale } = translation;
-    const lengthScale = sceneScale ?? 1;
-    const load = { importId, namespace, format: read.format, columns, ...(sceneScale === null ? {} : { lengthScale }) };
-    await ctx.inline({ op: "data.setFileStyles", loads: [...held, load] });
-    if (lengthScale !== fileLengthScale(store)) {
-        await placeAtScale(ids.node, ctx);
-    }
+    const load = { importId, namespace, format: read.format, columns };
+    const lengthScale = await holdValues(store, [...held, load], translation.sceneScale, ids.node, ctx);
 
     // Checked one by one, so a layer the element refuses is left out and the rest apply.
     const service = ctx.services.styles;
@@ -308,6 +304,35 @@ async function applyRead(
     }
 
     return { layers, notes, lengthScale };
+}
+
+/**
+ * Keep the graph's file-style values, this load's last, and re-place the load's nodes when the
+ * scale it drew the file's lengths at is not the one the graph's positions were seeded at.
+ * @param store - The values before the load.
+ * @param loads - The values to keep, this load's last (without its scale).
+ * @param sceneScale - The scene units one file unit was drawn as; null when the lengths were kept.
+ * @param nodes - The load's nodes, by the import's element index.
+ * @param ctx - The import's context.
+ * @returns The scale positions are drawn at: 1 when the lengths were kept.
+ */
+async function holdValues(
+    store: FileStyleStore,
+    loads: readonly FileStyleLoadValues[],
+    sceneScale: number | null,
+    nodes: readonly (NodeId | null | undefined)[],
+    ctx: UndoableContext,
+): Promise<number> {
+    // Held only when the lengths were scaled, so a merge can tell a kept file from a scaled one.
+    const lengthScale = sceneScale ?? 1;
+    const last = loads.length - 1;
+    const kept = sceneScale === null ? loads : loads.map((load, i) => (i === last ? { ...load, lengthScale } : load));
+    await ctx.inline({ op: "data.setFileStyles", loads: kept });
+    if (lengthScale !== fileLengthScale(store)) {
+        await placeAtScale(nodes, ctx);
+    }
+
+    return lengthScale;
 }
 
 /**

@@ -2750,7 +2750,8 @@ export class Graph implements GraphContext {
      * DERIVED, NOT WRITTEN OUT. A run already declares its result shape and its fields, and that
      * is everything a first picture needs: a node metric suggests a sequential colour over the
      * nodes it measured, a community suggests a categorical one, a route or a chosen set suggests
-     * a highlight, and a table of pairs suggests nothing at all. There is one derivation for
+     * a mark (an ordinary layer setting a colour, and an edge width, on what it chose), and a
+     * table of pairs suggests nothing at all. There is one derivation for
      * every algorithm rather than a block per algorithm, so there is no per-algorithm branch that
      * can paint the elements its own run measured nothing about.
      *

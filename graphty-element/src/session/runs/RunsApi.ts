@@ -345,6 +345,27 @@ function categoryName(value: unknown): string {
 }
 
 /**
+ * What a colour binding paints each group of a partition when every group is a layer of its own:
+ * through the palette the binding paints with (the one it names, else the one the element picks
+ * for it), and past that palette's colours, colours of their own rather than one "other" grey.
+ * Keeping the palette matters: asked to extend, the element would otherwise pick a ramp sized to
+ * the number of groups.
+ * @param preview - The styles service's column preview.
+ * @param binding - The binding.
+ * @param column - The groups' values, one per node.
+ * @returns The preview.
+ */
+function groupsPreview<B extends { readonly palette?: string }, P extends { readonly palette: string | null }>(
+    preview: (binding: B, channel: "node.color", column: readonly unknown[]) => P,
+    binding: B,
+    column: readonly unknown[],
+): P {
+    const named = binding.palette ?? preview(binding, "node.color", column).palette;
+    const palette = named === null || named === "custom" ? {} : { palette: named };
+    return preview({ ...binding, overflow: "extend", ...palette }, "node.color", column);
+}
+
+/**
  * A painted colour as one spelling, so two paints of one colour compare equal: a hex string as
  * it is, a colour value by its hex, upper case.
  * @param paints - The paint.
@@ -1763,7 +1784,7 @@ class Runs implements SessionRunsApi {
         const column = elementIdsOf(result, "node").map((id) => result.node(id)?.[field]);
         // Every group has a layer of its own, so none is folded into an "other" grey: the groups
         // past the palette's colours take colours of their own.
-        const preview = styles.previewColumn({ ...binding, overflow: "extend" }, "node.color", column);
+        const preview = groupsPreview(styles.previewColumn, binding, column);
         const found = findRow(rowsOf(draft.styles), layer.id);
         const folder = styles.execute(
             {
@@ -1886,7 +1907,12 @@ class Runs implements SessionRunsApi {
             .map((layer) => layer.name);
         const used = new Set(mine.map((layer) => hexOf(layer.set?.["node.color"])));
         const column = elementIdsOf(result, "node").map((id) => result.node(id)?.group);
-        const { bins } = styles.previewColumn({ by: path, scale: "ordinal", overflow: "extend" }, "node.color", column);
+        const first = mine[0].encode?.["node.color"];
+        const { bins } = groupsPreview(
+            styles.previewColumn,
+            { by: path, scale: "ordinal", ...(first !== undefined && "by" in first ? { palette: first.palette } : {}) },
+            column,
+        );
         // The run's palette by place among the groups, the colours no group layer holds yet first.
         const free = bins.map((bin) => bin.paints).filter((paints) => !used.has(hexOf(paints)));
         for (const [at, bin] of bins.entries()) {

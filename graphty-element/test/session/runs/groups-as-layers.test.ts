@@ -255,6 +255,11 @@ describe("a partition's groups as layers", () => {
         await s.styles.settled();
         const colors = Object.keys(membership).map((node) => colorOf(s, node));
         assert.lengthOf(new Set(colors), 12, colors.join(", "));
+        assert.include(
+            colors.map((color) => color?.toUpperCase()),
+            "#E69F00",
+            "the run's categorical palette first, not a ramp picked for twelve groups",
+        );
     });
 
     it("puts the folder of groups back when a deleted folder's run restores its layer", async () => {

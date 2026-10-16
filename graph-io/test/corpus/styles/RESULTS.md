@@ -11,33 +11,33 @@ Tool values are elements drawn with the writing program's default.
 
 | Input | Import | Nodes | Edges | Node rules | Edge rules | Varying | Opaque | Exceptions | Approximated | Tool values | Declared selecting nothing | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| cx/fidelity/repro-locked-own-size.cx | ok | 12 | 12 | 5 | 2 | 22 | 82% | 82% | 0 | 216 | 0 |  |
-| cx/fidelity/repro-unplaced-boxes.cx | ok | 24 | 29 | 3 | 2 | 0 | - | - | 0 | 434 | 0 |  |
+| cx/fidelity/repro-locked-own-size.cx | ok | 12 | 12 | 5 | 2 | 22 | 82% | 82% | 0 | 228 | 0 |  |
+| cx/fidelity/repro-unplaced-boxes.cx | ok | 24 | 29 | 3 | 2 | 0 | - | - | 0 | 458 | 0 |  |
 | cx/fidelity/syn-bypass.cx | ok | 64 | 90 | 4 | 4 | 195 | 100% | 100% | 0 | 0 | 0 | W_STYLE_ANNOTATION_SKIPPED, W_STYLE_NOT_CARRIED |
 | cx/fidelity/syn-mappings.cx | ok | 96 | 140 | 10 | 8 | 1175 | 0% | 0% | 0 | 0 | 0 | W_STYLE_MAPPING_COLUMN_MISSING, W_STYLE_NOT_CARRIED |
-| cx/generated/graphty-written-block-other-graph.cx | ok | 75 | 108 | 8 | 3 | 102 | 8% | 8% | 0 | 0 | 0 | W_STYLE_BLOCK_IGNORED |
-| cx/generated/graphty-written-block-truncated.cx | ok | 75 | 108 | 8 | 3 | 102 | 8% | 8% | 0 | 0 | 0 | W_STYLE_BLOCK_IGNORED |
+| cx/generated/graphty-written-block-other-graph.cx | ok | 75 | 108 | 8 | 3 | 102 | 8% | 8% | 0 | 75 | 0 | W_STYLE_BLOCK_IGNORED |
+| cx/generated/graphty-written-block-truncated.cx | ok | 75 | 108 | 8 | 3 | 102 | 8% | 8% | 0 | 75 | 0 | W_STYLE_BLOCK_IGNORED |
 | cx/generated/graphty-written-native-edit.cx | ok | 75 | 108 | 7 | 3 | 103 | 9% | 9% | 0 | 0 | 0 |  |
 | cx/generated/graphty-written.cx | ok | 75 | 108 | 6 | 3 | 102 | 8% | 8% | 0 | 0 | 0 |  |
 | cx/ndex-821a7310-beb6-11ed-a79c-005056ae23aa.cx.gz | ok | 32 | 48 | 5 | 3 | 92 | 0% | 0% | 0 | 0 | 0 | W_STYLE_NOT_CARRIED |
 | cx/ndex-90f78bcd-1dd0-11ef-9621-005056ae23aa.cx | ok | 75 | 108 | 6 | 3 | 102 | 8% | 8% | 0 | 0 | 0 | W_STYLE_NOT_CARRIED |
-| cx/ndex-da86cc1f-9544-11e5-b435-06603eb7f303.cx.gz | ok | 2207 | 2282 | 1 | 1 | 0 | - | - | 0 | 62846 | 0 |  |
+| cx/ndex-da86cc1f-9544-11e5-b435-06603eb7f303.cx.gz | ok | 2207 | 2282 | 1 | 1 | 0 | - | - | 0 | 65053 | 0 |  |
 | cx/ndex-f5fd4274-a8c1-11e8-9520-0ac135e8bacf.cx.gz | ok | 599 | 739 | 5 | 2 | 580 | 83% | 83% | 0 | 0 | 0 | W_STYLE_NOT_CARRIED |
-| cx2/fidelity/repro-shared-interaction.cx2 | ok | 16 | 16 | 3 | 3 | 32 | 0% | 0% | 0 | 224 | 0 |  |
+| cx2/fidelity/repro-shared-interaction.cx2 | ok | 16 | 16 | 3 | 3 | 32 | 0% | 0% | 0 | 240 | 0 |  |
 | cx2/fidelity/syn-bypass.cx2 | ok | 64 | 90 | 4 | 4 | 277 | 100% | 100% | 0 | 0 | 0 | W_STYLE_ANNOTATION_SKIPPED, W_STYLE_NOT_CARRIED |
 | cx2/fidelity/syn-mappings.cx2 | ok | 96 | 140 | 10 | 8 | 1175 | 0% | 0% | 0 | 0 | 0 | W_STYLE_MAPPING_COLUMN_MISSING, W_STYLE_NOT_CARRIED |
 | cx2/fidelity/wp1449-tlr.cx2 | ok | 280 | 159 | 13 | 8 | 988 | 47% | 47% | 0 | 0 | 0 | W_STYLE_NOT_CARRIED |
-| cx2/generated/graphty-written-block-other-graph.cx2 | ok | 599 | 739 | 8 | 2 | 580 | 83% | 83% | 0 | 0 | 0 | W_STYLE_BLOCK_IGNORED |
-| cx2/generated/graphty-written-block-truncated.cx2 | ok | 599 | 739 | 8 | 2 | 580 | 83% | 83% | 0 | 0 | 0 | W_STYLE_BLOCK_IGNORED |
+| cx2/generated/graphty-written-block-other-graph.cx2 | ok | 599 | 739 | 8 | 2 | 580 | 83% | 83% | 0 | 599 | 0 | W_STYLE_BLOCK_IGNORED |
+| cx2/generated/graphty-written-block-truncated.cx2 | ok | 599 | 739 | 8 | 2 | 580 | 83% | 83% | 0 | 599 | 0 | W_STYLE_BLOCK_IGNORED |
 | cx2/generated/graphty-written-native-edit.cx2 | ok | 599 | 739 | 6 | 2 | 581 | 83% | 83% | 0 | 0 | 0 |  |
 | cx2/generated/graphty-written.cx2 | ok | 599 | 739 | 5 | 2 | 580 | 83% | 83% | 0 | 0 | 0 |  |
-| cx2/generated/mapping-edges.cx2 | ok | 200 | 100 | 8 | 2 | 437 | 11% | 11% | 0 | 3051 | 0 | W_STYLE_BAD_VALUE, W_STYLE_MAPPING_COLUMN_MISSING, W_STYLE_UNKNOWN_VALUE |
+| cx2/generated/mapping-edges.cx2 | ok | 200 | 100 | 8 | 2 | 437 | 11% | 11% | 0 | 3251 | 0 | W_STYLE_BAD_VALUE, W_STYLE_MAPPING_COLUMN_MISSING, W_STYLE_UNKNOWN_VALUE |
 | cx2/ndex-1014623d-c2e0-11f1-be0a-005056ae3c32.cx2.gz | ok | 821 | 1046 | 6 | 4 | 2060 | 15% | 15% | 0 | 0 | 0 | W_STYLE_NOT_CARRIED |
 | cx2/ndex-440c8958-1dd0-11ef-9621-005056ae23aa.cx2.gz | ok | 2718 | 4820 | 6 | 3 | 1997 | 5% | 5% | 0 | 0 | 0 | W_STYLE_NOT_CARRIED |
 | cx2/ndex-821a7310-beb6-11ed-a79c-005056ae23aa.cx2.gz | ok | 32 | 48 | 5 | 3 | 92 | 0% | 0% | 0 | 0 | 0 | W_STYLE_NOT_CARRIED |
 | cx2/ndex-90f78bcd-1dd0-11ef-9621-005056ae23aa.cx2 | ok | 75 | 108 | 6 | 3 | 102 | 8% | 8% | 0 | 0 | 0 | W_STYLE_NOT_CARRIED |
 | cx2/ndex-a2d9d91b-b1dc-11ec-b3be-0ac135e8bacf.cx2.gz | ok | 468 | 1713 | 4 | 3 | 1866 | 0% | 0% | 0 | 0 | 0 | W_STYLE_NOT_CARRIED |
-| cx2/ndex-da86cc1f-9544-11e5-b435-06603eb7f303.cx2.gz | ok | 2207 | 2282 | 1 | 1 | 0 | - | - | 0 | 62846 | 0 |  |
+| cx2/ndex-da86cc1f-9544-11e5-b435-06603eb7f303.cx2.gz | ok | 2207 | 2282 | 1 | 1 | 0 | - | - | 0 | 65053 | 0 |  |
 | cx2/ndex-f5fd4274-a8c1-11e8-9520-0ac135e8bacf.cx2 | ok | 599 | 739 | 5 | 2 | 580 | 83% | 83% | 0 | 0 | 0 | W_STYLE_NOT_CARRIED |
 | cyjs/adv/cyjs-500-classes.cyjs | ok | 3000 | 0 | 2 | 1 | 5910 | 0% | 0% | 0 | 36000 | 0 |  |
 | cyjs/adv/cyjs-selector-zoo.cyjs | ok | 300 | 400 | 13 | 7 | 776 | 0% | 0% | 0 | 6892 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR, W_STYLE_SELECTOR_AS_COLUMN |
@@ -102,8 +102,8 @@ Tool values are elements drawn with the writing program's default.
 | cys/fidelity/luad-vest-v2.cys | ok | 26 | 25 | 6 | 5 | 13 | 0% | 0% | 0 | 0 | 0 | W_STYLE_MAPPING_COLUMN_MISSING, W_STYLE_OTHER_STYLES |
 | cys/fidelity/syn-bypass.cys | ok | 63 | 86 | 4 | 3 | 176 | 100% | 100% | 0 | 0 | 0 | W_STYLE_ANNOTATION_SKIPPED, W_STYLE_NOT_CARRIED, W_STYLE_OTHER_STYLES |
 | cys/fidelity/syn-mappings.cys | ok | 96 | 140 | 10 | 8 | 1175 | 0% | 0% | 0 | 0 | 0 | W_STYLE_MAPPING_COLUMN_MISSING, W_STYLE_NOT_CARRIED, W_STYLE_OTHER_STYLES |
-| cys/generated/graphty-written-block-other-graph.cys | ok | 45 | 62 | 4 | 4 | 103 | 0% | 0% | 0 | 0 | 0 | W_STYLE_BLOCK_IGNORED |
-| cys/generated/graphty-written-block-truncated.cys | ok | 45 | 62 | 4 | 4 | 103 | 0% | 0% | 0 | 0 | 0 | W_STYLE_BLOCK_IGNORED |
+| cys/generated/graphty-written-block-other-graph.cys | ok | 45 | 62 | 4 | 4 | 103 | 0% | 0% | 0 | 45 | 0 | W_STYLE_BLOCK_IGNORED |
+| cys/generated/graphty-written-block-truncated.cys | ok | 45 | 62 | 4 | 4 | 103 | 0% | 0% | 0 | 45 | 0 | W_STYLE_BLOCK_IGNORED |
 | cys/generated/graphty-written-native-edit.cys | ok | 45 | 62 | 5 | 3 | 103 | 1% | 1% | 0 | 0 | 0 |  |
 | cys/generated/graphty-written.cys | ok | 45 | 62 | 4 | 3 | 103 | 0% | 0% | 0 | 0 | 0 |  |
 | dot/ArthurConmy_Automatic-Circuit-Discovery__layout.gv | ok | 108 | 926 | 4 | 3 | 80 | 100% | 0% | 0 | 7022 | 0 | W_STYLE_BAD_VALUE, W_STYLE_HTML_LABEL, W_STYLE_NOT_CARRIED, W_STYLE_SIZE_MINIMUM |
@@ -193,7 +193,7 @@ Tool values are elements drawn with the writing program's default.
 | gml/di-unipi-socc_dgLBF__germany50.gml | ok | 50 | 88 | 2 | 1 | 0 | - | - | 0 | 0 | 0 | W_STYLE_UNKNOWN_VALUE |
 | gml/fidelity/repro-groups-no-creator.gml | ok | 21 | 11 | 6 | 3 | 36 | 25% | 25% | 0 | 198 | 0 |  |
 | gml/fidelity/synthetic-coverage.gml | ok | 82 | 80 | 3 | 3 | 714 | 100% | 0% | 0 | 285 | 0 | W_STYLE_GRADIENT, W_STYLE_NOT_CARRIED, W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
-| gml/generated/cytoscape-interactions.gml | ok | 30 | 45 | 4 | 3 | 87 | 0% | 0% | 0 | 690 | 0 |  |
+| gml/generated/cytoscape-interactions.gml | ok | 30 | 45 | 4 | 3 | 87 | 0% | 0% | 0 | 720 | 0 |  |
 | gml/generated/gephi-unquoted-creator.gml | ok | 40 | 70 | 2 | 5 | 87 | 0% | 0% | 0 | 346 | 0 |  |
 | gml/generated/graphics-mix.gml | ok | 60 | 60 | 4 | 1 | 234 | 78% | 0% | 0 | 0 | 0 | W_STYLE_BAD_VALUE, W_STYLE_UNKNOWN_VALUE |
 | gml/generated/graphty-written.gml | ok | 30 | 40 | 7 | 7 | 74 | 14% | 0% | 0 | 0 | 0 | W_STYLE_EXTRA_LABELS |
@@ -211,11 +211,11 @@ Tool values are elements drawn with the writing program's default.
 | graphml/a-little-srdjan_grapher__bleve.graphml.gz | ok | 39 | 120 | 3 | 3 | 229 | 100% | 0% | 0 | 0 | 0 |  |
 | graphml/architolk_mimtools__fbm-mim2.graphml.gz | ok | 73 | 38 | 9 | 6 | 150 | 63% | 14% | 0 | 303 | 0 | W_STYLE_EXTRA_LABELS |
 | graphml/color-key/iVis-at-Bilkent__chilay__circle.graphml | ok | 64 | 64 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| graphml/cytoscape/Multiomics-Analytics-Group__MicW2Graph__Wastewater_assembly_nosinglt_cclasso_10.graphml | ok | 4 | 6 | 2 | 1 | 0 | - | - | 0 | 140 | 0 |  |
-| graphml/cytoscape/Thakar-Lab__WikiNetworks__WP3935_cytoscape.graphml | ok | 24 | 14 | 2 | 1 | 0 | - | - | 0 | 532 | 0 |  |
-| graphml/cytoscape/chatox__networks-science-course__karate.graphml | ok | 34 | 78 | 2 | 1 | 0 | - | - | 0 | 1568 | 0 |  |
-| graphml/cytoscape/coinslab__pgdcm__AH_DCM.graphml | ok | 31 | 39 | 2 | 1 | 0 | - | - | 0 | 980 | 0 |  |
-| graphml/cytoscape/karchern__network_connectivity_queries__eco03258.graphml | ok | 21 | 0 | 2 | 1 | 0 | - | - | 0 | 294 | 0 |  |
+| graphml/cytoscape/Multiomics-Analytics-Group__MicW2Graph__Wastewater_assembly_nosinglt_cclasso_10.graphml | ok | 4 | 6 | 2 | 1 | 0 | - | - | 0 | 144 | 0 |  |
+| graphml/cytoscape/Thakar-Lab__WikiNetworks__WP3935_cytoscape.graphml | ok | 24 | 14 | 2 | 1 | 0 | - | - | 0 | 556 | 0 |  |
+| graphml/cytoscape/chatox__networks-science-course__karate.graphml | ok | 34 | 78 | 2 | 1 | 0 | - | - | 0 | 1602 | 0 |  |
+| graphml/cytoscape/coinslab__pgdcm__AH_DCM.graphml | ok | 31 | 39 | 2 | 1 | 0 | - | - | 0 | 1011 | 0 |  |
+| graphml/cytoscape/karchern__network_connectivity_queries__eco03258.graphml | ok | 21 | 0 | 2 | 1 | 0 | - | - | 0 | 315 | 0 |  |
 | graphml/fidelity/galaxy-lcms-workflow.graphml | ok | 55 | 39 | 5 | 7 | 149 | 48% | 3% | 0 | 194 | 0 | W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
 | graphml/fidelity/libcitygml-mapping.graphml | ok | 51 | 57 | 6 | 5 | 79 | 76% | 13% | 0 | 222 | 0 | W_STYLE_UNKNOWN_VALUE |
 | graphml/fidelity/open-archaeo.graphml | ok | 61 | 54 | 6 | 5 | 148 | 61% | 9% | 0 | 262 | 0 | W_STYLE_NO_FILL |
@@ -279,11 +279,11 @@ Tool values are elements drawn with the writing program's default.
 | json/cyjs-edge-arrows-data.json | ok | 24 | 12 | 1 | 2 | 0 | - | - | 0 | 492 | 0 |  |
 | json/cyjs-enrichment-map-desktop-style (data and stylesheet) | ok | 525 | 6421 | 4 | 2 | 0 | - | - | 0 | 27784 | 0 | W_STYLE_NOT_CARRIED |
 | json/cyjs-enrichment-map.networks.json.gz | ok | 525 | 6421 | 1 | 2 | 0 | - | - | 0 | 90823 | 0 |  |
-| json/cyjs-genemania-export.json | ok | 31 | 255 | 2 | 1 | 0 | - | - | 0 | 4035 | 0 |  |
+| json/cyjs-genemania-export.json | ok | 31 | 255 | 2 | 1 | 0 | - | - | 0 | 4066 | 0 |  |
 | json/cyjs-node-types (data and stylesheet) | ok | 26 | 0 | 4 | 1 | 21 | 0% | 0% | 0 | 286 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_UNKNOWN_VALUE |
 | json/cyjs-node-types-data.json | ok | 26 | 0 | 1 | 1 | 0 | - | - | 0 | 364 | 0 |  |
 | json/cyjs-tokyo-railways (data and stylesheet) | ok | 943 | 860 | 2 | 4 | 410 | 0% | 0% | 0 | 14424 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR |
-| json/cyjs-tokyo-railways.json.gz | ok | 943 | 860 | 2 | 1 | 0 | - | - | 0 | 26185 | 0 |  |
+| json/cyjs-tokyo-railways.json.gz | ok | 943 | 860 | 2 | 1 | 0 | - | - | 0 | 27128 | 0 |  |
 | json/cyjs/adv/cyjs-500-classes.cyjs | ok | 3000 | 0 | 2 | 1 | 5910 | 0% | 0% | 0 | 36000 | 0 |  |
 | json/cyjs/adv/cyjs-selector-zoo.cyjs | ok | 300 | 400 | 13 | 7 | 776 | 0% | 0% | 0 | 6892 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR, W_STYLE_SELECTOR_AS_COLUMN |
 | json/cyjs/adv/cyjs-string-stylesheet.cyjs | ok | 50 | 0 | 4 | 1 | 25 | 0% | 0% | 0 | 625 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
@@ -423,14 +423,14 @@ Tool values are elements drawn with the writing program's default.
 | xgmml/BasicDataVizDemo.xgmml.gz | ok | 331 | 362 | 7 | 2 | 437 | 74% | 0% | 0 | 0 | 0 | W_STYLE_NOT_CARRIED |
 | xgmml/STRING-BreastCancer_expr.xgmml.gz | ok | 21 | 98 | 4 | 3 | 101 | 19% | 0% | 0 | 0 | 0 | W_STYLE_NOT_CARRIED |
 | xgmml/String_Network-breast_cancer.xgmml.gz | ok | 90 | 378 | 3 | 3 | 324 | 0% | 0% | 0 | 0 | 0 | W_STYLE_NOT_CARRIED |
-| xgmml/fidelity/repro-name-only-labels.xgmml | ok | 14 | 13 | 6 | 2 | 9 | 0% | 0% | 0 | 120 | 0 |  |
-| xgmml/fidelity/syn-bypass.xgmml.gz | ok | 67 | 110 | 5 | 8 | 203 | 49% | 33% | 0 | 420 | 0 | W_STYLE_ANNOTATION_SKIPPED, W_STYLE_NOT_CARRIED |
+| xgmml/fidelity/repro-name-only-labels.xgmml | ok | 14 | 13 | 6 | 2 | 9 | 0% | 0% | 0 | 134 | 0 |  |
+| xgmml/fidelity/syn-bypass.xgmml.gz | ok | 67 | 110 | 5 | 8 | 203 | 49% | 33% | 0 | 426 | 0 | W_STYLE_ANNOTATION_SKIPPED, W_STYLE_NOT_CARRIED |
 | xgmml/fidelity/syn-mappings.xgmml.gz | ok | 96 | 140 | 5 | 6 | 1517 | 58% | 0% | 0 | 0 | 0 | W_STYLE_NOT_CARRIED |
 | xgmml/fidelity/wp4271-cy3-export.xgmml.gz | ok | 158 | 90 | 6 | 6 | 481 | 49% | 9% | 0 | 0 | 0 | W_STYLE_NOT_CARRIED |
-| xgmml/generated/graphics-mix.xgmml | ok | 80 | 80 | 4 | 2 | 436 | 100% | 0% | 0 | 1161 | 0 | W_STYLE_BAD_VALUE, W_STYLE_UNKNOWN_VALUE |
-| xgmml/generated/graphty-written-block-other-graph.xgmml.gz | ok | 45 | 62 | 4 | 3 | 103 | 0% | 0% | 0 | 0 | 0 | W_STYLE_BLOCK_IGNORED |
-| xgmml/generated/graphty-written-block-truncated.xgmml.gz | ok | 45 | 62 | 4 | 3 | 103 | 0% | 0% | 0 | 0 | 0 | W_STYLE_BLOCK_IGNORED |
+| xgmml/generated/graphics-mix.xgmml | ok | 80 | 80 | 4 | 2 | 436 | 100% | 0% | 0 | 1241 | 0 | W_STYLE_BAD_VALUE, W_STYLE_UNKNOWN_VALUE |
+| xgmml/generated/graphty-written-block-other-graph.xgmml.gz | ok | 45 | 62 | 4 | 3 | 103 | 0% | 0% | 0 | 45 | 0 | W_STYLE_BLOCK_IGNORED |
+| xgmml/generated/graphty-written-block-truncated.xgmml.gz | ok | 45 | 62 | 4 | 3 | 103 | 0% | 0% | 0 | 45 | 0 | W_STYLE_BLOCK_IGNORED |
 | xgmml/generated/graphty-written-native-edit.xgmml.gz | ok | 45 | 62 | 5 | 3 | 103 | 1% | 1% | 0 | 0 | 0 |  |
 | xgmml/generated/graphty-written.xgmml.gz | ok | 45 | 62 | 4 | 3 | 103 | 0% | 0% | 0 | 0 | 0 |  |
-| xgmml/parklab_NGSCheckMate__luad.out.xgmml | ok | 45 | 62 | 4 | 3 | 103 | 0% | 0% | 0 | 321 | 0 |  |
+| xgmml/parklab_NGSCheckMate__luad.out.xgmml | ok | 45 | 62 | 4 | 3 | 103 | 0% | 0% | 0 | 366 | 0 |  |
 | xgmml/sample_yeast_network.xgmml.gz | ok | 128 | 220 | 8 | 4 | 21 | 38% | 0% | 0 | 0 | 0 | W_STYLE_NOT_CARRIED |

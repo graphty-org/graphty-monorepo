@@ -1860,7 +1860,8 @@ function neutralOfCell(spec: CyjsPropertySpec, name: string, c: Cell, site: Cano
 }
 
 /**
- * Combines the label alignments into `labelPosition` and `visibility` with `display` into `visible`.
+ * Combines the label alignments into `labelPosition`, `text-wrap` with `text-max-width` into `labelWrapWidth` and
+ * `visibility` with `display` into `visible`.
  * @param kind - the target
  * @param n - the element count
  * @param words - the parts by internal name
@@ -1881,6 +1882,15 @@ function combineParts(
             labelPosition(va?.[i] ?? null, ha?.[i] ?? null, (sample) => {
                 notes.add(STYLE_ISSUE.UNKNOWN_VALUE, kind, "labelPosition", { sample, element: i });
             }),
+        );
+    }
+    // `text-max-width` wraps a label only under `text-wrap: wrap`; unset there, it is 9999 (cytoscape.js 3.34.3
+    // dist/cytoscape.cjs.js line 18484), which wraps nothing but the label's own line breaks.
+    const wrap = words.get("_wrap");
+    if (kind === "node" && (wrap !== undefined || values.labelWrapWidth !== undefined)) {
+        const width = values.labelWrapWidth;
+        values.labelWrapWidth = Array.from({ length: n }, (_, i) =>
+            wrap?.[i] === "wrap" ? (width?.[i] ?? null) : null,
         );
     }
     const vis = words.get("_visibility");

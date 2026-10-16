@@ -15,6 +15,7 @@
             "labelWeight": "normal",
             "labelItalic": false,
             "labelSize": 12,
+            "labelWrapWidth": 200,
             "labelPosition": "center"
         },
         "edge": {
@@ -58,6 +59,7 @@
             "labelWeight": "normal",
             "labelItalic": false,
             "labelSize": 12,
+            "labelWrapWidth": 200,
             "labelPosition": "center"
         },
         "edge": {

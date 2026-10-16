@@ -52,7 +52,7 @@ export const MAX_STYLE_RULES = 16;
 /** The most candidate features tested per target, fewest distinct values first. */
 const MAX_FEATURES = 64;
 /** Lengths a tool states in its own unit; they are left out when the file's unit differs. */
-const LENGTHS: ReadonlySet<string> = new Set(["width", "height", "borderWidth", "labelSize"]);
+const LENGTHS: ReadonlySet<string> = new Set(["width", "height", "borderWidth", "labelSize", "labelWrapWidth"]);
 
 /**
  * What the planner is given: the canonical per-element values a style reader produced, the rules the file declares,

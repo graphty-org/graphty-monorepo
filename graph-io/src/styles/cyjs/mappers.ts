@@ -159,6 +159,8 @@ export const CYJS_NODE_PROPERTIES: ReadonlyMap<string, CyjsPropertySpec> = new M
         "text-halign",
         { property: "_halign", type: "enum", enums: ["left", "left-inside", "center", "right", "right-inside"] },
     ],
+    ["text-wrap", { property: "_wrap", type: "enum", enums: ["none", "wrap", "ellipsis"] }],
+    ["text-max-width", { property: "labelWrapWidth", type: "size" }],
     ...LABEL,
 ]);
 

@@ -148,6 +148,8 @@ function toCyjs(target: StyleTarget, property: string, value: StyleValue): Writt
             return exact({ "curve-style": value === true ? "bezier" : "straight" });
         case "labelPosition":
             return labelPositionToCyjs(String(value));
+        case "labelWrapWidth":
+            return typeof value === "number" ? exact({ "text-wrap": "wrap", "text-max-width": value }) : null;
         case "shape":
             return enumToCyjs("shape", String(value), SHAPES_TO_CYJS, specs);
         case "borderStyle":

@@ -115,6 +115,8 @@ export interface NodeStyleValues {
     readonly cornerRadius: number;
     /** The label's font size. */
     readonly labelSize: number;
+    /** The width the label's lines wrap at, in the unit of `width`; unset, a line is as long as its words. */
+    readonly labelWrapWidth: number;
     /** The shape. */
     readonly shape: StyleNodeShape;
     /** The border's line style. */

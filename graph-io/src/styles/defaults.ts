@@ -134,6 +134,7 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     labelWeight: v("normal", `${CY} 370`),
                     labelItalic: v(false, `${CY} 370`),
                     labelSize: v(12, `${CY} 371`),
+                    labelWrapWidth: v(200, `${CY} 372`),
                     labelPosition: v("center", `${CY} 380`),
                 },
                 edge: {
@@ -173,6 +174,7 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     labelWeight: v("normal", `${CYL} 255`),
                     labelItalic: v(false, `${CYL} 255`),
                     labelSize: v(12, `${CYL} 55`),
+                    labelWrapWidth: v(200, `${CYL} 196`),
                     labelPosition: v("center", `${CYL} 205`),
                 },
                 edge: {

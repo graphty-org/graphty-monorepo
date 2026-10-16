@@ -23,6 +23,7 @@ import { AdHocData } from "../config";
 import { GraphtyError } from "../errors";
 import type { FileStylesRead } from "../session/styles/fileStyles/apply";
 import { ErrorAggregator } from "./ErrorAggregator.js";
+import { filePositionsOf } from "./filePositions.js";
 import {
     columnsMapping,
     emptyLoad,
@@ -767,12 +768,14 @@ export abstract class DataSource {
         }
 
         const { format, dialect } = extracted.styles.source;
+        const pxPerUnit = filePositionsOf(imported)?.pxPerUnit;
         return {
             extracted,
             snapshot: imported.snapshot,
             path: (kind, column) => held.path(kind, column),
             // A JSON dialect graph-io names (it names none for plain JSON) keeps its styles under its own name.
             format: format === "json" && dialect !== null ? dialect : format,
+            ...(pxPerUnit === undefined ? {} : { positionPxPerUnit: pxPerUnit }),
         };
     }
 

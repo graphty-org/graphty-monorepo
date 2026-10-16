@@ -38,7 +38,7 @@ map beside the element deleted the element's own base layer with an off-by-one.
 ## Reading is free, writing is a command
 
 `list`, `get`, `validate`, `legend`, `explain` and `agreement` answer from what the session already holds and
-cost nothing. `add`, `update`, `remove`, `move`, `removeBySource`, `encode` and `highlight`
+cost nothing. `add`, `update`, `remove`, `move`, `removeBySource`, `encode`, `mark` and `highlight`
 **validate and repaint**, so each one returns a `Run`: it can report progress on a large graph,
 take an `AbortSignal`, and be fired from a click handler and forgotten.
 
@@ -185,35 +185,37 @@ the layer is reported unbound rather than painting anything.
 
 A channel is one visual property with one name. These are all of them:
 
-| Node channel        | Takes                                                                    |
-| ------------------- | ------------------------------------------------------------------------ |
-| `node.color`        | any CSS colour                                                           |
-| `node.size`         | 0 or more; every shape at one size is the same width across the view     |
-| `node.sizeMode`     | `scale` (the default) or `diameter`: what `node.size` measures           |
-| `node.shape`        | `sphere`, `box`, `icosphere`, ..., or a flat `rectangle`, `ellipse`, ... |
-| `node.width`        | 0 or more: the width, in the units of `node.size`                        |
-| `node.height`       | 0 or more: the height, in the units of `node.size`                       |
-| `node.depth`        | 0 or more: the depth (3D), in the units of `node.size`                   |
-| `node.planar`       | true or false: draw the node thin, as a flat shape, even in 3D           |
-| `node.zIndex`       | -1000 to 0: in 2D, below 0 draws the node behind edges and higher nodes  |
-| `node.borderColor`  | a colour; black when unset                                               |
-| `node.borderWidth`  | 0 or more, in the units of `node.size`; 0 draws no border                |
-| `node.borderStyle`  | `solid`, `dashed`, `dotted` or `double`                                  |
-| `node.label`        | the words to draw                                                        |
-| `node.labelStyle`   | `{font, sizePx, weight, color, background, outline, padding, ...}`       |
-| `node.labelColor`   | any CSS colour: the label's colour                                       |
-| `node.labelSize`    | a number: the label's font size                                          |
-| `node.labelFont`    | a font family                                                            |
-| `node.labelWeight`  | `normal` or `bold`                                                       |
-| `node.labelItalic`  | true or false                                                            |
-| `node.tooltip`      | the words to show on hover                                               |
-| `node.tooltipStyle` | as `node.labelStyle`, for the tooltip                                    |
-| `node.opacity`      | 0 to 1                                                                   |
-| `node.outline`      | a colour                                                                 |
-| `node.glow`         | a colour                                                                 |
-| `node.glowStrength` | 0 or more, scaling `node.glow`; 0 or on its own it draws no glow         |
-| `node.wireframe`    | true or false                                                            |
-| `node.flat`         | true or false: one normal per face, so a sphere looks faceted (3D)       |
+| Node channel        | Takes                                                                      |
+| ------------------- | -------------------------------------------------------------------------- |
+| `node.color`        | any CSS colour                                                             |
+| `node.size`         | 0 or more; every shape at one size is the same width across the view       |
+| `node.sizeMode`     | `scale` (the default) or `diameter`: what `node.size` measures             |
+| `node.shape`        | `sphere`, `box`, `icosphere`, ..., or a flat `rectangle`, `ellipse`, ...   |
+| `node.width`        | 0 or more: the width, in the units of `node.size`                          |
+| `node.height`       | 0 or more: the height, in the units of `node.size`                         |
+| `node.depth`        | 0 or more: the depth (3D), in the units of `node.size`                     |
+| `node.planar`       | true or false: draw the node thin, as a flat shape, even in 3D             |
+| `node.zIndex`       | -1000 to 0: in 2D, below 0 draws the node behind edges and higher nodes    |
+| `node.drawOrder`    | 0 to 100: in 2D, which of two overlapping nodes is drawn on top            |
+| `node.borderColor`  | a colour; black when unset                                                 |
+| `node.borderWidth`  | 0 or more, in the units of `node.size`; 0 draws no border                  |
+| `node.borderStyle`  | `solid`, `dashed`, `dotted` or `double`                                    |
+| `node.cornerRadius` | 0 or more: a round-rectangle's largest corner radius, in `node.size` units |
+| `node.label`        | the words to draw                                                          |
+| `node.labelStyle`   | `{font, sizePx, weight, color, background, outline, padding, ...}`         |
+| `node.labelColor`   | any CSS colour: the label's colour                                         |
+| `node.labelSize`    | a number: the label's font size                                            |
+| `node.labelFont`    | a font family                                                              |
+| `node.labelWeight`  | `normal` or `bold`                                                         |
+| `node.labelItalic`  | true or false                                                              |
+| `node.tooltip`      | the words to show on hover                                                 |
+| `node.tooltipStyle` | as `node.labelStyle`, for the tooltip                                      |
+| `node.opacity`      | 0 to 1                                                                     |
+| `node.outline`      | a colour                                                                   |
+| `node.glow`         | a colour                                                                   |
+| `node.glowStrength` | 0 or more, scaling `node.glow`; 0 or on its own it draws no glow           |
+| `node.wireframe`    | true or false                                                              |
+| `node.flat`         | true or false: one normal per face, so a sphere looks faceted (3D)         |
 
 | Edge channel              | Takes                                                                      |
 | ------------------------- | -------------------------------------------------------------------------- |
@@ -223,6 +225,7 @@ A channel is one visual property with one name. These are all of them:
 | `edge.style`              | `solid`, `dash`, `dot`, `zigzag`, ...                                      |
 | `edge.patternCount`       | how many dots or dashes to draw, 2 or more (zigzag and sinewave ignore it) |
 | `edge.curvature`          | true or false (a bezier)                                                   |
+| `edge.bends`              | points the line runs through, `"along,across ..."` from source to target   |
 | `edge.arrowHead`          | `normal`, `inverted`, `diamond`, `none`, ...                               |
 | `edge.arrowHeadSize`      | 0 or more, 1 being the element's own size; 0 draws no head                 |
 | `edge.arrowHeadColor`     | a colour                                                                   |
@@ -304,6 +307,13 @@ behind every edge and every node with a higher value, so a group (compound) node
 hides the nodes inside it, and an outer group at -2 stays behind an inner one. Loading a file
 with `styles: "file"` sets it on the file's group nodes. A 3D view draws by real depth and
 ignores it.
+
+`node.drawOrder` decides which of two overlapping nodes is drawn on top in a 2D view: the one with
+the higher value, from 0 to 100. A node with a draw order is drawn in front of every edge and of
+every node without one; a node without one is drawn as before. Loading a file with
+`styles: "file"` sets it from the file's own order, so a node later in the file is drawn on top,
+as the program that wrote it draws it. Each distinct value is its own source mesh, so use a few
+levels on a large graph. A 3D view draws by real depth and ignores it.
 
 A border is a ring drawn outside the node's outline, so it never covers the fill, and an edge
 ends at its outer edge. Its width is in the units of `node.size`, so it scales with the node:
@@ -586,9 +596,27 @@ await element.session.styles.encode({ run, channel: "node.size" });
 second one on it, so running an algorithm twice does not leave two legend blocks on one channel
 with one of them invisible under the other.
 
-For an algorithm that chooses a subset -- a route, a cut, a matching -- the verb is `highlight()`,
-and a highlight is exclusive: a second route replaces the first rather than being painted beside
-it.
+For an algorithm that chooses a subset -- a route, a spanning tree, a cut, a matching -- the verb
+is `mark()`. It adds an ordinary layer per half the run chose, scoped to the elements it chose, that
+sets exactly the channels you name:
+
+```typescript
+const route = await element.run("shortest-path", { source: "a", target: "f" }, { style: false });
+
+await element.session.styles.mark({
+    run: route,
+    set: { "node.color": "#D55E00", "edge.color": "#D55E00", "edge.width": 24 },
+});
+```
+
+Marks stack like any other layer: a second algorithm's mark is painted beside the first, and the
+one higher in the stack wins only on the elements both chose. Marking the same run again replaces
+its earlier mark. This is what an algorithm paints by itself when it finishes: vermilion on the
+chosen nodes and edges, with each chosen edge three times the default width.
+
+`highlight()` takes the same run but is exclusive: a second highlight replaces the first rather
+than being painted beside it, and with no `set` it uses the element's own highlight color. Use it
+for a selection-like "show me this one" view; an algorithm's own picture never goes through it.
 
 ## The element's own layers
 

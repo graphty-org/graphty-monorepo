@@ -479,13 +479,23 @@ function channelPlans(
             // outline's screen-space glow it covers the fill once the graph is framed (issue #2252).
             ["borderColor", [id(graphty ? "node.outline" : "node.borderColor")]],
             ["borderWidth", [length("node.borderWidth")]],
+            ["cornerRadius", [length("node.cornerRadius")]],
             // Drawn in a pass of their own (`#extents`), only where some node's sides differ.
             ["width", [length("node.width")]],
             ["height", [length("node.height")]],
             ["borderStyle", [table("node.borderStyle", BORDER_STYLES, BORDER_STYLES_NEAREST)]],
             ["label", [id("node.label")]],
             ["tooltip", [id("node.tooltip")]],
-            ["shape", [table("node.shape", shapeTable, new Set(shapeTable.keys()))]],
+            [
+                "shape",
+                [
+                    table(
+                        "node.shape",
+                        shapeTable,
+                        new Set([...shapeTable].filter(([from, to]) => from !== to).map(([from]) => from)),
+                    ),
+                ],
+            ],
             ["labelColor", [label("labelColor")]],
             ["labelSize", [length("node.labelSize", factors.label)]],
             ["labelFont", [label("labelFont")]],
@@ -505,6 +515,7 @@ function channelPlans(
         ["sourceArrowColor", [id("edge.arrowTailColor")]],
         ["arrowSize", [id("edge.arrowHeadSize"), id("edge.arrowTailSize")]],
         ["curved", [id("edge.curvature")]],
+        ["bends", [id("edge.bends")]],
         ["label", [id("edge.label")]],
         ["targetLabel", [id("edge.arrowHeadText")]],
         ["sourceLabel", [id("edge.arrowTailText")]],
@@ -514,6 +525,33 @@ function channelPlans(
         ["labelWeight", [label("labelWeight")]],
         ["labelItalic", [label("labelItalic")]],
     ]);
+}
+
+/**
+ * The largest corner radius, in the file's units, of a rounded rectangle whose file gives none:
+ * Cytoscape.js's (`getRoundRectangleRadius`, cytoscape.js 3.34.3 dist/cytoscape.cjs.js line 4386),
+ * the one program that publishes its rule. yEd and the rest draw barely rounded corners too, so a
+ * 513 x 453 group keeps small corners instead of a quarter of its side.
+ */
+const FILE_CORNER_RADIUS = 8;
+
+/**
+ * A node rule of the writing program's defaults with the corner radius it draws when the file gives
+ * none. Every other rule, and a file graphty wrote, is unchanged.
+ * @param rule - The rule.
+ * @param tool - The program that wrote the file.
+ * @returns The rule.
+ */
+function withCornerCap(rule: StyleRule, tool: string | null): StyleRule {
+    if (
+        rule.origin !== "tool" ||
+        rule.target !== "node" ||
+        tool === "graphty" ||
+        rule.set?.cornerRadius !== undefined
+    ) {
+        return rule;
+    }
+    return { ...rule, set: { ...rule.set, cornerRadius: FILE_CORNER_RADIUS } };
 }
 
 /** The properties the element draws nothing for, per kind. */
@@ -778,9 +816,9 @@ class KindTranslation {
             input.extracted.styles.source.tool === "graphty",
         );
         this.#keys = new Set(input.extracted.columns[kind].keys());
-        this.#rules = input.extracted.styles.rules.filter(
-            (rule) => rule.target === kind && (input.options.toolDefaults !== false || rule.origin !== "tool"),
-        );
+        this.#rules = input.extracted.styles.rules
+            .filter((rule) => rule.target === kind && (input.options.toolDefaults !== false || rule.origin !== "tool"))
+            .map((rule) => withCornerCap(rule, input.extracted.styles.source.tool));
     }
 
     /**
@@ -794,6 +832,7 @@ class KindTranslation {
         this.#composites();
         this.#visibility();
         this.#nesting();
+        this.#drawOrder();
 
         const ordered = [...this.#built].filter(
             (layer) => Object.keys(layer.spec.set).length + Object.keys(layer.spec.encode).length > 0,
@@ -2271,6 +2310,46 @@ class KindTranslation {
                 },
             },
             paint: new Map([["node.zIndex", values]]),
+            worth: 0,
+        });
+    }
+
+    /**
+     * Overlapping nodes in the file's own order, as every program that draws them does
+     * (Cytoscape, Pajek, yEd, Graphviz): a node later in the file is drawn on top of one before
+     * it. Each node gets a `node.drawOrder` level from its place in the file, 0 for the first and
+     * 100 for the last. A file graphty wrote is left alone: graphty drew it with no order, and its
+     * own layers come back as they were.
+     */
+    #drawOrder(): void {
+        if (this.#kind !== "node" || this.#n < 2 || this.#input.extracted.styles.source.tool === "graphty") {
+            return;
+        }
+
+        const last = this.#n - 1;
+        const values = Array.from({ length: this.#n }, (_unused, i) => Math.round((i * 100) / last));
+        const path = this.#keepNew("drawOrder", values);
+        this.#built.push({
+            bucket: this.#rules.length,
+            spec: {
+                name: "node.drawOrder",
+                target: "node",
+                kind: "encoding",
+                selector: this.#scoped({ match: "has", path }),
+                set: {},
+                encode: { "node.drawOrder": { by: path, scale: "passthrough" } },
+                fileStyle: {
+                    format: this.#input.format,
+                    importId: this.#input.importId,
+                    ruleId: "node.drawOrder",
+                    role: "passthrough",
+                    origin: "inferred",
+                    column: path,
+                    mapping: "passthrough",
+                    elements: this.#n,
+                },
+            },
+            paint: new Map([["node.drawOrder", values]]),
             worth: 0,
         });
     }

@@ -320,7 +320,7 @@ graph.setLayout("ngraph", {
     springLength: 100,
     springCoefficient: 0.0008,
     gravity: -1.2,
-    dimensions: 3,
+    dim: 3,
 });
 
 // Wait for the picture to stop changing: the layout converged, the camera framed it,

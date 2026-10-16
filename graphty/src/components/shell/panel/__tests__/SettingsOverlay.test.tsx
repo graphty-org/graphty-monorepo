@@ -191,6 +191,38 @@ describe("SettingsOverlay", () => {
             expect(screen.getByRole("tab", { name: "Appearance" })).toHaveAttribute("aria-selected", "true");
         });
 
+        it("walks the sections with the Up and Down arrows, Home and End", async () => {
+            render(
+                <SettingsOverlay
+                    opened
+                    onClose={vi.fn()}
+                    aiProviders={emptyKeyStore()}
+                    accelerationPolicy="auto"
+                    onAccelerationPolicyChange={vi.fn()}
+                />,
+            );
+
+            const appearance = screen.getByRole("tab", { name: "Appearance" });
+
+            await userEvent.click(appearance);
+            await userEvent.keyboard("{ArrowDown}");
+
+            const defaults = screen.getByRole("tab", { name: "Defaults" });
+            expect(defaults).toHaveFocus();
+            expect(defaults).toHaveAttribute("aria-selected", "true");
+            expect(defaults.matches(":focus-visible")).toBe(true);
+            expect(screen.getByRole("tabpanel", { name: "Defaults" })).toBeInTheDocument();
+
+            await userEvent.keyboard("{ArrowUp}");
+            expect(appearance).toHaveFocus();
+            expect(screen.getByRole("tabpanel", { name: "Appearance" })).toBeInTheDocument();
+
+            await userEvent.keyboard("{End}");
+            expect(screen.getByRole("tab", { name: "Extensions" })).toHaveFocus();
+            await userEvent.keyboard("{Home}");
+            expect(appearance).toHaveFocus();
+        });
+
         it("keeps the fuller name of a shortened row in its title", () => {
             render(
                 <SettingsOverlay

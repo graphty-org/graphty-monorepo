@@ -210,7 +210,7 @@ const css = `
     border-radius: 13px;
     background-color: var(--cm-bg-menu);
     color: var(--cm-text-menu);
-    box-shadow: var(--cm-elevation-400);
+    box-shadow: var(--cm-menu-shadow);
 }
 .cm-listbox .cm-listbox-option {
     gap: 4px;

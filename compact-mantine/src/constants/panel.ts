@@ -120,7 +120,7 @@ export const PANEL_INK = {
     ON_ACCENT: "var(--cm-text-onbrand)",
     /** a warning fill, dot or glyph (#ffcd29 / #f3c11b); text uses WARNING_TEXT */
     WARNING: "var(--cm-bg-warning)",
-    /** success (#14ae5c / #198f51) */
+    /** a success fill or dot (#14ae5c / #198f51); text and glyphs use SUCCESS_TEXT */
     SUCCESS: "var(--cm-bg-success)",
     /** a danger fill, dot or glyph (#f24822 / #e03e1a); text uses DANGER_TEXT */
     DANGER: "var(--cm-bg-danger)",
@@ -136,10 +136,12 @@ export const PANEL_INK = {
     SELECTED_HOVER: "var(--cm-bg-selected-hover)",
     /** the children of a selected item (#f2f9ff / #32394d) */
     SELECTED_SECONDARY: "var(--cm-bg-selected-secondary)",
-    /** danger text: an error message, a destructive verb (#dc3412 / #fca397). DANGER is a fill */
+    /** danger text: an error message, a destructive verb (#dc3412 / #fca397; #c4381c light in the AA mode). DANGER is a fill */
     DANGER_TEXT: "var(--cm-text-danger)",
     /** warning text (#a65900 / #f7d15f). WARNING is a fill */
     WARNING_TEXT: "var(--cm-text-warning)",
+    /** success text and glyphs: a passed check's tick (#008043 / #79d297). SUCCESS is a fill */
+    SUCCESS_TEXT: "var(--cm-text-success)",
     /** links and brand text (#007be5 / #7cc4f8) */
     BRAND_TEXT: "var(--cm-text-brand)",
     /** tertiary glyphs (#0000004d / #ffffff66) */

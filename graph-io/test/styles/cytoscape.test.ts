@@ -38,6 +38,8 @@ import {
     type StyleValue,
     typedKey,
 } from "../../src/styles/internal.js";
+import { replaceCxBlock } from "./formats/cx.js";
+import { changeSessionEntry, replaceXgmmlBlock } from "./formats/cytoscape-xml.js";
 
 const FIXTURES = resolve(import.meta.dirname, "../conformance/fixtures");
 
@@ -448,6 +450,20 @@ function emittedElements(
     };
 }
 
+/** A written Cytoscape file with its graphty.styles block broken. */
+function withoutStyleBlock(format: "cys" | "cx" | "cx2" | "xgmml", bytes: Uint8Array): Uint8Array {
+    if (format === "cys") {
+        return (
+            changeSessionEntry(
+                bytes,
+                (name) => name.endsWith("graphty.styles"),
+                () => "x",
+            ) ?? bytes
+        );
+    }
+    return format === "xgmml" ? replaceXgmmlBlock(bytes, () => "x") : replaceCxBlock(bytes, () => "x");
+}
+
 /** Random rules of every mapping kind over every element. */
 function randomRules(rand: () => number): StyleRule[] {
     const pick = <T>(xs: readonly T[]): T => xs[Math.floor(rand() * xs.length)];
@@ -784,6 +800,83 @@ describe("emit then translate returns the same rules", () => {
             const again = new StyleNotes();
             emitCytoscapeStyle(extracted(s, cytoscapeRules("node", file, els).rules), s, { dialect, notes: again });
             expect(again.list().filter((n) => n.code === "W_STYLE_APPROXIMATED")).toEqual([]);
+        }
+    });
+
+    it("reads a fractional font size as the whole number Cytoscape draws, from a default, a bypass and a passthrough", async () => {
+        const b = new GraphBuilder({ directed: true });
+        const fs = b.declareNodeColumn({ name: "fs", dtype: "f64" });
+        const pick = b.declareNodeColumn({ name: "pick", dtype: "bool" });
+        b.addNode("10");
+        const n1 = b.addNode("11");
+        const n2 = b.addNode("12");
+        b.setNodeValue(fs, n1, 20.2);
+        b.setNodeValue(fs, n2, 16.5);
+        b.setNodeValue(pick, n1, true);
+        b.addEdge("10", "11");
+        const s = b.freeze();
+        const rules: StyleRule[] = [
+            {
+                id: "node.defaults",
+                target: "node",
+                role: "defaults",
+                origin: "declared",
+                where: { all: true },
+                set: { labelSize: 12.5 },
+            },
+            {
+                id: "node.passthrough.fs",
+                target: "node",
+                role: "mapping",
+                origin: "declared",
+                where: { all: true },
+                map: { labelSize: { kind: "passthrough", by: { data: "fs" } } },
+            },
+            {
+                id: "node.exceptions",
+                target: "node",
+                role: "exceptions",
+                origin: "declared",
+                where: { has: { data: "pick" } },
+                set: { labelSize: 14.5 },
+            },
+            {
+                id: "edge.defaults",
+                target: "edge",
+                role: "defaults",
+                origin: "declared",
+                where: { all: true },
+                set: { labelSize: 12.5 },
+            },
+        ];
+        const ex = extracted(s, rules);
+        const approximated = (notes: readonly { code: string }[]): number =>
+            notes.filter((n) => n.code === "W_STYLE_APPROXIMATED").length;
+        for (const format of ["cys", "cx", "cx2", "xgmml"] as const) {
+            const reg = createRegistry();
+            expect([
+                format,
+                approximated(reg.checkExport(s, format, { styles: ex, sanitizeIds: "mangle" })) > 0,
+            ]).toEqual([format, true]);
+            // a broken graphty.styles block is ignored, so the file is read as Cytoscape's own
+            const bytes = withoutStyleBlock(
+                format,
+                await reg.exportGraphToBytes(s, format, { styles: ex, sanitizeIds: "mangle" }),
+            );
+            const back = await reg.importGraph(bytes, { format, styles: true });
+            const restyled = back.styles;
+            if (restyled === null || restyled === undefined) {
+                throw new Error(`${format}: no styles`);
+            }
+            // 12.5 (default), 14.5 (bypass) and 16.5 (passthrough) draw as 13, 15 and 17
+            expect([format, resolveStyles(restyled, "node", "labelSize", back.snapshot)]).toEqual([
+                format,
+                [13, 15, 17],
+            ]);
+            expect([format, resolveStyles(restyled, "edge", "labelSize", back.snapshot)]).toEqual([format, [13]]);
+            // what was read is whole, so writing it again approximates nothing
+            const again = reg.checkExport(back.snapshot, format, { styles: restyled, sanitizeIds: "mangle" });
+            expect([format, approximated(again)]).toEqual([format, 0]);
         }
     });
 

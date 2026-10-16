@@ -214,21 +214,7 @@ async function applyRead(
 
     // The values, keyed by the ids the element holds the elements under.
     const ids = elementIdsOf(read.snapshot, outcome.edgeIds, (id) => outcome.heldNode(id));
-    const columns: FileStyleColumnValues[] = [];
-    for (const kind of ["node", "edge"] as const) {
-        for (const [key, values] of translation.columns[kind]) {
-            const keptIds: (NodeId | EdgeId)[] = [];
-            const keptValues: (string | number | boolean)[] = [];
-            values.forEach((value, i) => {
-                const id = ids[kind][i];
-                if (value !== null && id !== null && id !== undefined) {
-                    keptIds.push(id);
-                    keptValues.push(value);
-                }
-            });
-            columns.push({ kind, key, ids: keptIds, values: keptValues });
-        }
-    }
+    const columns = keptColumns(translation.columns, ids);
 
     const load = { importId, namespace, format: read.format, columns };
     await ctx.inline({ op: "data.setFileStyles", loads: [...held, load] });
@@ -305,6 +291,35 @@ async function applyRead(
     }
 
     return { layers, notes, sceneScale };
+}
+
+/**
+ * The values the layers read, each kept only for an element the element holds and only where it
+ * has a value.
+ * @param translated - The values per kind and key, by element index.
+ * @param ids - The element's id of each element index, null for one it does not hold.
+ * @returns The columns.
+ */
+function keptColumns(
+    translated: Readonly<Record<"node" | "edge", ReadonlyMap<string, readonly (string | number | boolean | null)[]>>>,
+    ids: Readonly<Record<"node" | "edge", readonly (NodeId | EdgeId | null | undefined)[]>>,
+): FileStyleColumnValues[] {
+    const columns: FileStyleColumnValues[] = [];
+    for (const kind of ["node", "edge"] as const) {
+        for (const [key, values] of translated[kind]) {
+            const keptIds: (NodeId | EdgeId)[] = [];
+            const keptValues: (string | number | boolean)[] = [];
+            values.forEach((value, i) => {
+                const id = ids[kind][i];
+                if (value !== null && id !== null && id !== undefined) {
+                    keptIds.push(id);
+                    keptValues.push(value);
+                }
+            });
+            columns.push({ kind, key, ids: keptIds, values: keptValues });
+        }
+    }
+    return columns;
 }
 
 /**

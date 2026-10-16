@@ -700,7 +700,17 @@ export class Edge {
             this.label.attachTo(midPoint, this._labelAttachPosition, this._labelOffset);
         }
 
-        // Update arrow head caption position if exists
+        this.placeArrowCaptions();
+
+        // Cache positions for next frame
+        this._lastSrcPos = srcPos.clone();
+        this._lastDstPos = dstPos.clone();
+
+        this.context.getStatsManager().endMeasurement("Edge.update");
+    }
+
+    /** Put each arrow cap's caption, if it has one, beside the cap where the cap now sits. */
+    private placeArrowCaptions(): void {
         if (this.arrowHeadText && this.arrowCap) {
             this.arrowHeadText.attachTo(
                 this.arrowCap.position,
@@ -709,7 +719,6 @@ export class Edge {
             );
         }
 
-        // Update arrow tail caption position if exists
         if (this.arrowTailText && this.arrowTailCap) {
             this.arrowTailText.attachTo(
                 this.arrowTailCap.position,
@@ -717,12 +726,6 @@ export class Edge {
                 this._arrowTailTextOffset,
             );
         }
-
-        // Cache positions for next frame
-        this._lastSrcPos = srcPos.clone();
-        this._lastDstPos = dstPos.clone();
-
-        this.context.getStatsManager().endMeasurement("Edge.update");
     }
 
     /**
@@ -989,6 +992,29 @@ export class Edge {
             rebuilt = true;
         }
 
+        if (this.syncArrowCaptions(style, rebuild)) {
+            rebuilt = true;
+        }
+
+        if (this.syncBends(style)) {
+            rebuilt = true;
+        }
+
+        if (rebuilt) {
+            this.invalidatePositionCache();
+        }
+    }
+
+    /**
+     * Bring the arrow caps' captions into line with what one resolved style asks for. See
+     * {@link syncContent}.
+     * @param style - The resolved style.
+     * @param rebuild - True when the caps the captions sit beside have just been replaced.
+     * @returns True when a caption was rebuilt.
+     */
+    private syncArrowCaptions(style: EdgeStyleConfig, rebuild: boolean): boolean {
+        let rebuilt = false;
+
         const wantedHead = captionWanted(style.arrowHead?.text, this.arrowCap);
 
         if (rebuild || !isEqual(wantedHead, this.drawnArrowHeadText)) {
@@ -1023,13 +1049,7 @@ export class Edge {
             rebuilt = true;
         }
 
-        if (this.syncBends(style)) {
-            rebuilt = true;
-        }
-
-        if (rebuilt) {
-            this.invalidatePositionCache();
-        }
+        return rebuilt;
     }
 
     /**

@@ -37,7 +37,7 @@ export function canonBends(
     const dx = target[0] - source[0];
     const dy = (target[1] - source[1]) * flip;
     const length2 = dx * dx + dy * dy;
-    if (points.length === 0 || !(length2 > 0) || !Number.isFinite(length2)) {
+    if (points.length === 0 || length2 <= 0 || !Number.isFinite(length2)) {
         return null;
     }
     const out: string[] = [];

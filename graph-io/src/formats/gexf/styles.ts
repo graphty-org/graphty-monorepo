@@ -185,10 +185,7 @@ function vizValues(
     const label = target === "node" ? table.byRole("label") : null;
     for (let i = 0; i < n; i++) {
         if (label !== null) {
-            const text = canonText(plainCell(label.value(i)), viz.site(i, "label"));
-            if (text !== null) {
-                viz.column("label")[i] = text;
-            }
+            readLabel(viz, label, i);
         }
         if (color !== null) {
             readVizColor(viz, color, i);
@@ -202,6 +199,19 @@ function vizValues(
         }
     }
     return out;
+}
+
+/**
+ * Reads one node's label, which Gephi draws.
+ * @param viz - the target's reading
+ * @param label - the label column
+ * @param i - the element
+ */
+function readLabel(viz: VizRead, label: NonNullable<ReturnType<GraphSnapshot["nodes"]["byRole"]>>, i: number): void {
+    const text = canonText(plainCell(label.value(i)), viz.site(i, "label"));
+    if (text !== null) {
+        viz.column("label")[i] = text;
+    }
 }
 
 /**

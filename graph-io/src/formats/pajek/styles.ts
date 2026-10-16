@@ -346,6 +346,25 @@ function opaque(get: Get, properties: readonly string[], approximate: Approximat
 }
 
 /**
+ * A vertex's Pajek shape keyword: its own, else the nearest one (noted), else Pajek's ellipse.
+ * @param get - the vertex's values
+ * @param approximate - records approximations
+ * @returns the keyword
+ */
+function shapeKeyword(get: Get, approximate: Approximate): string {
+    const shape = get("shape");
+    if (typeof shape !== "string") {
+        return "ellipse";
+    }
+    const keyword = SHAPES.get(shape);
+    if (keyword !== undefined) {
+        return keyword;
+    }
+    approximate("shape", shape);
+    return NEAREST_SHAPES.get(shape) ?? "ellipse";
+}
+
+/**
  * A vertex's parameters from its values, leaving out the ellipse and the black border 1 wide Pajek draws by default.
  * @param get - the vertex's values
  * @param approximate - records approximations
@@ -354,16 +373,9 @@ function opaque(get: Get, properties: readonly string[], approximate: Approximat
 function vertexParams(get: Get, approximate: Approximate): Map<string, Written> {
     const out = new Map<string, Written>();
     opaque(get, ["fillOpacity", "opacity"], approximate);
-    const shape = get("shape");
-    if (typeof shape === "string") {
-        let keyword = SHAPES.get(shape);
-        if (keyword === undefined) {
-            approximate("shape", shape);
-            keyword = NEAREST_SHAPES.get(shape) ?? "ellipse";
-        }
-        if (keyword !== "ellipse") {
-            out.set(SHAPE_COLUMN, keyword);
-        }
+    const keyword = shapeKeyword(get, approximate);
+    if (keyword !== "ellipse") {
+        out.set(SHAPE_COLUMN, keyword);
     }
     const colors = [
         ["fill", "ic"],

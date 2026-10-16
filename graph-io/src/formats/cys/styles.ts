@@ -14,6 +14,7 @@ import {
     type CytoscapeMapping,
     type CytoscapeStyle,
     emptyCytoscapeStyle,
+    sharedColumnFallback,
     typedKey,
 } from "../../styles/cytoscape/mappings.js";
 import { cytoscapeBackground, type CytoscapeElements, resolveCytoscape } from "../../styles/cytoscape/resolve.js";
@@ -109,6 +110,7 @@ function sessionTargetStyles(
     const { notes } = work;
     const table = target === "node" ? snapshot.nodes : snapshot.edges;
     const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
+    sharedColumnFallback(style[target], (column) => table.has(column));
     for (const m of style[target].mappings.values()) {
         if (!table.has(m.column)) {
             notes.add(STYLE_ISSUE.MAPPING_COLUMN_MISSING, target, m.column, { sample: m.kind });

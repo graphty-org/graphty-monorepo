@@ -450,9 +450,7 @@ describe("SettingsOverlay", () => {
             expect(screen.getByRole("radio", { name: "Off" })).toBeChecked();
         });
 
-        // A real click on a controlled SegmentedControl whose value has not changed reports the
-        // change twice: issue #2944. Remove .fails when that is fixed.
-        it.fails("reports a change and writes nothing itself", async () => {
+        it("reports a change and writes nothing itself", async () => {
             const onChange = vi.fn();
 
             await openPerformance({ onAccelerationPolicyChange: onChange });

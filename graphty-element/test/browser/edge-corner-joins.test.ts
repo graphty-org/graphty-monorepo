@@ -2,9 +2,10 @@
  * @file A bent edge's pieces meet at their corners: no notch outside the bend, no pixel drawn twice
  * inside it, and dashes that carry on round it.
  *
- * Every bend is drawn twice, by the line batch's own shader and by the browser's 2D canvas
- * (`lineJoin = "miter"`, `miterLimit = 4`, butt caps: the stroke SVG and Canvas define), and the
- * two are compared pixel by pixel. A pixel the canvas fills and the line leaves empty is a notch
+ * Every bend is drawn twice, by the line batch's own shader and by a reference: the browser's 2D
+ * canvas (`lineJoin = "miter"`, `miterLimit = 4`, butt caps), plus, at a corner past the miter
+ * limit, the clipped miter SVG 2 defines for `stroke-linejoin: miter-clip`, which no canvas draws,
+ * filled from its geometry. The two are compared pixel by pixel. A pixel the canvas fills and the line leaves empty is a notch
  * or a hole; one the line fills and the canvas leaves empty is a spill; and on a translucent line,
  * a pixel darker than the line's own tint was drawn twice. Design: `design/edges/sharp-corners.md`.
  */
@@ -13,6 +14,7 @@ import { Camera, Color4, Engine, FreeCamera, Scene, Vector3 } from "@babylonjs/c
 import { afterEach, assert, describe, test } from "vitest";
 
 import { CustomLineRenderer } from "../../src/meshes/CustomLineRenderer";
+import { EDGE_MITER_LIMIT } from "../../src/meshes/edgeJoinShader";
 import { EdgeLineBatch } from "../../src/meshes/EdgeLineBatch";
 import { Simple2DLineRenderer } from "../../src/meshes/Simple2DLineRenderer";
 
@@ -21,8 +23,8 @@ const CELL = 160;
 const CASES = [179, 170, 135, 90, 45, 20, 5, 0, "U"] as const;
 const WIDTHS = [3, 8, 24];
 const ALPHAS = [1, 0.5];
-const W = CELL * WIDTHS.length * ALPHAS.length;
-const H = CELL * CASES.length;
+const WIDTH = CELL * WIDTHS.length * ALPHAS.length;
+const HEIGHT = CELL * CASES.length;
 const COLOR = "#1f4d99";
 /**
  * Pixels per bend the two may disagree on: the canvas anti-aliases analytically and the line by
@@ -82,9 +84,63 @@ function bends(): Bend[] {
 }
 
 interface Drawn {
-    /** The batch's frame and the canvas's, each the red channel's coverage per pixel (0 to 1). */
+    /** The batch's frame and the reference's, each the red channel's coverage per pixel (0 to 1). */
     readonly mine: Float32Array;
     readonly reference: Float32Array;
+    /** The frame's width in pixels. */
+    readonly width: number;
+}
+
+/**
+ * The corner at `p` between the piece from `q0` and the piece to `q1`, as SVG 2's miter-clip
+ * draws it: how far its point reaches from the corner along the miter direction, and, when the
+ * miter is clipped (past the miter limit, or where it would reach past the shorter piece), the
+ * outline of the clipped join.
+ * @param q0 - The previous point.
+ * @param p - The corner.
+ * @param q1 - The next point.
+ * @param hw - Half the line's width.
+ * @returns The point's reach, the miter direction, and the clipped outline or undefined.
+ */
+function miterClip(
+    q0: number[],
+    p: number[],
+    q1: number[],
+    hw: number,
+): { reach: number; m: number[]; clipped: number[][] | undefined } {
+    const a = [p[0] - q0[0], p[1] - q0[1]];
+    const b = [q1[0] - p[0], q1[1] - p[1]];
+    const la = Math.hypot(a[0], a[1]);
+    const lb = Math.hypot(b[0], b[1]);
+    const dIn = [a[0] / la, a[1] / la];
+    const dOut = [b[0] / lb, b[1] / lb];
+    const outer = dIn[0] * dOut[1] - dIn[1] * dOut[0] > 0 ? -1 : 1;
+    const nIn = [-dIn[1] * outer, dIn[0] * outer];
+    const nOut = [-dOut[1] * outer, dOut[0] * outer];
+    const sum = [nIn[0] + nOut[0], nIn[1] + nOut[1]];
+    const sl = Math.hypot(sum[0], sum[1]);
+    const cosH = Math.max(sl / 2, 1e-6);
+    const sinH = Math.sqrt(Math.max(0, 1 - cosH * cosH));
+    const m = sl > 1e-6 ? [sum[0] / sl, sum[1] / sl] : dIn;
+    const tMiter = (hw * sinH) / cosH;
+    const tLimit = 1 / cosH <= EDGE_MITER_LIMIT ? tMiter : ((EDGE_MITER_LIMIT - cosH) * hw) / sinH;
+    const tMax = Math.min(la, lb, tLimit);
+    if (tMiter <= tMax) {
+        return { reach: hw / cosH, m, clipped: undefined };
+    }
+    const sIn = [p[0] + nIn[0] * hw, p[1] + nIn[1] * hw];
+    const sOut = [p[0] + nOut[0] * hw, p[1] + nOut[1] * hw];
+    return {
+        reach: hw * cosH + tMax * sinH,
+        m,
+        clipped: [
+            p,
+            sIn,
+            [sIn[0] + dIn[0] * tMax, sIn[1] + dIn[1] * tMax],
+            [sOut[0] - dOut[0] * tMax, sOut[1] - dOut[1] * tMax],
+            sOut,
+        ],
+    };
 }
 
 let engine: Engine | undefined;
@@ -110,11 +166,14 @@ function coverage(data: Uint8ClampedArray): Float32Array {
 
 /**
  * Draw every bend with the line batch (2D: orthographic, one world unit a pixel) and with the
- * canvas, and read both back.
+ * reference, and read both back.
  * @param dash - The dash length, or 0 for solid lines.
+ * @param all - The bends.
+ * @param W - The frame's width.
+ * @param H - The frame's height.
  * @returns Both frames.
  */
-async function draw(dash: number): Promise<Drawn> {
+async function draw(dash: number, all: Bend[] = bends(), W = WIDTH, H = HEIGHT): Promise<Drawn> {
     const canvas = document.createElement("canvas");
     canvas.dataset.cornerJoins = "";
     canvas.width = W;
@@ -134,7 +193,6 @@ async function draw(dash: number): Promise<Drawn> {
     camera.orthoTop = 0;
     camera.orthoBottom = -H;
 
-    const all = bends();
     const batches = new Map<string, EdgeLineBatch>();
     const spacings = new Map<Bend, number>();
     for (const bend of all) {
@@ -181,26 +239,54 @@ async function draw(dash: number): Promise<Drawn> {
 
     g.fillStyle = "#ffffff";
     g.fillRect(0, 0, W, H);
-    g.lineJoin = "miter";
-    g.miterLimit = 4;
-    g.lineCap = "butt";
+    // Each bend is drawn opaque on its own layer and laid on at its opacity, so the stroke and a
+    // clipped join overlapping it tint once, as one shape does.
+    const layer = document.createElement("canvas");
+    layer.width = W;
+    layer.height = H;
+    const l = layer.getContext("2d");
+    assert(l, "a 2D canvas");
+    l.lineJoin = "miter";
+    l.miterLimit = EDGE_MITER_LIMIT;
+    l.lineCap = "butt";
+    l.strokeStyle = COLOR;
+    l.fillStyle = COLOR;
     for (const bend of all) {
-        g.strokeStyle = `rgba(31, 77, 153, ${String(bend.alpha)})`;
-        g.lineWidth = bend.width;
+        l.clearRect(0, 0, W, H);
+        l.lineWidth = bend.width;
         const spacing = spacings.get(bend) ?? 0;
-        g.setLineDash(dash > 0 ? [dash, spacing - dash] : []);
-        g.beginPath();
+        l.setLineDash(dash > 0 ? [dash, spacing - dash] : []);
+        l.beginPath();
+        const pts: number[][] = [];
         for (let i = 0; i < bend.points.length; i += 2) {
+            pts.push([bend.points[i], bend.points[i + 1]]);
             if (i === 0) {
-                g.moveTo(bend.points[i], bend.points[i + 1]);
+                l.moveTo(bend.points[i], bend.points[i + 1]);
             } else {
-                g.lineTo(bend.points[i], bend.points[i + 1]);
+                l.lineTo(bend.points[i], bend.points[i + 1]);
             }
         }
-        g.stroke();
+        l.stroke();
+        let along = 0;
+        for (let i = 1; i < pts.length - 1; i++) {
+            along += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+            const { clipped } = miterClip(pts[i - 1], pts[i], pts[i + 1], bend.width / 2);
+            // A dashed line draws a corner's join only where a dash covers the corner.
+            const onDash = dash === 0 || along % spacing <= dash;
+            if (clipped && onDash) {
+                l.setLineDash([]);
+                l.beginPath();
+                clipped.forEach(([x, y], k) => (k === 0 ? l.moveTo(x, y) : l.lineTo(x, y)));
+                l.closePath();
+                l.fill();
+            }
+        }
+        g.globalAlpha = bend.alpha;
+        g.drawImage(layer, 0, 0);
+        g.globalAlpha = 1;
     }
     const reference = coverage(g.getImageData(0, 0, W, H).data);
-    return { mine, reference };
+    return { mine, reference, width: W };
 }
 
 interface Defects {
@@ -219,8 +305,8 @@ function defects(drawn: Drawn, bend: Bend): Defects {
     const out = { overlap: 0, hole: 0, spill: 0 };
     for (let y = bend.row * CELL; y < (bend.row + 1) * CELL; y++) {
         for (let x = bend.col * CELL; x < (bend.col + 1) * CELL; x++) {
-            const m = drawn.mine[y * W + x] / bend.alpha;
-            const q = drawn.reference[y * W + x] / bend.alpha;
+            const m = drawn.mine[y * drawn.width + x] / bend.alpha;
+            const q = drawn.reference[y * drawn.width + x] / bend.alpha;
             // Drawn twice at 50% is 75%: well past what anti-aliasing can reach.
             if (bend.alpha < 1 && m > 1.2) {
                 out.overlap++;
@@ -268,6 +354,70 @@ describe("a bent edge's corners", () => {
         // are not neighbours and overlap each other (design/edges/sharp-corners.md).
         const twice = report(drawn, (d, bend) => (CASES[bend.row] === "U" ? 0 : d.overlap));
         assert.deepEqual(twice, [], "pixels drawn twice, per bend");
+    });
+
+    test("shrink a corner's point smoothly as the bend sharpens past the miter limit, with no jump to a bevel", async () => {
+        // Bends from 40 degrees to 18 in half-degree steps: the miter limit of 4 is crossed at
+        // 28.96 degrees. Each width's sweep is three rows of fifteen cells.
+        const SWEEP = Array.from({ length: 45 }, (_, i) => 40 - i * 0.5);
+        const S = 120;
+        const COLS = 15;
+        const sweep: (Bend & { angle: number })[] = [];
+        WIDTHS.forEach((width, wi) => {
+            SWEEP.forEach((angle, i) => {
+                const row = wi * 3 + Math.floor(i / COLS);
+                const col = i % COLS;
+                const h = (angle / 2) * (Math.PI / 180);
+                const cx = col * S + S / 2;
+                const cy = row * S + 55;
+                const points = [
+                    [45 * Math.cos(-Math.PI / 2 - h), 45 * Math.sin(-Math.PI / 2 - h)],
+                    [0, 0],
+                    [45 * Math.cos(-Math.PI / 2 + h), 45 * Math.sin(-Math.PI / 2 + h)],
+                ].flatMap(([x, y]) => [cx + x, cy + y]);
+                sweep.push({ points, width, alpha: 1, row, col, angle });
+            });
+        });
+        const W = S * COLS;
+        const drawn = await draw(0, sweep, W, S * 3 * WIDTHS.length);
+
+        const wrong: string[] = [];
+        for (const width of WIDTHS) {
+            const hw = width / 2;
+            let last: number | undefined;
+            for (const bend of sweep.filter((b) => b.width === width)) {
+                const p = bend.points;
+                const { m } = miterClip([p[0], p[1]], [p[2], p[3]], [p[4], p[5]], hw);
+                // How far a point reaches along the miter direction: the furthest pixel centre at
+                // least half covered, within the line's width of the miter's axis. Measured the
+                // same way in the line's frame and in the reference's.
+                const reachOf = (frame: Float32Array): number => {
+                    let far = 0;
+                    for (let y = bend.row * S; y < (bend.row + 1) * S; y++) {
+                        for (let x = bend.col * S; x < (bend.col + 1) * S; x++) {
+                            const u = [x + 0.5 - p[2], y + 0.5 - p[3]];
+                            if (frame[y * W + x] >= 0.5 && Math.abs(u[0] * m[1] - u[1] * m[0]) <= hw) {
+                                far = Math.max(far, u[0] * m[0] + u[1] * m[1]);
+                            }
+                        }
+                    }
+                    return far;
+                };
+                const tip = reachOf(drawn.mine);
+                const reach = reachOf(drawn.reference);
+                const at = `${String(bend.angle)} deg, ${String(width)} px`;
+                if (Math.abs(tip - reach) > 1.5) {
+                    wrong.push(`${at}: the point reaches ${tip.toFixed(1)} px, the clipped miter ${reach.toFixed(1)}`);
+                }
+                // The point moves 0.07 half-widths a step as a miter, and not at all once clipped;
+                // a switch to a bevel drops it by about 3 half-widths in one step.
+                if (last !== undefined && Math.abs(tip - last) > 1.5 + 0.1 * hw) {
+                    wrong.push(`${at}: the point jumps from ${last.toFixed(1)} px to ${tip.toFixed(1)}`);
+                }
+                last = tip;
+            }
+        }
+        assert.deepEqual(wrong, [], "corner points that jump or reach the wrong distance");
     });
 
     test("carry the dash pattern round the bend, as dashing the centre line and then stroking does", async () => {

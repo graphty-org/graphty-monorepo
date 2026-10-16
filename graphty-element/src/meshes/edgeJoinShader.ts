@@ -7,8 +7,9 @@
  *
  * ONE INSTANCE PER PIECE. A piece reads four points -- the previous corner, its own start and end,
  * and the next corner -- and draws its own rectangle with square ends, plus the outer half of the
- * join at each corner it shares: a miter up to the miter limit, a bevel past it, or a bevel when
- * the miter would reach past the shorter of the two pieces. A straight edge has no neighbours (its
+ * join at each corner it shares: a miter, clipped flat past the miter limit (SVG 2's `miter-clip`)
+ * and where it would reach past the shorter of the two pieces, so a corner's point shrinks
+ * smoothly as the bend sharpens on screen rather than jumping to a bevel. A straight edge has no neighbours (its
  * previous point is its start, its next point is its end), so it draws exactly the rectangle it
  * always drew.
  *
@@ -33,16 +34,24 @@ export const EDGE_MITER_LIMIT = 4;
 export const JOIN_FLOATS_PER_PIECE = 14;
 
 /**
- * The template every piece is drawn from: five vertices at each end -- the centre, one on each
- * side, and one join vertex per side. `x` is the end (0 start, 1 end), `y` the side (-1, 0, 1),
- * `z` 1 for a join vertex.
+ * The template every piece is drawn from: seven vertices at each end -- the centre, one on each
+ * side, and two join vertices per side: where the side's edge meets the clip line, and the clip
+ * line's point on the miter direction (both the miter tip when the miter is not clipped). `x` is
+ * the end (0 start, 1 end), `y` the side (-1, 0, 1), `z` 1 for the first join vertex, 2 for the
+ * second.
  */
 export const JOIN_TEMPLATE_POSITIONS: readonly number[] = [
-    0, 0, 0, 0, 1, 0, 0, -1, 0, 0, 1, 1, 0, -1, 1, 1, 0, 0, 1, 1, 0, 1, -1, 0, 1, 1, 1, 1, -1, 1,
+    0, 0, 0, 0, 1, 0, 0, -1, 0, 0, 1, 1, 0, -1, 1, 1, 0, 0, 1, 1, 0, 1, -1, 0, 1, 1, 1, 1, -1, 1, 0, 1, 2, 0, -1, 2, 1,
+    1, 2, 1, -1, 2,
 ];
 
-/** The rectangle, then the two join triangles at each end (centre, side, join vertex). */
-export const JOIN_TEMPLATE_INDICES: readonly number[] = [1, 2, 7, 1, 7, 6, 0, 1, 3, 0, 2, 4, 5, 6, 8, 5, 7, 9];
+/**
+ * The rectangle, then the join at each end and side: two triangles (centre, side, first join
+ * vertex) and (centre, first join vertex, second join vertex).
+ */
+export const JOIN_TEMPLATE_INDICES: readonly number[] = [
+    1, 2, 7, 1, 7, 6, 0, 1, 3, 0, 2, 4, 5, 6, 8, 5, 7, 9, 0, 3, 10, 0, 4, 11, 5, 8, 12, 5, 9, 13,
+];
 
 /**
  * The vertex shader. `WORLD_WIDTH` takes `width` in world units (2D lines, and patterned lines in
@@ -122,6 +131,7 @@ void main() {
     bool atB = position.x > 0.5;
     float side = position.y;
     bool joinVertex = position.z > 0.5;
+    bool clipVertex = position.z > 1.5;
 
     vec4 cA = clipOf(pA);
     vec4 cB = clipOf(pB);
@@ -168,11 +178,22 @@ void main() {
             vec2 sum = perpOf(dIn) + perpOf(dOut);
             float sl = length(sum);
             float cosH = max(sl * 0.5, 1e-6);
-            float ratio = 1.0 / cosH;
-            float inset = hw * sqrt(max(0.0, 1.0 - cosH * cosH)) / cosH;
-            bool miter = ratio <= miterLimit && inset <= min(lenIn, lenOut);
-            vec2 m = sl > 1e-6 ? sum / sl : n;
-            off = miter ? outer * m * hw * ratio : outer * sum * 0.5 * hw;
+            float sinH = sqrt(max(0.0, 1.0 - cosH * cosH));
+            // The miter direction, outwards; a U-turn's is straight on along the line.
+            vec2 m = sl > 1e-6 ? outer * sum / sl : dIn;
+            // How far past the corner the outer edge runs: to the miter tip, or to the clip line
+            // at miterLimit half-widths from the corner (SVG 2's miter-clip), and never further
+            // than the shorter piece is long. Measured along the edge, so a U-turn is stable.
+            float tMiter = hw * sinH / cosH;
+            float tLimit = 1.0 / cosH <= miterLimit ? tMiter : (miterLimit - cosH) * hw / sinH;
+            float tMax = min(min(lenIn, lenOut), tLimit);
+            if (tMiter <= tMax) {
+                off = m * hw / cosH;
+            } else if (clipVertex) {
+                off = m * (hw * cosH + tMax * sinH);
+            } else {
+                off = side * n * hw + (atB ? d : -d) * tMax;
+            }
         } else {
             off = vec2(0.0);
         }

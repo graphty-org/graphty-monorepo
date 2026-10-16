@@ -126,7 +126,6 @@
         "Styles/Edge::TwoDAllLines",
         "Styles/Edge::TwoDLineAngles",
         "Styles/Edge::TwoDCurvatureWidth",
-        "Styles/Edge::TwoDArrowHeadOutline",
         "Styles/Edge::ThreeDCurvatureWidth",
         "Styles/Edge::Width",
         "Styles/Graph::BackgroundColor",

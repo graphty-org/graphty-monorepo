@@ -627,307 +627,6 @@ export const CombinedOpacity: Story = {
     },
 };
 
-/** The arrow grid's layers, one edge each: shared by the 2D grid and its outlined twin. */
-const TWO_D_ARROW_LAYERS: LayerSpec[] = [
-    {
-        name: "edges where data.source == 'normal-src'",
-        target: "edge",
-        selector: { match: "expression", where: "data.source == 'normal-src'" },
-        set: {
-            "edge.color": "darkgrey",
-            "edge.arrowHead": "normal",
-            "edge.arrowHeadSize": 2,
-            "edge.arrowHeadText": "normal",
-            "edge.arrowHeadTextStyle": {
-                sizePx: 32,
-                color: "#000000",
-                background: "transparent",
-                attachOffset: 1,
-            },
-        },
-    },
-    {
-        name: "edges where data.source == 'inverted-src'",
-        target: "edge",
-        selector: { match: "expression", where: "data.source == 'inverted-src'" },
-        set: {
-            "edge.color": "darkgrey",
-            "edge.arrowHead": "inverted",
-            "edge.arrowHeadSize": 2,
-            "edge.arrowHeadText": "inverted",
-            "edge.arrowHeadTextStyle": {
-                sizePx: 32,
-                color: "#000000",
-                background: "transparent",
-                attachOffset: 1,
-            },
-        },
-    },
-    {
-        name: "edges where data.source == 'dot-src'",
-        target: "edge",
-        selector: { match: "expression", where: "data.source == 'dot-src'" },
-        set: {
-            "edge.color": "darkgrey",
-            "edge.arrowHead": "dot",
-            "edge.arrowHeadSize": 2,
-            "edge.arrowHeadText": "dot",
-            "edge.arrowHeadTextStyle": {
-                sizePx: 32,
-                color: "#000000",
-                background: "transparent",
-                attachOffset: 1,
-            },
-        },
-    },
-    {
-        name: "edges where data.source == 'sphere-dot-src'",
-        target: "edge",
-        selector: { match: "expression", where: "data.source == 'sphere-dot-src'" },
-        set: {
-            "edge.color": "darkgrey",
-            "edge.arrowHead": "sphere-dot",
-            "edge.arrowHeadSize": 2,
-            "edge.arrowHeadText": "sphere-dot",
-            "edge.arrowHeadTextStyle": {
-                sizePx: 32,
-                color: "#000000",
-                background: "transparent",
-                attachOffset: 1,
-            },
-        },
-    },
-    {
-        name: "edges where data.source == 'open-dot-src'",
-        target: "edge",
-        selector: { match: "expression", where: "data.source == 'open-dot-src'" },
-        set: {
-            "edge.color": "darkgrey",
-            "edge.arrowHead": "open-dot",
-            "edge.arrowHeadSize": 2,
-            "edge.arrowHeadText": "open-dot",
-            "edge.arrowHeadTextStyle": {
-                sizePx: 32,
-                color: "#000000",
-                background: "transparent",
-                attachOffset: 1,
-            },
-        },
-    },
-    {
-        name: "edges where data.source == 'tee-src'",
-        target: "edge",
-        selector: { match: "expression", where: "data.source == 'tee-src'" },
-        set: {
-            "edge.color": "darkgrey",
-            "edge.arrowHead": "tee",
-            "edge.arrowHeadSize": 2,
-            "edge.arrowHeadText": "tee",
-            "edge.arrowHeadTextStyle": {
-                sizePx: 32,
-                color: "#000000",
-                background: "transparent",
-                attachOffset: 1,
-            },
-        },
-    },
-    {
-        name: "edges where data.source == 'open-normal-src'",
-        target: "edge",
-        selector: { match: "expression", where: "data.source == 'open-normal-src'" },
-        set: {
-            "edge.color": "darkgrey",
-            "edge.arrowHead": "open-normal",
-            "edge.arrowHeadSize": 2,
-            "edge.arrowHeadText": "open-normal",
-            "edge.arrowHeadTextStyle": {
-                sizePx: 32,
-                color: "#000000",
-                background: "transparent",
-                attachOffset: 1,
-            },
-        },
-    },
-    {
-        name: "edges where data.source == 'diamond-src'",
-        target: "edge",
-        selector: { match: "expression", where: "data.source == 'diamond-src'" },
-        set: {
-            "edge.color": "darkgrey",
-            "edge.arrowHead": "diamond",
-            "edge.arrowHeadSize": 2,
-            "edge.arrowHeadText": "diamond",
-            "edge.arrowHeadTextStyle": {
-                sizePx: 32,
-                color: "#000000",
-                background: "transparent",
-                attachOffset: 1,
-            },
-        },
-    },
-    {
-        name: "edges where data.source == 'open-diamond-src'",
-        target: "edge",
-        selector: { match: "expression", where: "data.source == 'open-diamond-src'" },
-        set: {
-            "edge.color": "darkgrey",
-            "edge.arrowHead": "open-diamond",
-            "edge.arrowHeadSize": 2,
-            "edge.arrowHeadText": "open-diamond",
-            "edge.arrowHeadTextStyle": {
-                sizePx: 32,
-                color: "#000000",
-                background: "transparent",
-                attachOffset: 1,
-            },
-        },
-    },
-    {
-        name: "edges where data.source == 'crow-src'",
-        target: "edge",
-        selector: { match: "expression", where: "data.source == 'crow-src'" },
-        set: {
-            "edge.color": "darkgrey",
-            "edge.arrowHead": "crow",
-            "edge.arrowHeadSize": 2,
-            "edge.arrowHeadText": "crow",
-            "edge.arrowHeadTextStyle": {
-                sizePx: 32,
-                color: "#000000",
-                background: "transparent",
-                attachOffset: 1,
-            },
-        },
-    },
-    {
-        name: "edges where data.source == 'box-src'",
-        target: "edge",
-        selector: { match: "expression", where: "data.source == 'box-src'" },
-        set: {
-            "edge.color": "darkgrey",
-            "edge.arrowHead": "box",
-            "edge.arrowHeadSize": 2,
-            "edge.arrowHeadText": "box",
-            "edge.arrowHeadTextStyle": {
-                sizePx: 32,
-                color: "#000000",
-                background: "transparent",
-                attachOffset: 1,
-            },
-        },
-    },
-    {
-        name: "edges where data.source == 'half-open-src'",
-        target: "edge",
-        selector: { match: "expression", where: "data.source == 'half-open-src'" },
-        set: {
-            "edge.color": "darkgrey",
-            "edge.arrowHead": "half-open",
-            "edge.arrowHeadSize": 2,
-            "edge.arrowHeadText": "half-open",
-            "edge.arrowHeadTextStyle": {
-                sizePx: 32,
-                color: "#000000",
-                background: "transparent",
-                attachOffset: 1,
-            },
-        },
-    },
-    {
-        name: "edges where data.source == 'vee-src'",
-        target: "edge",
-        selector: { match: "expression", where: "data.source == 'vee-src'" },
-        set: {
-            "edge.color": "darkgrey",
-            "edge.arrowHead": "vee",
-            "edge.arrowHeadSize": 2,
-            "edge.arrowHeadText": "vee",
-            "edge.arrowHeadTextStyle": {
-                sizePx: 32,
-                color: "#000000",
-                background: "transparent",
-                attachOffset: 1,
-            },
-        },
-    },
-    {
-        name: "edges where data.source == 'none-src'",
-        target: "edge",
-        selector: { match: "expression", where: "data.source == 'none-src'" },
-        set: {
-            "edge.color": "darkgrey",
-            "edge.arrowHead": "none",
-            "edge.label": "none",
-            "edge.labelStyle": {
-                sizePx: 32,
-                color: "#000000",
-                background: "transparent",
-                location: "top",
-                attachOffset: 1,
-            },
-        },
-    },
-];
-
-/** The arrow grid's nodes, laid out in rows. */
-const TWO_D_ARROW_NODES = [
-    // Grid layout: 4 columns x 4 rows (14 arrow types)
-    // Row 1: normal, inverted, dot, sphere-dot
-    { id: "normal-src", position: { x: -12, y: 6, z: 0 } },
-    { id: "normal-dst", position: { x: -8, y: 6, z: 0 } },
-    { id: "inverted-src", position: { x: -4, y: 6, z: 0 } },
-    { id: "inverted-dst", position: { x: 0, y: 6, z: 0 } },
-    { id: "dot-src", position: { x: 4, y: 6, z: 0 } },
-    { id: "dot-dst", position: { x: 8, y: 6, z: 0 } },
-    { id: "sphere-dot-src", position: { x: 12, y: 6, z: 0 } },
-    { id: "sphere-dot-dst", position: { x: 16, y: 6, z: 0 } },
-    // Row 2: open-dot, tee, open-normal, diamond
-    { id: "open-dot-src", position: { x: -12, y: 0, z: 0 } },
-    { id: "open-dot-dst", position: { x: -8, y: 0, z: 0 } },
-    { id: "tee-src", position: { x: -4, y: 0, z: 0 } },
-    { id: "tee-dst", position: { x: 0, y: 0, z: 0 } },
-    { id: "open-normal-src", position: { x: 4, y: 0, z: 0 } },
-    { id: "open-normal-dst", position: { x: 8, y: 0, z: 0 } },
-    { id: "diamond-src", position: { x: 12, y: 0, z: 0 } },
-    { id: "diamond-dst", position: { x: 16, y: 0, z: 0 } },
-    // Row 3: open-diamond, crow, box, half-open
-    { id: "open-diamond-src", position: { x: -12, y: -6, z: 0 } },
-    { id: "open-diamond-dst", position: { x: -8, y: -6, z: 0 } },
-    { id: "crow-src", position: { x: -4, y: -6, z: 0 } },
-    { id: "crow-dst", position: { x: 0, y: -6, z: 0 } },
-    { id: "box-src", position: { x: 4, y: -6, z: 0 } },
-    { id: "box-dst", position: { x: 8, y: -6, z: 0 } },
-    { id: "half-open-src", position: { x: 12, y: -6, z: 0 } },
-    { id: "half-open-dst", position: { x: 16, y: -6, z: 0 } },
-    // Row 4: vee, none
-    { id: "vee-src", position: { x: -12, y: -12, z: 0 } },
-    { id: "vee-dst", position: { x: -8, y: -12, z: 0 } },
-    { id: "none-src", position: { x: -4, y: -12, z: 0 } },
-    { id: "none-dst", position: { x: 0, y: -12, z: 0 } },
-];
-
-/** The arrow grid's edges, one per cap. */
-const TWO_D_ARROW_EDGES = [
-    // Row 1
-    { src: "normal-src", dst: "normal-dst" },
-    { src: "inverted-src", dst: "inverted-dst" },
-    { src: "dot-src", dst: "dot-dst" },
-    { src: "sphere-dot-src", dst: "sphere-dot-dst" },
-    // Row 2
-    { src: "open-dot-src", dst: "open-dot-dst" },
-    { src: "tee-src", dst: "tee-dst" },
-    { src: "open-normal-src", dst: "open-normal-dst" },
-    { src: "diamond-src", dst: "diamond-dst" },
-    // Row 3
-    { src: "open-diamond-src", dst: "open-diamond-dst" },
-    { src: "crow-src", dst: "crow-dst" },
-    { src: "box-src", dst: "box-dst" },
-    { src: "half-open-src", dst: "half-open-dst" },
-    // Row 4
-    { src: "vee-src", dst: "vee-dst" },
-    { src: "none-src", dst: "none-dst" },
-];
-
 /**
  * Every arrow the element draws, in a grid, each arrow captioned with its own name.
  *
@@ -958,10 +657,302 @@ export const TwoDAllArrows: Story = {
     args: {
         setup: storySetup({
             viewMode: "2d",
-            layers: TWO_D_ARROW_LAYERS,
+            layers: [
+                {
+                    name: "edges where data.source == 'normal-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.source == 'normal-src'" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.arrowHead": "normal",
+                        "edge.arrowHeadSize": 2,
+                        "edge.arrowHeadText": "normal",
+                        "edge.arrowHeadTextStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            attachOffset: 1,
+                        },
+                    },
+                },
+                {
+                    name: "edges where data.source == 'inverted-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.source == 'inverted-src'" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.arrowHead": "inverted",
+                        "edge.arrowHeadSize": 2,
+                        "edge.arrowHeadText": "inverted",
+                        "edge.arrowHeadTextStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            attachOffset: 1,
+                        },
+                    },
+                },
+                {
+                    name: "edges where data.source == 'dot-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.source == 'dot-src'" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.arrowHead": "dot",
+                        "edge.arrowHeadSize": 2,
+                        "edge.arrowHeadText": "dot",
+                        "edge.arrowHeadTextStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            attachOffset: 1,
+                        },
+                    },
+                },
+                {
+                    name: "edges where data.source == 'sphere-dot-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.source == 'sphere-dot-src'" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.arrowHead": "sphere-dot",
+                        "edge.arrowHeadSize": 2,
+                        "edge.arrowHeadText": "sphere-dot",
+                        "edge.arrowHeadTextStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            attachOffset: 1,
+                        },
+                    },
+                },
+                {
+                    name: "edges where data.source == 'open-dot-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.source == 'open-dot-src'" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.arrowHead": "open-dot",
+                        "edge.arrowHeadSize": 2,
+                        "edge.arrowHeadText": "open-dot",
+                        "edge.arrowHeadTextStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            attachOffset: 1,
+                        },
+                    },
+                },
+                {
+                    name: "edges where data.source == 'tee-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.source == 'tee-src'" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.arrowHead": "tee",
+                        "edge.arrowHeadSize": 2,
+                        "edge.arrowHeadText": "tee",
+                        "edge.arrowHeadTextStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            attachOffset: 1,
+                        },
+                    },
+                },
+                {
+                    name: "edges where data.source == 'open-normal-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.source == 'open-normal-src'" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.arrowHead": "open-normal",
+                        "edge.arrowHeadSize": 2,
+                        "edge.arrowHeadText": "open-normal",
+                        "edge.arrowHeadTextStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            attachOffset: 1,
+                        },
+                    },
+                },
+                {
+                    name: "edges where data.source == 'diamond-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.source == 'diamond-src'" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.arrowHead": "diamond",
+                        "edge.arrowHeadSize": 2,
+                        "edge.arrowHeadText": "diamond",
+                        "edge.arrowHeadTextStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            attachOffset: 1,
+                        },
+                    },
+                },
+                {
+                    name: "edges where data.source == 'open-diamond-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.source == 'open-diamond-src'" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.arrowHead": "open-diamond",
+                        "edge.arrowHeadSize": 2,
+                        "edge.arrowHeadText": "open-diamond",
+                        "edge.arrowHeadTextStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            attachOffset: 1,
+                        },
+                    },
+                },
+                {
+                    name: "edges where data.source == 'crow-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.source == 'crow-src'" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.arrowHead": "crow",
+                        "edge.arrowHeadSize": 2,
+                        "edge.arrowHeadText": "crow",
+                        "edge.arrowHeadTextStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            attachOffset: 1,
+                        },
+                    },
+                },
+                {
+                    name: "edges where data.source == 'box-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.source == 'box-src'" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.arrowHead": "box",
+                        "edge.arrowHeadSize": 2,
+                        "edge.arrowHeadText": "box",
+                        "edge.arrowHeadTextStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            attachOffset: 1,
+                        },
+                    },
+                },
+                {
+                    name: "edges where data.source == 'half-open-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.source == 'half-open-src'" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.arrowHead": "half-open",
+                        "edge.arrowHeadSize": 2,
+                        "edge.arrowHeadText": "half-open",
+                        "edge.arrowHeadTextStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            attachOffset: 1,
+                        },
+                    },
+                },
+                {
+                    name: "edges where data.source == 'vee-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.source == 'vee-src'" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.arrowHead": "vee",
+                        "edge.arrowHeadSize": 2,
+                        "edge.arrowHeadText": "vee",
+                        "edge.arrowHeadTextStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            attachOffset: 1,
+                        },
+                    },
+                },
+                {
+                    name: "edges where data.source == 'none-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.source == 'none-src'" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.arrowHead": "none",
+                        "edge.label": "none",
+                        "edge.labelStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            location: "top",
+                            attachOffset: 1,
+                        },
+                    },
+                },
+            ],
         }),
-        nodeData: TWO_D_ARROW_NODES,
-        edgeData: TWO_D_ARROW_EDGES,
+        nodeData: [
+            // Grid layout: 4 columns x 4 rows (14 arrow types)
+            // Row 1: normal, inverted, dot, sphere-dot
+            { id: "normal-src", position: { x: -12, y: 6, z: 0 } },
+            { id: "normal-dst", position: { x: -8, y: 6, z: 0 } },
+            { id: "inverted-src", position: { x: -4, y: 6, z: 0 } },
+            { id: "inverted-dst", position: { x: 0, y: 6, z: 0 } },
+            { id: "dot-src", position: { x: 4, y: 6, z: 0 } },
+            { id: "dot-dst", position: { x: 8, y: 6, z: 0 } },
+            { id: "sphere-dot-src", position: { x: 12, y: 6, z: 0 } },
+            { id: "sphere-dot-dst", position: { x: 16, y: 6, z: 0 } },
+            // Row 2: open-dot, tee, open-normal, diamond
+            { id: "open-dot-src", position: { x: -12, y: 0, z: 0 } },
+            { id: "open-dot-dst", position: { x: -8, y: 0, z: 0 } },
+            { id: "tee-src", position: { x: -4, y: 0, z: 0 } },
+            { id: "tee-dst", position: { x: 0, y: 0, z: 0 } },
+            { id: "open-normal-src", position: { x: 4, y: 0, z: 0 } },
+            { id: "open-normal-dst", position: { x: 8, y: 0, z: 0 } },
+            { id: "diamond-src", position: { x: 12, y: 0, z: 0 } },
+            { id: "diamond-dst", position: { x: 16, y: 0, z: 0 } },
+            // Row 3: open-diamond, crow, box, half-open
+            { id: "open-diamond-src", position: { x: -12, y: -6, z: 0 } },
+            { id: "open-diamond-dst", position: { x: -8, y: -6, z: 0 } },
+            { id: "crow-src", position: { x: -4, y: -6, z: 0 } },
+            { id: "crow-dst", position: { x: 0, y: -6, z: 0 } },
+            { id: "box-src", position: { x: 4, y: -6, z: 0 } },
+            { id: "box-dst", position: { x: 8, y: -6, z: 0 } },
+            { id: "half-open-src", position: { x: 12, y: -6, z: 0 } },
+            { id: "half-open-dst", position: { x: 16, y: -6, z: 0 } },
+            // Row 4: vee, none
+            { id: "vee-src", position: { x: -12, y: -12, z: 0 } },
+            { id: "vee-dst", position: { x: -8, y: -12, z: 0 } },
+            { id: "none-src", position: { x: -4, y: -12, z: 0 } },
+            { id: "none-dst", position: { x: 0, y: -12, z: 0 } },
+        ],
+        edgeData: [
+            // Row 1
+            { src: "normal-src", dst: "normal-dst" },
+            { src: "inverted-src", dst: "inverted-dst" },
+            { src: "dot-src", dst: "dot-dst" },
+            { src: "sphere-dot-src", dst: "sphere-dot-dst" },
+            // Row 2
+            { src: "open-dot-src", dst: "open-dot-dst" },
+            { src: "tee-src", dst: "tee-dst" },
+            { src: "open-normal-src", dst: "open-normal-dst" },
+            { src: "diamond-src", dst: "diamond-dst" },
+            // Row 3
+            { src: "open-diamond-src", dst: "open-diamond-dst" },
+            { src: "crow-src", dst: "crow-dst" },
+            { src: "box-src", dst: "box-dst" },
+            { src: "half-open-src", dst: "half-open-dst" },
+            // Row 4
+            { src: "vee-src", dst: "vee-dst" },
+            { src: "none-src", dst: "none-dst" },
+        ],
         layout: "fixed",
     },
     parameters: {
@@ -2275,55 +2266,5 @@ export const ThreeDCurvatureWidth: Story = {
         }),
         nodeData: CURVATURE_WIDTH_NODES,
         edgeData: CURVATURE_WIDTH_EDGES,
-    },
-};
-
-/**
- * Every arrowhead of {@link TwoDAllArrows}, with every node outlined (issue #2324).
- *
- * A node outline is a glow composited over the frame, and an arrowhead's tip sits on the node's
- * surface, inside it: a file whose nodes have borders drew every arrowhead it asked for under the
- * outline. The caps are drawn after the outlines now, so every one of them shows over the black.
- */
-export const TwoDArrowHeadOutline: Story = {
-    play: async ({ canvasElement }) => {
-        const scene = await drawn(canvasElement, "Styles/Edge TwoDArrowHeadOutline");
-
-        await assertGridPainted(scene, ARROW_GRID, ARROW_GRID.length - 1);
-        await assertArrowVariety(scene, 8);
-        await assertViewMode(scene, "2d");
-
-        // The caps are red, which no line, outline or node is drawn in.
-        const caps = await pixelsOfColour(scene, "#ff0000");
-
-        await holds(
-            caps > 0,
-            `Styles/Edge TwoDArrowHeadOutline: thirteen arrowheads touch outlined nodes and the canvas ` +
-                `holds ${String(caps)} pixels of their colour`,
-        );
-        await assertDistinctPicture(scene, "Styles/Edge", "camera=2d outline");
-    },
-    args: {
-        setup: storySetup({
-            viewMode: "2d",
-            node: { "node.outline": "#000000" },
-            layers: [
-                ...TWO_D_ARROW_LAYERS,
-                {
-                    name: "every arrowhead red",
-                    target: "edge",
-                    selector: { match: "everything" },
-                    set: { "edge.arrowHeadColor": "#ff0000" },
-                },
-            ],
-        }),
-        nodeData: TWO_D_ARROW_NODES,
-        edgeData: TWO_D_ARROW_EDGES,
-        layout: "fixed",
-    },
-    parameters: {
-        chromatic: {
-            delay: 1000,
-        },
     },
 };

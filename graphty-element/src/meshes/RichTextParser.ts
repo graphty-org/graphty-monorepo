@@ -176,3 +176,55 @@ export function measureLine(
 
     return { width, lineBox, baseline: (lineBox - inkHeight) / 2 + outline + ascent };
 }
+
+/**
+ * Break lines that run past a width at the spaces between their words, keeping each word's
+ * style. A word wider than the width keeps a line of its own; a line that fits is kept as it is.
+ * @param ctx - A canvas to measure on.
+ * @param lines - The lines, each a list of styled segments.
+ * @param width - The widest a line may be, in the canvas's pixels.
+ * @returns The lines, wrapped.
+ */
+export function wrapLines(ctx: CanvasRenderingContext2D, lines: TextSegment[][], width: number): TextSegment[][] {
+    const out: TextSegment[][] = [];
+    const measure = (text: string, style: TextSegment["style"]): number => {
+        ctx.font = `${style.style} ${style.weight} ${style.size}px ${style.font}`;
+        return ctx.measureText(text).width;
+    };
+
+    for (const line of lines) {
+        let current: TextSegment[] = [];
+        let used = 0;
+        for (const { text, style } of line) {
+            for (const piece of text.split(/(\s+)/)) {
+                if (piece === "") {
+                    continue;
+                }
+
+                const space = /^\s+$/.test(piece);
+                const span = measure(piece, style);
+                if (!space && used > 0 && used + span > width) {
+                    // Spaces left at the end of a broken line are dropped.
+                    while (current.length > 0 && /^\s+$/.test(current[current.length - 1].text)) {
+                        current.pop();
+                    }
+
+                    out.push(current);
+                    current = [];
+                    used = 0;
+                }
+
+                if (space && used === 0) {
+                    continue;
+                }
+
+                current.push({ text: piece, style });
+                used += span;
+            }
+        }
+
+        out.push(current);
+    }
+
+    return out;
+}

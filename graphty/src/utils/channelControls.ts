@@ -109,6 +109,7 @@ const CHANNEL_UI: Readonly<Record<Channel, ChannelUi>> = {
     "node.labelFont": {},
     "node.labelWeight": { options: LABEL_WEIGHT_OPTIONS },
     "node.labelItalic": {},
+    "node.labelWrapWidth": { step: 0.5 },
     "node.tooltip": {},
     "node.tooltipStyle": {},
     "node.opacity": { step: 0.05 },
@@ -156,6 +157,7 @@ const CHANNEL_UI: Readonly<Record<Channel, ChannelUi>> = {
     "edge.labelFont": {},
     "edge.labelWeight": { options: LABEL_WEIGHT_OPTIONS },
     "edge.labelItalic": {},
+    "edge.labelWrapWidth": { step: 0.5 },
 };
 
 /** Every channel, in the order the inspector draws them. */

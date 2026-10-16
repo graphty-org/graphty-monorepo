@@ -362,6 +362,7 @@ export const READ_ONLY: readonly string[] = [
     "ComponentStatistics.componentOf",
     "DataManager.beginLoad",
     "DataManager.getEdge",
+    "DataManager.drawnBundle",
     "DataManager.getEdgesBetween",
     "DataManager.getNode",
     "DataManager.getSnapshot",

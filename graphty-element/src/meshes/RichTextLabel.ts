@@ -19,7 +19,7 @@ import { FrameRoster } from "./FrameRoster";
 import { buildMaterial, deferLabelRelease, giveAlphaQuietly, setUpQuietly } from "./LabelBatch";
 import { type ContentArea as PointerContentArea, type PointerDirection, PointerRenderer } from "./PointerRenderer";
 import { RichTextAnimator } from "./RichTextAnimator";
-import { measureLine, RichTextParser } from "./RichTextParser";
+import { measureLine, RichTextParser, wrapLines } from "./RichTextParser";
 import { RichTextRenderer } from "./RichTextRenderer";
 
 /** The depth-fading labels of each scene, behind one before-render observer; see {@link FrameRoster}. */
@@ -122,6 +122,7 @@ type ResolvedRichTextLabelOptions = RequiredExceptOptional<
     | "onTop"
     | "plainText"
     | "size"
+    | "wrapWidth"
     | "_badgeType"
     | "_smartSizing"
     | "_paddingRatio"
@@ -443,6 +444,8 @@ export class RichTextLabel {
         if (!tempCtx) {
             return;
         }
+
+        this.wrapToWidth(tempCtx);
 
         const { maxWidth, totalHeight } = this.parser.measureText(this.parsedContent, tempCtx, {
             lineHeight: this.options.lineHeight,
@@ -1023,6 +1026,33 @@ export class RichTextLabel {
      * size, or `fontSize / 48` when it names none.
      * @returns The height in world units.
      */
+    /**
+     * Break the label's lines where they run past its wrap width, at the spaces between words. The
+     * width is in the scene, so it is turned into the canvas's pixels by one line's height in each.
+     * A word longer than the width keeps a line of its own.
+     * @param ctx - A canvas to measure on.
+     */
+    private wrapToWidth(ctx: CanvasRenderingContext2D): void {
+        const { wrapWidth } = this.options;
+        const first = this.parsedContent.find((line) => line.length > 0);
+        if (wrapWidth === undefined || first === undefined) {
+            return;
+        }
+
+        const { lineBox } = measureLine(ctx, first, {
+            lineHeight: DEFAULT_LINE_HEIGHT,
+            textOutline: this.options.textOutline,
+            textOutlineWidth: this.options.textOutlineWidth,
+        });
+        // One line's plane is `lineHeightInWorld` tall for a canvas of the line, its margins, its
+        // panel's padding and its borders (see `_calculateDimensions`).
+        const { marginTop, marginBottom, backgroundPadding, borders } = this.options;
+        const bordersPx = borders.reduce((sum, border) => sum + border.width + border.spacing, 0);
+        const oneLinePx = lineBox + marginTop + marginBottom + 2 * backgroundPadding + 2 * bordersPx;
+        const widthPx = (wrapWidth * oneLinePx) / this.lineHeightInWorld();
+        this.parsedContent = wrapLines(ctx, this.parsedContent, widthPx);
+    }
+
     private lineHeightInWorld(): number {
         return this.options.size ?? this.options.fontSize / 48;
     }

@@ -82,7 +82,15 @@ const PROPERTIES: Readonly<Record<string, readonly string[]>> = {
     "edge.arrowHeadText": ["targetLabel"],
     "edge.arrowTailText": ["sourceLabel"],
 };
-const LABEL_PROPERTIES = ["labelColor", "labelSize", "labelFont", "labelWeight", "labelItalic", "labelPosition"];
+const LABEL_PROPERTIES = [
+    "labelColor",
+    "labelSize",
+    "labelFont",
+    "labelWeight",
+    "labelItalic",
+    "labelPosition",
+    "labelWrapWidth",
+];
 
 // ---------------------------------------------------------------------------------------------
 // The hand-made stacks
@@ -453,7 +461,7 @@ function names(note: AnyNote, kind: "node" | "edge", channel: string): boolean {
 
     const property = String(note.params.property);
     // a label's style is one channel merged and several in a layer's contribution
-    const properties = /\.label(?:Style|Color|Size|Font|Weight|Italic)$/.test(channel)
+    const properties = /\.label(?:Style|Color|Size|Font|Weight|Italic|WrapWidth)$/.test(channel)
         ? LABEL_PROPERTIES
         : (PROPERTIES[channel] ?? []);
     return (

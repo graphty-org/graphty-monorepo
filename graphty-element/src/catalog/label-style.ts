@@ -94,6 +94,11 @@ export interface LabelStyle {
     color?: string;
     /** Whether the letters are drawn italic. */
     italic?: boolean;
+    /**
+     * How wide one line may be drawn before its words wrap onto the next, in the units of `size`
+     * (the scene's). Unset, a line is as long as its words.
+     */
+    wrapWidth?: number;
     /** The gap between one line of text and the next, as a multiple of the font size. */
     lineHeight?: number;
     /** How the lines are lined up against each other. */
@@ -210,6 +215,7 @@ export const LABEL_STYLE_FIELDS: readonly (keyof LabelStyle)[] = Object.keys({
     weight: 0,
     color: 0,
     italic: 0,
+    wrapWidth: 0,
     lineHeight: 0,
     textAlign: 0,
     background: 0,

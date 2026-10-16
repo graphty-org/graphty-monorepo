@@ -60,6 +60,9 @@ export const RichTextStyle = z.strictObject({
     fontSize: z.number().default(48).optional(),
     // How tall one line is drawn in the scene, in the units of a node's size; unset, fontSize / 48.
     size: z.number().positive().optional(),
+    // How wide one line may be drawn in the scene before the words wrap onto the next; unset, a
+    // line is as long as its words.
+    wrapWidth: z.number().positive().optional(),
     fontWeight: z.string().default("normal").optional(),
     fontStyle: z.enum(["normal", "italic"]).default("normal").optional(),
     lineHeight: z.number().default(1.2).optional(),

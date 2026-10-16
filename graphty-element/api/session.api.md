@@ -1520,7 +1520,21 @@ export type GraphtyWarningCode =
 * `params.path` where in the layer, and `params.fieldChannels` the label field channels that
 * can be bound instead.
 */
-| "W_LABEL_STYLE_BOUND";
+| "W_LABEL_STYLE_BOUND"
+/**
+* A layout that places nodes from their data found no usable `data.position` (`{ x, y, z? }`
+* or `[x, y, z?]`) for some nodes, and put them at the origin or left them where they were.
+* Emitted as a `layout-warning` event. `params.missing` is how many nodes had none and
+* `params.total` how many the layout placed. Today only the `fixed` layout reports it.
+*/
+| "W_NO_POSITION"
+/**
+* A layout was given options it does not take, and ran without them. Emitted as a
+* `layout-warning` event by the layouts that do not refuse an unknown option with
+* `E_UNKNOWN_OPTION`: `ngraph`, `forceatlas2`, `spring` and `spring-electrical`.
+* `params.options` lists the names it ignored and `params.available` the names it takes.
+*/
+| "W_UNKNOWN_OPTION";
 
 // @public
 export interface HighlightSpec {

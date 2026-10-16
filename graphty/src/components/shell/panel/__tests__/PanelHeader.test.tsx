@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
-import { fireEvent, render, screen } from "../../../../test/test-utils";
+import { render, screen } from "../../../../test/test-utils";
 import { PANEL_HEADER_HEIGHT } from "../../constants";
 import type { PanelOverflowItem } from "../../types";
 import { MORE_LABEL, PanelHeader } from "../PanelHeader";
@@ -144,7 +145,7 @@ describe("PanelHeader", () => {
 
             render(<PanelHeader title="Data" glyph={glyph} overflowItems={rows} />);
 
-            fireEvent.click(screen.getByRole("button", { name: MORE_LABEL }));
+            await userEvent.click(screen.getByRole("button", { name: MORE_LABEL }));
 
             const items = await screen.findAllByRole("menuitem");
             expect(items.map((item) => item.textContent)).toEqual(["Expand all sections", "Collapse all sections"]);
@@ -167,7 +168,7 @@ describe("PanelHeader", () => {
                 />,
             );
 
-            fireEvent.click(screen.getByRole("button", { name: MORE_LABEL }));
+            await userEvent.click(screen.getByRole("button", { name: MORE_LABEL }));
 
             const row = await screen.findByRole("menuitem", { name: "Close dataset. Starts a new session" });
             expect(row).toHaveAttribute("title", "Load data first");
@@ -184,8 +185,8 @@ describe("PanelHeader", () => {
                 />,
             );
 
-            fireEvent.click(screen.getByRole("button", { name: MORE_LABEL }));
-            fireEvent.click(await screen.findByRole("menuitem", { name: "Expand all sections" }));
+            await userEvent.click(screen.getByRole("button", { name: MORE_LABEL }));
+            await userEvent.click(await screen.findByRole("menuitem", { name: "Expand all sections" }));
 
             expect(onSelect).toHaveBeenCalledTimes(1);
         });

@@ -23,6 +23,7 @@ import {
     renderGraph,
     updateStatus,
 } from "../utils/visualization.js";
+import { storyWaitOptions } from "../utils/wait.js";
 
 /**
  * Story arguments interface.
@@ -223,12 +224,9 @@ export const Katz: Story = {
         await userEvent.click(calcButton);
 
         // Wait for status to update
-        await waitFor(
-            async () => {
-                const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
-                await expect(statusText).toContain("computed");
-            },
-            { timeout: 5000 },
-        );
+        await waitFor(async () => {
+            const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
+            await expect(statusText).toContain("computed");
+        }, storyWaitOptions(5000));
     },
 };

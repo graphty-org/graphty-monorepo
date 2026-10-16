@@ -2,8 +2,9 @@
  * Tests for Reset to Defaults functionality and category grouping in RunLayoutsModal.
  * Phase 5: Reset to Defaults and Category Grouping
  */
-import { fireEvent, waitFor } from "@testing-library/react";
+import { waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { CATEGORY_LABELS, getLayoutMetadata } from "../../data/layoutMetadata";
 import { render, screen } from "../../test/test-utils";
@@ -17,7 +18,7 @@ describe("RunLayoutsModal - Reset to Defaults", () => {
             expect(screen.getByText("Reset to Defaults")).toBeInTheDocument();
         });
 
-        it("should reset form values to defaults when Reset clicked", () => {
+        it("should reset form values to defaults when Reset clicked", async () => {
             render(<RunLayoutsModal opened={true} onClose={vi.fn()} onApply={vi.fn()} is2DMode={false} />);
 
             // D3 default alphaMin is 0.1
@@ -25,17 +26,17 @@ describe("RunLayoutsModal - Reset to Defaults", () => {
             expect(alphaMinInput).toHaveValue("0.1");
 
             // Modify the value
-            fireEvent.change(alphaMinInput, { target: { value: "0.5" } });
+            await userEvent.fill(alphaMinInput, "0.5");
             expect(alphaMinInput).toHaveValue("0.5");
 
             // Click reset
-            fireEvent.click(screen.getByText("Reset to Defaults"));
+            await userEvent.click(screen.getByText("Reset to Defaults"));
 
             // Value should be back to default
             expect(alphaMinInput).toHaveValue("0.1");
         });
 
-        it("should reset multiple form values to defaults", () => {
+        it("should reset multiple form values to defaults", async () => {
             render(<RunLayoutsModal opened={true} onClose={vi.fn()} onApply={vi.fn()} is2DMode={false} />);
 
             // Modify multiple values
@@ -43,16 +44,16 @@ describe("RunLayoutsModal - Reset to Defaults", () => {
             const alphaDecayInput = screen.getByLabelText("Alpha Decay");
             const velocityDecayInput = screen.getByLabelText("Velocity Decay");
 
-            fireEvent.change(alphaMinInput, { target: { value: "0.9" } });
-            fireEvent.change(alphaDecayInput, { target: { value: "0.1" } });
-            fireEvent.change(velocityDecayInput, { target: { value: "0.8" } });
+            await userEvent.fill(alphaMinInput, "0.9");
+            await userEvent.fill(alphaDecayInput, "0.1");
+            await userEvent.fill(velocityDecayInput, "0.8");
 
             expect(alphaMinInput).toHaveValue("0.9");
             expect(alphaDecayInput).toHaveValue("0.1");
             expect(velocityDecayInput).toHaveValue("0.8");
 
             // Click reset
-            fireEvent.click(screen.getByText("Reset to Defaults"));
+            await userEvent.click(screen.getByText("Reset to Defaults"));
 
             // All values should be back to defaults
             expect(alphaMinInput).toHaveValue("0.1");
@@ -65,22 +66,22 @@ describe("RunLayoutsModal - Reset to Defaults", () => {
 
             // Select ForceAtlas2 which has boolean options
             const dropdown = screen.getByRole("combobox", { name: /layout/i });
-            fireEvent.click(dropdown);
+            await userEvent.click(dropdown);
             await waitFor(() => {
                 expect(screen.getByText("ForceAtlas2")).toBeInTheDocument();
             });
-            fireEvent.click(screen.getByText("ForceAtlas2"));
+            await userEvent.click(screen.getByText("ForceAtlas2"));
 
             // Find Strong Gravity checkbox (default is false)
             const strongGravityCheckbox = screen.getByRole("checkbox", { name: /strong gravity/i });
             expect(strongGravityCheckbox).not.toBeChecked();
 
             // Toggle it on
-            fireEvent.click(strongGravityCheckbox);
+            await userEvent.click(strongGravityCheckbox);
             expect(strongGravityCheckbox).toBeChecked();
 
             // Click reset
-            fireEvent.click(screen.getByText("Reset to Defaults"));
+            await userEvent.click(screen.getByText("Reset to Defaults"));
 
             // Should be back to unchecked
             expect(strongGravityCheckbox).not.toBeChecked();
@@ -91,22 +92,22 @@ describe("RunLayoutsModal - Reset to Defaults", () => {
 
             // Select Circular layout
             const dropdown = screen.getByRole("combobox", { name: /layout/i });
-            fireEvent.click(dropdown);
+            await userEvent.click(dropdown);
             await waitFor(() => {
                 expect(screen.getByText("Circular")).toBeInTheDocument();
             });
-            fireEvent.click(screen.getByText("Circular"));
+            await userEvent.click(screen.getByText("Circular"));
 
             // Circular layout has scale field with default 1
             const scaleInput = screen.getByLabelText("Scale");
             expect(scaleInput).toHaveValue("1");
 
             // Modify the scale
-            fireEvent.change(scaleInput, { target: { value: "5" } });
+            await userEvent.fill(scaleInput, "5");
             expect(scaleInput).toHaveValue("5");
 
             // Click reset
-            fireEvent.click(screen.getByText("Reset to Defaults"));
+            await userEvent.click(screen.getByText("Reset to Defaults"));
 
             // Should be back to default for Circular layout
             expect(scaleInput).toHaveValue("1");
@@ -114,19 +115,19 @@ describe("RunLayoutsModal - Reset to Defaults", () => {
     });
 
     describe("Apply after reset", () => {
-        it("should apply default values after reset", () => {
+        it("should apply default values after reset", async () => {
             const onApply = vi.fn();
             render(<RunLayoutsModal opened={true} onClose={vi.fn()} onApply={onApply} is2DMode={false} />);
 
             // Modify a value
             const alphaMinInput = screen.getByLabelText("Alpha Min");
-            fireEvent.change(alphaMinInput, { target: { value: "0.9" } });
+            await userEvent.fill(alphaMinInput, "0.9");
 
             // Click reset
-            fireEvent.click(screen.getByText("Reset to Defaults"));
+            await userEvent.click(screen.getByText("Reset to Defaults"));
 
             // Apply the layout
-            fireEvent.click(screen.getByText("Apply Layout"));
+            await userEvent.click(screen.getByText("Apply Layout"));
 
             // Config should have default values
             expect(onApply).toHaveBeenCalledWith(
@@ -149,7 +150,7 @@ describe("RunLayoutsModal - Category Grouping", () => {
 
             // Open dropdown
             const dropdown = screen.getByRole("combobox", { name: /layout/i });
-            fireEvent.click(dropdown);
+            await userEvent.click(dropdown);
 
             // Wait for dropdown to open and verify category groups exist
             await waitFor(() => {
@@ -164,7 +165,7 @@ describe("RunLayoutsModal - Category Grouping", () => {
             render(<RunLayoutsModal opened={true} onClose={vi.fn()} onApply={vi.fn()} is2DMode={false} />);
 
             const dropdown = screen.getByRole("combobox", { name: /layout/i });
-            fireEvent.click(dropdown);
+            await userEvent.click(dropdown);
 
             await waitFor(() => {
                 // Force-directed layouts
@@ -181,7 +182,7 @@ describe("RunLayoutsModal - Category Grouping", () => {
             render(<RunLayoutsModal opened={true} onClose={vi.fn()} onApply={vi.fn()} is2DMode={false} />);
 
             const dropdown = screen.getByRole("combobox", { name: /layout/i });
-            fireEvent.click(dropdown);
+            await userEvent.click(dropdown);
 
             await waitFor(() => {
                 // Geometric layouts
@@ -198,7 +199,7 @@ describe("RunLayoutsModal - Category Grouping", () => {
             render(<RunLayoutsModal opened={true} onClose={vi.fn()} onApply={vi.fn()} is2DMode={false} />);
 
             const dropdown = screen.getByRole("combobox", { name: /layout/i });
-            fireEvent.click(dropdown);
+            await userEvent.click(dropdown);
 
             await waitFor(() => {
                 // Hierarchical layouts
@@ -212,7 +213,7 @@ describe("RunLayoutsModal - Category Grouping", () => {
             render(<RunLayoutsModal opened={true} onClose={vi.fn()} onApply={vi.fn()} is2DMode={false} />);
 
             const dropdown = screen.getByRole("combobox", { name: /layout/i });
-            fireEvent.click(dropdown);
+            await userEvent.click(dropdown);
 
             await waitFor(() => {
                 // Special layouts
@@ -236,11 +237,11 @@ describe("RunLayoutsModal - Category Grouping", () => {
 
             // Select Circular layout
             const dropdown = screen.getByRole("combobox", { name: /layout/i });
-            fireEvent.click(dropdown);
+            await userEvent.click(dropdown);
             await waitFor(() => {
                 expect(screen.getByText("Circular")).toBeInTheDocument();
             });
-            fireEvent.click(screen.getByText("Circular"));
+            await userEvent.click(screen.getByText("Circular"));
 
             // Description should change to the one the element gives the ring arrangement.
             const description = getLayoutMetadata("circular")?.description ?? "";

@@ -461,6 +461,10 @@ export interface GraphtyElementJSXProps {
     "onlayout-changed"?: (event: CustomEvent<EventOfType<"layout-changed">>) => void;
     "onlayout-initialized"?: (event: CustomEvent<EventOfType<"layout-initialized">>) => void;
     "onlayout-progress"?: (event: CustomEvent<EventOfType<"layout-progress">>) => void;
+    /**
+     * Emitted when the data kept a layout from placing every node as asked.
+     */
+    "onlayout-warning"?: (event: CustomEvent<EventOfType<"layout-warning">>) => void;
     "onlifecycle-disposed"?: (event: CustomEvent<EventOfType<"lifecycle-disposed">>) => void;
     "onlifecycle-initialized"?: (event: CustomEvent<EventOfType<"lifecycle-initialized">>) => void;
     "onmanager-initialized"?: (event: CustomEvent<EventOfType<"manager-initialized">>) => void;

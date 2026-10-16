@@ -1327,7 +1327,14 @@ export type GraphtyWarningCode =
 * draw it translucent, so the color is drawn opaque. `params.channel` is the channel and
 * `params.path` where in the layer the color sits. Today only `node.outline` cannot.
 */
-| "W_ALPHA_IGNORED";
+| "W_ALPHA_IGNORED"
+/**
+* A layout that places nodes from their data found no usable `data.position` (`{ x, y, z? }`
+* or `[x, y, z?]`) for some nodes, and put them at the origin or left them where they were.
+* Emitted as a `layout-warning` event. `params.missing` is how many nodes had none and
+* `params.total` how many the layout placed. Today only the `fixed` layout reports it.
+*/
+| "W_NO_POSITION";
 
 // @public
 export interface HighlightSpec {

@@ -387,6 +387,27 @@ describe("per-tool readers", () => {
         });
         expect(s.annotations).toEqual([{ kind: "arrow", bbox: { x: 4, y: 10, w: 6, h: 20 } }]);
         expect(s.gaps.map((g) => g.property)).toEqual(["position"]);
+
+        // Under the lock a node that sets its own width and height is drawn at them, not at the
+        // locked size (ddram: every node sets both; the mapped size is drawn by none of them).
+        const own = sceneFromCyrest({
+            nodes: [row(1, 0, "A"), row(2, 100, "B")],
+            edges: [],
+            topology: {
+                elements: {
+                    nodes: [{ data: { SUID: 1, name: "a" } }, { data: { SUID: 2, name: "b" } }],
+                    edges: [],
+                },
+            },
+            background: "#FFFFFF",
+            annotations: [],
+            locked: true,
+            bypassed: { 1: { w: 461, h: 461 } },
+        });
+        expect(own.nodes.map((n) => [n.w, n.h])).toEqual([
+            [461, 461],
+            [40, 40],
+        ]);
     });
 
     it("draw.io: absolute geometry through parents, ports from exit and entry constraints, groups", async () => {

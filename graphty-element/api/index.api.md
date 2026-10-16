@@ -1741,6 +1741,7 @@ export class Graph implements GraphContext {
     needsRayUpdate(): boolean;
     get nodeLabelCounts(): NodeLabelCounts;
     nodeScreenPosition(nodeId: string | number): NodeScreenPosition | undefined;
+    nodeThumbnail(options: NodeThumbnailOptions): Promise<string>;
     on<K extends EventType>(type: K, cb: (evt: EventOfType<K>) => void): () => void;
     onAiStatusChange(callback: StatusChangeCallback): () => void;
     readonly onNodeLabelCounts: Observable<NodeLabelCounts>;
@@ -2186,6 +2187,7 @@ export class Graphty extends LitElement {
         width: number;
         height: number;
     }): (string | number)[];
+    nodeThumbnail(options: NodeThumbnailOptions): Promise<string>;
     static get observedAttributes(): string[];
     on(type: EventType, callback: EventCallbackType): void;
     onAiStatusChange(callback: StatusChangeCallback): () => void;
@@ -3719,6 +3721,13 @@ export const NodeStyle: z.ZodObject<{
 
 // @public (undocumented)
 export type NodeStyleConfig = z.infer<typeof NodeStyle>;
+
+// @public
+export interface NodeThumbnailOptions {
+    readonly color?: string;
+    readonly shape: string;
+    readonly size?: number;
+}
 
 // @public
 export interface Note {

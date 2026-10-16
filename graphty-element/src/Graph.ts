@@ -175,6 +175,7 @@ import { bootstrapEdgePaint, bootstrapNodePaint } from "./managers/StylePainter"
 import { payLabelAnimations } from "./meshes/labelAnimationDebt";
 import { MeshCache } from "./meshes/MeshCache";
 import { NodeEffects } from "./meshes/NodeEffects";
+import { nodeThumbnail, type NodeThumbnailOptions } from "./meshes/NodeThumbnail";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { Node } from "./Node";
 import { pickNodeId, pointerEventTime } from "./NodeBehavior";
@@ -428,6 +429,10 @@ export class Graph implements GraphContext {
     #autoFrame = true;
     /** How the 3D nodes are lit; see {@link setLighting}. */
     #lighting: Lighting = DEFAULT_LIGHTING;
+    /** The node thumbnails drawn so far, by what they draw. */
+    readonly #thumbnails = new Map<string, Promise<string>>();
+    /** The last thumbnail drawing in line. */
+    #thumbnailQueue: Promise<unknown> = Promise.resolve();
     /** Margins of the canvas something else covers, in CSS pixels; see {@link setViewInsets}. */
     #viewInsets: Required<ViewInsets> = fullInsets(undefined);
     skybox?: string;
@@ -4806,6 +4811,35 @@ export class Graph implements GraphContext {
         }
 
         return this.updateManager.whyFrameIsNotStable();
+    }
+
+    /**
+     * One node of a shape and color drawn alone, as the graph draws its nodes, for a key or a
+     * picker. See {@link NodeThumbnailOptions}. Drawn once per shape, color, size, 2D and lighting.
+     * @param options - The shape, color and size.
+     * @returns The picture as a PNG data URL, on a transparent background.
+     */
+    async nodeThumbnail(options: NodeThumbnailOptions): Promise<string> {
+        const key = JSON.stringify([
+            options.shape,
+            options.color,
+            options.size,
+            this.getViewMode() === "2d",
+            this.#lighting,
+        ]);
+        let shot = this.#thumbnails.get(key);
+        if (shot === undefined) {
+            // One at a time: every thumbnail is drawn at the same place, seen by the same mask.
+            const is2D = this.getViewMode() === "2d";
+            shot = this.#thumbnailQueue.then(async () => nodeThumbnail(this.engine, this.scene, is2D, options));
+            this.#thumbnailQueue = shot.catch(() => undefined);
+            this.#thumbnails.set(key, shot);
+            // A failed picture is not kept: the next call tries again.
+            shot.catch(() => {
+                this.#thumbnails.delete(key);
+            });
+        }
+        return shot;
     }
 
     /**

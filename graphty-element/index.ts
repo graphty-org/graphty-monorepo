@@ -338,6 +338,9 @@ export type {
     ScreenshotResult,
 } from "./src/screenshot/types";
 
+// One node drawn alone, for a key or a picker (element.nodeThumbnail)
+export type { NodeThumbnailOptions } from "./src/meshes/NodeThumbnail";
+
 // Capability check for screenshot support
 export type { CapabilityCheck } from "./src/screenshot/capability-check";
 

@@ -26,6 +26,7 @@ import {
 import { Graph, loadSourcePair, type NodeScreenPosition, operationQueueOf } from "./Graph";
 import type { EdgeLabelCounts, NodeLabel, NodeLabelCounts } from "./managers/LabelDeclutter";
 import type { RendererRequest, RendererStatus } from "./managers/RenderManager";
+import type { NodeThumbnailOptions } from "./meshes/NodeThumbnail";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import type { GraphSession } from "./session";
 import {
@@ -2518,6 +2519,24 @@ export class Graphty extends LitElement {
      */
     async captureScreenshot(options?: ScreenshotOptions): Promise<ScreenshotResult> {
         return this.#graph.captureScreenshot(options);
+    }
+
+    /**
+     * One node of a shape and color drawn alone, exactly as the graph draws its nodes (the same
+     * mesh, material and lighting), on a transparent background: a picture of a 3D shape for a
+     * key, a legend or a picker. Each picture is drawn once and kept, by shape, color, size, 2D or
+     * 3D and lighting.
+     * @param options - The shape (`node.shape`'s values), its color (a mid gray when left out) and
+     *     the picture's size in pixels (32 when left out).
+     * @returns The picture as a PNG data URL.
+     * @example
+     * ```typescript
+     * const img = document.createElement("img");
+     * img.src = await element.nodeThumbnail({ shape: "icosahedron", color: "#0072B2" });
+     * ```
+     */
+    async nodeThumbnail(options: NodeThumbnailOptions): Promise<string> {
+        return this.#graph.nodeThumbnail(options);
     }
 
     /**

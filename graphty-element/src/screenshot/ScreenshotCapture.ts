@@ -8,6 +8,7 @@ import {
     type Engine,
     FxaaPostProcess,
     type Mesh,
+    type RenderTargetTexture,
     type Scene,
     type WebGPUEngine,
 } from "@babylonjs/core";
@@ -831,13 +832,15 @@ interface EnhancementState {
  * @param size.width - the width
  * @param size.height - the height
  * @param samples - multisample count
+ * @param customize - sets the render target up before it renders (its clear color)
  * @returns the PNG as a data URL
  */
-async function renderTargetCapture(
+export async function renderTargetCapture(
     engine: Engine | WebGPUEngine,
     camera: Camera,
     size: { width: number; height: number },
     samples: number,
+    customize?: (texture: RenderTargetTexture) => void,
 ): Promise<string> {
     return await new Promise<string>((resolve, reject) => {
         const encode = (
@@ -867,7 +870,7 @@ async function renderTargetCapture(
             false,
             true,
             undefined,
-            undefined,
+            customize,
             encode,
             undefined,
             () => {

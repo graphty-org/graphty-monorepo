@@ -7,6 +7,7 @@ import {
     MeshBuilder,
     type Scene,
     StandardMaterial,
+    Vector3,
 } from "@babylonjs/core";
 import { INVALID_INDEX } from "@graphty/graph-format";
 import jmespath from "jmespath";
@@ -77,6 +78,12 @@ const MIN_OVERLAY_SIZE = 0.2;
 
 /** How deep a group following its members is drawn, as a fraction of its smaller side. */
 const GROUP_DEPTH_RATIO = 0.02;
+
+/**
+ * How much a group's box may change size, as a fraction, before its border is rebuilt and its
+ * label re-attached at the new size: a moving layout changes every box a little every frame.
+ */
+const GROUP_RESIZE_EPSILON = 0.01;
 
 /** How opaque a group following its members is drawn when no layer styled it: a faint region. */
 const GROUP_REGION_OPACITY = 0.25;
@@ -378,6 +385,8 @@ export class Node {
 
     /** Whether the mesh was built as a group following its members: see `groupRegionPaint`. */
     private drawnAsGroup = false;
+    /** The border built for this node drawn as a group at its box's size, while it is the border drawn. */
+    private groupBorder: AbstractMesh | null = null;
 
     /** The faint point drawn in this node's place while it is a context node, or null. */
     private contextPoint: AbstractMesh | null = null;
@@ -679,12 +688,51 @@ export class Node {
         const round = this.shapeType === "ellipse";
         const grow = round ? far * Math.SQRT2 : far;
         const scale = (want: number, local: number): number => (local > 0 ? want / local : 1);
-        this.mesh.scaling.set(
-            scale(half.x * grow, extendSize.x),
-            scale(half.y * grow, extendSize.y),
-            scale(thin, extendSize.z),
-        );
+        const stretch = this.mesh.scaling;
+        const before = stretch.clone();
+        stretch.set(scale(half.x * grow, extendSize.x), scale(half.y * grow, extendSize.y), scale(thin, extendSize.z));
         this.setMeshPosition(center.x, center.y, back);
+        if (
+            this.border !== this.groupBorder ||
+            !stretch.equalsWithEpsilon(before, GROUP_RESIZE_EPSILON * stretch.length())
+        ) {
+            this.fitGroupChildren(2 * half.x * grow, 2 * half.y * grow, 2 * thin);
+        }
+    }
+
+    /**
+     * Keep a stretched group's border and label at the size its style gives, rather than stretched
+     * with its box: the border is rebuilt at the box's size and the label re-attached, each under
+     * the inverse of the box's stretch. Called only when the box's size changes.
+     * @param width - The box's drawn width.
+     * @param height - Its drawn height.
+     * @param depth - Its drawn depth.
+     */
+    private fitGroupChildren(width: number, height: number, depth: number): void {
+        const { scaling } = this.mesh;
+        const inverse = new Vector3(1 / scaling.x, 1 / scaling.y, 1 / scaling.z);
+        const old = this.border;
+        const style = this.drawnStyle;
+        const ring =
+            old === null || style === null
+                ? null
+                : NodeMesh.createGroupBorder(
+                      { shape: style.shape, border: style.border },
+                      { x: width, y: height, z: depth },
+                      this.context.is2D(),
+                      this.context.getScene(),
+                  );
+        if (old !== null && ring !== null) {
+            // The cached border's material, shared: the ring's own disposal never takes it.
+            ring.material = old.material;
+            ring.parent = this.mesh;
+            ring.scaling.copyFrom(inverse);
+            old.dispose(false, false);
+            this.border = ring;
+            this.groupBorder = ring;
+        }
+
+        this.label?.reattach();
     }
 
     /**

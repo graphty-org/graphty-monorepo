@@ -472,6 +472,39 @@ export class NodeMesh {
         return instance;
     }
 
+    /**
+     * The border of a group drawn over its members' box: a ring built at the box's own width and
+     * height, so its line is the style's width however far the box is stretched. Not cached, since
+     * every box has its own size; the caller gives it the cached border's material.
+     * @param createOptions - The group's flat shape and border.
+     * @param extents - The box's size, in the units the ring is drawn in.
+     * @param extents.x - Its width.
+     * @param extents.y - Its height.
+     * @param extents.z - Its depth.
+     * @param is2D - Whether the view is 2D.
+     * @param scene - The scene.
+     * @returns The ring, or null when the style draws no border.
+     */
+    static createGroupBorder(
+        createOptions: NodeMeshCreateOptions,
+        extents: { x: number; y: number; z: number },
+        is2D: boolean,
+        scene?: Scene,
+    ): Mesh | null {
+        const { border, shape } = createOptions;
+        const width = (border?.width ?? 0) * this.extentPerSize(shape);
+        if (width <= 0 || shape?.type === undefined || !isFlatShape(shape.type)) {
+            return null;
+        }
+
+        const outline = this.flatOutline(shape, { across: Math.max(extents.x, extents.y), ...extents });
+        const mesh = ringSlab("node-border", borderRing(outline, width, border?.style ?? "solid"), extents.z, scene);
+        placeByZIndex(mesh, shape, is2D);
+        mesh.isPickable = false;
+
+        return mesh;
+    }
+
     private static flatOutline(shape: NonNullable<NodeStyleConfig["shape"]>, extents: NodeExtents): Point2[] {
         const corner = shape.cornerRadius === undefined ? undefined : shape.cornerRadius * this.extentPerSize(shape);
 

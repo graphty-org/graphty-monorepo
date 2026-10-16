@@ -184,6 +184,10 @@ const SIDES: Record<AttachPosition, { x: Side; y: Side }> = {
  * @param label.width - Its width.
  * @param label.height - Its height.
  * @param offset - The gap between the bounds and the label.
+ * @param stretch - The target's own scaling, which the label's gaps are divided by so they
+ *     stay the label's own size on a stretched target.
+ * @param stretch.x - Across.
+ * @param stretch.y - Up.
  */
 function placeBeside(
     at: Vector3,
@@ -191,15 +195,16 @@ function placeBeside(
     bounds: { min: Vector3; max: Vector3 },
     label: { width: number; height: number },
     offset: number,
+    stretch: { x: number; y: number } = { x: 1, y: 1 },
 ): void {
     const side = Object.hasOwn(SIDES, position) ? SIDES[position] : null;
     if (side === null) {
-        at.y = bounds.max.y + label.height / 2 + offset;
+        at.y = bounds.max.y + (label.height / 2 + offset) / stretch.y;
         return;
     }
 
-    at.x = along(side.x, bounds.min.x, bounds.max.x, label.width / 2 + offset);
-    at.y = along(side.y, bounds.min.y, bounds.max.y, label.height / 2 + offset);
+    at.x = along(side.x, bounds.min.x, bounds.max.x, (label.width / 2 + offset) / stretch.x);
+    at.y = along(side.y, bounds.min.y, bounds.max.y, (label.height / 2 + offset) / stretch.y);
 }
 
 /**
@@ -252,6 +257,8 @@ export class RichTextLabel {
     private stopDepthFade: (() => void) | null = null;
     /** What a "center" label hangs from: a point at its node's centre that faces the camera. */
     private centerPivot: TransformNode | null = null;
+    /** Whether the label last undid a stretch of its target, so a target back at its own size resets it. */
+    private undoesStretch = false;
     private animationStarted = false;
 
     /**
@@ -1082,9 +1089,22 @@ export class RichTextLabel {
         const inFront = position === "center" && !(target instanceof Vector3);
         const frontBounds = inFront ? bounds : null;
         const newPos = target instanceof Vector3 ? target.clone() : this.parentTo(target, frontBounds);
+        // A target drawn stretched (a group over its members' box) leaves its label the size the
+        // label's style gives: the label undoes the stretch and its gaps are measured in it.
+        const scaled = target instanceof Vector3 ? null : target.scaling;
+        const stretch = scaled === null || scaled.equals(Vector3.OneReadOnly) ? null : scaled;
+        if (stretch !== null || this.undoesStretch) {
+            const unstretched = this.centerPivot ?? this.mesh;
+            const by = stretch ?? Vector3.OneReadOnly;
+            unstretched.scaling.set(1 / (by.x || 1), 1 / (by.y || 1), 1 / (by.z || 1));
+            this.undoesStretch = stretch !== null;
+        }
+
         if (inFront) {
-            // In front of the node, toward the camera: see `parentTo`.
-            newPos.z = -Vector3.Distance(bounds.min, bounds.max) / 2;
+            // In front of the node, toward the camera: see `parentTo`. Measured across the target
+            // as drawn, since the pivot has undone its stretch.
+            const drawn = stretch ?? Vector3.OneReadOnly;
+            newPos.z = -Vector3.Distance(bounds.min.multiply(drawn), bounds.max.multiply(drawn)) / 2;
         } else {
             placeBeside(
                 newPos,
@@ -1092,6 +1112,7 @@ export class RichTextLabel {
                 bounds,
                 { width: labelWidth, height: labelHeight },
                 this.options.attachOffset,
+                stretch ?? undefined,
             );
         }
 
@@ -1210,6 +1231,13 @@ export class RichTextLabel {
     public setProgress(value: number): void {
         this._progressValue = Math.max(0, Math.min(1, value));
         this._drawContent();
+    }
+
+    /**
+     * Place the label against its target again, after the target changed size or stretch.
+     */
+    public reattach(): void {
+        this._attachToTarget();
     }
 
     /**

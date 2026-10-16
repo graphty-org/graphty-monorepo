@@ -5,6 +5,7 @@ import type { EdgeId } from "../catalog/types";
 import type { AdHocData } from "../config";
 import { createEdgeCounter, edgeCounterOf, edgeIdOf } from "../data/edgeIdentity";
 import { GraphStore } from "../data/GraphStore";
+import { GROUPS_VALUE, groupsOf, type NodeGroup } from "../data/groups";
 import { readonlyPositions, WRITABLE_LANE } from "../data/lane";
 import { otherIdSpelling } from "../data/nodeIdSpelling";
 import type { ElementPositions } from "../data/positions";
@@ -388,12 +389,14 @@ export class DataManager implements Manager {
         };
         dataManagerInternals.adoptNode = (manager, node) => {
             manager.nodeMap.set(node.id, node);
+            manager.nodeVersion++;
         };
         dataManagerInternals.flushReleasing = (manager) => {
             manager.flushReleasing();
         };
         dataManagerInternals.adoptEdge = (manager, edge) => {
             manager.edgeMap.set(edge.id, edge);
+            manager.edgeVersion++;
             if (edge.index !== INVALID_INDEX) {
                 manager.edgeRows[edge.index] = edge;
             }
@@ -429,6 +432,8 @@ export class DataManager implements Manager {
 
     /** Goes up on every edge added or removed, so a cache over the edge set knows it is stale. */
     edgeVersion = 0;
+    /** Goes up on every node added or removed, so a cache over the node set knows it is stale. */
+    nodeVersion = 0;
     nodeCache = new Map<NodeIdType, Node>();
 
     /**
@@ -653,6 +658,15 @@ export class DataManager implements Manager {
      */
     get directionSettledBy(): DirectionProvenance {
         return this.store.directionSettledBy;
+    }
+
+    /**
+     * The groups the loaded files nest nodes in and store no position for, which the layout
+     * places on their members' box.
+     * @returns The groups; empty when no file nested any.
+     */
+    get groups(): readonly NodeGroup[] {
+        return groupsOf(this.graph.slice.values.get(GROUPS_VALUE));
     }
 
     /**
@@ -1011,6 +1025,7 @@ export class DataManager implements Manager {
         this.disposeNodesAndEdges();
         this.nodeMap.clear();
         this.edgeMap.clear();
+        this.nodeVersion++;
         this.edgeVersion++;
         this.nodeCache.clear();
         this.edgeRows.length = 0;
@@ -1031,6 +1046,7 @@ export class DataManager implements Manager {
      */
     private disposeRenderNode(node: Node, later = false): void {
         this.nodeMap.delete(node.id);
+        this.nodeVersion++;
         this.nodeCache.delete(node.id);
         placeNodeRow(node, INVALID_INDEX);
         if (this.layoutEngine) {
@@ -1451,6 +1467,7 @@ export class DataManager implements Manager {
         // Clear all collections
         this.nodeMap.clear();
         this.edgeMap.clear();
+        this.nodeVersion++;
         this.edgeVersion++;
         this.nodeCache.clear();
 
@@ -1533,6 +1550,7 @@ export class DataManager implements Manager {
         placeNodeRow(n, index);
         this.nodeCache.set(nodeId, n);
         this.nodeMap.set(nodeId, n);
+        this.nodeVersion++;
 
         // Add to layout engine if it exists
         if (this.layoutEngine) {

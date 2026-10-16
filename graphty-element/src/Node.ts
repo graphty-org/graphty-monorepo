@@ -22,6 +22,7 @@ import { NGraphEngine } from "./layout/NGraphLayoutEngine";
 import { GraphtyLogger } from "./logging/GraphtyLogger.js";
 import type { GraphContext } from "./managers/GraphContext";
 import { LabelDeclutter } from "./managers/LabelDeclutter";
+import type { GroupBox } from "./managers/LayoutManager";
 import { bootstrapNodePaint, type NodePaint } from "./managers/StylePainter";
 import { oweLabelAnimations } from "./meshes/labelAnimationDebt";
 import { NodeEffects } from "./meshes/NodeEffects";
@@ -72,6 +73,9 @@ const CONTEXT_POINT_ALPHA = 0.18;
 
 /** The smallest size an overlay is drawn at, so a zero-sized style still leaves something to see. */
 const MIN_OVERLAY_SIZE = 0.2;
+
+/** How deep a group following its members is drawn, as a fraction of its smaller side. */
+const GROUP_DEPTH_RATIO = 0.02;
 
 interface NodeOpts {
     pinOnDrag?: boolean;
@@ -604,13 +608,45 @@ export class Node {
         const { layoutEngine } = layoutManager;
 
         const pos = layoutEngine?.getNodePosition(this);
-        if (pos) {
+        const box = layoutManager.groupBox(this.id);
+        if (box !== undefined) {
+            this.drawAsGroup(box);
+        } else if (pos) {
             this.setMeshPosition(pos.x, pos.y, pos.z ?? 0);
         }
 
         this.syncOverlayPositions();
 
         this.context.getStatsManager().endMeasurement("Node.update");
+    }
+
+    /**
+     * Draw a group that follows its members over their box, behind them: stretched across the
+     * box's width and height, thin, and set at the box's far face (the camera looks along +z in
+     * both views), so every member, edge and label is drawn in front of it. Its row keeps the
+     * box's centre; only the drawing sits back.
+     * @param box - The box, from `LayoutManager.groupBox`.
+     */
+    private drawAsGroup(box: GroupBox): void {
+        const { extendSize } = this.mesh.getBoundingInfo().boundingBox;
+        const { half, center } = box;
+        const thin = GROUP_DEPTH_RATIO * Math.min(half.x, half.y);
+        const back = center.z + half.z + thin;
+        // Seen in perspective from in front, a face set back looks smaller: grown by the ratio of
+        // the two distances, it covers the box its members make on screen.
+        const eye = this.mesh.getScene().activeCamera?.position.z;
+        const far = eye !== undefined && eye < center.z ? (back - eye) / (center.z - eye) : 1;
+        // A round shape is grown to the ellipse through the box's corners, so a member in a
+        // corner is still inside it.
+        const round = this.shapeType !== undefined && ROUND_SHAPES.has(this.shapeType);
+        const grow = round ? far * Math.SQRT2 : far;
+        const scale = (want: number, local: number): number => (local > 0 ? want / local : 1);
+        this.mesh.scaling.set(
+            scale(half.x * grow, extendSize.x),
+            scale(half.y * grow, extendSize.y),
+            scale(thin, extendSize.z),
+        );
+        this.setMeshPosition(center.x, center.y, back);
     }
 
     /**

@@ -340,6 +340,39 @@ describe("PopoutManager close behavior", () => {
         });
     });
 
+    it("leaves an Escape something inside already used up, such as a menu closing itself", async () => {
+        const user = userEvent.setup();
+
+        renderPopout(
+            <Popout>
+                <Popout.Trigger>
+                    <button>Open Panel</button>
+                </Popout.Trigger>
+                <Popout.Panel width={200} header={{ variant: "title", title: "Test Panel" }}>
+                    <Popout.Content>
+                        <button
+                            onKeyDown={(event) => {
+                                if (event.key === "Escape") {
+                                    event.preventDefault();
+                                }
+                            }}
+                        >
+                            Inner
+                        </button>
+                    </Popout.Content>
+                </Popout.Panel>
+            </Popout>,
+        );
+
+        await user.click(screen.getByRole("button", { name: "Open Panel" }));
+        await waitFor(() => {
+            expect(screen.getByRole("dialog")).toBeInTheDocument();
+        });
+        screen.getByRole("button", { name: "Inner" }).focus();
+        await user.keyboard("{Escape}");
+        expect(screen.getByRole("dialog")).toBeInTheDocument();
+    });
+
     it("closes popout when clicking outside", async () => {
         const user = userEvent.setup();
 

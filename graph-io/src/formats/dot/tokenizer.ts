@@ -259,7 +259,7 @@ export class DotTokenizer {
             }
             if (c === 0x5c && this.isQuotedSplice(i)) {
                 out += text.slice(segment, i);
-                if (text.charCodeAt(i + 1) === 0x22) {
+                if (text.codePointAt(i + 1) === 0x22) {
                     out += '"';
                 }
                 i = this.quotedSpliceEnd(i);
@@ -277,7 +277,7 @@ export class DotTokenizer {
      * @returns true for an escaped quote or a line continuation
      */
     private isQuotedSplice(i: number): boolean {
-        const d = this.text.charCodeAt(i + 1);
+        const d = this.text.codePointAt(i + 1);
         return d === 0x22 || d === 0x0a || d === 0x0d;
     }
 
@@ -294,7 +294,7 @@ export class DotTokenizer {
             return i + 2;
         }
         this.line++;
-        return d === 0x0d && text.charCodeAt(i + 2) === 0x0a ? i + 3 : i + 2;
+        return d === 0x0d && text.codePointAt(i + 2) === 0x0a ? i + 3 : i + 2;
     }
 
     /**
@@ -308,13 +308,13 @@ export class DotTokenizer {
     private quotedStep(i: number, c: number): number {
         const { text } = this;
         if (c === 0x5c) {
-            return text.charCodeAt(i + 1) === 0x5c ? i + 2 : i + 1;
+            return text.codePointAt(i + 1) === 0x5c ? i + 2 : i + 1;
         }
         if (c === 0x0a) {
             this.line++;
         } else if (c === 0x0d) {
             this.line++;
-            return text.charCodeAt(i + 1) === 0x0a ? i + 2 : i + 1;
+            return text.codePointAt(i + 1) === 0x0a ? i + 2 : i + 1;
         }
         return i + 1;
     }
@@ -387,7 +387,7 @@ export class DotTokenizer {
      */
     private skipLineBreak(c: number): void {
         this.line++;
-        this.pos += c === 0x0d && this.text.charCodeAt(this.pos + 1) === 0x0a ? 2 : 1;
+        this.pos += c === 0x0d && this.text.codePointAt(this.pos + 1) === 0x0a ? 2 : 1;
         this.skipPreprocessorLine();
     }
 
@@ -396,7 +396,7 @@ export class DotTokenizer {
      * @returns false when the `/` starts no comment
      */
     private skipComment(): boolean {
-        const d = this.text.charCodeAt(this.pos + 1);
+        const d = this.text.codePointAt(this.pos + 1);
         if (d === 0x2f) {
             this.skipToLineEnd();
             return true;

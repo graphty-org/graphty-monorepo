@@ -3144,6 +3144,13 @@ export interface ManagerContext {
 }
 
 // @public
+export interface MarkSuggestion {
+    readonly as: "mark";
+    readonly channels: readonly Channel[];
+    readonly spec: MarkSpec;
+}
+
+// @public
 export interface Neighbor {
     readonly edgeCount: number;
     readonly excludedBy?: {
@@ -4695,7 +4702,7 @@ export interface StyleChangedEvent {
 }
 
 // @public
-export type StyleSuggestion = EncodingSuggestion | HighlightSuggestion;
+export type StyleSuggestion = EncodingSuggestion | HighlightSuggestion | MarkSuggestion;
 
 // @public
 export type SuggestionOutcome = {

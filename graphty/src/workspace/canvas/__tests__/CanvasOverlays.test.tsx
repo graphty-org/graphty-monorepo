@@ -37,10 +37,12 @@ function standIn(facts: StandInFacts = {}): {
     emit: (event: string, payload: unknown) => void;
     encode: ReturnType<typeof vi.fn>;
     highlight: ReturnType<typeof vi.fn>;
+    mark: ReturnType<typeof vi.fn>;
 } {
     const listeners = new Map<string, Set<(payload: unknown) => void>>();
     const encode = vi.fn();
     const highlight = vi.fn();
+    const mark = vi.fn();
     const session = {
         on: (event: string, listener: (payload: unknown) => void) => {
             const set = listeners.get(event) ?? new Set();
@@ -54,6 +56,7 @@ function standIn(facts: StandInFacts = {}): {
             encode,
             highlight,
             settled: () => Promise.resolve(),
+            mark,
         },
         catalog: { algorithms: () => [{ key: "pagerank", technicalName: "PageRank" }] },
         runs: {
@@ -87,6 +90,7 @@ function standIn(facts: StandInFacts = {}): {
         emit,
         encode,
         highlight,
+        mark,
     };
 }
 
@@ -415,7 +419,7 @@ describe("the legend card", () => {
 });
 
 describe("the notice a held-back run gives", () => {
-    const suppressed = (as: "encoding" | "highlight"): RunPainting =>
+    const suppressed = (as: "encoding" | "highlight" | "mark"): RunPainting =>
         ({
             state: "decided",
             suggestions: [{ outcome: "suppressed", suggestion: { as, spec: { name: "x" } }, byLayerId: "mine" }],
@@ -434,6 +438,13 @@ describe("the notice a held-back run gives", () => {
         runNotice(session, "run-1")?.action?.run();
         assert.equal(highlight.mock.calls.length, 1);
         assert.equal(encode.mock.calls.length, 0);
+    });
+
+    it("hands an algorithm's mark back as a mark, never as a highlight", () => {
+        const { session, highlight, mark } = standIn({ painting: suppressed("mark"), layers: { mine: "Mine" } });
+        runNotice(session, "run-1")?.action?.run();
+        assert.equal(mark.mock.calls.length, 1);
+        assert.equal(highlight.mock.calls.length, 0);
     });
 
     it("still says what happened when the layer is gone", () => {

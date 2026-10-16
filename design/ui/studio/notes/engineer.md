@@ -11,6 +11,22 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-15) **Bulk edit pilot fixed (24 defects).** Decisions: a bulk field shows the value the
+  layers that SET it agree on (Mixed only when setters differ), with the breakdown naming the unset
+  and locked layers -- same in a folder and a multi-select, and it matches the write rule. Vary on
+  group layers pins each layer's own group paint in the copied rule's `map`, so the element's
+  re-run realign carries it; the legend folds copies that differ only in `map` and lists only the
+  groups the shown copies meet (`LegendSources.reached`). `RunGroup.taken` (additive) lets the app
+  name a re-run's new groups apart, and `groupName` also sets the group's value label so names
+  follow groups. Group previews "extend" past the palette but keep the run's palette (asked to
+  extend with no palette the element picks a ramp: ten oranges). Bulk "+" adds a pending field
+  that writes nothing until a value is picked. Move to folder acts on the whole selection
+  (`moveRows`, one step); "+ > Folder" groups 2+ selected rows; "+ > Layer" lands inside a selected
+  folder. The key merges one run's per-group blocks into one section (app, `runSections`). Mixed
+  color fields: compact-mantine draws a dash swatch and accepts CSS color names. Capsule and torus
+  meshes scale with size. Open: Okabe-Ito's black for the 7th group; Rerun shows only after the
+  Resolution field commits (Enter or blur), as every run setting does.
+
 - (2026-10-15) **Bulk edit built (plan `tier3/bulk-edit-plan.md`).** Element: `styles.layersUnder`,
   `styles.updateMany` (one step, ONE repaint: a batched style edit now dispatches its members
   together -- awaiting each let a pass run between them, 12 layers were 12 passes),

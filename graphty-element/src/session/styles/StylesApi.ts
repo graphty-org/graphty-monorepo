@@ -1292,6 +1292,103 @@ function halfOfStyle(set: StaticStyle | undefined, half: SelectorTarget): Static
     return Object.keys(mine).length === 0 ? null : mine;
 }
 
+/**
+ * The field a highlight or a mark paints from, refusing a run that chose nothing to paint.
+ * @param run - The run.
+ * @param spec - The highlight or mark.
+ * @param exclusive - True for a highlight; false for a mark, which must name its channels.
+ * @returns The field.
+ * @throws `E_BAD_COMMAND` for a run that measured every element, or a mark naming no channel;
+ *     `E_UNKNOWN_ATTRIBUTE` for a field the run did not publish on a node or an edge.
+ */
+function chosenField(run: EncodingRun, spec: HighlightSpec, exclusive: boolean): string {
+    const verb = exclusive ? "highlight" : "mark";
+
+    if (!isHighlightShape(run.shape)) {
+        throw badCommand(
+            `A "${run.shape}" result measures every element rather than choosing some, so it is painted ` +
+                `with encode() rather than with ${verb}().`,
+            { run: run.id, shape: run.shape },
+        );
+    }
+
+    if (!exclusive && spec.set === undefined) {
+        throw badCommand(`mark() paints only the channels its set names, and this one names none.`, {
+            run: run.id,
+        });
+    }
+
+    const field = spec.field ?? resultShapeContract(run.shape).primaryField ?? "";
+
+    if (!run.fields.some((entry) => entry.name === field && (entry.kind === "node" || entry.kind === "edge"))) {
+        const published = run.fields.map((entry) => entry.name);
+
+        throw new GraphtyError({
+            code: "E_UNKNOWN_ATTRIBUTE",
+            message: `The run "${run.id}" publishes no field called "${field}" on its nodes or its edges.`,
+            source: "style",
+            details: { run: run.id, field, available: published, candidates: nearestNames(field, published) },
+        });
+    }
+
+    return field;
+}
+
+/**
+ * What each half a run chose is painted: one entry per half the run chose AND the style has
+ * something to say about, so a route styled with an edge colour alone paints the route's edges and
+ * leaves its nodes to the layers underneath.
+ * @param run - The run.
+ * @param field - The field that says what it chose.
+ * @param set - The style, or undefined for the element's own highlight.
+ * @returns The style per half.
+ * @throws `E_BAD_COMMAND` when the style paints no half the run chose.
+ */
+function paintingOf(run: EncodingRun, field: string, set: StaticStyle | undefined): Map<SelectorTarget, StaticStyle> {
+    const chosen = run.fields.filter((entry) => entry.name === field);
+    const painting = new Map<SelectorTarget, StaticStyle>();
+
+    for (const half of HALVES) {
+        const style = chosen.some((entry) => entry.kind === half) ? halfOfStyle(set, half) : null;
+
+        if (style !== null) {
+            painting.set(half, style);
+        }
+    }
+
+    if (painting.size === 0) {
+        throw badCommand(
+            `The style names no channel that paints the ${chosen.map((entry) => entry.kind).join(" or ")} ` +
+                `the run "${run.id}" chose, so it would paint nothing.`,
+            { run: run.id, field, set },
+        );
+    }
+
+    return painting;
+}
+
+/**
+ * Which layers a new highlight or mark takes out of the stack. A highlight replaces every other
+ * highlight. A mark replaces only this run's earlier mark of the same field, so marking it again
+ * does not stack a copy, and every other layer -- another algorithm's mark among them -- stays.
+ * @param exclusive - True for a highlight; false for a mark.
+ * @param runId - The run.
+ * @param where - The selector expression the new layers carry.
+ * @returns Whether a layer is replaced.
+ */
+function replacedBy(exclusive: boolean, runId: RunId, where: string): (layer: Layer) => boolean {
+    if (exclusive) {
+        return (layer) => layer.kind === "highlight";
+    }
+
+    return (layer) =>
+        layer.kind !== "highlight" &&
+        layer.source.by === "run" &&
+        layer.source.runId === runId &&
+        layer.selector.match === "expression" &&
+        layer.selector.where === where;
+}
+
 // ---------------------------------------------------------------------------------------------
 // The model
 // ---------------------------------------------------------------------------------------------
@@ -2025,63 +2122,9 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         beneath = false,
         exclusive = true,
     ): EditPlan<readonly Layer[]> => {
-        const verb = exclusive ? "highlight" : "mark";
-        const run = requireRun(spec.run, requireRuns(verb));
-
-        if (!isHighlightShape(run.shape)) {
-            throw badCommand(
-                `A "${run.shape}" result measures every element rather than choosing some, so it is painted ` +
-                    `with encode() rather than with ${verb}().`,
-                { run: run.id, shape: run.shape },
-            );
-        }
-
-        if (!exclusive && spec.set === undefined) {
-            throw badCommand(`mark() paints only the channels its set names, and this one names none.`, {
-                run: run.id,
-            });
-        }
-
-        const field = spec.field ?? resultShapeContract(run.shape).primaryField ?? "";
-        const chosen = run.fields.filter((entry) => entry.name === field);
-
-        if (!chosen.some((entry) => entry.kind === "node" || entry.kind === "edge")) {
-            const published = run.fields.map((entry) => entry.name);
-
-            throw new GraphtyError({
-                code: "E_UNKNOWN_ATTRIBUTE",
-                message: `The run "${run.id}" publishes no field called "${field}" on its nodes or its edges.`,
-                source: "style",
-                details: {
-                    run: run.id,
-                    field,
-                    available: published,
-                    candidates: nearestNames(field, published),
-                },
-            });
-        }
-
-        // One entry per half the run chose AND the style has something to say about, so a route
-        // styled with an edge colour alone paints the route's edges and leaves its nodes to the
-        // layers underneath.
-        const painting = new Map<SelectorTarget, StaticStyle>();
-
-        for (const half of HALVES) {
-            const set = chosen.some((entry) => entry.kind === half) ? halfOfStyle(spec.set, half) : null;
-
-            if (set !== null) {
-                painting.set(half, set);
-            }
-        }
-
-        if (painting.size === 0) {
-            throw badCommand(
-                `The style names no channel that paints the ${chosen.map((entry) => entry.kind).join(" or ")} ` +
-                    `the run "${run.id}" chose, so the highlight would paint nothing.`,
-                { run: run.id, field, set: spec.set },
-            );
-        }
-
+        const run = requireRun(spec.run, requireRuns(exclusive ? "highlight" : "mark"));
+        const field = chosenField(run, spec, exclusive);
+        const painting = paintingOf(run, field, spec.set);
         const path = resultPath(run.id, field);
         const where = `${quotePath(path)} == \`true\``;
         const called = spec.name ?? englishRunLabel(run);
@@ -2116,17 +2159,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         }
 
         const stack = current();
-        // A highlight replaces every other highlight. A mark replaces only this run's earlier mark
-        // of the same field, so marking it again does not stack a copy, and every other layer --
-        // another algorithm's mark among them -- stays.
-        const replaced = exclusive
-            ? (layer: Layer): boolean => layer.kind === "highlight"
-            : (layer: Layer): boolean =>
-                  layer.kind !== "highlight" &&
-                  layer.source.by === "run" &&
-                  layer.source.runId === run.id &&
-                  layer.selector.match === "expression" &&
-                  layer.selector.where === where;
+        const replaced = replacedBy(exclusive, run.id, where);
         const removing = new Set(
             stack.filter((entry) => !entry.layer.locked && replaced(entry.layer)).map((entry) => entry.layer.id),
         );

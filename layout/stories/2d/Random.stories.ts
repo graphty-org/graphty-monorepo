@@ -23,6 +23,7 @@ import {
     updateInfoPanel,
     updateStatus,
 } from "../utils/visualization.js";
+import { storyWaitOptions } from "../utils/wait.js";
 
 /**
  * Story arguments interface.
@@ -140,12 +141,9 @@ export const Random: Story = {
         await userEvent.click(resetButton);
 
         // Wait for status to update
-        await waitFor(
-            async () => {
-                const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
-                await expect(statusText).toContain("Reset");
-            },
-            { timeout: 5000 },
-        );
+        await waitFor(async () => {
+            const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
+            await expect(statusText).toContain("Reset");
+        }, storyWaitOptions(5000));
     },
 };

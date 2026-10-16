@@ -2029,6 +2029,7 @@ export interface SnapshotLayoutInput {
     readonly scope: NodeMask | null;
     readonly signal: AbortSignal;
     readonly stored: GraphSnapshot;
+    warn(warning: SnapshotLayoutWarning): void;
 }
 
 // @public
@@ -2044,6 +2045,14 @@ export interface SnapshotLayoutRegistration {
         readonly honoursWeights?: boolean;
         readonly scoped?: boolean;
     };
+}
+
+// @public
+export interface SnapshotLayoutWarning {
+    // (undocumented)
+    readonly code: GraphtyWarningCode;
+    // (undocumented)
+    readonly params: Readonly<Record<string, unknown>>;
 }
 
 // @public

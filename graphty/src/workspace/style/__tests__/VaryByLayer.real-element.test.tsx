@@ -1,16 +1,17 @@
 /**
  * Vary by Layer on several layers, on the REAL graphty-element with real clicks and keys: with a
- * folder or several layers selected, a property's Vary list offers "Layer", which spreads the
- * property's own per-value control -- a palette, a shape list, a size range, a line pattern list --
- * over the layers in list order, previews each layer's value, and on Apply writes each layer its
- * own plain value in one undo step. The folder's panel has no Selection colors.
+ * folder or several layers selected, a property's Vary list ("Vary by") offers "Layer", which opens
+ * the same binding popover a value of the data opens -- a palette, one row per layer with the
+ * property's own control, what happens past the palette, a size range -- with each layer one group
+ * in list order; closing it writes each layer its own plain value in one undo step.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
+import { channelsFor } from "@graphty/graphty-element/catalog";
 import type { Channel } from "@graphty/graphty-element/schema";
-import type { GraphSession } from "@graphty/graphty-element/session";
+import { type GraphSession, OVERFLOW_SHAPES } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
@@ -52,6 +53,7 @@ async function openSample(): Promise<GraphSession> {
  * @param name - The folder's name.
  * @param target - Nodes or edges.
  * @param set - What each layer writes.
+ * @param names - The layers' names after the folder's, top last.
  * @returns The layers, top first as the tree lists them.
  */
 async function handMade(
@@ -59,10 +61,11 @@ async function handMade(
     name: string,
     target: "node" | "edge",
     set: Readonly<Partial<Record<Channel, string | number>>>,
+    names: readonly string[] = ["First", "Second", "Third"],
 ): Promise<string[]> {
     const folder = await session.styles.addFolder(name);
     const ids = session.data.nodes().map((node) => String(node.id));
-    for (const [at, layerName] of ["First", "Second", "Third"].entries()) {
+    for (const [at, layerName] of names.entries()) {
         const layer = await session.styles.add({
             name: `${name} ${layerName}`,
             target,
@@ -105,15 +108,26 @@ async function line(channel: string): Promise<HTMLElement> {
 }
 
 /**
- * Open a property's Vary list and pick "Layer".
+ * Open a property's Vary list, check its heading, and pick "Layer".
  * @param row - The property row.
- * @returns The Vary by Layer panel under the row.
+ * @returns The binding popover with Layer as its source.
  */
 async function varyByLayer(row: HTMLElement): Promise<HTMLElement> {
     await userEvent.hover(row);
     await userEvent.click(within(row).getByRole("button", { name: / by attribute$/ }));
+    await screen.findByRole("dialog", { name: "Vary by" });
     await userEvent.click(await screen.findByRole("option", { name: /^Layer/ }));
-    return within(row).findByRole("group", { name: / by layer$/ });
+    const popover = await screen.findByRole("dialog", { name: / by layer$/ });
+    await within(popover).findByText("Layer");
+    return popover;
+}
+
+/**
+ * Close the popover, which writes each layer its value.
+ * @param popover - The popover.
+ */
+async function close(popover: HTMLElement): Promise<void> {
+    await userEvent.click(within(popover).getByRole("button", { name: "Close panel" }));
 }
 
 /**
@@ -146,7 +160,7 @@ describe("vary by layer", () => {
         await waitFor(() => {
             assert.isTrue(panel.contains(document.activeElement), "focus goes into the panel");
         });
-        await userEvent.click(within(panel).getByRole("button", { name: "Apply" }));
+        await close(panel);
 
         const palette = session.catalog.palettes().filter((p) => p.kind === "categorical" && p.colors.length > 2)[0];
         await waitFor(() => {
@@ -170,6 +184,38 @@ describe("vary by layer", () => {
         });
     });
 
+    it("starts Shape by Layer with the overflow's distinct shapes, then the rest", async () => {
+        const session = await openSample();
+        const groups = await handMade(session, "Many", "node", { "node.size": 2 }, [
+            "A",
+            "B",
+            "C",
+            "D",
+            "E",
+            "F",
+            "G",
+            "H",
+        ]);
+        assert.isAbove(groups.length, OVERFLOW_SHAPES.length, "more layers than distinct shapes");
+        await clickRow("Many");
+
+        const tab = await screen.findByTestId("style-tab");
+        await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Shape" }));
+        const panel = await varyByLayer(await line("node.shape"));
+        await close(panel);
+
+        const channel = channelsFor("node").find((c) => c.channel === "node.shape");
+        const rest = (channel?.values ?? []).filter((shape) => !(OVERFLOW_SHAPES as readonly string[]).includes(shape));
+        await waitFor(() => {
+            assert.deepEqual(
+                written(session, groups, "node.shape"),
+                [...OVERFLOW_SHAPES, ...rest].slice(0, groups.length),
+                "the six distinct shapes first, then the rest of the list",
+            );
+        });
+    });
+
     it("gives each layer of a hand-made folder a different shape", async () => {
         const session = await openSample();
         const layers = await handMade(session, "Story", "node", { "node.size": 2 });
@@ -179,14 +225,55 @@ describe("vary by layer", () => {
         await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Shape" }));
         const panel = await varyByLayer(await line("node.shape"));
-        await userEvent.click(within(panel).getByRole("button", { name: "Apply" }));
+        // One row's own value, picked in its row as a group's is.
+        await userEvent.click(within(panel).getByLabelText("Shape of Story Second"));
+        await userEvent.click(await screen.findByRole("option", { name: /cylinder/i }));
+        await within(panel).findByRole("button", { name: "Back to the palette: Story Second" });
+        await close(panel);
 
         await waitFor(() => {
-            const shapes = written(session, layers, "node.shape");
-            assert.isTrue(shapes.every((shape) => typeof shape === "string"));
-            assert.strictEqual(new Set(shapes).size, layers.length, "a different shape per layer");
+            assert.deepEqual(
+                written(session, layers, "node.shape"),
+                [OVERFLOW_SHAPES[0], "cylinder", OVERFLOW_SHAPES[2]],
+                "the distinct shapes first, and the row's own pick",
+            );
         });
     });
+
+    it.each([true, false])(
+        "opens a clicked '+' menu on its first item, so Enter adds it (several layers: %s)",
+        async (many) => {
+            const session = await openSample();
+            for (const name of ["Story One", "Story Two"]) {
+                await session.styles.add({
+                    name,
+                    target: "node",
+                    selector: { match: "ids", nodes: ["0"] },
+                    set: { "node.size": 2 },
+                });
+            }
+            await session.styles.settled();
+            await clickRow("Story One");
+            const tree = await screen.findByRole("tree", { name: "Style layers" });
+            if (many) {
+                await userEvent.click(within(tree).getByRole("treeitem", { name: /^Story Two, / }), {
+                    modifiers: ["Control"],
+                });
+            }
+            const tab = await screen.findByTestId("style-tab");
+            await waitFor(() => {
+                assert.lengthOf(within(tree).getAllByRole("treeitem", { selected: true }), many ? 2 : 1);
+            });
+
+            await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
+            const first = (await screen.findAllByRole("menuitem"))[0];
+            await waitFor(() => {
+                assert.strictEqual(document.activeElement, first, "the first item is active on open");
+            });
+            await userEvent.keyboard("{Enter}");
+            await line("node.shape");
+        },
+    );
 
     it("spreads a size range over the layers, and a line pattern per edge layer", async () => {
         const session = await openSample();
@@ -203,7 +290,7 @@ describe("vary by layer", () => {
             const third = within(panel).getByLabelText("Size of Sizes First");
             assert.strictEqual((third as HTMLInputElement).value, "3", "the preview follows the range");
         });
-        await userEvent.click(within(panel).getByRole("button", { name: "Apply" }));
+        await close(panel);
         await waitFor(() => {
             assert.deepEqual(written(session, layers, "node.size"), [1, 2, 3], "top layer first, evenly spread");
         });
@@ -211,7 +298,7 @@ describe("vary by layer", () => {
         const edges = await handMade(session, "Lines", "edge", { "edge.style": "solid" });
         await clickRow("Lines");
         const pattern = await line("edge.style");
-        await userEvent.click(within(await varyByLayer(pattern)).getByRole("button", { name: "Apply" }));
+        await close(await varyByLayer(pattern));
         await waitFor(() => {
             assert.strictEqual(new Set(written(session, edges, "edge.style")).size, edges.length);
         });

@@ -172,11 +172,11 @@ describe("the value picker on the real element", () => {
         const button = await screen.findByRole("button", { name: "Node size by attribute" }, { timeout: TIMEOUT_MS });
         await userEvent.click(button);
         const picker = await findValuePicker();
-        assert.equal(picker.getAttribute("aria-label"), "Size by attribute", "named by its pop-out's title");
+        assert.equal(picker.getAttribute("aria-label"), "Vary by", "named by its pop-out's title");
         const dialog = picker.closest("[role=dialog]");
         assert.equal(
             document.getElementById(dialog?.getAttribute("aria-labelledby") ?? "")?.textContent,
-            "Size by attribute",
+            "Vary by",
             "the dialog's name is its title",
         );
 

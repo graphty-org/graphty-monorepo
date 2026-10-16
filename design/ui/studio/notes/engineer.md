@@ -11,6 +11,24 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-16) **Vary by Layer is the binding popover, not a panel (owner feedback).** Picking
+  "Layer" in a field's vary list (heading "Vary by" for every property) on a folder or several
+  layers opens the same popover a value of the data opens -- Source line with Change source, the
+  palette, one row per layer (the property's own control as the row's chit, the layer's name and
+  count, Clear back to the palette), "More layers than colors", Range for a number -- titled
+  "<Property> by layer" (`LayerBindingPopover` in `BindingPopover.tsx`, opened by `LayerVary.tsx`).
+  The binding is held in the popover, item i being layer i: a row's own pick is its `map` entry
+  under "i", and graphty-element's `styles.sequence` (which honors `map`, `choices`, `overflow`,
+  `range`) works out every row; nothing is written until the popover closes, which writes each
+  layer its plain value through `writeEach` (one undo step, the receipt, Also set those). Shape by
+  Layer starts with `OVERFLOW_SHAPES` (now exported from `@graphty/graphty-element/session`) and
+  continues with the rest of the channel's list, as its `choices`. Not reused: the data popover's
+  group list (`GroupList`) -- it reads groups, labels and value entries from a written layer and a
+  data column, none of which a list of layers has.
+- (2026-10-16) **Every themed menu opens on its first enabled row, clicked or keyed** (owner
+  decision; reverses the 2026-10-09 "pointer-opened menus focus the menu itself"). compact-mantine
+  `overlayBehavior.ts` `skipDisabledFirstRow`; a disabled first row is still skipped.
+
 - (2026-10-16) **Vary by Layer replaces Selection colors (owner feedback).** With a folder or
   several layers selected, every property's Vary list starts with "Layer" (section "Selected
   layers", shown when a write reaches 2+ layers). It opens `LayerVary.tsx` under the field: the

@@ -179,7 +179,7 @@ describe("the Style tab's property rows", () => {
 
         await userEvent.click(within(field(tab, "node.size")).getByRole("combobox"));
         await userEvent.keyboard("=");
-        await screen.findByRole("dialog", { name: /Size by attribute/ });
+        await screen.findByRole("dialog", { name: "Vary by" });
         await userEvent.keyboard("{Escape}");
 
         tab = await openStyle(runs["shortest-path"]);

@@ -209,6 +209,10 @@ on a folder or several layers offers "Layer": the property's per-value control s
 layers in list order (graphty-element `styles.sequence`), a preview line per layer, Apply writes
 each layer its own plain value in one undo step under the usual write rule and receipt.
 
+Revised the same day: "Layer" opens the binding popover a value of the data opens (palette, one row
+per layer with the property's own control, overflow, range), held unwritten while open; closing it
+writes each layer its own plain value in one undo step. The vary list's heading is "Vary by".
+
 ## Not built now
 
 - Edge layers per group ("edges inside a community"): needs the element to read an edge's

@@ -1,55 +1,49 @@
-import { StyleSelect } from "@graphty/compact-mantine";
+import { Popout } from "@graphty/compact-mantine";
 import type { ChannelDescriptor } from "@graphty/graphty-element/catalog";
-import type { Channel, ChannelValue, LayerId } from "@graphty/graphty-element/schema";
-import type { GraphSession, StyleSequence } from "@graphty/graphty-element/session";
-import { Button, Text } from "@mantine/core";
-import React, { useEffect, useRef, useState } from "react";
+import type { LayerId } from "@graphty/graphty-element/schema";
+import { type GraphSession, OVERFLOW_SHAPES } from "@graphty/graphty-element/session";
+import React, { useState } from "react";
 
-import { OVERFLOW_WORDS, Range } from "./BindingPopover";
-import { appRange, groupPalettes } from "./row";
-import { ValueField } from "./ValueField";
-import { channelWord, enumWords, GLYPH_TABLES, hexOf, paletteWord, valueFieldKind } from "./words";
+import { LayerBindingPopover } from "./BindingPopover";
+import { appRange, type DataChoice, groupPalettes, type LayerBinding, type LayerValues, layerValues } from "./row";
+import { channelWord } from "./words";
 
-/** One layer's values: the property's, and the overflow's second cue's when it steps one. */
-export type LayerValues = Readonly<Partial<Record<Channel, ChannelValue>>>;
+export type { LayerValues } from "./row";
 
 /** What a property varied by Layer writes: the values of the first `count` layers in list order. */
 export type LayerSequence = (count: number) => readonly LayerValues[];
 
-/** What the sequence's binding reads beyond the palette: the parts this panel sets. */
-type SequenceBinding = Parameters<GraphSession["styles"]["sequence"]>[0];
+/** The width of the popover, as every field's pop-out. */
+const POPOUT_WIDTH = 240;
 
 /**
- * A painted value as it is written back as a plain value: a color's hex, a number or words.
- * @param paint - what the element paints.
- * @returns the value, or undefined when it paints nothing.
+ * The shape list with the shapes graphty-element keeps apart past a palette first (its
+ * "repeat colors, change shape" overflow), then the rest in the channel's order.
+ * @param descriptor - the node shape channel.
+ * @returns every shape, most distinct first.
  */
-function literalOf(paint: unknown): ChannelValue | undefined {
-    if (typeof paint === "number" || typeof paint === "string") {
-        return paint;
-    }
-    return hexOf(paint)?.toUpperCase();
+function shapesApartFirst(descriptor: ChannelDescriptor): string[] {
+    const first: readonly string[] = OVERFLOW_SHAPES;
+    return [...first, ...(descriptor.values ?? []).filter((shape) => !first.includes(shape))];
 }
 
 /**
- * The element's sequence for a binding, or null when it refuses it.
+ * The binding Vary by Layer starts from: the first group palette with every layer its own color
+ * for a color, the shapes kept apart first for a shape, the app's range for a number.
  * @param session - the element's session.
- * @param binding - the binding.
- * @param channel - the channel.
- * @param count - how many layers.
- * @returns the sequence, or null.
+ * @param descriptor - the property.
+ * @returns the binding.
  */
-function sequenceOf(
-    session: GraphSession,
-    binding: SequenceBinding,
-    channel: Channel,
-    count: number,
-): StyleSequence | null {
-    try {
-        return session.styles.sequence(binding, { channel, count });
-    } catch {
-        return null;
-    }
+function startingBinding(session: GraphSession, descriptor: ChannelDescriptor): LayerBinding {
+    const isColor = descriptor.accepts === "color";
+    const palette = isColor ? groupPalettes(session)[0]?.id : undefined;
+    const { range } = appRange(descriptor.channel);
+    return {
+        ...(palette === undefined ? {} : { palette }),
+        ...(isColor ? { overflow: "extend" as const } : {}),
+        ...(descriptor.channel === "node.shape" ? { choices: shapesApartFirst(descriptor) } : {}),
+        ...(range === undefined ? {} : { range: [range[0], range[1]] }),
+    };
 }
 
 /** Props for LayerVary. */
@@ -58,161 +52,69 @@ interface LayerVaryProps {
     readonly descriptor: ChannelDescriptor;
     /** The layers it gives a value each, in list order (top first), with their row names. */
     readonly layers: readonly { readonly id: LayerId; readonly name: string }[];
-    /** Writes each layer its value. */
+    /** What the popover sits beside: the property's row. */
+    readonly anchor: React.RefObject<HTMLElement | null>;
+    /** Writes each layer its value; called when the popover closes. */
     readonly onApply: (sequence: LayerSequence) => void;
-    readonly onCancel: () => void;
+    /** Reads a value of the data instead (Change source). */
+    readonly onSource: (choice: DataChoice) => void;
 }
 
 /**
- * Vary by Layer: the property's own per-value control -- a palette (and what happens past it) for a
- * color, a range for a number -- spread over the layers in list order by graphty-element's
- * `styles.sequence`; one line per layer with its new value, each editable; then Apply, which writes
- * each layer its own plain value, and Cancel.
+ * Vary by Layer: the binding popover with Layer as its source, opened beside the property's row.
+ * Each selected layer is one group; closing the popover gives each its own plain value as one undo
+ * step.
  * @param props - Component props
  * @param props.session - the element's session
  * @param props.descriptor - the property
  * @param props.layers - the layers, top first
+ * @param props.anchor - the property's row
  * @param props.onApply - writes the values
- * @param props.onCancel - drops them
- * @returns The preview
+ * @param props.onSource - reads a value of the data instead
+ * @returns The popover
  */
-export function LayerVary({ session, descriptor, layers, onApply, onCancel }: LayerVaryProps): React.JSX.Element {
+export function LayerVary({
+    session,
+    descriptor,
+    layers,
+    anchor,
+    onApply,
+    onSource,
+}: LayerVaryProps): React.JSX.Element {
     const { channel } = descriptor;
-    const isColor = descriptor.accepts === "color";
-    const isNumber = valueFieldKind(descriptor) === "number";
-    const palettes = isColor ? groupPalettes(session) : [];
-    const [palette, setPalette] = useState<string | undefined>(palettes[0]?.id);
-    const [overflow, setOverflow] = useState<string>("extend");
-    const [range, setRange] = useState<[number, number] | undefined>(appRange(channel).range);
-    // A line edited by hand keeps its value whatever the palette or range does.
-    const [edits, setEdits] = useState<Readonly<Record<number, ChannelValue>>>({});
-    // Opened from the Vary list: focus goes to its first control, so Tab walks it next.
-    const box = useRef<HTMLDivElement>(null);
-    useEffect(() => {
-        box.current?.querySelector<HTMLElement>("input, button, [tabindex='0']")?.focus();
-    }, []);
-    const binding: SequenceBinding = {
-        ...(palette === undefined ? {} : { palette }),
-        ...(isColor ? { overflow: overflow as SequenceBinding["overflow"] } : {}),
-        ...(range === undefined ? {} : { range: [range[0], range[1]] }),
-    };
-    const shown = sequenceOf(session, binding, channel, layers.length);
-    const capacity = palettes.find((p) => p.id === palette)?.colors.length ?? Number.POSITIVE_INFINITY;
-    const name = channelWord(channel);
-    const sequence: LayerSequence = (count) => {
-        const seq = sequenceOf(session, binding, channel, count);
-        return Array.from({ length: count }, (_, at) => {
-            const value = edits[at] ?? literalOf(seq?.values[at]);
-            const cue = seq?.cue === null || seq?.cue === undefined ? undefined : literalOf(seq.cue.values[at]);
-            return {
-                ...(value === undefined ? {} : { [channel]: value }),
-                ...(cue === undefined || seq?.cue === null || seq?.cue === undefined ? {} : { [seq.cue.channel]: cue }),
-            };
-        });
-    };
+    const [binding, setBinding] = useState<LayerBinding>(() => startingBinding(session, descriptor));
+    const [open, setOpen] = useState(true);
+    const sequence: LayerSequence = (count) => layerValues(session, binding, channel, count) ?? [];
     return (
-        <div ref={box} className="ws-bulk-vary" role="group" aria-label={`${name} by layer`}>
-            {palettes.length === 0 ? null : (
-                <StyleSelect
-                    label="Palette"
-                    value={palette}
-                    defaultValue={palettes[0].id}
-                    options={palettes.map((p) => ({
-                        value: p.id,
-                        label: paletteWord(p.id),
-                        glyph: (
-                            <span
-                                aria-hidden
-                                className="ws-bulk-vary-palette"
-                                style={{ background: `linear-gradient(to right, ${p.colors.slice(0, 8).join(", ")})` }}
-                            />
-                        ),
-                    }))}
-                    onChange={(next) => {
-                        setPalette(next);
-                    }}
-                />
-            )}
-            {isColor && layers.length > capacity ? (
-                <StyleSelect
-                    label="More layers than colors"
-                    value={overflow}
-                    defaultValue="extend"
-                    placeholder=""
-                    // Folding into Other would leave layers with no color of their own.
-                    options={OVERFLOW_WORDS[descriptor.target].filter((o) => o.value !== "other")}
-                    onChange={(next) => {
-                        setOverflow(next ?? "extend");
-                    }}
-                />
-            ) : null}
-            {isNumber ? (
-                <Range
-                    key={String(range)}
-                    descriptor={descriptor}
-                    range={
-                        range ??
-                        (typeof shown?.values[0] === "number" && typeof shown.values.at(-1) === "number"
-                            ? [shown.values[0], shown.values.at(-1) as number]
-                            : undefined)
-                    }
-                    patch={(change) => {
-                        if (change.range !== undefined) {
-                            setRange([change.range[0], change.range[1]]);
-                        }
-                    }}
-                />
-            ) : null}
-            <Text className="ws-bulk-words">Each layer gets its own value:</Text>
-            <ul className="ws-bulk-vary-list">
-                {layers.map((layer, at) => {
-                    const value = edits[at] ?? literalOf(shown?.values[at]);
-                    const cue = shown?.cue?.values[at];
-                    return (
-                        <li key={layer.id} data-layer={layer.id} aria-label={layer.name}>
-                            <Text span truncate className="ws-bulk-vary-name ws-bulk-words">
-                                {layer.name}
-                            </Text>
-                            {typeof cue === "string" ? (
-                                <Text size="xs" span data-cue>
-                                    {(shown?.cue === null || shown?.cue === undefined
-                                        ? undefined
-                                        : GLYPH_TABLES[shown.cue.channel]?.find((g) => g.id === cue)?.plainName) ??
-                                        enumWords(cue)}
-                                </Text>
-                            ) : null}
-                            <span className="ws-bulk-vary-value">
-                                <ValueField
-                                    compact
-                                    descriptor={descriptor}
-                                    label={`${name} of ${layer.name}`}
-                                    value={value}
-                                    shown={value}
-                                    onChange={(next) => {
-                                        if (typeof next !== "boolean") {
-                                            setEdits({ ...edits, [at]: next });
-                                        }
-                                    }}
-                                />
-                            </span>
-                        </li>
-                    );
-                })}
-            </ul>
-            <div className="ws-bulk-vary-actions">
-                <Button
-                    size="compact-xs"
-                    disabled={shown === null}
-                    onClick={() => {
-                        onApply(sequence);
-                    }}
-                >
-                    Apply
-                </Button>
-                <Button size="compact-xs" variant="subtle" onClick={onCancel}>
-                    Cancel
-                </Button>
-            </div>
-        </div>
+        <Popout
+            opened={open}
+            onOpenChange={(next) => {
+                setOpen(next);
+                if (!next) {
+                    onApply(sequence);
+                }
+            }}
+        >
+            <Popout.Panel
+                width={POPOUT_WIDTH}
+                placement="left"
+                alignment="start"
+                anchorY={anchor}
+                header={{ variant: "title", title: `${channelWord(channel)} by layer` }}
+            >
+                <Popout.Content>
+                    <LayerBindingPopover
+                        descriptor={descriptor}
+                        layers={layers}
+                        binding={binding}
+                        onChange={setBinding}
+                        onSource={(choice) => {
+                            setOpen(false);
+                            onSource(choice);
+                        }}
+                    />
+                </Popout.Content>
+            </Popout.Panel>
+        </Popout>
     );
 }

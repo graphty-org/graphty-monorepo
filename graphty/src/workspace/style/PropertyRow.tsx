@@ -58,6 +58,9 @@ import {
 /** The width of a field's pop-outs (the vary list, a binding, a row's settings): 240 px at every window size. */
 const POPOUT_WIDTH = 240;
 
+/** The vary list's heading, for every property: it lists data values and, on several layers, "Layer". */
+const VARY_TITLE = "Vary by";
+
 /** The first choice of a vary list that keeps the field's own value. */
 const FIXED_LABELS: Partial<Record<Channel, string>> = { "node.size": "Fixed size", "node.tooltip": "Fixed text" };
 
@@ -633,6 +636,8 @@ export function Field({
                     session={session}
                     descriptor={descriptor}
                     layers={ctx.many?.inOrder?.(channel) ?? []}
+                    anchor={box}
+                    onSource={bind}
                     onApply={(sequence) => {
                         setPendingVary(null);
                         ctx.many
@@ -643,9 +648,6 @@ export function Field({
                                 });
                             })
                             .catch(fail);
-                    }}
-                    onCancel={() => {
-                        setPendingVary(null);
                     }}
                 />
             ) : null}
@@ -946,10 +948,10 @@ function VaryButton({
                 width={POPOUT_WIDTH}
                 placement="left"
                 alignment="start"
-                header={{ variant: "title", title: label }}
+                header={{ variant: "title", title: VARY_TITLE }}
             >
                 <ValuePicker
-                    title={label}
+                    title={VARY_TITLE}
                     target={ctx.side}
                     channel={channel}
                     fixedLabel={FIXED_LABELS[channel]}

@@ -18,7 +18,7 @@ import { GLYPHS } from "../glyphs";
 import { count as countOf } from "../inspector/words";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { GroupList } from "./Groups";
-import { type DataBinding, type DataChoice, startingValue, topmostRow } from "./row";
+import { type DataBinding, type DataChoice, type LayerBinding, layerValues, startingValue, topmostRow } from "./row";
 import { focusLineNext } from "./useFocusLine";
 import { ValueField } from "./ValueField";
 import { ValuePicker } from "./ValuePicker";
@@ -172,7 +172,6 @@ export function BindingPopover({
     onSource,
 }: Readonly<BindingPopoverProps>): React.JSX.Element | null {
     const { session } = useWorkspace();
-    const [choosing, setChoosing] = useState(false);
     // A group's detail takes the popover over: what belongs to the whole binding steps aside.
     const [detail, setDetail] = useState(false);
     if (session === null) {
@@ -190,36 +189,7 @@ export function BindingPopover({
 
     return (
         <Stack gap={8} role="group" aria-label={`${name} binding`}>
-            <Group justify="space-between" wrap="nowrap">
-                <Text size="xs">
-                    Source: <strong>{source}</strong>
-                </Text>
-                <Button
-                    size="compact-xs"
-                    variant="default"
-                    aria-expanded={choosing}
-                    onClick={() => {
-                        setChoosing(!choosing);
-                    }}
-                >
-                    Change source
-                </Button>
-            </Group>
-            {choosing ? (
-                <ValuePicker
-                    title="Change source"
-                    target={descriptor.target}
-                    channel={channel}
-                    inUse={[binding.by]}
-                    onPick={(choice) => {
-                        setChoosing(false);
-                        onSource(choice);
-                    }}
-                    onClose={() => {
-                        setChoosing(false);
-                    }}
-                />
-            ) : null}
+            <SourceHeader descriptor={descriptor} source={source} inUse={[binding.by]} onSource={onSource} />
             {preview !== null && !categorical && (isColor || isNumber) ? (
                 <Ramp
                     session={session}
@@ -262,6 +232,252 @@ export function BindingPopover({
                         patch({ combine: mode === "multiply" || mode === "add" ? mode : undefined });
                     }}
                 />
+            ) : null}
+        </Stack>
+    );
+}
+
+/**
+ * What the binding reads, and Change source, which opens the value list in place to read another.
+ * @param props - Component props
+ * @param props.descriptor - the bound property
+ * @param props.source - what it reads, in words
+ * @param props.inUse - the path it reads now, listed first; none for Layer
+ * @param props.onSource - reads another attribute or result instead
+ * @returns The line and, while choosing, the list
+ */
+function SourceHeader({
+    descriptor,
+    source,
+    inUse,
+    onSource,
+}: Readonly<{
+    descriptor: ChannelDescriptor;
+    source: string;
+    inUse: readonly string[];
+    onSource: (choice: DataChoice) => void;
+}>): React.JSX.Element {
+    const [choosing, setChoosing] = useState(false);
+    return (
+        <>
+            <Group justify="space-between" wrap="nowrap">
+                <Text size="xs">
+                    Source: <strong>{source}</strong>
+                </Text>
+                <Button
+                    size="compact-xs"
+                    variant="default"
+                    aria-expanded={choosing}
+                    onClick={() => {
+                        setChoosing(!choosing);
+                    }}
+                >
+                    Change source
+                </Button>
+            </Group>
+            {choosing ? (
+                <ValuePicker
+                    title="Change source"
+                    target={descriptor.target}
+                    channel={descriptor.channel}
+                    inUse={inUse}
+                    onPick={(choice) => {
+                        setChoosing(false);
+                        onSource(choice);
+                    }}
+                    onClose={() => {
+                        setChoosing(false);
+                    }}
+                />
+            ) : null}
+        </>
+    );
+}
+
+/**
+ * The categorical palettes, each drawn as a strip.
+ * @param props - Component props
+ * @param props.session - the element's session
+ * @param props.value - the palette the binding names
+ * @param props.shown - the palette it paints with when it names none
+ * @param props.patch - writes the pick
+ * @returns The select
+ */
+function PaletteSelect({
+    session,
+    value,
+    shown,
+    patch,
+}: Readonly<{
+    session: GraphSession;
+    value: string | undefined;
+    shown: string | undefined;
+    patch: (change: { palette: string | undefined }) => void;
+}>): React.JSX.Element {
+    const palettes = session.catalog.palettes().filter((p) => p.kind === "categorical");
+    return (
+        <StyleSelect
+            label="Palette"
+            value={value}
+            defaultValue={shown ?? palettes[0]?.id ?? ""}
+            options={palettes.map((p) => ({
+                value: p.id,
+                label: paletteWord(p.id),
+                glyph: (
+                    <span
+                        aria-hidden
+                        style={{
+                            display: "block",
+                            width: 16,
+                            height: 8,
+                            marginBlock: 4,
+                            borderRadius: 2,
+                            background: `linear-gradient(to right, ${p.colors.slice(0, 8).join(", ")})`,
+                        }}
+                    />
+                ),
+            }))}
+            onChange={(palette) => {
+                patch({ palette });
+            }}
+        />
+    );
+}
+
+/**
+ * The binding popover with Layer as its source: several layers or a folder, each layer one group,
+ * in list order. The same parts as for a value of the data -- the palette, one row per group with
+ * its own control, what happens past the palette, the range of a number -- worked out by
+ * graphty-element's `styles.sequence`, item i being layer i, and a row's own value is the
+ * binding's map entry for it. Nothing is written while it is open: closing it gives each layer its
+ * own plain value.
+ * @param props - Component props
+ * @param props.descriptor - the property
+ * @param props.layers - the layers, top first, with their row names
+ * @param props.binding - the binding across them
+ * @param props.onChange - keeps a changed binding
+ * @param props.onSource - reads a value of the data instead
+ * @returns The popover's body
+ */
+export function LayerBindingPopover({
+    descriptor,
+    layers,
+    binding,
+    onChange,
+    onSource,
+}: Readonly<{
+    descriptor: ChannelDescriptor;
+    layers: readonly { readonly id: LayerId; readonly name: string }[];
+    binding: LayerBinding;
+    onChange: (binding: LayerBinding) => void;
+    onSource: (choice: DataChoice) => void;
+}>): React.JSX.Element | null {
+    const { session } = useWorkspace();
+    if (session === null) {
+        return null;
+    }
+    const patch = (change: Partial<LayerBinding>): void => {
+        onChange({ ...binding, ...change });
+    };
+    const { channel } = descriptor;
+    const isColor = descriptor.accepts === "color";
+    const name = channelWord(channel);
+    const values = layerValues(session, binding, channel, layers.length);
+    let palette: string | undefined;
+    try {
+        palette = session.styles.sequence(binding, { channel, count: 1 }).palette ?? undefined;
+    } catch {
+        palette = undefined;
+    }
+    const capacity =
+        session.catalog.palettes().find((p) => p.id === (binding.palette ?? palette))?.colors.length ??
+        Number.POSITIVE_INFINITY;
+    return (
+        <Stack gap={8} role="group" aria-label={`${name} binding`}>
+            <SourceHeader descriptor={descriptor} source="Layer" inUse={[]} onSource={onSource} />
+            {isColor ? <PaletteSelect session={session} value={binding.palette} shown={palette} patch={patch} /> : null}
+            <Stack gap={4} role="list" aria-label={`${name} of each layer`}>
+                {layers.map((layer, at) => {
+                    const key = String(at);
+                    const own = binding.map?.[key];
+                    const value = values?.[at]?.[channel];
+                    const cue = Object.entries(values?.[at] ?? {}).find(([c]) => c !== channel)?.[1];
+                    let matched = 0;
+                    try {
+                        ({ matched } = session.styles.counts(layer.id));
+                    } catch {
+                        matched = 0;
+                    }
+                    return (
+                        <Group
+                            key={layer.id}
+                            role="listitem"
+                            aria-label={layer.name}
+                            data-layer={layer.id}
+                            gap={4}
+                            wrap="nowrap"
+                        >
+                            <Box style={{ flex: "none", display: "flex" }}>
+                                <ValueField
+                                    compact
+                                    descriptor={descriptor}
+                                    label={`${name} of ${layer.name}`}
+                                    value={value}
+                                    shown={value}
+                                    onChange={(next) => {
+                                        if (typeof next !== "boolean") {
+                                            patch({ map: { ...binding.map, [key]: next } });
+                                        }
+                                    }}
+                                />
+                            </Box>
+                            <Text size="xs" truncate style={{ flex: 1, minWidth: 0 }}>
+                                {layer.name}
+                            </Text>
+                            {typeof cue === "string" ? (
+                                <Text size="xs" c="dimmed" data-cue style={{ flex: "none" }}>
+                                    {enumWords(cue)}
+                                </Text>
+                            ) : null}
+                            <Text size="xs" c="dimmed" style={{ flex: "none" }}>
+                                {countOf(matched, descriptor.target)}
+                            </Text>
+                            <Box w={24} style={{ flex: "none" }} data-clear-column>
+                                {own === undefined ? null : (
+                                    <Tooltip label="Clear: back to the palette">
+                                        <ActionIcon
+                                            variant="subtle"
+                                            size="sm"
+                                            aria-label={`Back to the palette: ${layer.name}`}
+                                            onClick={() => {
+                                                const { [key]: _cleared, ...rest } = binding.map ?? {};
+                                                patch({ map: Object.keys(rest).length === 0 ? undefined : rest });
+                                            }}
+                                        >
+                                            <GLYPHS.remove size={14} aria-hidden />
+                                        </ActionIcon>
+                                    </Tooltip>
+                                )}
+                            </Box>
+                        </Group>
+                    );
+                })}
+            </Stack>
+            {isColor && layers.length > capacity ? (
+                <StyleSelect
+                    label="More layers than colors"
+                    value={binding.overflow}
+                    defaultValue="extend"
+                    placeholder=""
+                    // Folding into Other would leave layers with no color of their own.
+                    options={OVERFLOW_WORDS[descriptor.target].filter((o) => o.value !== "other")}
+                    onChange={(overflow) => {
+                        patch({ overflow: overflow as LayerBinding["overflow"] });
+                    }}
+                />
+            ) : null}
+            {descriptor.accepts === "number" ? (
+                <Range key={String(binding.range)} descriptor={descriptor} range={binding.range} patch={patch} />
             ) : null}
         </Stack>
     );
@@ -634,7 +850,6 @@ function Categories({
 }: PartProps & { detail: boolean; onDetailChange: (open: boolean) => void }): React.JSX.Element {
     const { channel } = descriptor;
     const isColor = descriptor.accepts === "color";
-    const palettes = session.catalog.palettes().filter((p) => p.kind === "categorical");
     const block = session.styles.legendOf(layerId).find((b) => b.channel === channel);
     const shownPalette = block?.palette?.name;
     const readable = readableOf(session, binding, descriptor.target);
@@ -665,31 +880,12 @@ function Categories({
                 </QuietButton>
             ) : null}
             {isColor && !detail && !asWritten ? (
-                <StyleSelect
-                    label="Palette"
+                <PaletteSelect
+                    session={session}
                     value={binding.palette}
                     // What it paints now: the palette the element filled in, until the layer picks one.
-                    defaultValue={preview.palette ?? shownPalette ?? palettes[0]?.id ?? ""}
-                    options={palettes.map((p) => ({
-                        value: p.id,
-                        label: paletteWord(p.id),
-                        glyph: (
-                            <span
-                                aria-hidden
-                                style={{
-                                    display: "block",
-                                    width: 16,
-                                    height: 8,
-                                    marginBlock: 4,
-                                    borderRadius: 2,
-                                    background: `linear-gradient(to right, ${p.colors.slice(0, 8).join(", ")})`,
-                                }}
-                            />
-                        ),
-                    }))}
-                    onChange={(palette) => {
-                        patch({ palette });
-                    }}
+                    shown={preview.palette ?? shownPalette}
+                    patch={patch}
                 />
             ) : null}
             <GroupList

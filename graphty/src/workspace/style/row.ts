@@ -805,3 +805,52 @@ export function groupPalettes(session: GraphSession): ReturnType<GraphSession["c
     // Two-color highlight palettes name one value against the rest, never a set of groups.
     return session.catalog.palettes().filter((p) => p.kind === "categorical" && p.colors.length > 2);
 }
+
+/**
+ * A painted value as it is written back as a plain value: a color's hex, a number or words.
+ * @param paint - what the element paints.
+ * @returns the value, or undefined when it paints nothing.
+ */
+function plainOf(paint: unknown): ChannelValue | undefined {
+    if (typeof paint === "number" || typeof paint === "string") {
+        return paint;
+    }
+    return hexOf(paint)?.toUpperCase();
+}
+
+/** What a binding across layers reads: a binding without a path, item i being layer i. */
+export type LayerBinding = Parameters<GraphSession["styles"]["sequence"]>[0];
+
+/** One layer's values: the property's, and the overflow's second cue's when it steps one. */
+export type LayerValues = Readonly<Partial<Record<ChannelDescriptor["channel"], ChannelValue>>>;
+
+/**
+ * The values a binding across layers gives the first `count` layers, each a plain value, read from
+ * graphty-element's `styles.sequence`: what the popover shows, and what closing it writes.
+ * @param session - the element's session
+ * @param binding - the binding
+ * @param channel - the property
+ * @param count - how many layers
+ * @returns one entry per layer, or null when the element refuses the binding
+ */
+export function layerValues(
+    session: GraphSession,
+    binding: LayerBinding,
+    channel: ChannelDescriptor["channel"],
+    count: number,
+): LayerValues[] | null {
+    let seq: ReturnType<GraphSession["styles"]["sequence"]>;
+    try {
+        seq = session.styles.sequence(binding, { channel, count });
+    } catch {
+        return null;
+    }
+    return seq.values.map((paint, at) => {
+        const value = plainOf(paint);
+        const cue = seq.cue === null ? undefined : plainOf(seq.cue.values[at]);
+        return {
+            ...(value === undefined ? {} : { [channel]: value }),
+            ...(cue === undefined || seq.cue === null ? {} : { [seq.cue.channel]: cue }),
+        };
+    });
+}

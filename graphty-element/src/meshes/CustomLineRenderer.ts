@@ -372,11 +372,11 @@ void main(void) {
         material.setFloat("opacity", opacity);
         material.setFloat("miterLimit", EDGE_MITER_LIMIT);
         const { pattern } = options;
+        // (element length, kind: 0 solid, 1 dash, 2 dot, half the width), read by the fragment shader.
+        const kind = pattern?.kind === "dash" ? 1 : 2;
         material.setVector3(
             "pattern",
-            pattern
-                ? new Vector3(pattern.elementLength, pattern.kind === "dash" ? 1 : 2, options.width / 2)
-                : Vector3.Zero(),
+            pattern ? new Vector3(pattern.elementLength, kind, options.width / 2) : Vector3.Zero(),
         );
         material.backFaceCulling = false;
         this.resolutionTracked.add(material);

@@ -293,9 +293,7 @@ export class EdgeLineBatch {
         const spacing = this.spacingFor(total);
         let distance = 0;
         for (let i = 0; i < pieces; i++) {
-            const prev = i === 0 ? i : i - 1;
-            const next = i === pieces - 1 ? i + 1 : i + 2;
-            this.writeFlat(slots[i], flat, prev, i, i + 1, next, distance, spacing);
+            this.writeFlat(slots[i], flat, i, pieces, distance, spacing);
             distance += pieceLength(flat, i);
         }
 
@@ -441,32 +439,32 @@ export class EdgeLineBatch {
     }
 
     /**
-     * Write one slot from points in a flat array, by point index. See {@link EdgeLineBatch.write}.
+     * Write one piece of a run from points in a flat array. Its neighbours are the pieces either
+     * side; the first piece's previous corner is its own start and the last's next corner its own
+     * end, which the shader draws as a square end. See {@link EdgeLineBatch.write}.
      * @param index - The slot.
-     * @param flat - The points.
-     * @param prev - Index of the corner before.
-     * @param a - Index of the start.
-     * @param b - Index of the end.
-     * @param next - Index of the corner after.
+     * @param flat - The run's points.
+     * @param piece - Which piece: from point `piece` to point `piece + 1`.
+     * @param pieces - How many pieces the run has.
      * @param distance - How far along the edge the piece starts.
      * @param spacing - The pattern's spacing.
      */
     private writeFlat(
         index: number,
         flat: readonly number[],
-        prev: number,
-        a: number,
-        b: number,
-        next: number,
+        piece: number,
+        pieces: number,
         distance: number,
         spacing: number,
     ): void {
+        const prev = piece === 0 ? piece : piece - 1;
+        const next = piece === pieces - 1 ? piece + 1 : piece + 2;
         const at = index * FLOATS_PER_SLOT;
         const s = this.slots;
         for (let k = 0; k < 3; k++) {
             s[at + k] = flat[prev * 3 + k];
-            s[at + 3 + k] = flat[a * 3 + k];
-            s[at + 6 + k] = flat[b * 3 + k];
+            s[at + 3 + k] = flat[piece * 3 + k];
+            s[at + 6 + k] = flat[(piece + 1) * 3 + k];
             s[at + 9 + k] = flat[next * 3 + k];
         }
 

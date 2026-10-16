@@ -140,11 +140,16 @@ function render(sample: FidelitySample, fileUrl: string): HTMLElement {
     };
 
     const left = panel();
+    const missing = NO_PICTURE[sample.id];
     const img = document.createElement("img");
-    img.alt = `${sample.id}: the reference picture`;
-    img.src = new URL(`references/${sample.id}.png`, document.baseURI).href;
-    img.style.cssText = `display:block;width:${String(PICTURE)}px;height:${String(HEIGHT - CAPTION)}px;object-fit:contain`;
-    left.appendChild(img);
+    if (missing === undefined) {
+        img.alt = `${sample.id}: the reference picture`;
+        img.src = new URL(`references/${sample.id}.png`, document.baseURI).href;
+        img.style.cssText = `display:block;width:${String(PICTURE)}px;height:${String(HEIGHT - CAPTION)}px;object-fit:contain`;
+        left.appendChild(img);
+    } else {
+        left.insertAdjacentHTML("beforeend", `<p style="margin:16px">No reference picture: ${esc(missing)}</p>`);
+    }
 
     const middle = panel();
     const element = createSampleElement(PICTURE, HEIGHT - CAPTION);
@@ -154,11 +159,11 @@ function render(sample: FidelitySample, fileUrl: string): HTMLElement {
     right.style.borderRight = "none";
     right.style.padding = "6px 8px";
     right.style.boxSizing = "border-box";
-    right.innerHTML = `<style>[data-fidelity] table{border-collapse:collapse}[data-fidelity] td,[data-fidelity] th{border:1px solid #ddd;padding:1px 5px;text-align:left;font-weight:normal}[data-fidelity] p{margin:0 0 6px}</style><h2 style="font-size:14px;margin:0 0 4px">${esc(sample.id)}</h2><p>${esc(sample.file)} (${esc(sample.license)})</p><p>Scoring...</p>`;
+    right.innerHTML = `<style>[data-fidelity] table{border-collapse:collapse}[data-fidelity] td,[data-fidelity] th{border:1px solid #ddd;padding:1px 4px;text-align:left;font-weight:normal;white-space:nowrap;font-size:11px}[data-fidelity] p{margin:0 0 6px}</style><h2 style="font-size:14px;margin:0 0 4px">${esc(sample.id)}</h2><p>${esc(sample.file)} (${esc(sample.license)})</p><p>Scoring...</p>`;
 
     const done = (async (): Promise<void> => {
         try {
-            const imgLoaded = img.decode();
+            const imgLoaded = missing === undefined ? img.decode() : Promise.resolve();
             const refs = await Promise.all(
                 sample.routes.map((route) => {
                     const url = sceneUrl(sample.id, route);
@@ -168,7 +173,10 @@ function render(sample: FidelitySample, fileUrl: string): HTMLElement {
                     return fetchJson<Scene>(url);
                 }),
             );
-            caption(left, `Reference picture: ${drawnBy(sample.id)}. Scored against: ${sample.routes.join(", ")}.`);
+            caption(
+                left,
+                `${missing === undefined ? `Reference picture: ${drawnBy(sample.id)}. ` : ""}Scored against: ${sample.routes.join(", ")}.`,
+            );
             const stored = new Uint8Array(await (await fetch(fileUrl)).arrayBuffer());
             // By the gzip magic rather than the name: a server may already have unzipped a `.gz` in transit.
             const { sha256, data } = await sampleData(stored, stored[0] === 0x1f && stored[1] === 0x8b);
@@ -192,6 +200,12 @@ function render(sample: FidelitySample, fileUrl: string): HTMLElement {
     Object.assign(root, { whenDone: () => done });
     return root;
 }
+
+/** Samples whose story has no reference picture, and why. */
+const NO_PICTURE: Readonly<Record<string, string>> = {
+    "pajek-iliad":
+        "the file stores no coordinates and Pajek itself never ran, so a sketch of the file's values stacks every node at one point. The scorecard still judges what the file states (shapes, colors, edges).",
+};
 
 const ALL: readonly FidelitySample[] = [...SAMPLES, ...CORPUS_SAMPLES];
 

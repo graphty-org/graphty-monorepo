@@ -27,6 +27,8 @@ The reference pictures are Git LFS objects; `npm run build-storybook` pulls them
 ## Which samples have a story
 
 Every sample in `graph-io/test/fidelity/samples.ts` and `corpus-samples.ts` that has a reference picture,
+plus
+`pajek-iliad`, whose story says why it has no picture (the file stores no coordinates and Pajek never ran), and
 except:
 
 - No picture yet: `gexf-synth-13-hierarchy` (Gephi refused the file; the stand-in sketch is wrong), the two

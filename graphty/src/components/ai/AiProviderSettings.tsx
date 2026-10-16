@@ -630,7 +630,7 @@ export function AiProviderSettings(props: AiProviderSettingsProps): React.JSX.El
                                                     <Box
                                                         title="Connection successful"
                                                         data-testid={`ai-test-ok-${entry.type}`}
-                                                        style={{ display: "flex", color: PANEL_INK.SUCCESS }}
+                                                        style={{ display: "flex", color: PANEL_INK.SUCCESS_TEXT }}
                                                     >
                                                         <UiGlyph name="check" size={PANEL_GRID.GLYPH} />
                                                     </Box>

@@ -1,3 +1,4 @@
+import { PANEL_INK } from "@graphty/compact-mantine";
 import {
     detectFormat,
     FORMAT_DESCRIPTORS,
@@ -621,7 +622,7 @@ export function LoadDataModal({
 
                 {/* Error Display */}
                 {error && (
-                    <Group gap="xs" style={{ color: "var(--mantine-color-red-5)" }}>
+                    <Group gap="xs" style={{ color: PANEL_INK.DANGER_TEXT }}>
                         <AlertCircle size={16} />
                         <Text size="sm">{error}</Text>
                     </Group>

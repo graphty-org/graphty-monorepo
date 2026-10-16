@@ -454,6 +454,18 @@ function summaryKeys(required, underlying) {
 }
 
 /**
+ * When the pull request's own code last changed, from a new commit list or else the same head's
+ * record. A merge of the base branch is no new code: the owner's rejects of the code before it stand.
+ * @param {Detail} detail what the poll fetched
+ * @param {PrRecord | undefined} same the saved record when the head is the same
+ * @returns {string | null | undefined} the date; null when unknown, undefined when never read
+ */
+function codeChangedOf(detail, same) {
+    if (detail.commits) return detail.commits.codeAt ?? null;
+    return same?.codeChangedAt;
+}
+
+/**
  * Folds one pull request's poll answer into its saved record.
  * @param {any} node a GraphQL pullRequest node, optionally with `detail` ({@link Detail})
  * @param {PrRecord | undefined} prev its record from the last poll
@@ -521,8 +533,7 @@ function foldPr(node, prev, config, now, master) {
         ownerGate: captureFailed.length === 0 && ownerGateOf(config, checks, ownerSteps),
         ownerSteps,
         ownerRejected: kept.ownerRejected,
-        // A merge of the base branch is no new code: the owner's rejects of the code before it stand.
-        codeChangedAt: detail.commits ? (detail.commits.codeAt ?? null) : sameHead ? prev?.codeChangedAt : undefined,
+        codeChangedAt: codeChangedOf(detail, sameHead ? prev : undefined),
         stackedOn: null,
         lastActivityAt: node.updatedAt,
         underlying: detail.underlying ?? null,

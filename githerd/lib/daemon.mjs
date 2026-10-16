@@ -272,7 +272,7 @@ function codeChangedAt(commits) {
         .filter((c) => (c.parents?.length ?? 0) < 2)
         .map((c) => c.commit?.committer?.date)
         .filter((d) => typeof d === "string")
-        .sort();
+        .sort((a, b) => a.localeCompare(b));
     return dates.at(-1) ?? null;
 }
 /** `POST /owner` ops that put the owner's words or decisions on record: only from his terminal. */

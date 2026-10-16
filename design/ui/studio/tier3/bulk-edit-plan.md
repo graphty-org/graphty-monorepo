@@ -213,6 +213,12 @@ Revised the same day: "Layer" opens the binding popover a value of the data open
 per layer with the property's own control, overflow, range), held unwritten while open; closing it
 writes each layer its own plain value in one undo step. The vary list's heading is "Vary by".
 
+Revised again the same day ("I should be able to do the EXACT same with the Layer field"): the
+per-layer rows are Louvain's group rows themselves -- one component, the same field, name, count,
+eye and actions menu, the same first 8 then "N more" with search and sort -- fed by graphty-element's
+`styles.layerGroups`, each layer one group, top first. Rows leave out what a layer already is (New
+layer for) and what a list of layers has no use for (fold into Other, a group's detail).
+
 ## Not built now
 
 - Edge layers per group ("edges inside a community"): needs the element to read an edge's

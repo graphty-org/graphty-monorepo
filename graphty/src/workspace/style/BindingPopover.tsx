@@ -17,8 +17,8 @@ import React, { useState } from "react";
 import { GLYPHS } from "../glyphs";
 import { count as countOf } from "../inspector/words";
 import { useWorkspace } from "../state/WorkspaceContext";
-import { GroupList } from "./Groups";
-import { type DataBinding, type DataChoice, type LayerBinding, layerValues, startingValue, topmostRow } from "./row";
+import { GroupList, LayerGroupList } from "./Groups";
+import { type DataBinding, type DataChoice, type LayerBinding, startingValue, topmostRow } from "./row";
 import { focusLineNext } from "./useFocusLine";
 import { ValueField } from "./ValueField";
 import { ValuePicker } from "./ValuePicker";
@@ -346,14 +346,13 @@ function PaletteSelect({
 
 /**
  * The binding popover with Layer as its source: several layers or a folder, each layer one group,
- * in list order. The same parts as for a value of the data -- the palette, one row per group with
- * its own control, what happens past the palette, the range of a number -- worked out by
- * graphty-element's `styles.sequence`, item i being layer i, and a row's own value is the
- * binding's map entry for it. Nothing is written while it is open: closing it gives each layer its
- * own plain value.
+ * in list order. The same parts as for a value of the data -- the palette, the group list (the
+ * very rows Louvain's groups draw, fed by graphty-element's `styles.layerGroups`), what happens
+ * past the palette, the range of a number -- and a row's own value is the binding's map entry for
+ * its layer. Nothing is written while it is open: closing it gives each layer its own plain value.
  * @param props - Component props
  * @param props.descriptor - the property
- * @param props.layers - the layers, top first, with their row names
+ * @param props.layers - the layers
  * @param props.binding - the binding across them
  * @param props.onChange - keeps a changed binding
  * @param props.onSource - reads a value of the data instead
@@ -367,7 +366,7 @@ export function LayerBindingPopover({
     onSource,
 }: Readonly<{
     descriptor: ChannelDescriptor;
-    layers: readonly { readonly id: LayerId; readonly name: string }[];
+    layers: readonly LayerId[];
     binding: LayerBinding;
     onChange: (binding: LayerBinding) => void;
     onSource: (choice: DataChoice) => void;
@@ -382,7 +381,6 @@ export function LayerBindingPopover({
     const { channel } = descriptor;
     const isColor = descriptor.accepts === "color";
     const name = channelWord(channel);
-    const values = layerValues(session, binding, channel, layers.length);
     let palette: string | undefined;
     try {
         palette = session.styles.sequence(binding, { channel, count: 1 }).palette ?? undefined;
@@ -396,73 +394,13 @@ export function LayerBindingPopover({
         <Stack gap={8} role="group" aria-label={`${name} binding`}>
             <SourceHeader descriptor={descriptor} source="Layer" inUse={[]} onSource={onSource} />
             {isColor ? <PaletteSelect session={session} value={binding.palette} shown={palette} patch={patch} /> : null}
-            <Stack gap={4} role="list" aria-label={`${name} of each layer`}>
-                {layers.map((layer, at) => {
-                    const key = String(at);
-                    const own = binding.map?.[key];
-                    const value = values?.[at]?.[channel];
-                    const cue = Object.entries(values?.[at] ?? {}).find(([c]) => c !== channel)?.[1];
-                    let matched = 0;
-                    try {
-                        ({ matched } = session.styles.counts(layer.id));
-                    } catch {
-                        matched = 0;
-                    }
-                    return (
-                        <Group
-                            key={layer.id}
-                            role="listitem"
-                            aria-label={layer.name}
-                            data-layer={layer.id}
-                            gap={4}
-                            wrap="nowrap"
-                        >
-                            <Box style={{ flex: "none", display: "flex" }}>
-                                <ValueField
-                                    compact
-                                    descriptor={descriptor}
-                                    label={`${name} of ${layer.name}`}
-                                    value={value}
-                                    shown={value}
-                                    onChange={(next) => {
-                                        if (typeof next !== "boolean") {
-                                            patch({ map: { ...binding.map, [key]: next } });
-                                        }
-                                    }}
-                                />
-                            </Box>
-                            <Text size="xs" truncate style={{ flex: 1, minWidth: 0 }}>
-                                {layer.name}
-                            </Text>
-                            {typeof cue === "string" ? (
-                                <Text size="xs" c="dimmed" data-cue style={{ flex: "none" }}>
-                                    {enumWords(cue)}
-                                </Text>
-                            ) : null}
-                            <Text size="xs" c="dimmed" style={{ flex: "none" }}>
-                                {countOf(matched, descriptor.target)}
-                            </Text>
-                            <Box w={24} style={{ flex: "none" }} data-clear-column>
-                                {own === undefined ? null : (
-                                    <Tooltip label="Clear: back to the palette">
-                                        <ActionIcon
-                                            variant="subtle"
-                                            size="sm"
-                                            aria-label={`Back to the palette: ${layer.name}`}
-                                            onClick={() => {
-                                                const { [key]: _cleared, ...rest } = binding.map ?? {};
-                                                patch({ map: Object.keys(rest).length === 0 ? undefined : rest });
-                                            }}
-                                        >
-                                            <GLYPHS.remove size={14} aria-hidden />
-                                        </ActionIcon>
-                                    </Tooltip>
-                                )}
-                            </Box>
-                        </Group>
-                    );
-                })}
-            </Stack>
+            <LayerGroupList
+                session={session}
+                descriptor={descriptor}
+                layers={layers}
+                binding={binding}
+                onChange={onChange}
+            />
             {isColor && layers.length > capacity ? (
                 <StyleSelect
                     label="More layers than colors"

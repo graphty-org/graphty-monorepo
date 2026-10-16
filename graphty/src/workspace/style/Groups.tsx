@@ -9,14 +9,14 @@ import {
 } from "@graphty/compact-mantine";
 import { type ChannelDescriptor, channelsFor, toColorValue } from "@graphty/graphty-element/catalog";
 import type { Channel, ChannelValue, LayerId, RuleTree } from "@graphty/graphty-element/schema";
-import type { GraphSession, Layer, ValueGroup } from "@graphty/graphty-element/session";
+import type { GraphSession, Layer, LayerGroup, ValueGroup } from "@graphty/graphty-element/session";
 import { ActionIcon, Box, Button, Group, Menu, Stack, Text, TextInput, Tooltip } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import { count as countOf } from "../inspector/words";
 import { useWorkspace } from "../state/WorkspaceContext";
-import { type DataBinding, sourceName, startingValue } from "./row";
+import { type DataBinding, type LayerBinding, sourceName, startingValue } from "./row";
 import { focusLineNext } from "./useFocusLine";
 import { ValueField } from "./ValueField";
 import { channelWord, failureWords, SECTIONS, takesBinding, valueFieldKind, valueWords } from "./words";
@@ -40,12 +40,12 @@ const GRID_WIDTH = 236;
 const COUNT_WIDTH = 48;
 const ACTIONS_WIDTH = 56;
 
-/** How the full list is sorted. */
-type GroupSort = "size" | "name" | "value";
+/** How the full list is sorted: "given" keeps the source's own order. */
+type GroupSort = "given" | "size" | "name" | "value";
 
-/** The sort choices, in words. */
+/** The sort choices of a data value's groups, which come largest first. */
 const SORT_WORDS: readonly { value: GroupSort; label: string }[] = [
-    { value: "size", label: "Largest first" },
+    { value: "given", label: "Largest first" },
     { value: "name", label: "Name" },
     { value: "value", label: "Value" },
 ];
@@ -160,7 +160,11 @@ function descriptorOf(target: Layer["target"], channel: Channel): ChannelDescrip
  * @param key - the group.
  * @returns the words.
  */
-function lookWords(target: Layer["target"], paints: Map<Channel, Map<string, unknown>>, key: string): string {
+function lookWords(
+    target: Layer["target"],
+    paints: ReadonlyMap<Channel, ReadonlyMap<string, unknown>>,
+    key: string,
+): string {
     return [...paints]
         .flatMap(([channel, values]) => {
             const descriptor = descriptorOf(target, channel);
@@ -253,12 +257,45 @@ interface GroupsProps {
 }
 
 /**
+ * Where a group list's groups come from, and what its rows do: one data value's groups on a layer
+ * (Louvain's communities), or several layers, each one group (Vary by Layer). The rows, their
+ * controls and the list around them are the same for both; an action that means nothing for a
+ * source is left out of it.
+ */
+interface GroupSource {
+    /** What the groups are, in words: the value's name, or "Layer". */
+    readonly source: string;
+    /** The name column's heading. */
+    readonly noun: string;
+    /** The groups, in the source's own order. */
+    readonly groups: readonly ValueGroup[];
+    /** Each group's name, by key. */
+    readonly names: ReadonlyMap<string, string>;
+    /** What each channel paints each group now, by key. */
+    readonly paints: ReadonlyMap<Channel, ReadonlyMap<string, unknown>>;
+    /** The sort choices; the first keeps the source's own order. */
+    readonly sorts: readonly { readonly value: GroupSort; readonly label: string }[];
+    /** What clearing a group's own value goes back to, in words. */
+    readonly clearTo: string;
+    /** The selected element's group, pinned first. */
+    readonly pinned?: { readonly key: string; readonly has: string };
+    /** Gives a group its own value, or clears it. */
+    readonly setEntry: (row: GroupRow, entry: string | number | undefined) => void;
+    readonly setHidden: (row: GroupRow, hide: boolean) => void;
+    /** Selects the elements of some groups. */
+    readonly select: (keys: readonly string[]) => void;
+    readonly rename: (row: GroupRow, label: string) => void;
+    /** "New layer for <group>"; absent where a group is a layer already. */
+    readonly newLayer?: (keys: readonly string[], name: string) => void;
+    /** Folding small groups into Other; absent where groups never fold. */
+    readonly fold?: { readonly below: number | undefined; readonly set: (below: number | undefined) => void };
+    /** A group's detail ("Set properties for <group>"); absent where it has none. */
+    readonly detail?: (keys: readonly string[], onBack: () => void) => React.JSX.Element;
+}
+
+/**
  * The groups of a property that varies by a category (tier3 decisions, round 6, "any property per
- * group" and "dozens or hundreds of groups"): a grid of the largest 8, then "N more", which opens
- * the whole list -- virtualized, searched by names and raw values, sorted by size, name or value,
- * with small groups folded into Other. The selected element's group is pinned first. Each row has
- * its chit for this property, name, size, eye and menu; a click (or Enter) opens the group's
- * detail, Shift or Control picks several, and Enter on a picked row opens all of them.
+ * group" and "dozens or hundreds of groups"), read from the element's `styles.groups`.
  * @param props - Component props
  * @param props.session - the element's session
  * @param props.descriptor - the property
@@ -277,14 +314,6 @@ export function GroupList({
     onDetailChange,
 }: GroupsProps): React.JSX.Element | null {
     const { store } = useWorkspace();
-    const [opened, setOpened] = useState<readonly string[] | null>(null);
-    const [all, setAll] = useState(false);
-    const [search, setSearch] = useState("");
-    const [sort, setSort] = useState<GroupSort>("size");
-    const [selected, setSelected] = useState<string[]>([]);
-    const [renaming, setRenaming] = useState<string | null>(null);
-    const listRef = useRef<HTMLDivElement>(null);
-    const [menuHost, setMenuHost] = useState<HTMLDivElement | null>(null);
     const layer = session.styles.get(layerId);
     if (layer === undefined) {
         return null;
@@ -292,45 +321,63 @@ export function GroupList({
     const { channel, target } = descriptor;
     const path = binding.by;
     const groups = session.styles.groups(layerId, path);
-    const names = groupNames(session, path, groups);
-    const paints = paintsOf(session, layer, path);
     const fail = (error: unknown): void => {
         store.set({ notice: { message: failureWords(channelWord(channel), "changed", error), error: true } });
     };
-
-    if (opened !== null) {
-        const keys = opened.filter((key) => groups.some((g) => String(g.value) === key));
-        if (keys.length > 0) {
-            return (
-                <GroupDetail
-                    session={session}
-                    layer={layer}
-                    path={path}
-                    source={source}
-                    keys={keys}
-                    onBack={() => {
-                        setOpened(null);
-                        onDetailChange?.(false);
-                        // Back on the list, focus returns to the row of the group just left (the
-                        // first picked one), so the arrow keys carry on from there.
-                        const back = keys[0];
-                        requestAnimationFrame(() => {
-                            const list = listRef.current;
-                            const cell =
-                                list
-                                    ?.querySelector(`[data-group-row="${CSS.escape(back ?? "")}"]`)
-                                    ?.closest("[role=gridcell]") ?? list?.querySelector("[role=gridcell]");
-                            if (cell instanceof HTMLElement) {
-                                cell.focus();
-                            }
-                        });
-                    }}
-                />
+    const write = (row: GroupRow, entry: ChannelValue | undefined): void => {
+        Promise.resolve(
+            session.styles.setValueEntries(layerId, path, [{ channel, value: row.group.value as Scalar, entry }]),
+        ).catch(fail);
+    };
+    const from: GroupSource = {
+        source,
+        noun: "Group",
+        groups,
+        names: groupNames(session, path, groups),
+        paints: paintsOf(session, layer, path),
+        sorts: SORT_WORDS,
+        clearTo: "the layer's",
+        ...pinnedGroup(session, target, path),
+        setEntry: write,
+        setHidden: (row, hide) => {
+            Promise.resolve(session.styles.setValueHidden(layerId, channel, row.group.value as Scalar, hide)).catch(
+                fail,
             );
-        }
-    }
+        },
+        select: (keys) => {
+            selectGroups(session, target, path, keys);
+        },
+        rename: (row, label) => {
+            rename(session, store, path, row, label);
+        },
+        newLayer: (keys, name) => {
+            openNewLayer(session, store, layer, path, keys, name);
+        },
+        fold: {
+            below: binding.other?.threshold,
+            set: (below) => {
+                Promise.resolve(session.styles.setFoldBelow(layerId, path, below)).catch(fail);
+            },
+        },
+        detail: (keys, onBack) => (
+            <GroupDetail session={session} layer={layer} path={path} source={source} keys={keys} onBack={onBack} />
+        ),
+    };
+    return <GroupRows descriptor={descriptor} from={from} onDetailChange={onDetailChange} />;
+}
 
-    // The selected element's group, read from the element, pinned first.
+/**
+ * The selected element's group of a path, read from the element, to pin it first.
+ * @param session - the element's session.
+ * @param target - nodes or edges.
+ * @param path - the category path.
+ * @returns the pinned group, or nothing.
+ */
+function pinnedGroup(
+    session: GraphSession,
+    target: Layer["target"],
+    path: string,
+): { pinned?: { key: string; has: string } } {
     const selectedNode = session.selection.nodes.at(0);
     const selectedEdge = session.selection.edges.at(0);
     let at: { node: (typeof session.selection.nodes)[number] } | { edge: string } | undefined;
@@ -339,18 +386,159 @@ export function GroupList({
     } else if (target === "edge" && selectedEdge !== undefined) {
         at = { edge: selectedEdge };
     }
-    let pinnedKey: string | undefined;
-    let has: string | undefined;
-    if (at !== undefined) {
-        try {
-            const value = session.styles.valueAt(at, path);
-            pinnedKey =
-                typeof value === "string" || typeof value === "number" || typeof value === "boolean"
-                    ? String(value)
-                    : undefined;
-            has = "node" in at ? (session.data.name(at.node) ?? String(at.node)) : "the selected edge";
-        } catch {
-            pinnedKey = undefined;
+    if (at === undefined) {
+        return {};
+    }
+    try {
+        const value = session.styles.valueAt(at, path);
+        if (typeof value !== "string" && typeof value !== "number" && typeof value !== "boolean") {
+            return {};
+        }
+        const has = "node" in at ? (session.data.name(at.node) ?? String(at.node)) : "the selected edge";
+        return { pinned: { key: String(value), has } };
+    } catch {
+        return {};
+    }
+}
+
+/** The sort choices of a list of layers: their list order first. */
+const LAYER_SORTS: GroupSource["sorts"] = [
+    { value: "given", label: "List order" },
+    { value: "size", label: "Largest first" },
+    { value: "name", label: "Name" },
+];
+
+/**
+ * Several layers as the groups of a property varied by Layer, read from the element's
+ * `styles.layerGroups`: the same list Louvain's groups draw, each layer one group, top first. A
+ * group's own value is held in the binding until the popover closes; hiding, renaming and
+ * selecting act on the layer at once, as they do from the layer list.
+ * @param props - Component props
+ * @param props.session - the element's session
+ * @param props.descriptor - the property
+ * @param props.layers - the layers
+ * @param props.binding - the binding across them
+ * @param props.onChange - keeps a changed binding
+ * @returns The list
+ */
+export function LayerGroupList({
+    session,
+    descriptor,
+    layers,
+    binding,
+    onChange,
+}: Readonly<{
+    session: GraphSession;
+    descriptor: ChannelDescriptor;
+    layers: readonly LayerId[];
+    binding: LayerBinding;
+    onChange: (binding: LayerBinding) => void;
+}>): React.JSX.Element | null {
+    const { store } = useWorkspace();
+    const { channel } = descriptor;
+    let groups: readonly LayerGroup[];
+    try {
+        groups = session.styles.layerGroups(layers, binding, { channel });
+    } catch {
+        return null;
+    }
+    const fail = (error: unknown): void => {
+        store.set({ notice: { message: failureWords("The layer", "changed", error), error: true } });
+    };
+    const rowOf = (key: string): LayerGroup | undefined => groups.find((g) => g.value === key);
+    const paints = new Map<Channel, Map<string, unknown>>();
+    for (const group of groups) {
+        for (const [painted, paint] of Object.entries(group.paints) as [Channel, unknown][]) {
+            paints.set(painted, (paints.get(painted) ?? new Map<string, unknown>()).set(group.value, paint));
+        }
+    }
+    const from: GroupSource = {
+        source: "Layer",
+        noun: "Layer",
+        groups,
+        names: new Map(groups.map((g) => [g.value, g.name])),
+        paints,
+        sorts: LAYER_SORTS,
+        clearTo: "the palette",
+        setEntry: (row, entry) => {
+            const { [row.key]: _cleared, ...rest } = binding.map ?? {};
+            const map = entry === undefined ? rest : { ...rest, [row.key]: entry };
+            onChange({ ...binding, map: Object.keys(map).length === 0 ? undefined : map });
+        },
+        setHidden: (row, hide) => {
+            const group = rowOf(row.key);
+            if (group !== undefined) {
+                Promise.resolve(session.styles.hideRow(group.row, hide)).catch(fail);
+            }
+        },
+        select: (keys) => {
+            void keys.reduce<Promise<unknown>>(
+                (done, layer, at) => done.then(() => session.selection.apply({ layer }, at === 0 ? "replace" : "add")),
+                Promise.resolve(),
+            );
+        },
+        rename: (row, label) => {
+            const group = rowOf(row.key);
+            if (group !== undefined && label !== "" && label !== row.name) {
+                Promise.resolve(session.styles.renameRow(group.row, label)).catch(fail);
+            }
+        },
+    };
+    return <GroupRows descriptor={descriptor} from={from} />;
+}
+
+/**
+ * A grid of the first 8 groups, then "N more", which opens the whole list -- virtualized, searched
+ * by names and raw values, sorted, with small groups folded into Other where the source folds. The
+ * selected element's group is pinned first. Each row has its field for this property, name, size,
+ * eye and menu; a click (or Enter) opens the group's detail where the source has one, Shift or
+ * Control picks several, and Enter on a picked row opens all of them.
+ * @param props - Component props
+ * @param props.descriptor - the property
+ * @param props.from - where the groups come from
+ * @param props.onDetailChange - told when a group's detail opens or closes
+ * @returns The list, or one group's detail
+ */
+function GroupRows({
+    descriptor,
+    from,
+    onDetailChange,
+}: Readonly<{
+    descriptor: ChannelDescriptor;
+    from: GroupSource;
+    onDetailChange?: (open: boolean) => void;
+}>): React.JSX.Element {
+    const [opened, setOpened] = useState<readonly string[] | null>(null);
+    const [all, setAll] = useState(false);
+    const [search, setSearch] = useState("");
+    const [sort, setSort] = useState<GroupSort>("given");
+    const [selected, setSelected] = useState<string[]>([]);
+    const [renaming, setRenaming] = useState<string | null>(null);
+    const listRef = useRef<HTMLDivElement>(null);
+    const [menuHost, setMenuHost] = useState<HTMLDivElement | null>(null);
+    const { channel, target } = descriptor;
+    const { source, groups, names, paints, detail } = from;
+
+    if (opened !== null && detail !== undefined) {
+        const keys = opened.filter((key) => groups.some((g) => String(g.value) === key));
+        if (keys.length > 0) {
+            return detail(keys, () => {
+                setOpened(null);
+                onDetailChange?.(false);
+                // Back on the list, focus returns to the row of the group just left (the
+                // first picked one), so the arrow keys carry on from there.
+                const back = keys[0];
+                requestAnimationFrame(() => {
+                    const list = listRef.current;
+                    const cell =
+                        list
+                            ?.querySelector(`[data-group-row="${CSS.escape(back ?? "")}"]`)
+                            ?.closest("[role=gridcell]") ?? list?.querySelector("[role=gridcell]");
+                    if (cell instanceof HTMLElement) {
+                        cell.focus();
+                    }
+                });
+            });
         }
     }
 
@@ -361,23 +549,26 @@ export function GroupList({
             key,
             group,
             name: names.get(key) ?? key,
-            ...(key === pinnedKey && has !== undefined ? { has } : {}),
+            ...(key === from.pinned?.key ? { has: from.pinned.has } : {}),
         };
     });
     if (all && needle !== "") {
         rows = rows.filter((row) => row.name.toLowerCase().includes(needle) || row.key.toLowerCase().includes(needle));
     }
-    if (all && sort !== "size") {
+    if (all && sort !== "given") {
         const collator = new Intl.Collator(undefined, { numeric: true });
-        rows = [...rows].sort((a, b) =>
-            sort === "name" ? collator.compare(a.name, b.name) : collator.compare(a.key, b.key),
-        );
+        const compare: Record<Exclude<GroupSort, "given">, (a: GroupRow, b: GroupRow) => number> = {
+            size: (a, b) => b.group.count - a.group.count,
+            name: (a, b) => collator.compare(a.name, b.name),
+            value: (a, b) => collator.compare(a.key, b.key),
+        };
+        rows = [...rows].sort(compare[sort]);
     }
     const pinned = rows.find((row) => row.has !== undefined);
     const rest = rows.filter((row) => row !== pinned);
     const shown = [...(pinned === undefined ? [] : [pinned]), ...(all ? rest : rest.slice(0, GROUPS_SHOWN))];
     const more = groups.length - (pinned === undefined ? 0 : 1) - Math.min(rest.length, GROUPS_SHOWN);
-    const fold = binding.other?.threshold;
+    const fold = from.fold?.below;
 
     const entryOf = (row: GroupRow): string | number | undefined => row.group.entries[channel];
     const open = (keys: readonly string[]): void => {
@@ -385,13 +576,6 @@ export function GroupList({
         onDetailChange?.(true);
     };
     const fieldWidth = FIELD_WIDTH[valueFieldKind(descriptor) ?? "text"] ?? 64;
-    const clear = (row: GroupRow): void => {
-        Promise.resolve(
-            session.styles.setValueEntries(layerId, path, [
-                { channel, value: row.group.value as Scalar, entry: undefined },
-            ]),
-        ).catch(fail);
-    };
     const columns: DataTableColumn<GroupRow>[] = [
         {
             id: "field",
@@ -423,11 +607,7 @@ export function GroupList({
                         value={entryOf(row)}
                         shown={paints.get(channel)?.get(row.key)}
                         onChange={(next) => {
-                            Promise.resolve(
-                                session.styles.setValueEntries(layerId, path, [
-                                    { channel, value: row.group.value as Scalar, entry: next },
-                                ]),
-                            ).catch(fail);
+                            from.setEntry(row, typeof next === "boolean" ? String(next) : next);
                         }}
                     />
                 </Box>
@@ -435,7 +615,7 @@ export function GroupList({
         },
         {
             id: "name",
-            header: "Group",
+            header: from.noun,
             value: (row) => row.name,
             width: GRID_WIDTH - fieldWidth - COUNT_WIDTH - ACTIONS_WIDTH,
             sortable: false,
@@ -461,7 +641,7 @@ export function GroupList({
                                 }
                             }}
                             onBlur={(event) => {
-                                rename(session, store, path, row, event.currentTarget.value.trim());
+                                from.rename(row, event.currentTarget.value.trim());
                                 setRenaming(null);
                             }}
                         />
@@ -523,9 +703,7 @@ export function GroupList({
                         icon={<GLYPHS.show size={14} />}
                         checkedIcon={<GLYPHS.hide size={14} />}
                         onChange={(hide) => {
-                            Promise.resolve(
-                                session.styles.setValueHidden(layerId, channel, row.group.value as Scalar, hide),
-                            ).catch(fail);
+                            from.setHidden(row, hide);
                         }}
                     />
                     {/* Drawn in the list's own box, not in the row, whose cell would clip it. */}
@@ -536,21 +714,25 @@ export function GroupList({
                             </ActionIcon>
                         </Menu.Target>
                         <Menu.Dropdown>
+                            {detail === undefined ? null : (
+                                <Menu.Item
+                                    onClick={() => {
+                                        open([row.key]);
+                                    }}
+                                >{`Set properties for ${row.name}`}</Menu.Item>
+                            )}
                             <Menu.Item
                                 onClick={() => {
-                                    open([row.key]);
-                                }}
-                            >{`Set properties for ${row.name}`}</Menu.Item>
-                            <Menu.Item
-                                onClick={() => {
-                                    selectGroups(session, target, path, [row.key]);
+                                    from.select([row.key]);
                                 }}
                             >{`Select these ${countOf(row.group.count, target)}`}</Menu.Item>
-                            <Menu.Item
-                                onClick={() => {
-                                    openNewLayer(session, store, layer, path, [row.key], `${source} ${row.name}`);
-                                }}
-                            >{`New layer for ${row.name}`}</Menu.Item>
+                            {from.newLayer === undefined ? null : (
+                                <Menu.Item
+                                    onClick={() => {
+                                        from.newLayer?.([row.key], `${source} ${row.name}`);
+                                    }}
+                                >{`New layer for ${row.name}`}</Menu.Item>
+                            )}
                             <Menu.Item
                                 rightSection={<MenuShortcut>F2</MenuShortcut>}
                                 onClick={() => {
@@ -562,9 +744,9 @@ export function GroupList({
                             {entryOf(row) === undefined ? null : (
                                 <Menu.Item
                                     onClick={() => {
-                                        clear(row);
+                                        from.setEntry(row, undefined);
                                     }}
-                                >{`Clear ${channelWord(channel).toLowerCase()}: back to the layer's`}</Menu.Item>
+                                >{`Clear ${channelWord(channel).toLowerCase()}: back to ${from.clearTo}`}</Menu.Item>
                             )}
                         </Menu.Dropdown>
                     </Menu>
@@ -591,63 +773,63 @@ export function GroupList({
                     <StyleSelect
                         label="Sort by"
                         value={sort}
-                        defaultValue="size"
+                        defaultValue="given"
                         showReset={false}
-                        options={SORT_WORDS.map((each) => ({ ...each }))}
+                        options={from.sorts.map((each) => ({ ...each }))}
                         onChange={(next) => {
-                            setSort(next === "name" || next === "value" ? next : "size");
+                            setSort(from.sorts.find((each) => each.value === next)?.value ?? "given");
                         }}
                     />
-                    <Group gap={6} wrap="nowrap" align="flex-end">
-                        <Box style={{ flex: 1 }}>
-                            <ToggleRow
-                                label="Fold small groups into Other"
-                                control="switch"
-                                checked={fold !== undefined}
-                                onChange={(on) => {
-                                    Promise.resolve(
-                                        session.styles.setFoldBelow(layerId, path, on ? FOLD_START : undefined),
-                                    ).catch(fail);
-                                }}
-                            />
-                        </Box>
-                        {fold === undefined ? null : (
-                            <Box w={72}>
-                                <StyleNumberInput
-                                    label="Under"
-                                    value={fold}
-                                    defaultValue={FOLD_START}
-                                    min={1}
-                                    step={1}
-                                    onChange={(below) => {
-                                        if (below !== undefined && Number.isInteger(below) && below >= 1) {
-                                            Promise.resolve(session.styles.setFoldBelow(layerId, path, below)).catch(
-                                                fail,
-                                            );
-                                        }
+                    {from.fold === undefined ? null : (
+                        <Group gap={6} wrap="nowrap" align="flex-end">
+                            <Box style={{ flex: 1 }}>
+                                <ToggleRow
+                                    label="Fold small groups into Other"
+                                    control="switch"
+                                    checked={fold !== undefined}
+                                    onChange={(on) => {
+                                        from.fold?.set(on ? FOLD_START : undefined);
                                     }}
                                 />
                             </Box>
-                        )}
-                    </Group>
+                            {fold === undefined ? null : (
+                                <Box w={72}>
+                                    <StyleNumberInput
+                                        label="Under"
+                                        value={fold}
+                                        defaultValue={FOLD_START}
+                                        min={1}
+                                        step={1}
+                                        onChange={(below) => {
+                                            if (below !== undefined && Number.isInteger(below) && below >= 1) {
+                                                from.fold?.set(below);
+                                            }
+                                        }}
+                                    />
+                                </Box>
+                            )}
+                        </Group>
+                    )}
                 </>
             ) : null}
             {selected.length > 1 ? (
                 <Group gap={6} wrap="nowrap">
-                    <Button
-                        size="compact-xs"
-                        variant="default"
-                        onClick={() => {
-                            open(selected);
-                        }}
-                    >
-                        {`Set properties for ${String(selected.length)} groups`}
-                    </Button>
+                    {detail === undefined ? null : (
+                        <Button
+                            size="compact-xs"
+                            variant="default"
+                            onClick={() => {
+                                open(selected);
+                            }}
+                        >
+                            {`Set properties for ${String(selected.length)} groups`}
+                        </Button>
+                    )}
                     <Button
                         size="compact-xs"
                         variant="subtle"
                         onClick={() => {
-                            selectGroups(session, target, path, selected);
+                            from.select(selected);
                         }}
                     >
                         Select these
@@ -687,6 +869,9 @@ export function GroupList({
                         setSelected(ids);
                     }}
                     onRowClick={(row, event, meta) => {
+                        if (detail === undefined) {
+                            return;
+                        }
                         if (meta.source === "keyboard") {
                             open(selected.length > 1 && selected.includes(row.key) ? selected : [row.key]);
                             return;
@@ -712,7 +897,7 @@ export function GroupList({
                         setAll(!all);
                     }}
                 >
-                    {all ? `Show the largest ${String(GROUPS_SHOWN)}` : `${String(more)} more`}
+                    {all ? `Show the first ${String(GROUPS_SHOWN)}` : `${String(more)} more`}
                 </Button>
             ) : null}
         </Stack>

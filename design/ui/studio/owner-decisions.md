@@ -4,6 +4,30 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-16 -- Decided by the team: a menu opened by a click starts on its first enabled row (compact-mantine)
+
+**What.** Every themed menu now opens with focus on its first enabled row, whether a key or the
+pointer opened it; a disabled first row is still skipped (`skipDisabledFirstRow` in
+`compact-mantine/src/components/overlays/overlayBehavior.ts`). This reverses the studio's
+2026-10-09 rule "pointer-opened menus focus the menu itself".
+
+**Why.** The owner hit it on the Style tab: on several layers, clicking "+" and pressing Enter did
+nothing until ArrowDown, because a clicked menu held focus on itself. A reader who clicks a menu
+and then reaches for the keyboard expects Enter to take the first thing on offer, as a key-opened
+menu already did; one rule for both is simpler to learn. The cost the 2026-10-09 rule avoided --
+a clicked menu showing its first row highlighted, as if chosen -- is accepted: the highlight is
+focus, and Enter acting on it is what the owner asked for.
+
+## 2026-10-16 -- Decided by the team: several layers as the groups of one binding (`styles.layerGroups`)
+
+Additive API in graphty-element (`./session`): `styles.layerGroups(ids, binding, { channel })`
+returns one `LayerGroup` per layer, top of the stack first. `LayerGroup` extends `ValueGroup`
+(value = the layer id, name = its row's name, count = elements matched, hidden = the layer or its
+row hidden, `entries` = the binding's `map` entry keyed by layer id) with `row` (the style row
+holding it) and `paints` (what `styles.sequence` paints it, and the overflow's second cue). It
+writes nothing. It lets a group editor built for a data value's groups list layers the same way:
+the graphty app's Vary by Layer now draws Louvain's group rows for a folder's layers.
+
 ## 2026-10-13 -- For the owner: the default label font names no fallback
 
 **What.** Not built; a question. graphty-element's default label font is the bare string

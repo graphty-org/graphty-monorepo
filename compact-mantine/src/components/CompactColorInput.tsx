@@ -268,7 +268,13 @@ function typedColor(typed: string): string | undefined {
     if (/^[0-9a-f]{3}$|^[0-9a-f]{6}$/i.test(digits)) {
         return normalizeHexa(digits)?.slice(0, HEXA_ALPHA_START).toUpperCase();
     }
-    if (text === "" || typeof CSS === "undefined" || !CSS.supports("color", text)) {
+    // A host without CSS.supports (a DOM emulation) reads names as no color rather than throwing.
+    if (
+        text === "" ||
+        typeof CSS === "undefined" ||
+        typeof CSS.supports !== "function" ||
+        !CSS.supports("color", text)
+    ) {
         return undefined;
     }
     // The browser spells a parsed opaque color as "#rrggbb" when a canvas reads it back.

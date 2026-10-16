@@ -84,7 +84,8 @@ export function LayerVary({
     const { channel } = descriptor;
     const [binding, setBinding] = useState<LayerBinding>(() => startingBinding(session, descriptor));
     const [open, setOpen] = useState(true);
-    const sequence: LayerSequence = (count) => layerValues(session, binding, channel, count) ?? [];
+    const ids = layers.map((layer) => layer.id);
+    const sequence: LayerSequence = (count) => layerValues(session, binding, channel, ids, count) ?? [];
     return (
         <Popout
             opened={open}
@@ -105,7 +106,7 @@ export function LayerVary({
                 <Popout.Content>
                     <LayerBindingPopover
                         descriptor={descriptor}
-                        layers={layers}
+                        layers={ids}
                         binding={binding}
                         onChange={setBinding}
                         onSource={(choice) => {

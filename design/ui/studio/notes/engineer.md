@@ -11,20 +11,20 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
-- (2026-10-16) **Vary by Layer is the binding popover, not a panel (owner feedback).** Picking
-  "Layer" in a field's vary list (heading "Vary by" for every property) on a folder or several
-  layers opens the same popover a value of the data opens -- Source line with Change source, the
-  palette, one row per layer (the property's own control as the row's chit, the layer's name and
-  count, Clear back to the palette), "More layers than colors", Range for a number -- titled
-  "<Property> by layer" (`LayerBindingPopover` in `BindingPopover.tsx`, opened by `LayerVary.tsx`).
-  The binding is held in the popover, item i being layer i: a row's own pick is its `map` entry
-  under "i", and graphty-element's `styles.sequence` (which honors `map`, `choices`, `overflow`,
-  `range`) works out every row; nothing is written until the popover closes, which writes each
-  layer its plain value through `writeEach` (one undo step, the receipt, Also set those). Shape by
-  Layer starts with `OVERFLOW_SHAPES` (now exported from `@graphty/graphty-element/session`) and
-  continues with the rest of the channel's list, as its `choices`. Not reused: the data popover's
-  group list (`GroupList`) -- it reads groups, labels and value entries from a written layer and a
-  data column, none of which a list of layers has.
+- (2026-10-16) **Vary by Layer uses Louvain's group list itself (owner feedback, second pass).**
+  Picking "Layer" in a field's vary list ("Vary by") on a folder or several layers opens the
+  binding popover titled "<Property> by layer": Source line with Change source, the palette, the
+  SAME group list a data value's groups draw (`GroupRows` in `Groups.tsx`: field chit, name, count,
+  eye, actions menu with Select these and Rename, the first 8 then "N more" with search and sort),
+  "More layers than colors", Range for a number. `GroupRows` takes a `GroupSource`: `GroupList`
+  builds one from a layer's data value (`styles.groups`; adds detail, New layer for, fold, pinned
+  group), `LayerGroupList` from the layers (graphty-element's new `styles.layerGroups`: one
+  `LayerGroup` per layer, top first, value = layer id, name = row name, count = matched, hidden = layer or row hidden, `paints` from `styles.sequence`, `entries`
+  from the binding's `map` keyed by layer id). A layer row's eye hides the row, Rename renames it,
+  Select these selects through `{ layer }`; its own value is held in the binding until the popover
+  closes, which writes each layer its plain value through `writeEach` (one undo step, receipt,
+  Also set those). Escape in a row's menu now closes only the menu: compact-mantine's Popout skips
+  an Escape something inside already used up (`useEscapeKey`).
 - (2026-10-16) **Every themed menu opens on its first enabled row, clicked or keyed** (owner
   decision; reverses the 2026-10-09 "pointer-opened menus focus the menu itself"). compact-mantine
   `overlayBehavior.ts` `skipDisabledFirstRow`; a disabled first row is still skipped.

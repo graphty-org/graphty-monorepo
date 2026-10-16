@@ -330,7 +330,7 @@ export const BulkVaryByData: Story = sceneStory(async () => {
     await within(fill).findByRole("group", { name: /, in each layer$/ });
 });
 
-/** Fill > Vary > Layer on Leiden's folder: the binding popover with Layer as its source, one row per layer in list order, before it closes and writes. */
+/** Fill > Vary > Layer on Leiden's folder: the binding popover with Layer as its source, Louvain's group rows with one row per layer in list order, before it closes and writes. */
 export const BulkVaryByLayer: Story = sceneStory(async () => {
     const tab = await openLeidenFolder();
     const fill = await fillRow(tab);
@@ -338,7 +338,7 @@ export const BulkVaryByLayer: Story = sceneStory(async () => {
     await userEvent.click(within(fill).getByRole("button", { name: "Node color by attribute" }));
     await userEvent.click(await page().findByRole("option", { name: /^Layer/ }));
     const popover = await page().findByRole("dialog", { name: "Color by layer" });
-    await within(popover).findByRole("list", { name: "Color of each layer" });
+    await within(popover).findByRole("grid", { name: "Layer groups" });
 });
 
 /** "+" > Layer: a real "Layer 1" on nodes and edges, its name ready to type, writing nothing yet. */

@@ -818,39 +818,64 @@ function plainOf(paint: unknown): ChannelValue | undefined {
     return hexOf(paint)?.toUpperCase();
 }
 
-/** What a binding across layers reads: a binding without a path, item i being layer i. */
+/** What a binding across layers reads: a binding without a path, its `map` keyed by layer id. */
 export type LayerBinding = Parameters<GraphSession["styles"]["sequence"]>[0];
 
 /** One layer's values: the property's, and the overflow's second cue's when it steps one. */
 export type LayerValues = Readonly<Partial<Record<ChannelDescriptor["channel"], ChannelValue>>>;
 
 /**
- * The values a binding across layers gives the first `count` layers, each a plain value, read from
- * graphty-element's `styles.sequence`: what the popover shows, and what closing it writes.
+ * A layer's paints as plain values, by channel.
+ * @param paints - what a binding paints it, by channel.
+ * @returns the plain values.
+ */
+function plainValues(paints: Readonly<Partial<Record<ChannelDescriptor["channel"], unknown>>>): LayerValues {
+    return Object.fromEntries(
+        Object.entries(paints).flatMap(([channel, paint]) => {
+            const value = plainOf(paint);
+            return value === undefined ? [] : [[channel, value]];
+        }),
+    );
+}
+
+/**
+ * The plain values a binding across layers gives each layer, read from graphty-element's
+ * `styles.layerGroups` (a layer's own map entry included): what closing the popover writes. Past
+ * the given layers ("Also set those" goes on after them), the sequence continues without the map.
  * @param session - the element's session
  * @param binding - the binding
  * @param channel - the property
- * @param count - how many layers
- * @returns one entry per layer, or null when the element refuses the binding
+ * @param layers - the layers, top first
+ * @param count - how many values, at least as many as the layers
+ * @returns one entry per item, or null when the element refuses the binding
  */
 export function layerValues(
     session: GraphSession,
     binding: LayerBinding,
     channel: ChannelDescriptor["channel"],
+    layers: readonly LayerId[],
     count: number,
 ): LayerValues[] | null {
-    let seq: ReturnType<GraphSession["styles"]["sequence"]>;
     try {
-        seq = session.styles.sequence(binding, { channel, count });
+        const paints = new Map(
+            session.styles.layerGroups(layers, binding, { channel }).map((g) => [g.value, g.paints]),
+        );
+        const first = layers.map((id) => plainValues(paints.get(id) ?? {}));
+        if (count <= first.length) {
+            return first.slice(0, count);
+        }
+        const { map: _map, ...rest } = binding;
+        const seq = session.styles.sequence(rest, { channel, count });
+        return [
+            ...first,
+            ...seq.values.slice(first.length).map((paint, at) =>
+                plainValues({
+                    [channel]: paint,
+                    ...(seq.cue === null ? {} : { [seq.cue.channel]: seq.cue.values[first.length + at] }),
+                }),
+            ),
+        ];
     } catch {
         return null;
     }
-    return seq.values.map((paint, at) => {
-        const value = plainOf(paint);
-        const cue = seq.cue === null ? undefined : plainOf(seq.cue.values[at]);
-        return {
-            ...(value === undefined ? {} : { [channel]: value }),
-            ...(cue === undefined || seq.cue === null ? {} : { [seq.cue.channel]: cue }),
-        };
-    });
 }

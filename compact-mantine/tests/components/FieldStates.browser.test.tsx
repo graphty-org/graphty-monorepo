@@ -119,10 +119,13 @@ describe("field states", () => {
         expect(new Set(inks).size).toBe(1);
         expect(inks[0]).toContain("italic");
         expect(inks[0]).toContain("none");
-        // No swatch: Mixed has no one color in force, so the field draws the word alone.
+        // No color swatch: Mixed has no one color in force, so its chit is a dash, marked mixed,
+        // which cannot be taken for a color and still opens the picker.
         const field = screen.getByTestId("compact-color-input-field");
         expect(field.querySelector(".mantine-ColorSwatch-root")).toBeNull();
-        expect(screen.queryByTestId("compact-color-input-swatch")).toBeNull();
+        const chit = screen.getByTestId("compact-color-input-swatch");
+        expect(chit).toHaveAttribute("data-mixed", "true");
+        expect(chit.querySelector("[data-glyph=dash]")).not.toBeNull();
 
         await expect.element(page.getByRole("textbox", { name: "Node color, Mixed" })).toBeInTheDocument();
         // An empty number field is a text box, not a spinbutton read as 0.

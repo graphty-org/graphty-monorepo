@@ -1,9 +1,10 @@
 /**
  * Vary by Layer on several layers, on the REAL graphty-element with real clicks and keys: with a
  * folder or several layers selected, a property's Vary list ("Vary by") offers "Layer", which opens
- * the same binding popover a value of the data opens -- a palette, one row per layer with the
- * property's own control, what happens past the palette, a size range -- with each layer one group
- * in list order; closing it writes each layer its own plain value in one undo step.
+ * the same binding popover a value of the data opens -- a palette, the very group list Louvain's
+ * groups draw (graphty-element's `styles.layerGroups`, each layer one group, top first), what
+ * happens past the palette, a size range; closing it writes each layer its own plain value in one
+ * undo step.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -118,8 +119,47 @@ async function varyByLayer(row: HTMLElement): Promise<HTMLElement> {
     await screen.findByRole("dialog", { name: "Vary by" });
     await userEvent.click(await screen.findByRole("option", { name: /^Layer/ }));
     const popover = await screen.findByRole("dialog", { name: / by layer$/ });
-    await within(popover).findByText("Layer");
+    await within(popover).findByText("Layer", { selector: "strong" });
     return popover;
+}
+
+/**
+ * The data rows of a popover's group grid.
+ * @param popover - The popover.
+ * @returns The rows, top first.
+ */
+function gridRows(popover: HTMLElement): HTMLElement[] {
+    const grid = within(popover).getByRole("grid", { name: /groups$/ });
+    return within(grid)
+        .getAllByRole("row")
+        .filter((row) => row.querySelector("[role=gridcell]") !== null);
+}
+
+/**
+ * How a group list is built, row by row: the grid's column count, each first-row cell's controls
+ * by role, the name cell, the eye and the actions menu, and the menu's items with each group's name
+ * taken out. Two lists drawn by the same component give the same shape.
+ * @param popover - The popover.
+ * @returns The shape, and the menu's items.
+ */
+async function rowShape(popover: HTMLElement): Promise<{ shape: unknown; items: string[] }> {
+    const grid = within(popover).getByRole("grid", { name: /groups$/ });
+    const [first] = gridRows(popover);
+    const cells = within(first).getAllByRole("gridcell");
+    const name = first.querySelector("[data-group-name]")?.textContent?.split(",")[0] ?? "";
+    const shape = {
+        columns: within(grid).getAllByRole("columnheader").length,
+        cells: cells.map((cell) => [...cell.querySelectorAll("button, input")].map((c) => c.tagName).join(" ")),
+        named: first.querySelector("[data-group-name]") !== null,
+        eye: within(first).getAllByRole("button", { name: /^Hide / }).length,
+    };
+    const actions = within(first).getByRole("button", { name: / actions$/ });
+    await userEvent.click(actions);
+    const items = (await screen.findAllByRole("menuitem")).map((item) =>
+        (item.textContent ?? "").replace(name, "<group>").replace(/\d+ nodes?/, "<n> nodes"),
+    );
+    await userEvent.click(actions);
+    return { shape, items };
 }
 
 /**
@@ -156,7 +196,7 @@ describe("vary by layer", () => {
 
         const fill = await line("node.color");
         const panel = await varyByLayer(fill);
-        assert.lengthOf(within(panel).getAllByRole("listitem"), groups.length, "one line per layer");
+        assert.lengthOf(gridRows(panel), Math.min(groups.length, 8), "one row per layer, the first 8 shown");
         await waitFor(() => {
             assert.isTrue(panel.contains(document.activeElement), "focus goes into the panel");
         });
@@ -181,6 +221,52 @@ describe("vary by layer", () => {
         await userEvent.keyboard("{Control>}z{/Control}");
         await waitFor(() => {
             assert.deepEqual(written(session, groups, "node.color"), before, "one undo restores every layer");
+        });
+    });
+
+    it("lists Louvain's groups and the layers of a folder with the same group rows", async () => {
+        const session = await openSample();
+        // Louvain's flow: its layer's Fill varies by the community; the pill opens the popover.
+        const run = session.runs.start("louvain", {}, { seed: 1 });
+        await run;
+        await session.styles.settled();
+        const runId = run.id;
+        const louvain = session.styles
+            .list()
+            .find((l) => session.runs.bindings(runId).includes(l.id) && l.encode?.["node.color"] !== undefined);
+        assert.isDefined(louvain);
+        const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
+        const name = session.styles.tree().find((row) => row.id === (louvain?.row ?? louvain?.id))?.name ?? "";
+        await userEvent.click(within(tree).getByRole("treeitem", { name: (n) => n.startsWith(`${name}, `) }));
+        const tab = await screen.findByTestId("style-tab");
+        await userEvent.click(await within(tab).findByRole("button", { name: /^Node color: / }));
+        const byGroup = await screen.findByRole("group", { name: "Color binding" });
+        const fromData = await rowShape(byGroup);
+        await userEvent.keyboard("{Escape}");
+
+        // Layer's flow: a hand-made folder's Fill varies by Layer.
+        await handMade(session, "Story", "node", { "node.color": "#cccccc" });
+        await clickRow("Story");
+        const byLayer = await varyByLayer(await line("node.color"));
+        const fromLayers = await rowShape(byLayer);
+
+        assert.deepEqual(fromLayers.shape, fromData.shape, "the same row component: cells, name, eye and menu");
+        for (const item of ["Select these <n> nodes", "Rename"]) {
+            assert.include(fromData.items.join("|"), item.replace("<n> nodes", ""));
+            assert.include(fromLayers.items.join("|"), item.replace("<n> nodes", ""));
+        }
+        assert.isTrue(fromData.items.some((item) => item.startsWith("New layer for")));
+        assert.isFalse(
+            fromLayers.items.some((item) => item.startsWith("New layer for")),
+            "a layer is a layer already",
+        );
+
+        // The eye hides the layer itself, as the layer list's does.
+        const top = session.styles.tree().find((row) => row.name === "Story")?.children[0];
+        await userEvent.click(within(byLayer).getByRole("button", { name: `Hide Layer ${top?.name ?? ""}` }));
+        await waitFor(() => {
+            const row = session.styles.tree().find((r) => r.name === "Story")?.children[0];
+            assert.isTrue(row?.hidden, "the top layer of the folder is hidden");
         });
     });
 
@@ -225,10 +311,20 @@ describe("vary by layer", () => {
         await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Shape" }));
         const panel = await varyByLayer(await line("node.shape"));
+        const before = written(session, layers, "node.shape");
         // One row's own value, picked in its row as a group's is.
-        await userEvent.click(within(panel).getByLabelText("Shape of Story Second"));
+        await userEvent.click(within(panel).getByLabelText("Layer Story Second shape"));
         await userEvent.click(await screen.findByRole("option", { name: /cylinder/i }));
-        await within(panel).findByRole("button", { name: "Back to the palette: Story Second" });
+        assert.isTrue(panel.isConnected, "picking a row's value keeps the popover open");
+        await userEvent.click(within(panel).getByRole("button", { name: "Layer Story Second actions" }));
+        await screen.findByRole("menuitem", { name: "Clear shape: back to the palette" });
+        // Escape closes the row's menu only, never the popover around it.
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("menuitem", { name: "Clear shape: back to the palette" }));
+        });
+        assert.isTrue(panel.isConnected, "the popover stays open");
+        assert.deepEqual(written(session, layers, "node.shape"), before, "nothing written while it is open");
         await close(panel);
 
         await waitFor(() => {
@@ -287,7 +383,7 @@ describe("vary by layer", () => {
         await userEvent.click(within(panel).getByLabelText("Paints to"));
         await userEvent.keyboard("{Control>}a{/Control}3{Enter}");
         await waitFor(() => {
-            const third = within(panel).getByLabelText("Size of Sizes First");
+            const third = within(panel).getByLabelText("Layer Sizes First size");
             assert.strictEqual((third as HTMLInputElement).value, "3", "the preview follows the range");
         });
         await close(panel);

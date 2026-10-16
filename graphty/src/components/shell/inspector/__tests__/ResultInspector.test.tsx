@@ -1,8 +1,9 @@
 import { PopoutManager } from "@graphty/compact-mantine";
 import React from "react";
 import { describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
-import { fireEvent, render, screen, within } from "../../../../test/test-utils";
+import { render, screen, within } from "../../../../test/test-utils";
 import { ShellProvider } from "../../ShellContext";
 import { ResultInspector, type ResultInspectorProps } from "../ResultInspector";
 
@@ -101,7 +102,7 @@ describe("ResultInspector", () => {
             expect(screen.getAllByText(/^#\d+$/)).toHaveLength(1);
         });
 
-        it("makes a row with onSelect a real control, and leaves one without it inert", () => {
+        it("makes a row with onSelect a real control, and leaves one without it inert", async () => {
             const onSelect = vi.fn();
 
             renderResult({
@@ -114,7 +115,7 @@ describe("ResultInspector", () => {
             const row = screen.getByRole("button", { name: /Chonky_Boy/ });
 
             expect(row).toBeInTheDocument();
-            row.click();
+            await userEvent.click(row);
             expect(onSelect).toHaveBeenCalledTimes(1);
 
             // RT-6: a row that selects nothing is text, and takes no focus.
@@ -222,13 +223,13 @@ describe("ResultInspector", () => {
             onFilterAbove: vi.fn(),
         });
 
-        it("selects the top N, and selects or filters above the threshold the field opened at", () => {
+        it("selects the top N, and selects or filters above the threshold the field opened at", async () => {
             const given = members();
             renderResult({ distribution: DISTRIBUTION, members: given });
 
-            fireEvent.click(screen.getByRole("button", { name: "Select top 10" }));
-            fireEvent.click(screen.getByRole("button", { name: "Select above threshold" }));
-            fireEvent.click(screen.getByRole("button", { name: "Filter above threshold" }));
+            await userEvent.click(screen.getByRole("button", { name: "Select top 10" }));
+            await userEvent.click(screen.getByRole("button", { name: "Select above threshold" }));
+            await userEvent.click(screen.getByRole("button", { name: "Filter above threshold" }));
 
             expect(given.onSelectTop).toHaveBeenCalledWith(10);
             expect(given.onSelectAbove).toHaveBeenCalledWith(3);
@@ -250,22 +251,22 @@ describe("ResultInspector", () => {
             expect(screen.queryByTestId("result-histogram-brush")).toBeNull();
         });
 
-        it("brushes the bars and selects what the brushed bars counted when let go", () => {
+        it("brushes the bars and selects what the brushed bars counted when let go", async () => {
             const onSelectBins = vi.fn();
             renderResult({ distribution: DISTRIBUTION, onSelectBins });
 
             const [from] = screen.getAllByRole("slider");
             from.focus();
-            fireEvent.keyDown(from, { key: "ArrowRight" });
+            await userEvent.keyboard("{ArrowRight}");
 
             expect(onSelectBins).toHaveBeenCalledWith(1, 2);
         });
 
-        it("exports a grouping result's groups", () => {
+        it("exports a grouping result's groups", async () => {
             const onExportGroups = vi.fn();
             renderResult({ onExportGroups });
 
-            fireEvent.click(screen.getByRole("button", { name: /Export groups/ }));
+            await userEvent.click(screen.getByRole("button", { name: /Export groups/ }));
 
             expect(onExportGroups).toHaveBeenCalledOnce();
         });

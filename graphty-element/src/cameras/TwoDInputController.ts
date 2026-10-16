@@ -2,6 +2,7 @@
 import { type Observer, PointerEventTypes, type PointerInfo, type PointerInfoPre } from "@babylonjs/core";
 import Hammer from "hammerjs";
 
+import { firstSight } from "../input/first-sight";
 import { TwoDCameraController, TwoDCameraControlsConfigType } from "./TwoDCameraController";
 
 interface GestureSession {
@@ -107,9 +108,10 @@ export class InputController {
             }
         });
 
+        const newWheel = firstSight();
         this.prePointerObserverHandle = this.cam.scene.onPrePointerObservable.add((pi) => {
             const e = pi.event as WheelEvent;
-            if (pi.type === PointerEventTypes.POINTERWHEEL) {
+            if (pi.type === PointerEventTypes.POINTERWHEEL && newWheel(e)) {
                 const delta = e.deltaY > 0 ? this.config.mouseWheelZoomSpeed : 1 / this.config.mouseWheelZoomSpeed;
                 this.cam.zoom(delta);
                 e.preventDefault();

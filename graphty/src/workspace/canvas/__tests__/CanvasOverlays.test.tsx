@@ -35,10 +35,12 @@ function standIn(facts: StandInFacts = {}): {
     progress: (change: ProgressChange) => void;
     encode: ReturnType<typeof vi.fn>;
     highlight: ReturnType<typeof vi.fn>;
+    mark: ReturnType<typeof vi.fn>;
 } {
     const listeners = new Map<string, Set<(payload: unknown) => void>>();
     const encode = vi.fn();
     const highlight = vi.fn();
+    const mark = vi.fn();
     const session = {
         on: (event: string, listener: (payload: unknown) => void) => {
             const set = listeners.get(event) ?? new Set();
@@ -51,6 +53,7 @@ function standIn(facts: StandInFacts = {}): {
             get: (id: string) => (facts.layers?.[id] === undefined ? undefined : { id, name: facts.layers[id] }),
             encode,
             highlight,
+            mark,
         },
         runs: {
             // No catalog entry, so the app names the run by its algorithm: the fact's name.
@@ -79,6 +82,7 @@ function standIn(facts: StandInFacts = {}): {
         },
         encode,
         highlight,
+        mark,
     };
 }
 
@@ -261,7 +265,7 @@ describe("the legend card", () => {
 });
 
 describe("the notice a held-back run gives", () => {
-    const suppressed = (as: "encoding" | "highlight"): RunPainting =>
+    const suppressed = (as: "encoding" | "highlight" | "mark"): RunPainting =>
         ({
             state: "decided",
             suggestions: [{ outcome: "suppressed", suggestion: { as, spec: { name: "x" } }, byLayerId: "mine" }],
@@ -280,6 +284,13 @@ describe("the notice a held-back run gives", () => {
         runNotice(session, "run-1")?.action?.run();
         assert.equal(highlight.mock.calls.length, 1);
         assert.equal(encode.mock.calls.length, 0);
+    });
+
+    it("hands an algorithm's mark back as a mark, never as a highlight", () => {
+        const { session, highlight, mark } = standIn({ painting: suppressed("mark"), layers: { mine: "Mine" } });
+        runNotice(session, "run-1")?.action?.run();
+        assert.equal(mark.mock.calls.length, 1);
+        assert.equal(highlight.mock.calls.length, 0);
     });
 
     it("still says what happened when the layer is gone", () => {

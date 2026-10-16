@@ -1,8 +1,9 @@
 import { PopoutManager } from "@graphty/compact-mantine";
 import React from "react";
 import { describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
-import { fireEvent, render, screen, waitFor } from "../../../../test/test-utils";
+import { render, screen, waitFor } from "../../../../test/test-utils";
 import { INSPECTOR_WIDTH_DEFAULT, PANEL_HEADER_HEIGHT } from "../../constants";
 import { ShellProvider } from "../../ShellContext";
 import type { SelectionKind } from "../../types";
@@ -155,7 +156,7 @@ describe("Inspector", () => {
                 </Harness>,
             );
 
-            fireEvent.click(screen.getByRole("button", { name: "Pin as A" }));
+            await userEvent.click(screen.getByRole("button", { name: "Pin as A" }));
 
             expect(await screen.findByTestId("inspector-pinned-card")).toBeInTheDocument();
 
@@ -179,11 +180,11 @@ describe("Inspector", () => {
                 </Harness>,
             );
 
-            fireEvent.click(screen.getByRole("button", { name: "Pin as A" }));
+            await userEvent.click(screen.getByRole("button", { name: "Pin as A" }));
             const card = await screen.findByTestId("inspector-pinned-card");
             expect(card).toBeInTheDocument();
 
-            fireEvent.click(screen.getByRole("button", { name: "Unpin" }));
+            await userEvent.click(screen.getByRole("button", { name: "Unpin" }));
 
             await waitFor(() => {
                 expect(screen.queryByTestId("inspector-pinned-card")).not.toBeInTheDocument();
@@ -199,7 +200,7 @@ describe("Inspector", () => {
                 </Harness>,
             );
 
-            fireEvent.click(screen.getByRole("button", { name: "Pin as A" }));
+            await userEvent.click(screen.getByRole("button", { name: "Pin as A" }));
             expect(await screen.findByTestId("inspector-pinned-card")).toBeInTheDocument();
 
             rerender(

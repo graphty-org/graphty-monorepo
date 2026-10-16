@@ -1,6 +1,6 @@
-import userEvent from "@testing-library/user-event";
 import axe from "axe-core";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
+import { page, userEvent } from "vitest/browser";
 
 import { CAT_SOCIAL_NETWORK } from "../../../data/sampleGraphs";
 import { createFakeSession } from "../../../test/fakeSession";
@@ -182,6 +182,12 @@ async function openShortcuts(): Promise<void> {
 function railButton(name: string): HTMLElement {
     return within(screen.getByRole("navigation", { name: "Activity rail" })).getByRole("button", { name });
 }
+
+// The shell's design frame. At the runner's default 414 px frame the 1440 px shell overflows and its
+// controls overlap, so a real click lands on whatever is drawn on top.
+beforeAll(async () => {
+    await page.viewport(1440, 900);
+});
 
 describe("AppShell accessibility", () => {
     describe("axe finds no serious or critical violation", () => {

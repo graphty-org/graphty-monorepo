@@ -111,7 +111,7 @@ describe("the load-time algorithm list", () => {
         assert.isDefined(node);
         const action = node.mesh.actionManager?.actions.find((a) => a.trigger === ActionManager.OnDoublePickTrigger);
         assert.isDefined(action, "double-clicking a node does something");
-        (action as unknown as { execute: () => void }).execute();
+        (action as unknown as { execute: (event: unknown) => void }).execute({ source: node.mesh });
         await settle(made);
 
         assert.isDefined(made.getDataManager().getNode("x1"), "the expansion added the fetched node");

@@ -11,6 +11,7 @@ export default {
         "Graphty.render",
         "LayoutManager.updateStyles",
         "StylesApi.highlight",
+        "StylesApi.mark",
         "UpdateManager.bindViewMasks",
         "UpdateManager.forceEdgeWalk",
         "UpdateManager.invalidateViewMasks",

@@ -146,7 +146,7 @@ function CancelControl({
             }}
             style={{
                 ...BARE_BUTTON,
-                color: disabled ? PANEL_INK.DISABLED : PANEL_INK.ACCENT,
+                color: disabled ? PANEL_INK.DISABLED : PANEL_INK.BRAND_TEXT,
                 cursor: disabled ? "default" : "pointer",
             }}
             title={title}
@@ -217,7 +217,7 @@ export function StatusBarXrSlot({ xr }: Readonly<{ xr: StatusBarXr }>): React.JS
     return (
         <span style={SLOT_STYLE}>
             <StatusBarChip>{xr.mode}</StatusBarChip>
-            <button onClick={xr.onExit} style={{ ...BARE_BUTTON, color: PANEL_INK.ACCENT }} type="button">
+            <button onClick={xr.onExit} style={{ ...BARE_BUTTON, color: PANEL_INK.BRAND_TEXT }} type="button">
                 {XR_EXIT_LABEL}
             </button>
         </span>

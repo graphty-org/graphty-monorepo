@@ -3294,7 +3294,7 @@ export class Graphty extends LitElement {
      * @since 1.5.0
      * @example
      * ```typescript
-     * await element.setLayout('circular', { radius: 5 });
+     * await element.setLayout('circular', { scale: 2 });
      * await element.setLayout('force'); // the catalogue id; runs the "ngraph" engine
      * await element.setLayout('ngraph', { springLength: 100 });
      * ```

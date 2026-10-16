@@ -1,5 +1,5 @@
-import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { render, screen, TOOLTIP_FIND_OPTIONS, untilPasses } from "../../../../test/test-utils";
 import { ACTIVITIES_REQUIRING_DATA } from "../../constants";
@@ -200,7 +200,8 @@ describe("ActivityRail", () => {
                 />,
             );
 
-            await user.click(item("Explore. Load data first"));
+            // force: a reader can still press a disabled activity, and it must do nothing
+            await user.click(item("Explore. Load data first"), { force: true });
 
             expect(onActivityClick).not.toHaveBeenCalled();
         });

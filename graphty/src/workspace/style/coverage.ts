@@ -277,11 +277,11 @@ export const PER_VALUE_CONTROLS: Readonly<Record<string, { readonly file: string
  */
 export const COLOR_BRANCHES: Readonly<Record<string, { readonly count: number; readonly reason: string }>> = {
     "workspace/style/BindingPopover.tsx": {
-        count: 19,
+        count: 14,
         reason: "A palette, a ramp's colors, 'Use the values as colors', 'One color per value' on a number and 'More values (or layers) than colors' are color by nature: a number ramps through Range, a shape or pattern steps through the channel's own list (graphty-element's binding choices), and every per-group, per-layer and No value field is a ValueField for every kind",
     },
     "workspace/style/PropertyRow.tsx": {
-        count: 7,
+        count: 4,
         reason: "The color field beside the number, choice and words fields; 'one color' against 'one value' in Stop varying's words; a bound color's swatch strip, where other kinds show their source and range, and a pill without a swatch shows its source rather than the property's name",
     },
     "workspace/style/BulkBinding.tsx": {

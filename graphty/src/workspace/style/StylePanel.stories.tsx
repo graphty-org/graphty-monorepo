@@ -325,7 +325,7 @@ export const BulkVaryByData: Story = sceneStory(async () => {
     const fill = await fillRow(tab);
     await userEvent.hover(fill);
     await userEvent.click(within(fill).getByRole("button", { name: "Node color by attribute" }));
-    const options = await page().findAllByRole("option", { name: /group|community|leiden/i });
+    const options = await page().findAllByRole("option", { name: /^Leiden/ });
     await userEvent.click(options[0]);
     const popover = await page().findByRole("dialog", { name: /^Color by / });
     await within(popover).findByRole("grid", { name: / groups$/ });

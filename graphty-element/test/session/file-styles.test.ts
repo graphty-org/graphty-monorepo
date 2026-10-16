@@ -196,6 +196,36 @@ describe("a file's styles drawn by the load", () => {
         session.dispose();
     });
 
+    it("draws a rounded rectangle and a parallelogram as the flat shapes of those names, with no nearest note", async () => {
+        const doc = JSON.stringify({
+            elements: [{ data: { id: "a" } }, { data: { id: "b" } }, { data: { id: "c" } }],
+            style: [
+                { selector: "#a", style: { shape: "round-rectangle" } },
+                { selector: "#b", style: { shape: "rhomboid" } },
+                { selector: "#c", style: { shape: "rectangle" } },
+            ],
+        });
+        const session = createGraphSession();
+        // Without Cytoscape's default ellipse beneath, which is itself drawn as the nearest solid.
+        await session.data.import(
+            { type: "json", config: { data: doc } },
+            { styles: "file", styleOptions: { toolDefaults: false } },
+        );
+
+        assert.strictEqual(drawn(session, { node: "a" }, "node.shape"), "round-rectangle");
+        assert.strictEqual(drawn(session, { node: "b" }, "node.shape"), "parallelogram");
+        assert.strictEqual(drawn(session, { node: "c" }, "node.shape"), "box");
+        const nearest = (session.data.lastImport()?.styles?.notes ?? []).filter(
+            (note) => note.code === FILE_STYLE_ISSUE.DRAWN_NEAREST && note.params.property === "shape",
+        );
+        // Only the rectangle is drawn as the nearest solid.
+        assert.deepEqual(
+            nearest.map((note) => note.params.count),
+            [1],
+        );
+        session.dispose();
+    });
+
     it("follows the graph with a Cytoscape.js [[degree > 2]] rule: an added edge repaints the node", async () => {
         const doc = JSON.stringify({
             elements: [
@@ -419,6 +449,35 @@ describe("a file's groups (compound nodes)", () => {
         assert.isUndefined(zIndex(plain, "n2"));
         styled.dispose();
         plain.dispose();
+    });
+});
+
+describe("a file's drawing order", () => {
+    const order = (session: GraphSession, id: string): unknown => drawn(session, { node: id }, "node.drawOrder");
+    const doc = JSON.stringify({
+        elements: ["first", "second", "third"].map((id) => ({ data: { id } })),
+        style: [{ selector: "node", style: { "background-color": "#ff0000" } }],
+    });
+
+    it("draws a node later in the file on top of one before it", async () => {
+        const session = createGraphSession();
+        await session.data.import({ type: "json", config: { data: doc } }, { styles: "file" });
+
+        assert.strictEqual(order(session, "first"), 0);
+        assert.strictEqual(order(session, "second"), 50);
+        assert.strictEqual(order(session, "third"), 100);
+        assert.strictEqual(fileStyleOf(winner(session, "third", "node.drawOrder") as Layer)?.ruleId, "node.drawOrder");
+        session.dispose();
+    });
+
+    it("orders nothing when the file's styles are not drawn", async () => {
+        const session = createGraphSession();
+        await session.data.import({ type: "json", config: { data: doc } });
+
+        for (const id of ["first", "second", "third"]) {
+            assert.isUndefined(order(session, id), id);
+        }
+        session.dispose();
     });
 });
 

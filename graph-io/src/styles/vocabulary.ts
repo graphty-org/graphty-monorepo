@@ -70,6 +70,7 @@ export const STYLE_PROPERTIES: {
         ["sourceArrow", "arrow"],
         ["targetArrow", "arrow"],
         ["curved", "boolean"],
+        ["bends", "text"],
         ["label", "text"],
         ["tooltip", "text"],
         ["labelFont", "text"],

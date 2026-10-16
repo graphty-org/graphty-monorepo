@@ -23,7 +23,7 @@ import { DuplicatePolicy } from '@graphty/graph-format';
 import { EdgeMask } from '@graphty/graph-format';
 import { Engine } from '@babylonjs/core';
 import { EngineInstrumentation } from '@babylonjs/core';
-import type { ExtractedStyles } from '@graphty/graph-io/styles';
+import { ExtractedStyles } from '@graphty/graph-io/styles';
 import { F32 } from '@graphty/graph-format';
 import { FreezeReport } from '@graphty/graph-format';
 import { GEXF_LOSS } from '@graphty/graph-io';
@@ -1220,6 +1220,7 @@ export const EdgeStyle: z.ZodObject<{
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
         opacity: z.ZodOptional<z.ZodNumber>;
         bezier: z.ZodOptional<z.ZodBoolean>;
+        bends: z.ZodOptional<z.ZodString>;
     }, z.core.$strict>>;
     label: z.ZodOptional<z.ZodPrefault<z.ZodObject<{
         enabled: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
@@ -3451,6 +3452,7 @@ export const NodeStyle: z.ZodObject<{
         depth: z.ZodOptional<z.ZodNumber>;
         planar: z.ZodOptional<z.ZodBoolean>;
         zIndex: z.ZodOptional<z.ZodNumber>;
+        drawOrder: z.ZodOptional<z.ZodNumber>;
     }, z.core.$strict>>;
     texture: z.ZodOptional<z.ZodObject<{
         color: z.ZodOptional<z.ZodUnion<[z.ZodDiscriminatedUnion<[z.ZodObject<{

@@ -129,7 +129,7 @@ What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-
 | [`graphAttributes`](./index.md#graphattributes) | no                        |
 | [`positions`](./index.md#positions)             | yes                       |
 | [`viz`](./index.md#viz)                         | no                        |
-| [`styles`](./index.md#styles)                   | 16 properties, rules kept |
+| [`styles`](./index.md#styles)                   | 17 properties, rules kept |
 
 <!-- generated:end -->
 
@@ -151,11 +151,11 @@ Pajek skips. See [Styles](../styles.md).
 |                                     |                                                                                                                                                                                                                                                                                                                                                      |
 | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Reads styles                        | yes, with `styles: true`                                                                                                                                                                                                                                                                                                                             |
-| Node properties written             | `fill`, `fillOpacity`, `opacity`, `borderColor`, `borderWidth`, `shape`, `width`, `height`, `labelColor`, `labelSize`                                                                                                                                                                                                                                |
+| Node properties written             | `label`, `fill`, `fillOpacity`, `opacity`, `borderColor`, `borderWidth`, `shape`, `width`, `height`, `labelColor`, `labelSize`                                                                                                                                                                                                                       |
 | Edge properties written             | `color`, `opacity`, `width`, `lineStyle`, `sourceArrow`, `targetArrow`                                                                                                                                                                                                                                                                               |
 | Graph properties written            | none                                                                                                                                                                                                                                                                                                                                                 |
 | Rules kept for graphty              | yes, in the file's own `graphty.styles` block                                                                                                                                                                                                                                                                                                        |
-| Not written (`W_STYLE_NOT_WRITTEN`) | node: `borderStyle`, `label`, `tooltip`, `labelFont`, `labelWeight`, `labelItalic`, `labelPosition`, `image`, `visible`; edge: `sourceArrowColor`, `targetArrowColor`, `labelColor`, `labelSize`, `arrowSize`, `curved`, `label`, `tooltip`, `labelFont`, `labelWeight`, `labelItalic`, `sourceLabel`, `targetLabel`, `visible`; graph: `background` |
+| Not written (`W_STYLE_NOT_WRITTEN`) | node: `borderStyle`, `tooltip`, `labelFont`, `labelWeight`, `labelItalic`, `labelPosition`, `image`, `visible`; edge: `sourceArrowColor`, `targetArrowColor`, `labelColor`, `labelSize`, `arrowSize`, `curved`, `bends`, `label`, `tooltip`, `labelFont`, `labelWeight`, `labelItalic`, `sourceLabel`, `targetLabel`, `visible`; graph: `background` |
 
 <!-- generated:end -->
 

@@ -23,7 +23,7 @@ import { EdgeMask } from '@graphty/graph-format';
 import { Engine } from '@babylonjs/core';
 import { EngineInstrumentation } from '@babylonjs/core';
 import { ExportCapabilities } from '@graphty/graph-io';
-import type { ExtractedStyles } from '@graphty/graph-io/styles';
+import { ExtractedStyles } from '@graphty/graph-io/styles';
 import { F32 } from '@graphty/graph-format';
 import { FreezeReport } from '@graphty/graph-format';
 import { GEXF_LOSS } from '@graphty/graph-io';

@@ -13,6 +13,7 @@ import { bootstrapEdgePaint, type EdgePaint } from "./managers/StylePainter";
 import type { ArrowCap } from "./meshes/ArrowCapBatch";
 import type { EdgeLineBatch } from "./meshes/EdgeLineBatch";
 import { EdgeMesh } from "./meshes/EdgeMesh";
+import { bendPoints, parseBends, roundCorners, surfaceReach } from "./meshes/edgeRoute";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { type AttachPosition, RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
 import { Node, NodeIdType } from "./Node";
@@ -259,6 +260,15 @@ export class Edge {
     private lineIsCurve = false;
 
     /**
+     * The bends this edge's line passes through (`line.bends`, flat along/across pairs), or null
+     * for a line straight from node to node. A bent line is a run of slots like a curve.
+     */
+    private lineBends: number[] | null = null;
+
+    /** The `line.bends` text {@link Edge.lineBends} was read from. See {@link syncContent}. */
+    private drawnBends?: string;
+
+    /**
      * The source mesh this edge is currently drawn from.
      *
      * The interner's key with the colour put back in, because the edge renderer has no
@@ -420,7 +430,8 @@ export class Edge {
     }
 
     /**
-     * The points this edge's curve is drawn through, or null when its line is not a curve.
+     * The points this edge's curve -- or its line through its bends -- is drawn through, or null
+     * when its line is one straight segment.
      *
      * A curve is a run of slots in a shared batch and has no mesh of its own whose vertices say
      * how far it bows, so the points are read back out of the slots: where each segment starts,
@@ -673,19 +684,19 @@ export class Edge {
             return;
         }
 
-        const { srcPoint, dstPoint } = this.transformArrowCap();
-        const finalSrcPoint = srcPoint ?? new Vector3(lnk.src.x, lnk.src.y, lnk.src.z);
-        const finalDstPoint = dstPoint ?? new Vector3(lnk.dst.x, lnk.dst.y, lnk.dst.z);
-
-        this.transformEdgeMesh(finalSrcPoint, finalDstPoint);
+        const src = new Vector3(lnk.src.x, lnk.src.y, lnk.src.z ?? 0);
+        const dst = new Vector3(lnk.dst.x, lnk.dst.y, lnk.dst.z ?? 0);
+        const bent = this.lineBends !== null && this.lineBatch !== null && this.drawnStyle?.line?.width !== 0;
+        if (bent && this.lineBatch && this.lineBends) {
+            this.placeBent(this.lineBatch, src, dst, this.lineBends);
+        } else {
+            const { srcPoint, dstPoint } = this.transformArrowCap();
+            this.transformEdgeMesh(srcPoint ?? src, dstPoint ?? dst);
+        }
 
         // Update label position if exists
         if (this.label) {
-            const midPoint = new Vector3(
-                (lnk.src.x + lnk.dst.x) / 2,
-                (lnk.src.y + lnk.dst.y) / 2,
-                ((lnk.src.z ?? 0) + (lnk.dst.z ?? 0)) / 2,
-            );
+            const midPoint = bent && this.lineBatch ? this.curveMiddle(this.lineBatch) : Vector3.Center(src, dst);
             this.label.attachTo(midPoint, this._labelAttachPosition, this._labelOffset);
         }
 
@@ -896,7 +907,9 @@ export class Edge {
 
         if (this.lineBatch) {
             // A curve's run of slots is sized to its length when it is first placed.
-            this.lineIsCurve = drawnStyle.line?.bezier === true;
+            this.drawnBends = drawnStyle.line?.bends;
+            this.lineBends = this.srcNode === this.dstNode ? null : parseBends(this.drawnBends);
+            this.lineIsCurve = drawnStyle.line?.bezier === true || this.lineBends !== null;
             this.lineSlots = [this.lineBatch.acquire()];
 
             // No per-edge mesh to make unpickable and nothing to hang `parentEdge` on: the batch
@@ -1010,9 +1023,41 @@ export class Edge {
             rebuilt = true;
         }
 
+        if (this.syncBends(style)) {
+            rebuilt = true;
+        }
+
         if (rebuilt) {
             this.invalidatePositionCache();
         }
+    }
+
+    /**
+     * Bring the line's bends into line with what one resolved style asks for. A route is per edge
+     * and keys no mesh (`edge.bends` is a `content` channel), so a paint that changes only the
+     * bends keeps the line's slots and re-places them.
+     * @param style - The resolved style.
+     * @returns True when the bends changed.
+     */
+    private syncBends(style: EdgeStyleConfig): boolean {
+        const wanted = style.line?.bends;
+        const batch = this.lineBatch;
+        if (wanted === this.drawnBends || batch === null) {
+            return false;
+        }
+
+        this.drawnBends = wanted;
+        this.lineBends = this.srcNode === this.dstNode ? null : parseBends(wanted);
+        this.lineIsCurve = style.line?.bezier === true || this.lineBends !== null;
+        // A straight line is one slot: hand back the rest of a run.
+        while (!this.lineIsCurve && this.lineSlots.length > 1) {
+            const slot = this.lineSlots.pop();
+            if (slot !== undefined) {
+                batch.release(slot);
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -1251,7 +1296,63 @@ export class Edge {
      */
     private placeCurve(batch: EdgeLineBatch, srcPoint: Vector3, dstPoint: Vector3): void {
         const loopRadius = this.srcNode === this.dstNode ? this.selfLoopRadius() : undefined;
-        const flat = EdgeMesh.createBezierLine(srcPoint, dstPoint, undefined, loopRadius);
+        this.placeRun(batch, EdgeMesh.createBezierLine(srcPoint, dstPoint, undefined, loopRadius));
+    }
+
+    /**
+     * Draw this edge through its bends: straight segments from where the line leaves the source
+     * node toward the first bend, through every bend, to where it meets the target node from the
+     * last -- each end trimmed for its arrow cap along its own segment -- with the corners rounded
+     * when the line is also curved.
+     * @param batch - The batch the run is in.
+     * @param src - The source node's center.
+     * @param dst - The target node's center.
+     * @param bends - The bends, as `parseBends` reads them.
+     */
+    private placeBent(batch: EdgeLineBatch, src: Vector3, dst: Vector3, bends: readonly number[]): void {
+        const mid = bendPoints(src, dst, bends);
+        const first = Vector3.FromArray(mid, 0);
+        const last = Vector3.FromArray(mid, mid.length - 3);
+        const start = this.leaveNode(this.srcNode, src, first);
+        const end = this.leaveNode(this.dstNode, dst, last);
+
+        const { arrowCap } = this;
+        if (arrowCap) {
+            this.placeArrowHead(arrowCap, end, end.subtract(last).normalize());
+        }
+
+        const lineStart = this.placeArrowTail(start, first, first.subtract(start).normalize());
+        const lineEnd = this.lineEndBefore(last, end);
+        const flat = [lineStart.x, lineStart.y, lineStart.z, ...mid, lineEnd.x, lineEnd.y, lineEnd.z];
+        this.placeRun(batch, this.drawnStyle?.line?.bezier === true ? roundCorners(flat) : flat);
+    }
+
+    /**
+     * Where a segment from a node's center toward a point crosses the node's surface and border.
+     * @param node - The node.
+     * @param centre - Its center.
+     * @param toward - The point the segment runs to.
+     * @returns The crossing, or the center when the point is the center.
+     */
+    private leaveNode(node: Node, centre: Vector3, toward: Vector3): Vector3 {
+        const dir = toward.subtract(centre);
+        const span = dir.length();
+        if (span === 0) {
+            return centre.clone();
+        }
+
+        dir.scaleInPlace(1 / span);
+        const reach = surfaceReach(dir, node.drawnHalfExtents, node.roundRadius) + node.borderReach;
+
+        return centre.add(dir.scale(Math.min(reach, span)));
+    }
+
+    /**
+     * Draw a run of straight segments, one slot each, through points.
+     * @param batch - The batch the run is in.
+     * @param flat - The points, flat x, y, z.
+     */
+    private placeRun(batch: EdgeLineBatch, flat: readonly number[]): void {
         const segments = flat.length / 3 - 1;
 
         // Grow before shrinking, and never below one slot: the batch disposes itself when its last
@@ -1302,26 +1403,7 @@ export class Edge {
         const direction = dstPoint.subtract(srcPoint).normalize();
 
         if (arrowCap) {
-            // Use common arrow geometry functions for positioning
-            this.context.getStatsManager().startMeasurement("Edge.transformArrowCap.mainPath");
-            const arrowStyle = this.currentStyle;
-            const arrowType = arrowStyle.arrowHead?.type;
-            const arrowSize = arrowStyle.arrowHead?.size ?? 1;
-            const arrowLength = EdgeMesh.calculateArrowLength() * arrowSize;
-            const geometry = EdgeMesh.getArrowGeometry(arrowType ?? "normal");
-
-            // PHASE 4: Override scaleFactor for 2D arrows
-            // In 2D mode, sphere-dot and open-dot use full-size circles (not tiny 0.25x spheres)
-            // so their scaleFactor should be 1.0, not 0.25
-            if (arrowCap.is2D && geometry.scaleFactor !== undefined) {
-                geometry.scaleFactor = 1;
-            }
-
-            // Calculate arrow position using common function
-            const arrowPosition = EdgeMesh.calculateArrowPosition(dstPoint, direction, arrowLength, geometry);
-            this.context.getStatsManager().endMeasurement("Edge.transformArrowCap.mainPath");
-
-            arrowCap.place(arrowPosition, direction);
+            this.placeArrowHead(arrowCap, dstPoint, direction);
         }
 
         const adjustedSrcPoint = this.placeArrowTail(srcPoint, dstPoint, direction);
@@ -1330,6 +1412,35 @@ export class Edge {
             srcPoint: adjustedSrcPoint,
             dstPoint: newEndPoint, // Line ends before arrow to create gap for arrow to fill
         };
+    }
+
+    /**
+     * Place the arrow head with its tip where the line meets the target node.
+     * @param arrowCap - This edge's arrow head.
+     * @param dstPoint - Where the line meets the target node's surface.
+     * @param direction - The unit direction the line arrives in.
+     */
+    private placeArrowHead(arrowCap: ArrowCap, dstPoint: Vector3, direction: Vector3): void {
+        // Use common arrow geometry functions for positioning
+        this.context.getStatsManager().startMeasurement("Edge.transformArrowCap.mainPath");
+        const arrowStyle = this.currentStyle;
+        const arrowType = arrowStyle.arrowHead?.type;
+        const arrowSize = arrowStyle.arrowHead?.size ?? 1;
+        const arrowLength = EdgeMesh.calculateArrowLength() * arrowSize;
+        const geometry = EdgeMesh.getArrowGeometry(arrowType ?? "normal");
+
+        // PHASE 4: Override scaleFactor for 2D arrows
+        // In 2D mode, sphere-dot and open-dot use full-size circles (not tiny 0.25x spheres)
+        // so their scaleFactor should be 1.0, not 0.25
+        if (arrowCap.is2D && geometry.scaleFactor !== undefined) {
+            geometry.scaleFactor = 1;
+        }
+
+        // Calculate arrow position using common function
+        const arrowPosition = EdgeMesh.calculateArrowPosition(dstPoint, direction, arrowLength, geometry);
+        this.context.getStatsManager().endMeasurement("Edge.transformArrowCap.mainPath");
+
+        arrowCap.place(arrowPosition, direction);
     }
 
     /**

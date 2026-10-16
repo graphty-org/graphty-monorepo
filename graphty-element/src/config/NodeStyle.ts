@@ -153,6 +153,9 @@ export const NodeStyle = z.strictObject({
             // Drawing order in a 2D view: below 0 draws the node behind every edge and every node
             // with a higher value (a group behind its members). 3D views ignore it.
             zIndex: z.number().min(-1000).max(0).optional(),
+            // Which of two overlapping nodes at z-index 0 is drawn on top in a 2D view: the higher.
+            // Set, a node is drawn in front of every edge and every node without one. 3D ignores it.
+            drawOrder: z.number().min(0).max(100).optional(),
             // custom mesh https://doc.babylonjs.com/features/featuresDeepDive/mesh/creation/custom/custom
             // import mesh https://doc.babylonjs.com/typedoc/functions/BABYLON.ImportMeshAsync
         })

@@ -6,7 +6,8 @@
  * work at either size; a whole-graph operation (load, clear) about `large / small` times as much.
  * A cost per item that grows with the graph shows up as the square of that.
  *
- * Register the public method a test covers in `test/cost-coverage/counted-work.ts`.
+ * Register the public methods a test covers in a sibling `<name>.counted-work.ts` module (see
+ * `test/cost-coverage/counted-work.ts`).
  */
 import { assert } from "vitest";
 

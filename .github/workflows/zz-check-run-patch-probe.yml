@@ -1,0 +1,32 @@
+# Throwaway probe (never merged): can a workflow's GITHUB_TOKEN PATCH a check run created through the
+# Checks API, and a check run that is another workflow run's job?
+name: Check run PATCH probe
+on:
+    pull_request:
+        types: [opened, synchronize]
+permissions:
+    contents: read
+    checks: write
+jobs:
+    probe:
+        runs-on: ubuntu-24.04
+        steps:
+            - env:
+                  GH_TOKEN: ${{ github.token }}
+                  SHA: ${{ github.event.pull_request.head.sha }}
+                  R: ${{ github.repository }}
+              run: |
+                  id=$(gh api "repos/$R/check-runs" -f name="Probe early" -f head_sha="$SHA" -f status=completed -f conclusion=failure -f "output[title]=t" -f "output[summary]=s" --jq .id)
+                  echo "created API check run $id"
+                  gh api -X PATCH "repos/$R/check-runs/$id" -f conclusion=success -f "output[title]=superseded" -f "output[summary]=probe" --jq '"PATCH API run: \(.id) \(.conclusion) suite \(.check_suite.id)"' || echo "PATCH API run FAILED"
+                  ids=""
+                  for i in $(seq 1 40); do
+                      ids=$(gh api "repos/$R/commits/$SHA/check-runs?check_name=All%20Checks%20Pass&filter=all" --jq '[.check_runs[]|select(.conclusion=="failure")|.id]|join(" ")')
+                      [[ -n "$ids" ]] && break
+                      sleep 15
+                  done
+                  echo "draft-run All Checks Pass failures: $ids"
+                  for j in $ids; do
+                      gh api -X PATCH "repos/$R/check-runs/$j" -f conclusion=success -f "output[title]=Superseded" -f "output[summary]=probe" --jq '"PATCH job run: \(.id) \(.conclusion) suite \(.check_suite.id) \(.app.slug)"' || echo "PATCH job run $j FAILED"
+                  done
+                  gh api "repos/$R/commits/$SHA/check-runs?filter=all" --jq '.check_runs[]|"\(.id) \(.name) \(.status) \(.conclusion) suite \(.check_suite.id)"'

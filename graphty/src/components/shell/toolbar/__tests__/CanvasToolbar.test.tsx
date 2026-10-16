@@ -1,5 +1,5 @@
-import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { render, screen, TOOLTIP_FIND_OPTIONS, within } from "../../../../test/test-utils";
 import {
@@ -201,7 +201,8 @@ describe("CanvasToolbar", () => {
 
             render(<CanvasToolbar {...props({ zoomToSelectionEnabled: false, onZoomToSelection })} />);
 
-            await user.click(screen.getByRole("button", { name: ZOOM_TO_SELECTION_DISABLED_NAME }));
+            // force: a reader can still press a disabled control, and it must do nothing
+            await user.click(screen.getByRole("button", { name: ZOOM_TO_SELECTION_DISABLED_NAME }), { force: true });
 
             expect(onZoomToSelection).not.toHaveBeenCalled();
         });
@@ -245,7 +246,8 @@ describe("CanvasToolbar", () => {
 
             render(<CanvasToolbar {...props({ onViewModeChange })} />);
 
-            await user.click(screen.getByRole("radio", { name: "2D" }));
+            // A reader presses the segment's visible label; the radio itself is drawn invisible.
+            await user.click(screen.getByText("2D"));
 
             expect(onViewModeChange).toHaveBeenCalledWith("2d");
         });

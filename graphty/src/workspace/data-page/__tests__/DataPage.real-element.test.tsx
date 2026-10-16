@@ -8,10 +8,9 @@
 import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
-import userEvent from "@testing-library/user-event";
 import { act } from "react";
 import { assert, describe, it } from "vitest";
-import { page } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createRegistry } from "../../commands/registry";
@@ -266,8 +265,10 @@ describe("the Data page on the real element", () => {
         assert.equal(getComputedStyle(link).fontSize, getComputedStyle(sentence!).fontSize);
 
         // While the unmatched row shows, only Show all rows is offered, and Add | Leave out stays put.
+        // Measured against the report, since a real click scrolls the page to its target.
         const choice = (): number =>
-            within(report).getByRole("radiogroup", { name: "Unmatched ends" }).getBoundingClientRect().left;
+            within(report).getByRole("radiogroup", { name: "Unmatched ends" }).getBoundingClientRect().left -
+            report.getBoundingClientRect().left;
         const before = choice();
         await userEvent.click(within(report).getByRole("button", { name: "Show the 1 unmatched row" }));
         await screen.findByText("1 unmatched row: z has no node row");
@@ -334,7 +335,8 @@ describe("the Data page on the real element", () => {
         const alert = await screen.findByRole("alert", {}, { timeout: TIMEOUT_MS });
         assert.include(alert.textContent, "empty.csv holds no nodes or edges.");
         assert.equal(loadButton().getAttribute("aria-disabled"), "true");
-        await userEvent.click(loadButton());
+        // force: a reader can still press a disabled control, and it must do nothing
+        await userEvent.click(loadButton(), { force: true });
         assert.isNull(session.data.lastImport(), "a disabled Load loads nothing");
         assert.isNotNull(within(alert).getByRole("button", { name: "Choose another file..." }));
 

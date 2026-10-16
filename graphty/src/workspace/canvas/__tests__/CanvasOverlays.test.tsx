@@ -5,8 +5,8 @@
  */
 import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import type { GraphSession, LegendBlock, ProgressChange, RunPainting } from "@graphty/graphty-element/session";
-import userEvent from "@testing-library/user-event";
 import { assert, describe, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { act, render, screen, within } from "../../../test/test-utils";
 import { type Command, createRegistry, defineRegistration } from "../../commands/registry";
@@ -227,7 +227,8 @@ describe("the canvas's state cards", () => {
         renderOver(standIn({ nodeCount: 0 }).session, {}, [command]);
         const button = screen.getByRole("button", { name: "Add data..." });
         assert.equal(button.getAttribute("aria-disabled"), "true");
-        await userEvent.click(button);
+        // force: a reader can still press a disabled control, and it must do nothing
+        await userEvent.click(button, { force: true });
         assert.equal(vi.mocked(command.run).mock.calls.length, 0);
         await userEvent.hover(button);
         assert.isNotNull(await screen.findByText("Close the dialog first"));

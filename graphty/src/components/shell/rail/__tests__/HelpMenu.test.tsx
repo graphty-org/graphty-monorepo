@@ -1,6 +1,6 @@
-import userEvent from "@testing-library/user-event";
 import React, { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { render, screen, untilPasses, waitFor, within } from "../../../../test/test-utils";
 import { HelpMenu } from "../HelpMenu";

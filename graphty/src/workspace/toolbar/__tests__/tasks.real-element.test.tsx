@@ -12,12 +12,18 @@ import "@graphty/graphty-element";
 
 import type { RunId } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
-import userEvent from "@testing-library/user-event";
 import { assert, beforeAll, describe, it } from "vitest";
-import { page, userEvent as realInput } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { Workspace } from "../../Workspace";
+
+/** A segmented control's visible label, which a reader presses: the radio itself is drawn invisible. */
+function segment(radio: HTMLInputElement): HTMLElement {
+    const label = radio.labels?.[0];
+    assert.isDefined(label);
+    return label;
+}
 
 /** A hang guard for the element coming up and a run finishing, not a pass/fail timing. */
 const TIMEOUT_MS = 90_000;
@@ -332,7 +338,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         // Hops 2 in the list's header reselects two hops out and relists; the list, the
         // selection and the status line agree on the count.
         const hops = await screen.findByRole("radiogroup", { name: "Hops" });
-        await userEvent.click(within(hops).getByRole("radio", { name: "2" }));
+        await userEvent.click(segment(within(hops).getByRole<HTMLInputElement>("radio", { name: "2" })));
         await waitFor(() => {
             assert.isAbove(session.selection.nodes.length, neighborhood);
             assert.isNotNull(document.querySelector('[data-inspected="neighborhood"]'));
@@ -365,7 +371,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
             assert.equal(session.visibility.summary.visibleNodes, grown + 1);
         });
         // A command, not a toggle: pressed again it leaves the one step, on.
-        await userEvent.click(screen.getByRole("button", { name: "Filter to neighbors" }));
+        await userEvent.click(screen.getByRole("button", { name: "Filter to neighbors" }), { force: true });
         await waitFor(() => {
             assert.deepEqual(
                 session.visibility.steps.map((step) => [step.on, step.rule]),
@@ -387,7 +393,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         // Open at one hop, reach two, filter to it, twice.
         await degree();
         const hops = await screen.findByRole("radiogroup", { name: "Hops" });
-        await userEvent.click(within(hops).getByRole("radio", { name: "2" }));
+        await userEvent.click(segment(within(hops).getByRole<HTMLInputElement>("radio", { name: "2" })));
         await waitFor(() => {
             assert.isTrue(
                 screen.getAllByRole("status").some((status) => /within 2 hops$/.test(status.textContent ?? "")),
@@ -409,7 +415,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         });
         await userEvent.hover(command);
         await screen.findByText("The drawing already shows only this neighborhood. Its step in Filters turns it off");
-        await userEvent.click(command);
+        await userEvent.click(command, { force: true });
         await waitFor(() => {
             assert.deepEqual(
                 session.visibility.steps.map((step) => [step.on, step.rule]),
@@ -474,7 +480,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
             name: "Filters",
         });
 
-        await realInput.click(filters);
+        await userEvent.click(filters);
         await screen.findByRole("region", { name: "Data place" });
         const keep = await screen.findByRole("combobox", { name: "Keep" });
         await waitFor(() => {
@@ -495,19 +501,19 @@ it("shows and hides the legend and the table from their own toolbar buttons, pre
     assert.equal(table.getAttribute("aria-pressed"), "false");
     assert.isNull(screen.queryByRole("region", { name: "Table" }));
 
-    await realInput.click(legend);
+    await userEvent.click(legend);
     await waitFor(() => {
         assert.isNull(screen.queryByRole("region", { name: "Legend" }));
     });
     assert.equal(legend.getAttribute("aria-pressed"), "false");
-    await realInput.click(legend);
+    await userEvent.click(legend);
     await screen.findByRole("region", { name: "Legend" });
     assert.equal(legend.getAttribute("aria-pressed"), "true");
 
-    await realInput.click(table);
+    await userEvent.click(table);
     await screen.findByRole("region", { name: "Table" });
     assert.equal(table.getAttribute("aria-pressed"), "true");
-    await realInput.click(table);
+    await userEvent.click(table);
     await waitFor(() => {
         assert.isNull(screen.queryByRole("region", { name: "Table" }));
     });

@@ -12,8 +12,8 @@
 import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
-import userEvent from "@testing-library/user-event";
-import { assert, describe, it } from "vitest";
+import { assert, beforeAll, describe, it } from "vitest";
+import { page, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { Workspace } from "../../Workspace";
@@ -56,6 +56,12 @@ async function newProject(): Promise<GraphSession> {
     }
     return session;
 }
+
+// The workspace's design width. In the runner's 414 px frame the side panels overlap the canvas,
+// so a real click on a notice's action lands on the panel drawn over it.
+beforeAll(async () => {
+    await page.viewport(1366, 768);
+});
 
 describe("the canvas on the real element", () => {
     it("shows No nodes to draw until the graph has a node, then the legend of a run that paints (T7)", async () => {

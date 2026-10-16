@@ -4,10 +4,9 @@
  * in this file; `Project.real-element.test.tsx` walks save and reopen on it.
  */
 import { browserProjects, type GraphSession, GraphtyError } from "@graphty/graphty-element/session";
-import userEvent from "@testing-library/user-event";
 import { act } from "react";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
-import { page } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createRegistry } from "../../commands/registry";

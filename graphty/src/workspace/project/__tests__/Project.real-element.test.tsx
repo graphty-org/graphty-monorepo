@@ -19,6 +19,13 @@ import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { clearRecent } from "../recent";
 
+declare module "vitest/browser" {
+    interface BrowserCommands {
+        /** Answers the next file picker with this file (graphty/vitest.config.ts). */
+        chooseNextFile: (name: string, mimeType: string, text: string) => Promise<void>;
+    }
+}
+
 /** A hang guard for the element coming up and a sample loading, not a pass/fail timing. */
 const TIMEOUT_MS = 60_000;
 

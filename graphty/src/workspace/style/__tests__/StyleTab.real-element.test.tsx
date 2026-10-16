@@ -10,15 +10,21 @@ import "@graphty/graphty-element";
 
 import { channelsFor } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
-import userEvent from "@testing-library/user-event";
 import { assert, beforeAll, describe, it } from "vitest";
-import { page, userEvent as realInput } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { registration } from "../commands";
 import { EVERYTHING_KEY } from "../row";
+
+/** A segmented control's visible label, which a reader presses: the radio itself is drawn invisible. */
+function segment(radio: HTMLInputElement): HTMLElement {
+    const label = radio.labels?.[0];
+    assert.isDefined(label);
+    return label;
+}
 
 /** A pause in a slow drag: longer than any debounce, so each move could be its own write. */
 const PAUSE_MS = 300;
@@ -218,7 +224,7 @@ describe("the Style tab on the real element", () => {
             word !== undefined && dot !== undefined && dot.left >= word.right,
             "the dot does not touch the word",
         );
-        await realInput.hover(label ?? nodes);
+        await userEvent.hover(label ?? nodes);
         // The theme opens a tooltip after its open delay; wait for it, not for a fixed time.
         assert.isNotNull(await screen.findByText("This row sets node properties", {}, { timeout: TIMEOUT_MS }));
     });
@@ -515,7 +521,7 @@ describe("the Style tab on the real element", () => {
     it("lists an edge's arrows as Head arrow and Tail arrow, and Pattern's count and animation in its popover", async () => {
         await openWithGraph();
         const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
-        await userEvent.click(within(tab).getByRole("radio", { name: "Edges" }));
+        await userEvent.click(segment(within(tab).getByRole<HTMLInputElement>("radio", { name: "Edges" })));
         const arrows = within(styleTab()).getByRole("group", { name: "Arrows" });
         const plus = within(arrows).queryByRole("button", { name: "Add to Arrows" });
         if (plus === null) {
@@ -921,7 +927,7 @@ describe("editing lines on the real element", () => {
     it("Everything's edge Color goes to the Everything layer, and an edge's to its own row", async () => {
         const { session } = await openWithGraph();
         const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
-        await userEvent.click(within(tab).getByRole("radio", { name: /^Edges/ }));
+        await userEvent.click(segment(within(tab).getByRole<HTMLInputElement>("radio", { name: /^Edges/ })));
         await setEdgeColor("FF0000");
         await waitFor(() => {
             const everything = readerLayers(session).filter((l) => l.userData?.[EVERYTHING_KEY] === true);
@@ -949,7 +955,10 @@ describe("editing lines on the real element", () => {
     it("the Edges side lists its own sections and lines", async () => {
         await openWithGraph();
         const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
-        await userEvent.click(within(tab).getByRole("radio", { name: "Edges" }));
+        // A reader presses the segment's visible label; the radio itself is drawn invisible.
+        const edges = within(tab).getByRole<HTMLInputElement>("radio", { name: "Edges" }).labels?.[0];
+        assert.isDefined(edges);
+        await userEvent.click(edges);
         await waitFor(() => {
             const sections = within(styleTab())
                 .getAllByRole("group")

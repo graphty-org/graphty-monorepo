@@ -5,8 +5,8 @@
  * `tasks.real-element.test.tsx`.
  */
 import { createGraphSession, type GraphSession } from "@graphty/graphty-element/session";
-import userEvent from "@testing-library/user-event";
 import { afterEach, assert, describe, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { createRegistry, type WorkspaceRegistration } from "../../commands/registry";

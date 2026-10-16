@@ -1,8 +1,8 @@
 /**
  * Vary by data on several layers, on the REAL graphty-element with real clicks and keys: on the
- * Louvain folder, Fill > Vary > the run's group shows what the copied rule paints in each layer,
- * and Apply writes it into each as its own rule, one undo step; Shape the same; on a folder of layers
- * that share no field's value, Vary stays on because it offers Layer.
+ * Louvain folder, Fill > Vary > the run's group opens the binding popover one layer gets, and
+ * closing it writes the binding into each layer as its own rule, one undo step; Shape the same; on
+ * a folder of layers that share no field's value, Vary stays on because it offers Layer.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -71,7 +71,7 @@ async function line(channel: string): Promise<HTMLElement> {
 }
 
 describe("vary by data on several layers", () => {
-    it("copies Fill by the run's group into each group layer after a preview, one Undo; Shape the same", async () => {
+    it("copies Fill by the run's group into each group layer when its popover closes, one Undo; Shape the same", async () => {
         const { session, groups } = await openScene();
         const before = groups.map((id) => session.styles.get(id)?.set?.["node.color"]);
         await clickRow("Louvain");
@@ -82,13 +82,14 @@ describe("vary by data on several layers", () => {
         const options = await screen.findAllByRole("option", { name: /group|community|louvain/i });
         await userEvent.click(options[0]);
 
-        const preview = await within(fill).findByRole("group", { name: /, in each layer$/ });
-        const items = within(preview).getAllByRole("listitem");
-        assert.lengthOf(items, groups.length);
-        for (const item of items) {
-            assert.lengthOf(within(item).getAllByRole("img"), 1, "each group layer paints one color");
-        }
-        await userEvent.click(within(preview).getByRole("button", { name: "Apply" }));
+        // The binding popover a single layer gets, holding the binding until it closes.
+        const popover = await screen.findByRole("dialog", { name: /^Color by / });
+        await within(popover).findByRole("group", { name: "Color binding" });
+        assert.isTrue(
+            groups.every((id) => session.styles.get(id)?.encode?.["node.color"] === undefined),
+            "nothing is written while it is open",
+        );
+        await userEvent.keyboard("{Escape}");
 
         await waitFor(() => {
             for (const id of groups) {
@@ -126,11 +127,8 @@ describe("vary by data on several layers", () => {
         await userEvent.click(within(shape).getByRole("button", { name: "Node shape by attribute" }));
         const shapeOptions = await screen.findAllByRole("option", { name: /group|community|louvain/i });
         await userEvent.click(shapeOptions[0]);
-        await userEvent.click(
-            within(await within(shape).findByRole("group", { name: /, in each layer$/ })).getByRole("button", {
-                name: "Apply",
-            }),
-        );
+        await screen.findByRole("dialog", { name: /^Shape by / });
+        await userEvent.keyboard("{Escape}");
         await waitFor(() => {
             for (const id of groups) {
                 const binding = session.styles.get(id)?.encode?.["node.shape"];

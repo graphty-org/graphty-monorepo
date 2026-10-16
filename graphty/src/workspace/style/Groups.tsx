@@ -254,6 +254,11 @@ interface GroupsProps {
     readonly source: string;
     /** Told when a group's detail opens or closes, so the popover can hide what is the list's. */
     readonly onDetailChange?: (open: boolean) => void;
+    /**
+     * Several layers: the binding is held, written to none of them yet. The groups come from the
+     * element's preview of it, and a group's own value or eye changes the held binding.
+     */
+    readonly onHeld?: (binding: DataBinding) => void;
 }
 
 /**
@@ -303,6 +308,7 @@ interface GroupSource {
  * @param props.binding - the binding
  * @param props.source - what it reads, in words
  * @param props.onDetailChange - told when a group's detail opens or closes
+ * @param props.onHeld - several layers: keeps a changed held binding
  * @returns The list, or one group's detail
  */
 export function GroupList({
@@ -312,6 +318,7 @@ export function GroupList({
     binding,
     source,
     onDetailChange,
+    onHeld,
 }: GroupsProps): React.JSX.Element | null {
     const { store } = useWorkspace();
     const layer = session.styles.get(layerId);
@@ -320,6 +327,11 @@ export function GroupList({
     }
     const { channel, target } = descriptor;
     const path = binding.by;
+    if (onHeld !== undefined) {
+        return (
+            <GroupRows descriptor={descriptor} from={heldSource(session, store, descriptor, binding, source, onHeld)} />
+        );
+    }
     const groups = session.styles.groups(layerId, path);
     const fail = (error: unknown): void => {
         store.set({ notice: { message: failureWords(channelWord(channel), "changed", error), error: true } });
@@ -364,6 +376,90 @@ export function GroupList({
         ),
     };
     return <GroupRows descriptor={descriptor} from={from} onDetailChange={onDetailChange} />;
+}
+
+/**
+ * A value table with one group's entry given, or cleared.
+ * @param map - the table.
+ * @param key - the group.
+ * @param entry - its value, or undefined to clear it.
+ * @returns the table, or undefined when it is empty.
+ */
+function withEntry(map: DataBinding["map"], key: string, entry: string | number | undefined): DataBinding["map"] {
+    const { [key]: _cleared, ...rest } = map ?? {};
+    const next = entry === undefined ? rest : { ...rest, [key]: entry };
+    return Object.keys(next).length === 0 ? undefined : next;
+}
+
+/**
+ * The groups of a binding several layers will each hold a copy of, before it is written: the
+ * element's preview of it gives each value, its count and what it paints; a group's own value and
+ * its eye change the held binding. Renaming a value and selecting its elements act at once, as
+ * they do for one layer.
+ * @param session - the element's session.
+ * @param store - the workspace store.
+ * @param descriptor - the property.
+ * @param binding - the held binding.
+ * @param source - what it reads, in words.
+ * @param onHeld - keeps a changed binding.
+ * @returns the group source.
+ */
+function heldSource(
+    session: GraphSession,
+    store: ReturnType<typeof useWorkspace>["store"],
+    descriptor: ChannelDescriptor,
+    binding: DataBinding,
+    source: string,
+    onHeld: (binding: DataBinding) => void,
+): GroupSource {
+    const { channel, target } = descriptor;
+    const path = binding.by;
+    let bins: readonly { value?: unknown; count: number; paints: unknown }[] = [];
+    try {
+        ({ bins } = session.styles.preview(binding, { channel, span: "data" }));
+    } catch {
+        // A binding the element refuses has no groups to list.
+    }
+    const labels = session.data.valueLabels(path);
+    const hidden = new Set((binding.hidden ?? []).map(String));
+    const groups: ValueGroup[] = bins
+        .filter((bin) => bin.value !== undefined && bin.count > 0)
+        .map((bin) => {
+            const key = String(bin.value);
+            const entry = binding.map?.[key];
+            const name = labels.get(key);
+            return {
+                value: bin.value,
+                count: bin.count,
+                hidden: hidden.has(key),
+                entries: entry === undefined ? {} : { [channel]: entry },
+                ...(name === undefined ? {} : { name }),
+            };
+        });
+    return {
+        source,
+        noun: "Group",
+        groups,
+        names: groupNames(session, path, groups),
+        paints: new Map([[channel, new Map(bins.map((bin) => [String(bin.value), bin.paints]))]]),
+        sorts: SORT_WORDS,
+        clearTo: "the palette",
+        ...pinnedGroup(session, target, path),
+        setEntry: (row, entry) => {
+            onHeld({ ...binding, map: withEntry(binding.map, row.key, entry) });
+        },
+        setHidden: (row, hide) => {
+            const rest = (binding.hidden ?? []).filter((value) => String(value) !== row.key);
+            const next = hide ? [...rest, row.group.value as Scalar] : rest;
+            onHeld({ ...binding, hidden: next.length === 0 ? undefined : next });
+        },
+        select: (keys) => {
+            selectGroups(session, target, path, keys);
+        },
+        rename: (row, label) => {
+            rename(session, store, path, row, label);
+        },
+    };
 }
 
 /**
@@ -461,9 +557,7 @@ export function LayerGroupList({
         sorts: LAYER_SORTS,
         clearTo: "the palette",
         setEntry: (row, entry) => {
-            const { [row.key]: _cleared, ...rest } = binding.map ?? {};
-            const map = entry === undefined ? rest : { ...rest, [row.key]: entry };
-            onChange({ ...binding, map: Object.keys(map).length === 0 ? undefined : map });
+            onChange({ ...binding, map: withEntry(binding.map, row.key, entry) });
         },
         setHidden: (row, hide) => {
             const group = rowOf(row.key);
@@ -758,7 +852,7 @@ function GroupRows({
     // The header and the rows on show, each with its 1 px grid line, and the frame's 1 px.
     const height = (Math.max(1, Math.min(shown.length, all ? FULL_ROWS : shown.length)) + 1) * (ROW_HEIGHT + 1) + 4;
     return (
-        <Stack gap={6} ref={setMenuHost} pos="relative">
+        <Stack gap={6} ref={setMenuHost} pos="relative" data-group-list="">
             {all ? (
                 <>
                     <TextInput

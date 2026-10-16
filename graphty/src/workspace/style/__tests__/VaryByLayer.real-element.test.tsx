@@ -181,6 +181,34 @@ function written(session: GraphSession, ids: readonly string[], channel: Channel
     return ids.map((id) => session.styles.get(id)?.set?.[channel]);
 }
 
+/**
+ * The sections of a binding popover in order, outside its group list: each labelled control with
+ * its kind, each button but a field's Reset, and the group list itself. The words that name the source ("values",
+ * "layers") are taken out, so two popovers drawn by one component give the same structure.
+ * @param popover - The popover.
+ * @returns The sections.
+ */
+function sections(popover: HTMLElement): string[] {
+    const body = within(popover).getByRole("group", { name: / binding$/ });
+    return (
+        [...body.querySelectorAll<HTMLElement>("label, button, [data-group-list]")]
+            .filter((el) => el.parentElement?.closest("[data-group-list]") === null)
+            // A field's Reset shows while it holds a value of its own: state, not structure.
+            .filter((el) => !(el.getAttribute("aria-label") ?? "").startsWith("Reset "))
+            .map((el) => {
+                if (el.hasAttribute("data-group-list")) {
+                    return "group list";
+                }
+                const words = (el.textContent ?? "").replace(/\b(values|layers)\b/, "<groups>").trim();
+                if (el.tagName === "LABEL") {
+                    const control = document.getElementById((el as HTMLLabelElement).htmlFor);
+                    return `${words}: ${control?.getAttribute("role") ?? control?.tagName.toLowerCase() ?? "none"}`;
+                }
+                return `button ${el.getAttribute("aria-label") ?? words}`;
+            })
+    );
+}
+
 describe("vary by layer", () => {
     it("gives Louvain's group layers a palette's colors in list order, plain values, one Undo; no Selection colors", async () => {
         const session = await openSample();
@@ -397,6 +425,89 @@ describe("vary by layer", () => {
         await close(await varyByLayer(pattern));
         await waitFor(() => {
             assert.strictEqual(new Set(written(session, edges, "edge.style")).size, edges.length);
+        });
+    });
+
+    it("opens one popover: a layer's Fill by Louvain and a folder's Fill by Layer have the same sections but No value", async () => {
+        const session = await openSample();
+        await session.runs.start("louvain", {}, { seed: 1 });
+        await session.styles.settled();
+        // One plain layer: its Fill varies by Louvain's communities.
+        const plain = await session.styles.add({
+            name: "Plain",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.color": "#cccccc" },
+        });
+        await session.styles.settled();
+        await clickRow("Plain");
+        const fill = await line("node.color");
+        await userEvent.hover(fill);
+        await userEvent.click(within(fill).getByRole("button", { name: "Node color by attribute" }));
+        const options = await screen.findAllByRole("option", { name: /community|louvain/i });
+        await userEvent.click(options[0]);
+        await waitFor(() => {
+            const binding = session.styles.get(plain.id)?.encode?.["node.color"];
+            assert.isTrue(binding !== undefined && "by" in binding, "the layer varies by Louvain");
+        });
+        await userEvent.click(await within(await line("node.color")).findByRole("button", { name: /^Node color: / }));
+        const byLouvain = await screen.findByRole("dialog", { name: /^Color by / });
+        await within(byLouvain).findByRole("grid", { name: /groups$/ });
+        const fromData = sections(byLouvain);
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isFalse(byLouvain.isConnected);
+        });
+
+        await handMade(session, "Story", "node", { "node.color": "#cccccc" });
+        await clickRow("Story");
+        const byLayer = await varyByLayer(await line("node.color"));
+        const fromLayers = sections(byLayer);
+
+        // No value is the one section a layer cannot have: every element of a layer has its layer.
+        assert.include(fromData, "No value: combobox");
+        assert.deepEqual(
+            fromLayers,
+            fromData.filter((section) => !section.startsWith("No value")),
+            "the same sections, in the same order, with the same controls",
+        );
+        assert.include(fromData, "More <groups> than colors: combobox");
+        assert.isNotNull(within(byLayer).queryByText("More layers than colors"), "the source's own word");
+    });
+
+    it("opens the same binding popover for a data field on a folder, and copies it into each layer on close", async () => {
+        const session = await openSample();
+        await session.runs.start("louvain", {}, { seed: 1, style: { groups: "layers", name: "Louvain" } });
+        await session.styles.settled();
+        const folder = session.styles.tree().find((row) => row.name === "Louvain");
+        const groups = [...session.styles.layersUnder([folder?.id ?? ""])].reverse().map((reach) => {
+            const parts = session.styles.parts(reach.row);
+            return parts?.node ?? reach.row;
+        });
+        const before = written(session, groups, "node.color");
+        await clickRow("Louvain");
+
+        const fill = await line("node.color");
+        await userEvent.hover(fill);
+        await userEvent.click(within(fill).getByRole("button", { name: "Node color by attribute" }));
+        await userEvent.click(await screen.findByRole("option", { name: /^id\b/i }));
+        const popover = await screen.findByRole("dialog", { name: /^Color by / });
+        await within(popover).findByRole("grid", { name: /groups$/ });
+        assert.isNull(within(fill).queryByRole("group", { name: /in each layer/ }), "no per-layer preview");
+        assert.include(sections(popover), "More <groups> than colors: combobox", "the single layer's sections");
+        assert.deepEqual(written(session, groups, "node.color"), before, "nothing written while it is open");
+
+        await close(popover);
+        await waitFor(() => {
+            for (const id of groups) {
+                const binding = session.styles.get(id)?.encode?.["node.color"];
+                assert.isTrue(binding !== undefined && "by" in binding, "each layer holds its own copy");
+            }
+        });
+        await within(await line("node.color")).findByRole("status");
+        await userEvent.keyboard("{Control>}z{/Control}");
+        await waitFor(() => {
+            assert.deepEqual(written(session, groups, "node.color"), before, "one undo restores every layer");
         });
     });
 });

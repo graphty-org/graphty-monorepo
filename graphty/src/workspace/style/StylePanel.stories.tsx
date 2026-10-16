@@ -319,7 +319,7 @@ export const BulkReceipt: Story = sceneStory(async () => {
     await within(fill).findByRole("status");
 });
 
-/** Fill > Vary > the run's group on Leiden's folder: what the copied rule paints in each layer, before Apply. */
+/** Fill > Vary > the run's group on Leiden's folder: the binding popover one layer gets for that value, held until it closes and copies the rule into each layer. */
 export const BulkVaryByData: Story = sceneStory(async () => {
     const tab = await openLeidenFolder();
     const fill = await fillRow(tab);
@@ -327,7 +327,8 @@ export const BulkVaryByData: Story = sceneStory(async () => {
     await userEvent.click(within(fill).getByRole("button", { name: "Node color by attribute" }));
     const options = await page().findAllByRole("option", { name: /group|community|leiden/i });
     await userEvent.click(options[0]);
-    await within(fill).findByRole("group", { name: /, in each layer$/ });
+    const popover = await page().findByRole("dialog", { name: /^Color by / });
+    await within(popover).findByRole("grid", { name: / groups$/ });
 });
 
 /** Fill > Vary > Layer on Leiden's folder: the binding popover with Layer as its source, Louvain's group rows with one row per layer in list order, before it closes and writes. */

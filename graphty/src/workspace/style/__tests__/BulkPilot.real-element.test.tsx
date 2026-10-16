@@ -148,17 +148,17 @@ function paintedGroups(session: GraphSession): Map<string, { layer: string; colo
 }
 
 /**
- * Picks the run's group in a field's Vary list and opens the per-layer preview.
+ * Picks the run's group in a field's Vary list, which opens the binding popover.
  * @param field - The property row.
  * @param name - The field's accessible name, "Node color".
- * @returns The preview.
+ * @returns The popover.
  */
 async function varyByGroup(field: HTMLElement, name: string): Promise<HTMLElement> {
     await userEvent.hover(field);
     await userEvent.click(within(field).getByRole("button", { name: `${name} by attribute` }));
     const options = await screen.findAllByRole("option", { name: /group|community|louvain/i });
     await userEvent.click(options[0]);
-    return within(field).findByRole("group", { name: /, in each layer$/ });
+    return screen.findByRole("dialog", { name: / by / });
 }
 
 describe("bulk editing a run's folder of group layers, after the first pilot", () => {
@@ -166,11 +166,11 @@ describe("bulk editing a run's folder of group layers, after the first pilot", (
         const { session, runId } = await openScene();
         await userEvent.click(await row("Louvain"));
 
-        // Fill > Vary > the run's group, with a palette to pick; Apply hands focus to the receipt.
+        // Fill > Vary > the run's group, with a palette to pick; closing hands focus to the receipt.
         const fill = await line("node.color");
-        const preview = await varyByGroup(fill, "Node color");
-        assert.isNotNull(within(preview).getByText("Palette"), "a palette to pick");
-        await userEvent.click(within(preview).getByRole("button", { name: "Apply" }));
+        const popover = await varyByGroup(fill, "Node color");
+        assert.isNotNull(within(popover).getByText("Palette"), "a palette to pick");
+        await userEvent.keyboard("{Escape}");
         await waitFor(() => {
             assert.isNotNull(
                 document.activeElement?.closest("[data-receipt]"),
@@ -187,7 +187,8 @@ describe("bulk editing a run's folder of group layers, after the first pilot", (
             folderRows(session).every((each) => session.styles.get(each.id)?.set?.["node.shape"] === undefined),
             "adding Shape to several layers writes no shape yet",
         );
-        await userEvent.click(within(await varyByGroup(shape, "Node shape")).getByRole("button", { name: "Apply" }));
+        await varyByGroup(shape, "Node shape");
+        await userEvent.keyboard("{Escape}");
         await waitFor(() => {
             for (const each of folderRows(session)) {
                 const binding = session.styles.get(each.id)?.encode?.["node.shape"];
@@ -364,13 +365,13 @@ describe("bulk editing a run's folder of group layers, after the first pilot", (
         const tab = await screen.findByTestId("style-tab");
         await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Shape" }));
-        const preview = await varyByGroup(await line("node.shape"), "Node shape");
-        assert.match(within(preview).getByText(/^Left as it is:/).textContent ?? "", /Top 10 labels/);
-        await userEvent.click(within(preview).getByRole("button", { name: "Apply" }));
+        await varyByGroup(await line("node.shape"), "Node shape");
+        await userEvent.keyboard("{Escape}");
         await waitFor(() => {
             assert.isUndefined(session.styles.get(labels.id)?.encode?.["node.shape"], "Top 10 labels is left alone");
         });
-        assert.isNotNull(await within(await line("node.shape")).findByRole("status"), "a receipt");
+        const shapeReceipt = await within(await line("node.shape")).findByRole("status");
+        assert.match(shapeReceipt.textContent ?? "", /Top 10 labels holds more than one group/, "the receipt says why");
 
         // Another selection: the last one's receipt goes.
         await userEvent.click(await row(groups[1].name));

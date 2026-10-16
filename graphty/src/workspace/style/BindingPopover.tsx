@@ -131,95 +131,92 @@ function previewOf(
     }
 }
 
-/** Props for BindingPopover. */
-interface BindingPopoverProps {
+/** What the popover's binding reads: a value of the data, or the selected layers themselves. */
+type BindingPopoverProps = {
     /** The bound property. */
-    descriptor: ChannelDescriptor;
-    /** The layer that holds the binding. */
-    layerId: LayerId;
-    /** The binding as the layer holds it. */
-    binding: DataBinding;
-    /** What the binding reads, in words. */
-    source: string;
-    /** Writes a changed binding (applies live). */
-    onChange: (binding: DataBinding) => void;
+    readonly descriptor: ChannelDescriptor;
     /** Reads another attribute or result instead. */
-    onSource: (choice: DataChoice) => void;
-}
+    readonly onSource: (choice: DataChoice) => void;
+} & (
+    | {
+          /** The layer that holds the binding (several layers: the first one it is written to). */
+          readonly layerId: LayerId;
+          readonly binding: DataBinding;
+          /** What the binding reads, in words. */
+          readonly source: string;
+          /** Several layers: the binding is held, and written to each when the popover closes. */
+          readonly held?: boolean;
+          /** Keeps a changed binding: written at once to one layer, held for several. */
+          readonly onChange: (binding: DataBinding) => void;
+          readonly layers?: undefined;
+      }
+    | {
+          /** Several layers, each one group, in list order (top first): the source is Layer. */
+          readonly layers: readonly LayerId[];
+          readonly binding: LayerBinding;
+          readonly onChange: (binding: LayerBinding) => void;
+          readonly layerId?: undefined;
+      }
+);
 
 /**
- * The binding popover (tier3 design, section 4). For numbers: the ramp editor fed by the element's
- * preview of the binding, Range for sizes and widths, a clamp, the steps of a stepped ramp with
- * their counts and "New layer for <step>". For categories: the scheme, one row per value (chit,
- * name, count, eye) whose chit writes a value-table entry, "New layer for <value>", the overflow
- * choice. Both: no value and combine. Stopping varying by data is the field's own Stop varying
- * button beside the pill, not a choice in here. Every change is written at once.
+ * The binding popover (tier3 design, section 4), the one for every source: a value of the data on
+ * one layer or held for several, or the selected layers themselves (Vary by Layer, each layer one
+ * group, from graphty-element's `styles.layerGroups`). In this order: the source and Change source;
+ * for numbers read as a ramp, the ramp editor, its clamp and steps; for groups, a way to read the
+ * value another way, the palette, the group list (the same rows for every source) and what happens
+ * past the palette ("More values than colors", "More layers than colors"); Range for a number; No
+ * value, for a value of the data (an element of a layer always has its layer); Combine for a
+ * number. Stopping varying by data is the field's own Stop varying button beside the pill.
  * @param props - Component props
- * @param props.descriptor - the bound property
- * @param props.layerId - the layer that holds the binding
- * @param props.binding - the binding
- * @param props.source - what it reads, in words
- * @param props.onChange - writes a changed binding
- * @param props.onSource - reads another attribute instead
  * @returns The popover's body
  */
-export function BindingPopover({
-    descriptor,
-    layerId,
-    binding,
-    source,
-    onChange,
-    onSource,
-}: Readonly<BindingPopoverProps>): React.JSX.Element | null {
+export function BindingPopover(props: Readonly<BindingPopoverProps>): React.JSX.Element | null {
     const { session } = useWorkspace();
     // A group's detail takes the popover over: what belongs to the whole binding steps aside.
     const [detail, setDetail] = useState(false);
     if (session === null) {
         return null;
     }
-    const patch = (change: Partial<DataBinding>): void => {
-        onChange({ ...binding, ...change });
-    };
+    const { descriptor, onSource } = props;
     const { channel } = descriptor;
     const isColor = descriptor.accepts === "color";
     const isNumber = descriptor.accepts === "number";
-    const preview = previewOf(session, binding, channel);
-    const categorical = preview?.domain === null;
     const name = channelWord(channel);
+    const parts =
+        props.layers === undefined ? dataParts(session, props, detail, setDetail) : layerParts(session, props);
+    const { binding, patch } = parts;
+    const plain = isColor && !detail && parts.categorical && !parts.asWritten;
 
     return (
         <Stack gap={8} role="group" aria-label={`${name} binding`}>
-            <SourceHeader descriptor={descriptor} source={source} inUse={[binding.by]} onSource={onSource} />
-            {preview !== null && !categorical && (isColor || isNumber) ? (
-                <Ramp
-                    session={session}
-                    descriptor={descriptor}
-                    layerId={layerId}
-                    binding={binding}
-                    source={source}
-                    preview={preview}
-                    patch={patch}
-                />
-            ) : null}
-            {preview !== null && categorical ? (
-                <Categories
-                    session={session}
-                    descriptor={descriptor}
-                    layerId={layerId}
-                    binding={binding}
-                    source={source}
-                    preview={preview}
-                    patch={patch}
-                    detail={detail}
-                    onDetailChange={setDetail}
-                />
+            <SourceHeader descriptor={descriptor} source={parts.source} inUse={parts.inUse} onSource={onSource} />
+            {parts.ramp}
+            {parts.categorical ? (
+                <Stack gap={8}>
+                    {detail ? null : parts.readAs}
+                    {plain ? (
+                        <PaletteSelect session={session} value={binding.palette} shown={parts.palette} patch={patch} />
+                    ) : null}
+                    {parts.list}
+                    {plain ? (
+                        <StyleSelect
+                            label={`More ${parts.noun} than colors`}
+                            value={binding.overflow}
+                            defaultValue="other"
+                            placeholder=""
+                            options={[...OVERFLOW_WORDS[descriptor.target]]}
+                            onChange={(overflow) => {
+                                patch({ overflow: overflow as LayerBinding["overflow"] });
+                            }}
+                        />
+                    ) : null}
+                </Stack>
             ) : null}
             {isNumber && !detail ? (
                 <Range key={String(binding.range)} descriptor={descriptor} range={binding.range} patch={patch} />
             ) : null}
-            {preview !== null && !detail && (categorical || !isColor) ? (
-                <NoValue session={session} descriptor={descriptor} missing={binding.missing ?? "skip"} patch={patch} />
-            ) : null}
+            {detail ? null : parts.noValue}
             {isNumber && !detail ? (
                 <StyleSelect
                     label="Combine"
@@ -235,6 +232,157 @@ export function BindingPopover({
             ) : null}
         </Stack>
     );
+}
+
+/** What a source puts in the popover's sections. */
+interface Parts {
+    readonly binding: LayerBinding;
+    readonly patch: (change: Partial<LayerBinding>) => void;
+    /** What the binding reads, in words. */
+    readonly source: string;
+    /** The paths Change source lists first: the one read now. */
+    readonly inUse: readonly string[];
+    /** What one group is called, in "More values than colors". */
+    readonly noun: "values" | "layers";
+    /** Whether the binding reads groups (a category), so the group list and the palette show. */
+    readonly categorical: boolean;
+    /** Whether a color reads the values as colors, with no palette. */
+    readonly asWritten: boolean;
+    /** The palette it paints with when it names none. */
+    readonly palette: string | undefined;
+    readonly ramp: React.ReactNode;
+    readonly readAs: React.ReactNode;
+    readonly list: React.ReactNode;
+    readonly noValue: React.ReactNode;
+}
+
+/**
+ * The sections a value of the data fills: the element's preview of the binding decides ramp or
+ * groups.
+ * @param session - the element's session.
+ * @param props - the popover's props, for a value of the data.
+ * @param detail - whether a group's detail is open.
+ * @param onDetailChange - told when it opens or closes.
+ * @returns the parts.
+ */
+function dataParts(
+    session: GraphSession,
+    props: Extract<BindingPopoverProps, { readonly layers?: undefined }>,
+    detail: boolean,
+    onDetailChange: (open: boolean) => void,
+): Parts {
+    const { descriptor, layerId, binding, source, held = false, onChange } = props;
+    const { channel } = descriptor;
+    const isColor = descriptor.accepts === "color";
+    const patch = (change: Partial<LayerBinding>): void => {
+        onChange({ ...binding, ...change });
+    };
+    const preview = previewOf(session, binding, channel);
+    const categorical = preview?.domain === null;
+    const readable = readableOf(session, binding, descriptor.target);
+    const asWritten = binding.scale === "passthrough";
+    const part = { session, descriptor, layerId, binding, source, patch };
+    return {
+        binding,
+        patch,
+        source,
+        inUse: [binding.by],
+        noun: "values",
+        categorical,
+        asWritten,
+        palette:
+            preview?.palette ??
+            session.styles.legendOf(layerId).find((b) => b.channel === channel)?.palette?.name ??
+            undefined,
+        ramp:
+            preview !== null && !categorical && (isColor || descriptor.accepts === "number") ? (
+                <Ramp {...part} preview={preview} />
+            ) : null,
+        readAs: (
+            <>
+                {isColor && readable?.kind === "number" && binding.scale === "ordinal" ? (
+                    <QuietButton
+                        onClick={() => {
+                            patch({ scale: undefined, palette: undefined, overflow: undefined });
+                        }}
+                    >
+                        Use a ramp
+                    </QuietButton>
+                ) : null}
+                {isColor && readable?.valuesAreColors === true ? (
+                    <QuietButton
+                        onClick={() => {
+                            patch(
+                                asWritten
+                                    ? { scale: undefined }
+                                    : { scale: "passthrough", palette: undefined, overflow: undefined },
+                            );
+                        }}
+                    >
+                        {asWritten ? "Use a palette" : "Use the values as colors"}
+                    </QuietButton>
+                ) : null}
+            </>
+        ),
+        list: (
+            <GroupList
+                session={session}
+                descriptor={descriptor}
+                layerId={layerId}
+                binding={binding}
+                source={source}
+                onDetailChange={onDetailChange}
+                {...(held ? { onHeld: onChange } : {})}
+            />
+        ),
+        noValue:
+            preview !== null && !detail && (categorical || !isColor) ? (
+                <NoValue session={session} descriptor={descriptor} missing={binding.missing ?? "skip"} patch={patch} />
+            ) : null,
+    };
+}
+
+/**
+ * The sections the selected layers fill as the source: each layer one group, always.
+ * @param session - the element's session.
+ * @param props - the popover's props, for Layer.
+ * @returns the parts.
+ */
+function layerParts(
+    session: GraphSession,
+    props: Extract<BindingPopoverProps, { readonly layers: readonly LayerId[] }>,
+): Parts {
+    const { descriptor, layers, binding, onChange } = props;
+    let palette: string | undefined;
+    try {
+        palette = session.styles.sequence(binding, { channel: descriptor.channel, count: 1 }).palette ?? undefined;
+    } catch {
+        palette = undefined;
+    }
+    return {
+        binding,
+        patch: (change) => {
+            onChange({ ...binding, ...change });
+        },
+        source: "Layer",
+        inUse: [],
+        noun: "layers",
+        categorical: true,
+        asWritten: false,
+        palette,
+        ramp: null,
+        readAs: null,
+        list: (
+            <LayerGroupList
+                session={session}
+                descriptor={descriptor}
+                layers={layers}
+                binding={binding}
+                onChange={onChange}
+            />
+        ),
+        noValue: null,
+    };
 }
 
 /**
@@ -344,83 +492,6 @@ function PaletteSelect({
     );
 }
 
-/**
- * The binding popover with Layer as its source: several layers or a folder, each layer one group,
- * in list order. The same parts as for a value of the data -- the palette, the group list (the
- * very rows Louvain's groups draw, fed by graphty-element's `styles.layerGroups`), what happens
- * past the palette, the range of a number -- and a row's own value is the binding's map entry for
- * its layer. Nothing is written while it is open: closing it gives each layer its own plain value.
- * @param props - Component props
- * @param props.descriptor - the property
- * @param props.layers - the layers
- * @param props.binding - the binding across them
- * @param props.onChange - keeps a changed binding
- * @param props.onSource - reads a value of the data instead
- * @returns The popover's body
- */
-export function LayerBindingPopover({
-    descriptor,
-    layers,
-    binding,
-    onChange,
-    onSource,
-}: Readonly<{
-    descriptor: ChannelDescriptor;
-    layers: readonly LayerId[];
-    binding: LayerBinding;
-    onChange: (binding: LayerBinding) => void;
-    onSource: (choice: DataChoice) => void;
-}>): React.JSX.Element | null {
-    const { session } = useWorkspace();
-    if (session === null) {
-        return null;
-    }
-    const patch = (change: Partial<LayerBinding>): void => {
-        onChange({ ...binding, ...change });
-    };
-    const { channel } = descriptor;
-    const isColor = descriptor.accepts === "color";
-    const name = channelWord(channel);
-    let palette: string | undefined;
-    try {
-        palette = session.styles.sequence(binding, { channel, count: 1 }).palette ?? undefined;
-    } catch {
-        palette = undefined;
-    }
-    const capacity =
-        session.catalog.palettes().find((p) => p.id === (binding.palette ?? palette))?.colors.length ??
-        Number.POSITIVE_INFINITY;
-    return (
-        <Stack gap={8} role="group" aria-label={`${name} binding`}>
-            <SourceHeader descriptor={descriptor} source="Layer" inUse={[]} onSource={onSource} />
-            {isColor ? <PaletteSelect session={session} value={binding.palette} shown={palette} patch={patch} /> : null}
-            <LayerGroupList
-                session={session}
-                descriptor={descriptor}
-                layers={layers}
-                binding={binding}
-                onChange={onChange}
-            />
-            {isColor && layers.length > capacity ? (
-                <StyleSelect
-                    label="More layers than colors"
-                    value={binding.overflow}
-                    defaultValue="extend"
-                    placeholder=""
-                    // Folding into Other would leave layers with no color of their own.
-                    options={OVERFLOW_WORDS[descriptor.target].filter((o) => o.value !== "other")}
-                    onChange={(overflow) => {
-                        patch({ overflow: overflow as LayerBinding["overflow"] });
-                    }}
-                />
-            ) : null}
-            {descriptor.accepts === "number" ? (
-                <Range key={String(binding.range)} descriptor={descriptor} range={binding.range} patch={patch} />
-            ) : null}
-        </Stack>
-    );
-}
-
 /** What the ramp and the category list share. */
 interface PartProps {
     session: GraphSession;
@@ -429,7 +500,7 @@ interface PartProps {
     binding: DataBinding;
     source: string;
     preview: Preview;
-    patch: (change: Partial<DataBinding>) => void;
+    patch: (change: Partial<LayerBinding>) => void;
 }
 
 /**
@@ -756,96 +827,6 @@ function Clamp({
                     />
                 </Group>
             )}
-        </Stack>
-    );
-}
-
-/**
- * A categorical binding: its scheme, its groups (the group list, which opens a group's detail), and
- * what happens past the palette.
- * @param props - Component props
- * @param props.session - the element's session
- * @param props.descriptor - the bound property
- * @param props.layerId - the binding's layer
- * @param props.binding - the binding
- * @param props.source - what it reads, in words
- * @param props.preview - the element's preview of it
- * @param props.patch - writes a change
- * @param props.detail - whether a group's detail is open, which hides the scheme
- * @param props.onDetailChange - told when a group's detail opens or closes
- * @returns The scheme and its rows
- */
-function Categories({
-    session,
-    descriptor,
-    layerId,
-    binding,
-    source,
-    preview,
-    patch,
-    detail,
-    onDetailChange,
-}: PartProps & { detail: boolean; onDetailChange: (open: boolean) => void }): React.JSX.Element {
-    const { channel } = descriptor;
-    const isColor = descriptor.accepts === "color";
-    const block = session.styles.legendOf(layerId).find((b) => b.channel === channel);
-    const shownPalette = block?.palette?.name;
-    const readable = readableOf(session, binding, descriptor.target);
-    const asWritten = binding.scale === "passthrough";
-
-    return (
-        <Stack gap={8}>
-            {isColor && !detail && readable?.kind === "number" && binding.scale === "ordinal" ? (
-                <QuietButton
-                    onClick={() => {
-                        patch({ scale: undefined, palette: undefined, overflow: undefined });
-                    }}
-                >
-                    Use a ramp
-                </QuietButton>
-            ) : null}
-            {isColor && !detail && readable?.valuesAreColors === true ? (
-                <QuietButton
-                    onClick={() => {
-                        patch(
-                            asWritten
-                                ? { scale: undefined }
-                                : { scale: "passthrough", palette: undefined, overflow: undefined },
-                        );
-                    }}
-                >
-                    {asWritten ? "Use a palette" : "Use the values as colors"}
-                </QuietButton>
-            ) : null}
-            {isColor && !detail && !asWritten ? (
-                <PaletteSelect
-                    session={session}
-                    value={binding.palette}
-                    // What it paints now: the palette the element filled in, until the layer picks one.
-                    shown={preview.palette ?? shownPalette}
-                    patch={patch}
-                />
-            ) : null}
-            <GroupList
-                session={session}
-                descriptor={descriptor}
-                layerId={layerId}
-                binding={binding}
-                source={source}
-                onDetailChange={onDetailChange}
-            />
-            {isColor && !detail && !asWritten ? (
-                <StyleSelect
-                    label="More values than colors"
-                    value={binding.overflow}
-                    defaultValue="other"
-                    placeholder=""
-                    options={[...OVERFLOW_WORDS[descriptor.target]]}
-                    onChange={(overflow) => {
-                        patch({ overflow: overflow as DataBinding["overflow"] });
-                    }}
-                />
-            ) : null}
         </Stack>
     );
 }

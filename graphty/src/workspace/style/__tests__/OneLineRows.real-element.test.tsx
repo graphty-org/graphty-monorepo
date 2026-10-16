@@ -185,7 +185,7 @@ describe("one line per property", () => {
         assert.isAtLeast(chit?.getBoundingClientRect().width ?? 0, 20, "a strip of its colors at rest");
         const before = pill?.getBoundingClientRect().width;
         await userEvent.click(within(line).getByRole("button", { name: /^Node color: / }));
-        await screen.findByRole("dialog", { name: /Color from data/ });
+        await screen.findByRole("dialog", { name: /^Color by / });
         assert.equal(pill?.getBoundingClientRect().width, before, "open, the pill keeps its width");
         await userEvent.keyboard("{Escape}");
 

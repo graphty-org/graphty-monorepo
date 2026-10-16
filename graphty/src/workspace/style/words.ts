@@ -743,3 +743,13 @@ export function valueFieldKind(descriptor: ChannelDescriptor): ValueFieldKind | 
             return null;
     }
 }
+
+/**
+ * The title of a binding popover: "Color by Louvain", "Color by layer".
+ * @param channel - the bound property.
+ * @param source - what it reads, in words.
+ * @returns the title.
+ */
+export function bindingTitle(channel: ChannelDescriptor["channel"], source: string): string {
+    return `${channelWord(channel)} by ${source}`;
+}

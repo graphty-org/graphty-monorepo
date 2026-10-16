@@ -5,7 +5,7 @@ import React, { useState } from "react";
 
 import { count, findTreeRow, type FoundRow } from "../graph-place/rows";
 import { useWorkspace } from "../state/WorkspaceContext";
-import type { LayerSequence, LayerValues } from "./LayerVary";
+import type { LayerSequence, LayerValues } from "./BulkBinding";
 import type { BeneathValue, BulkReceipt, ManyRows, RowContext } from "./PropertyRow";
 import {
     beneathOf,
@@ -22,7 +22,10 @@ import { useStyleVersion } from "./useStyleVersion";
 import { channelWord, hexOf } from "./words";
 
 /** One value or binding written to a channel, or each layer its own values (Vary by Layer). */
-type Write = LiteralWrite | { readonly binding: DataBinding } | { readonly each: LayerSequence };
+type Write =
+    | LiteralWrite
+    | { readonly binding: DataBinding }
+    | { readonly each: LayerSequence; readonly combine?: DataBinding["combine"] };
 
 /** What the last write did, and the rows it left unset, so "Also set those" can write them. */
 interface LastWrite extends BulkReceipt {
@@ -57,13 +60,18 @@ function patchOf(
  * and an overflow's second cue's).
  * @param layer - the layer.
  * @param values - the values, by channel.
+ * @param combine - how a number meets the layers beneath.
  * @returns the patch.
  */
-function patchOfValues(layer: Layer, values: LayerValues): Pick<Layer, "set" | "encode"> {
+function patchOfValues(
+    layer: Layer,
+    values: LayerValues,
+    combine: DataBinding["combine"],
+): Pick<Layer, "set" | "encode"> {
     let next: Pick<Layer, "set" | "encode"> = { set: layer.set, encode: layer.encode };
     for (const [channel, value] of Object.entries(values) as [Channel, LayerValues[Channel]][]) {
         if (value !== undefined) {
-            next = patchOf({ ...layer, ...next }, channel, { value });
+            next = patchOf({ ...layer, ...next }, channel, typeof value === "number" ? { value, combine } : { value });
         }
     }
     return next;
@@ -73,7 +81,8 @@ function patchOfValues(layer: Layer, values: LayerValues): Pick<Layer, "set" | "
  * A binding as one layer of several keeps it: one that reads a run's result, copied into a layer
  * that meets some of its groups, holds what it paints those groups now in its own value table, so
  * a re-run that renumbers the groups (graphty-element carries a table's entries to the group
- * sharing most members) leaves each group painted as it was. Any other binding is copied as it is.
+ * sharing most members) leaves each group painted as it was; a group the reader gave its own value
+ * keeps it. Any other binding is copied as it is.
  * @param session - the element's session.
  * @param layer - the layer it is written to.
  * @param channel - the channel.
@@ -81,9 +90,9 @@ function patchOfValues(layer: Layer, values: LayerValues): Pick<Layer, "set" | "
  * @returns the binding for that layer.
  */
 function bindingFor(session: GraphSession, layer: Layer, channel: Channel, binding: DataBinding): DataBinding {
-    const { map: _map, ...rest } = binding;
+    const { map: given, ...rest } = binding;
     if (!rest.by.startsWith("results.")) {
-        return rest;
+        return binding;
     }
     const color = channel.endsWith("color");
     const map: Record<string, string | number> = {};
@@ -93,6 +102,7 @@ function bindingFor(session: GraphSession, layer: Layer, channel: Channel, bindi
             map[categoryOf(bin.value)] = paints;
         }
     }
+    Object.assign(map, given);
     return Object.keys(map).length === 0 ? rest : { ...rest, map };
 }
 
@@ -209,7 +219,7 @@ function manyOf(
                 return [];
             }
             if ("each" in write) {
-                return [{ id: layer.id, patch: patchOfValues(layer, values[from + at] ?? {}) }];
+                return [{ id: layer.id, patch: patchOfValues(layer, values[from + at] ?? {}, write.combine) }];
             }
             const each = "binding" in write ? { binding: bindingFor(session, layer, channel, write.binding) } : write;
             return [{ id: layer.id, patch: patchOf(layer, channel, each) }];
@@ -305,7 +315,7 @@ function manyOf(
                 const layer = homeOf(row, channel);
                 return layer === undefined ? [] : [{ id: layer.id, name: row.row.name }];
             }),
-        writeEach: (channel, each) => record(channel, { each }, targetsOf(channel), []),
+        writeEach: (channel, each, combine) => record(channel, { each, combine }, targetsOf(channel), []),
         receipt: (channel) => (last?.channel === channel ? last : undefined),
         alsoSet: async (channel) => {
             if (last?.channel !== channel) {

@@ -81,7 +81,7 @@ async function openStyle(name: string): Promise<HTMLElement> {
 async function openColorFromData(row: string): Promise<HTMLElement> {
     const tab = await openStyle(row);
     await userEvent.click(await within(tab).findByRole("button", { name: /^Node color: / }));
-    const dialog = await screen.findByRole("dialog", { name: /Color from data/ });
+    const dialog = await screen.findByRole("dialog", { name: /^Color by / });
     await settled(dialog);
     return dialog;
 }

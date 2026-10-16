@@ -1,3 +1,21 @@
+## 0.8.82 (2026-10-16)
+
+### 🩹 Fixes
+
+- **graphty:** apply a held-back mark suggestion with styles.mark() ([6d56a198c](https://github.com/graphty-org/graphty-monorepo/commit/6d56a198c))
+- **graphty:** keep focus where a panel More row moved it ([#2950](https://github.com/graphty-org/graphty-monorepo/issues/2950))
+- **compact-mantine:** report one segmented control change per click ([#2944](https://github.com/graphty-org/graphty-monorepo/issues/2944))
+- **graphty:** keep the device-lost toast clear of the activity rail ([#2949](https://github.com/graphty-org/graphty-monorepo/issues/2949))
+
+### 🧱 Updated Dependencies
+
+- Updated compact-mantine to 0.9.25
+- Updated graphty-element to 3.28.4
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.8.81 (2026-10-16)
 
 ### 🩹 Fixes

@@ -18,3 +18,15 @@ Files under `generated/` were written for this project by seeded scripts, MIT li
 | `generated/graphty-written-native-edit.xgmml.gz` | Written by graph-io from `parklab_NGSCheckMate__luad.out.xgmml` (in the XGMML corpus), then edited by the helpers in `test/styles/formats/cytoscape-xml.ts` | MIT (derived from an MIT file) | the same file with one node's fill changed in its `<graphics>`, as another program would edit it |
 | `generated/graphty-written-block-truncated.xgmml.gz` | Written by graph-io from `parklab_NGSCheckMate__luad.out.xgmml` (in the XGMML corpus), then edited by the helpers in `test/styles/formats/cytoscape-xml.ts` | MIT (derived from an MIT file) | the same file with its `graphty.styles` block cut in half |
 | `generated/graphty-written-block-other-graph.xgmml.gz` | Written by graph-io from `parklab_NGSCheckMate__luad.out.xgmml` (in the XGMML corpus), then edited by the helpers in `test/styles/formats/cytoscape-xml.ts` | MIT (derived from an MIT file) | the same file with a block that describes a graph of one node fewer |
+
+## Style fidelity fixtures
+
+Files scored against the drawing of the program that wrote them (`graph-io/test/fidelity/corpus-samples.ts`, reference
+scenes in `graph-io/test/fidelity/scenes/<sample id>/`). Generated files were written by the seeded scripts in
+`graph-io/test/fidelity/generators/`, MIT like the package.
+
+| File | Source | License | What it is |
+| --- | --- | --- | --- |
+| `fidelity/syn-mappings.xgmml.gz` | built in Cytoscape 3.10.5 by generators/build-synthetic.mjs over CyREST, saved by Cytoscape | MIT (generated for this project) | 96 nodes/140 edges; every feature through the style: defaults, discrete/continuous/passthrough mappings over all 9 shapes, 8 border strokes, 16 line types, 22 arrow shapes, 7 label positions, 5 fonts, label rotation/width/background/opacity, z-order, tooltips, separate arrow colors, background |
+| `fidelity/syn-bypass.xgmml.gz` | built in Cytoscape 3.10.5 by generators/build-synthetic.mjs over CyREST, saved by Cytoscape | MIT (generated for this project) | 64 nodes/90 edges; every feature per element (bypasses): fills, shapes, w!=h sizes, borders, opacity, labels, rotation, z, hidden nodes/edges, pie/bar/ring charts, linear/radial gradients, image custom graphics, edge bends, curved=false, edge labels, 3 groups (1 collapsed), 6 annotations |
+| `fidelity/wp4271-cy3-export.xgmml.gz` | https://public.ndexbio.org/v3/networks/c98a8df9-1438-11f0-9806-005056ae3c32 | CC0-1.0 (WikiPathways) | WikiPathways WP4271 pathway diagram, opened in Cytoscape 3.10.5 and exported as XGMML (a real Cytoscape 3 export) |

@@ -5,7 +5,9 @@ program that wrote it or from an independent reading of it. Each is a typical fi
 what people make and share in that tool, a readable network of tens to a few hundred nodes with
 its own colors, sizes, labels and edge styles, not a test case or a stress graph. `samples.ts` is the same list for the
 tests. A scene is `scenes/<sample>/<route>.ref.json`; `regenerate.sh` rebuilds them, and `routes.ts`
-holds each route's deficiency ledger (what it cannot carry, and why).
+holds each route's deficiency ledger (what it cannot carry, and why). Beyond these, `corpus-samples.ts` lists the
+style fidelity corpus, scored in bulk against per-property floors: each file's source and license is in the SOURCES.md
+of its directory under `corpus/styles/`, and the seeded scripts that wrote its generated files are in `generators/`.
 
 Where a route matches elements by something other than the file's own id, the comparer maps it:
 

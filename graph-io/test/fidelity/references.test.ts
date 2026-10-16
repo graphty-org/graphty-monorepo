@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+import { CORPUS_SAMPLES } from "./corpus-samples.js";
 import { canCarry } from "./routes.js";
 import { SAMPLES } from "./samples.js";
 import { PROPERTIES, type Scene } from "./scene.js";
@@ -45,7 +46,7 @@ type SceneParts = Pick<Scene, "nodes" | "edges" | "groups" | "gaps"> & {
 const sha256 = (path: string): string => createHash("sha256").update(readFileSync(path)).digest("hex");
 
 describe("committed reference scenes", () => {
-    const cases = SAMPLES.flatMap((s) => s.routes.map((route) => ({ sample: s, route })));
+    const cases = [...SAMPLES, ...CORPUS_SAMPLES].flatMap((s) => s.routes.map((route) => ({ sample: s, route })));
     it.each(cases)("$sample.id / $route is valid, stamped and traceable to its sample", async ({ sample, route }) => {
         const { sceneErrors } = await load<Common>("common.mjs");
         const path = `${here}scenes/${sample.id}/${route}.ref.json`;
@@ -56,6 +57,14 @@ describe("committed reference scenes", () => {
         expect(scene.provenance.route).toBe(route);
         expect(scene.provenance.sourceSha256).toBe(sha256(`${here}../${sample.file}`));
         expect(scene.canCarry).toEqual(canCarry(route, PROPERTIES));
+    });
+});
+
+describe("the style fidelity corpus", () => {
+    it("names each sample once, and no file twice", () => {
+        const all = [...SAMPLES, ...CORPUS_SAMPLES];
+        expect(new Set(all.map((s) => s.id)).size).toBe(all.length);
+        expect(new Set(all.map((s) => s.file)).size).toBe(all.length);
     });
 });
 

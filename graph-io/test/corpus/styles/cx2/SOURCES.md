@@ -20,3 +20,15 @@ Files under `generated/` were written for this project by seeded scripts, MIT li
 | `generated/graphty-written-native-edit.cx2` | Written by graph-io from `ndex-f5fd4274-a8c1-11e8-9520-0ac135e8bacf.cx2` (in the CX2 corpus), then edited by the helpers in `test/styles/formats/cx.ts` | CC0 (derived from a CC0 file) | the same file with one node's fill bypassed, as Cytoscape writes an edit |
 | `generated/graphty-written-block-truncated.cx2` | Written by graph-io from `ndex-f5fd4274-a8c1-11e8-9520-0ac135e8bacf.cx2` (in the CX2 corpus), then edited by the helpers in `test/styles/formats/cx.ts` | CC0 (derived from a CC0 file) | the same file with its `graphty.styles` block cut in half |
 | `generated/graphty-written-block-other-graph.cx2` | Written by graph-io from `ndex-f5fd4274-a8c1-11e8-9520-0ac135e8bacf.cx2` (in the CX2 corpus), then edited by the helpers in `test/styles/formats/cx.ts` | CC0 (derived from a CC0 file) | the same file with a block that describes a graph of one node fewer |
+
+## Style fidelity fixtures
+
+Files scored against the drawing of the program that wrote them (`graph-io/test/fidelity/corpus-samples.ts`, reference
+scenes in `graph-io/test/fidelity/scenes/<sample id>/`). Generated files were written by the seeded scripts in
+`graph-io/test/fidelity/generators/`, MIT like the package.
+
+| File | Source | License | What it is |
+| --- | --- | --- | --- |
+| `fidelity/syn-mappings.cx2` | built in Cytoscape 3.10.5 by generators/build-synthetic.mjs over CyREST, saved by Cytoscape | MIT (generated for this project) | 96 nodes/140 edges; every feature through the style: defaults, discrete/continuous/passthrough mappings over all 9 shapes, 8 border strokes, 16 line types, 22 arrow shapes, 7 label positions, 5 fonts, label rotation/width/background/opacity, z-order, tooltips, separate arrow colors, background |
+| `fidelity/syn-bypass.cx2` | built in Cytoscape 3.10.5 by generators/build-synthetic.mjs over CyREST, saved by Cytoscape | MIT (generated for this project) | 64 nodes/90 edges; every feature per element (bypasses): fills, shapes, w!=h sizes, borders, opacity, labels, rotation, z, hidden nodes/edges, pie/bar/ring charts, linear/radial gradients, image custom graphics, edge bends, curved=false, edge labels, 3 groups (1 collapsed), 6 annotations |
+| `fidelity/wp1449-tlr.cx2` | https://public.ndexbio.org/v3/networks/1bd41238-5c68-11ec-b3be-0ac135e8bacf | CC0-1.0 | WikiPathways diagram: graphical label nodes, z-order bypasses, annotations in network attributes |

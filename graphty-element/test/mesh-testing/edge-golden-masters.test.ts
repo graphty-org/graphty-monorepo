@@ -198,7 +198,7 @@ describe("Edge Golden Masters", () => {
             assert.notInstanceOf(mesh, InstancedMesh);
             // The joined line shader, its width in world units so the line zooms with the graph.
             assert.instanceOf(mesh.material, ShaderMaterial);
-            assert.include((mesh.material as ShaderMaterial).options.defines, "#define WORLD_WIDTH");
+            assert.include(mesh.material.options.defines, "#define WORLD_WIDTH");
             assert.isTrue(mesh.metadata.is2DLine, "Edge.update reads this to decide how to move the line");
             assert.equal(ctx.cache.size(), 0, "2D lines are per-edge, so nothing is cached");
         });

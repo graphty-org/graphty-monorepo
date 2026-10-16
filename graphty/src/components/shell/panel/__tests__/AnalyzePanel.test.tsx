@@ -1,7 +1,8 @@
 import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
-import { fireEvent, render, screen } from "../../../../test/test-utils";
+import { render, screen } from "../../../../test/test-utils";
 import type { GraphtyHandle } from "../../../Graphty";
 import { ShellProvider } from "../../ShellContext";
 import { ActivityPanel } from "../ActivityPanel";
@@ -73,6 +74,19 @@ function renderPanelInChrome(props: Partial<AnalyzePanelProps> = {}) {
     );
 }
 
+/**
+ * The label a reader clicks for a visually hidden input (a segmented control's radio, a switch).
+ * @param input - the input.
+ * @returns its first label.
+ */
+function labelOf(input: HTMLElement): HTMLElement {
+    const label = (input as HTMLInputElement).labels?.[0];
+    if (!label) {
+        throw new Error("the input has no label");
+    }
+    return label;
+}
+
 describe("AnalyzePanel", () => {
     beforeEach(() => {
         window.localStorage.removeItem(ANALYZE_MEMORY_STORAGE_KEY);
@@ -98,10 +112,10 @@ describe("AnalyzePanel", () => {
             expect(screen.getByRole("tab", { name: "Results (3)" })).toBeInTheDocument();
         });
 
-        it("remembers the tab under its own versioned key", () => {
+        it("remembers the tab under its own versioned key", async () => {
             renderPanel({ results: THREE_RESULTS });
 
-            fireEvent.click(screen.getByRole("tab", { name: "Results (3)" }));
+            await userEvent.click(screen.getByRole("tab", { name: "Results (3)" }));
 
             expect(window.localStorage.getItem(ANALYZE_MEMORY_STORAGE_KEY)).toContain("results");
         });
@@ -123,14 +137,14 @@ describe("AnalyzePanel", () => {
         /* THE DEFECT: the track was real -- role=tab, aria-selected, remembered -- and the
            JSX after it was unconditional, so selecting Results repainted two buttons and
            left the Run tab's Suggested cards on screen. This board fails on that build. */
-        it("renders one row per result, and the Run tab renders the suggested cards", () => {
+        it("renders one row per result, and the Run tab renders the suggested cards", async () => {
             renderPanel({ results: THREE_RESULTS });
 
             // Run first: the suggested cards, and no result rows.
             expect(screen.getAllByRole("button", { name: /^Run / })).toHaveLength(SUGGESTED_RUNS.length);
             expect(screen.queryByTestId("analyze-results")).not.toBeInTheDocument();
 
-            fireEvent.click(screen.getByRole("tab", { name: "Results (3)" }));
+            await userEvent.click(screen.getByRole("tab", { name: "Results (3)" }));
 
             const rows = screen.getAllByRole("listitem");
             expect(rows).toHaveLength(THREE_RESULTS.length);
@@ -144,7 +158,7 @@ describe("AnalyzePanel", () => {
         /* Spec:1699 makes these five "Panel-level settings shared by every card", so they
            belong to the panel and not to Run. A tab that took them with it would lose five
            sections the moment the reader looked at a result. */
-        it("keeps the tab track, the weight pair, the scope line and the five tier-2 sections under both tabs", () => {
+        it("keeps the tab track, the weight pair, the scope line and the five tier-2 sections under both tabs", async () => {
             renderPanel({
                 results: THREE_RESULTS,
                 weightAttribute: "value",
@@ -152,7 +166,7 @@ describe("AnalyzePanel", () => {
                 scopeLine: "Scope: all 20 visible nodes",
             });
 
-            fireEvent.click(screen.getByRole("tab", { name: "Results (3)" }));
+            await userEvent.click(screen.getByRole("tab", { name: "Results (3)" }));
 
             expect(screen.getByRole("tab", { name: "Run" })).toBeInTheDocument();
             expect(screen.getByText("value")).toBeInTheDocument();
@@ -198,10 +212,10 @@ describe("AnalyzePanel", () => {
             expect(screen.getAllByRole("listitem")).toHaveLength(THREE_RESULTS.length);
         });
 
-        it("walks the tab back to Run when the list empties underneath it", () => {
+        it("walks the tab back to Run when the list empties underneath it", async () => {
             const { rerender } = renderPanel({ results: THREE_RESULTS });
 
-            fireEvent.click(screen.getByRole("tab", { name: "Results (3)" }));
+            await userEvent.click(screen.getByRole("tab", { name: "Results (3)" }));
             expect(screen.getByTestId("analyze-results")).toBeInTheDocument();
 
             rerender(
@@ -229,10 +243,10 @@ describe("AnalyzePanel", () => {
            screen. Spec 2200-2202's collapsed card is "title, state and headline, plus the
            primary action"; the layer name is not on that list, so it moved into the verb's
            tooltip, where it is still hoverable and still announced. */
-        it("draws the swatch and Change encoding on an applied result, and neither on an un-applied one", () => {
+        it("draws the swatch and Change encoding on an applied result, and neither on an un-applied one", async () => {
             renderPanel({ results: [APPLIED_RESULT, UNAPPLIED_RESULT] });
 
-            fireEvent.click(screen.getByRole("tab", { name: "Results (2)" }));
+            await userEvent.click(screen.getByRole("tab", { name: "Results (2)" }));
 
             const applied = screen.getByTestId("analyze-result-groups-1");
             expect(applied.querySelector('[data-testid="analyze-result-swatch"]')).not.toBeNull();
@@ -249,10 +263,10 @@ describe("AnalyzePanel", () => {
             expect(screen.queryByRole("button", { name: "Encode as style" })).not.toBeInTheDocument();
         });
 
-        it("leaves the 6.3 pair room to read beside the applied result's affordances", () => {
+        it("leaves the 6.3 pair room to read beside the applied result's affordances", async () => {
             renderPanel({ results: [APPLIED_RESULT] });
 
-            fireEvent.click(screen.getByRole("tab", { name: "Results (1)" }));
+            await userEvent.click(screen.getByRole("tab", { name: "Results (1)" }));
 
             const row = screen.getByTestId("analyze-result-groups-1");
             const state = row.querySelector('[data-testid="action-row-state"]') as HTMLElement;
@@ -262,13 +276,13 @@ describe("AnalyzePanel", () => {
             expect(state.getBoundingClientRect().width).toBeGreaterThan(80);
         });
 
-        it("calls onChangeEncoding for the result the button belongs to", () => {
+        it("calls onChangeEncoding for the result the button belongs to", async () => {
             const onChangeEncoding = vi.fn();
 
             renderPanel({ results: [{ ...APPLIED_RESULT, onChangeEncoding }] });
 
-            fireEvent.click(screen.getByRole("tab", { name: "Results (1)" }));
-            fireEvent.click(screen.getByRole("button", { name: "Change encoding" }));
+            await userEvent.click(screen.getByRole("tab", { name: "Results (1)" }));
+            await userEvent.click(screen.getByRole("button", { name: "Change encoding" }));
 
             expect(onChangeEncoding).toHaveBeenCalledTimes(1);
         });
@@ -276,10 +290,10 @@ describe("AnalyzePanel", () => {
         /* Spec 2207-2209: "A Done state chip is not drawn: state chips are for Running,
            Queued, Failed and Stale." Running is the only one of the four this build
            measures, so it is the only one that may be drawn. */
-        it("never draws a Done chip, and draws Running only for a run in flight", () => {
+        it("never draws a Done chip, and draws Running only for a run in flight", async () => {
             renderPanel({ results: [APPLIED_RESULT, { ...UNAPPLIED_RESULT, state: "running" }] });
 
-            fireEvent.click(screen.getByRole("tab", { name: "Results (2)" }));
+            await userEvent.click(screen.getByRole("tab", { name: "Results (2)" }));
 
             expect(screen.queryByText("Done")).not.toBeInTheDocument();
             expect(screen.queryByText("Complete")).not.toBeInTheDocument();
@@ -289,13 +303,13 @@ describe("AnalyzePanel", () => {
             expect(screen.getByTestId("analyze-result-degree-1")).toContainElement(running[0]);
         });
 
-        it("opens a result by its own id when its row is clicked", () => {
+        it("opens a result by its own id when its row is clicked", async () => {
             const onOpenResult = vi.fn();
 
             renderPanel({ results: THREE_RESULTS, onOpenResult });
 
-            fireEvent.click(screen.getByRole("tab", { name: "Results (3)" }));
-            fireEvent.click(screen.getByRole("button", { name: /^Most connected/ }));
+            await userEvent.click(screen.getByRole("tab", { name: "Results (3)" }));
+            await userEvent.click(screen.getByRole("button", { name: /^Most connected/ }));
 
             expect(onOpenResult.mock.calls.map((call) => call[0])).toEqual(["degree-1"]);
         });
@@ -303,10 +317,10 @@ describe("AnalyzePanel", () => {
         /* Spec 2200-2202: the result the inspector is drawing renders its list card
            collapsed. Without the mark, a list of three gives no signal about which of them
            the inspector holds. */
-        it("marks the result the inspector is drawing, and only that one", () => {
+        it("marks the result the inspector is drawing, and only that one", async () => {
             renderPanel({ results: THREE_RESULTS, activeResultId: "bridges-1" });
 
-            fireEvent.click(screen.getByRole("tab", { name: "Results (3)" }));
+            await userEvent.click(screen.getByRole("tab", { name: "Results (3)" }));
 
             expect(screen.getByTestId("analyze-result-bridges-1")).toHaveAttribute("aria-current", "true");
             expect(screen.getByTestId("analyze-result-groups-1")).not.toHaveAttribute("aria-current");
@@ -321,16 +335,29 @@ describe("AnalyzePanel", () => {
             const toggle = screen.getByTestId("analyze-card-view");
 
             expect(header).toContainElement(toggle);
-            expect(screen.getByRole("radio", { name: "Cards" })).toHaveAttribute("aria-checked", "true");
-            expect(screen.getByRole("radio", { name: "List" })).toHaveAttribute("aria-checked", "false");
+            expect(screen.getByRole("radio", { name: "Cards" })).toBeChecked();
+            expect(screen.getByRole("radio", { name: "List" })).not.toBeChecked();
         });
 
-        it("remembers the chosen view under the panel's own key", () => {
+        it("remembers the chosen view under the panel's own key", async () => {
             renderPanelInChrome({ persist: true });
 
-            fireEvent.click(screen.getByRole("radio", { name: "List" }));
+            await userEvent.click(labelOf(screen.getByRole("radio", { name: "List" })));
 
             expect(window.localStorage.getItem(ANALYZE_MEMORY_STORAGE_KEY)).toContain("list");
+        });
+
+        it("moves between Cards and List with the arrow keys, with a visible focus ring", async () => {
+            renderPanelInChrome();
+
+            const cards = screen.getByRole<HTMLInputElement>("radio", { name: "Cards" });
+            await userEvent.click(cards.labels?.[0] ?? cards);
+            await userEvent.keyboard("{ArrowRight}");
+
+            const list = screen.getByRole<HTMLInputElement>("radio", { name: "List" });
+            expect(list).toHaveFocus();
+            expect(list).toBeChecked();
+            expect(getComputedStyle(list.labels?.[0] ?? list).outlineStyle).toBe("solid");
         });
 
         it("draws nothing where there is no panel chrome to draw into", () => {
@@ -394,7 +421,7 @@ describe("AnalyzePanel", () => {
         it("opens the re-homed Run algorithm dialog", async () => {
             renderPanel();
 
-            fireEvent.click(screen.getByTestId("analyze-add"));
+            await userEvent.click(screen.getByTestId("analyze-add"));
 
             expect(await screen.findByRole("dialog")).toBeInTheDocument();
         });
@@ -494,13 +521,13 @@ describe("AnalyzePanel", () => {
     });
 
     describe("what a Run reports", () => {
-        it("names the card that was run, by the id the frozen list gave it", () => {
+        it("names the card that was run, by the id the frozen list gave it", async () => {
             const onRunSuggested = vi.fn();
 
             renderPanel({ onRunSuggested });
 
             for (const name of ["Run Most connected", "Run Influence", "Run Bridges"]) {
-                fireEvent.click(screen.getByRole("button", { name }));
+                await userEvent.click(screen.getByRole("button", { name }));
             }
 
             expect(onRunSuggested.mock.calls.map((call) => call[0])).toEqual([
@@ -516,7 +543,7 @@ describe("AnalyzePanel", () => {
            THESE rows, so a rename or a reorder here silently unwires the shell's own map
            from card id to metric. The board is what makes that a failure rather than a
            card whose Run does nothing. */
-        it("keeps its membership and its order", () => {
+        it("keeps its membership and its order", async () => {
             const onRunSuggested = vi.fn();
 
             renderPanel({ onRunSuggested });
@@ -525,9 +552,9 @@ describe("AnalyzePanel", () => {
 
             expect(runs.map((run) => run.getAttribute("aria-label"))).toEqual(SUGGESTED_RUNS);
 
-            runs.forEach((run) => {
-                fireEvent.click(run);
-            });
+            for (const run of runs) {
+                await userEvent.click(run);
+            }
 
             expect(onRunSuggested.mock.calls.map((call) => call[0])).toEqual([
                 "groups",

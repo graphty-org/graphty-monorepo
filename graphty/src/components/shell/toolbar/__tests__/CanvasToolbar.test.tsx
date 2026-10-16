@@ -84,10 +84,10 @@ describe("CanvasToolbar", () => {
         it("opens with the 2D / 3D segmented control", () => {
             render(<CanvasToolbar {...props()} />);
 
-            const radios = within(bar()).getAllByRole("radio");
+            const radios = within(bar()).getAllByRole<HTMLInputElement>("radio");
 
-            expect(radios.map((radio) => radio.textContent)).toEqual(["2D", "3D"]);
-            expect(bar().firstElementChild).toBe(radios[0].parentElement);
+            expect(radios.map((radio) => radio.labels?.[0]?.textContent)).toEqual(["2D", "3D"]);
+            expect(bar().firstElementChild).toBe(within(bar()).getByRole("radiogroup"));
         });
 
         it("draws one divider after the segmented control and one before Views", () => {

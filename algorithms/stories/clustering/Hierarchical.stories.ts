@@ -22,6 +22,7 @@ import {
     renderGraph,
     updateStatus,
 } from "../utils/visualization.js";
+import { storyWaitOptions } from "../utils/wait.js";
 
 /**
  * Story arguments interface.
@@ -332,12 +333,9 @@ export const Hierarchical: Story = {
         const computeButton = canvas.getByRole("button", { name: /compute clusters/i });
         await userEvent.click(computeButton);
 
-        await waitFor(
-            async () => {
-                const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
-                await expect(statusText).toContain("clusters");
-            },
-            { timeout: 5000 },
-        );
+        await waitFor(async () => {
+            const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
+            await expect(statusText).toContain("clusters");
+        }, storyWaitOptions(5000));
     },
 };

@@ -22,12 +22,16 @@ import type { ArrowCap } from "./ArrowCapBatch";
 import { CustomLineRenderer } from "./CustomLineRenderer";
 import type { EdgeLineBatch } from "./EdgeLineBatch";
 import { FilledArrowRenderer } from "./FilledArrowRenderer";
+import { FrameRoster } from "./FrameRoster";
 import type { MeshCache } from "./MeshCache";
 import { PatternedLineMesh } from "./PatternedLineMesh";
 import { PatternedLineRenderer } from "./PatternedLineRenderer";
 import { Simple2DLineRenderer } from "./Simple2DLineRenderer";
 
 /** The line types drawn as a run of pattern elements rather than as one line. */
+/** The animated edge lines of each scene, behind one before-render observer; see {@link FrameRoster}. */
+const animatedEdgeFrames = new FrameRoster();
+
 const PATTERNED_TYPES = new Set(["dot", "star", "box", "dash", "diamond", "dash-dot", "sinewave", "zigzag"]);
 
 interface EdgeMeshOptions {
@@ -249,12 +253,14 @@ void main() {
             style.line?.type as "dot" | "star" | "box" | "dash" | "diamond" | "dash-dot" | "sinewave" | "zigzag",
             new Vector3(0, 0, -0.5), // Placeholder start (Edge.update() will set real positions)
             new Vector3(0, 0, 0.5), // Placeholder end (Edge.update() will set real positions)
-            options.width / 40, // Convert back from scaled width - need /40 to match solid line thickness
-            options.color,
-            style.line?.opacity ?? 1,
             scene,
-            this.is2DMode(scene), // Pass 2D mode detection flag
-            style.line?.patternCount, // undefined means follow the spacing rule
+            {
+                width: options.width / 40, // Convert back from scaled width - need /40 to match solid line thickness
+                color: options.color,
+                opacity: style.line?.opacity ?? 1,
+                is2DMode: this.is2DMode(scene), // Pass 2D mode detection flag
+                patternCount: style.line?.patternCount, // undefined means follow the spacing rule
+            },
         );
     }
 
@@ -671,7 +677,7 @@ void main() {
 
         const perFrame = EDGE_CONSTANTS.MOVING_TEXTURE_ANIMATION_SPEED * animationSpeed;
 
-        const observer = scene.onBeforeRenderObservable.add(() => {
+        const stopFrames = animatedEdgeFrames.join(scene, () => {
             // PARKED AT THE START OF THE GRADIENT WHEN THE SCENE SAYS NOT TO ANIMATE, rather than
             // left wherever the last frame put it. `scene.animationsEnabled` is Babylon's own
             // switch for "do not animate", and honouring it is what lets a visual baseline of an
@@ -693,7 +699,7 @@ void main() {
         // rebuilt animated line would leave both behind.
         mesh.onDisposeObservable.addOnce(() => {
             releaseFrames();
-            scene.onBeforeRenderObservable.remove(observer);
+            stopFrames();
             texture.dispose();
         });
     }

@@ -12,6 +12,7 @@ import type { LoadReport } from "../data/report";
 import { adoptEdgeRecord, Edge, placeEdgeRow } from "../Edge";
 import { GraphtyError } from "../errors/GraphtyError";
 import { type LayoutEngine, layoutEngineInternals } from "../layout/LayoutEngine";
+import { disposeLabelsTogether } from "../meshes/LabelBatch";
 import { MeshCache } from "../meshes/MeshCache";
 import { adoptNodeRecord, Node, NodeIdType, placeNodeRow } from "../Node";
 import type { NodeDragHandler } from "../NodeBehavior";
@@ -84,6 +85,18 @@ export type { AddEdgesOptions } from "../session/project/ingest";
  * @returns What `teardown` returns.
  */
 export function disposeReleased<T>(nodes: Iterable<Node>, edges: Iterable<Edge>, teardown: () => T): T {
+    // The labels go together too, after the lists below are restored: see LabelBatch (issue #2804).
+    return disposeLabelsTogether(() => setAsideAndDispose(nodes, edges, teardown));
+}
+
+/**
+ * The body of {@link disposeReleased}, inside its label batch.
+ * @param nodes - The nodes `teardown` disposes.
+ * @param edges - The edges `teardown` disposes.
+ * @param teardown - Disposes them.
+ * @returns What `teardown` returns.
+ */
+function setAsideAndDispose<T>(nodes: Iterable<Node>, edges: Iterable<Edge>, teardown: () => T): T {
     const doomed = new Set<AbstractMesh>();
     const handlers: NodeDragHandler[] = [];
     collectDoomed(nodes, edges, doomed, handlers);
@@ -374,12 +387,14 @@ export class DataManager implements Manager {
         };
         dataManagerInternals.adoptNode = (manager, node) => {
             manager.nodeMap.set(node.id, node);
+            manager.nodeVersion++;
         };
         dataManagerInternals.flushReleasing = (manager) => {
             manager.flushReleasing();
         };
         dataManagerInternals.adoptEdge = (manager, edge) => {
             manager.edgeMap.set(edge.id, edge);
+            manager.edgeVersion++;
             if (edge.index !== INVALID_INDEX) {
                 manager.edgeRows[edge.index] = edge;
             }
@@ -415,6 +430,8 @@ export class DataManager implements Manager {
 
     /** Goes up on every edge added or removed, so a cache over the edge set knows it is stale. */
     edgeVersion = 0;
+    /** Goes up on every node added or removed, so a cache over the node set knows it is stale. */
+    nodeVersion = 0;
     nodeCache = new Map<NodeIdType, Node>();
 
     /**
@@ -994,6 +1011,7 @@ export class DataManager implements Manager {
         this.disposeNodesAndEdges();
         this.nodeMap.clear();
         this.edgeMap.clear();
+        this.nodeVersion++;
         this.edgeVersion++;
         this.nodeCache.clear();
         this.edgeRows.length = 0;
@@ -1014,6 +1032,7 @@ export class DataManager implements Manager {
      */
     private disposeRenderNode(node: Node, later = false): void {
         this.nodeMap.delete(node.id);
+        this.nodeVersion++;
         this.nodeCache.delete(node.id);
         placeNodeRow(node, INVALID_INDEX);
         if (this.layoutEngine) {
@@ -1434,6 +1453,7 @@ export class DataManager implements Manager {
         // Clear all collections
         this.nodeMap.clear();
         this.edgeMap.clear();
+        this.nodeVersion++;
         this.edgeVersion++;
         this.nodeCache.clear();
 
@@ -1516,6 +1536,7 @@ export class DataManager implements Manager {
         placeNodeRow(n, index);
         this.nodeCache.set(nodeId, n);
         this.nodeMap.set(nodeId, n);
+        this.nodeVersion++;
 
         // Add to layout engine if it exists
         if (this.layoutEngine) {

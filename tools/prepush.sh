@@ -139,6 +139,14 @@ else
 fi
 echo ""
 
+# CI lints a pull request merged with its base; this gate lints the branch as it is. They match unless
+# the base changed the lint configuration (a new rule, a rule's settings) since the branch last merged
+# it, so then the push is refused with "merge <base> first" -- before the build, so it costs seconds
+# (issue #2985). PREPUSH_ALL=1 has no base, and a push that affects no package lints nothing, so they skip it.
+if [ -n "${PUSH_BASE_REF:-}" ] && [ -n "$PROJECT_LIST" ]; then
+    run_step "Lint configuration current with $PUSH_BASE_REF" "node '$SCRIPT_DIR/lint-base-drift.mjs' '$PUSH_BASE_REF'"
+fi
+
 # Build the affected packages (nx builds what they depend on first: build dependsOn ^build).
 # nx, not `pnpm -r run build`: for graph-format and layout the nx build TARGET is `npm run build:all`,
 # while their `build` SCRIPT is a plain tsc that never writes the bundled dist/<pkg>.d.ts the strict-consumer

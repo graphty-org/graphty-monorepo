@@ -162,7 +162,10 @@ With `styles: true`, graph-io reads the style of the imported network's view, wi
 and the per-element values locked in the view, and notes any other styles (`W_STYLE_OTHER_STYLES`).
 A session's style starts empty, so what it leaves unset gets the values Cytoscape's renderer falls
 back to (red ellipses, dark gray edges). A session without its styles file gets those values alone
-(`W_STYLE_NO_VIZMAP`). Without the option, the styles are not read (`W_STYLES_NOT_IMPORTED`).
+(`W_STYLE_NO_VIZMAP`). Without the option, the styles are not read (`W_STYLES_NOT_IMPORTED`). A
+mapping over `shared name` or `shared interaction` reads `name` or `interaction` when the network
+has only those, as Cytoscape does. Cytoscape does not draw an expanded group's own node, so it is
+marked not visible (`visible: false`).
 
 A save with styles writes the rules as a visual style named for the network, which the view uses,
 and keeps the rules for graphty in an archive entry of their own, which Cytoscape ignores. See

@@ -22,7 +22,14 @@ import { cytoscapeRules } from "../../styles/cytoscape/translate.js";
 import { StyleNotes } from "../../styles/notes.js";
 import { dataCell } from "../../styles/plan/resolve.js";
 import type { ImporterStyles, ReaderOutput, StyleReadContext, StyleTarget } from "../../styles/types.js";
-import { exactFromBlock, graphicsBypasses, hiddenToVisible, nonEmpty, readXgmmlStyles } from "../xgmml/styles.js";
+import {
+    exactFromBlock,
+    graphicsBypasses,
+    hiddenToVisible,
+    hideGroupsCytoscapeHides,
+    nonEmpty,
+    readXgmmlStyles,
+} from "../xgmml/styles.js";
 import { HIDDEN_COLUMN } from "./constants.js";
 import type { XmlNode } from "./session.js";
 
@@ -123,6 +130,9 @@ function sessionTargetStyles(
     };
     const values = resolveCytoscape(target, style, elements, work);
     hiddenToVisible(table, HIDDEN_COLUMN, n, values);
+    if (target === "node") {
+        hideGroupsCytoscapeHides(snapshot, values);
+    }
     // a session graphty wrote: a value its style writes as the nearest Cytoscape value is the block's
     exactFromBlock(snapshot, target, values);
     const { rules, columns } = cytoscapeRules(target, style, elements, work);

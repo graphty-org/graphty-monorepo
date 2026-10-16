@@ -122,7 +122,10 @@ What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-
 Cytoscape writes the resolved look of every node and edge into its `<graphics>` element: fill,
 outline, size, shape, label, arrows and line style, and its own `cy:` properties. With
 `styles: true`, graph-io reads them, finds the rules they follow (a color by an attribute, a size
-by degree) and adds the defaults of Cytoscape's default style.
+by degree) and adds the defaults of Cytoscape's default style. A node whose graphics state no label
+shows its `name`, else its `label=`, as Cytoscape's default style shows it. Cytoscape draws an
+expanded group's members but not the group's own node, and a collapsed group's node but not its
+members: those nodes are marked not visible (`visible: false`).
 
 A save with styles writes `<graphics>` for every node and edge, and keeps the rules for graphty as
 the graph attribute `graphty.styles`. Without the `styles` option, a save writes back the

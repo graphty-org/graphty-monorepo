@@ -7,6 +7,7 @@
 
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { gunzipSync } from "node:zlib";
 
 import { describe, expect, it } from "vitest";
 
@@ -36,7 +37,8 @@ async function load(doc: string | Uint8Array, format: string): ReturnType<typeof
  * @returns the bytes
  */
 function corpus(path: string): Uint8Array {
-    return new Uint8Array(readFileSync(resolve(CORPUS, path)));
+    const raw = readFileSync(resolve(CORPUS, path));
+    return new Uint8Array(path.endsWith(".gz") ? gunzipSync(raw) : raw);
 }
 
 /**
@@ -158,5 +160,40 @@ describe("yEd GML without a Creator line (BioNetGen)", () => {
         expect(new Set(planned(r, "node", "borderWidth"))).toEqual(new Set([1]));
         expect(planned(r, "edge", "targetArrow")[0]).toBe("none");
         expect(r.report.issues.map((i) => i.code)).not.toContain("W_GML_GROUPS");
+    });
+});
+
+describe("Cytoscape groups", () => {
+    /**
+     * The names of the nodes the styles mark not visible.
+     * @param r - the import result
+     * @returns the names, sorted
+     */
+    function hidden(r: Awaited<ReturnType<typeof load>>): string[] {
+        const label = r.snapshot.nodes.byRole("label");
+        return planned(r, "node", "visible")
+            .flatMap((v, i) => (v === false ? [String(label?.value(i))] : []))
+            .sort();
+    }
+
+    it("hide an expanded group's own node and a collapsed group's members, as Cytoscape draws them (XGMML)", async () => {
+        const r = await load(corpus("xgmml/fidelity/syn-bypass.xgmml.gz"), "xgmml");
+        // B10, B20 and B30 are hidden by the file itself
+        expect(hidden(r)).toEqual([
+            "B10",
+            "B20",
+            "B30",
+            "B50",
+            "B51",
+            "B52",
+            "B53",
+            "group-expanded-1",
+            "group-expanded-2",
+        ]);
+    });
+
+    it("hide an expanded group's own node in a session (a collapsed group's members are not in its network)", async () => {
+        const r = await load(corpus("cys/fidelity/syn-bypass.cys"), "cys");
+        expect(hidden(r)).toEqual(["B10", "B20", "B30", "group-expanded-1", "group-expanded-2"]);
     });
 });

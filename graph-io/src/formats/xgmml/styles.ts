@@ -37,7 +37,7 @@ import type {
 } from "../../styles/types.js";
 import type { LossNote } from "../../types.js";
 import { lossOf } from "../cx/styles.js";
-import { GRAPHICS_COLUMN, XGMML_ORIGIN_NAMESPACE } from "./constants.js";
+import { GRAPHICS_COLUMN, SUBGRAPH_COLUMN, XGMML_ORIGIN_NAMESPACE } from "./constants.js";
 
 type Table = GraphSnapshot["nodes"];
 
@@ -121,6 +121,9 @@ export function readXgmmlStyles(
             ? resolveCytoscapeBypasses(target, maps, { notes, budget: context.budget })
             : {};
         hiddenToVisible(table, settings.hiddenColumn ?? null, n, values);
+        if (target === "node") {
+            hideGroupsCytoscapeHides(snapshot, values);
+        }
         if (target === "node" && settings.tool === "cytoscape" && values.label === undefined) {
             nameLabels(table, n, values);
         }
@@ -269,6 +272,69 @@ export function hiddenToVisible(
     if (visible !== null) {
         values.visible = visible;
     }
+}
+
+/**
+ * Marks not visible what Cytoscape does not draw of its groups: an expanded group's own node (its members are drawn
+ * in its place), and every node inside a collapsed group (the group's node is drawn in their place). A group is
+ * collapsed when its nested graph's `__groupCollapsed.SUID` names the network being read. A file graphty wrote is
+ * left alone: its block says what to draw.
+ * @param snapshot - the graph
+ * @param values - the node values per property, changed in place
+ */
+export function hideGroupsCytoscapeHides(snapshot: GraphSnapshot, values: Partial<Record<string, StyleColumn>>): void {
+    const parent = snapshot.nodes.byRole("parent");
+    if (parent === null || snapshot.graph.has(STYLE_BLOCK_NAME)) {
+        return;
+    }
+    const n = snapshot.nodeCount;
+    const members = new Map<number, number[]>();
+    for (let i = 0; i < n; i++) {
+        const g = parent.isSet(i) ? plainCell(parent.value(i)) : null;
+        if (typeof g === "number" && g !== i) {
+            members.set(g, [...(members.get(g) ?? []), i]);
+        }
+    }
+    if (members.size === 0) {
+        return;
+    }
+    const network = (snapshot.meta.extra as { xgmml?: { graphId?: unknown } } | undefined)?.xgmml?.graphId;
+    const visible = values.visible === undefined ? new Array<StyleValue | null>(n).fill(null) : [...values.visible];
+    for (const [group, inside] of members) {
+        if (!collapsedIn(snapshot, group, network)) {
+            visible[group] = false;
+            continue;
+        }
+        // every node inside, at any depth
+        const stack = [...inside];
+        const seen = new Set<number>([group]);
+        for (let i = stack.pop(); i !== undefined; i = stack.pop()) {
+            if (!seen.has(i)) {
+                seen.add(i);
+                visible[i] = false;
+                stack.push(...(members.get(i) ?? []));
+            }
+        }
+    }
+    values.visible = visible;
+}
+
+/**
+ * Whether a group node's nested graph says the group is collapsed in a network (`__groupCollapsed.SUID` lists it).
+ * @param snapshot - the graph
+ * @param group - the group node
+ * @param network - the id of the network being read, or anything else when unknown
+ * @returns true when collapsed there
+ */
+function collapsedIn(snapshot: GraphSnapshot, group: number, network: unknown): boolean {
+    if (typeof network !== "string" || !snapshot.nodes.has(SUBGRAPH_COLUMN)) {
+        return false;
+    }
+    const sub = plainCell(snapshot.nodes.value(SUBGRAPH_COLUMN, group));
+    const atts = sub !== null && typeof sub === "object" ? (sub as { atts?: unknown }).atts : null;
+    const collapsed =
+        atts !== null && typeof atts === "object" ? (atts as Record<string, unknown>)["__groupCollapsed.SUID"] : null;
+    return Array.isArray(collapsed) && collapsed.some((v) => String(v) === network);
 }
 
 /**

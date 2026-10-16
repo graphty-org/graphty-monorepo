@@ -4,6 +4,22 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-16 -- Decided by the team: one node drawn alone (`element.nodeThumbnail`)
+
+Additive API in graphty-element (the element, `.` entry): `element.nodeThumbnail({ shape, color?,
+size? })` returns a PNG data URL of one node of that shape and color drawn exactly as the graph
+draws its nodes (mesh, material, lighting), on a transparent background, kept per shape, color,
+size, 2D or 3D and lighting; new type `NodeThumbnailOptions`. The graphty app's key uses it for
+shape rows. Why: the owner asked for the 3D shape in the key; drawing it in the element means no
+application keeps its own copy of a shape the element owns.
+
+## 2026-10-16 -- Decided by the team: one binding popover; No value only for a value of the data
+
+The binding popover is one component for every source (a value of the data on one layer or held
+for several, or the selected layers). The one section the Layer source does not draw is No value:
+every element of a selected layer has its layer, so the choice would do nothing. A data field
+picked on several layers starts from the element's own proposal, exactly as on one layer.
+
 ## 2026-10-16 -- Decided by the team: a menu opened by a click starts on its first enabled row (compact-mantine)
 
 **What.** Every themed menu now opens with focus on its first enabled row, whether a key or the

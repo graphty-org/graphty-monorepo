@@ -11,6 +11,32 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-16) **One binding popover, one code path (owner feedback, third pass).** The old bulk
+  "vary by data" preview (`VaryPreview`, `manyBinding`, "Each layer gets its own rule", Apply) and
+  the duplicate `LayerBindingPopover` are deleted, with `LayerVary.tsx` and the `ws-bulk-vary`
+  styles. `BindingPopover` takes its source: a value of the data (live on one layer, or `held` for
+  several) or `layers` (Vary by Layer). Sections, in order: Source + Change source; for a number read
+  as a ramp the ramp editor; for groups the read-as buttons, Palette, the group list (`GroupRows`
+  for every source), "More values/layers than colors" (all three choices, shown whenever there is a
+  palette); Range; No value (a data value only: an element of a layer always has its layer); Combine.
+  The title names the source ("Color by Louvain", "Color by layer"). On several layers
+  `BulkBinding.tsx` holds either binding while the popover is open; closing it copies a data
+  binding into each layer holding one group (`many.vary`, `bindingFor` keeps a held `map`) or writes
+  each layer its plain value (`writeEach`, now with Combine), one undo step, receipt. The start
+  binding for a data field is the element's own proposal, as one layer gets (no more forced
+  "extend"). A held data binding's groups come from `styles.preview` bins (`heldSource` in
+  `Groups.tsx`): eye and own value change the held binding; no fold, detail or New layer for. A
+  bound field on several layers holds its edits until close the same way (`BoundValue` draft).
+  Test: `VaryByLayer.real-element` compares the sections of a layer's Fill by Louvain and a
+  folder's Fill by Layer (`data-group-list` marks the list).
+- (2026-10-16) **The key draws node shapes as nodes.** graphty-element `element.nodeThumbnail({
+shape, color?, size? })` (additive): one node mesh + material + scene lighting, rendered through
+  a render target on the scene's own engine with a layer mask only it carries, framed by its
+  bounding sphere, transparent, PNG data URL, cached per shape/color/size/2D/lighting, one at a
+  time (concurrent draws share the spot and overlap). About 0.5 s each the first time; the key
+  shows the picker's glyph (`CatalogGlyph`, shared with `ValueField`) until it lands. Line
+  patterns and arrows keep the glyph.
+
 - (2026-10-16) **Vary by Layer uses Louvain's group list itself (owner feedback, second pass).**
   Picking "Layer" in a field's vary list ("Vary by") on a folder or several layers opens the
   binding popover titled "<Property> by layer": Source line with Change source, the palette, the

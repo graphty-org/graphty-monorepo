@@ -223,3 +223,11 @@ layer for) and what a list of layers has no use for (fold into Other, a group's 
 
 - Edge layers per group ("edges inside a community"): needs the element to read an edge's
   endpoints' values; add when a walk needs a group's edges styled.
+
+## Owner feedback 2026-10-16: one binding popover
+
+A data field picked on a folder or several layers opens the binding popover one layer gets for that
+field, held until it closes; closing copies the binding into each layer that holds one group (one
+undo step, receipt). Vary by Layer uses the same popover component: the same sections, labels and
+order, worded by its source ("More layers than colors", "Color by layer"), except No value, which a
+layer cannot use. The per-layer preview with Apply is gone.

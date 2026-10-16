@@ -124,7 +124,12 @@ export function readXgmmlStyles(
         if (target === "node") {
             hideGroupsCytoscapeHides(snapshot, values);
         }
-        if (target === "node" && settings.tool === "cytoscape" && values.label === undefined) {
+        if (
+            target === "node" &&
+            settings.tool === "cytoscape" &&
+            values.label === undefined &&
+            !snapshot.graph.has(STYLE_BLOCK_NAME)
+        ) {
             nameLabels(table, n, values);
         }
         exactFromBlock(snapshot, target, values);
@@ -144,7 +149,8 @@ export function readXgmmlStyles(
 
 /**
  * The labels Cytoscape shows for nodes whose graphics state none: its default style labels a node by its name, and
- * a node with no `name` att is named by its `label=` (Cytoscape 2.x files often carry only that).
+ * a node with no `name` att is named by its `label=` (Cytoscape 2.x files often carry only that). Not for a file
+ * graphty wrote: its block says what to draw.
  * @param table - the node table
  * @param n - the node count
  * @param values - the values per property, changed in place

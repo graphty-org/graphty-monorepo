@@ -25,8 +25,7 @@ export interface ControlSubGroupProps extends DisclosureProps {
      * The sub-group's name, drawn beside its chevron.
      *
      * One to three words in sentence case. It is also the accessible name of
-     * the header button, prefixed with "Expand" or "Collapse", and the name of
-     * the region the header opens.
+     * the header button, prefixed with "Expand" or "Collapse".
      */
     label: string;
     /** The controls the sub-group holds, stacked in the order you write them. */
@@ -43,9 +42,8 @@ export interface ControlSubGroupProps extends DisclosureProps {
  * color that comes up to the primary one under the pointer. The content opens
  * in one frame, on the same grid as the rows around it.
  *
- * The header is one button carrying the open state, and the controls it reveals
- * are a labeled region that the button points at. Nothing inside a closed
- * sub-group can be reached by Tab.
+ * The header is one button carrying the open state, pointing at the controls it
+ * reveals. Nothing inside a closed sub-group can be reached by Tab.
  *
  * Drive it from your own state with `opened` and `onOpenChange`, or leave both
  * out and let it remember its own with `defaultOpened`.
@@ -91,8 +89,10 @@ export function ControlSubGroup(props: ControlSubGroupProps): React.JSX.Element 
     const toggleName = isOpen ? labels.collapseSection(label) : labels.expandSection(label);
 
     // Accessibility: the APG "Accordion" pattern. The header is a real button
-    // carrying aria-expanded and aria-controls, and the content is
-    // role="region" named by that button through aria-labelledby.
+    // carrying aria-expanded and aria-controls. The content is not a named
+    // region (the pattern makes that optional): named by the button, it took
+    // the button's name, so two reachable things answered to one name, and a
+    // panel of folds became a list of landmarks.
     //   https://www.w3.org/WAI/ARIA/apg/patterns/accordion/
     return (
         <Box data-testid="control-sub-group">
@@ -136,8 +136,6 @@ export function ControlSubGroup(props: ControlSubGroupProps): React.JSX.Element 
             {/* Opens in one frame (spec 2.8), on the section's own grid. */}
             <Box
                 id={panelId}
-                role="region"
-                aria-labelledby={controlId}
                 aria-hidden={isOpen ? undefined : true}
                 hidden={!isOpen}
                 data-testid="control-sub-group-panel"

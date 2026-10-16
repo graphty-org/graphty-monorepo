@@ -59,9 +59,11 @@ export type {
     RunStatus,
     RunStyle,
     StaleNote,
+    StaleReason,
     StartOptions,
     SuggestionOutcome,
     WeightMeaning,
+    WeightSkip,
 } from "./types";
 export {
     isRunId,

@@ -272,9 +272,12 @@ function rulePart(
                 return context.executionOf === undefined ? null : `r${JSON.stringify(dependency.run)}=${token ?? "-"}`;
             }
 
-            return context.revisions === undefined
+            // The leaf reads whichever half carries the field: both revisions key it. The topology
+            // "ends" reads is keyed by the serial, as for the topology leaves.
+            const { revisions, edgeRevisions } = context;
+            return revisions === undefined || edgeRevisions === undefined
                 ? null
-                : `a${JSON.stringify(dependency.field)}=${context.revisions.of(dependency.field)}`;
+                : `a${JSON.stringify(dependency.field)}=${revisions.of(dependency.field)}.${edgeRevisions.of(dependency.field)}`;
         }
         case "item": {
             // Follow or hold, the members move exactly when the run's current execution does.

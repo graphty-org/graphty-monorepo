@@ -1,3 +1,4 @@
+import { ModalFooter } from "@graphty/compact-mantine";
 import { Button, Divider, Group, Modal, Radio, Select, Stack, Text } from "@mantine/core";
 import { AlertTriangle, Sparkles } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -9,7 +10,6 @@ import {
     LAYOUT_METADATA,
     type LayoutMetadata,
 } from "../data/layoutMetadata";
-import { standardModalStyles } from "../utils/modal-styles";
 import { optionDefaults, OptionsForm } from "./options";
 
 interface RunLayoutsModalProps {
@@ -180,7 +180,7 @@ export function RunLayoutsModal({
     }, []);
 
     return (
-        <Modal opened={opened} onClose={onClose} title="Run Layout" size="md" centered styles={standardModalStyles}>
+        <Modal opened={opened} onClose={onClose} title="Run Layout" size="md" centered>
             <Stack gap="lg">
                 {/* Layout Selection Dropdown */}
                 <Select
@@ -253,14 +253,14 @@ export function RunLayoutsModal({
                 )}
 
                 {/* Action Buttons */}
-                <Group justify="flex-end" mt="md">
+                <ModalFooter>
                     <Button variant="subtle" color="gray" onClick={onClose}>
                         Cancel
                     </Button>
                     <Button onClick={handleApply} leftSection={<Sparkles size={16} />} disabled={hasRequiredFields}>
                         Apply Layout
                     </Button>
-                </Group>
+                </ModalFooter>
             </Stack>
         </Modal>
     );

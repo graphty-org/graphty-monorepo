@@ -6,15 +6,15 @@ import { Workspace } from "./workspace/Workspace";
 /**
  * Main application component.
  *
- * The app shell of design/ui/app-shell-progressive-disclosure-design.md is now the
- * only shell: the superseded `AppLayout` and its `?legacy` route were removed
- * 2026-09 at the product owner's request, so an unrecognised parameter --
- * `?legacy` included -- falls through to the shell rather than to a second
- * layout. Two parameters reach another surface: `?demo` is the compact
- * component gallery, which is a component catalogue rather than a shell and is
- * kept (design/ui/mockups/system/COMPACTION.md); `?next` is the tier 1 workspace
- * (design/ui/tier1-real-app/plan.md), built beside this shell until the
- * Switch-over makes it the default and removes the parameter.
+ * The tier 1 workspace (src/workspace/) is the default surface.
+ * Two parameters reach another surface: `?classic` is the app shell of
+ * design/ui/app-shell-progressive-disclosure-design.md, kept reachable after the
+ * workspace replaced it as the default; `?demo` is the compact component gallery,
+ * which is a component catalogue rather than a shell
+ * (design/ui/mockups/system/COMPACTION.md). `?next`, which reached the workspace
+ * while it was built beside the shell, still works because it is no longer
+ * special-cased: like any unrecognised parameter (`?legacy` included), it falls
+ * through to the workspace.
  * @returns The application root component.
  */
 export function App(): React.JSX.Element {
@@ -28,17 +28,17 @@ export function App(): React.JSX.Element {
         );
     }
 
-    if (params.has("next")) {
+    if (params.has("classic")) {
         return (
             <ErrorBoundary>
-                <Workspace />
+                <AppShell />
             </ErrorBoundary>
         );
     }
 
     return (
         <ErrorBoundary>
-            <AppShell />
+            <Workspace />
         </ErrorBoundary>
     );
 }

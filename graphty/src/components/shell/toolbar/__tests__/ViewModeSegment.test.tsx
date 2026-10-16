@@ -37,6 +37,15 @@ describe("ViewModeSegment", () => {
             expect(screen.getByRole("radio", { name: "2D" })).not.toBeChecked();
         });
 
+        it("names the checked 3D half VR while the element presents VR", () => {
+            render(<ViewModeSegment value="vr" profile={CANVAS_TOOLBAR_DESKTOP} onChange={vi.fn()} />);
+
+            expect(
+                screen.getAllByRole<HTMLInputElement>("radio").map((radio) => radio.labels?.[0]?.textContent),
+            ).toEqual(["2D", "VR"]);
+            expect(screen.getByRole("radio", { name: "VR" })).toBeChecked();
+        });
+
         it("gives the group one tab stop, on the checked half, with a visible focus ring", async () => {
             render(
                 <>

@@ -1,3 +1,4 @@
+import { ModalFooter } from "@graphty/compact-mantine";
 import { Box, Button, Checkbox, Divider, Group, Modal, Select, Stack, Text } from "@mantine/core";
 import { AlertCircle, CheckCircle, Zap } from "lucide-react";
 import { RefObject, useCallback, useEffect, useState } from "react";
@@ -179,41 +180,10 @@ export function RunAlgorithmModal({
     }));
 
     return (
-        <Modal
-            opened={opened}
-            onClose={onClose}
-            title="Run Algorithm"
-            size="md"
-            centered
-            styles={{
-                header: {
-                    backgroundColor: "var(--mantine-color-dark-7)",
-                    borderBottom: "1px solid var(--mantine-color-dark-5)",
-                },
-                body: {
-                    backgroundColor: "var(--mantine-color-dark-7)",
-                    padding: "20px",
-                },
-                content: {
-                    backgroundColor: "var(--mantine-color-dark-7)",
-                },
-                title: {
-                    color: "var(--mantine-color-gray-1)",
-                    fontWeight: 500,
-                },
-            }}
-        >
+        <Modal opened={opened} onClose={onClose} title="Run Algorithm" size="md" centered>
             <Stack gap="lg">
                 {/* Category Selection */}
-                <Select
-                    label="Category"
-                    value={selectedCategory}
-                    onChange={handleCategoryChange}
-                    data={categoryData}
-                    styles={{
-                        label: { color: "var(--mantine-color-gray-3)" },
-                    }}
-                />
+                <Select label="Category" value={selectedCategory} onChange={handleCategoryChange} data={categoryData} />
 
                 {/* Algorithm Selection */}
                 <Select
@@ -221,21 +191,18 @@ export function RunAlgorithmModal({
                     value={selectedAlgorithm?.type ?? null}
                     onChange={handleAlgorithmChange}
                     data={algorithmData}
-                    styles={{
-                        label: { color: "var(--mantine-color-gray-3)" },
-                    }}
                 />
 
                 {/* Algorithm Description */}
                 {selectedAlgorithm && (
                     <Box
                         style={{
-                            backgroundColor: "var(--mantine-color-dark-6)",
+                            backgroundColor: "var(--mantine-color-default-hover)",
                             borderRadius: "8px",
                             padding: "12px 16px",
                         }}
                     >
-                        <Text size="sm" c="gray.3">
+                        <Text size="sm" c="dimmed">
                             {selectedAlgorithm.description}
                         </Text>
                     </Box>
@@ -244,13 +211,7 @@ export function RunAlgorithmModal({
                 {/* Node Selection Options */}
                 {selectedAlgorithm?.sourceOption && (
                     <>
-                        <Divider
-                            label="Options"
-                            labelPosition="center"
-                            styles={{
-                                label: { color: "var(--mantine-color-gray-5)" },
-                            }}
-                        />
+                        <Divider label="Options" labelPosition="center" />
 
                         <Select
                             label={selectedAlgorithm.sourceOption.plainName}
@@ -260,9 +221,6 @@ export function RunAlgorithmModal({
                             data={graphNodes}
                             searchable
                             nothingFoundMessage="No nodes found"
-                            styles={{
-                                label: { color: "var(--mantine-color-gray-3)" },
-                            }}
                         />
 
                         {selectedAlgorithm.targetOption && (
@@ -274,9 +232,6 @@ export function RunAlgorithmModal({
                                 data={graphNodes}
                                 searchable
                                 nothingFoundMessage="No nodes found"
-                                styles={{
-                                    label: { color: "var(--mantine-color-gray-3)" },
-                                }}
                             />
                         )}
                     </>
@@ -286,15 +241,7 @@ export function RunAlgorithmModal({
                 {algorithmOptions.length > 0 && (
                     <>
                         {/* Show divider only if not already shown by source node section */}
-                        {!selectedAlgorithm?.sourceOption && (
-                            <Divider
-                                label="Options"
-                                labelPosition="center"
-                                styles={{
-                                    label: { color: "var(--mantine-color-gray-5)" },
-                                }}
-                            />
-                        )}
+                        {!selectedAlgorithm?.sourceOption && <Divider label="Options" labelPosition="center" />}
 
                         <OptionsForm
                             options={algorithmOptions}
@@ -311,9 +258,6 @@ export function RunAlgorithmModal({
                                 setShowAdvancedOptions(e.currentTarget.checked);
                             }}
                             size="xs"
-                            styles={{
-                                label: { color: "var(--mantine-color-gray-5)", fontSize: "12px" },
-                            }}
                         />
                     </>
                 )}
@@ -325,10 +269,6 @@ export function RunAlgorithmModal({
                     checked={applySuggestedStyles}
                     onChange={(e) => {
                         setApplySuggestedStyles(e.currentTarget.checked);
-                    }}
-                    styles={{
-                        label: { color: "var(--mantine-color-gray-1)" },
-                        description: { color: "var(--mantine-color-gray-5)" },
                     }}
                 />
 
@@ -349,7 +289,7 @@ export function RunAlgorithmModal({
                 )}
 
                 {/* Action Buttons */}
-                <Group justify="flex-end" mt="md">
+                <ModalFooter>
                     <Button variant="subtle" color="gray" onClick={onClose}>
                         Cancel
                     </Button>
@@ -361,7 +301,7 @@ export function RunAlgorithmModal({
                     >
                         Run Algorithm
                     </Button>
-                </Group>
+                </ModalFooter>
             </Stack>
         </Modal>
     );

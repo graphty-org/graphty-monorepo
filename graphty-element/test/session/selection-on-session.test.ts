@@ -1,5 +1,6 @@
 import { assert, describe, it } from "vitest";
 
+import { createGraphSession } from "../../src/session/GraphSession";
 import type { SelectionDelta } from "../../src/session/selection";
 import { edgeBetween, type Harness, makeSession } from "./helpers";
 
@@ -36,6 +37,31 @@ function watchSelection(harness: Harness): SelectionDelta[] {
 }
 
 describe("session.selection", () => {
+    it("counts what apply would select, edges a rule matches included, without selecting", async () => {
+        const session = createGraphSession();
+        await session.data.addNodes([{ id: "a" }, { id: "b" }, { id: "c" }]);
+        await session.data.addEdges([
+            { source: "a", target: "b", minutes: 12 },
+            { source: "b", target: "c", minutes: 4 },
+        ]);
+        const { selection } = session;
+
+        const counted = await selection.count({ text: "=minutes >= `10`" });
+        assert.deepStrictEqual(counted, { nodes: 0, edges: 1 });
+        assert.deepStrictEqual(await selection.count({ where: "minutes >= `10`" }), counted);
+        assert.strictEqual(selection.size, 0, "counting selects nothing");
+        await selection.apply({ text: "=minutes >= `10`" });
+        assert.strictEqual(selection.edges.length, counted.edges);
+        // A rule apply refuses is refused the same way.
+        try {
+            await selection.count({ where: "minutes >= 10" });
+            assert.fail("a bare number is refused");
+        } catch (error) {
+            assert.strictEqual((error as { code?: string }).code, "E_BAD_SELECTOR");
+        }
+        session.dispose();
+    });
+
     it("starts empty and holds two sets, not one node", async () => {
         const harness = harnessOf();
 

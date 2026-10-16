@@ -11,6 +11,7 @@ import { useDevWarning } from "../utils/dev-warning";
 import { isRtl, useDirection } from "../utils/rtl";
 import { Caret } from "./chrome/Caret";
 import { InfoCircle } from "./InfoCircle";
+import { EllipsizedName } from "./rows/EllipsizedName";
 import { TrailingSlot } from "./rows/TrailingSlot";
 
 // Figma's properties-panel section (design/figma-spec.md 9.2): a 40px header padded 0 8 0 16,
@@ -108,28 +109,45 @@ export interface ControlSectionProps extends DisclosureProps {
      * @default true
      */
     collapsible?: boolean;
+    /**
+     * Whether a label too long for one line wraps onto more lines instead of being cut with an
+     * ellipsis. For a label that is a sentence the reader must read whole, such as a count:
+     * `"Medici and 11 connections within 2 hops"`. The header grows to hold it.
+     * @default false
+     */
+    wrapLabel?: boolean;
 }
 
 /**
- * The section's name: the plain-then-technical pair, as one label. Its title
- * is what a pointer and a screen reader get; the drawn halves differ only in
- * weight and ink.
+ * The section's name: the plain-then-technical pair, as one label, in the group's accessible
+ * name. While the header cuts it short, the shared tooltip shows it whole, as a cut tree row's
+ * name does.
  * @param id - The id the group's aria-labelledby points at
  * @param label - The plain name
  * @param technicalName - The technical name drawn after it, if any
  * @returns The name element
  */
 function sectionName(id: string, label: string, technicalName: string | undefined): React.JSX.Element {
-    const fullName = technicalName === undefined ? label : `${label} (${technicalName})`;
     return (
-        <Box component="span" id={id} title={fullName} data-testid="control-section-name" className="cm-section-title">
-            {label}
-            {technicalName === undefined ? null : (
-                <Box component="span" data-testid="control-section-technical-name" className="cm-section-technical">
-                    {` (${technicalName})`}
-                </Box>
-            )}
-        </Box>
+        <EllipsizedName
+            id={id}
+            testId="control-section-name"
+            className="cm-section-title"
+            name={
+                <>
+                    {label}
+                    {technicalName === undefined ? null : (
+                        <Box
+                            component="span"
+                            data-testid="control-section-technical-name"
+                            className="cm-section-technical"
+                        >
+                            {` (${technicalName})`}
+                        </Box>
+                    )}
+                </>
+            }
+        />
     );
 }
 
@@ -181,6 +199,7 @@ function sectionName(id: string, label: string, technicalName: string | undefine
  * @param props.summary - One line saying what the section holds, shown after the name while it is collapsed
  * @param props.children - The rows the section holds
  * @param props.collapsible - Whether the section folds away behind a chevron, defaulting to true
+ * @param props.wrapLabel - Whether a long label wraps onto more lines instead of being cut, defaulting to false
  * @returns The section, its header and its rows
  * @example
  * ```tsx
@@ -225,6 +244,7 @@ export function ControlSection(props: ControlSectionProps): React.JSX.Element {
         summary,
         children,
         collapsible = true,
+        wrapLabel = false,
     } = props;
 
     const labels = useLabels();
@@ -294,6 +314,7 @@ export function ControlSection(props: ControlSectionProps): React.JSX.Element {
             aria-describedby={hasInfo ? infoId : undefined}
             data-testid="control-section"
             data-empty={empty ? "true" : undefined}
+            data-wrap-label={wrapLabel ? "true" : undefined}
             className="cm-section"
         >
             {/* 16 | title | info | flex | actions ending at x 232. The padding
@@ -302,7 +323,9 @@ export function ControlSection(props: ControlSectionProps): React.JSX.Element {
                 data-testid="control-section-header"
                 className="cm-section-header"
                 style={{
-                    height: PANEL_GRID.SECTION_HEADER,
+                    // A wrapped label grows the header past its one-line height.
+                    height: wrapLabel ? undefined : PANEL_GRID.SECTION_HEADER,
+                    minHeight: wrapLabel ? PANEL_GRID.SECTION_HEADER : undefined,
                     paddingInlineStart: PANEL_GRID.PAD_LEFT,
                     paddingInlineEnd: PANEL_GRID.PAD_RIGHT,
                 }}

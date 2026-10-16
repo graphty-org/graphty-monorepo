@@ -162,6 +162,20 @@ describe("StyleSelect", () => {
             expect(select).not.toHaveAttribute("aria-label");
         });
 
+        it("takes a fuller name that holds its visible label, when one is given", () => {
+            renderSelect(
+                <StyleSelect
+                    label="km"
+                    aria-label="Role of km"
+                    value={undefined}
+                    defaultValue="option1"
+                    options={options}
+                    onChange={vi.fn()}
+                />,
+            );
+            expect(screen.getByRole("combobox", { name: "Role of km" })).toBeInTheDocument();
+        });
+
         it("names the reset button from the labels", () => {
             renderSelect(
                 <StyleSelect

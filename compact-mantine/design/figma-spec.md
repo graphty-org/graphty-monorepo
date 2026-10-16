@@ -1114,13 +1114,16 @@ body text 11/16 450 `--cm-text-secondary`.
 ac/dialog-accessibility-settings, hm/comment-delete-confirm-dialog)
 
 - Frame 480 wide default (`size`: sm 320, md 480, lg 760), `--cm-bg`, radius 13,
-  `--cm-elevation-500`, centered. Overlay: none by default (`withOverlay` false), `--cm-modal-backdrop`
-  when the caller asks.
+  `--cm-elevation-500`, centered. Overlay: transparent by default, so the page behind is blocked
+  but not dimmed; a caller dims it with `overlayProps={{ backgroundOpacity: 0.5 }}` (`--cm-modal-backdrop`).
 - Header 40 (41 with its 1px bottom border `inset 0 -1px 0 var(--cm-border)`), padding
   `0 32px 0 16px`, title 11/16 550 at x+16, Close 24 ghost at the end.
-- Body padding 16. Footer (a NEW `ModalFooter` helper or documented markup): 40 tall,
-  `box-shadow: inset 0 1px 0 var(--cm-border)`, padding `0 8px 0 16px`, buttons 24 tall,
-  end-aligned 8 apart: secondary Cancel then primary (disabled until valid) or danger.
+- Body padding 16. Footer (a NEW `ModalFooter` helper or documented markup): 48 tall,
+  `box-shadow: inset 0 1px 0 var(--cm-border)`, padding `0 16px`, buttons 24 tall (12 above
+  and below), end-aligned 8 apart: secondary Cancel then primary (disabled until valid) or danger.
+  This is a deliberate departure from Figma, made for touch: Figma's desktop footer is 40 tall
+  with an 8px end inset, which puts the last button 8px from the edge inside a 13px corner and
+  leaves it cramped under a finger. The 48/16 footer applies to every pointer type.
 - Focus moves to the first field; Tab trapped; Escape closes. No animation.
 
 ### 8.6 Toast (NEW exports `Toast`, `ToastProvider`, `useToast`; Mantine `Notification` themed for the look)
@@ -1692,6 +1695,11 @@ These are the places the result will NOT match Figma, and why. Everything else m
 | Nested popouts                                                        | only the create-style dialog docks to the left | a child popout docks flush to its parent                       | existing API; root popouts are one-at-a-time as Figma                 |
 | Checkbox default                                                      | neutral in the panel, blue in dialogs          | Mantine `Checkbox` defaults to blue; `ToggleRow` uses neutral  | a bare Mantine Checkbox reads as a dialog checkbox                    |
 | `highContrast` option                                                 | --                                             | section 2.9                                                    | owner decision; off by default                                        |
+| Tree row with a count                                                 | the name ellipsizes, the count keeps its room  | the count shortens first (to a 2.5em stub), then the name      | the name says which row it is; "friends-v2.csv" lost its "v2"         |
+| Selected parent in the tree                                           | `bg-selected`, 1.05:1 / 1.2:1 from the band    | `bg-selected-hover`; a hovered child takes `bg-selected`       | the selected row could not be told from its children                  |
+| Segmented control, unchecked label                                    | 50% ink (secondary)                            | body text color; the face and edge mark the choice             | a gray word beside the raised face read as a disabled option          |
+| Context menu opened by the pointer                                    | --                                             | no row highlighted; keyboard opens still highlight the first   | a pre-highlighted row read as the suggested choice                    |
+| Escape in an open list field                                          | --                                             | closes the list and stops there                                | Escape closes the innermost thing; the panel around stays open        |
 
 ## 15. Breaking changes for the release notes (0.x)
 

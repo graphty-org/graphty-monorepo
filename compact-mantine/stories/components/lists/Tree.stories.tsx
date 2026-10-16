@@ -1,4 +1,4 @@
-import { Group, Kbd, Stack, Table, Text } from "@mantine/core";
+import { Group, Kbd, Menu, Stack, Table, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 import { expect, fn, userEvent, waitFor, within } from "@storybook/test";
 import React, { useState } from "react";
@@ -259,6 +259,44 @@ export const RowParts: Story = {
                         ),
                         count: "6",
                         description: "Failed: the graph has no edges",
+                    },
+                ]}
+            />
+        </Panel>
+    ),
+};
+
+/**
+ * The name keeps its room and the count yields: where both do not fit, the count shortens first
+ * (down to a stub with its ellipsis) and only then is the name cut, so "friends-v2.csv" keeps the
+ * "v2" that tells it from "friends.csv". Resting on a cut row shows both whole. The selected
+ * source draws a stronger fill than the band behind its children, so it reads as the selection.
+ */
+export const NameBeforeCount: Story = {
+    render: () => (
+        <Panel>
+            <Tree
+                label="Sources"
+                defaultExpanded={["merged"]}
+                defaultSelected={["merged"]}
+                items={[
+                    { id: "friends", name: "friends.csv", icon: <UiGlyph name="frame" />, count: "20 nodes, 38 edges" },
+                    {
+                        id: "friends-v2",
+                        name: "friends-v2.csv",
+                        icon: <UiGlyph name="frame" />,
+                        count: "20 nodes, 41 edges",
+                    },
+                    {
+                        id: "merged",
+                        name: "people.csv and messages.csv",
+                        icon: <UiGlyph name="frame" />,
+                        count: "12 nodes, 22 edges",
+                        children: [
+                            { id: "people", name: "people.csv", icon: <UiGlyph name="frame" /> },
+                            { id: "messages", name: "messages.csv", icon: <UiGlyph name="frame" /> },
+                            { id: "left-out", name: "1 row left out", icon: <UiGlyph name="frame" /> },
+                        ],
                     },
                 ]}
             />
@@ -641,7 +679,7 @@ export const Dragging: Story = {
         const canvas = within(canvasElement);
         const real = realInput(parameters);
         if (real) {
-            // As a test: the browser's own drag. Press on the source row, move onto the target row
+            // As a test: the browser's own pointer. Press on the source row, move onto the target row
             // and look at the indicator while the button is still held, then drop (onMove does nothing).
             // One drag at a time, so each tree is checked in turn.
             const drag = async (
@@ -655,16 +693,15 @@ export const Dragging: Story = {
                 const from = scope.getByRole("treeitem", { name: source });
                 const to = scope.getByRole("treeitem", { name: target });
                 const trusted: boolean[] = [];
-                const record = (event: DragEvent): void => {
+                const record = (event: PointerEvent): void => {
                     trusted.push(event.isTrusted);
                 };
-                from.addEventListener("dragstart", record);
+                from.addEventListener("pointerdown", record);
                 const start = from.getBoundingClientRect();
                 await real.userEvent.hover(from);
                 await real.commands.mouseDown();
-                // As a hand does, in several moves: the browser starts the drag on the first move past
-                // its threshold, and a row hears dragenter on the move that reaches it and dragover only
-                // on the moves after that.
+                // As a hand does, in several moves: the row lifts on the first move past the tree's
+                // threshold, and the drop follows the moves after that.
                 await real.userEvent.hover(from, { position: { x: start.width / 2 + 16, y: start.height / 2 } });
                 const box = to.getBoundingClientRect();
                 const y = box.height * fraction;
@@ -672,34 +709,33 @@ export const Dragging: Story = {
                 await real.userEvent.hover(to, { position: { x: box.width / 2, y } });
                 await expect(await scope.findByTestId(mark, {}, storyWaitOptions(1000))).toBeVisible();
                 await real.commands.mouseUp();
-                from.removeEventListener("dragstart", record);
+                from.removeEventListener("pointerdown", record);
                 expect(trusted).toEqual([true]);
             };
             await drag("Into", "Sticky note", "Card", 0.5, "tree-drop-box");
             await drag("Between", "Sticky note", "Background", 0.1, "tree-drop-line");
             return;
         }
-        // In Storybook's own UI a page script cannot make a trusted drag, so the drag is replayed,
+        // In Storybook's own UI a page script cannot make a trusted press, so the drag is replayed,
         // which also leaves both indicators showing at once for the snapshot.
-        const hover = (tree: string, source: string, target: string, fraction: number): void => {
+        // A mouse press on the source, moved over the target and held there (no release). Each
+        // tree gets its own pointer, so both drags stay under way.
+        const hover = (tree: string, source: string, target: string, fraction: number, pointerId: number): void => {
             const scope = within(canvas.getByRole("tree", { name: tree }));
-            const data = new DataTransfer();
-            scope
-                .getByRole("treeitem", { name: source })
-                .dispatchEvent(new DragEvent("dragstart", { bubbles: true, dataTransfer: data }));
-            const row = scope.getByRole("treeitem", { name: target });
-            const box = row.getBoundingClientRect();
-            row.dispatchEvent(
-                new DragEvent("dragover", {
-                    bubbles: true,
-                    cancelable: true,
-                    dataTransfer: data,
-                    clientY: box.top + box.height * fraction,
-                }),
-            );
+            const send = (el: Element, type: string, x: number, y: number): void => {
+                el.dispatchEvent(
+                    new PointerEvent(type, { bubbles: true, clientX: x, clientY: y, pointerId, pointerType: "mouse" }),
+                );
+            };
+            const from = scope.getByRole("treeitem", { name: source });
+            const start = from.getBoundingClientRect();
+            send(from, "pointerdown", start.left + 40, start.top + 16);
+            send(from, "pointermove", start.left + 40, start.top + 24);
+            const box = scope.getByRole("treeitem", { name: target }).getBoundingClientRect();
+            send(from, "pointermove", box.left + 40, box.top + box.height * fraction);
         };
-        hover("Into", "Sticky note", "Card", 0.5);
-        hover("Between", "Sticky note", "Background", 0.1);
+        hover("Into", "Sticky note", "Card", 0.5, 11);
+        hover("Between", "Sticky note", "Background", 0.1, 12);
         await expect(
             await within(canvas.getByRole("tree", { name: "Into" })).findByTestId(
                 "tree-drop-box",
@@ -714,5 +750,77 @@ export const Dragging: Story = {
                 storyWaitOptions(1000),
             ),
         ).toBeVisible();
+    },
+};
+
+const TOUCH_LAYERS: TreeNodeData[] = [
+    { id: "selection", name: "Selection", movable: false },
+    { id: "degree", name: "Degree color" },
+    { id: "labels", name: "Node labels" },
+    { id: "pagerank", name: "PageRank size" },
+    { id: "base", name: "Everything", movable: false },
+];
+
+/**
+ * Touch and the row menu: hold a row half a second and its menu opens (as do a right-click,
+ * Shift+F10 and the ContextMenu key); keep holding and move, and the menu closes as the row lifts
+ * into a drag. A quick swipe scrolls instead. "Selection" and "Everything" are not `movable`, and
+ * `canDrop` keeps every drop between them. On a touch screen the eyes stay visible without hover.
+ */
+export const TouchAndRowMenu: Story = {
+    render: function Render() {
+        const [layers, setLayers] = useState<TreeNodeData[]>(TOUCH_LAYERS);
+        const [hidden, setHidden] = useState<string[]>([]);
+        const last = layers.length - 1;
+        const move = (id: string, by: number): void => {
+            const index = layers.findIndex((n) => n.id === id) + by;
+            if (index > 0 && index < last) {
+                setLayers((list) => moveTreeItem(list, { id, parentId: null, index }));
+            }
+        };
+        return (
+            <Panel>
+                <Tree
+                    items={layers.map((n) => ({
+                        ...n,
+                        dimmed: hidden.includes(n.id),
+                        actions: (
+                            <LayerToggle
+                                kind="eye"
+                                on={hidden.includes(n.id)}
+                                onChange={(on) => {
+                                    setHidden((ids) => (on ? [...ids, n.id] : ids.filter((x) => x !== n.id)));
+                                }}
+                            />
+                        ),
+                    }))}
+                    label="Style layers"
+                    multiselect={false}
+                    defaultSelected={["degree"]}
+                    canDrop={(m) => m.parentId === null && m.index > 0 && m.index < last}
+                    onMove={(m) => setLayers((list) => moveTreeItem(list, m))}
+                    rowMenu={(node) =>
+                        node.movable === false ? null : (
+                            <>
+                                <Menu.Item onClick={() => move(node.id, -1)}>Move up</Menu.Item>
+                                <Menu.Item onClick={() => move(node.id, 1)}>Move down</Menu.Item>
+                                <Menu.Item onClick={() => setLayers((list) => list.filter((n) => n.id !== node.id))}>
+                                    Delete
+                                </Menu.Item>
+                            </>
+                        )
+                    }
+                />
+            </Panel>
+        );
+    },
+    play: async ({ canvasElement }) => {
+        const tree = within(within(canvasElement).getByRole("tree", { name: "Style layers" }));
+        tree.getByRole("treeitem", { name: "Node labels" }).focus();
+        await userEvent.keyboard("{Shift>}{F10}{/Shift}");
+        await expect(
+            await within(document.body).findByRole("menuitem", { name: "Delete" }, storyWaitOptions(1000)),
+        ).toBeVisible();
+        await userEvent.keyboard("{Escape}");
     },
 };

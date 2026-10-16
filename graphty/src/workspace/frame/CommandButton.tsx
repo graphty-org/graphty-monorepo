@@ -17,7 +17,7 @@ interface CommandButtonProps {
 
 /**
  * An icon-only button for one command: its label is the accessible name, the tooltip shows the
- * label and the first key, and a disabled command stays focusable with its reason as the tooltip
+ * label (or the command's own tooltip name) and the first key, and a disabled command stays focusable with its reason as the tooltip
  * (tier1-design.md section 4, "Tooltip" and "Disabled"). Draws nothing for a stub command.
  * @param props - Component props
  * @param props.id - The command id
@@ -30,10 +30,9 @@ export function CommandButton({ id, icon, pressed }: Readonly<CommandButtonProps
     if (door === null) {
         return null;
     }
-    const { command, disabledReason, run } = door;
+    const { command, disabledReason, tip, run } = door;
     const key = command.keys?.[0];
-    const label =
-        key === undefined ? command.label : <TooltipShortcut label={command.label} shortcut={formatKey(key)} />;
+    const label = key === undefined ? tip : <TooltipShortcut label={tip} shortcut={formatKey(key)} />;
     return (
         <Tooltip label={disabledReason ?? label}>
             <ActionIcon

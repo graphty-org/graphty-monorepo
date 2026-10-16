@@ -143,6 +143,22 @@ session.data.source()?.name; // "Les Miserables characters"
 With nothing loaded, `renameSource` rejects with `E_BAD_COMMAND` and `details.reason` `"no-source"`;
 an empty name rejects with `"empty-name"`.
 
+`source()` describes the last load. When loads are added together with `{ mode: "merge" }`,
+`sources()` lists every load still in the graph, oldest first, with the tables each read and how
+many nodes and edges each added. A replacing load starts the list again; undo, redo and the
+project file keep it with the graph, and `renameSource` renames the last entry:
+
+```typescript
+await session.data.import({ config: { file: friends } }); // friends.csv
+await session.data.import({ config: { file: messages } }, { mode: "merge" }); // messages.csv
+session.data.sources().map(({ name, added }) => [name, added]);
+// [["friends.csv", { nodes: 20, edges: 41 }], ["messages.csv", { nodes: 13, edges: 23 }]]
+```
+
+A load that left out edge rows naming a node no node row held (`unmatched: "leave-out"`) keeps
+that count on its entry as `leftOut: { rows, values }`: the rows left out, and how many distinct
+names they gave. The field is there only when at least one row was left out.
+
 ## Preview a Load Before Loading It
 
 `session.data.prepare(source)` reads a file once and holds it, so a reader can see its tables and
@@ -184,11 +200,10 @@ carries `context: "parsing"` and, when the reader can name one, the `line` where
 starts; a replacing load keeps the current graph. Problems a reader can skip past, such as one
 malformed vertex line, are reported in `data-loading-error-summary` and the rest of the file loads.
 
-GraphML and GEXF files are read differently. A file that is recognisably GraphML or GEXF but
-breaks off -- a stray end tag, a tag or attribute quote left open, garbage after the last tag, a
-file cut off mid-tag -- keeps every node and edge read before the break, and the load reports
-where it broke. A file that is not recognisable as either format at all still fails with
-`E_PARSE_FAILED`.
+GraphML and GEXF files are refused the same way. A file that breaks off -- a stray end tag, a tag
+or attribute quote left open, garbage after the last tag, a file cut off mid-tag -- fails with
+`E_PARSE_FAILED`, with the line it broke on in `details.line`, and adds nothing to the graph: a
+graph built from part of a file looks like a whole one, and a reader cannot tell it is wrong.
 
 ### Reading the errors of a load
 
@@ -196,18 +211,17 @@ Every problem a load met is in `errors` on its report, `session.data.lastImport(
 or `draft.report()` before one, in the order met and at most the source's `errorLimit` of them.
 An entry holds facts, not words, so word it yourself:
 
-| Field    | What it holds                                                                                                                                          |
-| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `code`   | The kind: `"parse-error"` (the file breaks off here), `"validation-error"`, `"missing-value"`, or `"refused-row"` (a record the graph would not store) |
-| `params` | The facts behind the code: for a graph file `issue` (the reader's own code) and `element`; for a refused row `rowsAre`                                 |
-| `line`   | The line of the file, or the row, when the reader knows it                                                                                             |
-| `field`  | The field or column concerned, when there is one                                                                                                       |
+| Field    | What it holds                                                                                                                                                   |
+| -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `code`   | The kind: `"parse-error"` (a problem the reader skipped past), `"validation-error"`, `"missing-value"`, or `"refused-row"` (a record the graph would not store) |
+| `params` | The facts behind the code: for a graph file `issue` (the reader's own code) and `element`; for a refused row `rowsAre`                                          |
+| `line`   | The line of the file, or the row, when the reader knows it                                                                                                      |
+| `field`  | The field or column concerned, when there is one                                                                                                                |
 
 ```typescript
-await element.session.data.import({ type: "graphml", config: { data: text } });
-const [first] = element.session.data.lastImport()?.errors ?? [];
-if (first?.code === "parse-error") {
-    console.warn(`The file breaks off at line ${first.line}; what came before it was loaded.`);
+await element.session.data.import({ type: "csv", config: { data: text } });
+for (const error of element.session.data.lastImport()?.errors ?? []) {
+    console.warn(`Line ${error.line}: ${error.code}`);
 }
 ```
 
@@ -799,6 +813,36 @@ A CSV export puts an apostrophe before every text cell, id and header that start
 `-`, `@`, a tab or a carriage return, so a spreadsheet does not run an imported value as a
 formula. Numbers, and texts that are numbers such as `-2.31`, are never touched. Pass
 `{ neutraliseFormulas: false }` for a pipeline that reads the file with a CSV parser.
+
+### Kinds of file a format writes
+
+JSON and CSV each write several kinds of file. Their catalogue entries list them in
+`exportVariants`, one entry per kind, so a picker can offer them by name:
+
+| Format | Variants                                                                                                                |
+| ------ | ----------------------------------------------------------------------------------------------------------------------- |
+| `json` | Node-link JSON (NetworkX), Cytoscape.js JSON, JSON Graph Format, graphology JSON, vis.js JSON, d3 JSON, OBO Graphs JSON |
+| `csv`  | CSV, Gephi CSV, Neo4j CSV                                                                                               |
+
+Each variant carries a `preset`, the writer options that make that kind of file, and `options`,
+the writer options that still apply to it. Pass the preset unchanged, with any option values:
+
+```typescript
+import { formatDescriptor } from "@graphty/graphty-element/catalog";
+
+const cytoscape = formatDescriptor("json")?.exportVariants?.find((v) => v.id === "cytoscape");
+const result = await element.exportGraph("json", { ...cytoscape?.preset, indent: 2 });
+```
+
+Every writer option except CSV's `table` and Neo4j's `part` is marked `advanced`.
+
+### The project file
+
+`exportGraph("graphty")` writes the project file, Graphty JSON (`.graphty.json`): the document
+`session.project.save()` produces, without marking the project saved. It is the only export that
+reads back exactly -- styles, results, layout and notes -- and it is read back by
+`session.project.open`, never by `session.data.import`, which refuses the name with
+`E_UNKNOWN_FORMAT`. It takes no options, has no loss notes, and is built as one string.
 
 Each format's options are listed in its catalogue entry's `writerOptions`, graph-io's
 `sanitizeIds` and `onMixedDirection` included; an option not listed there is refused with

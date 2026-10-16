@@ -426,6 +426,40 @@ export interface StylesApi {
      */
     highlight(spec: HighlightSpec, options?: RunOptions): Run<readonly Layer[]>;
     /**
+     * Choose the colour a highlight paints when it names no style of its own.
+     *
+     * That covers every route and chosen set a finished run paints by itself, and every
+     * `highlight()` called without `set`. A highlighted edge is still drawn three times as wide.
+     * The element's own colour is Paul Tol's indigo `#332288`; a consumer whose drawings need a
+     * route to stand apart from its own node colours more strongly sets its own.
+     *
+     * A view setting, not a step: it records nothing in the history, is not saved with the
+     * styles, and changes no layer already in the stack -- only highlights painted after it.
+     *
+     * ```ts
+     * session.styles.setHighlightColor("#000000");
+     * ```
+     * @param color - Any colour a layer's `node.color` accepts, or undefined for the element's
+     *     own.
+     * @throws A `GraphtyError` with `E_BAD_COMMAND` when the colour is not one a layer accepts.
+     */
+    setHighlightColor(color: string | undefined): void;
+    /**
+     * The static style `highlight()` paints on one half of the graph when it is called without
+     * `set`: the session's highlight colour (see {@link StylesApi.setHighlightColor}), and for an
+     * edge three times the default width as well.
+     *
+     * A consumer that lets a reader style chosen elements by hand can start them on the same look
+     * a highlight would give them.
+     *
+     * ```ts
+     * session.styles.highlightStyle("edge"); // { "edge.color": "#332288", "edge.width": 24 }
+     * ```
+     * @param target - Nodes or edges.
+     * @returns A fresh object; changing it changes nothing in the session.
+     */
+    highlightStyle(target: SelectorTarget): StaticStyle;
+    /**
      * Paint the elements a run chose with fixed channel values, as ordinary layers: what an
      * algorithm's suggested style for a route, a chosen set of nodes or a chosen set of edges is.
      *
@@ -859,21 +893,29 @@ const NO_BINDINGS: readonly PreparedBinding[] = Object.freeze([]);
 const NO_INDEX = (): number | undefined => undefined;
 
 /**
- * What a highlight paints when its caller names no style.
+ * What a highlight paints when its caller names no style and the consumer chose no colour with
+ * {@link StylesApi.setHighlightColor}.
  *
- * A highlight is drawn OVER the default indigo node, the default darkgrey edge and the whitesmoke
- * background, so it is chosen against those three rather than on its own. Okabe-Ito vermilion is
- * at least Delta E 16 from each of them at normal vision and under all three kinds of colour
- * blindness, and 3.5:1 against the background. The blue this replaced was Delta E 13 from the
- * default node and under 4 for tritanopia, so a route through default nodes disappeared into
- * them. `test/catalog/default-palette-quality.test.ts` measures it.
+ * A highlight is drawn OVER the default indigo node, the default darkgrey edge, the whitesmoke
+ * background AND whatever a measurement painted the other nodes, so it is chosen against all of
+ * them rather than on its own. Paul Tol's indigo is at least Delta E 19 from each of them -- every
+ * colour of the default measurement palette included -- at normal vision and under all three
+ * kinds of colour blindness, and 11:1 against the background. The Okabe-Ito vermilion it replaced
+ * sat inside the default measurement palette (Delta E 1 from its second step), so a route drawn
+ * over nodes coloured by a score read as low-scored nodes; the blue before that was Delta E 13
+ * from the default node. `test/catalog/default-palette-quality.test.ts` measures it.
+ *
+ * It is a neutral default, not the best colour for every drawing: rendered as lit spheres on a
+ * drawing with no measure, an indigo route's nodes sit close to the default nodes in lightness.
+ * A consumer that wants a route to stand out more on its own drawings chooses its colour with
+ * {@link StylesApi.setHighlightColor}.
  *
  * Colour alone is not enough for an edge: a thin line at the default width reads as a thin line
  * whatever its colour, so a highlighted edge is also drawn three times as wide. A node gets no
  * size, because a size here would flatten whatever size encoding the layers beneath it drew.
  */
 export const DEFAULT_HIGHLIGHT = {
-    color: "#D55E00",
+    color: "#332288",
     edgeWidth: EDGE_CONSTANTS.DEFAULT_LINE_WIDTH * 3,
 } as const;
 
@@ -1270,15 +1312,16 @@ function isDerivedFor(layer: Layer, runId: RunId, channel: Channel): boolean {
 
 /**
  * The channels of a static style that paint one half of the graph.
- * @param set - The style, or undefined for the element's own highlight.
+ * @param set - The style, or undefined for the session's highlight colour.
  * @param half - Whether the layer paints nodes or edges.
+ * @param color - The session's highlight colour, used when `set` is undefined.
  * @returns The channels for that half, or null when the style names none of them.
  */
-function halfOfStyle(set: StaticStyle | undefined, half: SelectorTarget): StaticStyle | null {
+function halfOfStyle(set: StaticStyle | undefined, half: SelectorTarget, color: string): StaticStyle | null {
     if (set === undefined) {
         return half === "node"
-            ? { "node.color": DEFAULT_HIGHLIGHT.color }
-            : { "edge.color": DEFAULT_HIGHLIGHT.color, "edge.width": DEFAULT_HIGHLIGHT.edgeWidth };
+            ? { "node.color": color }
+            : { "edge.color": color, "edge.width": DEFAULT_HIGHLIGHT.edgeWidth };
     }
 
     const mine: StaticStyle = {};
@@ -1340,16 +1383,22 @@ function chosenField(run: EncodingRun, spec: HighlightSpec, exclusive: boolean):
  * leaves its nodes to the layers underneath.
  * @param run - The run.
  * @param field - The field that says what it chose.
- * @param set - The style, or undefined for the element's own highlight.
+ * @param set - The style, or undefined for the session's highlight colour.
+ * @param color - The session's highlight colour, used when `set` is undefined.
  * @returns The style per half.
  * @throws `E_BAD_COMMAND` when the style paints no half the run chose.
  */
-function paintingOf(run: EncodingRun, field: string, set: StaticStyle | undefined): Map<SelectorTarget, StaticStyle> {
+function paintingOf(
+    run: EncodingRun,
+    field: string,
+    set: StaticStyle | undefined,
+    color: string,
+): Map<SelectorTarget, StaticStyle> {
     const chosen = run.fields.filter((entry) => entry.name === field);
     const painting = new Map<SelectorTarget, StaticStyle>();
 
     for (const half of HALVES) {
-        const style = chosen.some((entry) => entry.kind === half) ? halfOfStyle(set, half) : null;
+        const style = chosen.some((entry) => entry.kind === half) ? halfOfStyle(set, half, color) : null;
 
         if (style !== null) {
             painting.set(half, style);
@@ -1460,6 +1509,8 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         readonly byId: ReadonlyMap<LayerId, CompiledLayer>;
     } | null = null;
     let edits = 0;
+    /** What a highlight that names no style paints; see {@link StylesApi.setHighlightColor}. */
+    let highlightColor: string = DEFAULT_HIGHLIGHT.color;
     /** How many `style:changed` events this stack has published, for {@link StyleCounts.revision}. */
     let styleRevision = 0;
     /** Edits written since the last pass, told once it has repainted them. */
@@ -2124,7 +2175,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     ): EditPlan<readonly Layer[]> => {
         const run = requireRun(spec.run, requireRuns(exclusive ? "highlight" : "mark"));
         const field = chosenField(run, spec, exclusive);
-        const painting = paintingOf(run, field, spec.set);
+        const painting = paintingOf(run, field, spec.set, highlightColor);
         const path = resultPath(run.id, field);
         const where = `${quotePath(path)} == \`true\``;
         const called = spec.name ?? englishRunLabel(run);
@@ -2518,6 +2569,35 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
 
                 return { ok: false, refusal: { code: error.code, params: plainParams(error.details) } };
             }
+        },
+
+        setHighlightColor(color: string | undefined): void {
+            if (color === undefined) {
+                highlightColor = DEFAULT_HIGHLIGHT.color;
+                return;
+            }
+
+            const verdict = check(
+                {
+                    name: "Highlight colour",
+                    target: "node",
+                    selector: { match: "everything" },
+                    set: { "node.color": color },
+                },
+                mint("Highlight colour"),
+            ).result;
+
+            if (!verdict.ok) {
+                throw badCommand(`"${color}" is not a colour a layer accepts, so it cannot be the highlight colour.`, {
+                    color,
+                });
+            }
+
+            highlightColor = color;
+        },
+
+        highlightStyle(target: SelectorTarget): StaticStyle {
+            return halfOfStyle(undefined, target, highlightColor) ?? {};
         },
 
         highlight(spec: HighlightSpec, options: RunOptions = {}): Run<readonly Layer[]> {

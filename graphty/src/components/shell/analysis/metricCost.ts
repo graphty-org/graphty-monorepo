@@ -91,6 +91,7 @@
 import type { MetricAvailability } from "@graphty/graphty-element/catalog";
 import type { CostEstimate, GraphSession } from "@graphty/graphty-element/session";
 
+import { runRefusalWords } from "../../../workspace/analyze/words";
 import { formatCount } from "../readings/readingFormat";
 import { NODE_METRIC_IDS, type NodeMetricId } from "./nodeMetrics";
 
@@ -134,14 +135,6 @@ const SECONDS_PER_HOUR = SECONDS_PER_MINUTE * MINUTES_PER_HOUR;
  * {@link SECONDS_CEILING} sits at 90.
  */
 const MINUTES_CEILING = 90;
-
-/**
- * What the card says when the element refused to estimate and gave no sentence of its own.
- *
- * The element always writes one, so this is the seatbelt rather than the path: an empty
- * warning under Run would be a blank line where a reason belongs.
- */
-const UNSTATED_REASON = "This cannot run on this graph.";
 
 /**
  * The four things the gate can decide.
@@ -234,7 +227,7 @@ function capitaliseDuration(duration: string): string {
  * element's own sentence is drawn under it, and there is no confirm sentence because
  * there is nothing to confirm.
  * @param metric - the metric that cannot run.
- * @param cost - the element's estimate, which carries the reason.
+ * @param cost - the element's estimate, which carries the refusal code.
  * @returns the estimate the surfaces draw.
  */
 function unavailableCost(metric: NodeMetricId, cost: CostEstimate): MetricCostEstimate {
@@ -244,7 +237,7 @@ function unavailableCost(metric: NodeMetricId, cost: CostEstimate): MetricCostEs
         verdict: "unavailable",
         runLabel: "Run",
         runTitle: "Run",
-        warningSentence: cost.reason ?? UNSTATED_REASON,
+        warningSentence: runRefusalWords(cost),
     };
 }
 

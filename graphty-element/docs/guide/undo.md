@@ -95,46 +95,48 @@ await session.history.restoreTo(session.history.steps[1].id); // jump; null jump
 
 Every step's `fact.code` is one of the `HistoryCode` values, each documenting its `params`:
 
-| Code                                                                              | Params                                                     |
-| --------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| `algo.run`, `algo.legacy`                                                         | `algorithm`                                                |
-| `algo.remove`                                                                     | `run`, `algorithm` (null when unknown)                     |
-| `algo.batch`                                                                      | `label` (the name given to `runs.batch`, or null), `count` |
-| `algo.template`                                                                   | none: the runs a style template asks for                   |
-| `batch`                                                                           | `label` (the batch's own, or null), `steps`                |
-| `data.add-nodes`, `data.add-edges`, `data.remove-nodes`, `data.remove-edges`      | `count`                                                    |
-| `data.edit`                                                                       | `target` (`"node"` or `"edge"`), `count`                   |
-| `data.clear`, `data.set`, `data.replace-nodes`, `data.replace-edges`              | none                                                       |
-| `data.import`                                                                     | `name` (the source's name, or null), `type` (or null)      |
-| `data.expand`                                                                     | `node`                                                     |
-| `data.declare`                                                                    | `kind` (`"node"` or `"edge"`), `column`                    |
-| `data.set-source`                                                                 | `name` (or null)                                           |
-| `style.add-layer`, `style.update-layer`, `style.remove-layer`, `style.move-layer` | `layer` (its name, or its id)                              |
-| `style.remove-layers`                                                             | `count`                                                    |
-| `style.highlight`                                                                 | `run`                                                      |
-| `style.fix-channel`                                                               | `channel`, `layer`                                         |
-| `style.encode`                                                                    | `channel`, `run`                                           |
-| `style.template`                                                                  | none                                                       |
-| `style.suggested`                                                                 | `algorithms`                                               |
-| `visibility.filter`                                                               | `kind` (the filter's kind)                                 |
-| `visibility.clear-filter`, `visibility.window`, `visibility.clear-window`         | none                                                       |
-| `visibility.show-context`, `visibility.hide-context`                              | none                                                       |
-| `set.create`                                                                      | `name` (or null)                                           |
-| `set.rename`                                                                      | `set` (its name before, or its id), `name`                 |
-| `set.redefine`, `set.members`, `set.remove`, `set.restore`                        | `set` (its name, or its id)                                |
-| `note.add`, `note.update`, `note.remove`                                          | none                                                       |
-| `note.merge`                                                                      | `source` (the document's name, or null)                    |
-| `view.save`, `view.remove`                                                        | `names`                                                    |
-| `view.dimension`                                                                  | `dimension` (`"2d"` or `"3d"`)                             |
-| `view.immersive`                                                                  | `mode` (`"vr"` or `"ar"`): a switch to 3D on the way in    |
-| `config.set`                                                                      | `keys` (the setting paths changed)                         |
-| `positions.set`, `positions.pin`, `positions.release`                             | `count`                                                    |
-| `node.drag`                                                                       | `node`                                                     |
-| `layout.set`, `layout.behavior`                                                   | `layout` (the layout's id)                                 |
-| `layout.scope`, `layout.whole-graph`                                              | none                                                       |
-| `project.open`                                                                    | `name` (or null)                                           |
-| `document.open`                                                                   | none                                                       |
-| `transaction`                                                                     | `label` (the label given to `transaction`, or null)        |
+| Code                                                                                                                 | Params                                                     |
+| -------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| `algo.run`, `algo.legacy`                                                                                            | `algorithm`                                                |
+| `algo.remove`                                                                                                        | `run`, `algorithm` (null when unknown)                     |
+| `algo.batch`                                                                                                         | `label` (the name given to `runs.batch`, or null), `count` |
+| `algo.template`                                                                                                      | none: the runs a style template asks for                   |
+| `batch`                                                                                                              | `label` (the batch's own, or null), `steps`                |
+| `data.add-nodes`, `data.add-edges`, `data.remove-nodes`, `data.remove-edges`                                         | `count`                                                    |
+| `data.edit`                                                                                                          | `target` (`"node"` or `"edge"`), `count`                   |
+| `data.clear`, `data.set`, `data.replace-nodes`, `data.replace-edges`                                                 | none                                                       |
+| `data.import`                                                                                                        | `name` (the source's name, or null), `type` (or null)      |
+| `data.expand`                                                                                                        | `node`                                                     |
+| `data.declare`                                                                                                       | `kind` (`"node"` or `"edge"`), `column`                    |
+| `data.set-source`                                                                                                    | `name` (or null)                                           |
+| `style.add-layer`, `style.update-layer`, `style.remove-layer`, `style.move-layer`                                    | `layer` (its name, or its id)                              |
+| `style.remove-layers`                                                                                                | `count`                                                    |
+| `style.highlight`                                                                                                    | `run`                                                      |
+| `style.fix-channel`                                                                                                  | `channel`, `layer`                                         |
+| `style.encode`                                                                                                       | `channel`, `run`                                           |
+| `style.template`                                                                                                     | none                                                       |
+| `style.suggested`                                                                                                    | `algorithms`                                               |
+| `visibility.filter`                                                                                                  | `kind` (the filter's kind)                                 |
+| `visibility.clear-filter`, `visibility.window`, `visibility.clear-window`                                            | none                                                       |
+| `visibility.show-context`, `visibility.hide-context`                                                                 | none                                                       |
+| `visibility.step-add`, `visibility.step-edit`, `visibility.step-on`, `visibility.step-off`, `visibility.step-remove` | `id` (the filter step's id)                                |
+| `visibility.steps` (several steps changed at once, or a reorder)                                                     | none                                                       |
+| `set.create`                                                                                                         | `name` (or null)                                           |
+| `set.rename`                                                                                                         | `set` (its name before, or its id), `name`                 |
+| `set.redefine`, `set.members`, `set.remove`, `set.restore`                                                           | `set` (its name, or its id)                                |
+| `note.add`, `note.update`, `note.remove`                                                                             | none                                                       |
+| `note.merge`                                                                                                         | `source` (the document's name, or null)                    |
+| `view.save`, `view.remove`                                                                                           | `names`                                                    |
+| `view.dimension`                                                                                                     | `dimension` (`"2d"` or `"3d"`)                             |
+| `view.immersive`                                                                                                     | `mode` (`"vr"` or `"ar"`): a switch to 3D on the way in    |
+| `config.set`                                                                                                         | `keys` (the setting paths changed)                         |
+| `positions.set`, `positions.pin`, `positions.release`                                                                | `count`                                                    |
+| `node.drag`                                                                                                          | `node`                                                     |
+| `layout.set`, `layout.behavior`                                                                                      | `layout` (the layout's id)                                 |
+| `layout.scope`, `layout.whole-graph`                                                                                 | none                                                       |
+| `project.open`                                                                                                       | `name` (or null)                                           |
+| `document.open`                                                                                                      | none                                                       |
+| `transaction`                                                                                                        | `label` (the label given to `transaction`, or null)        |
 
 A parameter that came from the data (a node id, a set's name) is the data's own text: escape it
 before putting it into HTML. `step.label`, an English sentence, is deprecated and goes in the next

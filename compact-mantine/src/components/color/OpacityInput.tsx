@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 
 import { useNumberFormatter, useNumberParser } from "../../i18n";
+import { shieldDragSelection } from "../chrome/dragSelectionShield";
 import { isLeavingWithoutCommit, leaveWithoutCommit } from "./escape";
 
 /** The opacity range, in percent. */
@@ -135,6 +136,7 @@ export function OpacityInput({
             event.currentTarget.setPointerCapture(event.pointerId);
         }
         scrub.current = { startX: event.clientX, start: value, last: value };
+        shieldDragSelection();
         setDragCursor("ew-resize");
     };
 

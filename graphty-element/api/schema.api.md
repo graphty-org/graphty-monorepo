@@ -71,6 +71,9 @@ export function colorDifference(hex1: string, hex2: string): number;
 export function colorToHex(s: string): string | undefined;
 
 // @public
+export const DEFAULT_LIGHTING: Lighting;
+
+// @public
 export const DEFAULT_SELECTION_STYLE: GraphSelectionStyleConfig;
 
 // @public
@@ -235,6 +238,8 @@ export const EdgeStyle: z.ZodObject<{
             depthFadeEnabled: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
             depthFadeNear: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             depthFadeFar: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+            onTop: z.ZodOptional<z.ZodBoolean>;
+            pickable: z.ZodOptional<z.ZodBoolean>;
             textOutline: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
             textOutlineWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             textOutlineColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
@@ -398,6 +403,8 @@ export const EdgeStyle: z.ZodObject<{
             depthFadeEnabled: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
             depthFadeNear: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             depthFadeFar: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+            onTop: z.ZodOptional<z.ZodBoolean>;
+            pickable: z.ZodOptional<z.ZodBoolean>;
             textOutline: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
             textOutlineWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             textOutlineColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
@@ -560,6 +567,8 @@ export const EdgeStyle: z.ZodObject<{
         depthFadeEnabled: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         depthFadeNear: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         depthFadeFar: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        onTop: z.ZodOptional<z.ZodBoolean>;
+        pickable: z.ZodOptional<z.ZodBoolean>;
         textOutline: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         textOutlineWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         textOutlineColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
@@ -664,6 +673,9 @@ export const GraphSelectionStyleOpts: z.ZodObject<{
     color: z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
     scale: z.ZodDefault<z.ZodNumber>;
     opacity: z.ZodDefault<z.ZodNumber>;
+    edgeColor: z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+    edgeScale: z.ZodDefault<z.ZodNumber>;
+    edgeOpacity: z.ZodDefault<z.ZodNumber>;
 }, z.core.$strict>;
 
 // @public
@@ -687,6 +699,9 @@ export const INFERNO_COLORS: readonly ["#000004", "#1b0c41", "#4a0c6b", "#781c6d
 
 // @public
 export function interpolatePalette(value: number | null | undefined, colors: readonly string[], missingColor?: string): string;
+
+// @public
+export function isLighting(value: unknown): value is Lighting;
 
 // @public
 export function isPaletteSafe(colors: string[], threshold?: number): {
@@ -737,10 +752,12 @@ export interface LabelStyle {
     marginRight?: number;
     marginTop?: number;
     maxNumber?: number;
+    onTop?: boolean;
     outline?: string;
     outlineWidth?: number;
     overflowSuffix?: string;
     padding?: number;
+    pickable?: boolean;
     pointer?: boolean;
     pointerCurve?: boolean;
     pointerDirection?: LabelPointerDirection;
@@ -805,6 +822,12 @@ export interface LayerSpec {
     // (undocumented)
     userData?: Record<string, unknown>;
 }
+
+// @public
+export type Lighting = (typeof LIGHTING_VALUES)[number];
+
+// @public
+export const LIGHTING_VALUES: readonly ["studio", "headlight", "matte", "flat"];
 
 // @public
 export const MISSING_DATA_COLOR = "#ff00ff";
@@ -980,6 +1003,8 @@ export const NodeStyle: z.ZodObject<{
         depthFadeEnabled: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         depthFadeNear: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         depthFadeFar: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        onTop: z.ZodOptional<z.ZodBoolean>;
+        pickable: z.ZodOptional<z.ZodBoolean>;
         textOutline: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         textOutlineWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         textOutlineColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
@@ -1122,6 +1147,8 @@ export const NodeStyle: z.ZodObject<{
         depthFadeEnabled: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         depthFadeNear: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         depthFadeFar: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        onTop: z.ZodOptional<z.ZodBoolean>;
+        pickable: z.ZodOptional<z.ZodBoolean>;
         textOutline: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         textOutlineWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         textOutlineColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
@@ -1344,6 +1371,8 @@ export const RichTextStyle: z.ZodObject<{
     depthFadeEnabled: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
     depthFadeNear: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
     depthFadeFar: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+    onTop: z.ZodOptional<z.ZodBoolean>;
+    pickable: z.ZodOptional<z.ZodBoolean>;
     textOutline: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
     textOutlineWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
     textOutlineColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
@@ -1424,10 +1453,12 @@ export type RuleTree = {
     readonly attribute: Path;
     readonly min?: number;
     readonly max?: number;
+    readonly nodes?: AttributeLeafNodes;
 } | {
     readonly kind: "categories";
     readonly attribute: Path;
     readonly values: readonly string[];
+    readonly nodes?: AttributeLeafNodes;
 } | {
     readonly kind: "degree";
     readonly min?: number;

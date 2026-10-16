@@ -4,6 +4,7 @@ import { expect, fn, userEvent, within } from "@storybook/test";
 import { VariablePill } from "../../../src";
 import { StateGrid } from "../../helpers/input-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
+import { storyWaitOptions } from "../../helpers/settled";
 
 /**
  * A value bound to a design variable: a pill holding the variable's name inside a number field,
@@ -111,5 +112,23 @@ export const DetachFromTheKeyboard: Story = {
         await expect(detach).toHaveFocus();
         await userEvent.keyboard("{Enter}");
         await expect(args.onDetach).toHaveBeenCalled();
+    },
+};
+
+/**
+ * Keyboard: Tab reaches the pill of a bound number field. The pill draws the one focus ring; the
+ * field around it does not ring as well, and the Detach button shows.
+ */
+export const PillFromTheKeyboard: Story = {
+    args: { glyph: "S", name: "PageRank", value: "1 to 3", onDetach: fn(), onClick: fn() },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        await userEvent.tab();
+        await expect(canvas.getByRole("button", { name: "1 to 3, variable PageRank" })).toHaveFocus();
+        // Focus opens the tooltip after its delay; the story ends once it shows, so the picture
+        // never depends on whether the delay ran out first.
+        await expect(
+            await within(canvasElement.ownerDocument.body).findByRole("tooltip", {}, storyWaitOptions(2000)),
+        ).toBeVisible();
     },
 };

@@ -1,11 +1,21 @@
-import { ColorPickerPanel, ComboInput, FieldRow, QuickActions, VariablePill } from "@graphty/compact-mantine";
+import {
+    ComboInput,
+    CompactColorInput,
+    ControlSubGroup,
+    FieldRow,
+    opacityToAlphaHex,
+    Popout,
+    PopoutButton,
+    QuickActions,
+    VariablePill,
+} from "@graphty/compact-mantine";
 import { type ChannelDescriptor, toColorValue } from "@graphty/graphty-element/catalog";
 import type { ChannelValue, LayerId } from "@graphty/graphty-element/schema";
-import { ActionIcon, Button, Checkbox, ColorSwatch, Popover, Select, Text, TextInput, Tooltip } from "@mantine/core";
-import { useDebouncedCallback } from "@mantine/hooks";
-import { Link2, Minus } from "lucide-react";
-import React, { useState } from "react";
+import type { GraphSession, Layer } from "@graphty/graphty-element/session";
+import { ActionIcon, Button, Checkbox, ColorSwatch, Select, Stack, Text, TextInput, Tooltip } from "@mantine/core";
+import React, { useRef, useState } from "react";
 
+import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { BindingPopover } from "./BindingPopover";
 import { FromDataList } from "./FromDataList";
@@ -13,6 +23,8 @@ import {
     type DataBinding,
     type DataChoice,
     type Line,
+    lineOf,
+    type NewLayer,
     propose,
     readsNothing,
     removeLine,
@@ -20,7 +32,8 @@ import {
     startingValue,
     writeLine,
 } from "./row";
-import { bindLabel, bindsAtRest, channelWord, enumWords, paletteWord } from "./words";
+import { focusLineNext, focusSectionNext, listOpensNext, openListNext } from "./useFocusLine";
+import { bindLabel, bindsAtRest, channelWord, type CompoundLine, enumWords, paletteWord } from "./words";
 
 /** Props for SetLine. */
 interface SetLineProps {
@@ -32,24 +45,34 @@ interface SetLineProps {
     row: readonly LayerId[];
     /** The colors the document already uses, offered in the Color popover. */
     documentColors: readonly string[];
+    /** The line's name, when it is not the channel's own (a part inside a compound line). */
+    name?: string;
+    /** Whether it is a part inside a compound line's popover, which has no "-" of its own. */
+    part?: boolean;
+    /** The layer the row's first edit adds, when the row adds one. */
+    fresh?: NewLayer;
 }
 
+/** Figma's paint field beside a row's bind icon and "-": 156 px, so the hex and opacity fit whole. */
+export const PAINT_FIELD_WIDTH = 156;
+
+/** The first choice of a bind list that keeps the line's own value, for lines that open the list when added. */
+const FIXED_LABELS: Partial<Record<string, string>> = { "node.size": "Fixed size", "node.tooltip": "Fixed text" };
+
+/** The width of a line's pop-out (a compound line, the bind list, the Binding and Shape lists), as wide as the panel's own rows. */
+const POPOUT_WIDTH = 248;
+
 /**
- * The line's color as the Color popover edits it: `#RRGGBBAA`, and its opacity as a percent.
+ * The line's color as the paint field edits it: `#RRGGBB`, and its opacity as a percent.
  * @param value - the value the layer holds.
  * @returns the hex and the percent, or null when it is not a color.
  */
-function colorOf(value: ChannelValue | undefined): { hexa: string; hex: string; percent: number } | null {
+function colorOf(value: ChannelValue | undefined): { hex: string; percent: number } | null {
     const color = typeof value === "string" || (typeof value === "object" && "r" in value) ? toColorValue(value) : null;
     if (color === null) {
         return null;
     }
-    const hex = color.hex.slice(0, 7).toUpperCase();
-    const alpha = Math.round(color.a * 255)
-        .toString(16)
-        .padStart(2, "0")
-        .toUpperCase();
-    return { hexa: `${hex}${alpha}`, hex, percent: Math.round(color.a * 100) };
+    return { hex: color.hex.slice(0, 7).toUpperCase(), percent: Math.round(color.a * 100) };
 }
 
 /**
@@ -62,21 +85,39 @@ function colorOf(value: ChannelValue | undefined): { hexa: string; hex: string; 
  * @param props.line - what the row says for it
  * @param props.row - the row's layers
  * @param props.documentColors - colors the document uses
+ * @param props.name - the line's name, when it is not the channel's own
+ * @param props.part - whether it is a part inside a compound line's popover
+ * @param props.fresh - the layer the row's first edit adds, when the row adds one
  * @returns The line
  */
-export function SetLine({ descriptor, line, row, documentColors }: Readonly<SetLineProps>): React.JSX.Element | null {
+export function SetLine({
+    descriptor,
+    line,
+    row,
+    documentColors,
+    name: partName,
+    part = false,
+    fresh,
+}: Readonly<SetLineProps>): React.JSX.Element | null {
     const { session, store } = useWorkspace();
-    const [binding, setBinding] = useState(false);
+    const [binding, setBinding] = useState(() => !part && listOpensNext(descriptor.channel));
+    const openBinding = (open: boolean): void => {
+        if (!open) {
+            openListNext(null);
+        }
+        setBinding(open);
+    };
     if (session === null) {
         return null;
     }
     const { channel, target } = descriptor;
-    const name = channelWord(channel);
+    const name = partName ?? channelWord(channel);
     const fail = (): void => {
+        focusLineNext(null);
         store.set({ notice: { message: `${name} could not be changed` } });
     };
     const write = (next: { value: ChannelValue } | { binding: DataBinding }): void => {
-        writeLine(session, row, target, channel, next).catch(fail);
+        writeLine(session, row, target, channel, next, fresh).catch(fail);
     };
     const bind = (choice: DataChoice): void => {
         const proposal = propose(session, choice, channel);
@@ -84,7 +125,8 @@ export function SetLine({ descriptor, line, row, documentColors }: Readonly<SetL
             write({ binding: proposal.binding });
         }
     };
-    const remove = (): void => {
+    const remove = (event: React.MouseEvent): void => {
+        focusSectionNext(event.currentTarget, channel);
         removeLine(session, line.layer, channel).then(() => {
             store.set({
                 notice: {
@@ -102,52 +144,78 @@ export function SetLine({ descriptor, line, row, documentColors }: Readonly<SetL
 
     const bindIcon =
         bindsAtRest(descriptor) && line.binding === undefined ? (
-            <Popover opened={binding} onChange={setBinding} position="left-start" trapFocus>
-                <Popover.Target>
+            <Popout opened={binding} onOpenChange={openBinding}>
+                <Popout.Trigger>
+                    {/* The Tooltip passes the trigger's click and ref to the button, but not its
+                        ARIA, so the button states its own. */}
                     <Tooltip label={bindLabel(descriptor)}>
-                        <ActionIcon
-                            variant="subtle"
-                            size="sm"
+                        <PopoutButton
+                            icon={<GLYPHS.link size={14} aria-hidden />}
                             aria-label={bindLabel(descriptor)}
-                            aria-pressed={false}
-                            onClick={() => {
-                                setBinding(!binding);
-                            }}
-                        >
-                            <Link2 size={14} aria-hidden />
-                        </ActionIcon>
+                            aria-haspopup="dialog"
+                            aria-expanded={binding}
+                        />
                     </Tooltip>
-                </Popover.Target>
-                <Popover.Dropdown p={0}>
+                </Popout.Trigger>
+                <Popout.Panel
+                    width={POPOUT_WIDTH}
+                    placement="left"
+                    alignment="start"
+                    header={{ variant: "title", title: bindLabel(descriptor) }}
+                >
                     <FromDataList
                         target={target}
                         channel={channel}
+                        fixedLabel={FIXED_LABELS[channel]}
+                        onFixed={() => {
+                            openBinding(false);
+                            // The line keeps its value; focus goes to it to change the number.
+                            focusLineNext(channel);
+                        }}
                         onPick={(choice) => {
-                            setBinding(false);
+                            openBinding(false);
+                            // The bind removes this icon; focus goes to the bound line instead.
+                            focusLineNext(channel, true);
                             bind(choice);
                         }}
                         onClose={() => {
-                            setBinding(false);
+                            openBinding(false);
                         }}
                     />
-                </Popover.Dropdown>
-            </Popover>
+                </Popout.Panel>
+            </Popout>
         ) : null;
+
+    const removeButton =
+        part || line.layer.locked ? null : (
+            <Tooltip label={`Remove ${name}`}>
+                <ActionIcon variant="subtle" size="sm" aria-label={`Remove ${name}`} onClick={remove}>
+                    <GLYPHS.remove size={14} aria-hidden />
+                </ActionIcon>
+            </Tooltip>
+        );
+
+    if (descriptor.accepts === "color" && line.binding === undefined) {
+        return (
+            <PaintLine name={name} data-line={channel} trailing={removeButton}>
+                <ColorValue
+                    value={line.value}
+                    fallback={descriptor.default}
+                    documentColors={documentColors}
+                    write={write}
+                />
+                {bindIcon}
+            </PaintLine>
+        );
+    }
 
     // compact-mantine's panel row: the name in the 88 px column, the value beside it, "-" in the
     // trailing slot.
     return (
         <FieldRow
             data-line={channel}
-            trailing={
-                line.layer.locked ? null : (
-                    <Tooltip label={`Remove ${name}`}>
-                        <ActionIcon variant="subtle" size="sm" aria-label={`Remove ${name}`} onClick={remove}>
-                            <Minus size={14} aria-hidden />
-                        </ActionIcon>
-                    </Tooltip>
-                )
-            }
+            data-bound={line.binding === undefined ? undefined : true}
+            trailing={removeButton}
         >
             <Text size="xs" truncate>
                 {name}
@@ -203,6 +271,7 @@ function BoundValue({
 }>): React.JSX.Element | null {
     const { session } = useWorkspace();
     const [open, setOpen] = useState(false);
+    const pill = useRef<HTMLDivElement>(null);
     if (session === null) {
         return null;
     }
@@ -212,8 +281,12 @@ function BoundValue({
     const source = sourceName(session, binding) ?? binding.by;
     const palette =
         binding.palette === undefined ? undefined : session.catalog.palettes().find((p) => p.id === binding.palette);
-    // Never empty, so two lines reading one source never share an accessible name.
-    let detail = palette === undefined ? name : paletteWord(palette.id);
+    // Never empty, so two lines reading one source never share an accessible name -- except a
+    // text line (Tooltip), whose words are the source's own values: it shows the source.
+    let detail: string | undefined = palette === undefined ? name : paletteWord(palette.id);
+    if (descriptor.accepts === "text") {
+        detail = undefined;
+    }
     if (unresolved) {
         detail = "reads nothing";
     } else if (binding.range !== undefined) {
@@ -221,50 +294,61 @@ function BoundValue({
     }
     let swatch: string | undefined;
     if (descriptor.accepts === "color") {
+        // The colors the element paints for this line, from its legend; the named palette when it
+        // has none to report (a path that reads nothing).
+        const painted = session.styles
+            .legend()
+            .find((block) => block.layerId === layer.id && block.channel === descriptor.channel)
+            ?.swatches.flatMap((s) => (s.color === undefined ? [] : [s.color]));
+        const colors = painted !== undefined && painted.length > 0 ? painted : palette?.colors;
         swatch =
-            palette === undefined
-                ? "var(--mantine-color-gray-5)"
-                : `linear-gradient(to right, ${palette.colors.join(", ")})`;
+            colors === undefined ? "var(--mantine-color-gray-5)" : `linear-gradient(to right, ${colors.join(", ")})`;
     }
     const detach = (): void => {
         setOpen(false);
-        write({ value: startingValue(descriptor) });
+        write({ value: startingValue(descriptor, session, layer.selector) });
     };
 
     return (
-        <Popover opened={open} onChange={setOpen} position="left-start" trapFocus closeOnEscape>
-            <Popover.Target>
-                <div>
-                    <VariablePill
-                        name={source}
-                        value={detail}
-                        swatch={swatch}
-                        width="100%"
-                        detachLabel={`Detach ${name}`}
-                        onDetach={detach}
-                        onClick={() => {
-                            setOpen(true);
-                        }}
-                    />
-                </div>
-            </Popover.Target>
-            <Popover.Dropdown>
-                <BindingPopover
-                    descriptor={descriptor}
-                    layerId={layer.id}
-                    binding={binding}
-                    source={source}
-                    onChange={(next) => {
-                        write({ binding: next });
-                    }}
-                    onSource={bind}
+        // No Popout.Trigger: its click would also fire for the pill's detach button inside it, so
+        // the pill opens the panel itself and the panel docks to it.
+        <Popout opened={open} onOpenChange={setOpen}>
+            <div ref={pill}>
+                <VariablePill
+                    name={source}
+                    value={detail}
+                    swatch={swatch}
+                    width="100%"
+                    detachLabel={`Detach ${name}`}
                     onDetach={detach}
-                    onClose={() => {
-                        setOpen(false);
+                    onClick={() => {
+                        setOpen(true);
                     }}
                 />
-            </Popover.Dropdown>
-        </Popover>
+            </div>
+            <Popout.Panel
+                width={POPOUT_WIDTH}
+                placement="left"
+                alignment="start"
+                anchorX={pill}
+                anchorY={pill}
+                header={{ variant: "title", title: `${name} from data` }}
+            >
+                <Popout.Content>
+                    <BindingPopover
+                        descriptor={descriptor}
+                        layerId={layer.id}
+                        binding={binding}
+                        source={source}
+                        onChange={(next) => {
+                            write({ binding: next });
+                        }}
+                        onSource={bind}
+                        onDetach={detach}
+                    />
+                </Popout.Content>
+            </Popout.Panel>
+        </Popout>
     );
 }
 
@@ -292,7 +376,9 @@ function ValueEditor({
     const label = channelWord(descriptor.channel);
     switch (descriptor.accepts) {
         case "color":
-            return <ColorValue name={label} value={value} documentColors={documentColors} write={write} />;
+            return (
+                <ColorValue value={value} fallback={descriptor.default} documentColors={documentColors} write={write} />
+            );
         case "enum":
             return descriptor.channel === "node.shape" ? (
                 <ShapeValue descriptor={descriptor} value={value} write={write} />
@@ -364,72 +450,76 @@ function ValueEditor({
 }
 
 /**
- * A color line's value: swatch, hex and opacity percent; clicking it opens the Color popover
- * (hex, opacity, the document's colors), which applies as the reader drags.
+ * A color line: its name in the same small type and column as every other line's name, and the
+ * paint field (swatch, hex, opacity) under it, since the field is wider than a line's value column.
+ * The name also names the group the field's controls sit in.
  * @param props - Component props
- * @param props.name - the property's name
+ * @param props.name - the line's name
+ * @param props.trailing - the row's trailing control ("-", a reset), if any
+ * @param props.children - the paint field and anything beside it (the bind icon)
+ * @returns The line
+ */
+export function PaintLine({
+    name,
+    trailing,
+    children,
+    ...rest
+}: Readonly<
+    { name: string; trailing?: React.ReactNode; children: React.ReactNode } & Record<`data-${string}`, string>
+>): React.JSX.Element {
+    return (
+        <FieldRow {...rest} trailing={trailing} style={{ height: "auto", alignItems: "flex-end", paddingBlock: 4 }}>
+            <div // NOSONAR(S6819): an ARIA group naming a part's controls; a fieldset would draw its own border and legend
+                role="group"
+                aria-label={name}
+                style={{ display: "flex", flexDirection: "column", gap: 4 }}
+            >
+                <Text size="xs" truncate>
+                    {name}
+                </Text>
+                <div style={{ display: "flex", alignItems: "flex-end", gap: 4 }}>{children}</div>
+            </div>
+        </FieldRow>
+    );
+}
+
+/**
+ * A color line's value: compact-mantine's paint field (swatch, hex, opacity), named by the line
+ * around it. The swatch opens the picker with the document's colors; a drag writes once, on
+ * release, so it is one undo step.
+ * @param props - Component props
  * @param props.value - the value
+ * @param props.fallback - what the element draws when the value is unset
  * @param props.documentColors - colors the document uses
  * @param props.write - writes the line
- * @returns The value and its popover
+ * @returns The paint field
  */
 function ColorValue({
-    name,
     value,
+    fallback,
     documentColors,
     write,
 }: Readonly<{
-    name: string;
     value: ChannelValue | undefined;
+    fallback: ChannelValue | undefined;
     documentColors: readonly string[];
     write: (next: { value: ChannelValue }) => void;
 }>): React.JSX.Element {
-    const color = colorOf(value) ?? { hexa: "#000000FF", hex: "#000000", percent: 100 };
-    const [draft, setDraft] = useState<string | null>(null);
-    // ponytail: one write per pause while dragging, so a drag is a few undo steps, not hundreds.
-    const commit = useDebouncedCallback((hexa: string) => {
-        write({ value: hexa });
-    }, 150);
+    const chosen = colorOf(value);
+    const color = chosen ?? colorOf(fallback) ?? { hex: "#000000", percent: 100 };
     return (
-        <Popover
-            position="left-start"
-            trapFocus
-            onClose={() => {
-                setDraft(null);
+        <CompactColorInput
+            width={PAINT_FIELD_WIDTH}
+            // Unset (a glow's color), the field shows what the element draws, as not chosen.
+            color={chosen?.hex}
+            defaultColor={color.hex}
+            opacity={color.percent}
+            swatches={documentColors}
+            showReset={false}
+            onChangeEnd={(hex, percent) => {
+                write({ value: `${hex ?? color.hex}${opacityToAlphaHex(percent ?? color.percent)}`.toUpperCase() });
             }}
-        >
-            <Popover.Target>
-                <Button
-                    size="compact-xs"
-                    variant="subtle"
-                    color="dark"
-                    aria-label={`${name} ${color.hex} ${String(color.percent)}%`}
-                    title={`${color.hex} ${String(color.percent)}%`}
-                    fullWidth
-                    justify="flex-start"
-                    // The value column is narrow beside the bind icon: the text ends in an ellipsis
-                    // and the whole value is the title.
-                    styles={{
-                        root: { maxWidth: "100%" },
-                        inner: { justifyContent: "flex-start", minWidth: 0 },
-                        label: { overflow: "hidden", textOverflow: "ellipsis", minWidth: 0, display: "block" },
-                    }}
-                    leftSection={<ColorSwatch color={color.hexa} size={12} />}
-                >
-                    {color.hex} {color.percent}%
-                </Button>
-            </Popover.Target>
-            <Popover.Dropdown>
-                <ColorPickerPanel
-                    value={draft ?? color.hexa}
-                    swatches={documentColors}
-                    onChange={(hexa) => {
-                        setDraft(hexa);
-                        commit(hexa);
-                    }}
-                />
-            </Popover.Dropdown>
-        </Popover>
+        />
     );
 }
 
@@ -454,21 +544,25 @@ function ShapeValue({
     const [open, setOpen] = useState(false);
     const current = typeof value === "string" ? value : "";
     return (
-        <Popover opened={open} onChange={setOpen} position="left-start" trapFocus>
-            <Popover.Target>
+        <Popout opened={open} onOpenChange={setOpen}>
+            <Popout.Trigger>
+                {/* A boxed field, as the other values are. */}
                 <Button
                     size="compact-xs"
-                    variant="subtle"
-                    color="dark"
+                    variant="default"
+                    fullWidth
+                    justify="flex-start"
                     aria-label={`${channelWord(descriptor.channel)} ${enumWords(current)}`}
-                    onClick={() => {
-                        setOpen(!open);
-                    }}
                 >
                     {enumWords(current)}
                 </Button>
-            </Popover.Target>
-            <Popover.Dropdown p={0}>
+            </Popout.Trigger>
+            <Popout.Panel
+                width={POPOUT_WIDTH}
+                placement="left"
+                alignment="start"
+                header={{ variant: "title", title: channelWord(descriptor.channel) }}
+            >
                 <QuickActions
                     aria-label="Shapes"
                     placeholder="Filter shapes"
@@ -483,7 +577,221 @@ function ShapeValue({
                         setOpen(false);
                     }}
                 />
-            </Popover.Dropdown>
-        </Popover>
+            </Popout.Panel>
+        </Popout>
+    );
+}
+
+/** Props for CompoundSetLine. */
+interface CompoundSetLineProps {
+    /** The compound line. */
+    compound: CompoundLine;
+    /** The element's descriptors of its parts. */
+    descriptors: readonly ChannelDescriptor[];
+    /** The row's layers on this side, bottom first. */
+    layers: readonly Layer[];
+    /** The row's layers. */
+    row: readonly LayerId[];
+    /** The colors the document already uses, offered in the Color popover. */
+    documentColors: readonly string[];
+    /** The layer the row's first edit adds, when the row adds one. */
+    fresh?: NewLayer;
+}
+
+/** One part of a compound line, with its descriptor and the line that sets it, if any. */
+interface CompoundPart {
+    readonly part: CompoundSetLineProps["compound"]["parts"][number];
+    readonly descriptor: CompoundSetLineProps["descriptors"][number];
+    readonly line: ReturnType<typeof lineOf>;
+}
+
+/**
+ * A compound line's summary at rest: a color as its swatch, a choice by name, a number as itself,
+ * a bound part by the source it reads.
+ * @param session - the element's session.
+ * @param parts - the line's parts.
+ * @returns the swatches and the words.
+ */
+function restSummary(session: GraphSession, parts: readonly CompoundPart[]): { swatches: string[]; words: string[] } {
+    const swatches: string[] = [];
+    const words: string[] = [];
+    for (const { part, descriptor, line } of parts.filter((p) => p.part.atRest === true)) {
+        if (line?.binding !== undefined) {
+            words.push(sourceName(session, line.binding) ?? line.binding.by);
+            continue;
+        }
+        const value = line?.value ?? descriptor.default;
+        if (value === undefined) {
+            continue;
+        }
+        if (descriptor.accepts === "color") {
+            const color = colorOf(value);
+            if (color !== null) {
+                swatches.push(color.hex);
+            }
+        } else {
+            words.push(restWord(descriptor.accepts, value, part.word));
+        }
+    }
+    return { swatches, words };
+}
+
+/**
+ * A part's value at rest, worded: a choice by name, a number or text as itself, anything else by
+ * the part's own word.
+ * @param accepts - what the part's channel accepts.
+ * @param value - its value.
+ * @param word - the part's own word.
+ * @returns the words.
+ */
+function restWord(accepts: CompoundPart["descriptor"]["accepts"], value: unknown, word: string): string {
+    if (accepts === "enum") {
+        return typeof value === "string" ? enumWords(value) : word;
+    }
+    return typeof value === "number" || typeof value === "string" ? String(value) : word;
+}
+
+/**
+ * A compound line: one effect that covers several channels (Glow, an arrow, Pattern). At rest it
+ * shows a summary; tapping it opens a titled popover with the key options first and the rest
+ * behind "More". "-" removes every part in one undo step.
+ * @param props - Component props
+ * @param props.compound - the compound line
+ * @param props.descriptors - the descriptors of its parts
+ * @param props.layers - the row's layers on this side
+ * @param props.row - the row's layers
+ * @param props.documentColors - colors the document uses
+ * @param props.fresh - the layer the row's first edit adds, when the row adds one
+ * @returns The line, or nothing when the row sets none of its parts
+ */
+export function CompoundSetLine({
+    compound,
+    descriptors,
+    layers,
+    row,
+    documentColors,
+    fresh,
+}: Readonly<CompoundSetLineProps>): React.JSX.Element | null {
+    const { session, store } = useWorkspace();
+    const [moreOpen, setMoreOpen] = useState(false);
+    const parts = compound.parts.flatMap((part) => {
+        const descriptor = descriptors.find((d) => d.channel === part.channel);
+        return descriptor === undefined ? [] : [{ part, descriptor, line: lineOf(layers, part.channel) }];
+    });
+    const held = parts.find((p) => p.line !== undefined)?.line;
+    if (session === null || held === undefined) {
+        return null;
+    }
+    const { name } = compound;
+    // The reader's layers that set a part; a part on the element's own locked layer stays.
+    const holders = [
+        ...new Set(parts.flatMap((p) => (p.line === undefined || p.line.layer.locked ? [] : [p.line.layer]))),
+    ];
+    const remove = (event: React.MouseEvent): void => {
+        focusSectionNext(event.currentTarget, compound.adds);
+        Promise.all(
+            holders.map((layer) =>
+                removeLine(
+                    session,
+                    layer,
+                    ...parts.filter((p) => p.line?.layer === layer).map((p) => p.descriptor.channel),
+                ),
+            ),
+        ).then(
+            () => {
+                store.set({
+                    notice: {
+                        message: `Removed ${name}`,
+                        action: {
+                            label: "Undo",
+                            run: () => {
+                                void session.undo();
+                            },
+                        },
+                    },
+                });
+            },
+            () => {
+                focusLineNext(null);
+                store.set({ notice: { message: `${name} could not be changed` } });
+            },
+        );
+    };
+
+    const { swatches, words } = restSummary(session, parts);
+    const summary = words.join(", ");
+    const field = (p: (typeof parts)[number]): React.JSX.Element => (
+        <Stack key={p.descriptor.channel} gap={0}>
+            <SetLine
+                descriptor={p.descriptor}
+                // An unset part shows what the element draws for it, where the element says.
+                line={p.line ?? { layer: held.layer, value: p.descriptor.default }}
+                row={row}
+                documentColors={documentColors}
+                name={p.part.word}
+                part
+                fresh={fresh}
+            />
+            {p.part.caveat === true && p.descriptor.caveat !== undefined ? (
+                <Text size="xs" c="dimmed" px={4}>
+                    {p.descriptor.caveat}
+                </Text>
+            ) : null}
+        </Stack>
+    );
+    const more = parts.filter((p) => p.part.more === true);
+
+    return (
+        <FieldRow
+            data-line={compound.adds}
+            trailing={
+                holders.length === 0 ? null : (
+                    <Tooltip label={`Remove ${name}`}>
+                        <ActionIcon variant="subtle" size="sm" aria-label={`Remove ${name}`} onClick={remove}>
+                            <GLYPHS.remove size={14} aria-hidden />
+                        </ActionIcon>
+                    </Tooltip>
+                )
+            }
+        >
+            <Text size="xs" truncate>
+                {name}
+            </Text>
+            <Popout>
+                <Popout.Trigger>
+                    <Button
+                        size="compact-xs"
+                        variant="default"
+                        fullWidth
+                        justify="flex-start"
+                        aria-label={`${name}: ${summary}`}
+                        leftSection={
+                            swatches.length === 0
+                                ? undefined
+                                : swatches.map((hex) => <ColorSwatch key={hex} color={hex} size={12} />)
+                        }
+                    >
+                        {summary}
+                    </Button>
+                </Popout.Trigger>
+                <Popout.Panel
+                    width={POPOUT_WIDTH}
+                    placement="left"
+                    alignment="start"
+                    header={{ variant: "title", title: name }}
+                >
+                    <Popout.Content>
+                        <Stack gap={4}>
+                            {parts.filter((p) => p.part.more !== true).map(field)}
+                            {more.length > 0 ? (
+                                <ControlSubGroup label="More" opened={moreOpen} onOpenChange={setMoreOpen}>
+                                    {moreOpen ? <Stack gap={4}>{more.map(field)}</Stack> : null}
+                                </ControlSubGroup>
+                            ) : null}
+                        </Stack>
+                    </Popout.Content>
+                </Popout.Panel>
+            </Popout>
+        </FieldRow>
     );
 }

@@ -1,10 +1,12 @@
 import { ResultRow, SearchInput } from "@graphty/compact-mantine";
 import type { FindHit, FindResult, FindValueRow } from "@graphty/graphty-element";
-import type { GraphSession } from "@graphty/graphty-element/session";
-import { Text } from "@mantine/core";
-import { CircleDot, ListFilter, Minus } from "lucide-react";
-import React, { useId, useMemo, useState } from "react";
+import { type GraphSession, isGraphtyError, rulePath } from "@graphty/graphty-element/session";
+import { ScrollArea, Text, VisuallyHidden } from "@mantine/core";
+import React, { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 
+import { GLYPHS } from "../glyphs";
+import { focusValuesNext } from "../inspector/reads";
+import { edgeJoiner, edgeName, selectionWords } from "../inspector/words";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { useSessionVersion } from "./useSessionVersion";
 
@@ -14,8 +16,201 @@ export const FIND_BOX_ID = "ws-find";
 /** How many element hits the list shows. */
 const LIMIT = 20;
 
-/** One pickable entry of the list: an element hit or a value row. */
-type Option = { readonly type: "hit"; readonly hit: FindHit } | { readonly type: "value"; readonly row: FindValueRow };
+/**
+ * The tallest the list grows before it scrolls; it is cut back to end on a whole row, and it
+ * scrolls a row at a time, so its edge never falls inside a row or just under a heading.
+ */
+const LIST_MAX_PX = 320;
+
+/**
+ * An example rule over the open data, for a box that holds only "=": a number column from the
+ * file (else any number column), compared with a value inside its range, such as minutes > `5`.
+ * @param session - the element's session.
+ * @returns the example.
+ */
+function exampleRule(session: GraphSession): string {
+    const numbers = session.data.attributes().filter((a) => a.measurement === "quantitative");
+    const column = numbers.find((a) => a.origin === "imported") ?? numbers[0];
+    if (column === undefined) {
+        return "weight > `3`";
+    }
+    const middle = column.min === undefined || column.max === undefined ? 3 : (column.min + column.max) / 2;
+    return `${rulePath(column.path)} > \`${String(Math.round(middle))}\``;
+}
+
+/**
+ * The reader's own rule with its bare numbers in backticks, from a refusal for a bare number.
+ * @param error - what the element threw.
+ * @returns the element's suggestion, or null for any other error.
+ */
+function backtickSuggestion(error: unknown): string | null {
+    if (!isGraphtyError(error) || error.code !== "E_BAD_SELECTOR") {
+        return null;
+    }
+    const details = (error.details ?? {}) as { reason?: unknown; suggestion?: unknown };
+    return details.reason === "number-needs-backticks" && typeof details.suggestion === "string"
+        ? details.suggestion
+        : null;
+}
+
+/** Why the element refused a typed rule, worded, and the rule it offers instead. */
+interface Refusal {
+    /** The line under the box. */
+    readonly words: string;
+    /** The element's rewrite of the reader's rule, with its "=", offered as the option Enter picks. */
+    readonly rule: string | null;
+}
+
+/**
+ * Words why the element refused a typed rule, from the refusal's reason code.
+ * @param error - what `selection.apply` threw.
+ * @returns the refusal, or null when the error is not a refused rule.
+ */
+function ruleRefusal(error: unknown): Refusal | null {
+    if (!isGraphtyError(error) || error.code !== "E_BAD_SELECTOR") {
+        return null;
+    }
+    const details = (error.details ?? {}) as { position?: unknown };
+    // The reader's own rule, rewritten by the element (an example from other numbers gets copied),
+    // is the option under the line.
+    const suggestion = backtickSuggestion(error);
+    if (suggestion !== null) {
+        return { words: "Put numbers in backticks:", rule: `=${suggestion}` };
+    }
+    // The element counts from 0 after the "="; the reader counts from 1 including it.
+    const words =
+        typeof details.position === "number"
+            ? `Not a rule Find can read (at character ${String(details.position + 2)})`
+            : "Not a rule Find can read";
+    return { words, rule: null };
+}
+
+/** How long typing pauses before the element checks a typed rule. */
+const CHECK_DELAY_MS = 200;
+
+/**
+ * What the element says of a typed rule, without selecting anything: it counts the rule's
+ * matches, which reads the rule exactly as `selection.apply` does.
+ * @param session - the element's session.
+ * @param typed - the box's text, starting with "=".
+ * @returns "ok", "empty" for a lone "=", the refusal, or null for any other error.
+ */
+async function ruleVerdict(session: GraphSession, typed: string): Promise<"ok" | "empty" | Refusal | null> {
+    if (isEmptyRule(typed)) {
+        return "empty";
+    }
+    try {
+        await session.scope.count({ where: typed.slice(1) });
+        return "ok";
+    } catch (error) {
+        // An error that is not a refused rule is left for Enter, which reports it as before.
+        return ruleRefusal(error);
+    }
+}
+
+/**
+ * The rule plain text that found nothing reads as once "=" is put before it: the text itself when
+ * the element accepts it and it matches something, or the element's rewrite when it is refused
+ * only for a bare number. A word the element reads as a column that holds nothing, such as a
+ * name, is not one.
+ * @param session - the element's session.
+ * @param typed - the box's text, with no "=".
+ * @returns the rule to show after "=", or null when the reader most likely did not type a condition.
+ */
+async function ruleFromText(session: GraphSession, typed: string): Promise<string | null> {
+    try {
+        // Counted as Enter would select it, so a rule over an edge column counts its edges.
+        const { nodes, edges } = await session.selection.count({ text: `=${typed}` });
+        return nodes + edges > 0 ? typed : null;
+    } catch (error) {
+        return backtickSuggestion(error);
+    }
+}
+
+/**
+ * Whether the box holds "=" and nothing after it yet.
+ * @param typed - the box's text.
+ * @returns true for a rule still to be typed.
+ */
+function isEmptyRule(typed: string): boolean {
+    return typed.slice(1).trim() === "";
+}
+
+/** A column a rule can name, offered after "=". */
+interface ColumnOption {
+    /** The column's name as the reader knows it. */
+    readonly name: string;
+    /** What picking it puts in the box. */
+    readonly insert: string;
+    /** Whether nodes, edges or both carry it. */
+    readonly kinds: ReadonlySet<"node" | "edge">;
+}
+
+/**
+ * The attribute name at the end of a rule: its trailing run of word characters, from the first
+ * letter or underscore in it. Scanned by hand, since a regular expression anchored at the end
+ * backtracks from every position.
+ * @param rule - the rule typed so far.
+ * @returns the name, or "" when the rule does not end in one.
+ */
+function trailingName(rule: string): string {
+    let start = rule.length;
+    while (start > 0 && /\w/.test(rule.charAt(start - 1))) {
+        start--;
+    }
+    while (start < rule.length && !/[A-Za-z_]/.test(rule.charAt(start))) {
+        start++;
+    }
+    return rule.slice(start);
+}
+
+/**
+ * The columns to offer for a typed rule: those whose name holds the word being typed, at a
+ * place a column can start, and never inside a quoted value.
+ * @param session - the element's session.
+ * @param typed - the box's text, starting with "=".
+ * @returns the word being typed, and the columns.
+ */
+function columnOptions(session: GraphSession, typed: string): { word: string; columns: ColumnOption[] } {
+    const rule = typed.slice(1);
+    const word = trailingName(rule);
+    const before = rule.slice(0, rule.length - word.length);
+    const inQuotes = ["`", "'", '"'].some((q) => before.split(q).length % 2 === 0);
+    const startsTerm = word !== "" || /(^|&&|\|\||\(|!)\s*$/.test(before);
+    if (inQuotes || !startsTerm) {
+        return { word, columns: [] };
+    }
+    const byText = new Map<string, { name: string; insert: string; kinds: Set<"node" | "edge"> }>();
+    for (const attribute of session.data.attributes()) {
+        const insert = rulePath(attribute.path);
+        if (insert === word || !attribute.name.toLowerCase().includes(word.toLowerCase())) {
+            continue;
+        }
+        const entry = byText.get(insert) ?? { name: attribute.name, insert, kinds: new Set() };
+        entry.kinds.add(attribute.kind);
+        byText.set(insert, entry);
+    }
+    return { word, columns: [...byText.values()].slice(0, LIMIT) };
+}
+
+/**
+ * Says which elements carry a column.
+ * @param kinds - the kinds that carry it.
+ * @returns the words.
+ */
+function kindWords(kinds: ReadonlySet<"node" | "edge">): string {
+    if (kinds.size === 2) {
+        return "Node and edge column";
+    }
+    return kinds.has("edge") ? "Edge column" : "Node column";
+}
+
+/** One pickable entry of the list: an element hit, a value row, a column for a rule, or a rule to run. */
+type Option =
+    | { readonly type: "hit"; readonly hit: FindHit }
+    | { readonly type: "value"; readonly row: FindValueRow; readonly orMore?: boolean }
+    | { readonly type: "column"; readonly column: ColumnOption }
+    | { readonly type: "rule"; readonly rule: string };
 
 /**
  * An attribute's name as the reader knows it, from its literal column key.
@@ -31,18 +226,21 @@ function attributeName(session: GraphSession, path: string): string {
 }
 
 /**
- * A hit's name: a node's name, or an edge's two ends.
+ * A hit's name: a node's name, or an edge's two ends written the way the inspector writes them.
+ * @param session - the session, which says whether the graph is directed.
  * @param hit - the hit.
  * @returns the name.
  */
-function hitName(hit: FindHit): string {
-    return hit.kind === "edge" ? `${hit.ends.source.name} -- ${hit.ends.target.name}` : hit.name;
+function hitName(session: GraphSession, hit: FindHit): string {
+    return hit.kind === "edge"
+        ? edgeName(session, { source: hit.ends.source.id, target: hit.ends.target.id })
+        : hit.name;
 }
 
 /**
  * The find box and its one live list (tier1-design.md section 2.5 and task T12): results appear
  * as the reader types and focus stays in the box; Down enters the list, Enter picks, Esc clears
- * and then leaves the box. The selection changes only on a pick. Every match comes from
+ * and then leaves the box. A node pick moves focus to that node's values in the inspector. The selection changes only on a pick. Every match comes from
  * graphty-element's `session.find`; the box only words and arranges it.
  * @returns The find box
  */
@@ -50,66 +248,302 @@ export function FindBox(): React.JSX.Element {
     const { session, element, store } = useWorkspace();
     const [text, setText] = useState("");
     const [active, setActive] = useState(-1);
+    const [refusal, setRefusal] = useState<Refusal | null>(null);
+    // The element's answers below are kept with the text they were asked for: a session change
+    // asks again, and the line under the box keeps the last answer until the new one arrives
+    // rather than blinking out (and being announced again by its status region) on every change.
+    // What the element said of the typed rule: "ok", "empty", or null while unchecked.
+    const [ruleAnswer, setRuleAnswer] = useState<{ text: string; verdict: "ok" | "empty" | null } | null>(null);
+    // The rule plain text that found nothing reads as once "=" leads it, null when it reads as
+    // none, or undefined until the element has answered.
+    const [textAsRuleAnswer, setTextAsRuleAnswer] = useState<{ text: string; rule: string | null } | null>(null);
     const listId = useId();
     // A change to the data, a run or the selection asks again, so a count or a hit is never stale.
     const version = useSessionVersion(session);
 
     const found: FindResult | null = useMemo(() => {
         const _changeCount = version; // NOSONAR(S1481): reads the change count so the memo runs again on each session change
-        return session === null || text.trim() === "" ? null : session.find(text, { limit: LIMIT });
+        return session === null || text.trim() === ""
+            ? null
+            : session.find(text, { limit: LIMIT, edgeNameJoiner: edgeJoiner(session) });
     }, [session, text, version]);
+    const isRule = found?.notSearchable === "expression";
+    const ruleCheck = isRule && ruleAnswer?.text === text ? ruleAnswer.verdict : null;
+    const { word, columns } = useMemo(() => {
+        const _changeCount = version; // NOSONAR(S1481): reads the change count so a new column is offered
+        return session !== null && isRule ? columnOptions(session, text) : { word: "", columns: [] };
+    }, [session, text, isRule, version]);
+    // Nodes first, then edges, each under its own heading; the keyboard walks them in that order.
+    const nodeHits = found?.records.filter((hit) => hit.kind !== "edge") ?? [];
+    const edgeHits = found?.records.filter((hit) => hit.kind === "edge") ?? [];
+    const hits = [...nodeHits, ...edgeHits];
+    // Each value row, then its "or more" row when the element offers one; then the element's
+    // "or more" rows for a typed number no value equals.
+    const valueOptions = [
+        ...(found?.values.flatMap((row): Option[] =>
+            row.atLeast === undefined
+                ? [{ type: "value", row }]
+                : [
+                      { type: "value", row },
+                      { type: "value", row, orMore: true },
+                  ],
+        ) ?? []),
+        ...(found?.atLeast ?? []).map((row): Option => ({
+            type: "value",
+            row: { ...row, atLeast: row },
+            orMore: true,
+        })),
+    ];
+    // Plain text that finds nothing is asked of the element as a rule once typing pauses.
+    const foundNothing =
+        found !== null && found.notSearchable === undefined && found.records.length === 0 && valueOptions.length === 0;
+    const textAsRule = foundNothing && textAsRuleAnswer?.text === text ? textAsRuleAnswer.rule : undefined;
+    // A rule shown under the box, the element's rewrite of a refused rule or the plain text as a
+    // rule, is an option too: the last, and the one Enter picks.
+    let ruleOption: string | null = null;
+    if (isRule) {
+        ruleOption = refusal?.rule ?? null;
+    } else if (typeof textAsRule === "string") {
+        ruleOption = `=${textAsRule}`;
+    }
     const options: Option[] = found
         ? [
-              ...found.records.map((hit): Option => ({ type: "hit", hit })),
-              ...found.values.map((row): Option => ({ type: "value", row })),
+              ...hits.map((hit): Option => ({ type: "hit", hit })),
+              ...valueOptions,
+              ...columns.map((column): Option => ({ type: "column", column })),
+              ...(ruleOption === null ? [] : [{ type: "rule", rule: ruleOption } as const]),
           ]
         : [];
+
+    // A typed rule is checked once typing pauses, so a refusal shows before Enter.
+    useEffect(() => {
+        if (session === null || !isRule) {
+            return undefined;
+        }
+        let current = true;
+        const timer = setTimeout(() => {
+            void ruleVerdict(session, text).then((verdict) => {
+                if (!current) {
+                    return;
+                }
+                if (verdict === "ok" || verdict === "empty") {
+                    setRuleAnswer({ text, verdict });
+                    setRefusal(null);
+                } else {
+                    setRuleAnswer({ text, verdict: null });
+                    setRefusal(verdict);
+                }
+            });
+        }, CHECK_DELAY_MS);
+        return () => {
+            current = false;
+            clearTimeout(timer);
+        };
+    }, [session, text, isRule, version]);
+    useEffect(() => {
+        if (session === null || !foundNothing) {
+            return undefined;
+        }
+        let current = true;
+        const timer = setTimeout(() => {
+            void ruleFromText(session, text).then((rule) => {
+                if (current) {
+                    setTextAsRuleAnswer({ text, rule });
+                }
+            });
+        }, CHECK_DELAY_MS);
+        return () => {
+            current = false;
+            clearTimeout(timer);
+        };
+    }, [session, text, foundNothing, version]);
+    // The refusal is spoken from a region that stays mounted and keeps its words while the reader
+    // types, so a refusal is said once, politely, not again on every keystroke; it empties only
+    // once the box holds no rule or a rule Find can read.
+    const [spoken, setSpoken] = useState("");
+    useEffect(() => {
+        if (refusal !== null) {
+            setSpoken(refusal.rule === null ? refusal.words : `${refusal.words} ${refusal.rule}`);
+        }
+    }, [refusal]);
+    useEffect(() => {
+        if (!isRule || ruleCheck !== null) {
+            setSpoken("");
+        }
+    }, [isRule, ruleCheck]);
     const optionId = (i: number): string => `${listId}-${String(i)}`;
 
     const pick = async (option: Option): Promise<void> => {
         if (session === null) {
             return;
         }
+        if (option.type === "column") {
+            // The column replaces the word being typed; the box keeps focus for the rest of the rule.
+            setText(text.slice(0, text.length - word.length) + option.column.insert);
+            setActive(-1);
+            return;
+        }
+        if (option.type === "rule") {
+            // The rule goes in the box and runs, as if typed and run with Enter.
+            setText(option.rule);
+            setActive(-1);
+            setRefusal(null);
+            await runTyped(session, option.rule);
+            return;
+        }
         setText("");
         setActive(-1);
         if (option.type === "value") {
-            await session.selection.apply(option.row.target);
+            await session.selection.apply(
+                option.orMore === true && option.row.atLeast ? option.row.atLeast.target : option.row.target,
+            );
             return;
         }
         const { hit } = option;
+        // The keyboard follows the pick into the node's or the edge's values, out of the box (task T12).
+        focusValuesNext();
         await session.selection.apply(hit.target);
         // The inspector shows what is selected once no row is open.
         store.set({ inspected: null });
-        await element?.zoomToSelection();
+        // The camera zooms only to bring a pick that is off screen into view: zooming to every pick
+        // swings the rest of the drawing out of the canvas, and it stays out. (The element still
+        // pivots on the pick, camera.pivotOnSelection, which keeps the distance.)
+        const ids = hit.kind === "edge" ? [hit.ends.source.id, hit.ends.target.id] : [hit.id];
+        if (!ids.every((id) => element?.nodeScreenPosition(id)?.visible === true)) {
+            await element?.zoomToSelection();
+        }
     };
+
+    const runTyped = async (current: GraphSession, typed: string): Promise<void> => {
+        // The rule stays in the box with the caret at its end, so it can be changed; the line under
+        // the box then says what it selected.
+        try {
+            await current.selection.apply({ text: typed });
+        } catch (error) {
+            const refused = ruleRefusal(error);
+            if (refused === null) {
+                throw error;
+            }
+            setRefusal(refused);
+        }
+    };
+
+    // A regex or expression is not run while typing; Enter runs it as a selection unless an
+    // option was chosen with the arrows.
+    const runsTyped = found?.notSearchable !== undefined && session !== null && !(isRule && isEmptyRule(text));
+    // The option Enter picks: the first until the arrows move it, and marked as such; none while
+    // Enter would run the typed rule or pattern instead.
+    let target = 0;
+    if (active >= 0) {
+        target = active;
+    } else if (ruleOption !== null) {
+        target = options.length - 1;
+    } else if (runsTyped) {
+        target = -1;
+    }
+    const chosen: Option | undefined = options[target];
+    // Focus stays in the text box, so the browser never scrolls the list to the arrows' row: the
+    // row is brought into view here, by the least scroll that shows it whole, with its group's
+    // heading when it is the group's first row.
+    const activeId = active >= 0 ? optionId(active) : undefined;
+    useLayoutEffect(() => {
+        const row = activeId === undefined ? null : document.getElementById(activeId);
+        const heading = row?.previousElementSibling;
+        if (heading?.classList.contains("ws-find-heading") === true) {
+            heading.scrollIntoView({ block: "nearest" });
+        }
+        row?.scrollIntoView({ block: "nearest" });
+    }, [activeId]);
 
     const onKeyDown = (event: React.KeyboardEvent<HTMLInputElement>): void => {
         if (event.key === "ArrowDown" && options.length > 0) {
             event.preventDefault();
-            setActive((i) => Math.min(i + 1, options.length - 1));
+            setActive(Math.min(target + 1, options.length - 1));
         } else if (event.key === "ArrowUp" && options.length > 0) {
             event.preventDefault();
-            setActive((i) => Math.max(i - 1, 0));
+            setActive(Math.max(target - 1, 0));
         } else if (event.key === "Enter") {
             event.preventDefault();
-            if (found?.notSearchable !== undefined && session !== null) {
-                // A regex or expression is not run while typing; Enter runs it as a selection.
-                void session.selection.apply({ text });
-                setText("");
-            } else {
-                const option = options[Math.max(active, 0)];
-                if (option !== undefined) {
-                    void pick(option);
-                }
+            if (chosen !== undefined) {
+                void pick(chosen);
+            } else if (runsTyped) {
+                void runTyped(session, text);
             }
         } else if (event.key === "Escape" && text === "") {
+            // An empty box keeps focus: Esc never moves the reader out of where they are typing.
             event.preventDefault();
             event.stopPropagation();
-            event.currentTarget.blur();
         }
     };
 
     const open = found !== null;
+    // The list ends on a whole row: past the cap, its height is cut back to the bottom of the last
+    // option row that fits, headings counted in, so it never ends on a heading. Scrolling then
+    // stops only where a row's bottom meets the edge (scroll-snap in graph-place.css).
+    const listRef = useRef<HTMLDivElement>(null);
+    const viewportRef = useRef<HTMLDivElement>(null);
+    useLayoutEffect(() => {
+        const { current: list } = listRef;
+        const { current: viewport } = viewportRef;
+        if (list === null || viewport === null) {
+            return;
+        }
+        list.style.maxHeight = "";
+        if (viewport.scrollHeight <= LIST_MAX_PX) {
+            return;
+        }
+        const { top } = viewport.getBoundingClientRect();
+        const fits = [...viewport.querySelectorAll<HTMLElement>("[role=option]")]
+            .map((row) => row.getBoundingClientRect().bottom - top + viewport.scrollTop)
+            .filter((bottom) => bottom <= LIST_MAX_PX);
+        // The max height counts the bottom border too (border-box).
+        list.style.maxHeight = `${String(Math.max(...fits, 0) + list.offsetHeight - list.clientHeight)}px`;
+    });
+    // A rule run with Enter is the selection's origin until anything else changes the selection.
+    const origin = session?.selection.origin;
+    const ran = isRule && origin !== null && origin !== undefined && "text" in origin && origin.text === text;
+    let emptyLine: React.ReactNode = `No match for "${text}"`;
+    if (ran && session !== null) {
+        const { nodes, edges } = session.selection;
+        emptyLine =
+            nodes.length + edges.length === 0
+                ? "Nothing matches this rule"
+                : selectionWords(nodes.length, edges.length);
+    } else if (isRule) {
+        // The press-Enter hint is only for a rule the element accepts.
+        const ruleLines = {
+            ok: "Rule: press Enter to select matches",
+            // The example rule never breaks: the sentence wraps before it.
+            empty:
+                session === null ? (
+                    ""
+                ) : (
+                    <>
+                        Type a rule, such as <span className="ws-nowrap ws-mono">{exampleRule(session)}</span>
+                    </>
+                ),
+        } as const;
+        emptyLine = ruleCheck === null ? null : ruleLines[ruleCheck];
+    } else if (typeof textAsRule === "string") {
+        // The rule itself is the option under this line.
+        emptyLine = "Start with = to select by a value:";
+    } else if (textAsRule === null && session !== null) {
+        // Text that reads as no rule gets an example of one, on a line of its own.
+        emptyLine = (
+            <>
+                <span>{emptyLine}</span>. To select by a value, type a rule such as{" "}
+                <span className="ws-find-example ws-mono">={exampleRule(session)}</span>
+            </>
+        );
+    } else if (found?.notSearchable === "regex") {
+        emptyLine = `Press Enter to select "${text}"`;
+    }
+
+    const showLine =
+        found !== null &&
+        (options.length === 0 || isRule || ruleOption !== null) &&
+        refusal === null &&
+        emptyLine !== null;
 
     return (
         <div className="ws-find">
@@ -119,6 +553,7 @@ export function FindBox(): React.JSX.Element {
                 onChange={(next) => {
                     setText(next);
                     setActive(-1);
+                    setRefusal(null);
                 }}
                 onKeyDown={onKeyDown}
                 aria-label="Find"
@@ -127,79 +562,157 @@ export function FindBox(): React.JSX.Element {
                 aria-autocomplete="list"
                 aria-expanded={open && options.length > 0}
                 aria-controls={open ? listId : undefined}
-                aria-activedescendant={active >= 0 ? optionId(active) : undefined}
+                aria-activedescendant={chosen === undefined ? undefined : optionId(target)}
+                // Mantine ties its error line and the line under the box to it with aria-describedby.
+                error={refusal?.words ?? null}
+                errorProps={{ className: "ws-find-refusal" }}
+                description={showLine ? emptyLine : undefined}
+                descriptionProps={{ role: "status", className: "ws-find-empty" }}
+                inputWrapperOrder={["label", "input", "error", "description"]}
                 disabled={session === null}
             />
             {found !== null && options.length > 0 ? (
-                <div // NOSONAR(S6819): the popup of an ARIA combobox on a text box; a native select cannot be one
-                    id={listId}
-                    role="listbox"
-                    aria-label="Find results"
+                // The scrollbar is drawn while the list overflows, so more rows below are seen. It
+                // scrolls only up and down: a long name ends in "..." rather than widening the list.
+                <ScrollArea.Autosize
+                    type="auto"
+                    scrollbars="y"
                     className="ws-find-list"
+                    classNames={{ viewport: "ws-find-viewport" }}
+                    ref={listRef}
+                    viewportRef={viewportRef}
                 >
-                    {found.records.length > 0 ? (
-                        <div // NOSONAR(S6819): an option group inside a listbox; ARIA allows no native element there
-                            role="group"
-                            aria-label="Elements"
-                        >
-                            <Text component="div" className="ws-find-heading" aria-hidden="true">
-                                Elements
-                            </Text>
-                            {found.records.map((hit, i) => {
-                                const name = hitName(hit);
-                                const where =
-                                    String(hit.match.value) === name || session === null
-                                        ? undefined
-                                        : `${attributeName(session, hit.match.path)}: ${String(hit.match.value)}`;
-                                return (
-                                    <ResultRow
-                                        key={optionId(i)}
-                                        id={optionId(i)}
-                                        name={name}
-                                        match={text}
-                                        path={where}
-                                        icon={hit.kind === "edge" ? <Minus size={14} /> : <CircleDot size={14} />}
-                                        current={i === active}
-                                        onClick={() => {
-                                            void pick({ type: "hit", hit });
-                                        }}
-                                    />
-                                );
-                            })}
-                        </div>
-                    ) : null}
-                    {found.values.length > 0 && session !== null ? (
-                        <div // NOSONAR(S6819): an option group inside a listbox; ARIA allows no native element there
-                            role="group"
-                            aria-label="Values"
-                        >
-                            <Text component="div" className="ws-find-heading" aria-hidden="true">
-                                Values
-                            </Text>
-                            {found.values.map((row, j) => {
-                                const i = found.records.length + j;
-                                return (
-                                    <ResultRow
-                                        key={optionId(i)}
-                                        id={optionId(i)}
-                                        name={`Select where ${attributeName(session, row.path)} is ${String(row.value)} (${String(row.count)})`}
-                                        icon={<ListFilter size={14} />}
-                                        current={i === active}
-                                        onClick={() => {
-                                            void pick({ type: "value", row });
-                                        }}
-                                    />
-                                );
-                            })}
-                        </div>
-                    ) : null}
-                </div>
+                    <div // NOSONAR(S6819): the popup of an ARIA combobox on a text box; a native select cannot be one
+                        id={listId}
+                        role="listbox"
+                        aria-label="Find results"
+                    >
+                        {[
+                            { label: "Nodes", group: nodeHits, first: 0, total: found.totals.node },
+                            { label: "Edges", group: edgeHits, first: nodeHits.length, total: found.totals.edge },
+                        ].map(({ label, group, first, total }) =>
+                            group.length === 0 || session === null ? null : (
+                                <div // NOSONAR(S6819): an option group inside a listbox; ARIA allows no native element there
+                                    key={label}
+                                    role="group"
+                                    aria-label={label}
+                                >
+                                    {/* The heading counts every match of its kind, not only the rows listed. */}
+                                    <Text component="div" className="ws-find-heading" aria-hidden="true">
+                                        {label} <span className="ws-find-heading-count">{total}</span>
+                                    </Text>
+                                    {group.map((hit, j) => {
+                                        const i = first + j;
+                                        const name = hitName(session, hit);
+                                        const where =
+                                            String(hit.match.value) === name
+                                                ? undefined
+                                                : `${attributeName(session, hit.match.path)}: ${String(hit.match.value)}`;
+                                        return (
+                                            <ResultRow
+                                                key={optionId(i)}
+                                                id={optionId(i)}
+                                                name={name}
+                                                match={text}
+                                                path={where}
+                                                icon={
+                                                    hit.kind === "edge" ? (
+                                                        <GLYPHS.edge size={14} />
+                                                    ) : (
+                                                        <GLYPHS.node size={14} />
+                                                    )
+                                                }
+                                                current={i === target}
+                                                onClick={() => {
+                                                    void pick({ type: "hit", hit });
+                                                }}
+                                            />
+                                        );
+                                    })}
+                                </div>
+                            ),
+                        )}
+                        {valueOptions.length > 0 && session !== null ? (
+                            <div // NOSONAR(S6819): an option group inside a listbox; ARIA allows no native element there
+                                role="group"
+                                aria-label="Values"
+                            >
+                                <Text component="div" className="ws-find-heading" aria-hidden="true">
+                                    Values
+                                </Text>
+                                {valueOptions.map((option, j) => {
+                                    if (option.type !== "value") {
+                                        return null;
+                                    }
+                                    const i = found.records.length + j;
+                                    const { row } = option;
+                                    const count = option.orMore === true ? row.atLeast?.count : row.count;
+                                    const words = `${attributeName(session, row.path)} is ${String(row.value)}${option.orMore === true ? " or more" : ""} (${String(count)})`;
+                                    return (
+                                        <ResultRow
+                                            key={optionId(i)}
+                                            id={optionId(i)}
+                                            name={words}
+                                            aria-label={`Select where ${words}`}
+                                            icon={<GLYPHS.filter size={14} />}
+                                            current={i === target}
+                                            onClick={() => {
+                                                void pick(option);
+                                            }}
+                                        />
+                                    );
+                                })}
+                            </div>
+                        ) : null}
+                        {columns.length > 0 ? (
+                            <div // NOSONAR(S6819): an option group inside a listbox; ARIA allows no native element there
+                                role="group"
+                                aria-label="Columns"
+                            >
+                                <Text component="div" className="ws-find-heading" aria-hidden="true">
+                                    Columns
+                                </Text>
+                                {columns.map((column, j) => {
+                                    const i = found.records.length + valueOptions.length + j;
+                                    return (
+                                        <ResultRow
+                                            key={optionId(i)}
+                                            id={optionId(i)}
+                                            name={column.name}
+                                            match={word}
+                                            path={kindWords(column.kinds)}
+                                            icon={<GLYPHS.attribute size={14} />}
+                                            current={i === target}
+                                            onClick={() => {
+                                                void pick({ type: "column", column });
+                                            }}
+                                        />
+                                    );
+                                })}
+                            </div>
+                        ) : null}
+                        {ruleOption === null ? null : (
+                            <div // NOSONAR(S6819): an option group inside a listbox; ARIA allows no native element there
+                                role="group"
+                                aria-label="Rule"
+                                className="ws-find-rule"
+                            >
+                                <ResultRow
+                                    id={optionId(options.length - 1)}
+                                    name={ruleOption}
+                                    path="Select its matches"
+                                    icon={<GLYPHS.filter size={14} />}
+                                    current={options.length - 1 === target}
+                                    onClick={() => {
+                                        void pick({ type: "rule", rule: ruleOption });
+                                    }}
+                                />
+                            </div>
+                        )}
+                    </div>
+                </ScrollArea.Autosize>
             ) : null}
-            {found !== null && options.length === 0 ? (
-                <Text role="status" size="xs" c="dimmed" className="ws-find-empty">
-                    {found.notSearchable === undefined ? `No match for "${text}"` : `Press Enter to select "${text}"`}
-                </Text>
-            ) : null}
+            <VisuallyHidden role="status">{spoken}</VisuallyHidden>
         </div>
     );
 }

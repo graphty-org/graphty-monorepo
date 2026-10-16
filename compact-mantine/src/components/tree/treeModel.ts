@@ -48,6 +48,9 @@ export interface TreeNodeData {
     /**
      * A count drawn before the toggles in the secondary ink, always visible (the toggles hide
      * until hover). It joins the row's accessible description, so it is heard as well as seen.
+     * Pass a row's quiet text here (a count, a fill, a filter's outcome): it stays whole until
+     * it would take more than half the row, and while the name or the count is cut short, the
+     * name's tooltip shows both.
      */
     count?: React.ReactNode;
     /**
@@ -63,6 +66,18 @@ export interface TreeNodeData {
      * too.
      */
     description?: string;
+    /**
+     * Draw `description` as a second line under the name, in the secondary ink, instead of only
+     * reading it; the row grows from 32 to 44. For a state the reader must see beside a long
+     * name (a filter step's "77 to 26 nodes", "off") where a count would cut the name. Default
+     * false.
+     */
+    descriptionVisible?: boolean;
+    /**
+     * Whether the item can be picked up and moved (a drag, Alt+ArrowUp / Alt+ArrowDown).
+     * Default true. Where an item may land is `Tree`'s `canDrop`.
+     */
+    movable?: boolean;
 }
 
 /** One visible row. */
@@ -124,6 +139,7 @@ export type TreeRowTint = "none" | "selected" | "first" | "middle" | "last" | "p
  * @param i - the row's index
  * @param tints - the fills of the rows before it
  * @param selected - the selected ids
+ * @param childBand - whether a selected, expanded parent draws as a `parent` (see `rowTints`)
  * @returns the row's tint
  */
 function selectedRunTint(
@@ -131,11 +147,12 @@ function selectedRunTint(
     i: number,
     tints: readonly TreeRowTint[],
     selected: ReadonlySet<string>,
+    childBand: boolean,
 ): TreeRowTint {
     const prev = rows[i - 1] as FlatTreeRow | undefined;
     const next = rows[i + 1] as FlatTreeRow | undefined;
     const prevJoins = prev !== undefined && selected.has(prev.node.id) && tints[i - 1] !== "parent";
-    const nextJoins = next !== undefined && selected.has(next.node.id) && !next.expanded;
+    const nextJoins = next !== undefined && selected.has(next.node.id) && !(childBand && next.expanded);
     if (prevJoins && nextJoins) {
         return "middle";
     }
@@ -149,9 +166,11 @@ function selectedRunTint(
  * Work out every row's fill.
  * @param rows - the visible rows
  * @param selected - the selected ids
+ * @param childBand - false draws a selected parent like any selected row and never bands its
+ *   descendants (for trees where selecting a parent does not select its children)
  * @returns one tint per row
  */
-export function rowTints(rows: readonly FlatTreeRow[], selected: ReadonlySet<string>): TreeRowTint[] {
+export function rowTints(rows: readonly FlatTreeRow[], selected: ReadonlySet<string>, childBand = true): TreeRowTint[] {
     const tints: TreeRowTint[] = [];
     // The current row's ancestors; the outermost selected one owns the band.
     const stack: { level: number; selected: boolean }[] = [];
@@ -159,11 +178,11 @@ export function rowTints(rows: readonly FlatTreeRow[], selected: ReadonlySet<str
         while (stack.length > 0 && stack[stack.length - 1].level >= row.level) {
             stack.pop();
         }
-        const band = stack.find((a) => a.selected);
+        const band = childBand ? stack.find((a) => a.selected) : undefined;
         const isSelected = selected.has(row.node.id);
         const next = rows[i + 1] as FlatTreeRow | undefined;
         if (isSelected) {
-            tints.push(row.expanded ? "parent" : selectedRunTint(rows, i, tints, selected));
+            tints.push(childBand && row.expanded ? "parent" : selectedRunTint(rows, i, tints, selected, childBand));
         } else if (band) {
             tints.push(next === undefined || next.level <= band.level ? "child-last" : "child");
         } else {
@@ -194,11 +213,12 @@ export interface TreeDrop {
  * Turn a pointer over a row into a drop: top quarter = before it, middle half = into it (a
  * container) or the nearer edge (a leaf), bottom quarter = its first child when it is expanded,
  * else after it. Returns null for a drop onto the dragged item, into its own subtree, or back
- * where it already is.
+ * where it already is, and for a move `canDrop` refuses.
  * @param rows - the visible rows
  * @param dragId - the item being dragged
  * @param overIndex - the row under the pointer
  * @param fraction - the pointer's height within that row, 0..1
+ * @param canDrop - the caller's rule for where an item may land; a refused move is no drop
  * @returns the drop, or null
  */
 export function computeDrop(
@@ -206,6 +226,7 @@ export function computeDrop(
     dragId: string,
     overIndex: number,
     fraction: number,
+    canDrop?: (move: TreeMove) => boolean,
 ): TreeDrop | null {
     const over = rows[overIndex] as FlatTreeRow | undefined;
     const dragged = rows.find((r) => r.node.id === dragId);
@@ -269,7 +290,11 @@ export function computeDrop(
     if (dragged.parentId === parentId && dragged.posInSet - 1 === index) {
         return null;
     }
-    return { move: { id: dragId, parentId, index }, boxRow, line };
+    const move = { id: dragId, parentId, index };
+    if (canDrop && !canDrop(move)) {
+        return null;
+    }
+    return { move, boxRow, line };
 }
 
 /**

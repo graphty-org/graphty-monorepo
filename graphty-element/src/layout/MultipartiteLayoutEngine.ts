@@ -3,6 +3,7 @@ import { multipartite } from "@graphty/layout";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema } from "../config";
+import { groupRows } from "./groupBy";
 import { SimpleLayoutConfig } from "./LayoutEngine";
 import { sceneUnits, SnapshotLayoutEngine, type SnapshotLayoutInput } from "./SnapshotLayoutEngine";
 
@@ -10,11 +11,19 @@ import { sceneUnits, SnapshotLayoutEngine, type SnapshotLayoutInput } from "./Sn
  * Zod-based options schema for Multipartite Layout
  */
 const multipartiteLayoutOptionsSchema = defineOptions({
+    groupBy: {
+        schema: z.string().nullable().default(null),
+        meta: {
+            label: "Group By",
+            description: "The node attribute or result field whose values name each node's group",
+        },
+    },
     scalingFactor: {
         schema: z.number().min(1).max(1000).default(40),
         meta: {
             label: "Scaling Factor",
             description: "Multiplier for node positions",
+            advanced: true,
         },
     },
     align: {
@@ -37,8 +46,8 @@ const multipartiteLayoutOptionsSchema = defineOptions({
 const MultipartiteLayoutConfig = z.strictObject({
     ...SimpleLayoutConfig.shape,
     scalingFactor: z.number().default(40),
-    // subsetKey: z.string().or(z.record(z.number(), z.array(z.string().or(z.number())))),
-    subsetKey: z.record(z.string(), z.array(z.string().or(z.number()))),
+    subsetKey: z.record(z.string(), z.array(z.string().or(z.number()))).optional(),
+    groupBy: z.string().nullable().default(null),
     align: z.enum(["vertical", "horizontal"]).default("vertical"),
     scale: z.number().positive().default(1),
     center: z.array(z.number()).length(2).or(z.null()).default(null),
@@ -95,12 +104,21 @@ export class MultipartiteLayout extends SnapshotLayoutEngine {
      * @returns the coordinates, in scene units
      */
     protected compute(input: SnapshotLayoutInput): F32 {
+        const { subsetKey } = this.config;
+        let subsets: number[][];
+        if (this.config.groupBy !== null || subsetKey === undefined) {
+            const { groups, ungrouped } = groupRows(input, MultipartiteLayout.type);
+            subsets = ungrouped.length > 0 ? [...groups, [...ungrouped]] : [...groups];
+        } else {
+            // A node a layer names that the graph does not hold has nowhere to be drawn.
+            subsets = Object.values(subsetKey).map((layer) =>
+                layer.map((id) => this.rowOfId(id)).filter((row) => row !== INVALID_INDEX),
+            );
+        }
+
         return sceneUnits(
             multipartite(input.graph, {
-                // A node a layer names that the graph does not hold has nowhere to be drawn.
-                subsets: Object.values(this.config.subsetKey).map((layer) =>
-                    layer.map((id) => this.rowOfId(id)).filter((row) => row !== INVALID_INDEX),
-                ),
+                subsets,
                 align: this.config.align,
                 scale: this.config.scale,
                 center: this.config.center ?? undefined,

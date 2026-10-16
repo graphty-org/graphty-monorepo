@@ -4,7 +4,6 @@ import { z } from "zod/v4";
 import { DijkstraAlgorithm } from "../../src/algorithms/DijkstraAlgorithm";
 import { LeidenAlgorithm } from "../../src/algorithms/LeidenAlgorithm";
 import { MinCutAlgorithm } from "../../src/algorithms/MinCutAlgorithm";
-import { PageRankAlgorithm } from "../../src/algorithms/PageRankAlgorithm";
 import { optionsFromZod } from "../../src/catalog/optionsFromZod";
 import type { OptionDescriptor } from "../../src/catalog/types";
 import { GraphStyle } from "../../src/config/GraphStyle";
@@ -41,7 +40,7 @@ describe("optionsFromZod", () => {
 
             assert.deepEqual(
                 options.map((o) => o.name),
-                ["source", "target", "bidirectional"],
+                ["source", "target", "bidirectional", "direction"],
             );
         });
 
@@ -86,11 +85,11 @@ describe("optionsFromZod", () => {
         });
 
         it("keeps a nullable string as a string, with null as its default", () => {
-            const weight = byName(optionsFromZod(schemaOf(PageRankAlgorithm)), "weight");
+            const weight = byName(optionsFromZod(z.object({ weight: z.string().nullable().default(null) })), "weight");
 
             assert.strictEqual(weight.type, "string");
             assert.isNull(weight.default);
-            assert.isTrue(weight.advanced);
+            assert.isUndefined(weight.advanced);
         });
 
         it("emits no Zod object anywhere in the result", () => {

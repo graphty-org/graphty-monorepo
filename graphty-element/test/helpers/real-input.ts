@@ -208,10 +208,19 @@ export async function release(element: Element, point: Point): Promise<void> {
  * @param from - Where the press is.
  * @param to - Where the release is.
  * @param steps - How many moves between them.
+ * @param held - Run at `to` with the button still down, before the release.
+ * @param modifiers - Modifier keys held throughout.
  */
-export async function drag(element: Element, from: Point, to: Point, steps = 8): Promise<void> {
-    await mouseEvent("mouseMoved", element, from, 0);
-    await mouseEvent("mousePressed", element, from, 1);
+export async function drag(
+    element: Element,
+    from: Point,
+    to: Point,
+    steps = 8,
+    held?: () => Promise<void>,
+    modifiers?: Modifiers,
+): Promise<void> {
+    await mouseEvent("mouseMoved", element, from, 0, modifiers);
+    await mouseEvent("mousePressed", element, from, 1, modifiers);
     for (let i = 1; i <= steps; i++) {
         const t = i / steps;
         await mouseEvent(
@@ -219,12 +228,14 @@ export async function drag(element: Element, from: Point, to: Point, steps = 8):
             element,
             { x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t },
             1,
+            modifiers,
         );
         // One frame between moves, as a hand gives: the element reads the pointer once a frame.
         await nextFrame();
     }
 
-    await mouseEvent("mouseReleased", element, to, 0);
+    await held?.();
+    await mouseEvent("mouseReleased", element, to, 0, modifiers);
 }
 
 /**

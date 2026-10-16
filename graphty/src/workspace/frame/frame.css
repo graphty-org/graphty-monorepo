@@ -33,7 +33,6 @@
 .ws-project-name {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
     min-width: 0;
     max-width: 240px;
     height: 28px;
@@ -70,7 +69,17 @@
     flex-direction: column;
     min-width: 0;
     min-height: 0;
-    overflow: hidden;
+}
+
+/* The panel's content scrolls here, not on the aside: an aside that clipped would cut its own
+   resize handle, which straddles the panel edge (24px wide under a coarse pointer), down to the
+   half inside the panel. */
+.ws-panel-body {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden auto;
 }
 
 .ws-left {
@@ -84,6 +93,9 @@
 .ws-main {
     position: relative;
     display: grid;
+    /* One column no wider than the main area: a wide table scrolls inside the dock instead of
+       widening the frame past the window. */
+    grid-template-columns: minmax(0, 1fr);
     grid-template-rows: minmax(0, 1fr) auto;
     min-width: 0;
     min-height: 0;
@@ -98,6 +110,7 @@
 .ws-canvas-overlays {
     position: absolute;
     inset: 0;
+    z-index: 2;
     pointer-events: none;
 }
 
@@ -122,8 +135,12 @@
     z-index: 5;
 }
 
+/* The side panels' resize handles reach 12px into this area under a coarse pointer (4px with a
+   mouse). The overlays and the dock sit above them (z-index 2 over the handles' 1), so a handle
+   takes only empty canvas and never a control at the area's edge, such as the dock's Close. */
 .ws-dock {
     position: relative;
+    z-index: 2;
     min-height: 0;
     border-top: 1px solid var(--cm-border);
 }
@@ -135,12 +152,49 @@
     overflow: auto;
 }
 
-.ws-shortcut-sheet {
-    position: fixed;
-    right: 0;
-    bottom: 0;
-    left: 0;
-    z-index: 300;
+/* The two-column dialog (Settings, Keyboard shortcuts, Export; Modal size "lg"): a page list
+   on the left, the chosen page on the right, one column below 720px. One fixed height, so every
+   two-column dialog is the same size and switching pages never resizes it; with the header and
+   the footer the dialog is 640 tall. dvh, since iPad Safari's 100vh is taller than what it shows. */
+.ws-dialog-columns {
+    display: grid;
+    grid-template-columns: 200px minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    gap: 16px;
+    height: min(536px, calc(100dvh - 184px));
+}
+
+/* The page scrolls up and down only. */
+.ws-dialog-page {
+    min-height: 0;
+    overflow: hidden auto;
+}
+
+@media (max-width: 720px) {
+    .ws-dialog-columns {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: auto minmax(0, 1fr);
+    }
+}
+
+.ws-shortcuts {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.ws-shortcut-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-height: 28px;
+}
+
+.ws-shortcut-row > span {
+    display: flex;
+    flex: none;
+    gap: 4px;
 }
 
 /* The regions above set a display, which would otherwise outrank the hidden attribute. */

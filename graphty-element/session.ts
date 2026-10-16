@@ -77,10 +77,12 @@ export type {
     DraftRowFilter,
     DraftRowOptions,
     DraftTable,
+    EdgeEnd,
     EdgePageOptions,
     EdgeRecord,
     EdgeRecordInput,
     Endpoint,
+    FindAtLeastRow,
     FindEnd,
     FindHit,
     FindHitBase,
@@ -96,8 +98,11 @@ export type {
     HistoryStep,
     HistoryStepId,
     ImportOptions,
+    LeftOutEdge,
     LoadChoices,
     LoadDraft,
+    LoadedSource,
+    LoadedWeight,
     LoadMapping,
     LoadMappingRead,
     Neighbor,
@@ -214,9 +219,11 @@ export type {
     RunStatus,
     RunStyle,
     StaleNote,
+    StaleReason,
     StartOptions,
     SuggestionOutcome,
     WeightMeaning,
+    WeightSkip,
 } from "./src/session/runs";
 export {
     isRunId,
@@ -327,6 +334,8 @@ export type { JournalApi, JournalEntry, JournalId } from "./src/session/journal"
 // The project file: the whole session saved to one file and opened again, as `session.project`
 // ---------------------------------------------------------------------------------------------
 
+export type { BrowserProjects, BrowserProjectSaveOptions, StoredProject } from "./src/session";
+export { browserProjects } from "./src/session";
 export type {
     ProjectApi,
     ProjectOpenOptions,
@@ -362,7 +371,9 @@ export { DEFAULT_SELECTION_CAP, SET_OPS } from "./src/session/selection";
 // ---------------------------------------------------------------------------------------------
 
 export type {
+    AttributeLeafNodes,
     FilterResult,
+    FilterStep,
     RuleTree,
     TimeStep,
     TimeWindow,
@@ -383,6 +394,7 @@ export type {
     CostGateDecision,
     CostGateLimits,
     CostMeasurement,
+    EstimateRefusalCode,
     MachineCalibration,
 } from "./src/session/cost";
 export { DEFAULT_COST_GATE_LIMITS, DEFAULT_EXACT_COMPUTATION_CAP_SECONDS } from "./src/session/cost";
@@ -487,7 +499,7 @@ export type {
     UnboundLayerCode,
     ValidationResult,
 } from "./src/session/styles";
-export { quotePath } from "./src/session/styles";
+export { quotePath, rulePath } from "./src/session/styles";
 
 // ---------------------------------------------------------------------------------------------
 // What a host may ask this session for before it offers a feature
@@ -506,6 +518,7 @@ export type {
     Limits,
     WorkerCapability,
     XrCapability,
+    XrUnavailableReason,
 } from "./src/acceleration";
 export { ACCELERATION_POLICIES, ACCELERATION_POLICY_DEFAULT, isAccelerationPolicy } from "./src/acceleration";
 export type { DefaultableLimits } from "./src/session";

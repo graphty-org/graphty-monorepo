@@ -1,6 +1,7 @@
 import type { GraphSession } from "@graphty/graphty-element/session";
 
 import { type CommandContext, defineRegistration } from "../commands/registry";
+import { addLabelRow } from "./row";
 
 /**
  * The node attribute the inspector shows, when it shows one: the attribute kind's id is the
@@ -36,7 +37,7 @@ export const registration = defineRegistration({
                     return;
                 }
                 try {
-                    const layer = await ctx.session.styles.encode({ column, channel: "node.label" });
+                    const layer = await addLabelRow(ctx.session, column);
                     ctx.workspace.set({ inspected: { kind: "layer-row", id: layer.id } });
                 } catch {
                     ctx.workspace.set({ notice: { message: `${column.name} could not label the nodes` } });

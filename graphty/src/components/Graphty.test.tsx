@@ -1,6 +1,7 @@
 import { createRef } from "react";
 import { describe, expect, it, vi } from "vitest";
 
+import { APP_HIGHLIGHT_COLOR } from "../constants/highlight";
 import { render } from "../test/test-utils";
 import { Graphty, type GraphtyHandle } from "./Graphty";
 
@@ -14,7 +15,7 @@ vi.mock("@graphty/graphty-element", () => {
 // A stand-in for the element: the session the wrapper reads, and the one property it writes.
 class MockGraphtyElement extends HTMLElement {
     session = {
-        styles: { list: (): unknown[] => [] },
+        styles: { list: (): unknown[] => [], setHighlightColor: vi.fn() },
         on: () => () => undefined,
         data: {
             nodes: () => [{ id: 1, label: "one" }],
@@ -69,6 +70,16 @@ describe("Graphty", () => {
         await vi.waitFor(() => {
             expect(graphtyElement.layoutBehavior?.labels?.declutter).toBe(true);
         });
+    });
+
+    it("hands the element the app's own path highlight colour, not the element's default", async () => {
+        const { container } = render(<Graphty layers={[]} />);
+        const element = container.querySelector("graphty-element") as unknown as MockGraphtyElement;
+
+        await vi.waitFor(() => {
+            expect(element.session.styles.setHighlightColor).toHaveBeenCalledWith(APP_HIGHLIGHT_COLOR);
+        });
+        expect(APP_HIGHLIGHT_COLOR).toBe("#000000");
     });
 
     it("leaves the element's size to the element, which fills the sized container", () => {

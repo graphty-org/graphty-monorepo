@@ -11,9 +11,13 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
-import { render, screen, waitFor } from "../../../test/test-utils";
+import { APP_HIGHLIGHT_COLOR } from "../../../constants/highlight";
+import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
+
+/** The colour graphty-element paints an algorithm's chosen elements. */
+const ROUTE_COLOR = "#D55E00";
 
 /** A hang guard for the element coming up, not a pass/fail timing. */
 const TIMEOUT_MS = 60_000;
@@ -83,6 +87,77 @@ describe("the workspace frame on the real element", () => {
         assert.equal(session.selection.size, 0);
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    it(
+        "gives no two reachable controls one name with a graph and nothing run",
+        async () => {
+            const session = await openWorkspace();
+            await session.data.addNodes([{ id: "a" }, { id: "b" }]);
+            await screen.findByText(/to add results here/, undefined, { timeout: TIMEOUT_MS });
+
+            const names = new Map<string, number>();
+            for (const control of document.querySelectorAll<HTMLElement>(
+                'button, [role="button"], [role="menuitem"], a[href], input, [role="tab"]',
+            )) {
+                if (control.checkVisibility()) {
+                    const name = (control.getAttribute("aria-label") ?? control.textContent ?? "").trim();
+                    names.set(name, (names.get(name) ?? 0) + 1);
+                }
+            }
+            assert.deepEqual(
+                [...names].filter(([name, count]) => name !== "" && count > 1).map(([name]) => name),
+                [],
+            );
+        },
+        TIMEOUT_MS,
+    );
+
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    it(
+        "keeps Method inside the inspector's padding on the graph's Style tab",
+        async () => {
+            const session = await openWorkspace();
+            await session.data.addNodes([{ id: "a" }, { id: "b" }]);
+            const inspector = screen.getByRole("complementary", { name: "Inspector" });
+            await userEvent.click(within(inspector).getByRole("tab", { name: "Style" }));
+
+            const method = (await within(inspector).findAllByLabelText("Method")).find((e) => e.tagName === "INPUT");
+            assert.isDefined(method);
+            const panel = within(inspector).getByRole("tabpanel", { name: "Style" });
+            const left = method?.getBoundingClientRect().left ?? 0;
+            // compact-mantine's panel grid: content begins 16px in from the panel's leading edge.
+            assert.closeTo(left - panel.getBoundingClientRect().left, 16, 1, "Method starts at the content band");
+        },
+        TIMEOUT_MS,
+    );
+
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    it(
+        "paints a shortest path as the algorithm's own vermilion marks, whatever the app's highlight colour",
+        async () => {
+            const session = await openWorkspace();
+            await session.data.addNodes([{ id: "a" }, { id: "b" }, { id: "c" }]);
+            await session.data.addEdges([
+                { source: "a", target: "b" },
+                { source: "b", target: "c" },
+            ]);
+
+            await session.runs.start("shortest-path", { source: "a", target: "c" });
+
+            // An algorithm's route is an ordinary mark layer in its own colour, so the app's
+            // highlight colour, which only explicit highlights use, leaves it alone.
+            await waitFor(() => {
+                const route = session.styles
+                    .list()
+                    .filter((layer) => layer.set?.[`${layer.target ?? "node"}.color`] === ROUTE_COLOR);
+                assert.lengthOf(route, 2);
+                assert.isTrue(route.every((layer) => layer.kind !== "highlight"));
+            });
+            assert.notEqual(APP_HIGHLIGHT_COLOR.toUpperCase(), ROUTE_COLOR);
+        },
+        TIMEOUT_MS,
+    );
+
     it("opens the shortcuts sheet with ? while a closed Select's list is mounted on the page", async () => {
         // The inspector has room at the design's width, and its Layout group holds a Select.
         await page.viewport(1366, 768);
@@ -104,6 +179,6 @@ describe("the workspace frame on the real element", () => {
 
         await userEvent.keyboard("?");
 
-        await screen.findByRole("region", { name: "Keyboard shortcuts" });
+        await screen.findByRole("dialog", { name: "Keyboard shortcuts" });
     });
 });

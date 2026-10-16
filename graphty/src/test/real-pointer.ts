@@ -63,3 +63,33 @@ export async function pressAndHold(element: Element): Promise<void> {
 export async function releaseOver(element: Element): Promise<void> {
     await mouse("mouseReleased", element);
 }
+
+/**
+ * One touch event at an element's middle. No touch emulation: once on, Chromium reports
+ * `(hover: none)` for the rest of the run, and the touch arrives as a touch pointer without it.
+ * @param type - touchStart or touchEnd.
+ * @param element - The element.
+ */
+async function touch(type: "touchStart" | "touchEnd", element: Element): Promise<void> {
+    const session = cdp() as unknown as { send: Send };
+    await session.send("Input.dispatchTouchEvent", {
+        type,
+        touchPoints: type === "touchStart" ? [middleOf(element)] : [],
+    });
+}
+
+/**
+ * Put a finger down on an element's middle and keep it there, still.
+ * @param element - The element.
+ */
+export async function touchAndHold(element: Element): Promise<void> {
+    await touch("touchStart", element);
+}
+
+/**
+ * Lift the finger `touchAndHold` put down.
+ * @param element - The element it was put down on.
+ */
+export async function liftTouch(element: Element): Promise<void> {
+    await touch("touchEnd", element);
+}

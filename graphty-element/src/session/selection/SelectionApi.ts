@@ -42,6 +42,7 @@ import type { ResultsApi } from "../results/types";
 import { ElementMask, type MaskIdSpace } from "../scope/ElementMask";
 import { edgeSpaceOf, nodeSpaceOf, type ScopeResolver } from "../scope/ScopeApi";
 import { createSetAs } from "../sets/SetsApi";
+import { deepEquals } from "../styles/predicate";
 import { ATTRIBUTE_UNIQUE_CAP, type SessionRecordSource } from "../types";
 import {
     resolveTarget,
@@ -211,6 +212,17 @@ export interface SelectionApi {
      */
     readonly origin: SelectionTarget | null;
     /**
+     * The paths the rule the selection was made from tests, while the selection is still exactly
+     * that rule: `["data.minutes"]` after `apply({ text: "=minutes > \`5\`" })` or
+     * `apply({ where: "minutes > \`5\`" })`, so a panel can show each selected element's value
+     * for what was tested. Empty when {@link SelectionApi.origin} is null or is not a rule.
+     *
+     * ```ts
+     * const [tested] = session.selection.originPaths; // "data.minutes"
+     * ```
+     */
+    readonly originPaths: readonly Path[];
+    /**
      * Whether one element is selected.
      *
      * One array read, and no allocation at all, so a render loop can ask once per element per
@@ -238,6 +250,20 @@ export interface SelectionApi {
      * @returns What changed.
      */
     apply(target: SelectionTarget, op?: SelectionOp): Promise<SelectionDelta>;
+    /**
+     * How many nodes and edges `apply(target)` would select, without changing the selection. It
+     * reads the target exactly as `apply` does, so a rule `apply` refuses is refused here too,
+     * and a rule over an edge column counts the edges it matches.
+     *
+     * ```ts
+     * const { nodes, edges } = await session.selection.count({ text: "=minutes >= `10`" });
+     * ```
+     * @param target - What `apply` would select.
+     * @returns How many nodes and how many edges it names, before the selection's cap.
+     * @throws The same `GraphtyError` as `apply` for a target it refuses, such as `E_BAD_SELECTOR`
+     *   for a rule it cannot read.
+     */
+    count(target: SelectionTarget): Promise<{ readonly nodes: number; readonly edges: number }>;
     /**
      * Empty the selection.
      * @returns What changed.
@@ -358,6 +384,12 @@ export interface SelectionSources {
      * @returns The elements found.
      */
     readonly find?: (text: string, mode: SelectionTextMode) => Iterable<SelectionSearchHit>;
+    /**
+     * The paths a predicate reads. Absent leaves `originPaths` empty.
+     * @param where - The predicate.
+     * @returns The paths.
+     */
+    readonly pathsOf?: (where: Query) => readonly Path[];
     /** What a note's targets select. Absent refuses a `note` target. */
     readonly note?: TargetContext["note"];
     /** Where the attribute bags are read. Absent leaves the attribute statistics empty. */
@@ -375,6 +407,13 @@ export interface SelectionSources {
      * @param delta - What joined, what left, what the selection holds now, and who asked.
      */
     readonly onChange?: (delta: SelectionDelta) => void;
+    /**
+     * Called when {@link Selection.origin} changes while the membership does not -- a rule that
+     * selects exactly what is already selected -- so a host can tell its own subscribers without
+     * publishing a membership event that moved nothing.
+     * @param origin - The origin now.
+     */
+    readonly onOriginChange?: (origin: SelectionTarget | null) => void;
     /** Called on every version bump of either mask, which is what advances the session input tick. */
     readonly onMaskVersion?: () => void;
 }
@@ -606,6 +645,25 @@ class Selection implements SelectionOwner {
     }
 
     /**
+     * The paths the rule the selection was made from tests.
+     * @returns The paths, or none when the origin is not a rule.
+     */
+    get originPaths(): readonly Path[] {
+        const { origin } = this;
+        const { pathsOf } = this.#sources;
+        if (origin === null || pathsOf === undefined) {
+            return EMPTY_PATHS;
+        }
+        if ("where" in origin) {
+            return pathsOf(origin.where);
+        }
+
+        return "text" in origin && origin.mode === undefined && origin.text.startsWith("=")
+            ? pathsOf(origin.text.slice(1))
+            : EMPTY_PATHS;
+    }
+
+    /**
      * Whether one element is selected, without allocating anything.
      *
      * The node half is asked first, and the edge half only when the id could be an edge id at all
@@ -727,6 +785,7 @@ class Selection implements SelectionOwner {
         const cap = this.#cap();
         const members = resolveTarget(target, this.#context());
         const before = this.#capture();
+        const originBefore = this.#origin;
 
         if (op === "replace") {
             this.#nodes.clear();
@@ -753,7 +812,13 @@ class Selection implements SelectionOwner {
         this.#origin =
             op === "replace" && cause === "api" && !this.#truncated ? deepFreeze(structuredClone(target)) : null;
 
-        return this.#delta(before, members.unmatched, members.unresolvedPaths, cause, members.skipped);
+        return this.#delta(before, originBefore, members.unmatched, members.unresolvedPaths, cause, members.skipped);
+    }
+
+    count(target: SelectionTarget): Promise<{ readonly nodes: number; readonly edges: number }> {
+        this.#sync();
+        const members = resolveTarget(target, this.#context());
+        return Promise.resolve({ nodes: members.nodes.size, edges: members.edges.size });
     }
 
     applyAtNextRead(target: SelectionTarget, op: SelectionOp, cause: SelectionCause): void {
@@ -791,12 +856,13 @@ class Selection implements SelectionOwner {
     clear(): SelectionDelta {
         this.#sync();
         const before = this.#capture();
+        const originBefore = this.#origin;
         this.#nodes.clear();
         this.#edges.clear();
         this.#truncated = false;
         this.#origin = null;
 
-        return this.#delta(before, EMPTY_STRINGS, EMPTY_PATHS, "api");
+        return this.#delta(before, originBefore, EMPTY_STRINGS, EMPTY_PATHS, "api");
     }
 
     /**
@@ -1000,6 +1066,7 @@ class Selection implements SelectionOwner {
      * A row that the graph itself dropped is not reported: it has no id any more, and naming the
      * element that now sits at its index would be a lie.
      * @param before - The membership before the mutation.
+     * @param originBefore - The origin before the mutation.
      * @param unmatched - The pasted ids that named nothing.
      * @param unresolvedPaths - The paths nothing in this session answers.
      * @param cause - Who asked.
@@ -1008,6 +1075,7 @@ class Selection implements SelectionOwner {
      */
     #delta(
         before: CapturedMembership,
+        originBefore: SelectionTarget | null,
         unmatched: readonly string[],
         unresolvedPaths: readonly Path[],
         cause: SelectionCause,
@@ -1053,6 +1121,8 @@ class Selection implements SelectionOwner {
 
         if (added.length > 0 || removed.length > 0) {
             this.#sources.onChange?.(delta);
+        } else if (!deepEquals(originBefore, this.#origin)) {
+            this.#sources.onOriginChange?.(this.#origin);
         }
 
         return delta;

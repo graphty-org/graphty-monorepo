@@ -178,6 +178,12 @@ abstract class Algorithm_2<TOptions extends Record<string, unknown> = Record<str
     // (undocumented)
     static type: string;
     get type(): string;
+    // @internal
+    protected weightCaveats(): Pick<Caveats, "weight" | "weightSkipped">;
+    // @internal
+    static readonly weightMeaning: WeightReads | null;
+    // @internal
+    protected weightReading(): WeightReading;
     static zodOptionsSchema?: OptionsSchema;
 }
 export { Algorithm_2 as Algorithm }
@@ -345,7 +351,6 @@ export interface CameraState {
     };
     // (undocumented)
     type?: "arcRotate" | "free" | "universal" | "orthographic";
-    // (undocumented)
     zoom?: number;
 }
 
@@ -575,6 +580,7 @@ export class DataManager implements Manager {
         removing(nodes: readonly NodeIdType[], edges: readonly EdgeId[]): void;
     }): void;
     clear(): void;
+    get directed(): boolean;
     get directionSettledBy(): DirectionProvenance;
     dispose(): void;
     get edges(): ReadonlyMap<string, Edge>;
@@ -685,6 +691,9 @@ export interface DataSourceChunk {
     // (undocumented)
     nodes: AdHocData[];
 }
+
+// @public
+export const DEFAULT_LIGHTING: Lighting;
 
 // @public
 export const DEFAULT_VIEW_MODE: ViewMode;
@@ -945,6 +954,8 @@ export const EdgeStyle: z.ZodObject<{
             depthFadeEnabled: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
             depthFadeNear: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             depthFadeFar: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+            onTop: z.ZodOptional<z.ZodBoolean>;
+            pickable: z.ZodOptional<z.ZodBoolean>;
             textOutline: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
             textOutlineWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             textOutlineColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
@@ -1108,6 +1119,8 @@ export const EdgeStyle: z.ZodObject<{
             depthFadeEnabled: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
             depthFadeNear: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             depthFadeFar: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+            onTop: z.ZodOptional<z.ZodBoolean>;
+            pickable: z.ZodOptional<z.ZodBoolean>;
             textOutline: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
             textOutlineWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             textOutlineColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
@@ -1270,6 +1283,8 @@ export const EdgeStyle: z.ZodObject<{
         depthFadeEnabled: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         depthFadeNear: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         depthFadeFar: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        onTop: z.ZodOptional<z.ZodBoolean>;
+        pickable: z.ZodOptional<z.ZodBoolean>;
         textOutline: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         textOutlineWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         textOutlineColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
@@ -1447,6 +1462,15 @@ export interface ExportResult {
 }
 
 // @public
+export interface FindAtLeastRow {
+    readonly count: number;
+    readonly kind: FindKind;
+    readonly path: Path;
+    readonly target: SelectionTarget;
+    readonly value: number;
+}
+
+// @public
 export interface FindEnd {
     readonly id: NodeId_2;
     readonly name: string;
@@ -1483,6 +1507,7 @@ export type FindKind = "node" | "edge";
 
 // @public
 export interface FindOptions {
+    readonly edgeNameJoiner?: string;
     readonly kinds?: readonly FindKind[];
     readonly limit?: number;
     readonly offset?: number;
@@ -1491,16 +1516,25 @@ export interface FindOptions {
 
 // @public
 export interface FindResult {
+    readonly atLeast?: readonly FindAtLeastRow[];
     readonly notSearchable?: "regex" | "expression";
     readonly offset: number;
     readonly records: readonly FindHit[];
     readonly revision: string;
     readonly total: number;
+    readonly totals: {
+        readonly node: number;
+        readonly edge: number;
+    };
     readonly values: readonly FindValueRow[];
 }
 
 // @public
 export interface FindValueRow {
+    readonly atLeast?: {
+        readonly count: number;
+        readonly target: SelectionTarget;
+    };
     readonly count: number;
     readonly kind: FindKind;
     readonly path: Path;
@@ -1588,6 +1622,7 @@ export class Graph implements GraphContext {
     getLayoutBehavior(): GraphBehaviorConfig | undefined;
     getLayoutManager(): LayoutManager;
     getLayoutScope(): Scope | undefined;
+    getLighting(): Lighting;
     getMeshCache(): MeshCache;
     getNode(nodeId: string | number): Node_2 | undefined;
     getNodeCount(): number;
@@ -1602,6 +1637,7 @@ export class Graph implements GraphContext {
     getStyles(): Styles;
     getSuggestedStyles(algorithmKey: string): readonly StyleSuggestion[];
     getUpdateManager(): UpdateManager;
+    getViewInsets(): Required<ViewInsets>;
     getViewMode(): ViewMode;
     getVoiceAdapter(): VoiceInputAdapter;
     getXRConfig(): XRConfig | undefined;
@@ -1719,12 +1755,14 @@ export class Graph implements GraphContext {
     setLayout(type: string, opts?: object, options?: SetLayoutOptions): Promise<void>;
     setLayoutBehavior(behavior: GraphBehaviorConfig): void;
     setLayoutScope(scope: ScopeInput | undefined): Promise<void>;
+    setLighting(lighting: Lighting): void;
     setNodes(nodes: Record<string | number, unknown>[], idPath?: string, options?: QueueableOptions): Promise<void>;
     setRenderer(request: RendererRequest): void;
     setRenderSettings(settings: Record<string, unknown>, options?: QueueableOptions): Promise<void>;
     setRunning(running: boolean): void;
     setSelectionStyle(selection: GraphSelectionStyleInput): void;
     setStartingCameraDistance(distance: number | undefined): void;
+    setViewInsets(insets: ViewInsets | undefined): void;
     setViewMode(mode: ViewMode, options?: QueueableOptions): Promise<void>;
     setXRConfig(config: PartialXRConfig): void;
     shutdown(): void;
@@ -1946,6 +1984,7 @@ export class Graphty extends LitElement {
     } & CameraAnimationOptions): Promise<void>;
     applySuggestedStyles(algorithmKey: string | string[]): boolean;
     asyncFirstUpdated(): Promise<void>;
+    attributeChangedCallback(name: string, old: string | null, value: string | null): void;
     get autoFrame(): boolean;
     set autoFrame(value: boolean);
     get background(): GraphBackgroundConfig | undefined;
@@ -1968,6 +2007,9 @@ export class Graphty extends LitElement {
     set directed(value: boolean | "auto" | undefined);
     disableAiControl(): void;
     disconnectedCallback(): void;
+    downloadGraph(format: FormatId, options?: ExportGraphOptions & {
+        readonly fileName?: string;
+    }): Promise<ExportResult>;
     downloadProject(options?: Omit<ProjectSaveOptions, "markSaved"> & {
         readonly fileName?: string;
     }): Promise<ProjectSaveReport>;
@@ -2049,6 +2091,8 @@ export class Graphty extends LitElement {
     set layoutConfig(value: Record<string, unknown> | undefined);
     get layoutScope(): Scope | undefined;
     set layoutScope(value: ScopeInput | undefined);
+    get lighting(): Lighting;
+    set lighting(value: Lighting);
     listenerCount(): number;
     loadCameraPreset(name: string, options?: CameraAnimationOptions): Promise<void>;
     loadFromFile(file: File, options?: {
@@ -2081,6 +2125,13 @@ export class Graphty extends LitElement {
     get nodeLabelPath(): string | undefined;
     set nodeLabelPath(value: string | undefined);
     nodeScreenPosition(nodeId: string | number): NodeScreenPosition | undefined;
+    nodesInRect(rect: {
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+    }): (string | number)[];
+    static get observedAttributes(): string[];
     on(type: EventType, callback: EventCallbackType): void;
     onAiStatusChange(callback: StatusChangeCallback): () => void;
     pin(ids: (string | number) | readonly (string | number)[]): void;
@@ -2093,7 +2144,7 @@ export class Graphty extends LitElement {
     removeEventListener<K extends keyof HTMLElementEventMap>(type: K, listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => unknown, options?: boolean | EventListenerOptions): void;
     removeEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | EventListenerOptions): void;
     removeNodes(nodeIds: (string | number)[], options?: QueueableOptions): Promise<void>;
-    render(): Element;
+    render(): unknown;
     get renderer(): RendererRequest;
     set renderer(value: RendererRequest);
     get rendererStatus(): RendererStatus | null;
@@ -2158,6 +2209,7 @@ export class Graphty extends LitElement {
     setRunning(running: boolean): void;
     setViewMode(mode: ViewMode): Promise<void>;
     setXRConfig(config: PartialXRConfig): void;
+    static readonly shadowRootOptions: ShadowRootInit;
     shutdown(): void;
     get startingCameraDistance(): number | undefined;
     set startingCameraDistance(value: number | undefined);
@@ -2179,6 +2231,8 @@ export class Graphty extends LitElement {
         id: string | number;
         [key: string]: unknown;
     }[], options?: QueueableOptions): Promise<void>;
+    get viewInsets(): ViewInsets;
+    set viewInsets(value: ViewInsets | undefined);
     get viewMode(): ViewMode | undefined;
     set viewMode(value: ViewMode | undefined);
     waitForSettled(): Promise<void>;
@@ -2206,7 +2260,7 @@ export const GRAPHTY_ERROR_CODES: readonly GraphtyErrorCode[];
 
 // @public
 export interface GraphtyCapabilitiesChangeDetail {
-    readonly capabilities: AccelerationCapabilities;
+    readonly capabilities: Pick<Capabilities, "acceleration" | "xr">;
 }
 
 // @public
@@ -2250,8 +2304,12 @@ export type GraphtyErrorCode =
 */
 | "E_BAD_LAYER"
 /**
-* A style layer's selector does not parse. `details` carry the character offset. The caller
-* corrects the selector; the layer is not added.
+* A style layer's selector does not parse. `details.reason` is a stable code naming the
+* mistake (such as `number-needs-backticks`), so a consumer writes its own words without
+* reading the message; an expression's refusal also carries the character offset
+* (`details.position`). A `number-needs-backticks` refusal also carries `details.suggestion`,
+* the selector with every bare number put between backticks (`` minutes >= `10` ``). The
+* caller corrects the selector; the layer is not added.
 */
 | "E_BAD_SELECTOR"
 /**
@@ -2902,6 +2960,9 @@ export function isGraphtyError(value: unknown): value is GraphtyError;
 export function isGraphtyErrorCode(value: unknown): value is GraphtyErrorCode;
 
 // @public
+export function isLighting(value: unknown): value is Lighting;
+
+// @public
 export function isViewMode(value: string): value is ViewMode;
 
 // @public
@@ -3042,6 +3103,12 @@ export interface LayoutWarningEvent {
     // (undocumented)
     type: "layout-warning";
 }
+
+// @public
+export type Lighting = (typeof LIGHTING_VALUES)[number];
+
+// @public
+export const LIGHTING_VALUES: readonly ["studio", "headlight", "matte", "flat"];
 
 // @public
 export interface Limits {
@@ -3247,6 +3314,7 @@ export interface NodeEventDetail {
         y: number;
         z: number;
     };
+    tooltip?: string;
 }
 
 // @public (undocumented)
@@ -3471,6 +3539,8 @@ export const NodeStyle: z.ZodObject<{
         depthFadeEnabled: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         depthFadeNear: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         depthFadeFar: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        onTop: z.ZodOptional<z.ZodBoolean>;
+        pickable: z.ZodOptional<z.ZodBoolean>;
         textOutline: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         textOutlineWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         textOutlineColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
@@ -3613,6 +3683,8 @@ export const NodeStyle: z.ZodObject<{
         depthFadeEnabled: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         depthFadeNear: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         depthFadeFar: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        onTop: z.ZodOptional<z.ZodBoolean>;
+        pickable: z.ZodOptional<z.ZodBoolean>;
         textOutline: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         textOutlineWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         textOutlineColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
@@ -4118,6 +4190,7 @@ export interface RendererStatus {
 export class RenderManager implements Manager {
     constructor(canvas: HTMLCanvasElement, eventManager: EventManager, config?: RenderManagerConfig);
     applyBackground(background: GraphBackgroundConfig, onSkyboxLoaded: (url: string) => void): void;
+    applyLighting(lighting: Lighting): void;
     // (undocumented)
     camera: CameraManager;
     dispose(): void;
@@ -4225,6 +4298,8 @@ export const RichTextStyle: z.ZodObject<{
     depthFadeEnabled: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
     depthFadeNear: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
     depthFadeFar: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+    onTop: z.ZodOptional<z.ZodBoolean>;
+    pickable: z.ZodOptional<z.ZodBoolean>;
     textOutline: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
     textOutlineWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
     textOutlineColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
@@ -4360,11 +4435,27 @@ export enum ScreenshotErrorCode {
     VIDEO_CAPTURE_FAILED = "VIDEO_CAPTURE_FAILED"
 }
 
+// @public
+export interface ScreenshotLegendSection {
+    note?: string;
+    ramp?: {
+        min: string;
+        max: string;
+        colors?: readonly string[];
+    };
+    rows?: readonly {
+        label: string;
+        color?: string;
+        value?: string;
+    }[];
+    title: string;
+}
+
 // @public (undocumented)
 export interface ScreenshotOptions {
-    // (undocumented)
     camera?: CameraState | {
         preset: string;
+        params?: Readonly<Record<string, unknown>>;
     };
     // (undocumented)
     destination?: {
@@ -4379,12 +4470,14 @@ export interface ScreenshotOptions {
     format?: "png" | "jpeg" | "webp";
     // (undocumented)
     height?: number;
+    legend?: readonly ScreenshotLegendSection[];
     // (undocumented)
     multiplier?: number;
     // (undocumented)
     preset?: "print" | "web-share" | "thumbnail" | "documentation";
     // (undocumented)
     quality?: number;
+    showSelection?: boolean;
     // (undocumented)
     strictAspectRatio?: boolean;
     // (undocumented)
@@ -4425,6 +4518,7 @@ export interface ScreenshotResult {
 // @public
 export class SelectionManager implements Manager {
     constructor(eventManager: EventManager);
+    add(node: Node_2): void;
     bindSelection(selection: SelectionOwner): void;
     deselect(): void;
     dispose(): void;
@@ -4650,6 +4744,7 @@ export class UpdateManager implements Manager {
     invalidateViewMasks(): void;
     isZoomToFitEnabled(): boolean;
     meshesAdded(): void;
+    meshesShownOrHidden(): void;
     rebindScene(camera: CameraManager): void;
     redrawArrangement(moved?: boolean): void;
     renderFrames(count: number): void;
@@ -4667,6 +4762,18 @@ export class UpdateManager implements Manager {
 export const VIEW_MODE_VALUES: readonly ["2d", "3d", "ar", "vr"];
 
 // @public
+export interface ViewInsets {
+    // (undocumented)
+    readonly bottom?: number;
+    // (undocumented)
+    readonly left?: number;
+    // (undocumented)
+    readonly right?: number;
+    // (undocumented)
+    readonly top?: number;
+}
+
+// @public
 export type ViewMode = (typeof VIEW_MODE_VALUES)[number];
 
 // @public
@@ -4674,8 +4781,9 @@ export const VIRIDIS_COLORS: readonly ["#440154", "#482878", "#3e4989", "#31688e
 
 // @public
 export interface WeightMeaning {
+    readonly assumed?: true;
     readonly attribute: string;
-    readonly meaning: "distance" | "strength";
+    readonly meaning: "distance" | "strength" | "capacity";
 }
 
 // @public
@@ -4686,7 +4794,12 @@ export interface WorkerCapability {
 
 // @public
 export interface XrCapability {
+    readonly active: "vr" | "ar" | null;
     readonly ar: boolean;
+    readonly reasons: {
+        readonly vr: XrUnavailableReason | null;
+        readonly ar: XrUnavailableReason | null;
+    };
     readonly vr: boolean;
 }
 
@@ -4747,6 +4860,9 @@ export interface XRUIConfig {
     showAvailabilityWarning: boolean;
     unavailableMessageDuration: number;
 }
+
+// @public
+export type XrUnavailableReason = "no-webxr" | "insecure-context" | "unsupported" | "webgpu-renderer" | "disabled" | "probing";
 
 // @public
 export const YLORBR_COLORS: readonly ["#ef7818", "#d85a09", "#b84203", "#8e3104", "#662506"];

@@ -52,6 +52,7 @@
  */
 
 import { COMPACT_SIZING, PANEL_GRID, PANEL_INK } from "@graphty/compact-mantine";
+import { FORMAT_DESCRIPTORS } from "@graphty/graphty-element/catalog";
 import { Button } from "@mantine/core";
 import React, { useCallback, useState } from "react";
 
@@ -83,7 +84,10 @@ const SUB_HEADING =
     "Drop a file, pick a sample, or reopen something recent. Everything here is also in the Data panel on the left.";
 const DROP_INSTRUCTION = "Drop a graph file (or a nodes file and an edges file) here";
 const OPEN_FILE = "Open file";
-const ACCEPTED_FORMATS = "Accepted formats: JSON, CSV or TSV, GraphML, GEXF, GML, DOT, Pajek, SIF, CX2";
+/** Every format graphty-element can read, by its plain name, from the element's own catalog. */
+const ACCEPTED_FORMATS = `Accepted formats: ${FORMAT_DESCRIPTORS.filter((descriptor) => descriptor.canImport)
+    .map((descriptor) => descriptor.plainName)
+    .join(", ")}`;
 const PASTE_OR_URL = "or paste data / open from URL";
 
 /**

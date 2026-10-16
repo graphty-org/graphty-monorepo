@@ -2,6 +2,7 @@ import React from "react";
 import { describe, expect, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
+import { pressAndHold, releaseOver } from "../../../../test/real-pointer";
 import { render, screen, within } from "../../../../test/test-utils";
 import {
     ACTIVITY_PANEL_MAX_WIDTH,
@@ -250,8 +251,32 @@ describe("ActivityPanel", () => {
             await userEvent.keyboard("{ArrowRight}");
             document.removeEventListener("keydown", record);
 
-            expect(onWidthChange).toHaveBeenCalledWith(ACTIVITY_PANEL_WIDTH_DEFAULT + 8);
+            expect(onWidthChange).toHaveBeenCalledWith(ACTIVITY_PANEL_WIDTH_DEFAULT + 1);
             expect(consumed).toBe(true);
+        });
+
+        it("turns text selection off for the length of a drag", async () => {
+            renderInShell(
+                <ActivityPanel
+                    activity="explore"
+                    width={ACTIVITY_PANEL_WIDTH_DEFAULT}
+                    presentation="docked"
+                    title="Explore"
+                    onWidthChange={vi.fn()}
+                >
+                    <div />
+                </ActivityPanel>,
+            );
+
+            const handle = screen.getByRole("separator", { name: "Resize the panel" });
+            await pressAndHold(handle);
+            expect(document.documentElement.style.userSelect).toBe("none");
+            expect(document.body.dispatchEvent(new Event("selectstart", { bubbles: true, cancelable: true }))).toBe(
+                false,
+            );
+
+            await releaseOver(handle);
+            expect(document.documentElement.style.userSelect).toBe("");
         });
 
         it("reports the bounds the drag may ask for", () => {

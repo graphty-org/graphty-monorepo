@@ -34,8 +34,7 @@ function views(overrides: Partial<CanvasToolbarViewsProps> = {}): CanvasToolbarV
     return {
         legendShown: true,
         toolbarShown: true,
-        vrSupported: false,
-        arSupported: false,
+        xr: { vr: false, ar: false, reasons: { vr: "no-webxr", ar: "no-webxr" }, active: null },
         visibleNodeCount: 20,
         onResetView: vi.fn(),
         onViewPreset: vi.fn(),
@@ -43,6 +42,7 @@ function views(overrides: Partial<CanvasToolbarViewsProps> = {}): CanvasToolbarV
         onToggleLegend: vi.fn(),
         onEnterVr: vi.fn(),
         onEnterAr: vi.fn(),
+        onExitXr: vi.fn(),
         ...overrides,
     };
 }

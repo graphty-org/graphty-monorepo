@@ -83,19 +83,19 @@ export const Nodes: Story = {
         const table = await dock(canvasElement);
         await expect(await table.findByText("12 nodes", {}, storyWaitOptions(1000))).toBeVisible();
         await expect(table.getByText("In the order loaded")).toBeVisible();
-        await expect(await table.findByRole("button", { name: /^Influence/ }, storyWaitOptions(1000))).toBeVisible();
+        await expect(await table.findByRole("button", { name: /^PageRank/ }, storyWaitOptions(1000))).toBeVisible();
     },
 };
 
-/** Sorted by PageRank (the element names the run "Influence"), highest first; the caption follows the sort. */
+/** Sorted by PageRank, highest first; the caption follows the sort. */
 export const SortedByResult: Story = {
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         await loadAndRun(canvasElement);
-        await press(canvasElement, "button", /^Influence/);
+        await press(canvasElement, "button", /^PageRank/);
         const table = await dock(canvasElement);
         await expect(
-            await table.findByText("Sorted by Influence, highest first", {}, storyWaitOptions(1000)),
+            await table.findByText("Sorted by PageRank, highest first", {}, storyWaitOptions(1000)),
         ).toBeVisible();
     },
 };
@@ -112,12 +112,12 @@ export const Edges: Story = {
     },
 };
 
-/** The Louvain run's item tab ("Communities"): one row per group with its size (`#/table-dock/communities`). */
+/** The Louvain run's item tab: one row per group with its size (`#/table-dock/communities`). */
 export const Communities: Story = {
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         await loadAndRun(canvasElement);
-        await press(canvasElement, "tab", "Communities");
+        await press(canvasElement, "tab", "Louvain");
         const table = await dock(canvasElement);
         await expect(await table.findByText("2 groups", {}, storyWaitOptions(1000))).toBeVisible();
         await expect(table.getByText("Largest group first")).toBeVisible();
@@ -129,13 +129,13 @@ export const MembersOfRow: Story = {
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         await loadAndRun(canvasElement);
-        await press(canvasElement, "tab", "Communities");
+        await press(canvasElement, "tab", "Louvain");
         await press(canvasElement, "button", "Group 1 options");
         await userEvent.click(
             await body().findByRole("menuitem", { name: "Show members in table" }, storyWaitOptions(1000)),
         );
         const table = await dock(canvasElement);
-        await expect(await table.findByText("Communities: Group 1", {}, storyWaitOptions(1000))).toBeVisible();
+        await expect(await table.findByText("Louvain: Group 1", {}, storyWaitOptions(1000))).toBeVisible();
         await expect(await table.findByText("6 nodes", {}, storyWaitOptions(1000))).toBeVisible();
     },
 };
@@ -149,7 +149,7 @@ export const Columns: Story = {
         const table = await dock(canvasElement);
         await expect(table.getByRole("button", { name: /^Columns: (\d+) of \1$/ })).toBeVisible();
         await expect(
-            await body().findByRole("menuitemcheckbox", { name: "Influence" }, storyWaitOptions(1000)),
+            await body().findByRole("menuitemcheckbox", { name: "PageRank" }, storyWaitOptions(1000)),
         ).toBeVisible();
     },
 };

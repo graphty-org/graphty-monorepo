@@ -99,6 +99,9 @@ export interface AttributeDescriptor {
 }
 
 // @public
+export type AttributeLeafNodes = "all" | "ends";
+
+// @public
 export type AttributeRole = "key" | "label" | "weight" | "source" | "target" | "time" | "edgeId";
 
 // @public
@@ -157,6 +160,23 @@ export type Binding = {
 export type BindingOverflow = "other" | "shape" | "extend";
 
 // @public
+export interface BrowserProjects {
+    get(id: string): Promise<File | undefined>;
+    list(): Promise<StoredProject[]>;
+    persisted(): Promise<boolean>;
+    remove(id: string): Promise<void>;
+    save(session: GraphSession, options?: BrowserProjectSaveOptions): Promise<StoredProject>;
+}
+
+// @public
+export const browserProjects: BrowserProjects;
+
+// @public
+export interface BrowserProjectSaveOptions {
+    readonly id?: string;
+}
+
+// @public
 export interface Capabilities {
     readonly acceleration: AccelerationStatus;
     readonly calibration: CalibrationRecord | null;
@@ -199,6 +219,7 @@ export interface Caveats {
     readonly sampleSize?: number;
     readonly seed?: number | null;
     readonly weight?: WeightMeaning | null;
+    readonly weightSkipped?: WeightSkip;
     readonly windowScope?: boolean;
 }
 
@@ -281,6 +302,7 @@ export type CommandOutcome<C extends SessionCommand> = CommandOutcomeMap[C["op"]
 // @public
 export interface CommandOutcomeMap {
     "algo.legacy": Promise<void>;
+    "algo.move": Promise<void>;
     "algo.remove": Promise<RunRemoval>;
     "algo.run": Run;
     "config.set": Promise<void>;
@@ -314,6 +336,7 @@ export interface CommandOutcomeMap {
     "view.save": Promise<void>;
     "visibility.context": Promise<void>;
     "visibility.set": Promise<void>;
+    "visibility.steps": Promise<void>;
     "visibility.window": Promise<void>;
     batch: Promise<void>;
 }
@@ -339,7 +362,9 @@ export interface CostEstimate {
     readonly cancellable: boolean;
     readonly confidence: CostConfidence;
     readonly costClass: CostClass;
+    // @deprecated
     readonly reason?: string;
+    readonly refusal?: CodedFact<EstimateRefusalCode>;
     readonly seconds: number;
 }
 
@@ -439,6 +464,7 @@ export interface DraftColumn extends Pick<AttributeDescriptor, "name" | "type" |
 // @public
 export interface DraftRow {
     readonly line: number;
+    readonly missingEnds?: readonly EdgeEnd[];
     readonly values: Readonly<Record<string, unknown>>;
 }
 
@@ -466,6 +492,9 @@ export interface DraftTable {
     readonly rowCount: number;
     readonly weightCandidate?: string;
 }
+
+// @public
+export type EdgeEnd = "source" | "target";
 
 // @public
 export type EdgeId = string;
@@ -590,6 +619,9 @@ export interface EngineVersions {
 }
 
 // @public
+export type EstimateRefusalCode = "algorithm.unknown" | "algorithm.needs-directed" | "algorithm.needs-undirected" | "algorithm.needs-weighted" | "algorithm.needs-connected" | "algorithm.needs-accelerator" | "estimate.not-costed" | "estimate.scope-unresolved" | "layout.unknown" | "layout.needs-accelerator" | "layout.not-planar" | "layout.needs-node" | "layout.node-missing" | "layout.needs-grouping" | "layout.grouping-absent" | "layout.needs-two-groups";
+
+// @public
 export type ExplainTarget = {
     readonly node: NodeId;
 } | {
@@ -671,6 +703,22 @@ export interface FilterResult {
 }
 
 // @public
+export interface FilterStep {
+    readonly id: string;
+    readonly on: boolean;
+    readonly rule: RuleTree;
+}
+
+// @public
+export interface FindAtLeastRow {
+    readonly count: number;
+    readonly kind: FindKind;
+    readonly path: Path;
+    readonly target: SelectionTarget;
+    readonly value: number;
+}
+
+// @public
 export interface FindEnd {
     readonly id: NodeId_2;
     readonly name: string;
@@ -707,6 +755,7 @@ export type FindKind = "node" | "edge";
 
 // @public
 export interface FindOptions {
+    readonly edgeNameJoiner?: string;
     readonly kinds?: readonly FindKind[];
     readonly limit?: number;
     readonly offset?: number;
@@ -715,16 +764,25 @@ export interface FindOptions {
 
 // @public
 export interface FindResult {
+    readonly atLeast?: readonly FindAtLeastRow[];
     readonly notSearchable?: "regex" | "expression";
     readonly offset: number;
     readonly records: readonly FindHit[];
     readonly revision: string;
     readonly total: number;
+    readonly totals: {
+        readonly node: number;
+        readonly edge: number;
+    };
     readonly values: readonly FindValueRow[];
 }
 
 // @public
 export interface FindValueRow {
+    readonly atLeast?: {
+        readonly count: number;
+        readonly target: SelectionTarget;
+    };
     readonly count: number;
     readonly kind: FindKind;
     readonly path: Path;
@@ -751,7 +809,7 @@ export interface GraphSession {
     acceleration: AccelerationPolicy;
     readonly canRedo: boolean;
     readonly canUndo: boolean;
-    readonly capabilities: AccelerationCapabilities;
+    readonly capabilities: Pick<Capabilities, "acceleration" | "xr">;
     readonly catalog: SessionCatalogApi;
     readonly config: SessionConfig;
     readonly data: SessionDataApi;
@@ -842,8 +900,12 @@ export type GraphtyErrorCode =
 */
 | "E_BAD_LAYER"
 /**
-* A style layer's selector does not parse. `details` carry the character offset. The caller
-* corrects the selector; the layer is not added.
+* A style layer's selector does not parse. `details.reason` is a stable code naming the
+* mistake (such as `number-needs-backticks`), so a consumer writes its own words without
+* reading the message; an expression's refusal also carries the character offset
+* (`details.position`). A `number-needs-backticks` refusal also carries `details.suggestion`,
+* the selector with every bare number put between backticks (`` minutes >= `10` ``). The
+* caller corrects the selector; the layer is not added.
 */
 | "E_BAD_SELECTOR"
 /**
@@ -1376,7 +1438,7 @@ export interface HistogramOptions {
 export type HistoryCause = "command" | "undo" | "redo" | "restore" | "rollback";
 
 // @public
-export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.import" | "data.expand" | "data.declare" | "data.set-source" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
+export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.move" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.import" | "data.expand" | "data.declare" | "data.set-source" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "visibility.step-add" | "visibility.step-edit" | "visibility.step-on" | "visibility.step-off" | "visibility.step-remove" | "visibility.steps" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
 
 // @public
 export type HistoryOutcome = {
@@ -1590,6 +1652,15 @@ export interface LayoutRecommendationOptions {
 }
 
 // @public
+export interface LeftOutEdge {
+    readonly line?: number;
+    readonly missingEnds?: readonly EdgeEnd[];
+    readonly source: NodeId_2;
+    readonly target: NodeId_2;
+    readonly values: Readonly<Record<string, unknown>>;
+}
+
+// @public
 export interface LegendBlock {
     readonly channel: Channel;
     // @deprecated
@@ -1701,6 +1772,31 @@ export interface LoadDraft {
     rows(table: string, options?: DraftRowOptions): Promise<RecordPage<DraftRow>>;
     readonly tables: readonly DraftTable[];
     readonly type: string;
+}
+
+// @public
+export interface LoadedSource extends DataSourceDescriptor {
+    readonly added: {
+        readonly nodes: number;
+        readonly edges: number;
+    };
+    readonly leftOut?: {
+        readonly rows: number;
+        readonly values: number;
+        readonly endColumns?: {
+            readonly source: string;
+            readonly target: string;
+        };
+        readonly edges?: readonly LeftOutEdge[];
+    };
+    readonly tableRows?: readonly ("nodes" | "edges")[];
+    readonly tables: readonly string[];
+}
+
+// @public
+export interface LoadedWeight {
+    readonly attribute: string;
+    readonly meaning: WeightMeaning["meaning"] | null;
 }
 
 // @public
@@ -2089,6 +2185,17 @@ export type PlanEffect = {
     readonly nodesInFrame: number;
     readonly legendChannels: number;
     readonly bytes: number;
+} | {
+    readonly kind: "steps";
+    readonly start: {
+        readonly nodes: number;
+        readonly edges: number;
+    };
+    readonly steps: readonly {
+        readonly id: string;
+        readonly nodes: number;
+        readonly edges: number;
+    }[];
 } | {
     readonly kind: "none";
 };
@@ -2577,6 +2684,9 @@ export interface RowUpdate<Id> {
 }
 
 // @public
+export function rulePath(path: Path): Query;
+
+// @public
 export type RuleTree = {
     readonly kind: "expression";
     readonly where: Query;
@@ -2585,10 +2695,12 @@ export type RuleTree = {
     readonly attribute: Path;
     readonly min?: number;
     readonly max?: number;
+    readonly nodes?: AttributeLeafNodes;
 } | {
     readonly kind: "categories";
     readonly attribute: Path;
     readonly values: readonly string[];
+    readonly nodes?: AttributeLeafNodes;
 } | {
     readonly kind: "degree";
     readonly min?: number;
@@ -2851,6 +2963,9 @@ export interface RunsApi {
     bindings(id: RunId): readonly LayerId[];
     get(id: RunId): Run | undefined;
     list(): readonly Run[];
+    move(id: RunId, before: LayerId | null, options?: {
+        readonly signal?: AbortSignal;
+    }): Promise<void>;
     painting(id: RunId): RunPainting | undefined;
     readonly queue: readonly QueueEntry[];
     remove(id: RunId): RunRemoval;
@@ -2859,6 +2974,7 @@ export interface RunsApi {
 
 // @public
 export interface RunScopeRecord {
+    readonly dataDigest?: string;
     readonly digest: string;
     readonly edges: number;
     readonly nodes: number;
@@ -2957,12 +3073,17 @@ export interface SelectionApi {
     apply(target: SelectionTarget, op?: SelectionOp): Promise<SelectionDelta>;
     readonly cap: number;
     clear(): SelectionDelta;
+    count(target: SelectionTarget): Promise<{
+        readonly nodes: number;
+        readonly edges: number;
+    }>;
     edgeMask(): Uint8Array;
     readonly edges: readonly EdgeId[];
     has(id: NodeId | EdgeId): boolean;
     nodeMask(): Uint8Array;
     readonly nodes: readonly NodeId[];
     readonly origin: SelectionTarget | null;
+    readonly originPaths: readonly Path[];
     // @deprecated
     promote(name: string): ScopeId;
     readonly size: number;
@@ -3140,7 +3261,7 @@ export type SessionAttributes = Readonly<Record<string, unknown>>;
 export type SessionCatalogApi = Omit<CatalogApi, DeprecatedCatalogMethod>;
 
 // @public
-export type SessionCommand = AlgorithmRunCommand | AlgoLegacyCommand | AlgoRemoveCommand | DataCommand | StyleCommand | VisibilityCommand | SetCommand | NoteCommand | ViewCommand | ConfigSetCommand | PositionsCommand | LayoutCommand | BatchCommand;
+export type SessionCommand = AlgorithmRunCommand | AlgoLegacyCommand | AlgoRemoveCommand | AlgoMoveCommand | DataCommand | StyleCommand | VisibilityCommand | SetCommand | NoteCommand | ViewCommand | ConfigSetCommand | PositionsCommand | LayoutCommand | BatchCommand;
 
 // @public
 export interface SessionConfig extends ProjectConfig {
@@ -3171,6 +3292,7 @@ export interface SessionDataApi {
     histogram(column: ColumnRef, options?: HistogramOptions): ColumnHistogram;
     import(source: DataSourceInput, options?: LoadChoices): Promise<void>;
     lastImport(): LoadReport | null;
+    loadedWeight(): LoadedWeight | null;
     name(id: NodeId_2): string | undefined;
     neighbors(id: NodeId_2, options?: NeighborOptions): NeighborPage;
     node(id: NodeId_2): NodeRecord | undefined;
@@ -3191,6 +3313,7 @@ export interface SessionDataApi {
     resultColumns(kind: "node" | "edge"): readonly ResultColumnDescriptor[];
     snapshot(): GraphSnapshot;
     source(): DataSourceDescriptor | null;
+    sources(): readonly LoadedSource[];
     statistics(): GraphStatistics;
     readonly store: SessionGraphStore;
     undirected(snapshot?: GraphSnapshot): DerivedGraph;
@@ -3203,8 +3326,12 @@ export type SessionDataConfig = Readonly<z.output<typeof DataConfig>>;
 
 // @public
 export interface SessionEventMap {
+    "canvas:empty-click": {
+        readonly x: number;
+        readonly y: number;
+    };
     "capabilities:changed": {
-        readonly capabilities: AccelerationCapabilities;
+        readonly capabilities: Pick<Capabilities, "acceleration" | "xr">;
     };
     "history:changed": {
         readonly reason: "record" | "merge" | "undo" | "redo" | "restore" | "evict" | "clear" | "pending" | "size";
@@ -3221,6 +3348,9 @@ export interface SessionEventMap {
     "project:status": ProjectStatus;
     "run:changed": RunChange;
     "selection:changed": SelectionDelta;
+    "selection:origin-changed": {
+        readonly origin: SelectionTarget | null;
+    };
     "set:changed": SetChange;
     "style:changed": StyleChange;
     "style:problem": StyleProblem;
@@ -3260,6 +3390,7 @@ export interface SessionHistory {
 
 // @public
 export interface SessionLayout {
+    readonly arrangedDimension: "2d" | "3d";
     readonly dimension: "2d" | "3d";
     readonly engine: string;
     readonly id: LayoutId;
@@ -3519,8 +3650,12 @@ export interface SetUser {
 export interface StaleNote {
     readonly nowVisible: number;
     readonly ranOn: number;
+    readonly reason: StaleReason;
     readonly scopeSpec: Scope;
 }
+
+// @public
+export type StaleReason = "data-changed" | "scope-changed";
 
 // @public
 export interface StartOptions extends RunOptions {
@@ -3536,6 +3671,15 @@ export interface StartOptions extends RunOptions {
 
 // @public
 export type StaticStyle = Partial<Record<Channel, ChannelValue>>;
+
+// @public
+export interface StoredProject {
+    readonly edges: number;
+    readonly id: string;
+    readonly name: string | null;
+    readonly nodes: number;
+    readonly savedAt: number;
+}
 
 // @public
 export interface StyleAgreement {
@@ -3602,6 +3746,7 @@ export interface StylesApi {
     explain(target: ExplainTarget): StyleExplanation;
     get(id: LayerId): Layer | undefined;
     highlight(spec: HighlightSpec, options?: RunOptions): Run<readonly Layer[]>;
+    highlightStyle(target: SelectorTarget): StaticStyle;
     legend(): readonly LegendBlock[];
     legendOf(id: LayerId): readonly LegendBlock[];
     list(): readonly Layer[];
@@ -3614,6 +3759,7 @@ export interface StylesApi {
     setDefaultPalettes(palettes: DefaultPalettes, options?: {
         readonly reapply?: boolean;
     }): void;
+    setHighlightColor(color: string | undefined): void;
     settled(): Promise<void>;
     setValueHidden(id: LayerId, channel: Channel, value: string | number | boolean, hidden: boolean, options?: RunOptions): Run<Layer>;
     toDocument(): StyleDocument;
@@ -3672,6 +3818,7 @@ export interface TableMapping {
     readonly target?: string | Endpoint;
     readonly time?: string | null;
     readonly weight?: string | null;
+    readonly weightMeaning?: WeightMeaning["meaning"] | null;
 }
 
 // @public
@@ -3770,8 +3917,10 @@ export interface VisibilityApi {
     nodeMask(): Uint8Array;
     readonly nodes: ReadonlySet<NodeId>;
     set(filter: RuleTree | null, options?: RunOptions): Run<FilterResult>;
+    setSteps(steps: readonly FilterStep[], options?: RunOptions): Run<FilterResult>;
     setWindow(window: TimeWindow | null, options?: RunOptions): Run<FilterResult>;
     showContext: boolean;
+    readonly steps: readonly FilterStep[];
     readonly summary: VisibilitySummary;
     readonly window: TimeWindow | null;
 }
@@ -3792,9 +3941,13 @@ export interface VisibilitySummary {
 
 // @public
 export interface WeightMeaning {
+    readonly assumed?: true;
     readonly attribute: string;
-    readonly meaning: "distance" | "strength";
+    readonly meaning: "distance" | "strength" | "capacity";
 }
+
+// @public
+export type WeightSkip = CodedFact<"weight.meaning-mismatch">;
 
 // @public
 export interface WorkerCapability {
@@ -3804,9 +3957,17 @@ export interface WorkerCapability {
 
 // @public
 export interface XrCapability {
+    readonly active: "vr" | "ar" | null;
     readonly ar: boolean;
+    readonly reasons: {
+        readonly vr: XrUnavailableReason | null;
+        readonly ar: XrUnavailableReason | null;
+    };
     readonly vr: boolean;
 }
+
+// @public
+export type XrUnavailableReason = "no-webxr" | "insecure-context" | "unsupported" | "webgpu-renderer" | "disabled" | "probing";
 
 // (No @packageDocumentation comment for this package)
 

@@ -1,6 +1,10 @@
 import {
+    type Camera,
     CreateScreenshotAsync,
+    CreateScreenshotUsingRenderTarget,
     DefaultRenderingPipeline,
+    EncodeArrayBufferToBase64,
+    EncodeImageAsync,
     type Engine,
     FxaaPostProcess,
     type Mesh,
@@ -8,14 +12,25 @@ import {
     type WebGPUEngine,
 } from "@babylonjs/core";
 
+import type { ViewInsets } from "../camera/types.js";
 import { type Graph, operationQueueOf } from "../Graph.js";
+import { CustomLineRenderer } from "../meshes/CustomLineRenderer.js";
+import { SELECTION_HALO_MESH } from "../Node.js";
+import { downloadBlob } from "../utils/download.js";
 import { copyToClipboard } from "./clipboard.js";
 import { SCREENSHOT_CONSTANTS } from "./constants.js";
 import { calculateDimensions } from "./dimensions.js";
+import { drawLegend, legendBox } from "./drawLegend.js";
 import { resolvePreset } from "./presets.js";
 import { ScreenshotError, ScreenshotErrorCode } from "./ScreenshotError.js";
 import { enableTransparentBackground, restoreBackground } from "./transparency.js";
-import type { ClipboardStatus, QualityEnhancementOptions, ScreenshotOptions, ScreenshotResult } from "./types.js";
+import type {
+    ClipboardStatus,
+    QualityEnhancementOptions,
+    ScreenshotLegendSection,
+    ScreenshotOptions,
+    ScreenshotResult,
+} from "./types.js";
 
 /**
  * Handles screenshot capture for graph visualizations using Babylon.js rendering engine.
@@ -97,6 +112,20 @@ export class ScreenshotCapture {
     }
 
     /**
+     * The view insets that keep the key's own box clear: on the side that costs the canvas the
+     * smaller share, left of a tall key or above a wide one.
+     * @param legend - The key the capture draws.
+     * @returns The insets to frame the capture with, in CSS pixels.
+     */
+    private reserveLegend(legend: readonly ScreenshotLegendSection[]): ViewInsets {
+        const { right, bottom } = legendBox(legend);
+        const width = this.canvas.clientWidth || this.canvas.width;
+        const height = this.canvas.clientHeight || this.canvas.height;
+
+        return right / width <= bottom / height ? { left: right } : { top: bottom };
+    }
+
+    /**
      * Performs the actual screenshot capture logic.
      * Handles timing options, camera overrides, quality enhancement, format conversion,
      * and destinations (blob, download, clipboard). Ensures proper cleanup of temporary
@@ -137,6 +166,7 @@ export class ScreenshotCapture {
 
         // 3. Handle camera override
         let originalCameraState;
+        let originalInsets: Required<ViewInsets> | undefined;
         let zoomToFitWasEnabled = false;
         if (options.camera) {
             originalCameraState = this.graph.getCameraState();
@@ -148,15 +178,58 @@ export class ScreenshotCapture {
                 updateManager.disableZoomToFit();
             }
 
+            // A named view frames the graph for the picture, and the picture has none of the
+            // screen's chrome in it: the only thing over it is the key this capture draws, so that
+            // is the one margin the framing keeps clear.
+            if ("preset" in options.camera) {
+                originalInsets = this.graph.getViewInsets();
+                const legend = options.legend ?? [];
+                this.graph.setViewInsets(legend.length > 0 ? this.reserveLegend(legend) : {});
+            }
+
             // Resolve preset or use provided state
-            const cameraState =
-                "preset" in options.camera ? this.graph.resolveCameraPreset(options.camera.preset) : options.camera;
+            let cameraState;
+            try {
+                if ("preset" in options.camera) {
+                    const { params } = options.camera;
+                    cameraState = this.graph.resolveCameraPreset(
+                        options.camera.preset,
+                        params === undefined ? undefined : { params },
+                    );
+                } else {
+                    cameraState = options.camera;
+                }
+            } catch (error: unknown) {
+                if (originalInsets) {
+                    this.graph.setViewInsets(originalInsets);
+                }
+
+                throw error;
+            }
 
             await this.graph.setCameraState(cameraState);
             await this.waitForRender();
         }
 
+        // Left out of the picture only: the selection itself, and its events, are untouched. A
+        // frame is drawn without the halos before the capture reads one, because the capture
+        // reads the canvas at the end of the next tick and a tick can skip drawing.
+        const hiddenHalos =
+            options.showSelection === false
+                ? this.scene.meshes.filter((m) => m.name === SELECTION_HALO_MESH && m.isEnabled(false))
+                : [];
+        for (const halo of hiddenHalos) {
+            halo.setEnabled(false);
+        }
+        if (hiddenHalos.length > 0) {
+            this.graph.getUpdateManager().meshesShownOrHidden();
+        }
+
         try {
+            if (hiddenHalos.length > 0) {
+                await this.waitForRender();
+            }
+
             // Resolve preset if specified
             let finalOptions = options;
             if (options.preset) {
@@ -219,7 +292,7 @@ export class ScreenshotCapture {
                 const captureHeight = enhancementState?.supersampledHeight ?? dimensions.height;
 
                 // Start capturing the blob (this promise will be shared)
-                const blobPromise = this.captureBlob(
+                const captured = this.captureBlob(
                     format,
                     quality,
                     captureWidth,
@@ -228,6 +301,11 @@ export class ScreenshotCapture {
                     dimensions.width,
                     dimensions.height,
                 );
+                // The key goes on after any downscale, sized as on the canvas: output pixels per CSS pixel.
+                const legend = finalOptions.legend ?? [];
+                const scale = dimensions.width / (this.canvas.clientWidth || this.canvas.width);
+                const blobPromise =
+                    legend.length === 0 ? captured : captured.then((blob) => drawLegend(blob, legend, scale, quality));
 
                 // If clipboard is requested, start clipboard write immediately (before blob is ready)
                 // This preserves the user gesture context
@@ -243,7 +321,7 @@ export class ScreenshotCapture {
                 let downloaded = false;
                 if (destinations.download) {
                     try {
-                        this.downloadBlob(blob, finalOptions.downloadFilename ?? `graph-${Date.now()}.${format}`);
+                        downloadBlob(blob, finalOptions.downloadFilename ?? `graph-${Date.now()}.${format}`);
                         downloaded = true;
                     } catch {
                         // Download failed, but we continue
@@ -293,6 +371,20 @@ export class ScreenshotCapture {
                 }
             }
         } finally {
+            for (const halo of hiddenHalos) {
+                if (!halo.isDisposed()) {
+                    halo.setEnabled(true);
+                }
+            }
+            if (hiddenHalos.length > 0) {
+                this.graph.getUpdateManager().meshesShownOrHidden();
+            }
+
+            // The screen's own margins first: in 3D they decide where the restored camera centers.
+            if (originalInsets) {
+                this.graph.setViewInsets(originalInsets);
+            }
+
             // Restore camera if it was overridden
             if (originalCameraState) {
                 await this.graph.setCameraState(originalCameraState);
@@ -441,11 +533,34 @@ export class ScreenshotCapture {
                 throw new ScreenshotError("No active camera in scene", ScreenshotErrorCode.SCREENSHOT_CAPTURE_FAILED);
             }
 
-            const dataUrl = await CreateScreenshotAsync(this.engine, this.scene.activeCamera, {
-                width: captureWidth,
-                height: captureHeight,
-                precision: quality,
-            });
+            // A copy of the canvas is only as sharp as the canvas: one of any other size is the
+            // scene drawn again at that size, so 4x has four times the detail rather than four
+            // times the blur. A different shape still gets the canvas, fitted in, since drawing
+            // the scene at another aspect would show a different part of the graph.
+            // ponytail: a mismatched aspect stays an enlarged copy; render it at the fitted size
+            // and pad it if anyone asks for sharp output there.
+            const size = { width: captureWidth, height: captureHeight };
+            const camera = this.scene.activeCamera;
+            const sameSize = captureWidth === this.canvas.width && captureHeight === this.canvas.height;
+            const sameShape =
+                Math.abs(captureWidth / captureHeight - this.canvas.width / this.canvas.height) <=
+                1 / Math.min(this.canvas.width, this.canvas.height);
+            let dataUrl: string;
+            if (sameSize || !sameShape) {
+                dataUrl = await CreateScreenshotAsync(this.engine, camera, size);
+            } else {
+                CustomLineRenderer.setPixelScale(this.scene, captureWidth / this.canvas.width);
+                try {
+                    dataUrl = await renderTargetCapture(
+                        this.engine,
+                        camera,
+                        size,
+                        this.engine.getCreationOptions().antialias ? 4 : 1,
+                    );
+                } finally {
+                    CustomLineRenderer.setPixelScale(this.scene, 1);
+                }
+            }
 
             // Convert data URL to blob
             let blob = await this.dataUrlToBlob(dataUrl, mimeType, quality);
@@ -549,24 +664,6 @@ export class ScreenshotCapture {
 
             img.src = imgUrl;
         });
-    }
-
-    /**
-     * Downloads a Blob as a file using a temporary anchor element.
-     * Creates an object URL, triggers a click on a download link, then cleans up.
-     * @param blob - The Blob to download
-     * @param filename - The filename for the downloaded file
-     * @internal
-     */
-    private downloadBlob(blob: Blob, filename: string): void {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
     }
 
     /**
@@ -721,4 +818,61 @@ interface EnhancementState {
     supersampledHeight: number;
     pipeline?: DefaultRenderingPipeline;
     fxaaPostProcess?: FxaaPostProcess;
+}
+
+/**
+ * Babylon's render-target capture, with its encode step owned here. Babylon encodes the pixels in a
+ * promise nobody awaits, on a shared engine it disposes when the last scene engine goes; a graph
+ * torn down mid-capture then threw an unhandled rejection and left the capture pending forever.
+ * Here a failed encode rejects the capture instead.
+ * @param engine - the scene's engine
+ * @param camera - the camera to draw from
+ * @param size - the image size in pixels
+ * @param size.width - the width
+ * @param size.height - the height
+ * @param samples - multisample count
+ * @returns the PNG as a data URL
+ */
+async function renderTargetCapture(
+    engine: Engine | WebGPUEngine,
+    camera: Camera,
+    size: { width: number; height: number },
+    samples: number,
+): Promise<string> {
+    return await new Promise<string>((resolve, reject) => {
+        const encode = (
+            width: number,
+            height: number,
+            data: ArrayBufferView,
+            done?: (result: string) => void,
+        ): void => {
+            EncodeImageAsync(data, width, height, "image/png", true)
+                .then(async (blob) => {
+                    done?.(`data:image/png;base64,${EncodeArrayBufferToBase64(await blob.arrayBuffer())}`);
+                })
+                .catch(reject);
+        };
+        CreateScreenshotUsingRenderTarget(
+            engine,
+            camera,
+            size,
+            (data) => {
+                resolve(data);
+            },
+            "image/png",
+            samples,
+            false,
+            undefined,
+            true,
+            false,
+            true,
+            undefined,
+            undefined,
+            encode,
+            undefined,
+            () => {
+                reject(new Error("render-target capture timed out"));
+            },
+        );
+    });
 }

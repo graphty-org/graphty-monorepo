@@ -177,10 +177,10 @@ describe("DataTableDrawer", () => {
 
             handle.focus();
             await userEvent.keyboard("{ArrowUp}");
-            expect(onHeightChange).toHaveBeenLastCalledWith(DATA_DRAWER_DEFAULT_HEIGHT + 32);
+            expect(onHeightChange).toHaveBeenLastCalledWith(DATA_DRAWER_DEFAULT_HEIGHT + 1);
 
             await userEvent.keyboard("{ArrowDown}");
-            expect(onHeightChange).toHaveBeenLastCalledWith(DATA_DRAWER_DEFAULT_HEIGHT - 32);
+            expect(onHeightChange).toHaveBeenLastCalledWith(DATA_DRAWER_DEFAULT_HEIGHT - 1);
         });
 
         it("is not drawn while the drawer is maximised", () => {

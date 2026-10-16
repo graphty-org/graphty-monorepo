@@ -200,6 +200,12 @@ const css = `
     user-select: none;
     touch-action: none;
 }
+/* The hover color is also what keeps a finger on the "%": Chromium's touch adjustment moves a tap
+   off an element that shows no response to it onto the text box beside it, and the scrub never
+   starts. */
+.cm-paint-opacity:not([data-disabled]) .cm-paint-suffix:hover {
+    color: var(--cm-text);
+}
 .cm-paint-opacity[data-disabled] .cm-paint-suffix {
     color: var(--cm-text-disabled);
     cursor: default;

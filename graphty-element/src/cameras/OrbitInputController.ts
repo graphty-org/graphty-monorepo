@@ -1,7 +1,11 @@
 // OrbitInputController.ts
 import Hammer from "hammerjs";
 
+import { hasModifier } from "./InputUtils";
 import { OrbitCameraController, OrbitConfig } from "./OrbitCameraController";
+
+/** The fraction of the camera's distance one mouse wheel notch zooms by. */
+const WHEEL_NOTCH_ZOOM = 0.1;
 
 /**
  * Handles user input for the orbit camera controller.
@@ -47,11 +51,31 @@ export class OrbitInputController {
     };
 
     private readonly keyDownHandler = (evt: KeyboardEvent): void => {
+        // A modified key is a shortcut (Shift+A, Mod+S), not a camera move: the shortcut
+        // usually moves focus away, so its keyup never reaches the canvas and the key stays held
+        if (hasModifier(evt)) {
+            return;
+        }
+
         this.keysDown[evt.key.toLowerCase()] = true;
     };
 
     private readonly keyUpHandler = (evt: KeyboardEvent): void => {
         this.keysDown[evt.key.toLowerCase()] = false;
+    };
+
+    // One mouse wheel notch (deltaY 100) moves the camera by WHEEL_NOTCH_ZOOM of its distance;
+    // a trackpad's many small deltas add up to the same. The clamp keeps a line- or page-mode
+    // delta from jumping the camera.
+    private readonly wheelHandler = (evt: WheelEvent): void => {
+        evt.preventDefault();
+        const notches = Math.max(-1, Math.min(1, evt.deltaY / 100));
+        this.controller.zoomBy(1 + WHEEL_NOTCH_ZOOM * notches);
+    };
+
+    // The canvas never sees the keyup of a key released after it lost focus
+    private readonly releaseKeys = (): void => {
+        this.keysDown = {};
     };
 
     /**
@@ -113,9 +137,12 @@ export class OrbitInputController {
         this.canvas.addEventListener("pointerdown", this.pointerDownHandler);
         this.canvas.addEventListener("pointerup", this.pointerUpHandler);
         this.canvas.addEventListener("pointermove", this.pointerMoveHandler);
+        this.canvas.addEventListener("wheel", this.wheelHandler, { passive: false });
 
         this.canvas.addEventListener("keydown", this.keyDownHandler);
         this.canvas.addEventListener("keyup", this.keyUpHandler);
+        this.canvas.addEventListener("blur", this.releaseKeys);
+        document.addEventListener("visibilitychange", this.releaseKeys);
 
         if (!this.hammer) {
             this.attachMouseTouch();
@@ -136,9 +163,13 @@ export class OrbitInputController {
         this.canvas.removeEventListener("pointerdown", this.pointerDownHandler);
         this.canvas.removeEventListener("pointerup", this.pointerUpHandler);
         this.canvas.removeEventListener("pointermove", this.pointerMoveHandler);
+        this.canvas.removeEventListener("wheel", this.wheelHandler);
 
         this.canvas.removeEventListener("keydown", this.keyDownHandler);
         this.canvas.removeEventListener("keyup", this.keyUpHandler);
+        this.canvas.removeEventListener("blur", this.releaseKeys);
+        document.removeEventListener("visibilitychange", this.releaseKeys);
+        this.releaseKeys();
 
         if (this.hammer) {
             this.hammer.destroy();

@@ -3,6 +3,7 @@ import { type Observer, PointerEventTypes, type PointerInfo, type PointerInfoPre
 import Hammer from "hammerjs";
 
 import { firstSight } from "../input/first-sight";
+import { hasModifier } from "./InputUtils";
 import { TwoDCameraController, TwoDCameraControlsConfigType } from "./TwoDCameraController";
 
 interface GestureSession {
@@ -40,7 +41,17 @@ export class InputController {
     };
 
     private readonly keyDownHandler = (e: KeyboardEvent): void => {
+        // A modified key is a shortcut, not a pan; see OrbitInputController
+        if (hasModifier(e)) {
+            return;
+        }
+
         this.keyState[e.key] = true;
+    };
+
+    // The canvas never sees the keyup of a key released after it lost focus
+    private readonly releaseKeys = (): void => {
+        this.keyState = {};
     };
 
     private readonly keyUpHandler = (e: KeyboardEvent): void => {
@@ -193,6 +204,8 @@ export class InputController {
 
         this.canvas.addEventListener("keydown", this.keyDownHandler);
         this.canvas.addEventListener("keyup", this.keyUpHandler);
+        this.canvas.addEventListener("blur", this.releaseKeys);
+        document.addEventListener("visibilitychange", this.releaseKeys);
 
         // Setup mouse and touch handlers (these are removed in disable())
         this.setupMouse();
@@ -212,6 +225,9 @@ export class InputController {
 
         this.canvas.removeEventListener("keydown", this.keyDownHandler);
         this.canvas.removeEventListener("keyup", this.keyUpHandler);
+        this.canvas.removeEventListener("blur", this.releaseKeys);
+        document.removeEventListener("visibilitychange", this.releaseKeys);
+        this.releaseKeys();
 
         // Remove scene observable subscriptions
         if (this.pointerObserverHandle !== null) {

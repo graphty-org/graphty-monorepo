@@ -1,4 +1,4 @@
-import { ActionIcon, Group, Select } from "@mantine/core";
+import { ActionIcon, Group, Select, Tooltip } from "@mantine/core";
 import { useUncontrolled } from "@mantine/hooks";
 import React from "react";
 
@@ -41,6 +41,12 @@ export interface StyleSelectOption {
 export interface StyleSelectProps {
     /** The control's name, drawn above it and read out as its accessible name. */
     label: string;
+    /**
+     * A fuller accessible name, when the drawn label is short for its context: a column
+     * named "km" whose box picks its role reads out "Role of km". Include the drawn label
+     * in it, so a voice user can say what they see (WCAG 2.5.3).
+     */
+    "aria-label"?: string;
     /**
      * The chosen value, when you drive the control from your own state.
      *
@@ -107,6 +113,7 @@ export interface StyleSelectProps {
  * than filling in.
  * @param props - Component props
  * @param props.label - The control's name, drawn above it
+ * @param props."aria-label" - A fuller accessible name than the drawn label, when it is short for its context
  * @param props.value - The chosen value, when you drive the control from your own state
  * @param props.defaultValue - What is shown while the reader has chosen nothing of their own
  * @param props.options - The choices offered
@@ -134,6 +141,7 @@ export interface StyleSelectProps {
  */
 export function StyleSelect({
     label,
+    "aria-label": ariaLabel,
     value,
     defaultValue,
     options,
@@ -200,6 +208,7 @@ export function StyleSelect({
             <Select
                 data-testid="style-select-field"
                 label={label}
+                aria-label={ariaLabel}
                 description={annotation.description}
                 value={displayValue}
                 onChange={handleSelectChange}
@@ -223,17 +232,20 @@ export function StyleSelect({
                 WCAG 2.2 (2.5.8) target-size minimum, and the same height as
                 the field, so bottom alignment puts the two level. */}
             {!isDefault && (
-                <ActionIcon
-                    variant="subtle"
-                    size={PANEL_GRID.TRAIL}
-                    c={PANEL_INK.CHROME}
-                    data-testid="style-select-reset"
-                    disabled={disabled}
-                    aria-label={labels.resetToDefault(label)}
-                    onClick={handleReset}
-                >
-                    <UiGlyph name="reset" size={PANEL_GRID.CHEVRON} />
-                </ActionIcon>
+                // An icon-only button says what it does on hover, not only to a screen reader.
+                <Tooltip label={labels.resetToDefault(label)}>
+                    <ActionIcon
+                        variant="subtle"
+                        size={PANEL_GRID.TRAIL}
+                        c={PANEL_INK.CHROME}
+                        data-testid="style-select-reset"
+                        disabled={disabled}
+                        aria-label={labels.resetToDefault(label)}
+                        onClick={handleReset}
+                    >
+                        <UiGlyph name="reset" size={PANEL_GRID.CHEVRON} />
+                    </ActionIcon>
+                </Tooltip>
             )}
         </Group>
     );

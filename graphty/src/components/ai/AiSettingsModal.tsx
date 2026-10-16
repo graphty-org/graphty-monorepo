@@ -19,7 +19,6 @@
 import { Modal } from "@mantine/core";
 import React from "react";
 
-import { standardModalStyles } from "../../utils/modal-styles";
 import { AiProviderSettings, type AiProviderSettingsProps } from "./AiProviderSettings";
 
 /**
@@ -46,7 +45,7 @@ export function AiSettingsModal(props: AiSettingsModalProps): React.JSX.Element 
     const { opened, onClose, ...providerSettings } = props;
 
     return (
-        <Modal opened={opened} onClose={onClose} title={MODAL_TITLE} size="lg" centered styles={standardModalStyles}>
+        <Modal opened={opened} onClose={onClose} title={MODAL_TITLE} size="lg" centered>
             <AiProviderSettings {...providerSettings} />
         </Modal>
     );

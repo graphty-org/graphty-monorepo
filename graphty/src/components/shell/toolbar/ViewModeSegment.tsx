@@ -20,13 +20,13 @@ import { SegmentedControl } from "@graphty/compact-mantine";
 import React from "react";
 
 import type { CanvasToolbarProfile } from "../constants";
-import type { CanvasViewMode } from "../types";
+import type { CanvasDimension, CanvasViewMode } from "../types";
 
 /**
  * The two halves, in drawn order. 2D is first: the pair reads as a ladder of
  * dimension, and 5 toggles between them (build spec 04 section 10).
  */
-const VIEW_MODES: readonly { readonly value: CanvasViewMode; readonly label: string }[] = [
+const VIEW_MODES: readonly { readonly value: CanvasDimension; readonly label: string }[] = [
     { value: "2d", label: "2D" },
     { value: "3d", label: "3D" },
 ];
@@ -42,12 +42,12 @@ export const VIEW_MODE_GROUP_LABEL = "View mode";
  * @public
  */
 export interface ViewModeSegmentProps {
-    /** The mode currently drawn checked. */
+    /** The mode currently drawn checked. VR or AR checks the 3D half and names it VR or AR. */
     readonly value: CanvasViewMode;
     /** The size profile in force. */
     readonly profile: CanvasToolbarProfile;
     /** Called with the mode the reader chose. */
-    readonly onChange: (mode: CanvasViewMode) => void;
+    readonly onChange: (mode: CanvasDimension) => void;
 }
 
 /**
@@ -57,14 +57,19 @@ export interface ViewModeSegmentProps {
  */
 export function ViewModeSegment(props: ViewModeSegmentProps): React.JSX.Element {
     const { value, profile, onChange } = props;
+    const dimension: CanvasDimension = value === "2d" ? "2d" : "3d";
+    const immersive = value === "vr" || value === "ar" ? value.toUpperCase() : undefined;
+    const data = VIEW_MODES.map((mode) =>
+        mode.value === "3d" && immersive !== undefined ? { ...mode, label: immersive } : mode,
+    );
 
     return (
         <SegmentedControl
             aria-label={VIEW_MODE_GROUP_LABEL}
-            data={[...VIEW_MODES]}
-            value={value}
+            data={data}
+            value={dimension}
             onChange={(next) => {
-                onChange(next as CanvasViewMode);
+                onChange(next as CanvasDimension);
             }}
             style={{
                 width: profile.segmentedWidth,

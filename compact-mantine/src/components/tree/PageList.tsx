@@ -136,7 +136,7 @@ export interface PageListItem {
      * The row's own control -- usually a "More" button opening a Menu -- drawn after the row in
      * a cell of its own, so a click on it never switches to the page. Name the button after
      * the row ("More for Les Miserables"). ArrowRight on a row moves into it and ArrowLeft
-     * moves back.
+     * moves back; the menu key or Shift+F10 presses it.
      */
     menu?: React.ReactNode;
 }
@@ -167,7 +167,8 @@ export interface PageListProps {
  * A page list (design/figma-spec.md 10.2): Figma's own accessible model, a one-column grid with
  * one Tab stop. ArrowUp / ArrowDown / Home / End move focus without switching; Enter, Space or a
  * click switches; F2 or a double-click renames when `onRename` is given. A row can carry a second
- * line, a trailing value and a row menu (see PageListItem); ArrowRight moves into the menu. The
+ * line, a trailing value and a row menu (see PageListItem); ArrowRight moves into the menu, and
+ * the menu key or Shift+F10 opens it. The
  * menu's controls are taken out of the Tab order, so the list stays one Tab stop.
  * @param props - Component props
  * @param props.items - The items or pages
@@ -276,7 +277,12 @@ export function PageList({
             case "End":
                 focus(pages[pages.length - 1]?.id);
                 break;
-            case "ArrowRight": {
+            case "ArrowRight":
+            case "ContextMenu":
+            case "F10": {
+                if (event.key === "F10" && !event.shiftKey) {
+                    return;
+                }
                 const control = target.parentElement
                     ?.querySelector(".cm-page-menu")
                     ?.querySelector<HTMLElement>("button, a[href], input, select, [tabindex]");
@@ -284,6 +290,10 @@ export function PageList({
                     return;
                 }
                 control.focus();
+                // The menu key and Shift+F10 open the row's menu; ArrowRight only moves into it.
+                if (event.key !== "ArrowRight") {
+                    control.click();
+                }
                 break;
             }
             case "Enter":

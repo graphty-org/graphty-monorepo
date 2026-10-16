@@ -183,6 +183,10 @@ class Collector {
             case "range":
             case "categories":
                 this.path(node.attribute);
+                if (node.nodes === "ends") {
+                    this.add({ kind: "topology" });
+                }
+
                 return;
             case "degree":
             case "component":

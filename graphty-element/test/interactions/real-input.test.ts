@@ -130,6 +130,46 @@ async function applied(element: Graphty): Promise<void> {
     await element.waitForStableFrame();
 }
 
+/**
+ * The frame as drawn, in device pixels, bottom row first.
+ * @param element - The element.
+ * @returns RGBA bytes.
+ */
+async function readCanvas(element: Graphty): Promise<Uint8Array> {
+    const { engine } = element.graph;
+    element.graph.scene.render();
+    return (await engine.readPixels(0, 0, engine.getRenderWidth(), engine.getRenderHeight())) as unknown as Uint8Array;
+}
+
+/**
+ * How strongly the selection gold (#FFD700) shows around a point: the largest red-over-blue
+ * excess in a square there. The canvas, the nodes and the edges are all near-gray.
+ * @param element - The element.
+ * @param pixels - The frame from {@link readCanvas}.
+ * @param center - The point, CSS pixels from the element's top-left corner.
+ * @param half - Half the square's side, CSS pixels.
+ * @returns The excess, 0-255.
+ */
+function gold(element: Graphty, pixels: Uint8Array, center: Point, half: number): number {
+    const { engine } = element.graph;
+    const width = engine.getRenderWidth();
+    const height = engine.getRenderHeight();
+    const scale = width / WIDTH;
+    let best = 0;
+    for (let dy = -half; dy <= half; dy++) {
+        for (let dx = -half; dx <= half; dx++) {
+            const x = Math.round((center.x + dx) * scale);
+            const y = height - 1 - Math.round((center.y + dy) * scale);
+            if (x < 0 || y < 0 || x >= width || y >= height) {
+                continue;
+            }
+            const o = (y * width + x) * 4;
+            best = Math.max(best, pixels[o] - pixels[o + 2]);
+        }
+    }
+    return best;
+}
+
 describe("the mouse", () => {
     it("a drag across empty canvas turns the 3D camera", async () => {
         const element = await mounted("3d");
@@ -179,6 +219,61 @@ describe("the mouse", () => {
             assert.isNull(element.getSelectedNode(), "a click on empty canvas clears the selection");
         });
 
+        it("Shift-click adds a node to the selection, a plain click replaces it", async () => {
+            const element = await mounted(viewMode);
+
+            await click(element, at(element, "a"));
+            await click(element, at(element, "b"), { shift: true });
+            await applied(element);
+            assert.sameMembers([...element.session.selection.nodes], ["a", "b"], "Shift-click added b to a");
+
+            await click(element, at(element, "c"));
+            await applied(element);
+            assert.sameMembers([...element.session.selection.nodes], ["c"], "a plain click replaced the selection");
+
+            await click(element, at(element, "a"), { shift: true });
+            await click(element, at(element, "c"));
+            await applied(element);
+            assert.sameMembers(
+                [...element.session.selection.nodes],
+                ["c"],
+                "a plain click on a node already selected leaves only that node",
+            );
+
+            const from = at(element, "a");
+            const to = { x: from.x + 50, y: from.y + 40 };
+            await drag(element, from, to, 8, undefined, { shift: true });
+            await applied(element);
+            const now = at(element, "a");
+            assert.closeTo(now.x, to.x, 3, "a drag with Shift held still moves the node");
+            assert.closeTo(now.y, to.y, 3);
+        });
+
+        it("a click on empty canvas is published, with or without a selection", async () => {
+            const element = await mounted(viewMode);
+            let heard = 0;
+            let where = { x: 0, y: 0 };
+            const stop = element.session.on("canvas:empty-click", (at) => {
+                heard++;
+                where = at;
+            });
+            cleanups.push(stop);
+
+            await click(element, EMPTY);
+            await applied(element);
+            assert.strictEqual(heard, 1, "a click with nothing selected is heard");
+            assert.closeTo(where.x, EMPTY.x, 1, "and says where it landed");
+            assert.closeTo(where.y, EMPTY.y, 1);
+
+            await click(element, at(element, "b"));
+            await applied(element);
+            assert.strictEqual(heard, 1, "a click on a node is not an empty click");
+
+            await click(element, EMPTY);
+            await applied(element);
+            assert.strictEqual(heard, 2, "a click that clears a selection is heard too");
+        });
+
         it("dragging a node moves it to the pointer and pins it there", async () => {
             const element = await mounted(viewMode);
             const from = at(element, "c");
@@ -191,6 +286,30 @@ describe("the mouse", () => {
             assert.closeTo(now.x, to.x, 3, "the node followed the pointer across");
             assert.closeTo(now.y, to.y, 3, "the node followed the pointer down");
             assert.isTrue(element.isPinned("c"), "a node the pointer placed is pinned");
+        });
+
+        it("a selected node's halo follows it while it is dragged, before the button is released", async () => {
+            const element = await mounted(viewMode);
+            const from = at(element, "b");
+            await click(element, from);
+            await applied(element);
+            assert.strictEqual(element.getSelectedNode()?.id, "b");
+
+            // Straight up, away from the edge a-b, so the old spot is bare canvas once b leaves.
+            const to = { x: from.x, y: from.y - 80 };
+            let atOld = Number.NaN;
+            let atNew = Number.NaN;
+            await drag(element, from, to, 8, async () => {
+                await drawnFrames(element.graph.getScene(), 2);
+                const radius = element.nodeScreenPosition("b")?.radius ?? 0;
+                const pixels = await readCanvas(element);
+                atOld = gold(element, pixels, from, 2);
+                // The ring lies past the node's edge, so look over a square just wider than it.
+                atNew = gold(element, pixels, at(element, "b"), radius * 1.6);
+            });
+
+            assert.isAbove(atNew, 40, "the halo rings the node where the pointer holds it");
+            assert.isBelow(atOld, 20, "no halo is left behind where the drag began");
         });
 
         it("a wheel turn on two axes reaches input:wheel once", async () => {

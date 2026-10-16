@@ -16,8 +16,10 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
-import { render, screen, waitFor, within } from "../../../test/test-utils";
+import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
+import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
+import { addLabelRow } from "../../style/row";
 import { Workspace } from "../../Workspace";
 
 /** A hang guard for the element coming up and a run finishing, not a pass/fail timing. */
@@ -67,6 +69,15 @@ function treeRows(): string[] {
         .map((row) => row.getAttribute("aria-label") ?? "");
 }
 
+/**
+ * A menu's command names, without their keys and reasons.
+ * @param items - the menu items.
+ * @returns the names.
+ */
+function menuLabels(items: HTMLElement[]): string[] {
+    return items.map((item) => /^(Rename|Move up|Move down|Delete)/.exec(item.textContent)?.[0] ?? "");
+}
+
 describe("the Graph place on the real element", () => {
     beforeAll(async () => {
         await page.viewport(1366, 768);
@@ -92,7 +103,7 @@ describe("the Graph place on the real element", () => {
         assert.isNull(screen.queryByRole("listbox", { name: "Find results" }));
     });
 
-    it("finds and picks with the keyboard alone: / focuses, Down enters the list, Enter picks (T12)", async () => {
+    it("finds and picks with the keyboard alone: / focuses, the first match is marked, Enter picks it (T12)", async () => {
         const { session, store } = await openGraph();
 
         (document.activeElement as HTMLElement | null)?.blur();
@@ -103,7 +114,6 @@ describe("the Graph place on the real element", () => {
         });
         await userEvent.keyboard("Eve");
         await screen.findByRole("listbox", { name: "Find results" });
-        await userEvent.keyboard("{ArrowDown}");
         const active = box.getAttribute("aria-activedescendant");
         assert.isNotNull(active);
         assert.match(document.getElementById(active ?? "")?.textContent ?? "", /Eve/);
@@ -112,6 +122,159 @@ describe("the Graph place on the real element", () => {
             assert.isTrue(session.selection.has(7));
         });
         assert.isNull(store.get().inspected, "the inspector shows what is selected");
+    });
+
+    it("gives a way on from a typed condition: an example after No match, and the rule under the box runs on Enter", async () => {
+        const { session } = await openGraph();
+        await session.data.addEdges([
+            { source: 3, target: 7, minutes: 12 },
+            { source: 4, target: 8, minutes: 10 },
+            { source: 5, target: 9, minutes: 4 },
+        ]);
+        const box = screen.getByRole("combobox", { name: "Find" });
+        const linksOfTenOrMore = async (): Promise<void> => {
+            await waitFor(() => {
+                assert.equal(session.selection.edges.length, 2);
+            });
+            assert.equal(session.selection.nodes.length, 0);
+        };
+
+        // Plain text that reads as no rule: No match, then an example rule over the open data.
+        await userEvent.type(box, "chapters 10");
+        assert.isNotNull(await screen.findByText('No match for "chapters 10"'));
+        const example = await screen.findByText(/^=\w+ > `\d+`$/);
+        assert.match(example.parentElement?.textContent ?? "", /\. To select by a value, type a rule such as =/);
+        assert.isNull(screen.queryByRole("option"));
+
+        // A rule with a bare number: the element's rewrite, with its "=", is what Enter picks.
+        await userEvent.clear(box);
+        await userEvent.type(box, "=minutes >= 10");
+        assert.isNotNull(await screen.findByText("Put numbers in backticks:"));
+        const offered = await screen.findByRole("option", { name: /^=minutes >= `10`/ });
+        assert.equal(box.getAttribute("aria-activedescendant"), offered.id);
+        assert.equal(session.selection.size, 0);
+        await userEvent.keyboard("{Enter}");
+        await linksOfTenOrMore();
+        assert.equal((box as HTMLInputElement).value, "=minutes >= `10`");
+
+        // A condition typed without "=": the text as a rule is what Enter picks.
+        session.selection.clear();
+        await userEvent.clear(box);
+        await userEvent.type(box, "minutes >= `10`");
+        assert.isNotNull(await screen.findByText("Start with = to select by a value:"));
+        assert.isNotNull(await screen.findByRole("option", { name: /^=minutes >= `10`/ }));
+        await userEvent.keyboard("{Enter}");
+        await linksOfTenOrMore();
+    });
+
+    it("keeps the example under the box while the session changes, rather than taking it down to ask again", async () => {
+        const { session } = await openGraph();
+        await userEvent.type(screen.getByRole("combobox", { name: "Find" }), "chapters 10");
+        const example = await screen.findByText(/^=\w+ > `\d+`$/);
+
+        // Any session change asks the element again; the element's own late history step after a
+        // load is one, and took the line down between a test finding it and reading it.
+        await act(async () => {
+            await session.selection.apply({ nodes: [1] });
+        });
+
+        assert.isTrue(example.isConnected, "the example line stayed up");
+    });
+
+    it("a click on a drawn name selects that node and opens it in the inspector", async () => {
+        const { session } = await openGraph();
+        const element = document.querySelector("graphty-element");
+        assert.isNotNull(element);
+        if (element === null) {
+            return;
+        }
+        // Names on, as the Style tab's Label line or a column's Add label line draws them.
+        await addLabelRow(session, { kind: "node", name: "name" });
+        await element.waitForStableFrame();
+        // A point on Officer's name: above the sphere's drawn disc, where the name sits, the
+        // first one that answers Officer. Off the disc, only the name can.
+        const nameAt = (): { x: number; y: number } | undefined => {
+            const at = element.nodeScreenPosition(2);
+            if (at?.visible !== true) {
+                return undefined;
+            }
+            for (let up = Math.ceil(at.radius) + 2; up < at.radius + 120; up++) {
+                const point = { x: at.x, y: at.y - up };
+                if (element.elementAt(point)?.id === 2) {
+                    return point;
+                }
+            }
+            return undefined;
+        };
+        let point: { x: number; y: number } | undefined;
+        await waitFor(
+            () => {
+                point = nameAt();
+                assert.isDefined(point, "a point above Officer's sphere answers Officer");
+            },
+            { timeout: TIMEOUT_MS },
+        );
+
+        await userEvent.click(element, { position: point });
+        await waitFor(() => {
+            assert.deepEqual([...session.selection.nodes], [2]);
+        });
+        const inspector = within(screen.getByRole("complementary", { name: "Inspector" }));
+        const values = await inspector.findByRole("tab", { name: "Values" });
+        assert.equal(values.getAttribute("aria-selected"), "true");
+    });
+
+    it("does not zoom to a pick already on screen, and turns the camera to one off screen", async () => {
+        const { session } = await openGraph();
+        const element = document.querySelector("graphty-element");
+        assert.isNotNull(element);
+        if (element === null) {
+            return;
+        }
+        // The element's own framing after the layout settles has landed: two reads apart agree.
+        let last = "";
+        await waitFor(
+            async () => {
+                const now = JSON.stringify(element.getCameraState());
+                await new Promise((resolve) => setTimeout(resolve, 300));
+                const same = now === last && now === JSON.stringify(element.getCameraState());
+                last = now;
+                assert.isTrue(same && element.nodeScreenPosition(7)?.visible === true);
+            },
+            { timeout: TIMEOUT_MS, interval: 50 },
+        );
+        const pick = async (name: string, id: number): Promise<void> => {
+            const box = screen.getByRole("combobox", { name: "Find" });
+            await userEvent.type(box, name);
+            const list = await screen.findByRole("listbox", { name: "Find results" });
+            await userEvent.click(within(list).getAllByRole("option", { name: new RegExp(name) })[0]);
+            await waitFor(() => {
+                assert.isTrue(session.selection.has(id));
+            });
+            // Long enough for a camera turn to have landed.
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
+            await new Promise((resolve) => setTimeout(resolve, 300));
+        };
+
+        // The app pivots the camera on the selection (camera.pivotOnSelection), so the camera turns
+        // to look at the pick; what a pick on screen must not do is zoom to it.
+        const before = element.getCameraState().cameraDistance;
+        await pick("Eve", 7);
+        await waitFor(() => {
+            assert.isTrue(element.nodeScreenPosition(7)?.visible);
+        });
+        assert.equal(element.getCameraState().cameraDistance, before, "a pick on screen does not zoom");
+
+        // Turned away from the graph, a pick brings the node back into view.
+        const away = element.getCameraState();
+        await element.setCameraState({ ...away, target: { x: 500, y: 500, z: 500 } });
+        await waitFor(() => {
+            assert.isFalse(element.nodeScreenPosition(4)?.visible);
+        });
+        await pick("Bea", 4);
+        await waitFor(() => {
+            assert.isTrue(element.nodeScreenPosition(4)?.visible);
+        });
     });
 
     it("says when nothing matches, and offers the value rows", async () => {
@@ -128,6 +291,63 @@ describe("the Graph place on the real element", () => {
         assert.isNotNull(within(values).getByRole("option", { name: "Select where club is Mr Hi (5)" }));
     });
 
+    it("offers 'or more' beside a typed number, and picking it selects every tie at or above it", async () => {
+        const { session } = await openGraph();
+        await session.data.clear();
+        await session.data.import({ type: "gml", name: "les-miserables.gml", config: { data: lesMiserables } });
+        // Read from the file itself, not through the element: ties of 10 or more shared chapters.
+        const wanted = [...lesMiserables.matchAll(/shared_chapters ([\d.]+)/g)].filter(
+            (m) => Number(m[1]) >= 10,
+        ).length;
+
+        await userEvent.type(screen.getByRole("combobox", { name: "Find" }), "10");
+        const values = within(await screen.findByRole("listbox", { name: "Find results" })).getByRole("group", {
+            name: "Values",
+        });
+        const exact = within(values).getByRole("option", { name: /^Select where .+ is 10 \(\d+\)$/ });
+        assert.notInclude(exact.textContent, "Select where", "the words on the row drop the verb");
+        await userEvent.click(within(values).getByRole("option", { name: /^Select where .+ is 10 or more \(\d+\)$/ }));
+
+        await waitFor(() => {
+            assert.equal(session.selection.edges.length, wanted);
+        });
+        assert.isAbove(wanted, 0);
+        assert.equal(session.selection.nodes.length, 0);
+    });
+
+    it("offers 'or more' for a typed number no link takes, and picking it selects every link at or above it", async () => {
+        const { session } = await openGraph();
+        await session.data.clear();
+        // The studio's bus-stops.csv: no link takes exactly 10 minutes.
+        const links = [
+            "Depot,Market,4|Market,Library,6|Library,Harbor,5|Depot,School,9|School,Harbor,12|Market,Park,3",
+            "Park,Clinic,4|Clinic,Harbor,3|Library,Clinic,7|School,Stadium,5|Stadium,Harbor,6|Park,Museum,5",
+            "Museum,Clinic,2|Depot,Station,15|Station,Harbor,14|Station,Stadium,4|Museum,Library,4",
+        ]
+            .join("|")
+            .split("|")
+            .map((line) => line.split(","));
+        await session.data.addNodes([...new Set(links.flatMap(([from, to]) => [from, to]))].map((id) => ({ id })));
+        await session.data.addEdges(
+            links.map(([from, to, minutes]) => ({ source: from, target: to, minutes: Number(minutes) })),
+        );
+        const wanted = links.filter(([, , minutes]) => Number(minutes) >= 10).length;
+
+        await userEvent.type(screen.getByRole("combobox", { name: "Find" }), "10");
+        const values = within(await screen.findByRole("listbox", { name: "Find results" })).getByRole("group", {
+            name: "Values",
+        });
+        await userEvent.click(
+            within(values).getByRole("option", { name: `Select where minutes is 10 or more (${String(wanted)})` }),
+        );
+
+        await waitFor(() => {
+            assert.equal(session.selection.edges.length, wanted);
+        });
+        assert.equal(wanted, 3);
+        assert.equal(session.selection.nodes.length, 0);
+    });
+
     it("lists a run on top under Selection, hides and shows its paint as one undo step, and deletes it with Undo", async () => {
         const { session, store } = await openGraph();
         assert.deepEqual(treeRows(), ["Selection", "Everything"]);
@@ -136,14 +356,21 @@ describe("the Graph place on the real element", () => {
         await session.runs.start("pagerank");
         const run = session.runs.list()[0];
         await waitFor(() => {
-            assert.deepEqual(treeRows(), ["Selection", run.label, "Everything"]);
+            assert.deepEqual(treeRows(), ["Selection", "PageRank", "Everything"]);
         });
         assert.isNull(screen.queryByText(/to add results here/), "the footer has nothing to say once a run exists");
         const layerIds = session.runs.bindings(run.id);
         assert.isNotEmpty(layerIds, "the run painted");
 
+        // The eye shows at rest, with the pointer on another row, not only on hover.
+        await userEvent.hover(screen.getByRole("treeitem", { name: "Everything" }));
+        const eye = screen.getByRole("button", { name: "Hide PageRank" });
+        await waitFor(() => {
+            assert.equal(getComputedStyle(eye).opacity, "1");
+        });
+
         // The eye: every layer of the run off, then one undo brings them all back.
-        await userEvent.click(screen.getByRole("button", { name: `Hide ${run.label}` }));
+        await userEvent.click(eye);
         await waitFor(() => {
             assert.isTrue(layerIds.every((id) => session.styles.get(id)?.enabled === false));
         });
@@ -153,7 +380,7 @@ describe("the Graph place on the real element", () => {
         });
 
         // Space on the focused row toggles the eye too.
-        const row = screen.getByRole("treeitem", { name: run.label });
+        const row = screen.getByRole("treeitem", { name: "PageRank" });
         await userEvent.click(row);
         assert.deepEqual(store.get().inspected, { kind: "measure-row", id: run.id });
         await userEvent.keyboard(" ");
@@ -166,15 +393,15 @@ describe("the Graph place on the real element", () => {
         await waitFor(() => {
             assert.deepEqual(treeRows(), ["Selection", "Everything"]);
         });
-        assert.equal(store.get().notice?.message, `Deleted ${run.label}.`);
+        assert.equal(store.get().notice?.message, "Deleted PageRank.");
         store.get().notice?.action?.run();
         await waitFor(() => {
-            assert.deepEqual(treeRows(), ["Selection", run.label, "Everything"]);
+            assert.deepEqual(treeRows(), ["Selection", "PageRank", "Everything"]);
         });
         assert.isNull(store.get().notice, "the notice goes once its delete is undone");
 
         // Once another change is made, the notice goes: its Undo would take back that change.
-        const row2 = screen.getByRole("treeitem", { name: run.label });
+        const row2 = screen.getByRole("treeitem", { name: "PageRank" });
         await userEvent.click(row2);
         await userEvent.keyboard("{Delete}");
         await waitFor(() => {
@@ -184,6 +411,127 @@ describe("the Graph place on the real element", () => {
         await waitFor(() => {
             assert.isNull(store.get().notice);
         });
+    });
+
+    it("gives a run row and a layer row one command list, in the inspector's ... and the row's menu", async () => {
+        const { session, store } = await openGraph();
+        await session.runs.start("pagerank");
+        const run = session.runs.list()[0];
+        const layerIds = session.runs.bindings(run.id);
+        await waitFor(() => {
+            assert.include(treeRows(), "PageRank");
+        });
+
+        // Selection and Everything have no commands: no "..." and no menu.
+        for (const name of ["Selection", "Everything"]) {
+            await userEvent.click(screen.getByRole("treeitem", { name }));
+            assert.isNull(screen.queryByRole("button", { name: `${name} actions` }), `${name} has no "..."`);
+            await userEvent.click(screen.getByRole("treeitem", { name }), { button: "right" });
+            assert.isNull(screen.queryByRole("menu"), `${name} has no menu`);
+        }
+
+        // The inspector's "..." deletes the run, with an Undo notice that brings it back.
+        await userEvent.click(screen.getByRole("treeitem", { name: "PageRank" }));
+        await userEvent.click(screen.getByRole("button", { name: "Measure actions" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: /^Delete/ }));
+        await waitFor(() => {
+            assert.deepEqual(treeRows(), ["Selection", "Everything"]);
+        });
+        assert.notInclude(
+            session.styles.list().map((layer) => layer.id),
+            layerIds[0],
+            "its layers went with it",
+        );
+        store.get().notice?.action?.run();
+        await waitFor(() => {
+            assert.include(treeRows(), "PageRank");
+        });
+        assert.include(
+            session.styles.list().map((layer) => layer.id),
+            layerIds[0],
+        );
+
+        // The row's own menu holds the same command.
+        await userEvent.click(screen.getByRole("treeitem", { name: "PageRank" }), { button: "right" });
+        const menu = await screen.findByRole("menu");
+        assert.deepEqual(menuLabels(within(menu).getAllByRole("menuitem")), ["Move up", "Move down", "Delete"]);
+        await userEvent.keyboard("{Escape}");
+
+        // A layer row adds Rename, which opens its name in place.
+        const layer = await session.styles.add({
+            name: "Mine",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.opacity": 1 },
+        });
+        const mine = await screen.findByRole("treeitem", { name: "Mine" });
+        await userEvent.click(mine);
+        await userEvent.click(screen.getByRole("button", { name: "Layer actions" }));
+        assert.deepEqual(menuLabels(await screen.findAllByRole("menuitem")), [
+            "Rename",
+            "Move up",
+            "Move down",
+            "Delete",
+        ]);
+        await userEvent.click(screen.getByRole("menuitem", { name: /^Rename/ }));
+        // The field takes focus with the name selected, so typing replaces it.
+        const field = await screen.findByRole("textbox", { name: "Layer name" });
+        await waitFor(() => {
+            assert.equal(document.activeElement, field);
+        });
+        await userEvent.keyboard("Hubs{Enter}");
+        await waitFor(() => {
+            assert.equal(session.styles.get(layer.id)?.name, "Hubs");
+        });
+        assert.isNull(store.get().renamingRow);
+    });
+
+    it("moves a run row as one undo step from its menu and Alt+Arrow, never past Selection or Everything", async () => {
+        const { session } = await openGraph();
+        await session.runs.start("degree");
+        await session.runs.start("pagerank");
+        const [degree, pagerank] = session.runs.list();
+        // The runs whose layers paint, top first.
+        const paintOrder = (): string[] =>
+            [
+                ...new Set(
+                    session.styles.list().flatMap((layer) => (layer.source.by === "run" ? [layer.source.runId] : [])),
+                ),
+            ].reverse();
+        await waitFor(() => {
+            assert.deepEqual(treeRows(), ["Selection", "PageRank", "Degree", "Everything"]);
+        });
+        assert.deepEqual(paintOrder(), [pagerank.id, degree.id]);
+
+        // The top row's menu: Move up is disabled with its reason; Move down moves it.
+        const steps = session.history.position;
+        await userEvent.click(screen.getByRole("treeitem", { name: "PageRank" }), { button: "right" });
+        const up = await screen.findByRole("menuitem", { name: /^Move up/ });
+        assert.equal(up.getAttribute("aria-disabled"), "true");
+        assert.include(up.textContent, "Already at the top");
+        await userEvent.click(screen.getByRole("menuitem", { name: /^Move down/ }));
+        await waitFor(() => {
+            assert.deepEqual(paintOrder(), [degree.id, pagerank.id]);
+        });
+        assert.equal(session.history.position, steps + 1, "one move is one undo step");
+        await waitFor(() => {
+            assert.deepEqual(treeRows(), ["Selection", "Degree", "PageRank", "Everything"]);
+        });
+        await session.undo();
+        await waitFor(() => {
+            assert.deepEqual(paintOrder(), [pagerank.id, degree.id]);
+        });
+
+        // Alt+ArrowDown on the focused row moves it; at the bottom it stays above Everything.
+        await userEvent.click(screen.getByRole("treeitem", { name: "PageRank" }));
+        await userEvent.keyboard("{Alt>}{ArrowDown}{/Alt}");
+        await waitFor(() => {
+            assert.deepEqual(paintOrder(), [degree.id, pagerank.id]);
+        });
+        const settled = session.history.position;
+        await userEvent.keyboard("{Alt>}{ArrowDown}{/Alt}");
+        assert.equal(session.history.position, settled, "nothing moves below Everything");
+        assert.deepEqual(treeRows(), ["Selection", "Degree", "PageRank", "Everything"]);
     });
 
     it("draws a group run with its groups as children, each with the size the element reports", async () => {
@@ -196,10 +544,10 @@ describe("the Graph place on the real element", () => {
         const groupCount = run.result?.graph.groupCount;
         assert.isNumber(groupCount);
         await waitFor(() => {
-            assert.include(treeRows(), run.label);
+            assert.include(treeRows(), "Louvain");
         });
         const tree = screen.getByRole("tree", { name: "Paint tree" });
-        const parent = within(tree).getByRole("treeitem", { name: run.label });
+        const parent = within(tree).getByRole("treeitem", { name: "Louvain" });
         assert.equal(parent.getAttribute("aria-expanded"), "true", "few groups open by default");
         assert.include(parent.textContent, String(groupCount), "the count is the one the run publishes");
         for (const group of groups) {

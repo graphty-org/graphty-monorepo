@@ -240,6 +240,7 @@ export type {
     SnapshotLayoutInput,
     SnapshotLayoutProgress,
     SnapshotLayoutRegistration,
+    SnapshotLayoutWarning,
 } from "./src/layout/SnapshotLayoutEngine";
 export { registerSnapshotLayout } from "./src/layout/SnapshotLayoutEngine";
 export type { Node, NodeIdType } from "./src/Node";

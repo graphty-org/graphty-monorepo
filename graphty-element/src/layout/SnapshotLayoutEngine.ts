@@ -5,6 +5,7 @@ import type { AuthoredLayoutDescriptor } from "../catalog/types";
 import type { ElementPositions } from "../data/positions";
 import { readSeedPosition } from "../data/seedPosition";
 import { GraphtyError } from "../errors";
+import type { GraphtyWarningCode } from "../errors/codes";
 import type { Node } from "../Node";
 import { layoutDim, LayoutEngine, simpleLayoutInternals, StaticLayoutEngine } from "./LayoutEngine";
 
@@ -78,6 +79,17 @@ export interface SnapshotLayoutInput {
     readonly signal: AbortSignal;
     /** Tell the consumer how far the arrangement has got; the element emits it as `layout-progress`. */
     report(progress: SnapshotLayoutProgress): void;
+    /**
+     * Tell the consumer the data kept the layout from placing every node as asked, as a code and
+     * its parameters; the element emits it as `layout-warning`.
+     */
+    warn(warning: SnapshotLayoutWarning): void;
+}
+
+/** What a layout reports through `warn`: a warning code and its parameters, never a sentence. */
+export interface SnapshotLayoutWarning {
+    readonly code: GraphtyWarningCode;
+    readonly params: Readonly<Record<string, unknown>>;
 }
 
 /**
@@ -101,6 +113,7 @@ export interface SnapshotLayoutRegistration {
 /** Where a snapshot layout's progress and asynchronous failures go: the element's layout manager. */
 interface SnapshotLayoutHost {
     progress(progress: SnapshotLayoutProgress): void;
+    warn(warning: SnapshotLayoutWarning): void;
     /** The answer failed after the call that started it had returned. */
     fail(error: unknown): void;
     /** An asynchronous answer has arrived and wants a frame to be published in. */
@@ -374,6 +387,11 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
             report: (progress) => {
                 if (!controller.signal.aborted) {
                     this.#host?.progress(progress);
+                }
+            },
+            warn: (warning) => {
+                if (!controller.signal.aborted) {
+                    this.#host?.warn(warning);
                 }
             },
         };

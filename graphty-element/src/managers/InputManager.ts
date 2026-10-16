@@ -351,18 +351,22 @@ export class InputManager implements Manager {
             return { array: data.map((item) => this.serializeEventData(item)) };
         }
 
-        // Handle objects. A callback (a key's `preventDefault`) is not data and is left out.
+        // Handle objects. A callback (a key's `preventDefault`) is not data and is left out. A
+        // field that is a primitive is kept as it is: the declared event types promise
+        // `deltaY: number`, `key: string` (issue #2976).
         if (data && typeof data === "object") {
             const serialized: Record<string, unknown> = {};
-            for (const key in data) {
-                if (Object.hasOwn(data, key) && typeof (data as Record<string, unknown>)[key] !== "function") {
-                    serialized[key] = this.serializeEventData((data as Record<string, unknown>)[key]);
+            for (const [key, value] of Object.entries(data)) {
+                if (typeof value === "function") {
+                    continue;
                 }
+                serialized[key] = value !== null && typeof value === "object" ? this.serializeEventData(value) : value;
             }
             return serialized;
         }
 
-        // Primitives - wrap in object
+        // A primitive standing alone (an array item: a touch id) becomes a record, as
+        // `InputTouchEndEvent` declares it.
         return { value: data };
     }
 
@@ -403,7 +407,7 @@ export class InputManager implements Manager {
                     mockSystem.simulateTouchMove(event.data.array as TouchPoint[]);
                     break;
                 case "input:touch-end":
-                    mockSystem.simulateTouchEnd(event.data.array as number[]);
+                    mockSystem.simulateTouchEnd((event.data.array as { value: number }[]).map((touch) => touch.value));
                     break;
                 case "input:key-down":
                     mockSystem.simulateKeyDown(event.data.key as string, event.data);

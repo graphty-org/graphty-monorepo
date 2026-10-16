@@ -225,18 +225,32 @@ graph.setLayout("random", {
 
 ### fixed
 
-Use pre-computed positions from node data:
+Use pre-computed positions from node data. Each node carries its coordinates in a `position` field,
+either `{ x, y, z }` or `[x, y, z]` (`z` may be left out and is then 0). Top-level `x`, `y` and `z`
+fields are ordinary attributes, not a position:
 
 ```typescript
-// Node data includes positions
 const nodes = [
-    { id: "a", x: 0, y: 0, z: 0 },
-    { id: "b", x: 100, y: 0, z: 0 },
-    { id: "c", x: 50, y: 100, z: 0 },
+    { id: "a", position: { x: 0, y: 0, z: 0 } },
+    { id: "b", position: { x: 100, y: 0, z: 0 } },
+    { id: "c", position: { x: 50, y: 100, z: 0 } },
 ];
 
 await graph.addNodes(nodes);
-graph.setLayout("fixed");
+await graph.setLayout("fixed");
+```
+
+The coordinates are multiplied by the element's `positionScale` (default 1). A node with no usable
+`position` is put at the origin (or stays where an earlier layout put it), and the element emits a
+`layout-warning` event with code `W_NO_POSITION` and `params: { missing, total }`, the number of
+nodes without one and the number placed:
+
+```typescript
+graph.addListener("layout-warning", (event) => {
+    if (event.code === "W_NO_POSITION") {
+        console.warn(`${event.params.missing} of ${event.params.total} nodes have no position`);
+    }
+});
 ```
 
 ### forceatlas2 (Force-Directed, live)

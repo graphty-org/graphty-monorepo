@@ -1,3 +1,20 @@
+## 3.28.3 (2026-10-16)
+
+### 🩹 Fixes
+
+- **graphty-element:** run per-element frame work from one observer per scene ([#2995](https://github.com/graphty-org/graphty-monorepo/issues/2995))
+- **graphty-element:** layout guide options match the layouts, and unknown options warn ([c00751a71](https://github.com/graphty-org/graphty-monorepo/commit/c00751a71))
+- **graphty-element:** fixed layout reads the documented node position shape ([676312e59](https://github.com/graphty-org/graphty-monorepo/commit/676312e59))
+- **graphty-element:** send input event fields as plain values ([#2976](https://github.com/graphty-org/graphty-monorepo/issues/2976))
+- **graphty-element:** apply the view masks to nodes and edges added after a load or clear ([#2953](https://github.com/graphty-org/graphty-monorepo/issues/2953))
+- **graphty-element:** publish label counts to a waiter once labels settle ([#2983](https://github.com/graphty-org/graphty-monorepo/issues/2983))
+- **graphty-element:** handle a two-axis wheel turn once ([#2937](https://github.com/graphty-org/graphty-monorepo/issues/2937))
+- **graphty-element:** draw a selection change without walking every node ([#2899](https://github.com/graphty-org/graphty-monorepo/issues/2899))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.28.2 (2026-10-15)
 
 ### 🩹 Fixes

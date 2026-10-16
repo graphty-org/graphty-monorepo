@@ -149,7 +149,9 @@ function writeConfig(overrides = {}) {
  */
 function pageOf(messages, path) {
     const page = Number(/[?&]page=(\d+)/.exec(path)?.[1] ?? 1);
-    return messages.slice((page - 1) * 100, page * 100).map((message) => ({ commit: { message } }));
+    return messages
+        .slice((page - 1) * 100, page * 100)
+        .map((m) => (typeof m === "string" ? { commit: { message: m } } : m));
 }
 
 /**
@@ -2216,6 +2218,38 @@ describe("the poll loop", () => {
         clock = new Date("2026-10-02T12:03:00Z");
         await poll(daemon);
         expect(daemon.state.prs["7"]).toMatchObject({ ownerRejected: true });
+    });
+
+    it("keeps the owner's rejects across a head that only merged the base branch in (#2639)", async () => {
+        writeConfig({
+            requiredChecks: ["All Checks Pass"],
+            ownerGate: { steps: ["^Check visual changes were accepted$"], rejectMarker: "visual-review-rejects" },
+        });
+        // The fix was committed at 09:00 and rejected at 09:30; the head (10:00) merges master in.
+        scene.prs = [gatedPr()];
+        scene.prCommits = [
+            { parents: [{}], commit: { message: "fix(x): a fix", committer: { date: "2026-10-02T09:00:00Z" } } },
+            { parents: [{}, {}], commit: { message: "Merge master", committer: { date: "2026-10-02T10:00:00Z" } } },
+        ];
+        scene.comments = [
+            { user: { login: "owner" }, body: "<!-- visual-review-rejects {} -->", created_at: "2026-10-02T09:30:00Z" },
+        ];
+        const daemon = await start();
+        await poll(daemon);
+        expect(daemon.state.prs["7"]).toMatchObject({ ownerRejected: true, codeChangedAt: "2026-10-02T09:00:00Z" });
+        expect(daemon.state.prs["7"].stuck).toContain("owner rejected images: fix needed");
+        expect(daemon.state.prs["7"].stuck).not.toContain("waiting on owner: visual review");
+        const asked = gh.calls.map((c) => c.args.at(-1)).filter((p) => p?.includes("/issues/7/comments?"));
+        expect(asked[0]).toContain("since=2026-10-02T09:00:00Z");
+
+        // A record saved before `codeChangedAt` reads the commit list once more on the same head.
+        delete daemon.state.prs["7"].codeChangedAt;
+        daemon.state.prs["7"].ownerRejected = false;
+        const before = gh.calls.filter((c) => c.args.at(-1)?.includes("/pulls/7/commits")).length;
+        clock = new Date("2026-10-02T12:03:00Z");
+        await poll(daemon);
+        expect(daemon.state.prs["7"]).toMatchObject({ ownerRejected: true, codeChangedAt: "2026-10-02T09:00:00Z" });
+        expect(gh.calls.filter((c) => c.args.at(-1)?.includes("/pulls/7/commits")).length).toBe(before + 1);
     });
 
     it("honors githerd:next and githerd:skip only when the owner applied them", async () => {

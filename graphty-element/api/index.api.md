@@ -2751,7 +2751,14 @@ export type GraphtyWarningCode =
 * Emitted as a `layout-warning` event. `params.missing` is how many nodes had none and
 * `params.total` how many the layout placed. Today only the `fixed` layout reports it.
 */
-| "W_NO_POSITION";
+| "W_NO_POSITION"
+/**
+* A layout was given options it does not take, and ran without them. Emitted as a
+* `layout-warning` event by the layouts that do not refuse an unknown option with
+* `E_UNKNOWN_OPTION`: `ngraph`, `forceatlas2`, `spring` and `spring-electrical`.
+* `params.options` lists the names it ignored and `params.available` the names it takes.
+*/
+| "W_UNKNOWN_OPTION";
 
 // @public
 export const GREEN_SUCCESS: {

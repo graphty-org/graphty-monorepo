@@ -1,3 +1,17 @@
+## 0.8.81 (2026-10-16)
+
+### 🩹 Fixes
+
+- **graphty:** color canvas strip action text with the brand text token ([#2948](https://github.com/graphty-org/graphty-monorepo/issues/2948))
+
+### 🧱 Updated Dependencies
+
+- Updated graphty-element to 3.28.3
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.8.80 (2026-10-15)
 
 ### 🧱 Updated Dependencies

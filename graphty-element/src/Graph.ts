@@ -124,6 +124,7 @@ import {
     type RendererStatus,
 } from "./managers/RenderManager";
 import { bootstrapEdgePaint, bootstrapNodePaint } from "./managers/StylePainter";
+import { AnnotationMeshes } from "./meshes/AnnotationMeshes";
 import { payLabelAnimations } from "./meshes/labelAnimationDebt";
 import { MeshCache } from "./meshes/MeshCache";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
@@ -162,6 +163,7 @@ import type { SelectionDelta, SelectionOp, SelectionTarget } from "./session/sel
 import type { StyleSuggestion } from "./session/styles";
 import { suggestionCommand } from "./session/styles/autoApply";
 import { toColorValue } from "./session/styles/channels";
+import { ANNOTATIONS_VALUE } from "./session/styles/fileStyles/annotations";
 import type { FileStyleOptions } from "./session/styles/fileStyles/translate";
 import type { ProjectConfig, ProjectConfigPatch, TransactionScope } from "./session/types";
 
@@ -521,6 +523,8 @@ export class Graph implements GraphContext {
     /** How many `batchOperations` callbacks are open. */
     private openBatches = 0;
     private readonly selectionManager: SelectionManager;
+    /** The file annotations drawn into the current scene; made on first use, again for a new scene. */
+    #annotations: AnnotationMeshes | null = null;
 
     /**
      * What the session's style stack resolved for each element, and which stack owns the paint.
@@ -699,6 +703,7 @@ export class Graph implements GraphContext {
         lane.register("graph", async (_rendered, target, dirty) => {
             const { cause } = lane;
             this.dataManager.reconcile(target.graph, dirty, cause);
+            this.drawAnnotations(target.graph.values.get(ANNOTATIONS_VALUE));
             if (dirty.has(NODES_ADDED)) {
                 // A scoped layout built before any node arrived takes its members now.
                 layoutManagerInternals.takeOwedMembers(this.layoutManager);
@@ -6899,6 +6904,18 @@ export class Graph implements GraphContext {
         }
 
         await this.xrSessionManager.exitXR();
+    }
+
+    /**
+     * Draw the annotations a graph value holds (see `ANNOTATIONS_VALUE`), into the current scene.
+     * @param value - The graph value.
+     */
+    private drawAnnotations(value: unknown): void {
+        if (this.#annotations?.scene !== this.scene) {
+            this.#annotations = new AnnotationMeshes(this.scene);
+        }
+
+        this.#annotations.update(value);
     }
 
     /**

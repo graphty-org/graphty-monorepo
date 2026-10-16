@@ -6,7 +6,7 @@ import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema } from "../config";
 import type { Edge } from "../Edge";
-import type { Node } from "../Node";
+import type { Node, NodeIdType } from "../Node";
 import { EdgePosition, heldEdgeProblems, LayoutEngine, Position } from "./LayoutEngine";
 
 /**
@@ -103,6 +103,9 @@ const ngraphLayoutOptionsSchema = defineOptions({
 
 /** How many extra sweeps a forced stop may spend pushing overlapping nodes apart. */
 const MAX_FINAL_SWEEPS = 100;
+
+/** The mass of a group following its members: small enough that it pushes and pulls nothing. */
+const FOLLOWER_MASS = 1e-9;
 /** A grid cell and the cells around it, in 3D and in a plane. */
 const NEIGHBOURS: readonly (readonly [number, number, number])[] = [-1, 0, 1].flatMap((x) =>
     [-1, 0, 1].flatMap((y) => [-1, 0, 1].map((z) => [x, y, z] as const)),
@@ -355,6 +358,12 @@ export class NGraphEngine extends LayoutEngine {
             reaches[3 * i + 1] = (half?.y ?? node.drawnRadius) + gap / 2;
             reaches[3 * i + 2] = (half?.z ?? node.drawnRadius) + gap / 2;
             movable[i] = this.ngraphLayout.isNodePinned(ngraphNode) ? 0 : 1;
+            // A group following its members encloses them: it is not kept apart from them.
+            if (this.isFollower(node.index)) {
+                radii[i] = 0;
+                reaches.fill(0, 3 * i, 3 * i + 3);
+            }
+
             largest = Math.max(largest, radii[i], reaches[3 * i], reaches[3 * i + 1], reaches[3 * i + 2]);
             const at = [b.x, b.y, b.z ?? 0];
             for (let axis = 0; axis < 3; axis++) {
@@ -583,6 +592,7 @@ export class NGraphEngine extends LayoutEngine {
         // A node that arrived after a scoped layout started is not one of its members.
         if (this.isHeld(n.index)) {
             this.ngraphLayout.pinNode(ngraphNode, true);
+            this.weigh(n, n.id);
         }
 
         this._settled = false;
@@ -697,6 +707,27 @@ export class NGraphEngine extends LayoutEngine {
     }
 
     /**
+     * Give a group that follows its members a body that pulls and pushes nothing: ngraph's
+     * repulsion is proportional to both bodies' masses, so a mass this small is no force at all.
+     * Zero would divide by zero in its quadtree's centre of mass. A body that stops following
+     * gets ngraph's own mass back.
+     * @param node - The node.
+     * @param id - Its ngraph id.
+     */
+    private weigh(node: Node, id: NodeIdType): void {
+        const body = this.ngraphLayout.getBody(id);
+        if (body === undefined) {
+            return;
+        }
+
+        if (this.isFollower(node.index)) {
+            body.mass = FOLLOWER_MASS;
+        } else if (body.mass === FOLLOWER_MASS) {
+            body.mass = 1 + (this.ngraph.getLinks(id)?.size ?? 0) / 3;
+        }
+    }
+
+    /**
      * Holds the nodes a scoped layout may not move, as pinned bodies. A node that is no longer
      * held is released unless the reader pinned it.
      * @param mask - One bit per row to hold, or null to hold nothing.
@@ -706,6 +737,7 @@ export class NGraphEngine extends LayoutEngine {
         super.setHoldMask(mask, rows);
         for (const [node, ngraphNode] of this.nodeMapping) {
             this.ngraphLayout.pinNode(ngraphNode, this.isHeld(node.index) || node.isPinned());
+            this.weigh(node, ngraphNode.id);
         }
     }
 

@@ -135,6 +135,8 @@ describe("the start screen", () => {
 
         const screenRoot = screen.getByRole("region", { name: "Start" }).closest(".ws-start");
         assert.isNotNull(screenRoot);
+        // A file dragged in from the desktop: userEvent drags only elements of the page, so the
+        // browser's own drag events for an outside file are dispatched as the browser sends them
         screenRoot?.dispatchEvent(new DragEvent("dragover", { bubbles: true, dataTransfer: transfer }));
         assert.isNotNull(await screen.findByText("Drop to open"));
         screenRoot?.dispatchEvent(new DragEvent("drop", { bubbles: true, dataTransfer: transfer }));

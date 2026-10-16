@@ -21,6 +21,7 @@ import { decideRepeat, edgeIdOf } from "../../data/edgeIdentity";
 import { readEndpoint, type ResolvedEndpoints, resolveEndpoints } from "../../data/endpoints";
 import { type DataLoadingError, ErrorAggregator } from "../../data/ErrorAggregator";
 import type { GraphStore } from "../../data/GraphStore";
+import { GROUPS_VALUE, readGroups } from "../../data/groups";
 import { otherIdSpelling } from "../../data/nodeIdSpelling";
 import {
     type ImportReport,
@@ -1314,6 +1315,7 @@ export class Ingest<K extends KnownEdge> {
                 // handed over, so it reported 254 for a file that produced zero edges. The old
                 // meaning survives, under its true name, as `report.counts.edgeRecords`.
                 const report = this.sealLoad(type, tally, writer);
+                await this.recordGroups(held === undefined ? source : (HELD_READERS.get(held) ?? null), writer);
 
                 this.logger.info("Data source loading complete", {
                     nodeRecords: progress.nodeRecords,
@@ -1360,6 +1362,22 @@ export class Ingest<K extends KnownEdge> {
             // its own tally.
             this.loadTally = null;
             this.loadEndpoints = null;
+        }
+    }
+
+    /**
+     * Record the groups the file read with no stored position, which the layout places by their
+     * members (see `LayoutManager.placeGroups`).
+     *
+     * ponytail: a merge's groups replace the graph's earlier ones; keep both when merging two
+     * nested files matters.
+     * @param reader - The reader the load read, or null.
+     * @param writer - The graph primitives to write through.
+     */
+    private async recordGroups(reader: object | null, writer: GraphWriter): Promise<void> {
+        const groups = reader === null ? [] : await readGroups(reader, (id) => this.heldNode(id));
+        if (groups.length > 0) {
+            writer.setGraphValues({ [GROUPS_VALUE]: Object.freeze(groups) });
         }
     }
 

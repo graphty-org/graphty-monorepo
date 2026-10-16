@@ -37,7 +37,7 @@ export function createMeshScene(): MeshTestScene {
     const scene = new Scene(engine);
     const cache = new MeshCache();
     // A scene with no camera throws "No camera defined" on render, and rendering is the only way
-    // to observe a label animation -- RichTextAnimator drives it from registerBeforeRender.
+    // to observe a label animation -- RichTextAnimator drives it from the scene's before-render observer.
     // Perspective, so `EdgeMesh.is2DMode` keeps answering false here; create2DMeshScene below is
     // the deliberate opposite.
     const camera = new ArcRotateCamera("mesh-test-camera", 0, Math.PI / 3, 10, Vector3.Zero(), scene);

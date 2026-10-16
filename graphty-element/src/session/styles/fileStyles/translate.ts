@@ -70,7 +70,7 @@ export const LAYER_SPEC_EXT = "@graphty/graphty-element";
 export interface FileStyleOptions {
     /**
      * How lengths are scaled: `"median"` (the default) scales every length by one factor, so the
-     * file's median node size is the element's default node size and node sizes, borders, edge
+     * file's median node size (by its larger side) is the element's default node size and node sizes, borders, edge
      * widths, label sizes and the stored positions a recommended layout keeps all keep the file's
      * proportions; `"file"` keeps the file's numbers as they are.
      */
@@ -719,7 +719,7 @@ const KEPT: LengthFactors = { node: 1, edge: 1, label: 1, scene: null };
 
 /**
  * What the file's lengths are multiplied by: ONE scale for every length (issue #2322), chosen so
- * the file's median node is drawn at the element's own node size (or, when the file sizes no node,
+ * the file's median node, by its larger side, is drawn at the element's own node size (or, when the file sizes no node,
  * its median edge at the element's edge width), and converted to each channel's unit.
  * @param input - The translation's input.
  * @returns The factors: all 1 when lengths are kept as the file has them.
@@ -738,7 +738,15 @@ function lengthFactors(input: TranslateInput): LengthFactors {
         )
             ? resolveStyles(extracted, kind, property, snapshot)
             : [];
-    const nodeMedian = median([...resolved("node", "width"), ...resolved("node", "height")]);
+    // Each node's larger side, so a file of wide boxes is scaled by their width rather than by a
+    // median that falls between the widths and the heights.
+    const widths = resolved("node", "width");
+    const heights = resolved("node", "height");
+    const sides = (widths.length > 0 ? widths : heights).map((_, i) => {
+        const sizes = [widths[i], heights[i]].filter((value): value is number => typeof value === "number");
+        return sizes.length === 0 ? null : Math.max(...sizes);
+    });
+    const nodeMedian = median(sides);
     const nodeBase = typeof base.node["node.size"] === "number" ? base.node["node.size"] : 1;
     const edgeBase = typeof base.edge["edge.width"] === "number" ? base.edge["edge.width"] : 1;
     const scene =

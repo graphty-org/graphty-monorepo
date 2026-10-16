@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
-import { fireEvent, render, screen } from "../../../../test/test-utils";
+import { render, screen } from "../../../../test/test-utils";
 import type { ChatMessage } from "../../../ai/AiMessageBubble";
 import { keyChipFor } from "../../bindings";
 import { ShellProvider } from "../../ShellContext";
@@ -52,12 +53,12 @@ describe("AiPanel", () => {
             ).not.toBeInTheDocument();
         });
 
-        it("opens Settings", () => {
+        it("opens Settings", async () => {
             const onOpenSettings = vi.fn();
 
             renderPanel({ onOpenSettings });
 
-            fireEvent.click(screen.getByTestId("ai-open-settings"));
+            await userEvent.click(screen.getByTestId("ai-open-settings"));
 
             expect(onOpenSettings).toHaveBeenCalledTimes(1);
         });
@@ -88,37 +89,38 @@ describe("AiPanel", () => {
             expect(input.closest("[title]")?.getAttribute("title")).toContain("Ask the assistant");
         });
 
-        it("sends on the Send control", () => {
+        it("sends on the Send control", async () => {
             const onSend = vi.fn();
 
             renderPanel({ onSend });
 
-            fireEvent.change(screen.getByRole("textbox", { name: "Ask the assistant" }), {
-                target: { value: "which cats connect the groups?" },
-            });
-            fireEvent.click(screen.getByRole("button", { name: "Send" }));
+            await userEvent.fill(
+                screen.getByRole("textbox", { name: "Ask the assistant" }),
+                "which cats connect the groups?",
+            );
+            await userEvent.click(screen.getByRole("button", { name: "Send" }));
 
             expect(onSend).toHaveBeenCalledWith("which cats connect the groups?");
         });
 
-        it("sends on the platform key plus Enter, and never on Enter alone", () => {
+        it("sends on the platform key plus Enter, and never on Enter alone", async () => {
             const onSend = vi.fn();
 
             renderPanel({ onSend });
 
             const input = screen.getByRole("textbox", { name: "Ask the assistant" });
 
-            fireEvent.change(input, { target: { value: "hello" } });
+            await userEvent.fill(input, "hello");
 
             // Bare Enter opens a new line, so the composer can be typed into; the
             // send gesture is the one the inspector's note input established.
-            fireEvent.keyDown(input, { key: "Enter" });
+            await userEvent.keyboard("{Enter}");
             expect(onSend).not.toHaveBeenCalled();
 
-            fireEvent.keyDown(input, { key: "Enter", shiftKey: true });
+            await userEvent.keyboard("{Shift>}{Enter}{/Shift}");
             expect(onSend).not.toHaveBeenCalled();
 
-            fireEvent.keyDown(input, { key: "Enter", metaKey: true });
+            await userEvent.keyboard("{Meta>}{Enter}{/Meta}");
             expect(onSend).toHaveBeenCalledWith("hello");
         });
 
@@ -145,12 +147,12 @@ describe("AiPanel", () => {
             expect(computed.paddingLeft).toBe("8px");
         });
 
-        it("sends nothing on an empty draft", () => {
+        it("sends nothing on an empty draft", async () => {
             const onSend = vi.fn();
 
             renderPanel({ onSend });
 
-            fireEvent.click(screen.getByRole("button", { name: "Send" }));
+            await userEvent.click(screen.getByRole("button", { name: "Send" }));
 
             expect(onSend).not.toHaveBeenCalled();
         });
@@ -173,30 +175,30 @@ describe("AiPanel", () => {
     });
 
     describe("the in-flight controls", () => {
-        it("offers Cancel while a call is in flight", () => {
+        it("offers Cancel while a call is in flight", async () => {
             const onCancel = vi.fn();
 
             renderPanel({ isProcessing: true, onCancel });
 
-            fireEvent.click(screen.getByTestId("ai-cancel"));
+            await userEvent.click(screen.getByTestId("ai-cancel"));
 
             expect(onCancel).toHaveBeenCalledTimes(1);
         });
 
-        it("offers Retry on a failed message", () => {
+        it("offers Retry on a failed message", async () => {
             const onRetry = vi.fn();
             const failed: ChatMessage = { ...message, id: "bad", isError: true, content: "Error: no" };
 
             renderPanel({ messages: [failed], onRetry });
 
-            fireEvent.click(screen.getByTestId("ai-retry"));
+            await userEvent.click(screen.getByTestId("ai-retry"));
 
             expect(onRetry).toHaveBeenCalledTimes(1);
         });
     });
 
     describe("the per-step record", () => {
-        it("draws one row per tool call, linking into its home panel", () => {
+        it("draws one row per tool call, linking into its home panel", async () => {
             const onOpenHome = vi.fn();
 
             renderPanel({
@@ -213,7 +215,7 @@ describe("AiPanel", () => {
 
             expect(screen.getByText("resolution 1.0, seed 42, 20 of 20 nodes, 12 ms")).toBeInTheDocument();
 
-            fireEvent.click(screen.getByTestId("ai-step-title"));
+            await userEvent.click(screen.getByTestId("ai-step-title"));
 
             expect(onOpenHome).toHaveBeenCalledTimes(1);
         });

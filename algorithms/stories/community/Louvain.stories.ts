@@ -21,6 +21,7 @@ import {
     renderGraph,
     updateStatus,
 } from "../utils/visualization.js";
+import { storyWaitOptions } from "../utils/wait.js";
 
 /**
  * Story arguments interface.
@@ -309,12 +310,9 @@ export const Louvain: Story = {
         const detectButton = canvas.getByRole("button", { name: /detect communities/i });
         await userEvent.click(detectButton);
 
-        await waitFor(
-            async () => {
-                const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
-                await expect(statusText).toContain("communities");
-            },
-            { timeout: 5000 },
-        );
+        await waitFor(async () => {
+            const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
+            await expect(statusText).toContain("communities");
+        }, storyWaitOptions(5000));
     },
 };

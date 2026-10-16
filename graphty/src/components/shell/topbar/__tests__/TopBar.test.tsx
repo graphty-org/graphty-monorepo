@@ -1,7 +1,8 @@
 import { PopoutManager } from "@graphty/compact-mantine";
 import { describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
-import { fireEvent, render, screen } from "../../../../test/test-utils";
+import { render, screen } from "../../../../test/test-utils";
 import { keyChipFor } from "../../bindings";
 import { historyRows } from "../historyRows";
 import { TopBar, type TopBarOwnProps } from "../TopBar";
@@ -35,10 +36,14 @@ const renderTopBar = (overrides: Partial<TopBarOwnProps> = {}): TopBarOwnProps =
         ...overrides,
     };
 
+    // A desktop-width host: in the test frame's own narrow viewport the slots overlap, and a
+    // real pointer aimed at the centre pill lands on the Export button laid over it.
     render(
-        <PopoutManager>
-            <TopBar {...props} />
-        </PopoutManager>,
+        <div style={{ width: 1200 }}>
+            <PopoutManager>
+                <TopBar {...props} />
+            </PopoutManager>
+        </div>,
     );
 
     return props;
@@ -102,19 +107,19 @@ describe("TopBar", () => {
             expect(screen.getByText(chord ?? "")).toBeInTheDocument();
         });
 
-        it("opens the command palette from the pill", () => {
+        it("opens the command palette from the pill", async () => {
             const props = renderTopBar();
 
-            fireEvent.click(screen.getByText("Search commands, nodes and edges"));
+            await userEvent.click(screen.getByText("Search commands, nodes and edges"));
 
             expect(props.onOpenCommandPalette).toHaveBeenCalledTimes(1);
         });
 
-        it("undoes and redoes through its own callbacks", () => {
+        it("undoes and redoes through its own callbacks", async () => {
             const props = renderTopBar({ canRedo: true });
 
-            fireEvent.click(screen.getByRole("button", { name: "Undo" }));
-            fireEvent.click(screen.getByRole("button", { name: "Redo" }));
+            await userEvent.click(screen.getByRole("button", { name: "Undo" }));
+            await userEvent.click(screen.getByRole("button", { name: "Redo" }));
 
             expect(props.onUndo).toHaveBeenCalledTimes(1);
             expect(props.onRedo).toHaveBeenCalledTimes(1);
@@ -138,13 +143,13 @@ describe("TopBar", () => {
         it("opens Export onto exactly two rows", async () => {
             const props = renderTopBar();
 
-            fireEvent.click(screen.getByRole("button", { name: "Export" }));
+            await userEvent.click(screen.getByRole("button", { name: "Export" }));
 
             const rows = await screen.findAllByRole("menuitem");
 
             expect(rows.map((row) => row.textContent)).toEqual(["Image", "Data"]);
 
-            fireEvent.click(rows[0]);
+            await userEvent.click(rows[0]);
 
             expect(props.onExport).toHaveBeenCalledWith("image");
         });
@@ -152,13 +157,13 @@ describe("TopBar", () => {
         it("never draws Share without its menu", async () => {
             const props = renderTopBar();
 
-            fireEvent.click(screen.getByRole("button", { name: "Share this view" }));
+            await userEvent.click(screen.getByRole("button", { name: "Share this view" }));
 
             const rows = await screen.findAllByRole("menuitem");
 
             expect(rows.map((row) => row.textContent)).toEqual(["Export data", "Copy image"]);
 
-            fireEvent.click(rows[1]);
+            await userEvent.click(rows[1]);
 
             expect(props.onShare).toHaveBeenCalledWith("copy-image");
         });
@@ -190,10 +195,10 @@ describe("TopBar", () => {
             expect(screen.queryByRole("button", { name: "Toggle inspector" })).toBeNull();
         });
 
-        it("reports the sidebars switch through its own callback", () => {
+        it("reports the sidebars switch through its own callback", async () => {
             const props = renderTopBar();
 
-            fireEvent.click(screen.getByRole("button", { name: "Toggle sidebars" }));
+            await userEvent.click(screen.getByRole("button", { name: "Toggle sidebars" }));
 
             expect(props.onToggleSidebars).toHaveBeenCalledTimes(1);
         });
@@ -222,11 +227,14 @@ describe("TopBar", () => {
             );
         });
 
-        it("opens no menu from a disabled Export or Share", () => {
+        it("opens no menu from a disabled Export or Share", async () => {
             renderTopBar({ datasetName: null, dataLoaded: false });
 
-            fireEvent.click(screen.getByRole("button", { name: "Export. Load data first" }));
-            fireEvent.click(screen.getByRole("button", { name: "Share this view. Load data first" }));
+            // force: a reader can still press a disabled control, and it must open nothing
+            await userEvent.click(screen.getByRole("button", { name: "Export. Load data first" }), { force: true });
+            await userEvent.click(screen.getByRole("button", { name: "Share this view. Load data first" }), {
+                force: true,
+            });
 
             expect(screen.queryAllByRole("menuitem")).toHaveLength(0);
         });
@@ -249,7 +257,7 @@ describe("TopBar", () => {
             expect(screen.queryByRole("dialog", { name: "History" })).not.toBeInTheDocument();
         });
 
-        it("opens from the caret half and reports it", () => {
+        it("opens from the caret half and reports it", async () => {
             const props = renderTopBar({
                 history: {
                     rows: historyRows(steps, 1, PANEL_TITLES),
@@ -260,17 +268,17 @@ describe("TopBar", () => {
                 },
             });
 
-            fireEvent.click(screen.getByRole("button", { name: "History" }));
+            await userEvent.click(screen.getByRole("button", { name: "History" }));
 
             expect(props.onOpenHistory).toHaveBeenCalledTimes(1);
             expect(screen.getByRole("dialog", { name: "History" })).toBeInTheDocument();
             expect(screen.getByText("1 entry, 0 undone")).toBeInTheDocument();
         });
 
-        it("reads zero entries honestly when no store is supplied", () => {
+        it("reads zero entries honestly when no store is supplied", async () => {
             renderTopBar();
 
-            fireEvent.click(screen.getByRole("button", { name: "History" }));
+            await userEvent.click(screen.getByRole("button", { name: "History" }));
 
             expect(screen.getByText("0 entries, 0 undone")).toBeInTheDocument();
         });

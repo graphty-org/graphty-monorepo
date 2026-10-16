@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { expect, waitFor } from "storybook/test";
 
 import { realInput } from "../../stories/real-input";
+import { storyWaitOptions } from "../../stories/wait";
 import { answerUsageData, forgetUsageAnswer } from "../privacy/usageData";
 import { SINGLE_KEY_SHORTCUTS } from "../settings/preferences";
 import { Workspace } from "../Workspace";
@@ -85,7 +86,10 @@ export const DropTarget: Story = {
         const real = realInput(parameters);
         if (real) {
             await real.dragFileOver(root);
-            await waitFor(() => expect(canvasElement.querySelector(".ws-start-drop")).not.toBeNull());
+            await waitFor(
+                () => expect(canvasElement.querySelector(".ws-start-drop")).not.toBeNull(),
+                storyWaitOptions(1000),
+            );
         } else {
             // In Storybook's own UI a page script cannot make a trusted drag, so it is replayed.
             root.dispatchEvent(new DragEvent("dragover", { bubbles: true, dataTransfer: new DataTransfer() }));

@@ -53,6 +53,7 @@ export const PROPERTIES = [
     "lineStyle",
     "arrows",
     "edgePath",
+    "selfLoops",
     "edgeLabel",
     "groups",
     "annotations",

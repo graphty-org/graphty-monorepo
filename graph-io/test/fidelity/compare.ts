@@ -586,6 +586,21 @@ interface Ctx {
     diag: number;
     /** Each scene's node centers by id, which an edge path is judged from and to. */
     centers?: { ref: ReadonlyMap<string, Pt>; subject: ReadonlyMap<string, Pt> };
+    /** The subject's nodes by id, which a self-loop's extent is judged against. */
+    subjectNodes?: ReadonlyMap<string, SceneNode>;
+}
+
+/**
+ * The extent of a drawn path: the diagonal of its points' bounding box.
+ * @param points - the path
+ * @returns the extent, 0 for a path with no points
+ */
+function extent(points: readonly Pt[]): number {
+    if (points.length === 0) {
+        return 0;
+    }
+    const b = boxOf(points);
+    return Math.hypot(b.w, b.h);
 }
 
 /**
@@ -707,6 +722,26 @@ const EDGE_JUDGES: Partial<Record<Property, EdgeJudge>> = {
             got: kind(s),
         };
     },
+    // A self-loop must be drawn as a visible loop, whatever the reference recorded as its path
+    // (CyREST and most extractors record a loop as a zero-length line, so edgePath cannot see a
+    // loop drawn as nothing). Judged on the subject alone, against its own node, so it needs no
+    // alignment: the loop's extent must reach a quarter of the node's smaller side.
+    selfLoops: (r, s, _rev, { subjectNodes }) => {
+        if (r.source !== r.target) {
+            return null;
+        }
+        const n = subjectNodes?.get(s.source);
+        const side = n ? Math.min(n.w, n.h) : 0;
+        const reach = extent(s.points);
+        const need = side > 0 ? side / 4 : 1e-9;
+        return {
+            value: side > 0 ? reach / side : reach,
+            bad: reach >= need ? 0 : 1 - reach / need,
+            pass: reach >= need,
+            ref: "a loop",
+            got: `${String(s.points.length)} points spanning ${String(round(reach))}`,
+        };
+    },
     edgeLabel: (r, s) => equal(normText(r.label), normText(s.label)),
 };
 
@@ -792,7 +827,12 @@ export function compareScenes(ref: Scene, subject: Scene, options: CompareOption
                   rms: Math.sqrt(fit.sse / m.nodes.length) / diag,
               };
     const centersOf = (scene: Scene): Map<string, Pt> => new Map(scene.nodes.map((n) => [n.id, [n.x, n.y] as Pt]));
-    const ctx = { t: transform, diag, centers: { ref: centersOf(ref), subject: centersOf(subject) } };
+    const ctx = {
+        t: transform,
+        diag,
+        centers: { ref: centersOf(ref), subject: centersOf(subject) },
+        subjectNodes: new Map(subject.nodes.map((n) => [n.id, n])),
+    };
 
     const properties = {} as Record<Property, PropertyResult>;
     for (const p of PROPERTIES) {
@@ -876,7 +916,7 @@ function judge(
     idMap?: ReadonlyMap<string, string>,
 ): PropertyResult {
     const t = ctx.t ?? { scale: 1, rotation: 0, reflect: false, tx: 0, ty: 0 };
-    const full = { t, diag: ctx.diag, centers: ctx.centers };
+    const full = { t, diag: ctx.diag, centers: ctx.centers, subjectNodes: ctx.subjectNodes };
     const nodeJudge = NODE_JUDGES[p];
     if (nodeJudge) {
         return summarize(
@@ -918,8 +958,18 @@ function judge(
         case "groups": {
             const mapId = (id: string): string => idMap?.get(id) ?? id;
             const subGroups = new Map(subject.groups.map((g) => [mapId(g.id), g]));
-            return summarize(
-                ref.groups.map((r) => {
+            const refIds = new Set(ref.groups.map((g) => g.id));
+            // A box the subject draws that the reference does not have is a fail too: a group the
+            // source program never drew (an expanded Cytoscape group's own node) drawn as a box.
+            const extra = [...subGroups]
+                .filter(([id]) => !refIds.has(id))
+                .map(([id, g]) => ({
+                    id: `extra ${id}`,
+                    v: { value: "not in the reference", bad: 1e3, pass: false, ref: null, got: g.members.length },
+                }));
+            return summarize([
+                ...extra,
+                ...ref.groups.map((r) => {
                     const s = subGroups.get(r.id);
                     if (s === undefined) {
                         return {
@@ -941,12 +991,27 @@ function judge(
                         },
                     };
                 }),
-            );
+            ]);
         }
         case "annotations": {
             const subs = subject.annotations ?? [];
-            return summarize(
-                (ref.annotations ?? []).map((r, i) => {
+            const refs = ref.annotations ?? [];
+            // An annotation the subject draws where the reference has none of its kind is a fail.
+            const extra = subs
+                .map((s, i) => ({ s, i }))
+                .filter(
+                    ({ s }) =>
+                        !refs.some(
+                            (r) => r.kind === s.kind && iou(r.bbox, transformBox(t, s.bbox)) >= THRESHOLDS.groupIoU,
+                        ),
+                )
+                .map(({ s, i }) => ({
+                    id: `extra ${s.kind}#${String(i)}`,
+                    v: { value: "not in the reference", bad: 1e3, pass: false, ref: null, got: s.text ?? s.kind },
+                }));
+            return summarize([
+                ...extra,
+                ...refs.map((r, i) => {
                     const best = Math.max(
                         0,
                         ...subs.filter((s) => s.kind === r.kind).map((s) => iou(r.bbox, transformBox(t, s.bbox))),
@@ -962,7 +1027,7 @@ function judge(
                         },
                     };
                 }),
-            );
+            ]);
         }
         case "background":
             return ref.background === undefined

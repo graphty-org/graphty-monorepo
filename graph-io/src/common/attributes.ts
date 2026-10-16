@@ -132,22 +132,7 @@ export const DICT_SAMPLE_ROWS = 1024;
 export function declareAttribute(input: AttributeDeclarationInput): DeclaredAttribute {
     const issues: DeclarationIssue[] = [];
     const listSyntax = input.listSyntax ?? "gexf";
-    let spec: DeclaredTypeSpec;
-    if (input.type === null) {
-        spec = stringSpec(null);
-    } else {
-        const mapped = mapDeclaredType(input.format, input.type, input.long);
-        if (mapped === null) {
-            spec = stringSpec(input.type);
-            issues.push({
-                category: "unsupported",
-                code: UNKNOWN_TYPE_CODE,
-                message: `${input.format} type "${input.type}" is not supported; values kept as text`,
-            });
-        } else {
-            spec = mapped;
-        }
-    }
+    let spec = declaredSpec(input, issues);
     const { name, renamed } = resolveName(input);
     if (renamed) {
         issues.push({
@@ -179,20 +164,7 @@ export function declareAttribute(input: AttributeDeclarationInput): DeclaredAttr
     }
     const optionsText = input.optionsText ?? null;
     if (optionsText !== null) {
-        try {
-            const options = splitListText(optionsText, listSyntax).map((item) => parseItem(item, spec));
-            decl.options = options;
-            if (spec.dtype === "string" && !spec.list && options.every((o) => typeof o === "string")) {
-                decl.dtype = "dict";
-                spec = { ...spec, dtype: "dict" };
-            }
-        } catch (err) {
-            issues.push({
-                category: "validation-error",
-                code: BAD_OPTIONS_CODE,
-                message: `options "${optionsText}" of attribute "${name}" do not parse as ${spec.declared}: ${messageOf(err)}`,
-            });
-        }
+        spec = declareOptions(decl, spec, optionsText, listSyntax, issues);
     }
     const defaultText = input.defaultText ?? null;
     if (defaultText !== null) {
@@ -208,6 +180,63 @@ export function declareAttribute(input: AttributeDeclarationInput): DeclaredAttr
     }
     const companion = spec.temporal !== null && !spec.list ? timeTextCompanion(name) : null;
     return { decl, spec, listSyntax, companion, renamed, issues };
+}
+
+/**
+ * The value spec of a declared type: string for no type, string with UNKNOWN_TYPE_CODE for a type
+ * the format does not define.
+ * @param input - what the file declares
+ * @param issues - receives the unknown-type warning
+ * @returns the spec
+ */
+function declaredSpec(input: AttributeDeclarationInput, issues: DeclarationIssue[]): DeclaredTypeSpec {
+    if (input.type === null) {
+        return stringSpec(null);
+    }
+    const mapped = mapDeclaredType(input.format, input.type, input.long);
+    if (mapped !== null) {
+        return mapped;
+    }
+    issues.push({
+        category: "unsupported",
+        code: UNKNOWN_TYPE_CODE,
+        message: `${input.format} type "${input.type}" is not supported; values kept as text`,
+    });
+    return stringSpec(input.type);
+}
+
+/**
+ * Put the parsed options of an attribute on its declaration; a plain string attribute whose
+ * options are all strings becomes a dict column.
+ * @param decl - the declaration to complete
+ * @param spec - the value spec
+ * @param optionsText - the options text
+ * @param listSyntax - the list syntax the options are split with
+ * @param issues - receives BAD_OPTIONS_CODE when the options do not parse
+ * @returns the spec, with dtype dict when the column became a dict
+ */
+function declareOptions(
+    decl: ColumnDecl,
+    spec: DeclaredTypeSpec,
+    optionsText: string,
+    listSyntax: ListSyntax,
+    issues: DeclarationIssue[],
+): DeclaredTypeSpec {
+    try {
+        const options = splitListText(optionsText, listSyntax).map((item) => parseItem(item, spec));
+        decl.options = options;
+        if (spec.dtype === "string" && !spec.list && options.every((o) => typeof o === "string")) {
+            decl.dtype = "dict";
+            return { ...spec, dtype: "dict" };
+        }
+    } catch (err) {
+        issues.push({
+            category: "validation-error",
+            code: BAD_OPTIONS_CODE,
+            message: `options "${optionsText}" of attribute "${decl.name}" do not parse as ${spec.declared}: ${messageOf(err)}`,
+        });
+    }
+    return spec;
 }
 
 /**

@@ -1,8 +1,9 @@
 import React from "react";
 import { describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { SAMPLE_SECTION_HINT, SAMPLE_SECTION_NAME } from "../../../../data/sampleManifest";
-import { fireEvent, render, screen } from "../../../../test/test-utils";
+import { render, screen } from "../../../../test/test-utils";
 import { type WelcomeSample, WelcomeSampleList } from "../WelcomeSampleList";
 
 /**
@@ -51,11 +52,11 @@ describe("WelcomeSampleList", () => {
         expect(screen.getByText(/Small enough to see every relationship\./)).toBeInTheDocument();
     });
 
-    it("loads the sample when the row is clicked", () => {
+    it("loads the sample when the row is clicked", async () => {
         const onOpen = vi.fn();
         const { container } = render(<WelcomeSampleList samples={[sample({ onOpen })]} />);
 
-        fireEvent.click(container.querySelector('[data-sample-row="cat-social-network"]') as HTMLElement);
+        await userEvent.click(container.querySelector('[data-sample-row="cat-social-network"]') as HTMLElement);
 
         expect(onOpen).toHaveBeenCalledTimes(1);
     });
@@ -71,12 +72,12 @@ describe("WelcomeSampleList", () => {
         expect(open.contains(screen.getByRole("button", { name: "Try finding the groups." }))).toBe(false);
     });
 
-    it("runs the suggested card from the hint, and does NOT also fire the plain load", () => {
+    it("runs the suggested card from the hint, and does NOT also fire the plain load", async () => {
         const onOpen = vi.fn();
         const onOpenAndRun = vi.fn();
         const { container } = render(<WelcomeSampleList samples={[sample({ onOpen, onOpenAndRun })]} />);
 
-        fireEvent.click(container.querySelector('[data-sample-hint="cat-social-network"]') as HTMLElement);
+        await userEvent.click(container.querySelector('[data-sample-hint="cat-social-network"]') as HTMLElement);
 
         /* NAV-1: the hint loads the sample AND runs the manifest's suggested first card,
            which is a different route from the row's own. If the click reached the row too,
@@ -85,11 +86,11 @@ describe("WelcomeSampleList", () => {
         expect(onOpen).not.toHaveBeenCalled();
     });
 
-    it("leaves the credit link out of the row's own gesture", () => {
+    it("leaves the credit link out of the row's own gesture", async () => {
         const onOpen = vi.fn();
         render(<WelcomeSampleList samples={[sample({ onOpen })]} />);
 
-        fireEvent.click(screen.getByRole("link", { name: "graphty samples" }));
+        await userEvent.click(screen.getByRole("link", { name: "graphty samples" }));
 
         expect(onOpen).not.toHaveBeenCalled();
     });

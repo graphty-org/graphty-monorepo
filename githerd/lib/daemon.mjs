@@ -256,6 +256,25 @@ const WAIT_KINDS = new Set(["rate", "secondary", "network", "timeout"]);
 const HOOK_IDS = 500;
 /** The most compare pages read for one head's commits (100 each); past that it counts as breaking. */
 const COMPARE_PAGES = 30;
+
+/**
+ * When a pull request's own code last changed: the newest committer date among its commits,
+ * merge commits left out. A merge of the base branch moves the head without touching what the
+ * owner reviewed, so a reject made before it still stands (#2639: rejected at 03:55, master
+ * merged in at 06:15, and the reject no longer counted).
+ * ponytail: a merge whose conflict resolution changes the rejected stories still counts as no
+ * change; comparing the new capture's image hashes with the reject block's would settle it.
+ * @param {any[]} commits REST commit objects of the pull request
+ * @returns {string | null} the date, ISO; null when no commit has one
+ */
+function codeChangedAt(commits) {
+    const dates = commits
+        .filter((c) => (c.parents?.length ?? 0) < 2)
+        .map((c) => c.commit?.committer?.date)
+        .filter((d) => typeof d === "string")
+        .sort();
+    return dates.at(-1) ?? null;
+}
 /** `POST /owner` ops that put the owner's words or decisions on record: only from his terminal. */
 const OWNER_WORDS = new Set(["answer", "order", "policy", "policy-end", "veto", "ack", "mine", "mine-drop"]);
 /** How the news of a refused `githerd_done` starts (board.verifyResult). */
@@ -1402,37 +1421,45 @@ export async function startDaemon({
      * A new head's commit messages. GitHub lists at most 250 commits of a pull request; past that,
      * the compare API has them all.
      * @param {any} node the GraphQL node
-     * @returns {Promise<{messages: string[], truncated: boolean}>} the messages
+     * @returns {Promise<{messages: string[], truncated: boolean, codeAt: string | null}>} the messages,
+     *   and when the code last changed ({@link codeChangedAt})
      */
     async function readCommits(node) {
         const list = await pages(`repos/${config.repo}/pulls/${node.number}/commits?per_page=100`, 3);
         if (list.items.length >= 250) return allCommits(node);
-        return { messages: list.items.map((c) => c.commit.message), truncated: false };
+        return {
+            messages: list.items.map((c) => c.commit.message),
+            truncated: false,
+            codeAt: codeChangedAt(list.items),
+        };
     }
 
     /**
      * Every commit message of a pull request too long for its commit list, through the compare API
      * (base...head, the same commits), page by page. Read once per head, like the commit list.
      * @param {any} node the GraphQL node
-     * @returns {Promise<{messages: string[], truncated: boolean}>} the messages; `truncated` when
-     *   they could not all be read, so the pull request counts as breaking
+     * @returns {Promise<{messages: string[], truncated: boolean, codeAt: string | null}>} the messages;
+     *   `truncated` when they could not all be read, so the pull request counts as breaking
      */
     async function allCommits(node) {
         const messages = [];
+        /** @type {any[]} */
+        const all = [];
         try {
             for (let p = 1; p <= COMPARE_PAGES; p++) {
                 const path = `repos/${config.repo}/compare/${node.baseRefName}...${node.headRefOid}?per_page=100&page=${p}`;
                 const body = (await github().get(path)).body ?? {};
                 const commits = body.commits ?? [];
                 messages.push(...commits.map((/** @type {any} */ c) => c.commit.message));
+                all.push(...commits);
                 const total = body.total_commits ?? 0;
                 if (messages.length >= total || commits.length < 100)
-                    return { messages, truncated: messages.length < total };
+                    return { messages, truncated: messages.length < total, codeAt: codeChangedAt(all) };
             }
         } catch {
             // unread: counts as breaking until the next head
         }
-        return { messages, truncated: true };
+        return { messages, truncated: true, codeAt: null };
     }
 
     /**
@@ -1496,7 +1523,11 @@ export async function startDaemon({
         } else detail.gateRead = job;
         detail.gateJob = job;
         if (config.ownerGate?.rejectMarker) {
-            const since = node.commits?.nodes?.[0]?.commit?.committedDate ?? "1970-01-01T00:00:00Z";
+            // A record from before `codeChangedAt` was kept reads its commits once more.
+            if (!detail.commits && (prev?.headSha !== node.headRefOid || prev?.codeChangedAt === undefined))
+                detail.commits = await readCommits(node);
+            const codeAt = detail.commits ? detail.commits.codeAt : prev?.codeChangedAt;
+            const since = codeAt ?? node.commits?.nodes?.[0]?.commit?.committedDate ?? "1970-01-01T00:00:00Z";
             const res = await github().get(`repos/${repo}/issues/${node.number}/comments?since=${since}&per_page=100`);
             // Only the owner can reject: another account's comment never counts.
             detail.comments = (res.body ?? [])

@@ -197,3 +197,12 @@ describe("Cytoscape groups", () => {
         expect(hidden(r)).toEqual(["B10", "B20", "B30", "group-expanded-1", "group-expanded-2"]);
     });
 });
+
+describe("annotations graph-io does not read", () => {
+    it("are named in a style note (the image a Cytoscape sample session places on its canvas)", async () => {
+        const r = await load(corpus("cys/fidelity/import-and-save.cys"), "cys");
+        const note = r.styles?.styles.notes.find((n) => n.code === "W_STYLE_ANNOTATION_SKIPPED");
+        expect(note?.params.target).toBe("graph");
+        expect(note?.params.samples).toContain("ImageAnnotation");
+    });
+});

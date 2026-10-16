@@ -9,6 +9,7 @@ import type { GraphSnapshot } from "@graphty/graph-format";
 
 import { keptForStyles } from "../../common/report.js";
 import type { GraphImporter, ImportReport } from "../../types.js";
+import { readAnnotations } from "../annotations.js";
 import { StyleBudget } from "../budget.js";
 import { canonColor, colorOpacity } from "../canon/color.js";
 import { canonEnum, type StyleEnumKind } from "../canon/enums.js";
@@ -104,6 +105,9 @@ export function extractStyles(
     const signal = options.signal ?? undefined;
     const notes = new StyleNotes();
     const budget = options.budget ?? new StyleBudget();
+    for (const kind of readAnnotations(snapshot).skipped) {
+        notes.add(STYLE_ISSUE.ANNOTATION_SKIPPED, "graph", "annotations", { sample: kind });
+    }
     const canonical = readStyleValues(importer, snapshot, report, { notes, budget, signal });
     const fingerprint = styleFingerprint(snapshot);
     const blockText = canonical?.block ?? graphValue(snapshot, STYLE_BLOCK_NAME);
@@ -121,7 +125,10 @@ export function extractStyles(
                 canonical?.opacityInColor === true,
             );
             if (fromBlock !== null) {
-                return fromBlock;
+                const skipped = notes.list();
+                return skipped.length === 0
+                    ? fromBlock
+                    : { ...fromBlock, styles: { ...fromBlock.styles, notes: [...fromBlock.styles.notes, ...skipped] } };
             }
             notes.add(STYLE_ISSUE.BLOCK_IGNORED, null, null, { sample: "INVALID" });
         } else {

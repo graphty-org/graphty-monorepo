@@ -34,6 +34,7 @@ export const STYLE_NOTE_WORDS: Readonly<Record<ImportStyleCode, string>> = {
     W_STYLE_EXTRA_LABELS: "An element has more than one label; the first is shown",
     W_STYLE_INHERIT_COLOR: "An edge color taken from its ends could not be kept",
     W_STYLE_NOT_CARRIED: "A style graphty has no counterpart for was not kept",
+    W_STYLE_ANNOTATION_SKIPPED: "An annotation of a kind graphty does not draw (an image, say) was left out",
     W_STYLE_BAD_MAPPING: "A mapping in the file could not be read",
     W_STYLE_MAPPING_COLUMN_MISSING: "A mapping reads a column the file does not have",
     W_STYLE_REFERENCE_CYCLE: "Styles in the file refer to each other in a loop; the rest were read",

@@ -345,9 +345,9 @@ async function setupShowcase(): Promise<void> {
     }
 
     // Load persisted keys
-    const loadPersistedKey = (): void => {
+    const loadPersistedKey = async (): Promise<void> => {
         try {
-            keyManager.enablePersistence({
+            await keyManager.enablePersistence({
                 encryptionKey: PERSISTENCE_KEY,
                 storage: "localStorage",
             });
@@ -382,7 +382,7 @@ async function setupShowcase(): Promise<void> {
 
         // Load persisted key for cloud providers
         if (isCloud) {
-            loadPersistedKey();
+            void loadPersistedKey();
         }
     };
 
@@ -536,7 +536,7 @@ async function setupShowcase(): Promise<void> {
 
                     // Save key if requested
                     if (ui.rememberKeyCheckbox?.checked && ui.apiKeyInput) {
-                        keyManager.enablePersistence({
+                        await keyManager.enablePersistence({
                             encryptionKey: PERSISTENCE_KEY,
                             storage: "localStorage",
                         });

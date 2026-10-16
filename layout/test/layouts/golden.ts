@@ -9,6 +9,18 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import type { LayoutResult } from "../../src";
+import { rescaleInPlace } from "../../src/positions";
+
+/**
+ * Golden rows put through the rescale every one-shot layout ends with: centred on their mean, the farthest at 1.
+ * @param rows - the golden rows in node-index order
+ * @returns the rescaled rows
+ */
+export function rescaledRows(rows: number[][]): number[][] {
+    const dim = rows[0]?.length ?? 2;
+    const flat = rescaleInPlace(Float64Array.from(rows.flat()), dim);
+    return rows.map((_, i) => Array.from(flat.subarray(dim * i, dim * (i + 1))));
+}
 
 /**
  * The golden fixtures of one test file.

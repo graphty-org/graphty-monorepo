@@ -6,6 +6,23 @@ import { Graph } from "../../helpers/legacy-graph.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 import { directedFixtures, undirectedFixtures } from "./port-fixtures.js";
 
+/**
+ * Whether one of the first `max` iterates equals `want` to 1e-9.
+ * @param iterate - The scores after a given number of passes
+ * @param want - The scores to find
+ * @param max - The last pass to try
+ * @returns True when some iterate matches
+ */
+function someIterateMatches(iterate: (passes: number) => ArrayLike<number>, want: number[], max: number): boolean {
+    for (let passes = 1; passes <= max; passes++) {
+        const got = iterate(passes);
+        if (want.every((value, u) => Math.abs(got[u] - value) < 1e-9)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 describe("indexed.katzCentrality", () => {
     it("gives an undirected four-cycle four equal scores", () => {
         const g = new Graph({ directed: false });
@@ -60,15 +77,18 @@ describe("indexed.katzCentrality", () => {
         s.validate({ checksum: true });
     });
 
-    it("weighted: true scales a neighbour's contribution by the arc weight", () => {
+    it("reads the arc weights by default and scales a neighbour's contribution by them", () => {
         const g = new Graph({ directed: true });
         g.addEdge("u", "x", 3);
         g.addEdge("v", "y", 1);
         const s = checksummedSnapshot(g);
-        const weighted = katzCentrality(s, { weighted: true, normalized: false, maxIterations: 1 });
+        const weighted = katzCentrality(s, { normalized: false, maxIterations: 1 });
         // x gains 0.1 * 3 * 1, y gains 0.1 * 1 * 1, over the shared base of beta = 1.
         expect(weighted.scores[1] - 1).toBeCloseTo(3 * (weighted.scores[3] - 1), 12);
-        const unweighted = katzCentrality(s, { normalized: false, maxIterations: 1 });
+        expect([...katzCentrality(s, { weighted: true, normalized: false, maxIterations: 1 }).scores]).toEqual([
+            ...weighted.scores,
+        ]);
+        const unweighted = katzCentrality(s, { weighted: false, normalized: false, maxIterations: 1 });
         expect(unweighted.scores[1]).toBeCloseTo(unweighted.scores[3], 12);
         s.validate({ checksum: true });
     });
@@ -76,16 +96,16 @@ describe("indexed.katzCentrality", () => {
     for (const { name, graph } of [...undirectedFixtures(), ...directedFixtures()]) {
         it(`agrees with the legacy katzCentrality on ${name}`, () => {
             const s = checksummedSnapshot(graph);
-            // Both sides run the same loop -- alpha * sum(neighbour scores) + beta, stopped by the
-            // largest single-node change -- so they differ only in the order the neighbours are summed
-            // in: the legacy side walks an insertion-ordered Map, the port walks a row sorted by node
-            // index. That is a floating-point difference, not an algorithmic one.
+            // Both sides run the same loop -- alpha * sum(neighbour scores) + beta, unweighted -- and differ in
+            // the order the neighbours are summed in (a floating-point difference) and in where they stop: the
+            // legacy side at the largest single-node change below the tolerance, the port at the summed change
+            // below nodeCount * tolerance. So the legacy answer is one of the port's iterates.
             for (const options of [{}, { alpha: 0.05, beta: 0.5, normalized: false }, { maxIterations: 3 }]) {
-                const ported = katzCentrality(s, options);
                 const legacy = legacyResult() as CentralityResult;
-                for (let u = 0; u < s.nodeCount; u++) {
-                    expect(ported.scores[u]).toBeCloseTo(legacy[String(s.ids.idOf(u))], 9);
-                }
+                const want = Array.from({ length: s.nodeCount }, (_, u) => legacy[String(s.ids.idOf(u))]);
+                const iterate = (passes: number): ArrayLike<number> =>
+                    katzCentrality(s, { ...options, weighted: false, maxIterations: passes, tolerance: 0 }).scores;
+                expect(someIterateMatches(iterate, want, options.maxIterations ?? 100), name).toBe(true);
             }
             s.validate({ checksum: true });
         });

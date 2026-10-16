@@ -21,6 +21,7 @@
 import { type F32, type GraphSnapshot, INVALID_INDEX, type NumericVector } from "@graphty/graph-format";
 import { type TestContext } from "vitest";
 
+import { bellmanFord } from "../../src/algorithms/bellman-ford.js";
 import { breadthFirstSearch } from "../../src/algorithms/bfs.js";
 import { sssp, type SsspTuning, ssspWithTuning } from "../../src/algorithms/sssp.js";
 import { MAX_LEVELS_PER_SUBMIT } from "../../src/constants.js";
@@ -335,6 +336,21 @@ describe("sssp (design 8.4 / 9.7; P8-T9)", () => {
         );
         ctx.release(weighted);
     }, 300_000);
+
+    it("weighted: false on a weighted snapshot is the breadth-first route, for sssp and bellmanFord, and it overrides a weights override too", async (t) => {
+        const ctx = await context(t);
+        const weighted = snapshotOf(weightedEdges(gridEdges(30, 30), "integer", 2), { label: "sssp-weighted-false" });
+        expect(weighted.flags.allWeightsOne).toBe(false);
+        const depths = depthsAsDist(bfsOracle(weighted, 0).depth);
+        const hops = await sssp(ctx, weighted, 0, { weighted: false });
+        expectBitwiseEqual(hops.dist, depths, "sssp weighted: false vs the depths");
+        const twos = new Float32Array(weighted.arcCount).fill(2);
+        const ignored = await sssp(ctx, weighted, 0, { weighted: false, weights: twos });
+        expectBitwiseEqual(ignored.dist, depths, "sssp weighted: false with an override vs the depths");
+        const bf = await bellmanFord(ctx, weighted, 0, { weighted: false });
+        expectBitwiseEqual(bf.dist, depths, "bellmanFord weighted: false vs the depths");
+        ctx.release(weighted);
+    });
 
     it("weights overrides (PD-22): an F64 vector differing from the column on the weighted grid; an integer U32 vector on the unweighted path and an F32 one on the unweighted grid, bitwise the f32 oracle's on that vector and NOT the depths (the option is never dropped when the snapshot's own flags say unit weights); a short vector is E_INVALID_ARGUMENT { argument: 'weights' }", async (t) => {
         const ctx = await context(t);

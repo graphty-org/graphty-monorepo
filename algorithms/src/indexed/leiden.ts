@@ -5,13 +5,14 @@ import { mulberry32 } from "../utils/math-utilities.js";
 import { type LabelResult, withGroups } from "./components.js";
 import { exactEdgeWeights } from "./label-propagation.js";
 import { modularity } from "./modularity.js";
+import type { WeightedOptions } from "./weights.js";
 
 /**
  * Options of the index-based Leiden. The names and defaults are the legacy `leiden`'s, but
  * `maxIterations` counts something else: see below.
  * @public
  */
-export interface LeidenOptions {
+export interface LeidenOptions extends WeightedOptions {
     /** Resolution gamma: above 1 favours smaller communities; default 1. */
     readonly resolution?: number | undefined;
     /** Seed of the visit orders; default 42. */
@@ -364,13 +365,14 @@ function pass(
 
 /**
  * The snapshot's edge weights as f64 (the exact ones when it keeps them, 1 for an unweighted
- * snapshot), checked to be finite and non-negative.
+ * snapshot or with `weighted` false), checked to be finite and non-negative.
  * @param s - The snapshot
+ * @param weighted - False to give every edge weight 1
  * @returns One weight per edge
  * @throws RangeError for a negative, NaN or infinite weight
  */
-function checkedEdgeWeights(s: GraphSnapshot): F64 {
-    const given = exactEdgeWeights(s) ?? s.edgeList().weights;
+function checkedEdgeWeights(s: GraphSnapshot, weighted: boolean): F64 {
+    const given = weighted ? (exactEdgeWeights(s) ?? s.edgeList().weights) : null;
     const edgeW = given === null ? new Float64Array(s.edgeCount).fill(1) : Float64Array.from(given);
     for (let e = 0; e < edgeW.length; e++) {
         const w = edgeW[e];
@@ -421,7 +423,7 @@ export function leiden(s: GraphSnapshot, options: LeidenOptions = {}): LeidenRes
         throw withCode(new RangeError(`randomSeed must be a finite integer, got ${randomSeed}`), "E_BAD_OPTION");
     }
     const n = s.nodeCount;
-    const base = levelOf(s, checkedEdgeWeights(s));
+    const base = levelOf(s, checkedEdgeWeights(s, options.weighted !== false));
     let m2 = 0;
     for (let u = 0; u < n; u++) {
         m2 += base.deg[u];

@@ -10,6 +10,7 @@ import {
 
 import { withCode } from "../errors.js";
 import { walkPredArcs, walkPredEdges } from "./dijkstra.js";
+import { refuseWeights } from "./weights.js";
 
 /** Result of the index-based BFS (graph-format design 14.2 Port 1). @public */
 export interface BfsResult {
@@ -170,6 +171,7 @@ export function checkArcOrder(g: AdjacencyView, arcOrder: U32 | undefined): U32 
  * @public
  */
 export function breadthFirstSearch(g: AdjacencyView, startNode: NodeRef, options: BfsOptions = {}): BfsResult {
+    refuseWeights("breadthFirstSearch", options);
     const start = checkStart(g, startNode);
     const { nodeCount, rowPtr, colIdx } = g;
     const arcOrder = checkArcOrder(g, options.arcOrder);
@@ -273,6 +275,7 @@ export function directionOptimizedBfs(
     sourceNode: NodeRef,
     options: DirectionOptimizedBfsOptions = {},
 ): BfsResult {
+    refuseWeights("directionOptimizedBfs", options);
     const source = checkStart(s, sourceNode);
     const { nodeCount, rowPtr, colIdx } = s;
     // Beamer's alpha of 15 assumes a bottom-up step finds a parent within a fifteenth of the

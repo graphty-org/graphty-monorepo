@@ -12,15 +12,16 @@ import { mulberry32 } from "../utils/math-utilities.js";
 import { crossingEdges, edgeCapacities, type MinCutResult, sidesPartition } from "./flow.js";
 import { IndexedMaxHeap } from "./structures/max-heap.js";
 import { IntUnionFind } from "./structures/union-find.js";
+import type { WeightedOptions } from "./weights.js";
 
 /** Options of {@link stoerWagner}. @public */
-export interface StoerWagnerOptions {
+export interface StoerWagnerOptions extends WeightedOptions {
     /** Per-arc weight override, arcCount long; without it the snapshot's weights (1 when unweighted). */
     readonly weights?: NumericVector | undefined;
 }
 
 /** Options of {@link kargerMinCut}. @public */
-export interface KargerOptions {
+export interface KargerOptions extends WeightedOptions {
     /** Independent contraction trials; the lightest cut found wins. Default 100. */
     readonly iterations?: number | undefined;
     /** Seed of the edge orders; one seed gives one result, bit for bit. Default 42. */
@@ -47,7 +48,7 @@ export interface KargerOptions {
  */
 export function stoerWagner(s: GraphSnapshot, options: StoerWagnerOptions = {}): MinCutResult {
     const n = s.nodeCount;
-    const capacity = edgeCapacities(s, options.weights);
+    const capacity = edgeCapacities(s, options);
     if (n < 2) {
         const side = makeMask(n, true);
         return { ...sidesPartition(side, n), cutValue: 0, side, cutEdges: new Uint32Array(0) };
@@ -163,7 +164,7 @@ export function kargerMinCut(s: GraphSnapshot, options: KargerOptions = {}): Min
         throw withCode(new RangeError(`randomSeed must be a finite integer, got ${randomSeed}`), "E_BAD_OPTION");
     }
     const n = s.nodeCount;
-    const capacity = edgeCapacities(s, options.weights);
+    const capacity = edgeCapacities(s, options);
     if (n < 2) {
         const side = makeMask(n);
         return { ...sidesPartition(side, n), cutValue: 0, side, cutEdges: new Uint32Array(0) };

@@ -1,6 +1,7 @@
 import type { F32, F64, GraphSnapshot, NumericVector } from "@graphty/graph-format";
 
 import { withCode } from "../errors.js";
+import { readsWeights } from "./weights.js";
 
 /** Options of the index-based PageRank (graph-format design 14.2 Port 3). @public */
 export interface PageRankOptions {
@@ -8,15 +9,19 @@ export interface PageRankOptions {
     readonly dampingFactor?: number | undefined;
     /** Iteration cap; default 100. */
     readonly maxIterations?: number | undefined;
-    /** Convergence tolerance on the per-iteration change; default 1e-6. */
+    /**
+     * Convergence tolerance; default 1e-6. The run stops at the first iteration whose summed (L1) change over all
+     * nodes is below `tolerance`. The scores sum to 1, so that is a change of `tolerance` relative to the whole
+     * vector, the rule HITS and `@graphty/webgpu-graph-algorithms` follow too.
+     */
     readonly tolerance?: number | undefined;
-    /** Use the snapshot's arc weights; default false. */
+    /** Weight each link by its arc weight when the snapshot has weights; default true. `false` ignores them. */
     readonly weighted?: boolean | undefined;
     /** Starting rank per node index, normalised to sum 1 (when the sum is positive); default uniform. */
     readonly initialRanks?: F32 | F64 | undefined;
     /**
-     * How the per-iteration change is measured against `tolerance`: `"l1"` (default) sums it over
-     * all nodes, `"max"` takes the largest single-node change, the legacy `pageRank` rule.
+     * How the per-iteration change is measured: `"l1"` (default) sums it over all nodes; `"max"` takes the largest
+     * single-node change. Either is compared with `tolerance`.
      */
     readonly convergenceNorm?: "l1" | "max" | undefined;
 }
@@ -82,7 +87,7 @@ function run(s: GraphSnapshot, p: F64 | null, o: PageRankOptions): PageRankResul
         return { scores: new Float64Array(0), iterations: 0, converged: true };
     }
     const rev = s.reverse();
-    const weighted = o.weighted === true && rev.weights !== null;
+    const weighted = readsWeights(rev, o.weighted);
     // The f64 shadow toSnapshot keeps when a weight is not f32-exact, else the f32 arc weights.
     const shadow = weighted ? s.edges.byRole("weight") : null;
     const exact = shadow?.dtype === "f64" ? shadow.data : null;

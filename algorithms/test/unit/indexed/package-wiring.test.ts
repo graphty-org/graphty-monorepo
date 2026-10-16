@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import * as pkg from "../../../src/index.js";
+import * as indexed from "../../../src/indexed/index.js";
 
 // process.cwd(), not import.meta.url: the default project runs under happy-dom, which rewrites
 // import.meta.url to an http: URL (test/helpers/performance-regression.ts:46 locates its file the same way).
@@ -27,13 +28,14 @@ describe("graph-format wiring", () => {
     });
 });
 
-describe("the 3.0 barrel at run time", () => {
-    it("exports every algorithm at the top level, and the deprecated indexed namespace holds the same functions", () => {
-        const names = Object.keys(pkg.indexed);
+describe("the barrel at run time", () => {
+    it("exports every algorithm at the top level, and no longer the indexed namespace", () => {
+        const names = Object.keys(indexed);
         expect(names.length).toBeGreaterThan(60);
         for (const name of names) {
-            expect(pkg[name as keyof typeof pkg], name).toBe(pkg.indexed[name as keyof typeof pkg.indexed]);
+            expect(pkg[name as keyof typeof pkg], name).toBe(indexed[name as keyof typeof indexed]);
         }
+        expect("indexed" in pkg).toBe(false);
     });
 
     it("no longer exports the 2.x Graph class, its bridge or the CSR helpers", () => {

@@ -365,7 +365,10 @@ describe("the scene grows with styles and nodes, not with edges", () => {
                     await graph.setViewMode("2d");
                 }
 
-                await styleEveryEdge(graph, { "edge.arrowHead": "none", ...style.set });
+                // The width the triangle budget was measured at: a patterned line places one
+                // element per period, and the period grows with the width, so the 3.0 default
+                // (4.5) would draw about 1.8 times the elements of the 1.x and 2.x default (8).
+                await styleEveryEdge(graph, { "edge.arrowHead": "none", "edge.width": 8, ...style.set });
                 await frame();
                 // A second frame, so a style that places its geometry on the first update (a curve,
                 // a pattern that sizes its run to the line's length) has been placed.

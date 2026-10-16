@@ -5,10 +5,14 @@ import {
     maskTest,
     type NodeResolvable,
     type NodeSet,
+    type NumericVector,
     resolveNodeSet,
+    type U32,
 } from "@graphty/graph-format";
 
 import { withCode } from "../errors.js";
+import { IndexedMinHeap } from "./structures/min-heap.js";
+import { readsWeights } from "./weights.js";
 
 /** Options of the index-based node betweenness. @public */
 export interface BetweennessOptions {
@@ -30,6 +34,11 @@ export interface BetweennessOptions {
      * accelerator the drawn sources, so both paths run the same ones. With `sources` it must equal `sources.length`.
      */
     readonly k?: number | undefined;
+    /**
+     * Measure path length by edge weight when the snapshot has weights; default true. `false` counts hops. A weight
+     * must be finite and not negative.
+     */
+    readonly weighted?: boolean | undefined;
 }
 
 /** Options of the index-based edge betweenness. @public */
@@ -45,6 +54,8 @@ export interface EdgeBetweennessOptions {
      * 0. Girvan-Newman removes edges this way without building a new snapshot.
      */
     readonly alive?: EdgeMask | undefined;
+    /** Measure path length by edge weight when the snapshot has weights; default true. See {@link BetweennessOptions.weighted}. */
+    readonly weighted?: boolean | undefined;
 }
 
 /** Scores per node index from an exact, non-iterative computation. @public */
@@ -231,6 +242,220 @@ function accumulate(
 }
 
 /**
+ * Whether a weighted search skips an arc: a self-loop, or an edge the mask drops.
+ * @param s - The snapshot
+ * @param alive - Kept edges, or null for all
+ * @param u - The arc's row
+ * @param a - The arc
+ * @returns True when the arc is skipped
+ */
+function skipsArc(s: GraphSnapshot, alive: EdgeMask | null, u: number, a: number): boolean {
+    return s.colIdx[a] === u || (alive !== null && !maskTest(alive, s.arcToEdge[a]));
+}
+
+/**
+ * The arcs a weighted search follows: for each neighbour of a row, the lightest alive arc to it, the first in row
+ * order on a tie. Parallel edges are one neighbour relation at the weight of the lightest, as they are one relation
+ * in the breadth-first search.
+ * @param s - The snapshot
+ * @param weights - Its per-arc weights
+ * @param alive - Kept edges, or null for all
+ * @returns Row pointers into `arcs`, and the arc indices
+ */
+function lightestArcs(
+    s: GraphSnapshot,
+    weights: NumericVector,
+    alive: EdgeMask | null,
+): { readonly rowPtr: U32; readonly arcs: U32 } {
+    const { nodeCount: n, colIdx } = s;
+    const rowPtr = new Uint32Array(n + 1);
+    const arcs = new Uint32Array(s.arcCount);
+    let k = 0;
+    for (let u = 0; u < n; u++) {
+        const rowStart = k;
+        for (let a = s.rowPtr[u], end = s.rowPtr[u + 1]; a < end; a++) {
+            if (skipsArc(s, alive, u, a)) {
+                continue;
+            }
+            if (k > rowStart && colIdx[arcs[k - 1]] === colIdx[a]) {
+                if (weights[a] < weights[arcs[k - 1]]) {
+                    arcs[k - 1] = a;
+                }
+            } else {
+                arcs[k++] = a;
+            }
+        }
+        rowPtr[u + 1] = k;
+    }
+    return { rowPtr, arcs: arcs.subarray(0, k) };
+}
+
+/** The arrays one weighted Brandes pass works in, reused from source to source. */
+interface WeightedSearch {
+    readonly colIdx: U32;
+    readonly arcToEdge: U32;
+    /** Row pointers into `arcs`, the lightest arc to each neighbour. */
+    readonly rowPtr: U32;
+    readonly arcs: U32;
+    readonly weights: NumericVector;
+    readonly dist: F64;
+    readonly sigma: F64;
+    readonly delta: F64;
+    /** The nodes in the order Dijkstra settles them. */
+    readonly order: U32;
+    readonly heap: IndexedMinHeap;
+}
+
+/**
+ * Dijkstra from one source: settle the nodes in distance order and count the shortest paths to each.
+ * @param ws - The search arrays
+ * @param source - The source node
+ * @returns How many nodes were settled
+ */
+function settleByWeight(ws: WeightedSearch, source: number): number {
+    const { colIdx, rowPtr, arcs, weights, dist, sigma, order, heap } = ws;
+    let tail = 0;
+    dist[source] = 0;
+    sigma[source] = 1;
+    heap.push(source, 0);
+    while (!heap.isEmpty()) {
+        const v = heap.pop();
+        order[tail++] = v;
+        for (let k = rowPtr[v], end = rowPtr[v + 1]; k < end; k++) {
+            const a = arcs[k];
+            const w = colIdx[a];
+            const d = dist[v] + weights[a];
+            if (d < dist[w]) {
+                dist[w] = d;
+                sigma[w] = sigma[v];
+                heap.pushOrDecrease(w, d);
+            } else if (d === dist[w]) {
+                sigma[w] += sigma[v];
+            }
+        }
+    }
+    return tail;
+}
+
+/**
+ * Add to `v`'s dependency the share of each successor on a shortest path, and the same share to the edge sums.
+ * @param ws - The search arrays
+ * @param v - A settled node whose successors are done
+ * @param edge - Edge sums, or null
+ */
+function gatherDependency(ws: WeightedSearch, v: number, edge: F64 | null): void {
+    const { colIdx, arcToEdge, rowPtr, arcs, weights, dist, sigma, delta } = ws;
+    for (let k = rowPtr[v], end = rowPtr[v + 1]; k < end; k++) {
+        const a = arcs[k];
+        const w = colIdx[a];
+        if (dist[v] + weights[a] === dist[w]) {
+            const c = (sigma[v] / sigma[w]) * (1 + delta[w]);
+            delta[v] += c;
+            if (edge !== null) {
+                edge[arcToEdge[a]] += c;
+            }
+        }
+    }
+}
+
+/**
+ * Walk the settled nodes back from the farthest, adding each one's dependency to the node and edge sums, then clear
+ * the arrays for the next source.
+ * @param ws - The search arrays, as {@link settleByWeight} left them
+ * @param source - The source node
+ * @param tail - How many nodes were settled
+ * @param node - Node sums, or null
+ * @param edge - Edge sums, or null
+ * @param endpoints - Count path ends on the path (node sums only)
+ */
+function addDependencies(
+    ws: WeightedSearch,
+    source: number,
+    tail: number,
+    node: F64 | null,
+    edge: F64 | null,
+    endpoints: boolean,
+): void {
+    const { dist, sigma, delta, order } = ws;
+    for (let i = tail - 1; i >= 0; i--) {
+        const v = order[i];
+        gatherDependency(ws, v, edge);
+        if (node !== null && v !== source) {
+            node[v] += endpoints ? delta[v] + 1 : delta[v];
+        }
+    }
+    if (node !== null && endpoints) {
+        node[source] += tail - 1;
+    }
+    for (let i = 0; i < tail; i++) {
+        const v = order[i];
+        dist[v] = Infinity;
+        sigma[v] = 0;
+        delta[v] = 0;
+    }
+}
+
+/**
+ * Brandes' accumulation with Dijkstra in place of the breadth-first search: the same sums as {@link accumulate},
+ * with path length measured by weight. A node lies on a path when the path's weights add up exactly, as NetworkX
+ * tests it.
+ * @param s - The snapshot
+ * @param weights - Its per-arc weights, finite and not negative
+ * @param sources - Source node indices
+ * @param node - Node sums, or null
+ * @param edge - Edge sums, or null
+ * @param alive - Kept edges, or null for all
+ * @param endpoints - Count path ends on the path (node sums only)
+ */
+function accumulateWeighted(
+    s: GraphSnapshot,
+    weights: NumericVector,
+    sources: readonly number[],
+    node: F64 | null,
+    edge: F64 | null,
+    alive: EdgeMask | null,
+    endpoints: boolean,
+): void {
+    const n = s.nodeCount;
+    const ws: WeightedSearch = {
+        colIdx: s.colIdx,
+        arcToEdge: s.arcToEdge,
+        ...lightestArcs(s, weights, alive),
+        weights,
+        dist: new Float64Array(n).fill(Infinity),
+        sigma: new Float64Array(n),
+        delta: new Float64Array(n),
+        order: new Uint32Array(n),
+        heap: new IndexedMinHeap(n, true),
+    };
+    for (const source of sources) {
+        addDependencies(ws, source, settleByWeight(ws, source), node, edge, endpoints);
+    }
+}
+
+/**
+ * The weights a betweenness call measures paths by, or null to count hops: none when the snapshot has no weights,
+ * under `weighted: false`, or when every weight is 1 (hops give the same paths).
+ * @param s - The snapshot
+ * @param weighted - The caller's `weighted` option
+ * @param label - The function name, for the message
+ * @returns The per-arc weights, or null
+ * @throws RangeError with code `E_BAD_WEIGHT` for a negative, infinite or NaN weight
+ */
+function pathWeights(s: GraphSnapshot, weighted: boolean | undefined, label: string): NumericVector | null {
+    if (!readsWeights(s, weighted) || s.flags.allWeightsOne || s.weights === null) {
+        return null;
+    }
+    if (!s.flags.nonNegativeWeights || !s.flags.finiteWeights) {
+        throw withCode(
+            new RangeError(`${label}: weights must be finite and not negative; pass weighted: false to count hops`),
+            "E_BAD_WEIGHT",
+        );
+    }
+    return s.weights;
+}
+
+/**
  * Halve on an undirected snapshot (each unordered pair was counted from both ends) and divide by `factor` when
  * normalising and it is positive.
  * @param s - The snapshot
@@ -250,13 +475,13 @@ function scale(s: GraphSnapshot, scores: F64, normalized: boolean | undefined, f
 }
 
 /**
- * Node betweenness centrality by Brandes' algorithm: breadth-first, so weights are ignored, as in the legacy
- * `betweennessCentrality`, whose scores this equals on every graph it can hold. A sampled run (`sources` or `k`)
- * is the UNSCALED sum over the sources run, as the WebGPU accelerator reports it.
+ * Node betweenness centrality by Brandes' algorithm: shortest paths by edge weight (Dijkstra) when the snapshot has
+ * weights, by hops (breadth-first) otherwise or under `weighted: false`. A sampled run (`sources` or `k`) is the
+ * UNSCALED sum over the sources run, as the WebGPU accelerator reports it.
  * @param s - The snapshot
- * @param options - Normalisation, endpoints and sampling
+ * @param options - Normalisation, endpoints, sampling and weights
  * @returns One score per node index; `iterations` is the number of sources run
- * @throws RangeError for a bad `sources` or `k`
+ * @throws RangeError for a bad `sources` or `k`, or a negative or non-finite weight
  * @public
  */
 export function betweennessCentrality(s: GraphSnapshot, options: BetweennessOptions = {}): BetweennessResult {
@@ -264,13 +489,20 @@ export function betweennessCentrality(s: GraphSnapshot, options: BetweennessOpti
     const sources = resolveSources(s, options.sources, options.k);
     const scores = new Float64Array(n);
     const endpoints = options.endpoints === true;
-    accumulate(s, sources, scores, null, null, endpoints);
+    const weights = pathWeights(s, options.weighted, "betweennessCentrality");
+    if (weights === null) {
+        accumulate(s, sources, scores, null, null, endpoints);
+    } else {
+        accumulateWeighted(s, weights, sources, scores, null, null, endpoints);
+    }
     const divisor = scale(s, scores, options.normalized, endpoints ? n * (n - 1) : (n - 1) * (n - 2));
     return { scores, iterations: sources.length, converged: true, divisor };
 }
 
 /**
- * Edge betweenness centrality by Brandes' algorithm, one score per logical edge.
+ * Edge betweenness centrality by Brandes' algorithm, one score per logical edge, with paths measured as
+ * {@link betweennessCentrality} measures them. Weighted, a pair joined by parallel edges is credited through its
+ * lightest alive edge.
  *
  * On a directed snapshot an edge's score equals the legacy `edgeBetweennessCentrality` value keyed
  * `"source-target"`. On an undirected one it is the number of pairs whose shortest paths cross the edge in
@@ -279,7 +511,8 @@ export function betweennessCentrality(s: GraphSnapshot, options: BetweennessOpti
  * @param s - The snapshot
  * @param options - Normalisation, sampling and the alive-edge mask
  * @returns One score per logical edge
- * @throws RangeError for a bad `sources` or `k`, or an `alive` mask shorter than the edge count
+ * @throws RangeError for a bad `sources` or `k`, an `alive` mask shorter than the edge count, or a negative or
+ * non-finite weight
  * @public
  */
 export function edgeBetweennessCentrality(s: GraphSnapshot, options: EdgeBetweennessOptions = {}): EdgeScoresResult {
@@ -292,7 +525,13 @@ export function edgeBetweennessCentrality(s: GraphSnapshot, options: EdgeBetween
         );
     }
     const scores = new Float64Array(s.edgeCount);
-    accumulate(s, resolveSources(s, options.sources, options.k), null, scores, alive, false);
+    const sources = resolveSources(s, options.sources, options.k);
+    const weights = pathWeights(s, options.weighted, "edgeBetweennessCentrality");
+    if (weights === null) {
+        accumulate(s, sources, null, scores, alive, false);
+    } else {
+        accumulateWeighted(s, weights, sources, null, scores, alive, false);
+    }
     const divisor = scale(s, scores, options.normalized, (n - 1) * (n - 2));
     return { scores, divisor };
 }

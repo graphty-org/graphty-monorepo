@@ -85,7 +85,7 @@ console.log(Array.from(paths.pathTo(c), (i) => graph.ids.idOf(i))); // ["a", "b"
 // PageRank centrality
 const ranks = pageRank(graph);
 const byId = graph.ids.toMap(ranks.scores); // a Map of node id -> rank
-console.log(byId.get("c")?.toFixed(3)); // 0.521
+console.log(byId.get("c")?.toFixed(3)); // 0.552: the edge weights are read; pageRank(graph, { weighted: false }) gives 0.521
 ```
 
 ### Graphs You Already Have

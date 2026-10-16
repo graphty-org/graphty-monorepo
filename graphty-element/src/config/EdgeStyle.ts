@@ -66,7 +66,14 @@ export const EdgeLineTypes = z.enum([
 const LineStyle = z.strictObject({
     type: EdgeLineTypes.optional(),
     animationSpeed: z.number().min(0).optional(),
-    /** 0 draws no line; the arrow caps and the label are still drawn (Edge.createLine). */
+    /**
+     * The line's thickness, in world units scaled by 40: a width of 40 is one world unit, the
+     * space nodes are sized and placed in. Every line type (solid, patterned, bezier, animated,
+     * 2D and 3D) draws the same width at the same thickness. Being a world length, a line grows
+     * and shrinks with zoom like a node, and in 3D thins with distance only by ordinary
+     * perspective; it does not taper beyond that. 0 draws no line; the arrow caps and the label
+     * are still drawn (Edge.createLine).
+     */
     width: z.number().nonnegative().optional(),
     /**
      * How many pattern elements (dots, dashes, ...) to draw along a patterned edge.

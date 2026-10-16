@@ -331,9 +331,8 @@ describe("compared with Cytoscape's built-in algorithms", () => {
         const raw = cy.elements().graphtyClosenessCentrality();
         expect(raw.closeness("#b")).toBe(1 / 2);
         expect(raw.score("#a")).toBe(1 / 3);
-        // `normalized` scales by the fraction of the other nodes reached (Wasserman and Faust), which is 1 on a
-        // connected graph; it is not NetworkX's (n - 1) / sum.
-        const ours = cy.elements().graphtyClosenessCentrality({ normalized: true });
+        // "per-other-node" divides by the n - 1 other nodes: r / sum / (n - 1), here 2 / 2 / 2.
+        const ours = cy.elements().graphtyClosenessCentrality({ normalization: "per-other-node" });
         expect(ours.closeness("#b")).toBe(1 / 2);
         expect(cy.elements().graphtyNodeClosenessCentrality({ root: "#a" })).toBe(1 / 3);
         expect(cy.$("#a, #b, #e0").graphtyNodeClosenessCentrality({ root: "#a", weight: "w" })).toBe(1);

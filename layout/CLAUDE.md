@@ -17,7 +17,7 @@ layout/
 │   ├── algorithms/
 │   │   └── optimization/     # L-BFGS, line search, Kamada-Kawai solver
 │   ├── types/                # Node, Edge, Graph (the duck type toLayoutSnapshot reads), PositionMap
-│   └── utils/                # NumPy-like helpers, the seeded generator, the deprecated rescaleLayout (use rescaleInPlace)
+│   └── utils/                # NumPy-like helpers and the seeded generator
 ├── test/                     # Vitest tests; test/layouts/ per layout family, test/types/ compile-only
 └── stories/                  # Storybook stories, one per layout
 ```
@@ -58,12 +58,11 @@ by the tests only.
 ## Layouts
 
 `src/indexed/` holds every layout (graph-format design 14.3), exported from the barrel at the top level
-(`circular`, `forceAtlas2`, ...) and, until 3.0.0, through the deprecated `indexed` namespace, which is the same
-functions. Every public function has the same signature, `(snapshot: GraphSnapshot, options?: XOptions) => LayoutResult`: node
+(`circular`, `forceAtlas2`, ...); the 1.x `indexed` namespace is gone since 3.0.0. Every public function has the same signature, `(snapshot: GraphSnapshot, options?: XOptions) => LayoutResult`: node
 indices in, a flat `dim`-stride `Float32Array` in node-index order out. Options that name nodes take indices, a
 `NodeMask` or a node column name, never ids. The fifteen: `arf`, `bfs`, `bipartite`, `circular`, `forceAtlas2`,
 `fruchtermanReingold`, `grid`, `kamadaKawai`, `multipartite`, `planar`, `radial`, `random`, `shell`, `spectral`,
-`spiral`. `test/types/exports.test-d.ts` pins each signature, the `indexed` namespace's member list and the
+`spiral`. `test/types/exports.test-d.ts` pins each signature and the
 absence of every name 2.0.0 removed; a changed parameter list, options type or return type fails the test run
 (vitest `typecheck`, with `tsconfig.types.json`).
 
@@ -79,7 +78,7 @@ absence of every name 2.0.0 removed; a changed parameter list, options type or r
   end of their budget, then rescale.
 - `kamada-kawai.ts`: `kamadaKawai` computes its distance matrix over the CSR (or takes `dist`) and runs the existing
   solver.
-- `arf.ts`: `arf` is its own loop, unrescaled, as networkx has it.
+- `arf.ts`: `arf` is its own loop, as networkx has it, then rescaled like every one-shot layout.
 
 ### Golden fixtures
 

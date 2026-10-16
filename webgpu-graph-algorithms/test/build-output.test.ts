@@ -151,13 +151,13 @@ describe("package.json (contract 2.1)", () => {
         // dependent's range against the dependency's CURRENT version before bumping it and refuses a range that
         // excludes it, so ^1.7.0 committed alongside the seam failed the release that would have cut 1.7.0. 2.0.0 removed
         // the positional layouts and kept the seam unchanged, so both majors are accepted; the same check passes
-        // before (1.x current) and after the 2.0.0 bump.
-        expect(packageJson.peerDependencies["@graphty/layout"]).toBe("^1.7.0 || ^2.0.0");
+        // before (1.x current) and after the 2.0.0 bump. 3.0.0 removed deprecated exports only, so it is accepted too.
+        expect(packageJson.peerDependencies["@graphty/layout"]).toBe("^1.7.0 || ^2.0.0 || ^3.0.0");
         expect(packageJson.devDependencies["@graphty/layout"]).toBe("workspace:^");
         // algorithms 3.0.0 removed the legacy Graph API and kept the accelerator seam, the only thing this package
         // imports from it, so 1.x, 2.x and 3.x are all accepted; the range holds the current version before and after
-        // the 3.0.0 bump, as nx release requires.
-        expect(packageJson.peerDependencies["@graphty/algorithms"]).toBe("^1.0.0 || ^2.0.0 || ^3.0.0");
+        // the 3.0.0 bump, as nx release requires. 4.0.0 changed defaults, not the seam, so it is accepted too.
+        expect(packageJson.peerDependencies["@graphty/algorithms"]).toBe("^1.0.0 || ^2.0.0 || ^3.0.0 || ^4.0.0");
         expect(packageJson.devDependencies.webgpu).toBe("0.6.1");
         expect(packageJson.devDependencies["@vitest/browser-playwright"]).toBeTypeOf("string");
         expect(packageJson.devDependencies.playwright).toBeTypeOf("string");

@@ -15,9 +15,10 @@ import { type LabelResult, withGroups } from "./components.js";
 import { arcWeightsOf, exactEdgeWeights } from "./label-propagation.js";
 import { modularity } from "./modularity.js";
 import { IntUnionFind } from "./structures/union-find.js";
+import type { WeightedOptions } from "./weights.js";
 
 /** Options of the index-based Girvan-Newman, matching the legacy `girvanNewman`. @public */
-export interface GirvanNewmanOptions {
+export interface GirvanNewmanOptions extends WeightedOptions {
     /** Stop once a level has at least this many communities of `minCommunitySize` or more nodes. */
     readonly maxCommunities?: number | undefined;
     /** Communities smaller than this do not count towards `maxCommunities`; default 1. */
@@ -65,7 +66,8 @@ function aliveComponents(s: GraphSnapshot, alive: EdgeMask): { labels: U32; coun
  * connected components after each round as one level of a dendrogram.
  *
  * Edges are deleted by clearing bits of an alive mask over logical edges that the edge betweenness
- * reads, so no graph is rebuilt. Betweenness is unweighted, as in the legacy function; a pair of
+ * reads, so no graph is rebuilt. Betweenness counts hops, as in the legacy function and NetworkX's default (a weight
+ * is a strength to modularity and would be a length to betweenness); a pair of
  * nodes joined by parallel edges is one neighbour relation whose share goes to the first alive
  * parallel, so the parallels are deleted one round at a time. Modularity reads the edge weights,
  * the exact f64 ones when the snapshot keeps them, with graph-format's `weightedDegree()` rule (a
@@ -93,7 +95,7 @@ export function girvanNewman(s: GraphSnapshot, options: GirvanNewmanOptions = {}
     const minCommunitySize = options.minCommunitySize ?? 1;
     const maxIterations = options.maxIterations ?? 100;
     const { nodeCount: n, edgeCount } = s;
-    const weights = arcWeightsOf(s, exactEdgeWeights(s));
+    const weights = options.weighted === false ? null : arcWeightsOf(s, exactEdgeWeights(s));
     const alive = makeMask(edgeCount, true);
     const levels: U32[] = [];
     const scores: number[] = [];
@@ -102,7 +104,7 @@ export function girvanNewman(s: GraphSnapshot, options: GirvanNewmanOptions = {}
         const { labels, count } = aliveComponents(s, alive);
         levels.push(labels);
         counts.push(count);
-        scores.push(modularity(s, labels, weights === null ? {} : { weights }));
+        scores.push(modularity(s, labels, weights === null ? { weighted: false } : { weights }));
         const sizes = new Uint32Array(count);
         for (let u = 0; u < n; u++) {
             sizes[labels[u]]++;
@@ -111,7 +113,7 @@ export function girvanNewman(s: GraphSnapshot, options: GirvanNewmanOptions = {}
     };
     record();
     for (let round = 0; round < maxIterations && maskCount(alive, edgeCount) > 0; round++) {
-        const betweenness = edgeBetweennessCentrality(s, { alive }).scores;
+        const betweenness = edgeBetweennessCentrality(s, { alive, weighted: false }).scores;
         let max = -Infinity;
         for (let e = 0; e < edgeCount; e++) {
             if (maskTest(alive, e) && betweenness[e] > max) {

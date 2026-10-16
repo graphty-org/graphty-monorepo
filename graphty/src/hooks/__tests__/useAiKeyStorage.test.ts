@@ -3,7 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Create mock ApiKeyManager instance
 const createMockApiKeyManager = () => ({
-    enablePersistence: vi.fn(),
+    ready: vi.fn().mockResolvedValue(undefined),
+    enablePersistence: vi.fn().mockResolvedValue(undefined),
     disablePersistence: vi.fn(),
     isPersistenceEnabled: vi.fn().mockReturnValue(false),
     setKey: vi.fn(),
@@ -46,6 +47,28 @@ describe("useAiKeyStorage", () => {
     afterEach(() => {
         vi.clearAllMocks();
         sessionStorage.clear();
+    });
+
+    it("reports ready only after the manager has restored an earlier page's keys", async () => {
+        let finishRestore = (): void => undefined;
+        mockApiKeyManagerInstance.ready.mockReturnValue(
+            new Promise<undefined>((resolve) => {
+                finishRestore = () => resolve(undefined);
+            }),
+        );
+        const { useAiKeyStorage } = await import("../useAiKeyStorage");
+        const { result } = renderHook(() => useAiKeyStorage());
+        await waitFor(() => expect(MockApiKeyManager).toHaveBeenCalled());
+        expect(result.current.isReady).toBe(false);
+
+        mockApiKeyManagerInstance.getConfiguredProviders.mockReturnValue(["openai"]);
+        await act(async () => {
+            finishRestore();
+            await Promise.resolve();
+        });
+
+        await waitFor(() => expect(result.current.isReady).toBe(true));
+        expect(result.current.configuredProviders).toEqual(["openai"]);
     });
 
     it("initializes with default state", async () => {

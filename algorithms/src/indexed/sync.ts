@@ -3,6 +3,7 @@ import type { F64, GraphSnapshot, U32 } from "@graphty/graph-format";
 import { withCode } from "../errors.js";
 import { mulberry32 } from "../utils/math-utilities.js";
 import { withGroups } from "./components.js";
+import { refuseWeights } from "./weights.js";
 
 /** Options of the index-based SynC clustering, matching the legacy `syncClustering`. @public */
 export interface SyncClusteringOptions {
@@ -305,6 +306,7 @@ function sameLabels(labels: U32, previousLabels: U32): boolean {
  * @returns Assignments, embeddings and convergence
  */
 export function syncClustering(s: GraphSnapshot, options: SyncClusteringOptions): SyncClusteringResult {
+    refuseWeights("syncClustering", options);
     const {
         numClusters,
         maxIterations = 1000,

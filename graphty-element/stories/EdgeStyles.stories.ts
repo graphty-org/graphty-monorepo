@@ -228,16 +228,16 @@ export const Width: Story = {
         // broken" at another -- it flips at a canvas 736px wide, which is inside the ordinary
         // range of a desktop window.
         //
-        // Divided by the span, the same readings are 55.9, 56.6, 57.0, 57.1 and 58.0 at canvas
-        // widths 668, 968, 1168, 1200 and 1668 -- a spread of 3.6% over a 2.5x range of canvas.
-        // The element's own width of 8 draws 12.0 to 14.0 by the same reading and this story asks
-        // for 40, so the floor of 30 sits between the two with about 1.9x of room on either side.
+        // Divided by the span, the reading no longer depends on the canvas: `line.width` is in
+        // world units, so the line's thickness and its length are both world lengths drawn at the
+        // same scale. The element's own width (4.5) draws about 13 by this reading and this story
+        // asks for 40, about 115, so the floor of 30 sits well clear of both.
         const ink = await pixelsOfColour(scene, "#a9a9a9");
         const span = edgeSpanPx(scene, "A", "B");
 
         await holds(
             ink / span > 30,
-            `Styles/Edge Width: this story asks for a line five times the element's own width and the canvas ` +
+            `Styles/Edge Width: this story asks for a line far wider than the element's own and the canvas ` +
                 `holds ${String(ink)} pixels of line over a span of ${span.toFixed(0)}px, which is ` +
                 `${(ink / span).toFixed(1)} pixels of ink for every pixel of line -- where the element's own ` +
                 `width draws about 13`,
@@ -1970,12 +1970,10 @@ const movingTextureOf = (scene: Drawn, source: string): Texture | null => {
 /**
  * How thick one animated edge is actually drawn, in world units.
  *
- * AN ANIMATED LINE IS THE ONE LINE IN THE PACKAGE WHOSE WIDTH IS IN WORLD UNITS. Every other
- * line is expanded in a vertex shader by a width in screen pixels, which is the unit `edge.width`
- * is written in; a greased line takes scene units instead. The two are not interchangeable, and
- * handing the pixel number over unconverted drew the element's own width of 8 as a band eight
- * scene units thick -- on a graph ten units across, a slab taller than the graph that swallowed
- * every other edge. The story below asserts this reading against the gap between its own two
+ * AN ANIMATED LINE IS DRAWN BY A GREASED LINE, which takes its width in world units already
+ * converted from `edge.width` (`lineWidthInWorldUnits`). Handing it the style's number
+ * unconverted once drew a width of 8 as a band eight scene units thick -- on a graph ten units
+ * across, a slab taller than the graph that swallowed every other edge. The story below asserts this reading against the gap between its own two
  * edges, which is the smallest thing a line can be too thick for.
  * @param scene - What the story drew.
  * @param source - The id of the node the edge starts at.

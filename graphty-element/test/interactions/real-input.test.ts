@@ -312,6 +312,20 @@ describe("the mouse", () => {
             assert.isBelow(atOld, 20, "no halo is left behind where the drag began");
         });
 
+        it("a wheel turn on two axes reaches input:wheel once", async () => {
+            const element = await mounted(viewMode);
+            let wheels = 0;
+            element.addEventListener("input:wheel", () => {
+                wheels++;
+            });
+
+            // A trackpad turn: Babylon raises one POINTERWHEEL per changed axis (issue #2937)
+            await wheel(element, EMPTY, 100, 10);
+            await applied(element);
+
+            assert.strictEqual(wheels, 1, "one wheel turn is one input:wheel");
+        });
+
         it("pointing at a node reports the hover", async () => {
             const element = await mounted(viewMode);
             const hovered: unknown[] = [];

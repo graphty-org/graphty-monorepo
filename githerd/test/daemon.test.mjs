@@ -12,6 +12,7 @@ import { TOOL_PROTOCOL, TOOLS } from "../lib/mcp.mjs";
 /** What every session's MCP server says about itself on a call: the tool protocol it speaks. */
 const META = { githerd: { protocol: TOOL_PROTOCOL } };
 import { notifyCommandProblem, PROTOCOL, startDaemon } from "../lib/daemon.mjs";
+import { GitHubError } from "../lib/github.mjs";
 import { containerStart, identify } from "../lib/proc.mjs";
 import { masterRefs } from "../lib/queue.mjs";
 import { readHistory } from "../lib/stats.mjs";
@@ -1366,6 +1367,23 @@ describe("the poll loop", () => {
         expect(beats.some((b) => b.includes("poll failing: 2026-10-02T12:00:00.000Z owners: boom"))).toBe(true);
         expect(beats.at(-1)).toContain("last complete poll: 2026-10-02T12:09:00.000Z");
         expect(beats.at(-1)).not.toContain("poll failing");
+    });
+
+    it("pages nobody when polls fail only on an error githerd waits out (the hourly budget)", async () => {
+        const daemon = await start({
+            peers: {
+                ownerFacts: async () => {
+                    throw new GitHubError("rate", "read call held back: 20 core calls left, below 300");
+                },
+            },
+        });
+        for (const at of ["12:00", "12:03", "12:06"]) {
+            clock = new Date(`2026-10-02T${at}:00Z`);
+            await poll(daemon);
+        }
+        expect(daemon.state.github.lastError).toContain("held back");
+        expect(daemon.state.ownerItems?.["poll-failing"]).toBeUndefined();
+        expect(pages().filter((p) => p.message.includes("poll is failing"))).toEqual([]);
     });
 
     it("keeps its ETags in etags.json, so a restarted daemon asks conditionally", async () => {

@@ -258,6 +258,10 @@ export class UpdateManager implements Manager {
     private appliedShowContext = false;
     private appliedAnything = false;
 
+    /** The node and edge sets (`DataManager.nodeVersion`, `edgeVersion`) the masks were applied to. */
+    private appliedNodeSet = NO_MASK_VERSION;
+    private appliedEdgeSet = NO_MASK_VERSION;
+
     /**
      * The nodes and edges the last pass drew as selected. A pass where only the selection moved
      * un-selects these and selects the mask's members, so its cost is the size of the two
@@ -377,9 +381,11 @@ export class UpdateManager implements Manager {
     /**
      * Forget which mask versions the meshes are in line with, so the next pass writes all of them.
      *
-     * Call this when the render objects have changed under the masks -- a dataset load, a clear, a
-     * 2D/3D switch -- because the versions would otherwise say "nothing moved" about elements that
-     * are not the elements those versions were measured against.
+     * The pass calls this itself whenever a node or edge render object was added or removed --
+     * a load, a clear, an undo -- because a new object starts drawn and unselected whatever the
+     * masks say, and a mask's version does not move when it merely grows by rows outside the set
+     * (issue #2953). A 2D/3D switch needs nothing: it rebuilds the meshes of the same objects,
+     * and each one puts its own render state back on its new mesh.
      */
     invalidateViewMasks(): void {
         this.appliedNodeSelection = NO_MASK_VERSION;
@@ -387,6 +393,20 @@ export class UpdateManager implements Manager {
         this.appliedNodeVisibility = NO_MASK_VERSION;
         this.appliedEdgeVisibility = NO_MASK_VERSION;
         this.appliedAnything = false;
+        this.drawnSelectedNodes.clear();
+        this.drawnSelectedEdges.clear();
+    }
+
+    /**
+     * Invalidate the masks when the set of render objects has changed since they were applied.
+     */
+    private followElementSets(): void {
+        const { nodeVersion, edgeVersion } = this.dataManager;
+        if (nodeVersion !== this.appliedNodeSet || edgeVersion !== this.appliedEdgeSet) {
+            this.invalidateViewMasks();
+            this.appliedNodeSet = nodeVersion;
+            this.appliedEdgeSet = edgeVersion;
+        }
     }
 
     /**
@@ -423,6 +443,7 @@ export class UpdateManager implements Manager {
         // highlighted. Returning early here instead would freeze the last answer on screen after
         // an unbind, which is the one state nobody asked for.
         const masks = this.viewMasks ?? EMPTY_MASKS;
+        this.followElementSets();
 
         const nodeSelection = masks.selection?.nodes() ?? null;
         const edgeSelection = masks.selection?.edges() ?? null;
@@ -663,6 +684,7 @@ export class UpdateManager implements Manager {
      */
     private viewMasksPending(): boolean {
         const masks = this.viewMasks ?? EMPTY_MASKS;
+        this.followElementSets();
         const { nodesMoved, edgesMoved } = this.viewMasksMoved(
             masks.selection?.nodes().version ?? NO_MASK_VERSION,
             masks.selection?.edges().version ?? NO_MASK_VERSION,

@@ -325,14 +325,14 @@ none.
 
 ### `pajek`
 
-|           |                                                                                                   |
-| --------- | ------------------------------------------------------------------------------------------------- |
-| Read from | Pajek 6.02                                                                                        |
-| Lengths   | the program's relative size factor                                                                |
-| Nodes     | `shape` `ellipse`, `opacity` `1`                                                                  |
-| Edges     | `color` `#000000`, `lineStyle` `solid`, `opacity` `1`, `sourceArrow` `none`, `targetArrow` `none` |
-| Graph     | none                                                                                              |
-| Rules     | directed edges get a `triangle` arrow at their target                                             |
+|           |                                                                                                                                |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Read from | Pajek 6.02                                                                                                                     |
+| Lengths   | the program's relative size factor                                                                                             |
+| Nodes     | `shape` `ellipse`, `opacity` `1`, `borderColor` `#000000`, `borderWidth` `1`, `labelColor` `#000000`, `labelPosition` `center` |
+| Edges     | `color` `#000000`, `width` `1`, `lineStyle` `solid`, `opacity` `1`, `sourceArrow` `none`, `targetArrow` `none`                 |
+| Graph     | none                                                                                                                           |
+| Rules     | directed edges get a `triangle` arrow at their target                                                                          |
 
 ### `ogdf`
 

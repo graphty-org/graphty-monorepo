@@ -672,7 +672,7 @@ function inRuleOrder(
  * The scene units one unit of each kind of length channel is drawn as in 2D, so every length of a
  * file can be put in one unit.
  */
-const SCENE_PER_UNIT = {
+export const SCENE_PER_UNIT = {
     /** `node.size`, its width and height and `node.borderWidth`: NODE_EXTENT_PER_SIZE (meshes/NodeMesh.ts). */
     node: 1.5,
     /** `edge.width`: a 2D line is `width / 40` scene units wide (meshes/EdgeMesh.ts). */

@@ -20,8 +20,8 @@
             "edgeWidth": 1,
             "lineStyle": 1,
             "arrows": 1,
-            "edgePath": 1,
-            "selfLoops": 0,
+            "edgePath": 0.9824561403508771,
+            "selfLoops": 1,
             "edgeLabel": 1
         },
         "graphml-open-archaeo": {
@@ -105,14 +105,14 @@
             "edgeOpacity": 1,
             "lineStyle": 0.9854014598540146,
             "arrows": 0.9854014598540146,
-            "selfLoops": 0,
+            "selfLoops": 0.9545454545454546,
             "edgeLabel": 1,
             "background": 1
         },
         "xgmml-syn-bypass": {
             "position": 0,
             "size": 0,
-            "shape": 0.9836065573770492,
+            "shape": 1,
             "fill": 0.9508196721311475,
             "fillOpacity": 0.9508196721311475,
             "borderColor": 0.9508196721311475,

@@ -494,11 +494,13 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
     if (batch !== null) {
         const slots = internal.lineSlots;
         const flat = (batch.mesh.metadata as { is2DLine?: boolean } | null)?.is2DLine === true;
-        if (internal.lineIsCurve) {
-            // a run of slots: a curve, or straight segments through the line's bends
-            world = edge.drawnCurve ?? [];
+        const run = edge.drawnCurve;
+        if (run !== null) {
+            // a run of slots: a curve, straight segments through the line's bends, or a self-loop
+            // or a fanned parallel edge, which are arcs whatever the style
+            world = run;
             const straight = flat ? "line-2d" : "screen-line";
-            kind = internal.drawnStyle?.line?.bezier === true ? "curve" : straight;
+            kind = internal.drawnStyle?.line?.bezier === true || !internal.lineIsCurve ? "curve" : straight;
         } else {
             world = slots.length > 0 ? batch.endsOf(slots[0]) : [];
             kind = flat ? "line-2d" : "screen-line";

@@ -17,7 +17,7 @@ import { blockStyles, parseStyleBlock } from "./block.js";
 export type ElementValues = (property: string) => StyleValue | null;
 
 /** The block's values of a property, one per element. */
-export type BlockValues = (target: StyleTarget, property: string) => readonly (StyleValue | null)[];
+type BlockValues = (target: StyleTarget, property: string) => readonly (StyleValue | null)[];
 
 /**
  * The values a `graphty.styles` block gives every element, worked out once per property.
@@ -58,7 +58,7 @@ export function elementValues(
 }
 
 /** One target's round trip, as a format describes it. */
-export interface RoundTrip {
+interface RoundTrip {
     /** The values the reader read, per property; a property whose values change gets a new array. */
     readonly values: Partial<Record<string, StyleColumn>>;
     /** The properties compared with the block's. */

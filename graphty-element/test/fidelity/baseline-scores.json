@@ -40,7 +40,7 @@
     "graphml-yed-voctomix": {
         "position": 1,
         "size": 1,
-        "shape": 0.8205128205128205,
+        "shape": 1,
         "fill": 1,
         "fillOpacity": 1,
         "borderColor": 1,
@@ -63,7 +63,7 @@
     "xgmml-basicdataviz": {
         "position": 1,
         "size": 1,
-        "shape": 0.9939577039274925,
+        "shape": 1,
         "fill": 1,
         "fillOpacity": 1,
         "borderWidth": 1,
@@ -84,7 +84,7 @@
     "cx-ndex-90f78bcd": {
         "position": 1,
         "size": 1,
-        "shape": 0,
+        "shape": 1,
         "fill": 1,
         "fillOpacity": 1,
         "borderColor": 1,
@@ -107,7 +107,7 @@
     "cx2-ndex-90f78bcd": {
         "position": 1,
         "size": 1,
-        "shape": 0,
+        "shape": 1,
         "fill": 1,
         "fillOpacity": 1,
         "borderColor": 1,
@@ -154,7 +154,7 @@
     "gml-yed-pmodel": {
         "position": 1,
         "size": 1,
-        "shape": 0.05555555555555555,
+        "shape": 1,
         "fill": 1,
         "fillOpacity": 1,
         "borderColor": 1,
@@ -213,7 +213,7 @@
     "cyjs-glycolysis": {
         "position": 1,
         "size": 1,
-        "shape": 0.7727272727272727,
+        "shape": 1,
         "fill": 1,
         "fillOpacity": 1,
         "borderWidth": 1,

@@ -485,7 +485,16 @@ function channelPlans(
             ["borderStyle", [table("node.borderStyle", BORDER_STYLES, BORDER_STYLES_NEAREST)]],
             ["label", [id("node.label")]],
             ["tooltip", [id("node.tooltip")]],
-            ["shape", [table("node.shape", shapeTable, new Set(shapeTable.keys()))]],
+            [
+                "shape",
+                [
+                    table(
+                        "node.shape",
+                        shapeTable,
+                        new Set([...shapeTable].filter(([from, to]) => from !== to).map(([from]) => from)),
+                    ),
+                ],
+            ],
             ["labelColor", [label("labelColor")]],
             ["labelSize", [length("node.labelSize", factors.label)]],
             ["labelFont", [label("labelFont")]],

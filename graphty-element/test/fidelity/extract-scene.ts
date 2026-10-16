@@ -42,7 +42,7 @@ import type { DrawnEdge, DrawnGraph, DrawnNode, ScreenBox } from "./drawn-scene"
  */
 export const GRAPHTY_GAPS: readonly { property: Property; reason: string }[] = [];
 
-/** graphty-element's 3D node shapes, as the 2D class a reader sees from above. */
+/** graphty-element's node shapes, as the 2D class a reader sees from above. */
 const SHAPES: ReadonlyMap<string, ShapeClass> = new Map<string, ShapeClass>([
     ["sphere", "ellipse"],
     ["icosphere", "ellipse"],
@@ -58,6 +58,16 @@ const SHAPES: ReadonlyMap<string, ShapeClass> = new Map<string, ShapeClass>([
     ["hexagonal_prism", "hexagon"],
     ["dodecahedron", "octagon"],
     ["icosahedron", "star"],
+    // The flat shapes, drawn exactly.
+    ["ellipse", "ellipse"],
+    ["rectangle", "rect"],
+    ["round-rectangle", "roundrect"],
+    ["diamond", "diamond"],
+    ["triangle", "triangle"],
+    ["hexagon", "hexagon"],
+    ["octagon", "octagon"],
+    ["star", "star"],
+    ["parallelogram", "parallelogram"],
 ]);
 
 /** The node mesh names that are shapes; a mesh built under another name is read by its node's shape. */

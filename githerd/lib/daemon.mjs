@@ -2135,6 +2135,8 @@ export async function startDaemon({
         /** @type {string[]} the steps that threw, with their errors */
         const failed = [];
         let waitsOnly = true;
+        /** @type {number | undefined} the latest time a waited-out error said to call again */
+        let retryAt;
         /**
          * Runs one step, recording an error instead of throwing it.
          * @param {string} name the step's name, for the error
@@ -2145,7 +2147,9 @@ export async function startDaemon({
                 await fn();
             } catch (err) {
                 failed.push(`${name}: ${/** @type {Error} */ (err).message}`);
-                if (!WAIT_KINDS.has(/** @type {any} */ (err)?.kind)) waitsOnly = false;
+                const e = /** @type {any} */ (err);
+                if (!WAIT_KINDS.has(e?.kind)) waitsOnly = false;
+                if (e?.retryAt) retryAt = Math.max(retryAt ?? 0, e.retryAt);
             }
         };
         await run("master", async () => {
@@ -2257,7 +2261,7 @@ export async function startDaemon({
             });
         }
         // A step that threw may not have re-raised what still holds: nothing derived is cleared.
-        if (failed.length) throw Object.assign(new Error(failed.join("; ")), { waitsOnly });
+        if (failed.length) throw Object.assign(new Error(failed.join("; ")), { waitsOnly, retryAt });
         for (const key of board.resolveDerived(state, (esc) => holding.has(esc.key), t)) {
             void ledger({ kind: "escalation", key, resolved: true, by: "daemon" });
         }
@@ -3509,7 +3513,7 @@ export async function startDaemon({
             say("error", `poll: ${lastPollError}`);
             void ledger({ kind: "error", where: "poll", error: lastPollError });
             const e = /** @type {any} */ (err);
-            await pollEnded(lastPollError, e.waitsOnly ?? WAIT_KINDS.has(e.kind));
+            await pollEnded(lastPollError, e.waitsOnly ?? WAIT_KINDS.has(e.kind), e.retryAt);
         }
         if (!waited && !state.rate.downSince) await heartbeat({});
     }
@@ -3519,20 +3523,28 @@ export async function startDaemon({
      * error). The second in a row raises the `poll-failing` owner item and pages it at once, since a
      * failing poll may never reach its own owner-item step; the next complete poll ends it. Two, so
      * one transient error pages nobody. A poll that failed only with errors githerd waits out
-     * (`WAIT_KINDS`) is recorded but counts toward no page.
+     * (`WAIT_KINDS`) is recorded but counts toward no page until the time the first of them said to
+     * call again (`state.github.waitUntil`, the rate-limit reset): a wait still failing after it
+     * counts like any other error. One with no such time (a network blip) never counts here; an
+     * outage raises `github-down` instead.
      * @param {string | null} error the poll's error, or null when it completed
      * @param {boolean} [waiting] every error was one githerd waits out
+     * @param {number} [retryAt] when the waited-out errors said to call again (ms since the epoch)
      */
-    async function pollEnded(error, waiting = false) {
+    async function pollEnded(error, waiting = false, retryAt = undefined) {
         const g = state.github;
         const id = "poll-failing";
         if (!error) {
             g.completeAt = loopTickAt;
             g.failing = null;
+            g.waitUntil = null;
             endItem(state, id, "cleared", now());
             return;
         }
-        if (waiting) return;
+        if (waiting) {
+            if (retryAt && !g.waitUntil) g.waitUntil = new Date(retryAt).toISOString();
+            if (!g.waitUntil || Date.parse(loopTickAt) <= Date.parse(g.waitUntil)) return;
+        }
         g.failing ??= { since: loopTickAt, error: firstLine(error), count: 0 };
         g.failing.count += 1;
         if (g.failing.count < 2) return;

@@ -223,15 +223,23 @@ interface KeySection {
 }
 
 /**
- * The color of a one-swatch color highlight, the only kind two blocks of one run merge by.
+ * Whether a block paints the elements a run chose in one fixed style: a highlight, or a run's mark
+ * (an algorithm's suggested route or chosen set), which the element reports as a literal block.
+ * @param block - the block.
+ * @returns true for a highlight or a run's literal block.
+ */
+function isChosenPaint(block: LegendBlock): boolean {
+    return block.kind === "highlight" || (block.kind === "literal" && block.runId !== undefined);
+}
+
+/**
+ * The color of a one-swatch color highlight or mark, the only kind two blocks of one run merge by.
  * @param block - the block.
  * @returns its color, or undefined for any other block.
  */
 function highlightColor(block: LegendBlock): string | undefined {
     const colorChannel = block.channel === "node.color" || block.channel === "edge.color";
-    return block.kind === "highlight" && colorChannel && block.swatches.length === 1
-        ? block.swatches[0].color
-        : undefined;
+    return isChosenPaint(block) && colorChannel && block.swatches.length === 1 ? block.swatches[0].color : undefined;
 }
 
 /**
@@ -347,7 +355,7 @@ export function keyNames(session: GraphSession): KeyNames {
         row: (block) => rowName(session, block),
         entry: (block) => {
             const run = block.runId === undefined ? undefined : session.runs.get(block.runId);
-            if (block.kind === "highlight" && run !== undefined) {
+            if (isChosenPaint(block) && run !== undefined) {
                 return highlightEntry(run.shape);
             }
             return session.styles.get(block.layerId)?.name ?? rowName(session, block);

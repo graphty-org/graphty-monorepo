@@ -1021,6 +1021,16 @@ describe("csvImporter: adjacency tables", () => {
         expect(edgesOf(snapshot)).toEqual(["d->e"]);
     });
 
+    it("records a node or neighbour id that does not coerce and goes on", async () => {
+        const { snapshot, report } = await load("x,1,2\n1,y,2\n", { table: "adjacency", ids: "number" });
+        expect(report.issues.map((i) => [i.code, i.line, i.element])).toEqual([
+            ["E_INVALID_ID", 1, "x"],
+            ["E_INVALID_ID", 2, "y"],
+        ]);
+        expect(report.counts).toMatchObject({ nodes: 2, edges: 1, skippedNodes: 1, skippedEdges: 3 });
+        expect(edgesOf(snapshot)).toEqual(["1->2"]);
+    });
+
     it("keeps a neighbour whose colon tail is not a number as the id", async () => {
         const { snapshot } = await load("a,http://x,b:c\n", { table: "adjacency" });
         expect(snapshot.ids.toArray()).toEqual(["a", "http://x", "b:c"]);

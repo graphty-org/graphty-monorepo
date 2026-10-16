@@ -125,6 +125,35 @@ export class SelectionManager implements Manager {
     }
 
     /**
+     * The selected nodes that are drawn, in selection order.
+     * @returns The nodes.
+     */
+    getSelectedNodes(): Node[] {
+        if (!this.selection) {
+            return [...this.selectedNodes.values()];
+        }
+
+        return this.selection.nodes
+            .map((id) => this.selectedNodes.get(id) ?? this.dataManager?.getNode(id))
+            .filter((node) => node !== undefined);
+    }
+
+    /**
+     * Add a node to the selection, or take it out if it is in: what a shift-click on it means.
+     * @param node - The node.
+     */
+    toggle(node: Node): void {
+        const previousNode = this.getSelectedNode();
+        const selected = this.getSelectedNodes();
+        const others = selected.filter((other) => other.id !== node.id);
+        const nodes = others.length < selected.length ? others : [...others, node];
+
+        this.write(nodes, "user");
+
+        this.eventManager.emitSelectionChanged(previousNode, this.getSelectedNode());
+    }
+
+    /**
      * Check if a specific node is currently selected.
      * @param node - The node to check.
      * @returns True if the node is selected, false otherwise.
@@ -224,7 +253,10 @@ export class SelectionManager implements Manager {
      * @param ids - The ids of the edges that were removed.
      */
     onEdgesRemoved(ids: readonly EdgeId[]): void {
-        if (ids.length === 0) {
+        // With none of these edges selected, there is nothing to take out, and resolving the ids
+        // would freeze the graph: once per removal of a run of them, each over the whole graph
+        // (issues #2733, #2788).
+        if (ids.length === 0 || this.selection?.edgeRemovalChangesNothing(ids) === true) {
             return;
         }
 

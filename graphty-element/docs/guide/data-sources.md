@@ -280,9 +280,8 @@ const element = document.querySelector("graphty-element");
 // positionScale shrinks them to scene units (one unit per fifty pixels suits nodes of size one).
 // Loaded with { styles: "file" } instead, the load scales the positions with the file's node
 // sizes itself, and positionScale stays at 1.
-element.layout = "fixed";
 element.positionScale = 0.02;
-await element.loadFromUrl("https://example.org/sessions/galFiltered.cys");
+await element.loadFromUrl("https://example.org/sessions/galFiltered.cys", { layout: "recommended" });
 
 // The Gene Ontology: about 48,000 terms and 71,000 is_a and part_of relations. The file has no
 // saved drawing, so pick a layout that computes one.
@@ -297,9 +296,10 @@ records under the name the file gave it (`name`, `shared name`, `interaction`, a
 `name`, `namespace`, `def`, `is_obsolete`, ...).
 
 - **Positions.** A node's saved position arrives as `position` on its record and seeds the layout;
-  choose the `fixed` layout to draw a session or a CX2 network exactly as it was saved. Cytoscape
-  writes screen coordinates, whose y grows downward; they are stored with y growing upward, like
-  every other format's, so the drawing is not upside down. Cytoscape's z is a drawing order, kept
+  load with `layout: "recommended"` to draw a session or a CX2 network exactly as it was saved
+  (see [Drawing a file where it was saved](#drawing-a-file-where-it-was-saved)). Cytoscape writes screen coordinates, whose y grows
+  downward; they are stored with y growing upward, like every other format's, so the drawing is
+  not upside down. Cytoscape's z is a drawing order, kept
   as a `z` value on the record; the `zAs: "position"` option makes it the z coordinate instead.
 - **Styles are not imported yet.** A file's visual style rules (mappings, defaults) are reported
   in the load report and not applied; the per-node and per-edge visual values a file holds arrive
@@ -338,6 +338,68 @@ import { detectFormat } from "@graphty/graphty-element/catalog";
 
 detectFormat({ filename: "graph.xml", sample: firstKilobytes }); // "graphml" or "gexf"
 ```
+
+## Drawing a file where it was saved
+
+Many files store where each node was drawn: a GEXF file saved by Gephi, a yEd diagram, a Pajek
+network, Graphviz output, a Cytoscape session. Pass `layout: "recommended"` and the element draws
+each node where the file put it:
+
+```typescript
+const element = document.querySelector("graphty-element");
+
+await element.loadFromUrl("https://example.org/maps/USAir97.net", { layout: "recommended" });
+```
+
+`layout` takes two values:
+
+- `"recommended"`: once the load is in, the element chooses a layout for it. When every node
+  arrived with a position it picks `fixed`, which draws each node at its stored position. When
+  some or none did, it picks a layout that computes a drawing suited to the graph's size and
+  shape.
+- `"keep"` (the default): the layout stays as it is. The stored positions are still where each
+  node starts, so a force layout begins from the file's drawing instead of from random points.
+
+The same option works on every way of loading: `loadFromFile(file, { layout: "recommended" })`,
+`dataSourceConfig = { url, layout: "recommended" }`, and
+`session.data.import({ config: { url } }, { layout: "recommended" })`. Any other value is refused
+with `E_BAD_COMMAND`.
+
+### What the element does with each format
+
+Every format writes coordinates its own way. The element reads them all into one form, each
+node's center with y growing upward, so a drawing is never mirrored or shifted whichever program
+saved it:
+
+| Format                            | Positions read from                           | Unit                                                      | Which way y grows in the file                                              |
+| --------------------------------- | --------------------------------------------- | --------------------------------------------------------- | -------------------------------------------------------------------------- |
+| GEXF                              | `viz:position`                                | the file's own                                            | up                                                                         |
+| GraphML from yEd                  | the node's geometry (a box's top-left corner) | pixels                                                    | down; the corner is moved to the box's center                              |
+| GML                               | `graphics [ x y z ]`                          | pixels                                                    | down, as the GML specification says, unless `Creator` names Gephi or Tulip |
+| Pajek                             | the coordinates after a vertex's label        | the file's own (usually 0 to 1)                           | down; a z of 0.5 on every vertex is a flat drawing                         |
+| DOT                               | `pos`, and a cluster's `bb`                   | points with a root `bb` (Graphviz output), inches without | up                                                                         |
+| XGMML, CX, CX2, Cytoscape session | the network view's node positions             | pixels                                                    | down                                                                       |
+| Cytoscape.js JSON (`elements`)    | each element's `position`                     | pixels                                                    | down                                                                       |
+| Other JSON                        | each node record's `position`                 | the file's own                                            | up                                                                         |
+| CSV, Neo4j CSV, OBO               | not stored                                    |                                                           |                                                                            |
+
+With `layout: "recommended"`, a file with no stored positions gets a computed layout. A file where every node sits on one point
+is treated as having none. Plain `x` and `y` keys in a CSV or JSON file are ordinary values, not
+positions. A JSON node record's `position` may be `{ x, y, z }`, `[x, y]` or `[x, y, z]`; it is
+the node's center.
+
+The element multiplies each stored coordinate by `positionScale` (default 1). It frames the
+camera on the graph after every load, so a drawing in pixels and one in the 0 to 1 range both
+fill the view; change `positionScale` only to change how far apart nodes sit compared with their
+size.
+
+Saving writes each node's current position back the way its format spells it: `exportGraph` to
+GML or Pajek turns y downward again (and puts Pajek's 0.5 back on a 3D drawing's z), divided by
+`positionScale`, so a file loaded and saved is drawn the same way when it is loaded again.
+
+`@graphty/graph-io/positions` is the reader the element uses, and it can be called on its own:
+see [Reading stored positions](https://graphty.app/docs/graph-io/guide/positions) in the
+graph-io guide.
 
 ## Directed or Undirected
 
@@ -461,7 +523,8 @@ These are read by `@graphty/graph-io` too, and each record keeps the keys the fi
   0.1, 0.2 labelled `z`). A DOT node written in several statements has the attributes of all of
   them, the later ones winning, as Graphviz draws it;
 - a DOT cluster subgraph is a node of its own, carrying the cluster's attributes (its `label`,
-  `fillcolor` and so on), and `pos` stays the text the file wrote.
+  `fillcolor` and so on). A node's `pos` stays the text the file wrote, and it and a cluster's `bb`
+  give the record's `position` (see [Drawing a file where it was saved](#drawing-a-file-where-it-was-saved)).
 
 A Cytoscape.js document (an `elements` object or array, as Cytoscape.js and Cytoscape desktop's
 `.cyjs` export write it), a graphology document and a vis.js document are read in their own shape:

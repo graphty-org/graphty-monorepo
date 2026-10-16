@@ -85,10 +85,10 @@ export interface LoadStyleReport {
     /** What reading and translating the file's styles met, as codes and facts. */
     readonly notes: readonly FileStyleNote[];
     /**
-     * What the load multiplied the file's lengths by: its node sizes, edge widths, label sizes
-     * (unless `labelSizes: "file"`) and positions alike, so the drawing keeps the file's
-     * proportions. 1 when the file carries no styles. Positions are also multiplied by the
-     * element's `positionScale`.
+     * The scene units one unit of the file's lengths was drawn as: its node sizes, borders, edge
+     * widths, label sizes (unless `labelSizes: "file"`) and positions alike, so the drawing keeps
+     * the file's proportions. 1 when the file's lengths were kept as they are or it carries no
+     * styles. Positions are also multiplied by the element's `positionScale`.
      */
     readonly lengthScale: number;
 }
@@ -192,7 +192,7 @@ export async function applyFileStyles(
  * @param options - The load's choices.
  * @param ctx - The import's context.
  * @param replacing - Whether the load replaced the graph.
- * @returns The layers made and the notes.
+ * @returns The layers made, the notes and the scale the file's lengths were drawn at.
  */
 async function applyRead(
     outcome: ImportOutcome,
@@ -213,7 +213,7 @@ async function applyRead(
         importId,
         options,
         // A merge draws at the scale the graph's files already have, so one drawing has one scale.
-        ...(held.length > 0 ? { lengthScale: fileLengthScale(store) } : {}),
+        ...(held.length > 0 ? { sceneScale: held[0].lengthScale ?? null } : {}),
         base: baseValues(ctx.state.styles),
         dataPath: dataPaths(read.path),
     });
@@ -237,8 +237,10 @@ async function applyRead(
         }
     }
 
-    const { lengthScale } = translation;
-    const load = { importId, namespace, format: read.format, columns, lengthScale };
+    // Held only when the lengths were scaled, so a merge can tell a kept file from a scaled one.
+    const { sceneScale } = translation;
+    const lengthScale = sceneScale ?? 1;
+    const load = { importId, namespace, format: read.format, columns, ...(sceneScale === null ? {} : { lengthScale }) };
     await ctx.inline({ op: "data.setFileStyles", loads: [...held, load] });
     if (lengthScale !== fileLengthScale(store)) {
         await placeAtScale(ids.node, ctx);

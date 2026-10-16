@@ -51,8 +51,8 @@ export interface FileStyleLoadValues {
     /** Its columns. */
     readonly columns: readonly FileStyleColumnValues[];
     /**
-     * What the load multiplied the file's lengths by: its node sizes, edge widths, label sizes and
-     * positions alike. 1 when absent.
+     * The scene units one unit of the file's lengths was drawn as: its node sizes, edge widths,
+     * label sizes and positions alike. Absent when the load kept the file's lengths as they are.
      */
     readonly lengthScale?: number;
 }
@@ -214,7 +214,7 @@ function holdLoad(load: unknown, at: number): StoredFileStyleLoad {
             namespace,
             format,
             columns: Object.freeze(kept),
-            ...(lengthScale === undefined || lengthScale === 1 ? {} : { lengthScale }),
+            ...(lengthScale === undefined ? {} : { lengthScale }),
         }),
         columns: byKey,
     });

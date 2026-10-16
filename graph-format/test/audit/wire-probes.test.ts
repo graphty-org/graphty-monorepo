@@ -538,7 +538,9 @@ describe("wire probes: open defects", () => {
             ["format = 5n", (w) => ((w.manifest as { format: unknown }).format = 5n)],
             [
                 "formatVersion = Object.create(null)",
-                (w) => ((w.manifest as { formatVersion: unknown }).formatVersion = Object.create(null)),
+                (w) => {
+                    (w.manifest as { formatVersion: unknown }).formatVersion = Object.create(null);
+                },
             ],
             ["meta.idType = 5n", (w) => ((w.manifest.meta as { idType: unknown }).idType = 5n)],
         ];

@@ -388,6 +388,9 @@ const SPACED = JSON.stringify({
     ],
 });
 
+/** The scene units one unit of SPACED is drawn at: its 30-unit median node at the default size 1, 1.5 units across. */
+const SPACED_SCALE = 1.5 / 30;
+
 /**
  * Where a node is drawn.
  * @param session - The session.
@@ -400,30 +403,47 @@ function placed(session: GraphSession, id: string): { x: number; y: number; z: n
     return at;
 }
 
-describe("a file's lengths", () => {
-    for (const lengths of ["median", "file"] as const) {
-        it(`keep the file's proportions with lengths: "${lengths}": a 30-unit node 60 units from its neighbor`, async () => {
-            const session = createGraphSession();
-            await session.data.import(
-                { type: "json", config: { data: SPACED } },
-                { styles: "file", styleOptions: { lengths } },
-            );
-            const scale = session.data.lastImport()?.styles?.lengthScale;
-            assert.strictEqual(scale, lengths === "file" ? 1 : 1 / 30);
+/**
+ * How tall a label's letters are drawn in the scene (see file-style-units.test.ts).
+ * @param sizePx - The label's size.
+ * @returns Scene units.
+ */
+function letters(sizePx: number): number {
+    return (sizePx * sizePx) / (48 * (1.33 * sizePx + 10));
+}
 
-            const size = drawn(session, { node: "a" }, "node.size") as number;
-            const distance = placed(session, "b").x - placed(session, "a").x;
-            assert.closeTo(size / distance, 0.5, 1e-6);
-            // Cytoscape.js's y points down the screen, the element's up.
-            assert.closeTo(-placed(session, "c").y, 60 * (scale ?? Number.NaN), 1e-5);
-            // A label 12 tall is drawn size / 48 units tall, an edge 3 wide width / 40 units wide.
-            const label = drawn(session, { node: "a" }, "node.labelStyle") as { sizePx: number };
-            assert.closeTo(label.sizePx / 48 / size, 12 / 30, 1e-6);
-            const width = drawn(session, { edge: "0" }, "edge.width") as number;
-            assert.closeTo(width / 40 / size, 3 / 30, 1e-6);
-            session.dispose();
-        });
-    }
+describe("a file's lengths", () => {
+    it("keep the file's proportions, positions among them: a 30-unit node 60 units from its neighbor", async () => {
+        const session = createGraphSession();
+        await session.data.import({ type: "json", config: { data: SPACED } }, { styles: "file" });
+        const scale = session.data.lastImport()?.styles?.lengthScale;
+        assert.closeTo(scale ?? Number.NaN, SPACED_SCALE, 1e-12);
+
+        // A node of size 1 is 1.5 scene units across.
+        const across = (drawn(session, { node: "a" }, "node.size") as number) * 1.5;
+        const distance = placed(session, "b").x - placed(session, "a").x;
+        assert.closeTo(across / distance, 0.5, 1e-6);
+        // Cytoscape.js's y points down the screen, the element's up.
+        assert.closeTo(-placed(session, "c").y, 60 * SPACED_SCALE, 1e-5);
+        const label = drawn(session, { node: "a" }, "node.labelStyle") as { sizePx: number };
+        assert.closeTo(letters(label.sizePx) / across, 12 / 30, 1e-6);
+        // An edge is drawn width / 40 scene units wide.
+        const width = drawn(session, { edge: "0" }, "edge.width") as number;
+        assert.closeTo(width / 40 / across, 3 / 30, 1e-6);
+        session.dispose();
+    });
+
+    it('keep the file\'s numbers and positions with lengths: "file", and report a scale of 1', async () => {
+        const session = createGraphSession();
+        await session.data.import(
+            { type: "json", config: { data: SPACED } },
+            { styles: "file", styleOptions: { lengths: "file" } },
+        );
+        assert.strictEqual(session.data.lastImport()?.styles?.lengthScale, 1);
+        assert.strictEqual(drawn(session, { node: "a" }, "node.size"), 30);
+        assert.strictEqual(placed(session, "b").x, 60);
+        session.dispose();
+    });
 
     it('leave label sizes as the file has them with labelSizes: "file", and multiply positions by positionScale', async () => {
         const session = createGraphSession({ config: { data: { knownFields: { positionScale: 2 } } } });
@@ -433,7 +453,7 @@ describe("a file's lengths", () => {
         );
         const label = drawn(session, { node: "a" }, "node.labelStyle") as { sizePx: number };
         assert.strictEqual(label.sizePx, 12);
-        assert.closeTo(placed(session, "b").x, 60 * (1 / 30) * 2, 1e-5);
+        assert.closeTo(placed(session, "b").x, 60 * SPACED_SCALE * 2, 1e-5);
         session.dispose();
     });
 
@@ -442,10 +462,60 @@ describe("a file's lengths", () => {
         await session.data.import({ type: "json", config: { data: SPACED } });
         assert.strictEqual(placed(session, "b").x, 60);
         await session.data.import({ type: "json", config: { data: SPACED } }, { styles: "file" });
-        assert.closeTo(placed(session, "b").x, 2, 1e-5);
+        assert.closeTo(placed(session, "b").x, 60 * SPACED_SCALE, 1e-5);
         await session.undo();
         assert.strictEqual(placed(session, "b").x, 60);
         session.dispose();
+    });
+});
+
+describe("a file's groups (compound nodes)", () => {
+    const zIndex = (session: GraphSession, id: string): unknown => drawn(session, { node: id }, "node.zIndex");
+
+    it("draws every Cytoscape.js compound behind what it holds, an outer one behind an inner one", async () => {
+        const doc = JSON.stringify({
+            elements: [
+                { data: { id: "outer" } },
+                { data: { id: "inner", parent: "outer" } },
+                { data: { id: "a", parent: "inner" } },
+                { data: { id: "b", parent: "inner" } },
+                { data: { id: "c", parent: "outer" } },
+                { data: { id: "free" } },
+                { data: { id: "ab", source: "a", target: "b" } },
+            ],
+            style: [{ selector: "node", style: { "background-color": "#ff0000" } }],
+        });
+        const session = createGraphSession();
+        await session.data.import({ type: "json", config: { data: doc } }, { styles: "file" });
+
+        assert.strictEqual(zIndex(session, "outer"), -2);
+        assert.strictEqual(zIndex(session, "inner"), -1);
+        for (const id of ["a", "b", "c", "free"]) {
+            assert.isUndefined(zIndex(session, id), id);
+        }
+        // Only the groups are painted: the layer that sets it is scoped to them.
+        const layer = winner(session, "outer", "node.zIndex");
+        assert.strictEqual(fileStyleOf(layer as Layer)?.ruleId, "node.groups");
+        session.dispose();
+    });
+
+    it("draws every yEd group node behind its members, and nothing when the file's styles are not drawn", async () => {
+        const voctomix = readFileSync(
+            join(CORPUS, "graphml", "yed-shapenode", "voc__voctomix__schema.graphml"),
+            "utf8",
+        );
+        const styled = createGraphSession();
+        await styled.data.import({ type: "graphml", config: { data: voctomix } }, { styles: "file" });
+        for (const group of ["n0", "n1", "n2", "n3"]) {
+            assert.strictEqual(zIndex(styled, group), -1, group);
+        }
+        assert.isUndefined(zIndex(styled, "n2::n0"));
+
+        const plain = createGraphSession();
+        await plain.data.import({ type: "graphml", config: { data: voctomix } });
+        assert.isUndefined(zIndex(plain, "n2"));
+        styled.dispose();
+        plain.dispose();
     });
 });
 

@@ -241,6 +241,7 @@ import type {
     StatusBarIssuesModel,
     StatusBarSlotsModel,
 } from "./statusbar/statusBarModel";
+import { thresholdFilterSubject } from "./thresholdFilterSubject";
 import { CanvasToolbar, type CanvasToolbarComponentProps } from "./toolbar/CanvasToolbar";
 import { historyRows, undoVerb } from "./topbar/historyRows";
 import { TopBar } from "./topbar/TopBar";
@@ -963,6 +964,16 @@ export interface AppShellProps {
     readonly persist?: boolean;
     /** Whether the store measures the window and follows resizes. Tests turn it off. */
     readonly measureViewport?: boolean;
+}
+
+/**
+ * A value that is present only when a condition holds, for a prop or child that is left out otherwise.
+ * @param when - whether the value applies.
+ * @param value - the value.
+ * @returns the value, or undefined when the condition does not hold.
+ */
+function onlyWhen<T>(when: boolean, value: T): T | undefined {
+    return when ? value : undefined;
 }
 
 /**
@@ -2502,7 +2513,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
      * than leaving the list saying one thing and the canvas showing another.
      *
      * There is no repaint call beside it. The verb repaints; the wrapper that used to do it by
-     * hand existed because the old `addLayer` was a push with a "TODO: recalculate" comment.
+     * hand existed because the old `addLayer` only pushed the layer and never recalculated.
      * @param layerId - the layer to change.
      * @param patch - what to change about it.
      */
@@ -5148,12 +5159,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                       chips: [
                           {
                               id: "threshold",
-                              label: `${
-                                  activeResult?.runId !== undefined &&
-                                  session?.results.path(activeResult.runId) === thresholdFilter.path
-                                      ? activeResult.title
-                                      : "Result"
-                              } above ${formatMetricValue(thresholdFilter.above ?? 0, false)}`,
+                              label: `${thresholdFilterSubject(activeResult, session, thresholdFilter.path)} above ${formatMetricValue(thresholdFilter.above ?? 0, false)}`,
                           },
                       ],
                       controls: (
@@ -5265,19 +5271,19 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
 
     return (
         <>
-            {screenTooSmall ? screenTooSmallOverlay : null}
+            {onlyWhen(screenTooSmall, screenTooSmallOverlay)}
             <Box
                 ref={frameRef}
                 data-testid="app-shell"
                 inert={screenTooSmall}
-                aria-hidden={screenTooSmall ? true : undefined}
+                aria-hidden={onlyWhen(screenTooSmall, true)}
                 style={{
                     height: "100vh",
                     display: "grid",
                     gridTemplateRows: `${TOP_BAR_HEIGHT}px minmax(0, 1fr) ${STATUS_BAR_HEIGHT}px`,
                     gridTemplateColumns: "minmax(0, 1fr)",
                     overflow: "hidden",
-                    visibility: screenTooSmall ? "hidden" : undefined,
+                    visibility: onlyWhen(screenTooSmall, "hidden"),
                 }}
             >
                 {/* The top bar spans the full shell width, above the rail. */}
@@ -5330,7 +5336,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                     <Box data-shell-region="rail" style={{ display: "contents" }}>
                         <ActivityRail
                             activeActivity={panelActivity}
-                            disabledActivities={stateAxis === "empty" ? ACTIVITIES_REQUIRING_DATA : undefined}
+                            disabledActivities={onlyWhen(stateAxis === "empty", ACTIVITIES_REQUIRING_DATA)}
                             onActivityClick={handleActivityClick}
                             helpMenu={{
                                 opened: helpOpen,

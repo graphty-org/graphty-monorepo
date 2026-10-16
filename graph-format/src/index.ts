@@ -26,6 +26,7 @@ export { fromRecords } from "./populate/from-records.js";
 export { renumberPartition } from "./snapshot/derived.js";
 export { equalsTopology, isGraphSnapshot } from "./snapshot/graph-snapshot.js";
 export { expandEdges, foldArcs } from "./snapshot/views.js";
+export { detAcos, detCos, detExp, detHypot, detLog, detPow, detSin } from "./util/det-math.js";
 export {
     makeMask,
     maskAnd,

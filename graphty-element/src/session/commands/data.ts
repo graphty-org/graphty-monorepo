@@ -572,6 +572,27 @@ function importFact(command: DataImportCommand): CodedFact<"data.import"> {
     return { code: "data.import", params: { name: named ?? null, type: type ?? null } };
 }
 
+/**
+ * The import's `layout` choice: the command's own, else the one its source config names (a load
+ * call's options and `dataSourceConfig` carry it there, beside the reader's options).
+ * @param command - the import
+ * @returns `"recommended"` or `"keep"`
+ * @throws A `GraphtyError` with `E_BAD_COMMAND` when the config names any other value.
+ */
+function layoutChoiceOf(command: DataImportCommand): "recommended" | "keep" {
+    const layout = command.layout ?? command.source.config?.layout ?? "keep";
+    if (layout !== "recommended" && layout !== "keep") {
+        throw new GraphtyError({
+            code: "E_BAD_COMMAND",
+            message: `A load's layout is "recommended" or "keep", not ${JSON.stringify(layout)}.`,
+            source: "data",
+            details: { reason: "bad-layout-choice", layout: JSON.stringify(layout) },
+        });
+    }
+
+    return layout;
+}
+
 const dataImport: UndoableDefinition<DataImportCommand> = {
     op: "data.import",
     undo: { kind: "undoable", label: importLabel, fact: importFact },
@@ -588,27 +609,8 @@ const dataImport: UndoableDefinition<DataImportCommand> = {
     byReference: ["config", "held", "measure"],
     closesBaseline: true,
     execute: async (command, ctx) => {
-        if (command.layout === "recommended") {
-            // Chosen for what was loaded, once it is loaded, and merged into the import's step.
-            const advise = ctx.services.layoutAdvice;
-            ctx.after("layout:recommended", (dispatch) => {
-                const advice = advise?.();
-                if (advice !== undefined) {
-                    void dispatch({ op: "layout.set", id: advice.id, engine: advice.engine }).catch(
-                        (error: unknown) => {
-                            // An undo that took the import away cancels this too; anything else is a
-                            // layout the import promised and did not apply.
-                            if ((error as { name?: unknown } | null)?.name !== "AbortError") {
-                                GraphtyLogger.getLogger(["graphty", "data"]).error(
-                                    "The layout recommended for the imported data could not be applied",
-                                    error instanceof Error ? error : new Error(String(error)),
-                                    { layout: advice.id },
-                                );
-                            }
-                        },
-                    );
-                }
-            });
+        if (layoutChoiceOf(command) === "recommended") {
+            adviseLayout(ctx);
         }
 
         const outcome = await serviceOf(ctx.services.data).import(command, ctx.draft, ctx.signal, ctx.after);
@@ -616,6 +618,33 @@ const dataImport: UndoableDefinition<DataImportCommand> = {
         await applyFileStyles(command, outcome ?? null, ctx);
     },
 };
+
+/**
+ * Choose the layout recommended for what an import loads, once it is loaded, merged into the
+ * import's step.
+ * @param ctx - The import's context.
+ */
+function adviseLayout(ctx: UndoableContext): void {
+    const advise = ctx.services.layoutAdvice;
+    ctx.after("layout:recommended", (dispatch) => {
+        const advice = advise?.();
+        if (advice === undefined) {
+            return;
+        }
+
+        void dispatch({ op: "layout.set", id: advice.id, engine: advice.engine }).catch((error: unknown) => {
+            // An undo that took the import away cancels this too; anything else is a
+            // layout the import promised and did not apply.
+            if ((error as { name?: unknown } | null)?.name !== "AbortError") {
+                GraphtyLogger.getLogger(["graphty", "data"]).error(
+                    "The layout recommended for the imported data could not be applied",
+                    error instanceof Error ? error : new Error(String(error)),
+                    { layout: advice.id },
+                );
+            }
+        });
+    });
+}
 
 const dataExpand: UndoableDefinition<DataExpandCommand> = {
     op: "data.expand",

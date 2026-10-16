@@ -76,6 +76,7 @@ import type { ExportStyleLossCode } from "../session/styles/fileStyles/codes";
 import { layersToStyles } from "../session/styles/fileStyles/fromLayers";
 import { asFileStyleStore, FILE_STYLES_VALUE, recordPositionScale } from "../session/styles/fileStyles/store";
 import type { GraphSession } from "../session/types";
+import { writtenPositions } from "./filePositions";
 
 export type { ExportStyleLossCode } from "../session/styles/fileStyles/codes";
 
@@ -310,6 +311,8 @@ interface ExportBuildOptions {
     readonly nodesOnly?: boolean;
     /** Write the graph's styles through the format's style writer. The `styles` option every writer takes; off by default. */
     readonly styles?: boolean;
+    /** The format written, which decides how node coordinates are spelled. */
+    readonly format?: string;
 }
 
 /** A loss note the element raised, with the facts its coded form carries beyond graph-io's. */
@@ -390,6 +393,52 @@ function writeNotes(
             column: NOTE_TEXT,
             count: cut,
         });
+    }
+}
+
+/**
+ * Write each placed node's coordinates into the position column, spelled as the format's writer
+ * expects (see `writtenPositions`). A node no layout has placed yet has no coordinates, not the
+ * origin. The session holds scene units; a file holds file units, which a load multiplies by
+ * positionScale and by the scale its styles were drawn at, so divide here. With styles the file is
+ * written at the drawing's own scale, as its node sizes and edge widths are, so only positionScale
+ * is divided out.
+ * @param builder - The export's builder, its node rows already added.
+ * @param session - The session.
+ * @param count - How many node rows there are.
+ * @param options - The export's choices: the format written, and whether styles are.
+ */
+function writePositions(
+    builder: GraphBuilder,
+    session: GraphSession,
+    count: number,
+    options: ExportBuildOptions,
+): void {
+    const { positions } = session;
+    if (positions.placedCount === 0) {
+        return;
+    }
+
+    const { positionScale } = session.config.data.knownFields;
+    const scale =
+        options.styles === true
+            ? positionScale
+            : recordPositionScale(positionScale, dispatcherOf(session).state.graph.values);
+    const coords = new Float64Array(3 * count).fill(Number.NaN);
+    const at = { x: 0, y: 0, z: 0 };
+    for (let row = 0; row < count; row++) {
+        if (positions.isPlaced(row)) {
+            positions.read(row, at);
+            coords.set([at.x / scale, at.y / scale, at.z / scale], 3 * row);
+        }
+    }
+
+    const written = writtenPositions(options.format, coords);
+    const column = builder.declareNodeColumn(POSITION);
+    for (let row = 0; row < count; row++) {
+        if (!Number.isNaN(written[3 * row])) {
+            builder.setNodeValue(column, row, Array.from(written.subarray(3 * row, 3 * row + 3)));
+        }
     }
 }
 
@@ -475,25 +524,7 @@ export function buildExportSnapshot(
         });
     }
 
-    // A node no layout has placed yet has no coordinates, not the origin. The session holds scene
-    // units; a file holds file units, which a load multiplies by positionScale and by the scale its
-    // styles were drawn at, so divide here. With styles the file is written at the drawing's own
-    // scale, as its node sizes and edge widths are, so only positionScale is divided out.
-    const { positions } = session;
-    if (positions.placedCount > 0) {
-        const column = builder.declareNodeColumn(POSITION);
-        const scale =
-            options.styles === true
-                ? knownFields.positionScale
-                : recordPositionScale(knownFields.positionScale, dispatcherOf(session).state.graph.values);
-        const at = { x: 0, y: 0, z: 0 };
-        nodes.forEach((_record, row) => {
-            if (positions.isPlaced(row)) {
-                positions.read(row, at);
-                builder.setNodeValue(column, row, [at.x / scale, at.y / scale, at.z / scale]);
-            }
-        });
-    }
+    writePositions(builder, session, nodes.length, options);
 
     if (view.nodeStyle !== undefined) {
         const color = builder.declareNodeColumn(NODE_COLOR);
@@ -676,7 +707,7 @@ function writerFor(format: FormatId, options: ExportGraphOptions): ChosenWriter 
         return {
             exporter: builtIn ?? (registered as FormatWriterRegistration).exporter,
             options: resolved,
-            build: { notes: notes === true, styles: styles === true },
+            build: { format, notes: notes === true, styles: styles === true },
         };
     }
 
@@ -688,6 +719,7 @@ function writerFor(format: FormatId, options: ExportGraphOptions): ChosenWriter 
         exporter: neo4j ? neo4jExporter : builtIn,
         options: rest,
         build: {
+            format,
             neutraliseFormulas: neutraliseFormulas !== false,
             notes: notes === true,
             nodesOnly: !neo4j && rest.table === "nodes",

@@ -79,8 +79,10 @@ import {
     inviteStep,
     markMine,
     onboardStep,
+    setExcluded,
     setOffersPaused,
     statusStep,
+    workerSessions,
     tellAccepted,
     tellCancelled,
 } from "./asks.mjs";
@@ -91,9 +93,9 @@ import { createConfigGate, openConfigRevert } from "./config-adopt.mjs";
 import { effectiveMode, MODELS } from "./config.mjs";
 import { updateMainCheckout } from "./main-checkout.mjs";
 import { createGitHub, GitHubError, notSent } from "./github.mjs";
-import { answerHook, staleSpooled, writeNews } from "./hook.mjs";
-import { pollIssues } from "./issues.mjs";
-import { backfillTriaged, syncJobs } from "./jobs.mjs";
+import { answerHook, hookPointer, publishHook, staleSpooled, writeNews } from "./hook.mjs";
+import { pollIssues, pruneClosedIssues } from "./issues.mjs";
+import { backfillTriaged, finishedJobsToPrune, syncJobs, tombstoneOf } from "./jobs.mjs";
 import { checkFaults, confirmClosedWaits, settleWaits, tickJobs, waitNews } from "./advance.mjs";
 import {
     endIdleSessions,
@@ -119,13 +121,21 @@ import { gateLocked, launcherContext, prepareUpdate, reapStaleGate, servherd, ta
 import { doneIo, pollVerifying, recheckRefused } from "./done.mjs";
 import { labelMasterFixes, linkMasterFix } from "./master-fix.mjs";
 import { balanceRefusal, classify, isNoLog, refusedOnly } from "./classify.mjs";
-import { flakePoll, gitBlobs, masterFlakeStep, noteMasterLog, readWorkspace } from "./flakes.mjs";
+import { flakePoll, gitBlobs, masterFlakeStep, noteMasterLog, pruneSettledFlakes, readWorkspace } from "./flakes.mjs";
 import { markShared } from "./shared.mjs";
 import { createIncidentActions, laneNotProgressing } from "./incident-actions.mjs";
 import { releaseFailedSummary, releaseHold } from "./release.mjs";
 import { failureKey, isSummaryJob, notePickups, queueAges } from "./lanes.mjs";
 import { createMcpServer, servedProtocols } from "./mcp.mjs";
-import { accumulateMerged, backfillRefs, commitRefs, landStacked, searchMerged } from "./merged.mjs";
+import {
+    accumulateMerged,
+    backfillRefs,
+    commitRefs,
+    droppableMergedIssues,
+    landStacked,
+    restoreMergedIssues,
+    searchMerged,
+} from "./merged.mjs";
 import { sessionWriteCheck } from "./session-writes.mjs";
 import {
     foldHead,
@@ -137,7 +147,17 @@ import {
     queueChecks,
     readDependencies,
 } from "./merge-status.mjs";
-import { createNotifier, endItem, notePresence, ownerItemsPoll, presentDays, raiseItem } from "./notify.mjs";
+import {
+    createNotifier,
+    droppableItems,
+    endItem,
+    notePresence,
+    notifiedToDrop,
+    ownerItemsPoll,
+    presentDays,
+    raiseItem,
+} from "./notify.mjs";
+import { stallStep, usageBackStep, usageLimitStep } from "./stalls.mjs";
 import {
     activePolicies,
     CONTROL_OPS,
@@ -160,7 +180,7 @@ import {
 } from "./owners.mjs";
 import { attributeTickets, mergeTarget, mergeWhat, ticketCloses } from "./waits.mjs";
 import { liveSessions, registeredSessions, socketTransport } from "./peers.mjs";
-import { advanceProposals, closedTargets, veto } from "./proposals.mjs";
+import { advanceProposals, closedTargets, droppableProposals, proposeSplitParents, veto } from "./proposals.mjs";
 import {
     needsReleaseDryRun,
     newestContexts,
@@ -225,6 +245,12 @@ export const PROTOCOL = 1;
 const GIT_TIMEOUT_MS = 60_000;
 /** GitHub unreachable this long raises a `blocked` escalation. */
 const GITHUB_DOWN_MS = 30 * 60_000;
+/**
+ * GitHub errors githerd waits out on its own: the hourly budget (it resets within the hour), the
+ * secondary limit and a network or DNS blip (an outage of 30 minutes raises `github-down`). The
+ * owner can do nothing about them, so a poll that failed only with these never pages him.
+ */
+const WAIT_KINDS = new Set(["rate", "secondary", "network", "timeout"]);
 /** Largest request body accepted. */
 /** How many handled hook event ids are remembered, to skip a spooled copy of one. */
 const HOOK_IDS = 500;
@@ -293,13 +319,17 @@ const CRITICAL = "priority:critical";
 const OVERRIDES = new Set([NEXT, SKIP, CRITICAL]);
 
 /**
- * The open pull requests and the default branch's head (design section 6.1).
- * ponytail: first 50 PRs only; page with `after` when the open queue grows past 50
+ * The open pull requests and the default branch's head (design section 6.1), one page. GitHub gives
+ * a GraphQL query about 10 s: at 52 open pull requests, one page of 50 with their check contexts
+ * took longer and was answered 504 on nearly every poll (2026-10-14), and a page of 10 took 3 s.
+ * Pages run oldest first: an order by update time moves a pull request updated mid-walk to a page
+ * already read, and it would be missing from that poll.
  */
-const PRS_QUERY = `query($owner: String!, $name: String!) {
+const PRS_QUERY = `query($owner: String!, $name: String!, $first: Int!, $after: String) {
   repository(owner: $owner, name: $name) {
     defaultBranchRef { name target { oid } }
-    pullRequests(states: OPEN, first: 50, orderBy: {field: UPDATED_AT, direction: DESC}) {
+    pullRequests(states: OPEN, first: $first, after: $after, orderBy: {field: CREATED_AT, direction: ASC}) {
+      pageInfo { hasNextPage endCursor }
       nodes {
         id number title body isDraft isCrossRepository createdAt updatedAt headRefName headRefOid baseRefName
         mergeable mergeStateStatus
@@ -324,6 +354,44 @@ const PRS_QUERY = `query($owner: String!, $name: String!) {
     }
   }
 }`;
+
+/** Pull requests per page of PRS_QUERY. */
+const PR_PAGE = 15;
+
+/**
+ * Every open pull request and the default branch, a page of PRS_QUERY at a time. A page GitHub
+ * could not answer in time (a 5xx, a timeout, or a 200 without data) is asked again at half the
+ * size, down to one pull request, before the poll fails.
+ * @param {{graphql: (query: string, vars: Record<string, unknown>, options: {purpose: "essential"}) => Promise<any>}} gh the client
+ * @param {string} owner the repository's owner
+ * @param {string} name the repository's name
+ * @param {number} [first] the page size to start with
+ * @returns {Promise<{defaultBranchRef: any, pullRequests: {nodes: any[]}}>} the repository, every page's nodes in one list
+ */
+export async function openPullRequests(gh, owner, name, first = PR_PAGE) {
+    const nodes = [];
+    let after = null;
+    let repo;
+    for (;;) {
+        let data;
+        try {
+            data = await gh.graphql(PRS_QUERY, { owner, name, first, after }, { purpose: "essential" });
+        } catch (err) {
+            const kind = /** @type {GitHubError} */ (err)?.kind;
+            if (first > 1 && ["server", "timeout", "graphql"].includes(kind ?? "")) {
+                first = Math.ceil(first / 2);
+                continue;
+            }
+            throw err;
+        }
+        repo = data.repository;
+        for (const n of repo.pullRequests.nodes) nodes.push(n);
+        const page = repo.pullRequests.pageInfo;
+        if (!page?.hasNextPage) break;
+        after = page.endCursor;
+    }
+    return { defaultBranchRef: repo.defaultBranchRef, pullRequests: { nodes } };
+}
 
 /**
  * @typedef {(args: string[], options: {cwd: string, env: Record<string, string | undefined>,
@@ -397,15 +465,29 @@ function readOverride(dir) {
 const firstLine = (text) => text.split("\n", 1)[0];
 
 /**
- * Today's next incident id.
+ * Today's next incident id, past every one in the state and the last one dropped from it, so an id
+ * is never given twice.
  * @param {Record<string, any>} incidents the incident records
  * @param {string} iso the current time
+ * @param {string | null | undefined} lastDropped the latest incident id dropped from the state
  * @returns {string} for example inc-20261002-1
  */
-function nextIncidentId(incidents, iso) {
+function nextIncidentId(incidents, iso, lastDropped) {
     const prefix = `inc-${iso.slice(0, 10).replaceAll("-", "")}-`;
-    const used = Object.keys(incidents).filter((id) => id.startsWith(prefix)).length;
-    return `${prefix}${used + 1}`;
+    const used = [...Object.keys(incidents), lastDropped ?? ""]
+        .filter((id) => id.startsWith(prefix))
+        .map((id) => Number(id.slice(prefix.length)));
+    return `${prefix}${Math.max(0, ...used) + 1}`;
+}
+
+/**
+ * An incident id's order: its day, then its number in the day.
+ * @param {string | null | undefined} id for example inc-20261002-1
+ * @returns {number} the rank, -1 for none
+ */
+function incidentRank(id) {
+    const m = /^inc-(\d{8})-(\d+)$/.exec(id ?? "");
+    return m ? Number(m[1]) * 1e6 + Number(m[2]) : -1;
 }
 
 /**
@@ -736,6 +818,9 @@ export async function startDaemon({
     state.master.lanes ??= {};
     state.incidents ??= {};
     state.issues ??= { since: null, byNumber: {} };
+    // Settled flaky tests first, so their closed issues go in the same pass; ledgered below.
+    const settledAtLoad = pruneSettledFlakes(state);
+    pruneClosedIssues(state);
     state.merged ??= { lastScanAt: null, pending: [], closed: [] };
     await backfillFromLedger(state, stateDir, say);
     // References kept under an earlier rule (a stacked merge, a bare `#n` in prose): read them again.
@@ -846,6 +931,7 @@ export async function startDaemon({
         void write.finally(() => writes.delete(write));
         return write;
     };
+    for (const line of settledAtLoad) void ledger(line);
 
     /** @type {Record<string, Map<string, string>>} the recorded collections as last put in the ledger */
     const recorded = {};
@@ -858,6 +944,9 @@ export async function startDaemon({
      */
     async function save() {
         if (!mayWrite()) return;
+        await dropEndedItems();
+        await dropFinished();
+        await dropMergedIssues();
         for (const line of recordLines(state, recorded)) void ledger(line);
         await saveState(stateDir, state, { durable });
         writeChangedNews();
@@ -866,6 +955,151 @@ export async function startDaemon({
             writeFileSync(`${file}.tmp`, JSON.stringify(client.etags));
             renameSync(`${file}.tmp`, file);
         }
+    }
+
+    /**
+     * Drops the finished jobs nothing reads any more and makes tombstones of those only a rule
+     * that makes jobs still reads (`finishedJobsToPrune`, issue #2366), each only once its whole
+     * record is in the ledger (a `job-dropped` line, which githerd why reads), so the state holds
+     * what is open and the ledger the history. A job whose line could not be written stays whole.
+     * @returns {Promise<void>}
+     */
+    async function pruneFinishedJobs() {
+        if (!mayWrite()) return;
+        const { tombstone, drop } = finishedJobsToPrune(state, (id) => tasks.has(id));
+        const dropping = new Set(drop);
+        for (const id of [...tombstone, ...drop]) {
+            const job = state.jobs[id];
+            try {
+                if (!job.tombstone)
+                    await appendLedger(stateDir, { kind: "job-dropped", job: id, record: job }, { now });
+                if (dropping.has(id)) delete state.jobs[id];
+                else state.jobs[id] = tombstoneOf(job);
+            } catch (err) {
+                say("error", `ledger: ${/** @type {Error} */ (err).message}; job ${id} kept`);
+            }
+        }
+    }
+
+    /**
+     * Drops the ended owner items nothing reads any more (`droppableItems`), each only once its
+     * whole record is in the ledger (an `owner-item` line with event `dropped`), so the state stays
+     * the size of what is open and the ledger keeps the history. An item whose line could not be
+     * written stays for the next save.
+     * @returns {Promise<void>}
+     */
+    async function dropEndedItems() {
+        for (const item of droppableItems(state)) {
+            try {
+                await appendLedger(
+                    stateDir,
+                    { kind: "owner-item", item: item.id, event: "dropped", record: item },
+                    { now },
+                );
+                delete state.ownerItems[item.id];
+            } catch (err) {
+                say("error", `ledger: ${/** @type {Error} */ (err).message}; owner item ${item.id} kept`);
+            }
+        }
+    }
+
+    /**
+     * Drops the finished records nothing reads any more (issue #2552), each only once its whole
+     * record is in the ledger: a resolved incident (only its open one is ever read; its owner item
+     * ended when it resolved, and `lastIncidentId` keeps its id from being given again), an ended
+     * proposal (`droppableProposals`), a resolved escalation (`droppableEscalations`) and a page's
+     * delivery record (`notifiedToDrop`). One whose line could not be written stays for the next save.
+     * @returns {Promise<void>}
+     */
+    async function dropFinished() {
+        const incidents = Object.keys(state.incidents ?? {}).filter((id) => state.incidents[id].status !== "open");
+        /** @type {[string, string[], string][]} */
+        const finished = [
+            ["incidents", incidents, "incident"],
+            ["proposals", droppableProposals(state), "proposal"],
+            ["escalations", board.droppableEscalations(state), "escalation"],
+        ];
+        for (const [collection, ids, kind] of finished) {
+            for (const id of ids) {
+                try {
+                    const record = state[collection][id];
+                    await appendLedger(stateDir, { kind: `${kind}-dropped`, [kind]: id, record }, { now });
+                    if (collection === "incidents" && incidentRank(id) > incidentRank(state.lastIncidentId))
+                        state.lastIncidentId = id;
+                    delete state[collection][id];
+                } catch (err) {
+                    say("error", `ledger: ${/** @type {Error} */ (err).message}; ${kind} ${id} kept`);
+                }
+            }
+        }
+        await dropPageRecords();
+    }
+
+    /**
+     * Drops the page records nothing reads any more (`notifiedToDrop`, issue #2552), each once its
+     * record is in the ledger (a `notify-dropped` line), with the items its key covered.
+     * @returns {Promise<void>}
+     */
+    async function dropPageRecords() {
+        const n = state.notify ?? {};
+        const keys = notifiedToDrop(state, now());
+        const covers = state.paging.covers;
+        for (const key of keys) {
+            try {
+                const record = { notified: state.notified?.[key] ?? null, failed: n.failed?.[key] ?? null };
+                await appendLedger(
+                    stateDir,
+                    { kind: "notify-dropped", key, record: { ...record, items: covers[key] ?? null } },
+                    { now },
+                );
+                delete state.notified?.[key];
+                delete n.failed?.[key];
+                delete covers[key];
+            } catch (err) {
+                say("error", `ledger: ${/** @type {Error} */ (err).message}; page record ${key} kept`);
+            }
+        }
+        // An owner page's items without a record of its key any more.
+        for (const key of Object.keys(covers)) {
+            if (!state.notified?.[key] && !n.failed?.[key] && !n.pending?.[key]) delete covers[key];
+        }
+    }
+
+    /**
+     * Drops the merge record (`state.merged.refs` and `closed`) of each issue no longer in the state
+     * (`droppableMergedIssues`, issue #2661), once its record is in the ledger (a
+     * `merged-issue-dropped` line). `droppedMax` is the highest such issue: a new issue is numbered
+     * above it, so only an issue at or below it can come back (`restoreReturned`).
+     * @returns {Promise<void>}
+     */
+    async function dropMergedIssues() {
+        const m = state.merged;
+        if (!m) return;
+        for (const n of droppableMergedIssues(state)) {
+            try {
+                const record = { refs: m.refs?.[n] ?? [], closed: (m.closed ?? []).includes(Number(n)) };
+                await appendLedger(stateDir, { kind: "merged-issue-dropped", issue: Number(n), record }, { now });
+                m.droppedMax = Math.max(m.droppedMax ?? 0, Number(n));
+                delete m.refs?.[n];
+                m.closed = (m.closed ?? []).filter((c) => c !== Number(n));
+            } catch (err) {
+                say("error", `ledger: ${/** @type {Error} */ (err).message}; merge record of #${n} kept`);
+            }
+        }
+    }
+
+    /**
+     * Puts back from the ledger the merge record of each issue that came back into the state this
+     * poll (a reopen, or a closed one a reference keeps) and was dropped before (issue #2661), so
+     * its issue job still knows which merged pull requests closed or named it.
+     * @param {Set<string>} known the issues in the state before this poll
+     * @returns {Promise<void>}
+     */
+    async function restoreReturned(known) {
+        const most = state.merged?.droppedMax ?? 0;
+        const back = Object.keys(state.issues.byNumber).filter((n) => !known.has(n) && Number(n) <= most);
+        if (!back.length) return;
+        restoreMergedIssues(state.merged, await readLedger(stateDir, { since: new Date(0) }), back);
     }
 
     /** @type {Map<string, string>} each job's news as last written to `jobs/<id>/news` */
@@ -1230,40 +1464,67 @@ export async function startDaemon({
                 .map((f) => f.patch ?? null);
             if (detail.files.includes("nx.json")) detail.nxReleaseChanged = await nxReleaseChanged(node);
         }
-        if (config.ownerGate) {
-            // The newest run of each check only: a draft-event run's "CI not run" failure beside the
-            // ready run's made two failures, so the gate's steps were never read again (#2144).
-            const failing = newestCheckRuns(node).filter(
-                (c) =>
-                    config.requiredChecks.includes(c.name) &&
-                    c.status === "COMPLETED" &&
-                    !["SUCCESS", "NEUTRAL", "SKIPPED"].includes(c.conclusion),
-            );
-            if (failing.length === 1 && failing[0].databaseId) {
-                const job = failing[0].databaseId;
-                // A record from before the capture check was read has no `captureFailed`: read it once.
-                if (prev?.gateJob !== job || prev?.headSha !== node.headRefOid || !prev?.captureFailed) {
-                    const res = await github().get(`repos/${repo}/actions/jobs/${job}`);
-                    detail.failedSteps = (res.body?.steps ?? [])
-                        .filter((s) => s.conclusion === "failure")
-                        .map((s) => s.name);
-                    // A failed capture shows only in the gate's annotations (prs.mjs captureFailures).
-                    const notes = await github().get(`repos/${repo}/check-runs/${job}/annotations?per_page=100`);
-                    detail.gateAnnotations = (notes.body ?? []).map((/** @type {any} */ a) => String(a.message ?? ""));
-                }
-                detail.gateJob = job;
-                if (config.ownerGate.rejectMarker) {
-                    const since = node.commits?.nodes?.[0]?.commit?.committedDate ?? "1970-01-01T00:00:00Z";
-                    const res = await github().get(`repos/${repo}/issues/${n}/comments?since=${since}&per_page=100`);
-                    // Only the owner can reject: another account's comment never counts.
-                    detail.comments = (res.body ?? [])
-                        .filter((c) => board.byOwner(state, c.user?.login) && !board.isWatchdogComment(c.body))
-                        .map((c) => ({ body: c.body ?? "", createdAt: c.created_at }));
-                }
-            }
-        }
+        if (config.ownerGate) await gateDetail(node, prev, detail);
         detail.underlying = await underlyingFailures(node, prev);
         node.detail = detail;
+    }
+
+    /**
+     * Adds to a pull request's detail what the owner gate needs while its one failing required
+     * check is the gate's: the gate job's failed steps and annotations, read once per finished
+     * read of that job, and the owner's comments since the head, for the reject marker.
+     * @param {any} node the GraphQL node
+     * @param {any} prev the saved record
+     * @param {Record<string, any>} detail the detail, changed in place
+     */
+    async function gateDetail(node, prev, detail) {
+        const repo = config.repo;
+        // The newest run of each check only: a draft-event run's "CI not run" failure beside the
+        // ready run's made two failures, so the gate's steps were never read again (#2144).
+        const failing = newestCheckRuns(node).filter(
+            (c) =>
+                config.requiredChecks.includes(c.name) &&
+                c.status === "COMPLETED" &&
+                !["SUCCESS", "NEUTRAL", "SKIPPED"].includes(c.conclusion),
+        );
+        if (failing.length !== 1 || !failing[0].databaseId) return;
+        const job = failing[0].databaseId;
+        // A record from before the capture check was read has no `captureFailed`, and one from
+        // before `gateRead` may hold an unfinished read: read either once more.
+        if (prev?.gateRead !== job || prev?.headSha !== node.headRefOid || !prev?.captureFailed) {
+            Object.assign(detail, await readGateJob(job));
+        } else detail.gateRead = job;
+        detail.gateJob = job;
+        if (config.ownerGate?.rejectMarker) {
+            const since = node.commits?.nodes?.[0]?.commit?.committedDate ?? "1970-01-01T00:00:00Z";
+            const res = await github().get(`repos/${repo}/issues/${node.number}/comments?since=${since}&per_page=100`);
+            // Only the owner can reject: another account's comment never counts.
+            detail.comments = (res.body ?? [])
+                .filter((c) => board.byOwner(state, c.user?.login) && !board.isWatchdogComment(c.body))
+                .map((c) => ({ body: c.body ?? "", createdAt: c.created_at }));
+        }
+    }
+
+    /**
+     * Reads a failed gate job's failed steps and annotations. GitHub can call the check run
+     * complete before the job's steps have their conclusions: kept, such a read made #1727's
+     * visual wait "required check failing" for its whole head (issue #2081). So `gateRead` names
+     * the job only when every step has one; otherwise it is read again next poll.
+     * @param {number} job the job's id
+     * @returns {Promise<{failedSteps: string[], gateAnnotations: string[], gateRead?: number}>} what was read
+     */
+    async function readGateJob(job) {
+        const repo = config.repo;
+        /** @type {{name: string, conclusion: string | null}[]} */
+        const steps = (await github().get(`repos/${repo}/actions/jobs/${job}`)).body?.steps ?? [];
+        // A failed capture shows only in the gate's annotations (prs.mjs captureFailures).
+        const notes = await github().get(`repos/${repo}/check-runs/${job}/annotations?per_page=100`);
+        const finished = steps.length > 0 && steps.every((s) => s.conclusion != null);
+        return {
+            failedSteps: steps.filter((s) => s.conclusion === "failure").map((s) => s.name),
+            gateAnnotations: (notes.body ?? []).map((/** @type {any} */ a) => String(a.message ?? "")),
+            ...(finished ? { gateRead: job } : {}),
+        };
     }
 
     /**
@@ -1728,7 +1989,7 @@ export async function startDaemon({
      * @returns {any} the incident
      */
     function openIncident(first, previousGreen, iso) {
-        const id = nextIncidentId(state.incidents, iso);
+        const id = nextIncidentId(state.incidents, iso, state.lastIncidentId);
         state.incidents[id] = {
             id,
             status: "open",
@@ -1862,7 +2123,7 @@ export async function startDaemon({
         await gh.confirm();
 
         // The pull request list is essential (design 3.2); its per-pull-request reads are not.
-        const prList = await gh.graphql(PRS_QUERY, { owner, name }, { purpose: "essential" });
+        const prList = { repository: await openPullRequests(gh, owner, name) };
         m.branch = prList.repository.defaultBranchRef.name;
         const branch = m.branch ?? "master";
         const nodes = prList.repository.pullRequests.nodes;
@@ -1873,6 +2134,9 @@ export async function startDaemon({
         // rest still run, so one bad item never stops the whole poll.
         /** @type {string[]} the steps that threw, with their errors */
         const failed = [];
+        let waitsOnly = true;
+        /** @type {number | undefined} the latest time a waited-out error said to call again */
+        let retryAt;
         /**
          * Runs one step, recording an error instead of throwing it.
          * @param {string} name the step's name, for the error
@@ -1883,6 +2147,9 @@ export async function startDaemon({
                 await fn();
             } catch (err) {
                 failed.push(`${name}: ${/** @type {Error} */ (err).message}`);
+                const e = /** @type {any} */ (err);
+                if (!WAIT_KINDS.has(e?.kind)) waitsOnly = false;
+                if (e?.retryAt) retryAt = Math.max(retryAt ?? 0, e.retryAt);
             }
         };
         await run("master", async () => {
@@ -1931,12 +2198,14 @@ export async function startDaemon({
         // No owner, no jobs: every job acts only on the owner's issues and pull requests.
         if (state.trust.login) {
             await run("jobs", () => jobsFromFacts(t));
-            await run("owners", () => askOwners(t));
+            // `githerd pause` also stops every message to the sessions: no invitations, status
+            // checks or "are you fixing it?" questions, so a pause spends none of Claude's usage.
+            if (!state.settings?.paused) await run("owners", () => askOwners(t));
             untrustedCriticals(state, t);
         }
         await run("reference", () => referenceWork());
         await workerPass();
-        if (state.trust.login) {
+        if (state.trust.login && !state.settings?.paused) {
             await run("invites", async () => {
                 state.pressure = await backPressure({ root, repo: config.repo, get: (path) => gh.get(path) });
                 await onboardWorkers(t);
@@ -1968,6 +2237,16 @@ export async function startDaemon({
         await run("waits", () => confirmClosedWaits(state, { gitHub: gh, repo: config.repo }));
         if (state.trust.login) {
             await run("proposals", async () => {
+                for (const p of proposeSplitParents(state, t.toISOString())) {
+                    void ledger({
+                        kind: "proposal",
+                        id: p.id,
+                        target: p.target,
+                        from: null,
+                        to: p.status,
+                        reason: "split: every child closed",
+                    });
+                }
                 const openPrs = new Set(nodes.map((/** @type {any} */ n) => n.number));
                 await advanceProposals(state, {
                     gitHub: gh,
@@ -1982,7 +2261,7 @@ export async function startDaemon({
             });
         }
         // A step that threw may not have re-raised what still holds: nothing derived is cleared.
-        if (failed.length) throw new Error(failed.join("; "));
+        if (failed.length) throw Object.assign(new Error(failed.join("; ")), { waitsOnly, retryAt });
         for (const key of board.resolveDerived(state, (esc) => holding.has(esc.key), t)) {
             void ledger({ kind: "escalation", key, resolved: true, by: "daemon" });
         }
@@ -2105,7 +2384,7 @@ export async function startDaemon({
 
     /**
      * Every live session in this repository. The ownership question goes to all of them: asking
-     * whose a pull request is hands no one work, and a session outside `workers.sessions` may hold it.
+     * whose a pull request is hands no one work, and an excluded session may hold it.
      * @returns {import("./peers.mjs").PeerSession[]} the sessions
      */
     function liveInRepo() {
@@ -2116,19 +2395,17 @@ export async function startDaemon({
     }
 
     /**
-     * The live sessions in this repository githerd may hand or manage work through (invitations,
-     * status questions, cancellation notices): the config's `workers.sessions` names, or every one
-     * when it names none.
+     * The live sessions in this repository githerd may hand or manage work through (onboarding,
+     * invitations, status questions, cancellation notices): every one but the excluded, or only
+     * the deprecated `workers.sessions` allowlist's (asks.mjs workerSessions).
      * @returns {import("./peers.mjs").PeerSession[]} the sessions
      */
     function messageable() {
-        const allow = config?.workers.sessions;
-        const live = liveInRepo();
-        return allow ? live.filter((s) => allow.includes(s.name)) : live;
+        return workerSessions(liveInRepo(), state, config?.workers);
     }
 
     /**
-     * Asks every live session in this repository, `workers.sessions` or not, whose a pull request
+     * Asks every live session in this repository, worker or not, whose a pull request
      * with failed CI is (asks.mjs,
      * design 8.2); in dry-run the question is a would-do line.
      * @param {Date} t the poll's time
@@ -2157,7 +2434,8 @@ export async function startDaemon({
             sessionGone: ownerSessionGone,
             cli: cliCommand,
         });
-        for (const line of lines) void ledger(line);
+        // The transcripts were just read: a usage limit in one is told to the owner at once (stalls.mjs).
+        for (const line of [...lines, ...usageLimitStep(state, t)]) void ledger(line);
     }
 
     /**
@@ -2185,8 +2463,8 @@ export async function startDaemon({
     }
 
     /**
-     * Tells each session the owner added to `workers.sessions` that it is a githerd worker, once,
-     * before any invitation (asks.mjs onboardStep); in dry-run each message is a would-do line.
+     * Tells each worker session that it is a githerd worker, once, before any invitation (asks.mjs
+     * onboardStep); in dry-run each message is a would-do line.
      * @param {Date} t the poll's time
      */
     async function onboardWorkers(t) {
@@ -2197,6 +2475,7 @@ export async function startDaemon({
             transport: peers.transport ?? socketTransport(),
             config,
             cli: cliCommand,
+            sessionGone,
         });
         for (const line of lines) void ledger(line);
     }
@@ -2239,7 +2518,23 @@ export async function startDaemon({
             cli: cliCommand,
             config,
         });
-        for (const line of lines) void ledger(line);
+        // A session that stopped answering, or sits on a dialog, is told to the owner once (stalls.mjs).
+        const stalls = stallStep(state, {
+            now: t,
+            minutes: config.workers.statusMinutes,
+            sessions: messageable(),
+            lines,
+        });
+        // Usage back before a limit's reset: the limited sessions are told to carry on (stalls.mjs).
+        const back = await usageBackStep(state, {
+            now: t,
+            minutes: config.workers.statusMinutes,
+            sessions: messageable(),
+            transport: peers.transport ?? socketTransport(),
+            acting: writeMode("workers") === "acting",
+            probe: platform.usageProbe,
+        });
+        for (const line of [...lines, ...stalls, ...back]) void ledger(line);
     }
 
     /**
@@ -2842,7 +3137,10 @@ export async function startDaemon({
         const shared = markShared(state, prs, nodes, { threshold: config.sharedFailurePrs, at: iso });
         for (const key of shared.declared) event("shared-failure", { key, prs: state.sharedFailures[key].prs });
         for (const end of shared.ended) event("shared-failure-ended", end);
-        for (const node of nodes) if (node.detail.gateJob) prs[node.number].gateJob = node.detail.gateJob;
+        for (const node of nodes) {
+            if (node.detail.gateJob) prs[node.number].gateJob = node.detail.gateJob;
+            if (node.detail.gateRead) prs[node.number].gateRead = node.detail.gateRead;
+        }
         await rerunCancelled(gh, prs, iso);
         for (const ended of board.expire(state, sessionGone)) {
             void ledger({
@@ -2853,6 +3151,13 @@ export async function startDaemon({
                 outcome: ended.reason,
             });
         }
+        // Every line that names a session gives the name sessions address each other by (#2486).
+        board.nameSessions(
+            state,
+            (peers.registered ?? registeredSessions)({
+                sessionsDir: join(env.HOME ?? homedir(), ".claude", "sessions"),
+            }),
+        );
         const ctx = {
             master: view,
             config,
@@ -2866,8 +3171,13 @@ export async function startDaemon({
         for (const line of carryGitherdMoves(state)) void ledger(line);
         await inheritedUpdates(branch);
 
+        const known = new Set(Object.keys(state.issues?.byNumber ?? {}));
         const issues = await pollIssues(gh, config.repo, state.issues);
         state.issues = { since: issues.since, byNumber: issues.byNumber };
+        for (const line of pruneSettledFlakes(state)) void ledger(line);
+        pruneClosedIssues(state);
+        await restoreReturned(known);
+        await pruneFinishedJobs();
         await checkOverrides();
     }
 
@@ -3123,7 +3433,7 @@ export async function startDaemon({
             config,
             stateDir,
             owner: state.trust.login,
-            githerdClosed: githerdClosedIssues(state),
+            githerdClosed: githerdClosedIssues(state, await readLedger(stateDir, { since: new Date(0) })),
             now: t,
             poll: true,
         });
@@ -3202,7 +3512,8 @@ export async function startDaemon({
             state.github.lastError = lastPollError;
             say("error", `poll: ${lastPollError}`);
             void ledger({ kind: "error", where: "poll", error: lastPollError });
-            await pollEnded(lastPollError);
+            const e = /** @type {any} */ (err);
+            await pollEnded(lastPollError, e.waitsOnly ?? WAIT_KINDS.has(e.kind), e.retryAt);
         }
         if (!waited && !state.rate.downSince) await heartbeat({});
     }
@@ -3211,17 +3522,28 @@ export async function startDaemon({
      * Keeps count of the polls that failed in a row (`state.github.failing`, since the first, with its
      * error). The second in a row raises the `poll-failing` owner item and pages it at once, since a
      * failing poll may never reach its own owner-item step; the next complete poll ends it. Two, so
-     * one transient error pages nobody.
+     * one transient error pages nobody. A poll that failed only with errors githerd waits out
+     * (`WAIT_KINDS`) is recorded but counts toward no page until the time the first of them said to
+     * call again (`state.github.waitUntil`, the rate-limit reset): a wait still failing after it
+     * counts like any other error. One with no such time (a network blip) never counts here; an
+     * outage raises `github-down` instead.
      * @param {string | null} error the poll's error, or null when it completed
+     * @param {boolean} [waiting] every error was one githerd waits out
+     * @param {number} [retryAt] when the waited-out errors said to call again (ms since the epoch)
      */
-    async function pollEnded(error) {
+    async function pollEnded(error, waiting = false, retryAt = undefined) {
         const g = state.github;
         const id = "poll-failing";
         if (!error) {
             g.completeAt = loopTickAt;
             g.failing = null;
+            g.waitUntil = null;
             endItem(state, id, "cleared", now());
             return;
+        }
+        if (waiting) {
+            if (retryAt && !g.waitUntil) g.waitUntil = new Date(retryAt).toISOString();
+            if (!g.waitUntil || Date.parse(loopTickAt) <= Date.parse(g.waitUntil)) return;
         }
         g.failing ??= { since: loopTickAt, error: firstLine(error), count: 0 };
         g.failing.count += 1;
@@ -3656,6 +3978,7 @@ export async function startDaemon({
                 "session-disown",
                 "session-wait",
                 "session-offers",
+                "session-exclude",
             ].includes(cmd?.op)
         ) {
             return { status: 403, text: `${cmd.op} is the owner's: a worker cannot run it` };
@@ -3673,7 +3996,7 @@ export async function startDaemon({
         if (["mine", "mine-list", "mine-drop"].includes(cmd?.op)) return ownerMine(cmd);
         if (cmd?.op === "session-mine" || cmd?.op === "session-disown") return sessionAnswer(cmd);
         if (cmd?.op === "session-wait") return sessionWait(cmd);
-        if (cmd?.op === "session-offers") return sessionOffers(cmd);
+        if (cmd?.op === "session-offers" || cmd?.op === "session-exclude") return sessionOffers(cmd);
         if (["answer", "order", "policy", "policy-end"].includes(cmd?.op))
             return ownerCommand(state, cmd, now(), worker);
         if (CONTROL_OPS.has(cmd?.op)) {
@@ -3684,7 +4007,7 @@ export async function startDaemon({
             status: 400,
             text:
                 "op must be ack, veto, mine, mine-list, mine-drop, session-mine, session-disown, session-wait, " +
-                "session-offers, answer, " +
+                "session-offers, session-exclude, answer, " +
                 "order, policy, " +
                 "policy-end, pause, resume, " +
                 "workers, keep or release",
@@ -3781,9 +4104,10 @@ export async function startDaemon({
 
     /**
      * `githerd pause-offers` and `githerd resume-offers` run from inside a Claude session: what
-     * `githerd_offers` does for that session (asks.mjs setOffersPaused). It acts for the session the
-     * CLI runs under, which must be a live entry in Claude Code's session registry.
-     * @param {any} cmd `{op: "session-offers", paused, session}`
+     * `githerd_offers` does for that session (asks.mjs setOffersPaused); `githerd exclude-me` and
+     * `include-me` take it out of githerd's workers or put it back (asks.mjs setExcluded). It acts
+     * for the session the CLI runs under, which must be a live entry in Claude Code's session registry.
+     * @param {any} cmd `{op: "session-offers", paused, session}` or `{op: "session-exclude", excluded, session}`
      * @returns {any} the answer
      */
     function sessionOffers(cmd) {
@@ -3791,6 +4115,11 @@ export async function startDaemon({
         const s = (peers.registered ?? registeredSessions)({ sessionsDir }).find((x) => x.sessionId === cmd.session);
         if (!s) return { status: 404, text: `no live Claude Code session ${cmd.session} in the session registry` };
         const at = now().toISOString();
+        if (cmd.op === "session-exclude") {
+            const excluded = cmd.excluded === true;
+            const { text, entry } = setExcluded(state, { name: s.name, session: s.sessionId, excluded, at });
+            return { status: 200, text, entry };
+        }
         const { text, entry } = setOffersPaused(state, {
             name: s.name,
             session: s.sessionId,
@@ -3926,7 +4255,15 @@ export async function startDaemon({
                 "a Claude session records what he typed there with githerd_record";
             return [403, { ok: false, text }];
         }
-        const answer = owner(cmd, job ? String(job) : null);
+        let answer = owner(cmd, job ? String(job) : null);
+        const key = String(cmd?.key);
+        if (cmd?.op === "ack" && answer.status === 404 && !state.escalations?.[key]) {
+            // A resolved escalation dropped from the state (issue #2552) is answered as it was there.
+            const gone = (await readLedger(stateDir, { since: new Date(0) })).findLast(
+                (e) => e.kind === "escalation-dropped" && e.escalation === key,
+            );
+            if (gone) answer = { status: 404, text: `${key} was already resolved at ${gone.record.resolvedAt}` };
+        }
         if (answer.entry) {
             await save();
             await ledger(answer.entry);
@@ -4053,6 +4390,17 @@ export async function startDaemon({
     writeFileSync(tmp, `${JSON.stringify({ ...self, port: boundPort, root, codeHash, startedAt })}\n`);
     renameSync(tmp, daemonFile);
     say("info", `githerd ${version} listening on 127.0.0.1:${boundPort} for ${root} (${mode()})`);
+    // The project settings' hooks run whatever daemon was published last; a one-poll check or a
+    // self-update's protocol test is not the repository's daemon, and publishes nothing.
+    if (autoPoll) {
+        try {
+            const home = env.HOME ?? homedir();
+            const custom = stateDir === defaultStateDir(root, home) ? null : stateDir;
+            publishHook(hookPointer(home, root, config?.repo), { dev: Boolean(env.GITHERD_DEV), stateDir: custom });
+        } catch (err) {
+            say("error", `hook pointer: ${/** @type {Error} */ (err).message}`);
+        }
+    }
 
     /**
      * The owner item for state githerd could not read whole. An empty start blocks every worker
@@ -4100,6 +4448,7 @@ export async function startDaemon({
     }
 
     reportStart();
+    await pruneFinishedJobs();
     await save();
     if (containerRestarted) {
         ledger({ kind: "event", event: "container-restart", from: previous.alive.pid1Start, to: pid1Start });

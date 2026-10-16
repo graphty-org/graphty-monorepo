@@ -44,7 +44,7 @@ import { PopoutPanel } from "../../../src/components/popout/PopoutPanel";
 import { PopoutTrigger } from "../../../src/components/popout/PopoutTrigger";
 import { expectStatesApply } from "../../helpers/assert-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
-import { waitForSettledLayout } from "../../helpers/settled";
+import { storyWaitOptions, waitForSettledLayout } from "../../helpers/settled";
 
 // Components come from "../../../src", the package's published entry point, so a story stops
 // compiling if an export is dropped. The parts reached as `Popout.Panel`, `Popout.Trigger` and
@@ -452,7 +452,7 @@ export const DefaultInteractions: Story = {
 
         await userEvent.click(trigger);
 
-        const panel = await canvas.findByRole("dialog");
+        const panel = await canvas.findByRole("dialog", {}, storyWaitOptions(1000));
         await expect(panel).toBeVisible();
         await expect(canvas.getByText("Settings")).toBeVisible();
         await expect(canvas.getByText("Panel content goes here")).toBeVisible();
@@ -476,7 +476,7 @@ export const DefaultInteractions: Story = {
 
         // Reopen: the panel comes back where it started
         await userEvent.click(canvas.getByLabelText("Open settings"));
-        const reopenedPanel = await canvas.findByRole("dialog");
+        const reopenedPanel = await canvas.findByRole("dialog", {}, storyWaitOptions(1000));
         await expect(reopenedPanel.style.left).toBe(initialLeft);
         await expect(reopenedPanel.style.top).toBe(initialTop);
 
@@ -647,7 +647,7 @@ export const AnchorAxesInteractions: Story = {
         // top meets its own trigger's top.
         const panelTrigger = canvas.getByLabelText("Open panel-anchored settings");
         await userEvent.click(panelTrigger);
-        const anchoredPanel = await canvas.findByRole("dialog");
+        const anchoredPanel = await canvas.findByRole("dialog", {}, storyWaitOptions(1000));
         const anchoredRect = anchoredPanel.getBoundingClientRect();
         await expect(Math.round(anchoredRect.right)).toBe(Math.round(sidebarRect.left) + 1);
         await expect(Math.round(anchoredRect.top)).toBe(Math.round(panelTrigger.getBoundingClientRect().top));
@@ -655,7 +655,7 @@ export const AnchorAxesInteractions: Story = {
         // Anchored to its own trigger: the panel sits beside the button.
         const triggerAnchored = canvas.getByLabelText("Open trigger-anchored settings");
         await userEvent.click(triggerAnchored);
-        const besidePanel = await canvas.findByRole("dialog");
+        const besidePanel = await canvas.findByRole("dialog", {}, storyWaitOptions(1000));
         const besideRect = besidePanel.getBoundingClientRect();
         const buttonRect = triggerAnchored.getBoundingClientRect();
         await expect(Math.round(besideRect.right)).toBe(Math.round(buttonRect.left) - 8);
@@ -664,7 +664,7 @@ export const AnchorAxesInteractions: Story = {
         // Nested: each level docks flush to the start of the panel it opened from
         // (POPOUT_NESTED_GAP, design/figma-spec.md 8.4).
         await userEvent.click(canvas.getByLabelText("Open nested stack"));
-        const levelOne = await canvas.findByRole("dialog");
+        const levelOne = await canvas.findByRole("dialog", {}, storyWaitOptions(1000));
         const levelOneRect = levelOne.getBoundingClientRect();
 
         await userEvent.click(canvas.getByLabelText("Open level two"));
@@ -1008,7 +1008,7 @@ export const TabbedInteractions: Story = {
 
         await userEvent.click(trigger);
 
-        const panel = await canvas.findByRole("dialog");
+        const panel = await canvas.findByRole("dialog", {}, storyWaitOptions(1000));
         await expect(panel).toBeVisible();
 
         await expect(panel).toHaveAttribute("aria-modal", "false");
@@ -1030,7 +1030,10 @@ export const TabbedInteractions: Story = {
         await expect(canvas.getByRole("tab", { name: "About" })).toHaveAttribute("aria-selected", "true");
         await userEvent.click(canvas.getByLabelText("Close panel"));
         await userEvent.click(trigger);
-        await expect(await canvas.findByRole("tab", { name: "General" })).toHaveAttribute("aria-selected", "true");
+        await expect(await canvas.findByRole("tab", { name: "General" }, storyWaitOptions(1000))).toHaveAttribute(
+            "aria-selected",
+            "true",
+        );
 
         await userEvent.click(canvas.getByLabelText("Close panel"));
     },
@@ -1103,11 +1106,17 @@ export const OneAtATimeInteractions: Story = {
         const canvas = within(canvasElement);
         const body = within(canvasElement.ownerDocument.body);
         await userEvent.click(canvas.getByRole("button", { name: "Fill settings" }));
-        await waitFor(() => expect(body.getByRole("dialog", { name: "Fill settings" })).toBeVisible());
+        await waitFor(
+            () => expect(body.getByRole("dialog", { name: "Fill settings" })).toBeVisible(),
+            storyWaitOptions(1000),
+        );
         await userEvent.click(canvas.getByRole("button", { name: "Stroke settings" }));
-        await waitFor(() => expect(body.queryByRole("dialog", { name: "Fill settings" })).toBeNull());
+        await waitFor(
+            () => expect(body.queryByRole("dialog", { name: "Fill settings" })).toBeNull(),
+            storyWaitOptions(1000),
+        );
         await userEvent.click(body.getByRole("button", { name: "Create style" }));
-        await waitFor(() => expect(body.getAllByRole("dialog")).toHaveLength(2));
+        await waitFor(() => expect(body.getAllByRole("dialog")).toHaveLength(2), storyWaitOptions(1000));
     },
 };
 
@@ -1185,10 +1194,10 @@ export const RegionsAndCloseAllInteractions: Story = {
         const canvas = within(canvasElement);
         const body = within(canvasElement.ownerDocument.body);
         await userEvent.click(canvas.getByRole("button", { name: "inspector settings" }));
-        const dialog = await body.findByRole("dialog", { name: "inspector settings" });
+        const dialog = await body.findByRole("dialog", { name: "inspector settings" }, storyWaitOptions(1000));
         await expect(within(dialog).getByText('Opened from the "inspector" region.')).toBeVisible();
         await userEvent.keyboard("{Control>}.{/Control}");
-        await waitFor(() => expect(body.queryByRole("dialog")).toBeNull());
+        await waitFor(() => expect(body.queryByRole("dialog")).toBeNull(), storyWaitOptions(1000));
     },
 };
 
@@ -1405,11 +1414,11 @@ export const MultiplePopoutsInteractions: Story = {
 
         // Exclusive siblings
         await userEvent.click(canvas.getByLabelText("Open Panel A"));
-        await expect(await canvas.findByText("Panel A - Settings")).toBeVisible();
+        await expect(await canvas.findByText("Panel A - Settings", {}, storyWaitOptions(1000))).toBeVisible();
         await expect(canvas.getAllByRole("dialog")).toHaveLength(1);
 
         await userEvent.click(canvas.getByLabelText("Open Panel B"));
-        await expect(await canvas.findByText("Panel B - Appearance")).toBeVisible();
+        await expect(await canvas.findByText("Panel B - Appearance", {}, storyWaitOptions(1000))).toBeVisible();
         await expect(canvas.getAllByRole("dialog")).toHaveLength(1);
         await expect(canvas.queryByTestId("panel-a-content")).not.toBeInTheDocument();
         await expect(canvas.getByTestId("panel-b-content")).toBeInTheDocument();
@@ -1420,7 +1429,7 @@ export const MultiplePopoutsInteractions: Story = {
 
         // Click outside
         await userEvent.click(canvas.getByLabelText("Open Panel A"));
-        await expect(await canvas.findByText("Panel A - Settings")).toBeVisible();
+        await expect(await canvas.findByText("Panel A - Settings", {}, storyWaitOptions(1000))).toBeVisible();
         await expect(canvas.getAllByRole("dialog")).toHaveLength(1);
 
         const mainContentArea = canvas.getByText("Open both panels, then click to bring one to front");
@@ -1429,11 +1438,11 @@ export const MultiplePopoutsInteractions: Story = {
 
         // Nesting
         await userEvent.click(canvas.getByLabelText("Open Nested Demo"));
-        await expect(await canvas.findByText("Panel D - Parent")).toBeVisible();
+        await expect(await canvas.findByText("Panel D - Parent", {}, storyWaitOptions(1000))).toBeVisible();
         await expect(canvas.getByTestId("panel-d-content")).toBeInTheDocument();
 
         await userEvent.click(canvas.getByLabelText("Open Child Panel"));
-        await expect(await canvas.findByText("Child Panel")).toBeVisible();
+        await expect(await canvas.findByText("Child Panel", {}, storyWaitOptions(1000))).toBeVisible();
         await expect(canvas.getByTestId("child-panel-content")).toBeInTheDocument();
 
         // Parent and child are both open: they are not siblings
@@ -1451,7 +1460,7 @@ export const MultiplePopoutsInteractions: Story = {
         await expect(canvas.queryByTestId("child-panel-content")).not.toBeInTheDocument();
 
         await userEvent.click(canvas.getByLabelText("Open Child Panel"));
-        await expect(await canvas.findByText("Child Panel")).toBeVisible();
+        await expect(await canvas.findByText("Child Panel", {}, storyWaitOptions(1000))).toBeVisible();
         await expect(canvas.getAllByRole("dialog")).toHaveLength(2);
 
         // Closing the parent closes the child with it
@@ -1537,7 +1546,7 @@ export const ControlledInteractions: Story = {
         await expect(canvas.getByText("The panel is closed.")).toBeInTheDocument();
 
         await userEvent.click(canvas.getByRole("button", { name: "Open from here" }));
-        await expect(await canvas.findByRole("dialog")).toBeVisible();
+        await expect(await canvas.findByRole("dialog", {}, storyWaitOptions(1000))).toBeVisible();
         await expect(canvas.getByText("The panel is open.")).toBeInTheDocument();
 
         await userEvent.click(canvas.getByRole("button", { name: "Close from here" }));
@@ -1545,7 +1554,7 @@ export const ControlledInteractions: Story = {
 
         // The trigger reports through the same handler
         await userEvent.click(canvas.getByLabelText("Toggle controlled panel"));
-        await expect(await canvas.findByRole("dialog")).toBeVisible();
+        await expect(await canvas.findByRole("dialog", {}, storyWaitOptions(1000))).toBeVisible();
         await expect(canvas.getByText("The panel is open.")).toBeInTheDocument();
 
         // Escape reports too
@@ -1612,7 +1621,7 @@ export const WorkedExampleInteractions: Story = {
 
         await userEvent.click(canvas.getByLabelText("Open label settings"));
 
-        const panel = await canvas.findByRole("dialog");
+        const panel = await canvas.findByRole("dialog", {}, storyWaitOptions(1000));
         await expect(panel).toBeVisible();
 
         await expect(panel).toHaveAttribute("role", "dialog");
@@ -1641,7 +1650,7 @@ export const WorkedExampleInteractions: Story = {
         await expect(trigger).toHaveAttribute("aria-expanded", "false");
 
         await userEvent.click(trigger);
-        const reopenedPanel = await canvas.findByRole("dialog");
+        const reopenedPanel = await canvas.findByRole("dialog", {}, storyWaitOptions(1000));
         await expect(reopenedPanel).toBeVisible();
 
         await expect(canvas.getByLabelText("Close panel")).toBeInTheDocument();

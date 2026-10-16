@@ -2391,17 +2391,26 @@ function inferDeclFromValues(values: readonly unknown[]): { dtype: Dtype; itemDt
         }
     }
     if (sawArray && !sawOther) {
-        const items: unknown[] = [];
-        for (const value of values) {
-            if (Array.isArray(value)) {
-                for (const item of value) {
-                    items.push(item);
-                }
-            }
-        }
-        return { dtype: "list", itemDtype: inferValuesDtype(items) ?? "json" };
+        return { dtype: "list", itemDtype: inferValuesDtype(listItemsOf(values)) ?? "json" };
     }
     return { dtype: inferValuesDtype(values) ?? "json", itemDtype: undefined };
+}
+
+/**
+ * The items of every array entry, in order.
+ * @param values - the entries
+ * @returns the concatenated items
+ */
+function listItemsOf(values: readonly unknown[]): unknown[] {
+    const items: unknown[] = [];
+    for (const value of values) {
+        if (Array.isArray(value)) {
+            for (const item of value) {
+                items.push(item);
+            }
+        }
+    }
+    return items;
 }
 
 /**
@@ -2501,33 +2510,7 @@ export function columnFromTypedArray(
     }
     const meta = resolveColumnMeta(name, domain, { nullable: false, ...decl, dtype });
     const parts = emptyParts(meta, length, null);
-    let expected: number;
-    switch (dtype) {
-        case "bool":
-            expected = bitmapWordCount(length);
-            break;
-        case "dict":
-            expected = length;
-            break;
-        case "f32":
-        case "f64":
-        case "i32":
-        case "u32":
-        case "u8":
-            expected = length * meta.components;
-            break;
-        default: {
-            const dtypeName: string = dtype;
-            throw new GraphFormatError(
-                "E_COLUMN_TYPE",
-                `column "${name}": a ${dtypeName} column cannot adopt a typed array`,
-                {
-                    column: name,
-                    field: "dtype",
-                },
-            );
-        }
-    }
+    const expected = adoptedArrayLength(name, dtype, length, meta.components);
     if (data.length !== expected) {
         throw new GraphFormatError(
             "E_COLUMN_LENGTH",
@@ -2567,18 +2550,66 @@ export function columnFromTypedArray(
     }
     parts.data = stored;
     if (dtype === "dict") {
-        const dictionary = seedDictionary(meta);
-        for (let row = 0; row < length; row++) {
-            const code = data[row];
-            if (code >= dictionary.size) {
-                throw new GraphFormatError(
-                    "E_COLUMN_TYPE",
-                    `column "${name}": code ${code} at row ${row} is outside the ${dictionary.size} declared options`,
-                    { column: name, row, code },
-                );
-            }
-        }
-        parts.dictionary = dictionary.values;
+        parts.dictionary = checkedDictionaryOf(meta, data, length);
     }
     return createColumn(parts);
+}
+
+/**
+ * The length a typed array adopted by a column must have: ceil(rows / 32) words for bool, one code
+ * per row for dict, rows * components otherwise.
+ * @param name - the column name, for the message
+ * @param dtype - the column dtype; E_COLUMN_TYPE when it cannot adopt a typed array
+ * @param length - the row count
+ * @param components - the components per row
+ * @returns the expected array length
+ */
+function adoptedArrayLength(name: string, dtype: Dtype, length: number, components: number): number {
+    switch (dtype) {
+        case "bool":
+            return bitmapWordCount(length);
+        case "dict":
+            return length;
+        case "f32":
+        case "f64":
+        case "i32":
+        case "u32":
+        case "u8":
+            return length * components;
+        default: {
+            const dtypeName: string = dtype;
+            throw new GraphFormatError(
+                "E_COLUMN_TYPE",
+                `column "${name}": a ${dtypeName} column cannot adopt a typed array`,
+                {
+                    column: name,
+                    field: "dtype",
+                },
+            );
+        }
+    }
+}
+
+/**
+ * The declared options of a dict column adopting an array of codes, after checking every code is one
+ * of them.
+ * @param meta - the dict column
+ * @param data - the codes
+ * @param length - the row count
+ * @returns the dictionary values
+ */
+function checkedDictionaryOf(meta: ColumnMeta, data: TypedArrayData, length: number): string[] {
+    const { name } = meta;
+    const dictionary = seedDictionary(meta);
+    for (let row = 0; row < length; row++) {
+        const code = data[row];
+        if (code >= dictionary.size) {
+            throw new GraphFormatError(
+                "E_COLUMN_TYPE",
+                `column "${name}": code ${code} at row ${row} is outside the ${dictionary.size} declared options`,
+                { column: name, row, code },
+            );
+        }
+    }
+    return dictionary.values;
 }

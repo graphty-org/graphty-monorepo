@@ -49,23 +49,40 @@ const LabelBehaviorOpts = z
     })
     .prefault({});
 
-const RenderingBehaviorOpts = z
+const CameraBehaviorOpts = z
     .strictObject({
         /*
-         * Whether a frame is drawn only when the picture can have changed.
+         * Whether the selection becomes the camera's pivot.
          *
-         * OFF BY DEFAULT, so the element draws every animation frame, as Babylon.js does and as a
-         * consumer who changes the Babylon scene directly (through `element.graph.scene`) relies
-         * on. On, the element skips a frame once the layout has settled, the styles are painted and
-         * the camera is still, and draws again when anything it drives or the reader's input changes
-         * the picture. A still graph then costs the page nothing per frame, which on a software GPU
-         * is tens to hundreds of milliseconds of every frame. Something added to or removed from the
-         * scene from outside the element is drawn; a property changed on something already in it
-         * is not seen until something else asks for a frame.
+         * OFF BY DEFAULT, so the camera turns about the point it always has. On, selecting one node
+         * makes it the pivot, and selecting several makes the plain average of their positions the
+         * pivot: the 3D camera glides to look at it and orbits, spins and zooms about it, the 2D view
+         * glides to center it, and in VR or AR the reader's turns and scaling happen about it without
+         * moving the reader. The pivot follows the selected nodes while they move, and stays where it
+         * is when the selection is cleared.
          */
-        onDemand: z.boolean().default(false),
+        pivotOnSelection: z.boolean().default(false),
     })
     .prefault({});
+
+/** The rendering settings: the fields `setRenderSettings` accepts. */
+export const RenderSettingsOpts = z.strictObject({
+    /*
+     * Whether a frame is drawn only when the picture can have changed.
+     *
+     * OFF BY DEFAULT, so the element draws every animation frame, as Babylon.js does and as a
+     * consumer who changes the Babylon scene directly (through `element.graph.scene`) relies
+     * on. On, the element skips a frame once the layout has settled, the styles are painted and
+     * the camera is still, and draws again when anything it drives or the reader's input changes
+     * the picture. A still graph then costs the page nothing per frame, which on a software GPU
+     * is tens to hundreds of milliseconds of every frame. Something added to or removed from the
+     * scene from outside the element is drawn; a property changed on something already in it
+     * is not seen until something else asks for a frame.
+     */
+    onDemand: z.boolean().default(false),
+});
+
+const RenderingBehaviorOpts = RenderSettingsOpts.prefault({});
 
 const GraphLayoutOpts = z.strictObject({
     type: z.string().default("ngraph"),
@@ -96,6 +113,18 @@ const GraphLayoutOpts = z.strictObject({
      * entry per batch. A CPU simulation ignores it: its step is synchronous.
      */
     maxInFlight: z.number().int().min(1).max(4).default(2),
+
+    /*
+     * Whether a group node with no stored position follows its members.
+     *
+     * A file can nest nodes in another node: a Graphviz cluster, a yEd group, a Cytoscape compound
+     * node. When the file stores no position for such a group, the element does not lay it out
+     * as a node of its own: it is placed on its members' bounding box, padded, every frame, drawn
+     * that size behind them, and it pushes and pulls no other node. False lays it out like any
+     * other node, as the element did before. A group the file places keeps its stored position and
+     * box either way. Unset means true.
+     */
+    groupsFollowMembers: z.boolean().optional(),
 });
 
 /** How the element drives a layout, as the behaviour configuration resolves it. */
@@ -110,6 +139,7 @@ export const GraphBehaviorOpts = z.strictObject({
     node: NodeBehaviorOpts,
     labels: LabelBehaviorOpts,
     rendering: RenderingBehaviorOpts,
+    camera: CameraBehaviorOpts,
     fetchNodes: z.optional(z.instanceof(Function)),
     fetchEdges: z.optional(z.instanceof(Function)),
 });

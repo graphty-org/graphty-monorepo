@@ -119,6 +119,27 @@ export function isTextEntryTarget(event: Event): boolean {
     return element.isContentEditable;
 }
 
+/** The keys a native radio group or slider moves its own value with. */
+const CONTROL_ARROW_KEYS = new Set<string>(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]);
+
+/** Input types whose own arrow keys change their value. */
+const ARROW_INPUT_TYPES = new Set<string>(["radio", "range"]);
+
+/**
+ * Whether the press is an arrow on a control that takes arrows itself: a radio of a
+ * group (a segmented control) moves the choice, a range input moves its value. The
+ * press belongs to the control, so the canvas does not pan or orbit with it.
+ * @param event - the keyboard event to test.
+ * @returns true for an arrow key pressed on a radio or range input.
+ */
+function ownsArrowKeys(event: KeyboardEvent): boolean {
+    const element = event.composedPath().find((node): node is HTMLElement => node instanceof HTMLElement);
+
+    return (
+        CONTROL_ARROW_KEYS.has(event.key) && element instanceof HTMLInputElement && ARROW_INPUT_TYPES.has(element.type)
+    );
+}
+
 function runEscapeLadder(ladder: EscapeLadderHandlers): boolean {
     for (const rung of ESCAPE_LADDER) {
         const handler = ladder[rung];
@@ -162,7 +183,7 @@ export function useShellKeyBindings(options: UseShellKeyBindingsOptions): void {
                 return;
             }
 
-            const inTextEntry = isTextEntryTarget(event);
+            const inTextEntry = isTextEntryTarget(event) || ownsArrowKeys(event);
 
             for (const binding of DISPATCHER_KEY_BINDINGS) {
                 if (phase === "keyup" && binding.held !== true) {

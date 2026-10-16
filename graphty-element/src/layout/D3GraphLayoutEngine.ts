@@ -2,6 +2,7 @@ import type { NodeMask } from "@graphty/graph-format";
 import {
     Edge as D3Edge,
     forceCenter,
+    type ForceLink,
     forceLink,
     forceManyBody,
     forceSimulation,
@@ -92,6 +93,9 @@ function isD3Node(n: unknown): n is D3Node {
     return false;
 }
 
+/** d3's own many-body strength, which every node that is not a following group keeps. */
+const DEFAULT_CHARGE = -30;
+
 const D3LayoutConfig = z.strictObject({
     dim: z.number().int().min(2).max(3).default(3),
     alphaMin: z.number().positive().default(0.1),
@@ -150,11 +154,15 @@ export class D3GraphEngine extends LayoutEngine {
     }
 
     d3ForceLayout: ReturnType<typeof forceSimulation>;
+    /** The link force, kept here so its links can be replaced without reading it back by name. */
+    private readonly linkForce: ForceLink;
     d3AlphaMin: number;
     d3AlphaTarget: number;
     d3AlphaDecay: number;
     d3VelocityDecay: number;
     nodeMapping = new Map<Node, D3Node>();
+    /** The many-body force, kept so a group following its members can be given no charge. */
+    private readonly chargeForce = forceManyBody();
     edgeMapping = new Map<Edge, D3Edge>();
     newNodeMap = new Map<Node, D3InputNode>();
     newEdgeMap = new Map<Edge, D3InputEdge>();
@@ -187,21 +195,17 @@ export class D3GraphEngine extends LayoutEngine {
         this.dim = opts.dim;
 
         // https://github.com/vasturiano/d3-force-3d?tab=readme-ov-file#links
-        const fl = forceLink();
-        fl.strength(0.9);
-        // Type assertions needed due to d3-force-3d type definition issues with strict mode
-        /* eslint-disable @typescript-eslint/no-explicit-any -- d3-force-3d types are incompatible */
+        this.linkForce = forceLink()
+            .strength(0.9)
+            .id((d) => (d as D3InputNode).id);
         this.d3ForceLayout = forceSimulation()
             .numDimensions(this.dim)
             .alpha(1)
-            .force("link", fl as any)
-            .force("charge", forceManyBody() as any)
-            .force("center", forceCenter() as any)
+            .force("link", this.linkForce)
+            .force("charge", this.chargeForce)
+            .force("center", forceCenter())
             .force("dagRadial", null)
             .stop();
-        /* eslint-enable @typescript-eslint/no-explicit-any */
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- d3-force-3d types are incompatible
-        (this.d3ForceLayout.force("link") as any).id((d: D3Node) => (d as D3InputNode).id);
     }
 
     /**
@@ -224,8 +228,7 @@ export class D3GraphEngine extends LayoutEngine {
             nodeList = nodeList.concat([...this.newNodeMap.values()]);
             this.d3ForceLayout
                 .alpha(1) // re-heat the simulation
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- d3-force-3d types are incompatible
-                .nodes(nodeList as any)
+                .nodes(nodeList)
                 .stop();
 
             // copy over new nodes
@@ -247,8 +250,7 @@ export class D3GraphEngine extends LayoutEngine {
             // update edges
             let linkList: (D3Edge | D3InputEdge)[] = [...this.edgeMapping.values()];
             linkList = linkList.concat([...this.newEdgeMap.values()]);
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- d3-force-3d types are incompatible
-            (this.d3ForceLayout.force("link") as any).links(linkList);
+            this.linkForce.links(linkList);
 
             // copy over new edges
             for (const entry of this.newEdgeMap.entries()) {
@@ -456,7 +458,9 @@ export class D3GraphEngine extends LayoutEngine {
         d3node.fx = undefined;
         d3node.fy = undefined;
         d3node.fz = undefined;
-        this.reheat = true; // TODO: is this necessary?
+        // Reheat so the released node moves: a settled simulation would otherwise leave it where
+        // the pin held it.
+        this.reheat = true;
     }
 
     /**
@@ -469,6 +473,16 @@ export class D3GraphEngine extends LayoutEngine {
     override setHoldMask(mask: NodeMask | null, rows: number): void {
         super.setHoldMask(mask, rows);
         this.refresh();
+        // A group following its members pushes nothing; d3 reads a strength once per node at
+        // initialisation, so the accessor is set again whenever the followers change.
+        const followers = new Set<NodeIdType>();
+        for (const node of this.nodeMapping.keys()) {
+            if (this.isFollower(node.index)) {
+                followers.add(node.id);
+            }
+        }
+
+        this.chargeForce.strength((d) => (followers.has((d as D3InputNode).id) ? 0 : DEFAULT_CHARGE));
         for (const [node, d3node] of this.nodeMapping) {
             if (this.isHeld(node.index)) {
                 fixAt(d3node);

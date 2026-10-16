@@ -30,11 +30,12 @@ type FixedLayoutOpts = Partial<FixedLayoutConfigType>;
  * The fixed layout: every node goes to its `data.position`, and then stays where it is put.
  *
  * The first time an engine lays out, every node carrying a `data.position` is placed there (scaled
- * by `data.knownFields.positionScale` and by the scale its file's styles were drawn at), whatever an earlier layout left in the element's position
- * array -- switching to "fixed" means "put the nodes where the data says". After that the engine
+ * by `data.knownFields.positionScale` and by the scale its file's styles were drawn at), whatever an
+ * earlier layout left in the element's position array -- switching to "fixed" means "put the nodes where the data says". After that the engine
  * keeps what the array holds, so a drag survives a later recompute; a node added later reaches the
  * array from its own `data.position` when the graph is frozen. A node with no coordinates at all
- * is placed at the origin.
+ * is placed at the origin. Either way, nodes whose data gave no position are reported as a
+ * `layout-warning` event with code `W_NO_POSITION`, so a misspelled position is never silent.
  */
 export class FixedLayout extends SnapshotLayoutEngine {
     static type = "fixed";
@@ -90,17 +91,27 @@ export class FixedLayout extends SnapshotLayoutEngine {
      */
     protected compute(input: SnapshotLayoutInput): F32 {
         const seeds = input.firstRun ? input.dataPositions() : null;
+
         const { initial } = input;
         const positions = new Float32Array(initial.length);
+        // Rows the data gave no position: on the first run, every row without a data position;
+        // later, every row nothing has placed (a newcomer is seeded from its data when it arrives).
+        let missing = 0;
         for (let i = 0; i < positions.length; i += 3) {
             // A placed row is written back unchanged, which is what keeps it from being mistaken
             // for an unplaced one by a reader of what this engine computed.
             let from: F32 | null = Number.isNaN(initial[i]) ? null : initial;
             if (seeds !== null && !Number.isNaN(seeds[i])) {
                 from = seeds;
+            } else if (seeds !== null || from === null) {
+                missing++;
             }
 
             positions.set(from === null ? [0, 0, 0] : from.subarray(i, i + 3), i);
+        }
+
+        if (missing > 0) {
+            input.warn({ code: "W_NO_POSITION", params: { missing, total: positions.length / 3 } });
         }
 
         return positions;

@@ -61,7 +61,18 @@ const css = `
 .cm-input-wrapper[data-disabled],
 .cm-input-wrapper:has(:disabled) {
     --input-color: var(--cm-text-disabled);
+    --input-placeholder-color: var(--cm-text-disabled);
     --input-section-color: var(--cm-text-disabled);
+}
+/* A disabled field's placeholder dims with its value (spec 6, bc/number-input-disabled): an
+   empty disabled field otherwise reads exactly like an enabled one. Set on the pseudo-element
+   itself, so a caller's inline --input-placeholder-color (PanelField sets one) cannot undo it. */
+.cm-input-wrapper .cm-input:disabled::placeholder,
+.cm-input-wrapper .cm-input:disabled ::placeholder,
+.cm-input-wrapper:is([data-disabled], :has(:disabled)) .cm-input-inner::placeholder,
+.cm-input-wrapper:is([data-disabled], :has(:disabled)) .cm-input-placeholder,
+.cm-field:is([data-disabled], :has(:disabled)) ::placeholder {
+    color: var(--cm-text-disabled);
 }
 .cm-input-wrapper .cm-input-section {
     color: var(--input-section-color);
@@ -257,8 +268,9 @@ const css = `
 }
 .cm-listbox .cm-listbox-group + .cm-listbox-group,
 .cm-listbox .cm-listbox-separator {
-    margin-top: 8px;
+    margin: 8px 0 0;
     padding-top: 8px;
+    border: 0;
     border-top: 1px solid var(--cm-border-translucent);
 }
 .cm-listbox .cm-listbox-separator {

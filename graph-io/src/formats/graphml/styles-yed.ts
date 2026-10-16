@@ -9,6 +9,8 @@
 
 import type { GraphSnapshot } from "@graphty/graph-format";
 
+import { toFilePositions, toNeutral } from "../../positions/convert.js";
+import type { PositionColumnExtra } from "../../positions/types.js";
 import { canonColor, colorOpacity } from "../../styles/canon/color.js";
 import { canonEnum } from "../../styles/canon/enums.js";
 import { canonNumber } from "../../styles/canon/number.js";
@@ -451,13 +453,26 @@ function readEdge(real: Realizer, put: PutValue, at: SiteOf): void {
         put("sourceArrow", canonEnum("arrow", treeAttr(arrows, "source"), "yed", at("sourceArrow")));
         put("targetArrow", canonEnum("arrow", treeAttr(arrows, "target"), "yed", at("targetArrow")));
     }
-    if (real.type !== "PolyLineEdge") {
-        put("curved", true);
-    } else {
-        const smoothed = treeAttr(treeChild(r, "BendStyle"), "smoothed");
-        put("curved", smoothed === undefined ? null : smoothed === "true");
-    }
+    put("curved", edgeCurved(real));
     readLabels(treeChildren(r, "EdgeLabel"), false, put, at);
+}
+
+/**
+ * Whether yEd draws an edge curved: an arc always; a Bezier, quad curve, spline or generic edge only through its
+ * control points (with none it is a straight line); a polyline only when it smooths bends it has.
+ * @param real - the edge realizer
+ * @returns true when curved, null when a polyline does not say whether it smooths
+ */
+function edgeCurved(real: Realizer): boolean | null {
+    if (real.type === "ArcEdge") {
+        return true;
+    }
+    const bent = treeChildren(treeChild(real.r, "Path"), "Point").length > 0;
+    if (real.type !== "PolyLineEdge") {
+        return bent;
+    }
+    const smoothed = treeAttr(treeChild(real.r, "BendStyle"), "smoothed");
+    return smoothed === undefined ? null : smoothed === "true" && bent;
 }
 
 /** Canonical values per property, by element index. */
@@ -989,6 +1004,36 @@ function keptPosition(table: GraphSnapshot["nodes"], columns: readonly string[],
 }
 
 /**
+ * A node's `y:Geometry` x and y from the graph's position column, for a node with no yEd graphics of its own: the
+ * column's coordinate read in its declared spelling (center, y up when it declares none), written as yEd places a
+ * box, by its top-left corner with y growing downward.
+ * @param snapshot - the graph
+ * @param i - the node
+ * @param get - the node's values (its drawn width and height)
+ * @returns the x and y to write, or null when the node has no finite position
+ */
+function columnPosition(snapshot: GraphSnapshot, i: number, get: GetValue): [string, string] | null {
+    const column = snapshot.nodes.byRole("position");
+    if (column === null || column.meta.components < 2 || !column.isSet(i)) {
+        return null;
+    }
+    const v = column.value(i) as ArrayLike<number>;
+    const width = get("width");
+    const height = get("height");
+    const size: [number, number] = [typeof width === "number" ? width : 0, typeof height === "number" ? height : 0];
+    const p: [number, number, number] = [v[0], v[1], 0];
+    toNeutral(p, column.meta.extra ?? {}, size, false);
+    const [x, y] = toFilePositions(Float64Array.from(p), YED_SPELLING, {
+        width: Float64Array.of(size[0]),
+        height: Float64Array.of(size[1]),
+    });
+    return Number.isFinite(x) && Number.isFinite(y) ? [String(x), String(y)] : null;
+}
+
+/** How yEd spells a node's place: its box's top-left corner, y growing downward. */
+const YED_SPELLING: PositionColumnExtra = { yAxis: "down", anchor: "top-left" };
+
+/**
  * An edge's `y:Path` (its bends) from the yEd graphics it had.
  * @param table - the edge table
  * @param columns - its tree columns
@@ -1052,7 +1097,9 @@ export function graphmlStyledExport(
     const getEdge = getter(picture, "edge");
     const nodeTrees: (Tree | null)[] = [];
     for (let i = 0; i < snapshot.nodeCount; i++) {
-        nodeTrees.push(shapeNodeTree(getNode(i), keptPosition(snapshot.nodes, nodeColumns, i), approximateFor("node")));
+        const get = getNode(i);
+        const at = keptPosition(snapshot.nodes, nodeColumns, i) ?? columnPosition(snapshot, i, get);
+        nodeTrees.push(shapeNodeTree(get, at, approximateFor("node")));
     }
     const edgeTrees: (Tree | null)[] = [];
     for (let e = 0; e < snapshot.edgeCount; e++) {

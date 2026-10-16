@@ -77,9 +77,22 @@ export type StyleRole = "mesh" | "instance" | "content";
 const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     // Geometry and material: a different value is a different source mesh.
     "node.size": "mesh",
+    "node.sizeMode": "mesh",
     "node.shape": "mesh",
     "node.wireframe": "mesh",
     "node.flat": "mesh",
+    // Width, height, depth and flatness are baked into the source mesh like the size. A border is
+    // its own source mesh keyed under the node's, its colour in its material: like an outline's,
+    // a colour per style rather than per instance.
+    "node.width": "mesh",
+    "node.height": "mesh",
+    "node.depth": "mesh",
+    "node.planar": "mesh",
+    // Baked into the source mesh's vertices in 2D, like its depth (NodeMesh.placeByZIndex).
+    "node.zIndex": "mesh",
+    "node.borderColor": "mesh",
+    "node.borderWidth": "mesh",
+    "node.borderStyle": "mesh",
     // An effect's COLOUR is geometry here, and the renderer is why. Babylon draws an instanced
     // node through its SOURCE mesh: a glow layer's `customEmissiveColorSelector` is handed the
     // source, and a highlight layer keys its per-mesh colour by the source's uniqueId. So two
@@ -345,6 +358,14 @@ export interface StyleInterner<T> {
 }
 
 /**
+ * Invocation counts the counted-work tests read: `comparisons` is held sequences compared with the
+ * one being looked up. A hash compares a new style with the few filed under its hash, so the count
+ * per lookup stays flat however many styles are held; a scan would compare it with every one.
+ * Internal; never reset here.
+ */
+export const internCounters = { comparisons: 0 };
+
+/**
  * Build an interner.
  *
  * One per kind of element: node keys and edge keys are different spaces, and a session that
@@ -456,6 +477,8 @@ export function createStyleInterner<T>(): StyleInterner<T> {
      * @returns True when they hold the same values in the same order.
      */
     const matches = (slot: number): boolean => {
+        internCounters.comparisons++;
+
         if (lengths[slot] !== length) {
             return false;
         }

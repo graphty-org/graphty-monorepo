@@ -1,6 +1,6 @@
 {
     "name": "@graphty/layout",
-    "version": "2.4.4",
+    "version": "2.5.5",
     "description": "graph layout algorithms based on networkx",
     "author": "Adam Powers <apowers@ato.ms>",
     "main": "dist/layout.js",
@@ -68,7 +68,7 @@
     "bugs": {
         "url": "https://github.com/graphty-org/graphty-monorepo/issues"
     },
-    "homepage": "https://github.com/graphty-org/graphty-monorepo/tree/master/layout#readme",
+    "homepage": "https://graphty.app/docs/layout/",
     "config": {
         "commitizen": {
             "path": "./node_modules/cz-conventional-changelog"

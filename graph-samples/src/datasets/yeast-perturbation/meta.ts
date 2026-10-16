@@ -1,4 +1,5 @@
 import { type DatasetMeta } from "../build.js";
+import { PACKED } from "../packed.js";
 
 /** What the yeast-perturbation dataset is, where it came from and under which terms. */
 export const yeastPerturbationMeta: DatasetMeta = {
@@ -28,4 +29,6 @@ export const yeastPerturbationMeta: DatasetMeta = {
         "coloring nodes by expression with a diverging palette",
         "shortest paths through a regulatory network",
     ],
+    hosting: "remote",
+    ...PACKED["yeast-perturbation"],
 };

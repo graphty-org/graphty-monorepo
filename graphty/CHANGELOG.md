@@ -1,3 +1,112 @@
+## 0.8.80 (2026-10-15)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.56
+- Updated compact-mantine to 0.9.24
+- Updated graphty-element to 3.28.2
+- Updated graph-samples to 0.1.34
+- Updated graph-format to 1.4.2
+- Updated graph-io to 0.3.41
+
+## 0.8.79 (2026-10-15)
+
+### 🧱 Updated Dependencies
+
+- Updated graphty-element to 3.28.1
+
+## 0.8.78 (2026-10-15)
+
+### 🧱 Updated Dependencies
+
+- Updated graphty-element to 3.28.0
+
+## 0.8.77 (2026-10-15)
+
+### 🚀 Features
+
+- **graphty:** offer the node size mode in the Style tab ([#2495](https://github.com/graphty-org/graphty-monorepo/issues/2495))
+- **graphty:** pivot the camera on the selected nodes ([#2293](https://github.com/graphty-org/graphty-monorepo/issues/2293))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.55
+- Updated graphty-element to 3.27.0
+- Updated graph-samples to 0.1.33
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.76 (2026-10-14)
+
+### 🩹 Fixes
+
+- **graphty:** split the entry chunk so the build fits the default heap ([#2563](https://github.com/graphty-org/graphty-monorepo/issues/2563))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.54
+- Updated compact-mantine to 0.9.23
+- Updated graphty-element to 3.26.0
+- Updated graph-samples to 0.1.32
+- Updated graph-format to 1.4.1
+- Updated graph-io to 0.3.40
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.75 (2026-10-14)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.53
+- Updated graphty-element to 3.25.8
+- Updated graph-samples to 0.1.31
+- Updated graph-format to 1.4.0
+- Updated graph-io to 0.3.39
+
+## 0.8.74 (2026-10-14)
+
+### 🧱 Updated Dependencies
+
+- Updated graphty-element to 3.25.7
+
+## 0.8.73 (2026-10-13)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.52
+- Updated graphty-element to 3.25.6
+
+## 0.8.72 (2026-10-13)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.51
+- Updated graphty-element to 3.25.5
+
+## 0.8.71 (2026-10-13)
+
+### 🩹 Fixes
+
+- **graphty-element:** free each test file's page under v8 coverage in browser tests ([#2247](https://github.com/graphty-org/graphty-monorepo/issues/2247))
+- **graphty:** type-check graphty-element source with its own d3-force-3d declarations ([#2255](https://github.com/graphty-org/graphty-monorepo/issues/2255))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.50
+- Updated compact-mantine to 0.9.22
+- Updated graphty-element to 3.25.4
+- Updated graph-samples to 0.1.30
+- Updated graph-format to 1.3.15
+- Updated graph-io to 0.3.38
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.8.70 (2026-10-13)
 
 ### 🩹 Fixes

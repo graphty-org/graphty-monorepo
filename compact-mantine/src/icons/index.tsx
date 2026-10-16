@@ -170,6 +170,9 @@ const FILL_ATTRIBUTES = {
 } as const;
 
 // The path data is copied verbatim from the design vocabulary, section 11.
+// The two size glyphs stand their circles apart on one baseline: drawn
+// diagonally and touching, a small circle under a large one reads as a
+// magnifying glass (search) at 12px.
 // The bound form fills the glyph's closed shapes with `currentColor` and drops
 // their stroke; the attribute tag additionally knocks its hole back out in the
 // field's own surface, exactly as the mockup does. Glyphs drawn only from open
@@ -182,14 +185,14 @@ const FILL_ATTRIBUTES = {
 const FIELD_GLYPH_SHAPES: Record<FieldGlyphName, (filled: boolean) => React.JSX.Element> = {
     sizeSmallest: (filled) => (
         <>
-            <circle cx="5" cy="11" r="2.5" {...(filled ? FILL_ATTRIBUTES : {})} />
-            <circle cx="10.5" cy="6.5" r="4" {...(filled ? FILL_ATTRIBUTES : {})} />
+            <circle cx="3" cy="11.25" r="1.75" {...(filled ? FILL_ATTRIBUTES : {})} />
+            <circle cx="10.25" cy="9.25" r="3.75" {...(filled ? FILL_ATTRIBUTES : {})} />
         </>
     ),
     sizeLargest: (filled) => (
         <>
-            <circle cx="4.5" cy="11.5" r="1.75" {...(filled ? FILL_ATTRIBUTES : {})} />
-            <circle cx="10" cy="6" r="5" {...(filled ? FILL_ATTRIBUTES : {})} />
+            <circle cx="2.5" cy="12" r="1" {...(filled ? FILL_ATTRIBUTES : {})} />
+            <circle cx="9.5" cy="8.5" r="4.5" {...(filled ? FILL_ATTRIBUTES : {})} />
         </>
     ),
     width: (filled) => (

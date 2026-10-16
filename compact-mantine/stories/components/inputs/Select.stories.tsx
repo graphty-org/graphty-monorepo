@@ -10,13 +10,14 @@ import {
     Text,
 } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, waitFor, within } from "@storybook/test";
+import { expect, userEvent, within } from "@storybook/test";
 import { useState } from "react";
 
 import { LabelsProvider, StyleSelect } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";
 import { StateGrid } from "../../helpers/input-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
+import { storyWaitOptions, untilPasses } from "../../helpers/settled";
 // Imported from "../../../src", the package's published entry point, so the stories exercise
 // exactly what a consumer gets from `@graphty/compact-mantine`.
 
@@ -283,11 +284,15 @@ export const Keyboard: Story = {
         await expect(trigger).toHaveFocus();
         await userEvent.keyboard("{Enter}");
         const body = within(canvasElement.ownerDocument.body);
-        const inside = await body.findByRole("option", { name: "Inside" });
-        await waitFor(() => {
-            const t = trigger.closest(".cm-input-wrapper")?.getBoundingClientRect().top ?? 0;
-            return expect(Math.abs(inside.getBoundingClientRect().top - t)).toBeLessThanOrEqual(1);
-        });
+        const inside = await body.findByRole("option", { name: "Inside" }, storyWaitOptions(1000));
+        // floating-ui places the list on a later frame: wait on the placement, not a deadline (#2719).
+        const offset = (): number =>
+            Math.abs(
+                inside.getBoundingClientRect().top -
+                    (trigger.closest(".cm-input-wrapper")?.getBoundingClientRect().top ?? 0),
+            );
+        await untilPasses(() => offset() <= 1);
+        await expect(offset()).toBeLessThanOrEqual(1);
         await userEvent.keyboard("{ArrowDown}{Enter}");
         await expect(trigger).toHaveValue("Outside");
         await expect(trigger).toHaveFocus();

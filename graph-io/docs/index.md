@@ -1,3 +1,25 @@
+---
+head:
+    - - link
+      - rel: icon
+        href: /docs/brand/graph-io/favicon.ico
+        sizes: 48x48
+    - - link
+      - rel: icon
+        href: /docs/brand/graph-io/favicon.svg
+        type: image/svg+xml
+---
+
+![graphty graph-io](./brand/graphty-graph-io-lockup-color-on-light.svg){.graph-io-logo-light}
+![graphty graph-io](./brand/graphty-graph-io-lockup-color-on-dark.svg){.graph-io-logo-dark}
+
+<style>
+html:not(.dark) .graph-io-logo-dark,
+html.dark .graph-io-logo-light {
+    display: none;
+}
+</style>
+
 # graph-io
 
 graph-io reads and writes graph files. It turns a GraphML, GEXF, CSV or other graph file into a
@@ -49,6 +71,7 @@ one keeps.
   format that has them.
 - [The import report and errors](./guide/report.md): what went wrong, and where.
 - [Format detection](./guide/detection.md): how graph-io tells formats apart, and when to name one.
+- [Reading stored positions](./guide/positions.md): where a file drew each node, in one form whatever the format.
 - [Options reference](./guide/options.md): every option, with its default.
 - [Issue and loss codes](./guide/codes.md): every code an import or a save can report.
 - [Writing a format plugin](./guide/extending/new-format.md): teach graph-io a format of your own.

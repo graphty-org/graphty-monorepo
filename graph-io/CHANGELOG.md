@@ -1,3 +1,43 @@
+## 0.3.41 (2026-10-15)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.2
+
+## 0.3.40 (2026-10-14)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.1
+
+## 0.3.39 (2026-10-14)
+
+### 🚀 Features
+
+- **graph-io:** keepPositionSource option for the GML and DOT importers ([af7f18f57](https://github.com/graphty-org/graphty-monorepo/commit/af7f18f57))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.3.38 (2026-10-13)
+
+### 🩹 Fixes
+
+- **graph-io:** never give a generated CX or CX2 edge id that a node already has ([f28603f5f](https://github.com/graphty-org/graphty-monorepo/commit/f28603f5f))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.3.15
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.3.37 (2026-10-13)
 
 ### 🩹 Fixes

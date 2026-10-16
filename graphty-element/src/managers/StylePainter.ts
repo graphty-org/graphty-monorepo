@@ -71,6 +71,9 @@ const EDGE_BASE: EdgeStyleConfig = EdgeStyle.parse(defaultEdgeStyle);
 /** No elements were repainted, which is what an unbound painter drains. */
 const NOTHING: readonly number[] = Object.freeze([]);
 
+/** Keys that would write to an object's prototype instead of the object. */
+const UNSAFE_KEYS: ReadonlySet<string> = new Set(["__proto__", "constructor", "prototype"]);
+
 /**
  * Write one value at a dotted path, building the objects on the way.
  * @param bag - The style being built.
@@ -79,10 +82,15 @@ const NOTHING: readonly number[] = Object.freeze([]);
  */
 function setAtPath(bag: Record<string, unknown>, path: string, value: unknown): void {
     const segments = path.split(".");
+    // A path is a channel's declared style path, never a key that reaches an object's prototype.
+    if (segments.some((segment) => UNSAFE_KEYS.has(segment))) {
+        return;
+    }
+
     let held = bag;
 
     for (let at = 0; at < segments.length - 1; at++) {
-        const next = held[segments[at]];
+        const next = Object.hasOwn(held, segments[at]) ? held[segments[at]] : undefined;
 
         if (typeof next === "object" && next !== null) {
             held = next as Record<string, unknown>;
@@ -127,6 +135,7 @@ const RICH_TEXT_KEYS = {
     enabled: "enabled",
     font: "font",
     sizePx: "fontSize",
+    size: "size",
     color: "textColor",
     lineHeight: "lineHeight",
     textAlign: "textAlign",

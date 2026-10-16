@@ -4,18 +4,18 @@ import jmespath from "jmespath";
 import { z } from "zod/v4";
 import * as z4 from "zod/v4/core";
 
-// import {JSONParser} from "@streamparser/json";
 import type { AdHocData } from "../config/common";
 import { GraphtyError } from "../errors";
 import { BaseDataSourceConfig, DataSource, DataSourceChunk } from "./DataSource";
 import { resolveEndpoints } from "./endpoints";
 import { type DataLoadingError, ErrorAggregator } from "./ErrorAggregator";
+import { applyFilePositions, filePositionsOf } from "./filePositions";
 import {
     aggregateErrors,
     columnsMapping,
-    components,
     copiedPath,
     copyColumns,
+    importDocument,
     type ImportedGraph,
     importRecords,
     importWhole,
@@ -24,6 +24,7 @@ import {
     rememberImport,
     toRecords,
 } from "./graph-io-import";
+import { readSeedPosition } from "./seedPosition";
 import type { SourceInput } from "./source-bytes";
 
 const JsonNodeConfig = z
@@ -132,23 +133,16 @@ type ReadDialect = "cytoscape" | "graphology" | "vis";
 const DATA_SUFFIX = "#data";
 
 /**
- * The record mapping for a Cytoscape.js document: each `data` key under its own name, `position`
- * as graph-io reads it (`{x, y}`, with y pointing up where Cytoscape.js's points down), and
- * `parent` as the id of the parent node.
+ * The record mapping for a Cytoscape.js document: each `data` key under its own name and `parent`
+ * as the id of the parent node. The node's `position` is written by `toRecords`, as for every format.
  * @param snapshot - the imported graph
  * @returns the mapping
  */
 function cytoscapeMapping(snapshot: GraphSnapshot): RecordMapping {
-    const position = snapshot.nodes.byRole("position");
     const parent = snapshot.nodes.byRole("parent");
     return {
         node(row, record): void {
             copyColumns(snapshot.nodes, row, record);
-            if (position?.isSet(row)) {
-                const [x, y, z] = components(position, row);
-                record[position.meta.name] = position.meta.extra.sourceDims === 3 ? { x, y, z } : { x, y };
-            }
-
             if (parent?.isSet(row)) {
                 record[parent.meta.name] = snapshot.ids.idOf(parent.value(row) as number);
             }
@@ -156,8 +150,7 @@ function cytoscapeMapping(snapshot: GraphSnapshot): RecordMapping {
         edge(row, record): void {
             copyColumns(snapshot.edges, row, record);
         },
-        path: (kind, column) =>
-            kind === "node" && (column === position || column === parent) ? null : copiedPath(kind, column),
+        path: (kind, column) => (kind === "node" && column === parent ? null : copiedPath(kind, column)),
     };
 }
 
@@ -269,6 +262,35 @@ function plainKey(expression: string): string | null {
  */
 function isObject(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Replace each node record's own `position` with the one graph-io's `extractPositions` reads from
+ * it, the path every other reader's positions take. A record's `position` (`{ x, y, z? }` or
+ * `[x, y, z?]`) is read as graphty-element's own convention -- center, y up, file units -- and a
+ * file whose positions are unusable (every node on one point) keeps none.
+ * @param records - the node records, changed in place
+ */
+async function placeRecords(records: readonly Record<string, unknown>[]): Promise<void> {
+    if (!records.some((record) => "position" in record)) {
+        return;
+    }
+
+    // Each record goes to graph-io as its row number and its coordinates.
+    const stubs = records.map((record, row) => {
+        const seed = readSeedPosition(record);
+        return seed === null ? { id: String(row) } : { id: String(row), x: seed[0], y: seed[1], z: seed[2] };
+    });
+    const imported = await importDocument(jsonImporter, JSON.stringify({ nodes: stubs, edges: [] }), {
+        dialect: "node-link",
+    });
+
+    for (const record of records) {
+        delete record.position;
+    }
+
+    const { ids } = imported.snapshot;
+    applyFilePositions(records, filePositionsOf(imported), (_record, row) => ids.indexOf(String(row)));
 }
 
 /**
@@ -501,6 +523,7 @@ export class JsonDataSource extends DataSource {
             );
         }
 
+        await placeRecords(nodes as Record<string, unknown>[]);
         yield* this.chunkData(nodes as AdHocData[], edges as AdHocData[]);
     }
 

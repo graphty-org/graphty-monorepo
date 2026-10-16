@@ -1,3 +1,21 @@
+## 2.0.19 (2026-10-15)
+
+This was a version bump only for @graphty/remote-logger to align it with other projects, there were no code changes.
+
+## 2.0.18 (2026-10-14)
+
+This was a version bump only for @graphty/remote-logger to align it with other projects, there were no code changes.
+
+## 2.0.17 (2026-10-13)
+
+### 🩹 Fixes
+
+- **graphty-element:** free each test file's page under v8 coverage in browser tests ([#2247](https://github.com/graphty-org/graphty-monorepo/issues/2247))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 2.0.16 (2026-10-13)
 
 ### 🩹 Fixes

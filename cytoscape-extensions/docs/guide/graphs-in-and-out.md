@@ -50,9 +50,8 @@ lists all 59. A misspelled name or option (`seeed`) rejects with a `RangeError` 
 each member's faction in `data("club")` (`"Mr. Hi"` for node `"0"`). Edges get random ids from
 Cytoscape on every load; match them by `source()` and `target()`.
 
-Sixteen datasets ship inside the package and load from where the page loaded it, so serve the page
-over HTTP. `road-ny`, `ogbn-arxiv`, `go-basic`, `disease-ontology`, `bioplex3-hct116` and `com-dblp`
-download from graphty.app. `yeast-perturbation`, `stelzl-interactome`,
+Every dataset downloads from graphty.app when it is asked for; none is inside the package, so the
+first call needs the network (pass `baseUrl` to load them from a mirror of your own). `yeast-perturbation`, `stelzl-interactome`,
 `wikipathways-senescence-autophagy` and `bioplex3-hct116` are drawings: each node sits where
 Cytoscape drew it. Each dataset has its own license, not this package's MIT; the
 [dataset reference](../reference/graphs#datasets) lists them.
@@ -283,10 +282,15 @@ first, or append them yourself:
 
 ```js
 const { stylesheet } = await cy.graphtyImport(text, "auto", { styles: true });
-cy.style()
-    .fromJson([...cy.style().json(), ...stylesheet])
-    .update();
+for (const rule of stylesheet) {
+    cy.style().selector(rule.selector).style(rule.style);
+}
+cy.style().update();
 ```
+
+Append the rules one by one like this rather than through `cy.style().fromJson([...cy.style().json(),
+...stylesheet])`: `json()` writes a function-valued property of the core's own stylesheet as the
+string `"fn"`, which Cytoscape.js then rejects.
 
 The stylesheet alone draws what the file's rules say; an element the rules cannot describe exactly
 (a file that sets one node's color by hand, for example) looks right only with `applyStyles`.

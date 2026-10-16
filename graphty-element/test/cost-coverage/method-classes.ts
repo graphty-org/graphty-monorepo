@@ -4,8 +4,8 @@
  * - `MUTATING`: it changes the graph or what is drawn of it -- nodes, edges and their data, styles,
  *   positions and layout, selection, visibility, results, sets, notes, the scene and its render
  *   objects, the element's lifecycle -- or anything else a project saves, so a cost per call that
- *   grows with the graph makes a bulk path quadratic. Each one needs a counted-work test in
- *   `counted-work.ts`, or an entry in its not-yet-covered list.
+ *   grows with the graph makes a bulk path quadratic. Each one needs a counted-work test registered
+ *   in a `*.counted-work.ts` module, or a file in `not-yet-covered/` (see `counted-work.ts`).
  * - `READ_ONLY`: it changes none of that -- a query, a subscription, the camera, input, profiling,
  *   scheduling, logging, a registry, an assistant's connection.
  *
@@ -146,6 +146,7 @@ export const MUTATING: readonly string[] = [
     "LayoutEngine.publishPositions",
     "LayoutEngine.removeEdge",
     "LayoutEngine.removeNode",
+    "LayoutEngine.setFollowers",
     "LayoutEngine.setHoldMask",
     "LayoutEngine.setNodePosition",
     "LayoutEngine.step",
@@ -156,6 +157,7 @@ export const MUTATING: readonly string[] = [
     "LayoutManager.init",
     "LayoutManager.loadArrangement",
     "LayoutManager.setGraphContext",
+    "LayoutManager.placeGroups",
     "LayoutManager.step",
     "LayoutManager.stepBatch",
     "LayoutManager.updatePositions",
@@ -198,6 +200,7 @@ export const MUTATING: readonly string[] = [
     "SelectionManager.select",
     "SelectionManager.selectById",
     "SelectionManager.setDataManager",
+    "SelectionManager.toggle",
     "SessionConfig.set",
     "SessionDataApi.addEdges",
     "SessionDataApi.addNodes",
@@ -676,6 +679,7 @@ export const READ_ONLY: readonly string[] = [
     "LayoutEngine.getRegisteredTypes",
     "LayoutEngine.getZodOptionsSchema",
     "LayoutEngine.hasZodOptions",
+    "LayoutEngine.isFollower",
     "LayoutEngine.isHeld",
     "LayoutEngine.pairWeightKey",
     "LayoutEngine.pairWeights",
@@ -685,6 +689,7 @@ export const READ_ONLY: readonly string[] = [
     "LayoutEngineStatics.getZodOptionsSchema",
     "LayoutEngineStatics.hasZodOptions",
     "LayoutManager.getNodePosition",
+    "LayoutManager.groupBox",
     "LayoutManager.getStats",
     "LayoutManager.hasLayoutEngine",
     "LayoutManager.isCurrent",
@@ -818,6 +823,7 @@ export const READ_ONLY: readonly string[] = [
     "SelectionApi.nodeMask",
     "SelectionApi.statistics",
     "SelectionManager.getSelectedNode",
+    "SelectionManager.getSelectedNodes",
     "SelectionManager.isSelected",
     "SessionDataApi.attributes",
     "SessionDataApi.edge",
@@ -854,6 +860,7 @@ export const READ_ONLY: readonly string[] = [
     "SnapshotLayoutInput.column",
     "SnapshotLayoutInput.dataPositions",
     "SnapshotLayoutInput.report",
+    "SnapshotLayoutInput.warn",
     "StatsManager.decrementCounter",
     "StatsManager.disableFrameProfiling",
     "StatsManager.disableProfiling",

@@ -43,7 +43,15 @@ import { FILE_STYLE_TRANSLATION_ISSUE, type FileStyleNoteCode } from "./codes";
 import { type FoldableLayer, foldToCap } from "./fold";
 import type { FileStyleMeaning, FileStyleOrigin } from "./origin";
 import { computedPath, fileStylePath, isFileStylePath, parseFileStylePath } from "./path";
-import { ARROW_SHAPES, FILE_STYLE_SHAPES, type FileStyleShapeTable, LINE_STYLES, LINE_STYLES_NEAREST } from "./shapes";
+import {
+    ARROW_SHAPES,
+    BORDER_STYLES,
+    BORDER_STYLES_NEAREST,
+    FILE_STYLE_SHAPES,
+    type FileStyleShapeTable,
+    LINE_STYLES,
+    LINE_STYLES_NEAREST,
+} from "./shapes";
 import type { FileStyleScalar } from "./store";
 
 /** The most terms a selector made from a file holds; a wider group is written onto the elements. */
@@ -58,23 +66,15 @@ const LABEL_LAYERS = { default: 8, max: 16 } as const;
 /** The key `ext` carries graphty-element's own layer under, in a file graphty wrote. */
 export const LAYER_SPEC_EXT = "@graphty/graphty-element";
 
-/**
- * The `edge.width` that is one scene unit wide: the element's world-space line renderers draw an
- * edge `width / 40` scene units wide.
- */
-export const EDGE_WIDTH_PER_UNIT = 40;
-/** The label size whose letters are one scene unit tall: a label is drawn `size / 48` units tall. */
-export const LABEL_SIZE_PER_UNIT = 48;
-
 /** How a file's styles are turned into layers: choices another consumer may make differently. */
 export interface FileStyleOptions {
     /**
-     * How the file's lengths are scaled. Node sizes, edge widths, label sizes and positions are
-     * all multiplied by one scale, so the drawing keeps the file's proportions: `"median"` (the
-     * default) picks the scale that makes the file's median node size the element's default node
-     * size (or, with no node sizes, its median edge width the default edge width); `"file"` takes
-     * one file unit as one scene unit. A load merged into a graph a file already set a scale for
-     * takes that scale. The load reports the scale as `styles.lengthScale`.
+     * How the file's lengths are scaled. Node sizes, borders, edge widths, label sizes and node
+     * positions are all drawn at one scale, so the drawing keeps the file's proportions:
+     * `"median"` (the default) picks the scale that draws the file's median node at the element's
+     * default node size (or, with no node sizes, its median edge at the default edge width);
+     * `"file"` keeps the file's numbers as they are. A load merged into a graph a file already
+     * set a scale for takes that scale. The load reports the scale as `styles.lengthScale`.
      */
     readonly lengths?: "median" | "file";
     /**
@@ -128,8 +128,12 @@ export interface TranslateInput {
     readonly importId: string;
     /** The load's choices. */
     readonly options: FileStyleOptions;
-    /** The scale the graph already draws files at, which the load takes; undefined to choose one. */
-    readonly lengthScale?: number;
+    /**
+     * The scene units one file unit is drawn as in the graph the load merges into, which the load
+     * takes so one drawing has one scale: null when that graph keeps its files' lengths as they
+     * are, undefined to choose a scale for this file.
+     */
+    readonly sceneScale?: number | null;
     /** What the element's own base layers paint, per kind, for a file graphty wrote. */
     readonly base: Readonly<Record<StyleTarget, Readonly<Partial<Record<Channel, unknown>>>>>;
     /** The path a layer reads one of the file's data columns at, or null when it cannot. */
@@ -157,8 +161,6 @@ export interface Translation {
     readonly hidden: Readonly<Record<StyleTarget, { readonly key: string; readonly count: number } | null>>;
     /** The graph's background color, or null. */
     readonly background: string | null;
-    /** What every length of the file was multiplied by, its positions among them. */
-    readonly lengthScale: number;
     /** What the file's reading and its translation met. */
     readonly notes: readonly FileStyleNote[];
     /**
@@ -169,6 +171,12 @@ export interface Translation {
      * wrote, whose painting the translation does not compute.
      */
     readonly predicted: Readonly<Record<StyleTarget, ReadonlyMap<Channel, readonly unknown[]> | null>>;
+    /**
+     * The scene units one unit of the file's lengths is drawn as, which the file's stored positions
+     * take too so the drawing keeps the file's proportions; null when lengths are kept as the file
+     * has them.
+     */
+    readonly sceneScale: number | null;
 }
 
 /** How a neutral value becomes a channel value; null where the channel has no counterpart. */
@@ -446,16 +454,16 @@ function closingQuote(where: string, from: number, quote: string): number {
 /**
  * The neutral property each channel of a kind is drawn from, and how.
  * @param kind - Nodes or edges.
- * @param factor - What a length of the file is multiplied by.
+ * @param factors - What the file's lengths are multiplied by.
  * @param shapes - The 2D-to-3D shape table.
- * @param labelSizes - Whether label sizes are scaled with the rest.
+ * @param graphty - Whether graphty wrote the file.
  * @returns The plans per property.
  */
 function channelPlans(
     kind: StyleTarget,
-    factor: number,
+    factors: LengthFactors,
     shapes: FileStyleShapeTable,
-    labelSizes: FileStyleOptions["labelSizes"],
+    graphty: boolean,
 ): ReadonlyMap<string, readonly ChannelPlan[]> {
     const id = (channel: Channel): ChannelPlan => ({ channel, convert: (value) => value, identity: true });
     const table = (
@@ -471,22 +479,29 @@ function channelPlans(
             : { nearest: (value: StyleValue) => typeof value === "string" && nearest.has(value) }),
     });
     const label = (field: string): ChannelPlan => id(`${kind}.${field}` as Channel);
-    const scaled = (channel: Channel, by: number): ChannelPlan => ({
+    const length = (channel: Channel, factor = factors[kind]): ChannelPlan => ({
         channel,
-        convert: (value) => (typeof value === "number" ? round(value * by) : null),
-        identity: by === 1,
+        convert: (value) => (typeof value === "number" ? round(value * factor) : null),
+        identity: factor === 1,
     });
-    const labelSize = scaled(`${kind}.labelSize` as Channel, labelSizes === "file" ? 1 : factor * LABEL_SIZE_PER_UNIT);
     if (kind === "node") {
         const shapeTable = new Map(Object.entries(shapes));
         return new Map<string, readonly ChannelPlan[]>([
             ["fill", [id("node.color")]],
-            ["borderColor", [id("node.outline")]],
+            // graphty writes a consumer's `node.outline` as `borderColor`, so its own file reads it
+            // back there. Another program's border is a ring sized with the node: drawn as the
+            // outline's screen-space glow it covers the fill once the graph is framed (issue #2252).
+            ["borderColor", [id(graphty ? "node.outline" : "node.borderColor")]],
+            ["borderWidth", [length("node.borderWidth")]],
+            // Drawn in a pass of their own (`#extents`), only where some node's sides differ.
+            ["width", [length("node.width")]],
+            ["height", [length("node.height")]],
+            ["borderStyle", [table("node.borderStyle", BORDER_STYLES, BORDER_STYLES_NEAREST)]],
             ["label", [id("node.label")]],
             ["tooltip", [id("node.tooltip")]],
             ["shape", [table("node.shape", shapeTable, new Set(shapeTable.keys()))]],
             ["labelColor", [label("labelColor")]],
-            ["labelSize", [labelSize]],
+            ["labelSize", [length("node.labelSize", factors.label)]],
             ["labelFont", [label("labelFont")]],
             ["labelWeight", [label("labelWeight")]],
             ["labelItalic", [label("labelItalic")]],
@@ -496,7 +511,7 @@ function channelPlans(
     return new Map<string, readonly ChannelPlan[]>([
         ["color", [id("edge.color")]],
         ["opacity", [id("edge.opacity")]],
-        ["width", [scaled("edge.width", factor * EDGE_WIDTH_PER_UNIT)]],
+        ["width", [length("edge.width")]],
         ["lineStyle", [table("edge.style", LINE_STYLES, LINE_STYLES_NEAREST)]],
         ["targetArrow", [table("edge.arrowHead", ARROW_SHAPES)]],
         ["sourceArrow", [table("edge.arrowTail", ARROW_SHAPES)]],
@@ -508,7 +523,7 @@ function channelPlans(
         ["targetLabel", [id("edge.arrowHeadText")]],
         ["sourceLabel", [id("edge.arrowTailText")]],
         ["labelColor", [label("labelColor")]],
-        ["labelSize", [labelSize]],
+        ["labelSize", [length("edge.labelSize", factors.label)]],
         ["labelFont", [label("labelFont")]],
         ["labelWeight", [label("labelWeight")]],
         ["labelItalic", [label("labelItalic")]],
@@ -517,7 +532,7 @@ function channelPlans(
 
 /** The properties the element draws nothing for, per kind. */
 const NOT_DRAWN: Readonly<Record<StyleTarget, ReadonlySet<string>>> = {
-    node: new Set(["borderWidth", "borderStyle", "image"]),
+    node: new Set(["image"]),
     edge: new Set(["tooltip"]),
 };
 
@@ -570,9 +585,9 @@ export function translateFileStyles(input: TranslateInput): Translation {
     const hidden: Record<StyleTarget, { key: string; count: number } | null> = { node: null, edge: null };
     const byKind: Record<StyleTarget, TranslatedLayer[]> = { node: [], edge: [] };
     const predicted: Record<StyleTarget, ReadonlyMap<Channel, readonly unknown[]> | null> = { node: null, edge: null };
-    const lengthScale = input.lengthScale ?? lengthScaleOf(input);
+    const factors = lengthFactors(input);
     for (const kind of ["node", "edge"] as const) {
-        const translation = new KindTranslation(input, kind, lengthScale, notes, columns[kind]);
+        const translation = new KindTranslation(input, kind, factors, notes, columns[kind]);
         byKind[kind].push(...translation.run());
         hidden[kind] = translation.hidden;
         predicted[kind] = translation.predicted;
@@ -586,9 +601,9 @@ export function translateFileStyles(input: TranslateInput): Translation {
         columns,
         hidden,
         background: typeof background === "string" ? background : null,
-        lengthScale,
         notes: notes.list(),
         predicted,
+        sceneScale: factors.scene,
     };
 }
 
@@ -630,39 +645,113 @@ function inRuleOrder(
 }
 
 /**
- * What every length of the file is multiplied by: one scale for node sizes, edge widths, label
- * sizes and positions, so the drawing keeps the file's proportions.
- * @param input - The translation's input.
- * @returns The scale: 1 when a file unit is kept as a scene unit.
+ * The scene units one unit of each kind of length channel is drawn as in 2D, so every length of a
+ * file can be put in one unit.
  */
-function lengthScaleOf(input: TranslateInput): number {
+const SCENE_PER_UNIT = {
+    /** `node.size`, its width and height and `node.borderWidth`: NODE_EXTENT_PER_SIZE (meshes/NodeMesh.ts). */
+    node: 1.5,
+    /** `edge.width`: a 2D line is `width / 40` scene units wide (meshes/EdgeMesh.ts). */
+    edge: 1 / 40,
+} as const;
+
+/**
+ * How a label is drawn (meshes/RichTextLabel.ts): one line's plane is `sizePx / 48` scene units
+ * tall, and the canvas it is drawn on is a line box of LINE x `sizePx` (the line height, 1.2, times
+ * the font's ascent and descent, about 1.11 em) plus MARGIN pixels of margin. So the letters are
+ * `sizePx^2 / (48 (LINE sizePx + MARGIN))` scene units tall, which is not in proportion to `sizePx`.
+ */
+const LABEL = { perScene: 48, line: 1.33, margin: 10 } as const;
+
+/**
+ * The `sizePx` that draws a label's letters a given height in the scene: the root of
+ * `sizePx^2 = perScene * em * (line * sizePx + margin)`.
+ * @param em - How tall the letters are to be, in scene units.
+ * @returns The size.
+ */
+function labelSizePx(em: number): number {
+    const a = LABEL.perScene * LABEL.line * em;
+    return (a + Math.sqrt(a * a + 4 * LABEL.perScene * LABEL.margin * em)) / 2;
+}
+
+/** What the file's lengths are multiplied by, per kind of channel, and the scene units one file unit is. */
+interface LengthFactors {
+    /** Node sizes, widths, heights and border widths. */
+    readonly node: number;
+    /** Edge widths. */
+    readonly edge: number;
+    /**
+     * Label sizes, of nodes and of edges: exact at the file's median label size (a label's letters
+     * are not in proportion to its `sizePx`, see LABEL), and one factor, so a mapped size is drawn
+     * as the mapping's points interpolate.
+     */
+    readonly label: number;
+    /** The scene units one file unit is drawn as; null when lengths are kept as the file has them. */
+    readonly scene: number | null;
+}
+
+/** The factors that keep every length as the file has it. */
+const KEPT: LengthFactors = { node: 1, edge: 1, label: 1, scene: null };
+
+/**
+ * What the file's lengths are multiplied by: ONE scale for every length (issue #2322), chosen so
+ * the file's median node is drawn at the element's own node size (or, when the file sizes no node,
+ * its median edge at the element's edge width), and converted to each channel's unit.
+ * @param input - The translation's input.
+ * @returns The factors: all 1 when lengths are kept as the file has them.
+ */
+function lengthFactors(input: TranslateInput): LengthFactors {
+    const scene = input.sceneScale === undefined ? chosenScene(input) : input.sceneScale;
+    if (scene === null) {
+        return KEPT;
+    }
+
+    const labelMedian = median([...resolved(input, "node", "labelSize"), ...resolved(input, "edge", "labelSize")]) ?? 1;
+    return {
+        node: scene / SCENE_PER_UNIT.node,
+        edge: scene / SCENE_PER_UNIT.edge,
+        label: input.options.labelSizes === "file" ? 1 : labelSizePx(scene * labelMedian) / labelMedian,
+        scene,
+    };
+}
+
+/**
+ * Each element's value of one property, as the file's rules give it; empty when no rule sets it.
+ * @param input - The translation's input.
+ * @param kind - Nodes or edges.
+ * @param property - The property.
+ * @returns The values, by the import's element index.
+ */
+function resolved(input: TranslateInput, kind: StyleTarget, property: StyleProperty): readonly unknown[] {
+    const { extracted, snapshot } = input;
+    return extracted.styles.rules.some(
+        (rule) => rule.target === kind && (rule.set?.[property] !== undefined || rule.map?.[property] !== undefined),
+    )
+        ? resolveStyles(extracted, kind, property, snapshot)
+        : [];
+}
+
+/**
+ * The scene units one unit of a file's lengths is drawn as, chosen for the file alone.
+ * @param input - The translation's input.
+ * @returns The scale; null when the file's lengths are kept as they are.
+ */
+function chosenScene(input: TranslateInput): number | null {
     // A file graphty wrote is in graphty's own units already.
     if (input.options.lengths === "file" || input.extracted.styles.source.tool === "graphty") {
-        return 1;
+        return null;
     }
 
-    const { extracted, snapshot, base } = input;
-    const resolved = (kind: StyleTarget, property: StyleProperty): readonly unknown[] =>
-        extracted.styles.rules.some(
-            (rule) =>
-                rule.target === kind && (rule.set?.[property] !== undefined || rule.map?.[property] !== undefined),
-        )
-            ? resolveStyles(extracted, kind, property, snapshot)
-            : [];
-    const nodeMedian = median([...resolved("node", "width"), ...resolved("node", "height")]);
-    const edgeMedian = median(resolved("edge", "width"));
+    const { base } = input;
+    const nodeMedian = median([...resolved(input, "node", "width"), ...resolved(input, "node", "height")]);
     const nodeBase = typeof base.node["node.size"] === "number" ? base.node["node.size"] : 1;
     const edgeBase = typeof base.edge["edge.width"] === "number" ? base.edge["edge.width"] : 1;
-    // The node sizes decide; a file with none decides by its edge widths.
-    let value = 1;
-    if (nodeMedian !== null) {
-        value = nodeBase / nodeMedian;
-    } else if (edgeMedian !== null) {
-        value = edgeBase / (edgeMedian * EDGE_WIDTH_PER_UNIT);
-    }
-
-    // A degenerate median (1e-320, 1e308) keeps the file's units.
-    return Number.isFinite(value) && value > 0 ? value : 1;
+    const scene =
+        nodeMedian === null
+            ? (edgeBase * SCENE_PER_UNIT.edge) / (median(resolved(input, "edge", "width")) ?? Number.NaN)
+            : (nodeBase * SCENE_PER_UNIT.node) / nodeMedian;
+    // No length to scale by, or a degenerate median (1e-320, 1e308): the file's units are kept.
+    return Number.isFinite(scene) && scene > 0 ? scene : null;
 }
 
 /** The translation of one kind's rules. */
@@ -691,8 +780,6 @@ class KindTranslation {
     #heldPaths: ReadonlySet<string> | undefined = undefined;
     /** The `data.` paths whose column any rule of this kind reads from graph-io's copy; undefined until first asked. */
     #copiedPaths: ReadonlySet<string> | undefined = undefined;
-    /** Per node, whether its border is zero wide; undefined until first asked. */
-    #zeroBorders: readonly boolean[] | null | undefined = undefined;
     /** What the layers paint, once `run()` has run; null when a rebuilt layer's painting is unknown. */
     predicted: ReadonlyMap<Channel, readonly unknown[]> | null = null;
 
@@ -700,24 +787,29 @@ class KindTranslation {
      * Set up the translation of one kind.
      * @param input - The translation's input.
      * @param kind - The kind translated.
-     * @param factor - What a length is multiplied by.
+     * @param factors - What the file's lengths are multiplied by.
      * @param notes - Where notes go.
      * @param columns - Where the values the layers read go.
      */
     constructor(
         input: TranslateInput,
         kind: StyleTarget,
-        factor: number,
+        factors: LengthFactors,
         notes: Notes,
         columns: Map<string, (FileStyleScalar | null)[]>,
     ) {
         this.#input = input;
         this.#kind = kind;
-        this.#factor = factor;
+        this.#factor = factors[kind];
         this.#notes = notes;
         this.#columns = columns;
         this.#n = kind === "node" ? input.snapshot.nodeCount : input.snapshot.edgeCount;
-        this.#plans = channelPlans(kind, factor, input.options.shapes ?? FILE_STYLE_SHAPES, input.options.labelSizes);
+        this.#plans = channelPlans(
+            kind,
+            factors,
+            input.options.shapes ?? FILE_STYLE_SHAPES,
+            input.extracted.styles.source.tool === "graphty",
+        );
         this.#keys = new Set(input.extracted.columns[kind].keys());
         this.#rules = input.extracted.styles.rules.filter(
             (rule) => rule.target === kind && (input.options.toolDefaults !== false || rule.origin !== "tool"),
@@ -734,6 +826,7 @@ class KindTranslation {
         });
         this.#composites();
         this.#visibility();
+        this.#nesting();
 
         const ordered = [...this.#built].filter(
             (layer) => Object.keys(layer.spec.set).length + Object.keys(layer.spec.encode).length > 0,
@@ -1572,11 +1665,7 @@ class KindTranslation {
      * @param source - The styles the rule belongs to.
      */
     #emit(rule: StyleRule, bucket: number, property: string, plan: ChannelPlan, source: ExtractedStyles): void {
-        const evaluated = this.#evaluate(rule, property, source);
-        // A border the file draws zero wide is not drawn at all.
-        const unbordered = property === "borderColor" && this.#kind === "node" ? this.#zeroBorder() : null;
-        const truth = unbordered === null ? evaluated : evaluated.map((value, i) => (unbordered[i] ? null : value));
-        const masked = truth.some((value, i) => value === null && evaluated[i] !== null);
+        const truth = this.#evaluate(rule, property, source);
         const drawn = truth.map((value) => (value === null ? null : plan.convert(value)));
         this.#noteConversion(property, plan, truth, drawn);
         if (!drawn.some((value) => value !== null)) {
@@ -1594,7 +1683,7 @@ class KindTranslation {
         const layer = this.#layerFor(rule, bucket, selector);
         recordPaint(layer, plan.channel, drawn);
         const set = rule.set?.[property as StyleProperty];
-        if (set !== undefined && !masked) {
+        if (set !== undefined) {
             const value = plan.convert(set);
             if (value !== null) {
                 layer.spec.set[plan.channel] = value;
@@ -1603,8 +1692,7 @@ class KindTranslation {
         }
 
         const mapping = rule.map?.[property as StyleProperty];
-        const binding =
-            mapping === undefined || masked ? null : this.#binding(mapping, plan, truth, drawn, source, rule);
+        const binding = mapping === undefined ? null : this.#binding(mapping, plan, truth, drawn, source, rule);
         if (binding !== null) {
             layer.spec.encode[plan.channel] = binding.binding;
             layer.worth += binding.worth;
@@ -1621,20 +1709,6 @@ class KindTranslation {
             mapping: "passthrough",
             distinctValues: new Set(drawn.filter((value) => value !== null)).size,
         });
-    }
-
-    /**
-     * Per node, whether the file draws its border zero wide.
-     * @returns The marks, or null when no node's border is zero wide.
-     */
-    #zeroBorder(): readonly boolean[] | null {
-        if (this.#zeroBorders === undefined) {
-            const widths = resolveStyles(this.#input.extracted, "node", "borderWidth", this.#input.snapshot);
-            const marks = widths.map((width) => typeof width === "number" && width <= 0);
-            this.#zeroBorders = marks.some(Boolean) ? marks : null;
-        }
-
-        return this.#zeroBorders;
     }
 
     /**
@@ -1873,6 +1947,7 @@ class KindTranslation {
             },
             "node.size",
         );
+        this.#extents();
         this.#composite(
             ["fillOpacity", "opacity"],
             "opacity",
@@ -1886,6 +1961,36 @@ class KindTranslation {
             "node.opacity",
         );
         this.#labelPositions();
+    }
+
+    /**
+     * Node width and height, where the file draws some node wider than it is tall or taller than
+     * wide; `node.size` alone draws a node whose sides are equal.
+     */
+    #extents(): void {
+        const { extracted, snapshot } = this.#input;
+        const only = new Set(["width", "height"]);
+        const writes = (rule: StyleRule): boolean =>
+            [...only].some(
+                (p) => rule.set?.[p as StyleProperty] !== undefined || rule.map?.[p as StyleProperty] !== undefined,
+            );
+        const writers = this.#rules.map((rule, bucket) => ({ rule, bucket })).filter(({ rule }) => writes(rule));
+        if (writers.length === 0) {
+            return;
+        }
+
+        const width = resolveStyles(extracted, "node", "width", snapshot);
+        const height = resolveStyles(extracted, "node", "height", snapshot);
+        const uneven = width.some((w, i) => typeof w === "number" && typeof height[i] === "number" && w !== height[i]);
+        if (!uneven) {
+            return;
+        }
+
+        for (const { rule, bucket } of writers) {
+            this.#emitFor(rule, () => {
+                this.#neutralRule(rule, bucket, extracted, only);
+            });
+        }
     }
 
     /**
@@ -2139,6 +2244,71 @@ class KindTranslation {
     }
 
     /**
+     * Groups behind their members, as every program that draws them does (yEd, Cytoscape): each
+     * node the file nests others in (graph-io's `parent` or `parents` column) is drawn at a
+     * `node.zIndex` below 0, one step lower per level of groups inside it, so an outer group sits
+     * behind an inner one and both behind every member and edge. Only group nodes are painted.
+     */
+    #nesting(): void {
+        if (this.#kind !== "node") {
+            return;
+        }
+
+        const children = childrenOf(this.#input.snapshot);
+        if (children.size === 0) {
+            return;
+        }
+
+        // Levels of groups below each node, computed bottom up; a cycle counts as no further level.
+        const levels = new Map<number, number>();
+        const levelOf = (node: number, seen: Set<number>): number => {
+            const held = levels.get(node);
+            if (held !== undefined) {
+                return held;
+            }
+
+            seen.add(node);
+            let level = 0;
+            for (const child of children.get(node) ?? []) {
+                if (!seen.has(child)) {
+                    level = Math.max(level, 1 + levelOf(child, seen));
+                }
+            }
+
+            seen.delete(node);
+            levels.set(node, level);
+            return level;
+        };
+        const values = Array.from({ length: this.#n }, (_unused, i) =>
+            children.has(i) ? -Math.max(1, levelOf(i, new Set())) : null,
+        );
+        const path = this.#keepNew("zIndex", values);
+        this.#built.push({
+            bucket: this.#rules.length,
+            spec: {
+                name: "node.groups",
+                target: "node",
+                kind: "encoding",
+                selector: this.#scoped({ match: "has", path }),
+                set: {},
+                encode: { "node.zIndex": { by: path, scale: "passthrough" } },
+                fileStyle: {
+                    format: this.#input.format,
+                    importId: this.#input.importId,
+                    ruleId: "node.groups",
+                    role: "group",
+                    origin: "inferred",
+                    column: path,
+                    mapping: "passthrough",
+                    elements: children.size,
+                },
+            },
+            paint: new Map([["node.zIndex", values]]),
+            worth: 0,
+        });
+    }
+
+    /**
      * The layer standing for a folded run: what the run painted, kept per element.
      * @param run - The run.
      * @param paint - What it painted per channel.
@@ -2174,6 +2344,45 @@ class KindTranslation {
             worth: 0,
         };
     }
+}
+
+/**
+ * The nodes each node nests, by row, from graph-io's `parent` (one parent) and `parents` (a list)
+ * node columns.
+ * @param snapshot - The imported graph.
+ * @returns The children of every node that has any.
+ */
+export function childrenOf(snapshot: GraphSnapshot): Map<number, number[]> {
+    const out = new Map<number, number[]>();
+    for (const role of ["parent", "parents"] as const) {
+        const column = snapshot.nodes.byRole(role);
+        if (column === null) {
+            continue;
+        }
+
+        for (let row = 0; row < snapshot.nodeCount; row++) {
+            const value = column.isSet(row) ? plain(column.value(row)) : null;
+            for (const parent of parentRows(value, row, snapshot.nodeCount)) {
+                const held = out.get(parent) ?? [];
+                held.push(row);
+                out.set(parent, held);
+            }
+        }
+    }
+
+    return out;
+}
+
+/**
+ * The parent rows one node's `parent` or `parents` value names: valid rows other than its own.
+ * @param value - The column's value for the node: a row, a list of rows or nothing.
+ * @param row - The node's own row.
+ * @param nodeCount - How many nodes the graph has.
+ * @returns The parent rows.
+ */
+function parentRows(value: unknown, row: number, nodeCount: number): number[] {
+    const list: unknown[] = Array.isArray(value) ? value : [value];
+    return list.filter((p): p is number => typeof p === "number" && p !== row && p >= 0 && p < nodeCount);
 }
 
 /** The first segment after `data.` in an expression, bare or quoted. */

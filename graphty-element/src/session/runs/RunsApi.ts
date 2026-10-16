@@ -1784,7 +1784,7 @@ class Runs implements SessionRunsApi {
         const column = elementIdsOf(result, "node").map((id) => result.node(id)?.[field]);
         // Every group has a layer of its own, so none is folded into an "other" grey: the groups
         // past the palette's colours take colours of their own.
-        const preview = groupsPreview(styles.previewColumn, binding, column);
+        const preview = groupsPreview(styles.previewColumn.bind(styles), binding, column);
         const found = findRow(rowsOf(draft.styles), layer.id);
         const folder = styles.execute(
             {
@@ -1909,7 +1909,7 @@ class Runs implements SessionRunsApi {
         const column = elementIdsOf(result, "node").map((id) => result.node(id)?.group);
         const first = mine[0].encode?.["node.color"];
         const { bins } = groupsPreview(
-            styles.previewColumn,
+            styles.previewColumn.bind(styles),
             { by: path, scale: "ordinal", ...(first !== undefined && "by" in first ? { palette: first.palette } : {}) },
             column,
         );

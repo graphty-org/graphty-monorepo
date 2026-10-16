@@ -204,7 +204,6 @@ export function BindingPopover(props: Readonly<BindingPopoverProps>): React.JSX.
                             label={`More ${parts.noun} than colors`}
                             value={binding.overflow}
                             defaultValue="other"
-                            placeholder=""
                             options={[...OVERFLOW_WORDS[descriptor.target]]}
                             onChange={(overflow) => {
                                 patch({ overflow: overflow as LayerBinding["overflow"] });
@@ -223,7 +222,6 @@ export function BindingPopover(props: Readonly<BindingPopoverProps>): React.JSX.
                     aria-label={`How ${name.toLowerCase()} meets the layers beneath`}
                     value={binding.combine}
                     defaultValue="replace"
-                    placeholder=""
                     options={COMBINE_WORDS}
                     onChange={(mode) => {
                         patch({ combine: mode === "multiply" || mode === "add" ? mode : undefined });
@@ -1104,7 +1102,6 @@ function NoValue({
                 label="No value"
                 value={given === null ? undefined : "value"}
                 defaultValue="skip"
-                placeholder=""
                 options={[
                     { value: "skip", label: "Leave as is" },
                     { value: "value", label: "Use one value" },

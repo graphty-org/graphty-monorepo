@@ -143,3 +143,20 @@ describe("sigma's node size", () => {
         expect(planned(back, "node", "width")[0]).toBe(10);
     });
 });
+
+describe("yEd GML without a Creator line (BioNetGen)", () => {
+    it("is read as yEd: groups into the parent column, yEd's defaults, labels placed by their anchor", async () => {
+        const r = await load(corpus("gml/fidelity/repro-groups-no-creator.gml"), "gml");
+        expect(r.styles?.styles.source.tool).toBe("yed");
+        // node 0 is Rule0, node 1 its molecule M00 (gid 0), node 2 a component of M00 (gid 1)
+        const parent = r.snapshot.nodes.byRole("parent");
+        expect(parent).not.toBeNull();
+        expect([1, 2].map((i) => parent?.value(i))).toEqual([0, 1]);
+        expect(parent?.isSet(0)).toBe(false);
+        expect(new Set(planned(r, "node", "labelPosition"))).toEqual(new Set(["center"]));
+        // yEd draws an outline 1 wide and an edge without targetArrow with no arrow
+        expect(new Set(planned(r, "node", "borderWidth"))).toEqual(new Set([1]));
+        expect(planned(r, "edge", "targetArrow")[0]).toBe("none");
+        expect(r.report.issues.map((i) => i.code)).not.toContain("W_GML_GROUPS");
+    });
+});

@@ -12,7 +12,8 @@
  * character references in strings, `Creator` / `Version` top-level metadata, `directed 0|1` and
  * `multigraph 0|1` graph flags, comments, keys and values on one line or split across lines, and
  * a `graphics [ x y z ]` node record mapped to the `position` role (note 07 section 9) with the
- * remaining graphics keys kept as a json column.
+ * remaining graphics keys kept as a json column, and yEd's `gid` (the group a node sits in) read
+ * into the parent column as well as kept as a plain column.
  *
  * Node ids are the `id` keys under `nodeIdFrom: "id"`, the `label` under `"label"`, and the node's
  * ordinal under `"index"`; `source` / `target` always resolve through the `id` keys. The GML spec
@@ -199,10 +200,13 @@ export const GRAPHICS_CODE = "W_GML_GRAPHICS";
  */
 export const NESTED_ELEMENT_CODE = "W_GML_NESTED_ELEMENT";
 /**
- * YEd's group keys (`isGroup`, `gid`); kept as plain node columns, the hierarchy is not read as containment.
+ * A yEd `gid` that names no other node: it stays a plain column value and puts the node in no group.
  * @category Issue and loss codes
  */
 export const GROUPS_CODE = "W_GML_GROUPS";
+
+/** The parent column yEd's `gid` keys are read into. */
+const GROUP_PARENT_COLUMN = "graphty.parent";
 /**
  * A key whose values mix numbers and strings; the column is string, the numbers kept as written.
  * @category Issue and loss codes
@@ -448,6 +452,9 @@ class GmlImport {
 
     /** The file ids of node blocks that were skipped: an edge naming one is skipped too, never given a new node. */
     private readonly skippedIds = new Set<NodeId>();
+
+    /** Each node's yEd `gid` (its group's file id): the node's index and the value token. */
+    private readonly groupRefs: [node: number, token: number][] = [];
 
     /** Node indices declared by a node block of this import, for duplicate detection. */
     private declared = new Uint32Array(64);
@@ -744,7 +751,7 @@ class GmlImport {
 
     /**
      * Warn about keys of a node or edge whose meaning GML readers give but this import does not:
-     * a nested graph / node / edge record, and yEd's group hierarchy.
+     * a nested graph / node / edge record.
      * @param domain - the table
      * @param key - the key
      * @param v - the value token
@@ -761,13 +768,6 @@ class GmlImport {
                 `a nested ${key} record inside a ${domain} is kept as the json column "${key}"; it is not read as structure`,
                 { line: t.line[v], element: key },
                 `${NESTED_ELEMENT_CODE}:${domain}:${key}`,
-            );
-        } else if (domain === "node" && (key === "isGroup" || key === "gid")) {
-            this.report.warnOnce(
-                "unsupported",
-                GROUPS_CODE,
-                "yEd group keys (isGroup, gid) are kept as plain node columns; the group hierarchy is not read as containment",
-                { line: t.line[v], element: key },
             );
         }
     }
@@ -829,7 +829,44 @@ class GmlImport {
         }
         this.pushTopLevel();
         this.pushNodes();
+        this.pushGroups();
         this.pushEdges();
+    }
+
+    /**
+     * Read yEd's group hierarchy into the parent column: a node's `gid` names the group node it sits in. A `gid` that
+     * names no node (or the node itself) is warned once and left a plain column value.
+     */
+    private pushGroups(): void {
+        const t = this.requireTokens();
+        let handle: ColumnHandle | null = null;
+        for (const [node, v] of this.groupRefs) {
+            let parent: number = INVALID_INDEX;
+            try {
+                const fileId = this.coerceFileId(v, this.fileIdOf(v, "gid"));
+                parent = this.sink.indexOf(this.idMap?.get(fileId) ?? fileId);
+            } catch {
+                parent = INVALID_INDEX;
+            }
+            if (parent === INVALID_INDEX || parent === node) {
+                this.report.warnOnce(
+                    "validation-error",
+                    GROUPS_CODE,
+                    `gid ${t.kind[v] === TOKEN_OPEN ? "[...]" : t.textOf(v)} names no other node; it is kept as a plain column value`,
+                    { line: t.line[v], element: "gid" },
+                );
+                continue;
+            }
+            handle ??= this.sink.declareNodeColumn({
+                name: uniqueColumnName(GROUP_PARENT_COLUMN, null, (c) => this.sink.nodeColumn(c) !== INVALID_INDEX),
+                dtype: "u32",
+                role: "parent",
+                refersTo: "node",
+                nullable: true,
+                origin: { format: "gml", id: null, title: null, type: "gid", namespace: null },
+            });
+            this.sink.setNodeValue(handle, node, parent);
+        }
     }
 
     /** Turn every schema entry into a column plan. */
@@ -1223,6 +1260,9 @@ class GmlImport {
                 const key = t.textOf(p);
                 if (key === "id" || (key === ORIGINAL_ID_KEY && options.restoreMangledIds)) {
                     continue;
+                }
+                if (key === "gid") {
+                    this.groupRefs.push([index, p + 1]);
                 }
                 const plan = this.nodePlans.get(key);
                 if (plan !== undefined && plan.position !== null) {

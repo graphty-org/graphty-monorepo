@@ -279,7 +279,7 @@ const GENERIC_SHAPES: readonly (readonly [string, string])[] = [
 ];
 
 /** yEd's label positions (`modelPosition` of the internal, sides and eight-position models). */
-const YED_POSITIONS: ReadonlyMap<string, string> = new Map([
+export const YED_POSITIONS: ReadonlyMap<string, string> = new Map([
     ["c", "center"],
     ["t", "top"],
     ["b", "bottom"],

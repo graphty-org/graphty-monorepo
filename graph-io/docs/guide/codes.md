@@ -253,7 +253,7 @@ attribute: the node label, the edge weight, a position. See
 - <a id="W_GML_FLAG_VALUE"></a>`W_GML_FLAG_VALUE`: A `directed` / `multigraph` flag outside 0 / 1, or repeated. Import: [gml](./formats/gml.md).
 - <a id="W_GML_GRAPHICS"></a>`W_GML_GRAPHICS`: A node's graphics value that cannot give a position as written; kept in the graphics json column. Import: [gml](./formats/gml.md).
 - <a id="W_GML_GRAPHICS_OVERRIDDEN"></a>`W_GML_GRAPHICS_OVERRIDDEN`: A graphics record whose x / y / z the position column overrides. Save: [gml](./formats/gml.md).
-- <a id="W_GML_GROUPS"></a>`W_GML_GROUPS`: YEd's isGroup / gid keys, kept as plain columns; the hierarchy is not read as containment. Import: [gml](./formats/gml.md).
+- <a id="W_GML_GROUPS"></a>`W_GML_GROUPS`: A yEd `gid` that names no other node; it stays a plain column value and puts the node in no group. Import: [gml](./formats/gml.md).
 - <a id="W_GML_ID_DROPPED"></a>`W_GML_ID_DROPPED`: Under `nodeIdFrom: "label"` or `"index"` the file's integer ids are not kept. It is listed in `report.lossy`, not in `report.issues`. Import: [gml](./formats/gml.md).
 - <a id="W_GML_JSON_ARRAY"></a>`W_GML_JSON_ARRAY`: A json row that is an array, written as repeated keys. Save: [gml](./formats/gml.md).
 - <a id="W_GML_KEY_MANGLED"></a>`W_GML_KEY_MANGLED`: A key rewritten under sanitizeKeys "mangle", or a column renamed because its key would read back as a style value. Save: [gml](./formats/gml.md).

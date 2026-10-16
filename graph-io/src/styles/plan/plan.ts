@@ -660,7 +660,7 @@ function derivedRules(
         if (plan.target !== "node" || d.kind !== "labelFromColumn" || stated.has("label")) {
             continue;
         }
-        const column = d.column;
+        const { column } = d;
         const feature = features.find((f) => "data" in f.ref && f.ref.data === column);
         if (feature?.values.some((v) => v !== null && v !== "") !== true) {
             continue;

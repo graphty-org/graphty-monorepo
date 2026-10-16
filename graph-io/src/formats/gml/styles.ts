@@ -56,6 +56,7 @@ import {
     valueColumns,
     YED_ARROWS,
     YED_LINES,
+    YED_POSITIONS,
     YED_SHAPES,
     yedColor,
     yedSpelled,
@@ -174,9 +175,13 @@ function graphText(snapshot: GraphSnapshot, name: string): string | null {
     return typeof v === "number" ? String(v) : null;
 }
 
+/** Node keys only yEd writes: its group hierarchy. */
+const YED_NODE_KEYS: readonly string[] = ["isGroup", "gid"];
+
 /**
- * Who wrote a GML file: the `Creator` line (top level, or a key of the graph block as Gephi writes it), or graphty when
- * the file holds a `graphty.styles` block.
+ * Who wrote a GML file: the `Creator` line (top level, or a key of the graph block as Gephi writes it), graphty when
+ * the file holds a `graphty.styles` block, or yEd when a file with no `Creator` holds keys only yEd writes (`isGroup`,
+ * `gid`, the graph's `hierarchic`).
  * @param snapshot - the graph
  * @returns the writer
  */
@@ -189,6 +194,13 @@ function writerOf(snapshot: GraphSnapshot): GmlWriter {
         if (pattern.test(creator)) {
             return writer;
         }
+    }
+    // keys only yEd writes name it even without a Creator line (BioNetGen writes yEd GML with none)
+    if (
+        creator.trim() === "" &&
+        (YED_NODE_KEYS.some((k) => snapshot.nodes.has(k)) || snapshot.graph.has("hierarchic"))
+    ) {
+        return WRITERS[0][1];
     }
     return UNKNOWN_WRITER;
 }
@@ -460,10 +472,11 @@ function readYedCurve(g: Rec, put: Put): void {
  * Reads an element's label records: the first visible one with text; further visible ones are noted.
  * @param raw - the `LabelGraphics` value (one record or several)
  * @param writer - the writer
+ * @param node - whether the label is a node's: its `anchor` places it (`c`, `n`, `t`, `se`, ...)
  * @param put - receives the values
  * @param at - the sites
  */
-function readLabelGraphics(raw: unknown, writer: GmlWriter, put: Put, at: At): void {
+function readLabelGraphics(raw: unknown, writer: GmlWriter, node: boolean, put: Put, at: At): void {
     const visible = (Array.isArray(raw) ? raw : [raw]).filter((l): l is Rec => isRec(l) && Number(l.visible) !== 0);
     const lg = visible.at(0);
     if (lg === undefined) {
@@ -487,6 +500,14 @@ function readLabelGraphics(raw: unknown, writer: GmlWriter, put: Put, at: At): v
         noteAt(at("label"), STYLE_ISSUE.NOT_CARRIED, "label background");
     }
     readLabelFont(lg, put, at);
+    if (node && lg.anchor !== undefined) {
+        const anchor = scalarText(lg.anchor, at("labelPosition"))?.trim().toLowerCase() ?? "";
+        const known = YED_POSITIONS.get(anchor);
+        if (known === undefined) {
+            noteAt(at("labelPosition"), STYLE_ISSUE.UNKNOWN_VALUE, anchor.slice(0, MAX_STYLE_VALUE_LENGTH));
+        }
+        put("labelPosition", known ?? null);
+    }
 }
 
 /**
@@ -538,7 +559,7 @@ function readElement(
         (target === "node" ? readNodeGraphics : readEdgeGraphics)(g, writer, put, at);
     }
     if (lg !== null && lg !== undefined) {
-        readLabelGraphics(lg, writer, putLabel, at);
+        readLabelGraphics(lg, writer, target === "node", putLabel, at);
     }
     // the GML draft draws the label key; Cytoscape reads it as the node's name, which its default style shows
     const drawn =

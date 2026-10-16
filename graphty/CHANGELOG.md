@@ -1,3 +1,9 @@
+## 0.8.83 (2026-10-16)
+
+### 🧱 Updated Dependencies
+
+- Updated compact-mantine to 0.9.26
+
 ## 0.8.82 (2026-10-16)
 
 ### 🩹 Fixes

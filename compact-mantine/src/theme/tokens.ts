@@ -72,6 +72,9 @@ export const CM_COLORS = {
     "text-oninverse": t("#ffffffe5", "#000000e5", "--color-text-oninverse"),
     "text-component": t("#8638e5", "#d1a8ff", "--color-text-component"),
     "text-danger": t("#dc3412", "#fca397", "--color-text-danger"),
+    // Warning text. Figma has no warning text variable: these are darkened / lightened from its
+    // warning fill to meet 4.5:1 on the panel and on a field in both schemes.
+    "text-warning": t("#a65900", "#f7d15f"),
     "text-menu": t("#ffffff", "#ffffff", "--color-text-menu"),
     "text-menu-secondary": t("#ffffffb2", "#ffffffb2", "--color-text-menu-secondary"),
     "text-menu-disabled": t("#ffffff66", "#ffffff66", "--color-text-menu-disabled"),

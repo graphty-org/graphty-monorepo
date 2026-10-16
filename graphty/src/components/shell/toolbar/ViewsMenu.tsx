@@ -213,7 +213,7 @@ function ViewsMenuRow(props: ViewsMenuRowProps): React.JSX.Element {
                     flex: `0 0 ${PANEL_GRID.GLYPH}px`,
                     width: PANEL_GRID.GLYPH,
                     height: PANEL_GRID.GLYPH,
-                    color: checked === true ? PANEL_INK.ACCENT : PANEL_INK.CHROME,
+                    color: checked === true ? PANEL_INK.BRAND_TEXT : PANEL_INK.CHROME,
                 }}
             >
                 {glyph}

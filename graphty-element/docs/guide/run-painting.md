@@ -22,13 +22,15 @@ for (const s of session.runs.painting(run.id)?.suggestions ?? []) {
         console.log("added", s.suggestion.channels);
     } else if (s.outcome === "suppressed") {
         console.log("hidden by layer", session.styles.get(s.byLayerId)?.name);
-        // Paint it anyway, on top of that layer
         if (s.suggestion.as === "encoding") await session.styles.encode(s.suggestion.spec);
         else if (s.suggestion.as === "mark") await session.styles.mark(s.suggestion.spec);
         else await session.styles.highlight(s.suggestion.spec);
     } else console.log(s.outcome); // "superseded", "refused", or one added later
 }
 ```
+
+A suppressed suggestion can still be painted on top of the layer that hid it, by passing its
+`spec` to the verb its `as` names, as the example does.
 
 The decision is ready as soon as `await run` returns. Pass the run's `id`; the value `await run`
 resolves to carries the same id as `runId`.

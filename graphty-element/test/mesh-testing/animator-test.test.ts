@@ -6,32 +6,23 @@
  */
 
 import { Color3, Mesh, NullEngine, Scene, StandardMaterial, Vector3 } from "@babylonjs/core";
-import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
+import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
-import { RichTextAnimator } from "../../src/meshes/RichTextAnimator";
+import { labelAnimationFrames, RichTextAnimator } from "../../src/meshes/RichTextAnimator";
 
 describe("RichTextAnimator Tests", () => {
     let engine: NullEngine;
     let scene: Scene;
     let mesh: Mesh;
     let material: StandardMaterial;
-    let registeredCallbacks: (() => void)[] = [];
+    let registeredCallbacks = new Set<() => void>();
 
     beforeEach(() => {
         engine = new NullEngine();
         scene = new Scene(engine);
 
-        // Mock scene render callbacks
-        registeredCallbacks = [];
-        scene.registerBeforeRender = vi.fn((callback: () => void) => {
-            registeredCallbacks.push(callback);
-        });
-        scene.unregisterBeforeRender = vi.fn((callback: () => void) => {
-            const index = registeredCallbacks.indexOf(callback);
-            if (index > -1) {
-                registeredCallbacks.splice(index, 1);
-            }
-        });
+        // The animators' per-frame callbacks on this scene, called by hand to step a frame.
+        registeredCallbacks = labelAnimationFrames.callbacksOf(scene);
 
         // Create test mesh and material
         mesh = new Mesh("testMesh", scene);
@@ -56,7 +47,7 @@ describe("RichTextAnimator Tests", () => {
 
             animator.setupAnimation(mesh, material);
 
-            assert.equal(registeredCallbacks.length, 0);
+            assert.equal(registeredCallbacks.size, 0);
             assert.isNull((animator as unknown as { originalPosition: unknown }).originalPosition);
             assert.isNull((animator as unknown as { originalScale: unknown }).originalScale);
         });
@@ -72,7 +63,7 @@ describe("RichTextAnimator Tests", () => {
 
             animator.setupAnimation(mesh, material);
 
-            assert.equal(registeredCallbacks.length, 1);
+            assert.equal(registeredCallbacks.size, 1);
 
             const originalPos = (animator as unknown as { originalPosition: Vector3 }).originalPosition;
             const { originalScale } = animator as unknown as { originalScale: Vector3 };
@@ -128,7 +119,7 @@ describe("RichTextAnimator Tests", () => {
 
             // Simulate 10 frames at 60fps (0.016s per frame)
             for (let i = 0; i < 10; i++) {
-                registeredCallbacks[0]();
+                [...registeredCallbacks][0]();
             }
 
             // Animation time should be 10 * 0.016 * 2 = 0.32
@@ -401,12 +392,12 @@ describe("RichTextAnimator Tests", () => {
             });
 
             animator.setupAnimation(mesh, material);
-            assert.equal(registeredCallbacks.length, 1);
+            assert.equal(registeredCallbacks.size, 1);
 
             animator.dispose();
 
-            assert.equal(registeredCallbacks.length, 0);
-            assert.isNull((animator as unknown as { sceneCallback: unknown }).sceneCallback);
+            assert.equal(registeredCallbacks.size, 0);
+            assert.isNull((animator as unknown as { stopFrames: unknown }).stopFrames);
         });
 
         test("handles multiple dispose calls", () => {
@@ -420,7 +411,7 @@ describe("RichTextAnimator Tests", () => {
             animator.dispose();
             animator.dispose(); // Should not throw
 
-            assert.equal(registeredCallbacks.length, 0);
+            assert.equal(registeredCallbacks.size, 0);
         });
 
         test("dispose without setup does nothing", () => {
@@ -462,7 +453,7 @@ describe("RichTextAnimator Tests", () => {
             animator.setupAnimation(mesh, material);
 
             // Single frame should advance time significantly
-            registeredCallbacks[0]();
+            [...registeredCallbacks][0]();
 
             assert.approximately((animator as unknown as { animationTime: number }).animationTime, 16, 0.001); // 0.016 * 1000
         });
@@ -476,7 +467,7 @@ describe("RichTextAnimator Tests", () => {
             mesh.position = new Vector3(1, 2, 3);
             animator.setupAnimation(mesh, material);
 
-            registeredCallbacks[0]();
+            [...registeredCallbacks][0]();
 
             assert.equal(mesh.position.x, 1);
             assert.equal(mesh.position.z, 3);

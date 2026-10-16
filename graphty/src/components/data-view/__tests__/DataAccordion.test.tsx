@@ -1,5 +1,5 @@
-import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { render, screen, waitFor } from "../../../test/test-utils";
 import { DataAccordion } from "../DataAccordion";

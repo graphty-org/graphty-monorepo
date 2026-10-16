@@ -3032,11 +3032,11 @@
         ]
     },
     "json/fidelity/graphology-synth.json": {
-        "nodes": ["attributes", "id", "key"],
+        "nodes": ["attributes", "id", "key", "position"],
         "edges": ["attributes", "key", "source", "target", "undirected"]
     },
     "json/fidelity/sigma-lesmis.json": {
-        "nodes": ["attributes", "id", "key"],
+        "nodes": ["attributes", "id", "key", "position"],
         "edges": ["attributes", "key", "source", "target"]
     },
     "json/fidelity/vis-lesmiserables.json": {
@@ -3060,6 +3060,7 @@
             "image",
             "label",
             "opacity",
+            "position",
             "shadow",
             "shape",
             "shapeProperties",
@@ -3247,7 +3248,7 @@
         "edges": ["source", "target", "undirected"]
     },
     "json/graphology-eurosis.json.gz": {
-        "nodes": ["attributes", "id", "key"],
+        "nodes": ["attributes", "id", "key", "position"],
         "edges": ["source", "target"]
     },
     "json/iVis-at-Bilkent_cytoscape.js-cosep__glycolysis.json": {
@@ -3389,7 +3390,7 @@
         "edges": ["attributes", "key", "source", "target"]
     },
     "json/sigma-website-euroSIS.json.gz": {
-        "nodes": ["attributes", "id", "key"],
+        "nodes": ["attributes", "id", "key", "position"],
         "edges": ["attributes", "key", "source", "target", "undirected"]
     },
     "json/sigma-website-wikipedia.json.gz": {
@@ -3397,7 +3398,7 @@
         "edges": []
     },
     "json/vis-WorldCup2014.json.gz": {
-        "nodes": ["attributes", "color", "id", "label", "size", "x", "y"],
+        "nodes": ["attributes", "color", "id", "label", "position", "size", "x", "y"],
         "edges": ["attributes", "color", "id", "size", "source", "target"]
     },
     "json/vis-dot-to-graph-softmaint.json": {

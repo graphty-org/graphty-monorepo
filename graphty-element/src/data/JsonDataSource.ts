@@ -664,6 +664,11 @@ export class JsonDataSource extends DataSource {
             dialect === "graphology"
                 ? rawNodes.map((node) => ("id" in node || !("key" in node) ? node : { id: node.key, ...node }))
                 : rawNodes;
+        // The coordinates graph-io read (a graphology node keeps them under `attributes`) become
+        // each record's `position`, as for every other format.
+        applyFilePositions(nodes, filePositionsOf(imported), (record) =>
+            typeof record.id === "string" || typeof record.id === "number" ? snapshot.ids.indexOf(record.id) : -1,
+        );
         const edges = this.keptEdges(snapshot, Array.isArray(root.edges) ? root.edges : [], dialect);
         rememberImport(this, () => dialectImport(imported, nodes, edges));
         yield* this.chunkData(nodes as AdHocData[], edges as AdHocData[]);

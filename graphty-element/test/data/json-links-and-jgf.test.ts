@@ -12,6 +12,8 @@ import { importGraph } from "@graphty/graph-io";
 import { assert, describe, it } from "vitest";
 
 import { createGraphSession } from "../../session";
+import { DataSource } from "../../src/data/DataSource";
+import "../../src/data/index";
 
 const FIXTURES = join(__dirname, "..", "..", "..", "graph-io", "test", "conformance", "fixtures", "json");
 
@@ -81,5 +83,60 @@ describe("JSON documents graph-io reads whole", () => {
         } finally {
             session.dispose();
         }
+    });
+});
+
+describe("graphology and vis.js documents", () => {
+    /**
+     * Each node's position as the reader hands it to the element, by id.
+     * @param doc - The document.
+     * @returns The positions.
+     */
+    async function positionsOf(doc: object): Promise<Map<string, unknown>> {
+        const source = DataSource.get("json", { data: JSON.stringify(doc) });
+        assert.isNotNull(source);
+        const out = new Map<string, unknown>();
+        for await (const chunk of source.getData()) {
+            for (const node of chunk.nodes) {
+                out.set(String(node.id), node.position);
+            }
+        }
+
+        return out;
+    }
+
+    it("hand the element each graphology node's x and y, which the file keeps under attributes", async () => {
+        const positions = await positionsOf({
+            attributes: {},
+            options: { type: "undirected" },
+            nodes: [
+                { key: "a", attributes: { x: 1, y: 2, size: 3 } },
+                { key: "b", attributes: { x: -4, y: 5 } },
+            ],
+            edges: [{ source: "a", target: "b" }],
+        });
+        const a = positions.get("a") as { x: number; y: number };
+        const b = positions.get("b") as { x: number; y: number };
+        assert.isObject(a);
+        assert.isObject(b);
+        // Relative placement is kept whatever axis convention the reader applies.
+        assert.strictEqual(Math.abs(a.x - b.x), 5);
+        assert.strictEqual(Math.abs(a.y - b.y), 3);
+    });
+
+    it("hand the element each vis.js node's x and y", async () => {
+        const positions = await positionsOf({
+            nodes: [
+                { id: 1, label: "a", x: 10, y: 20 },
+                { id: 2, label: "b", x: 30, y: 60 },
+            ],
+            edges: [{ from: 1, to: 2 }],
+        });
+        const a = positions.get("1") as { x: number; y: number };
+        const b = positions.get("2") as { x: number; y: number };
+        assert.isObject(a);
+        assert.isObject(b);
+        assert.strictEqual(Math.abs(a.x - b.x), 20);
+        assert.strictEqual(Math.abs(a.y - b.y), 40);
     });
 });

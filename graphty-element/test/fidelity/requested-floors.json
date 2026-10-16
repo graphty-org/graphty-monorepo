@@ -811,7 +811,8 @@
             "edgeLabel": 1
         },
         "json-sigma-lesmis": {
-            "position": 0,
+            "position": 1,
+            "size": 1,
             "fill": 1,
             "labelText": 1,
             "labelColor": 1,
@@ -822,7 +823,8 @@
             "edgeLabel": 1
         },
         "json-graphology-synth": {
-            "position": 0,
+            "position": 1,
+            "size": 0.75,
             "fill": 0.88,
             "labelText": 1,
             "labelColor": 1,
@@ -913,11 +915,13 @@
             "edgeLabel": 1
         },
         "json-vis-synth": {
-            "position": 0,
+            "position": 1,
+            "size": 0.08450704225352113,
             "shape": 0.9295774647887324,
             "fill": 0.9859154929577465,
             "fillOpacity": 1,
             "borderColor": 1,
+            "borderWidth": 1,
             "borderStyle": 0.9857142857142858,
             "labelText": 1,
             "labelColor": 1,
@@ -925,6 +929,7 @@
             "visible": 1,
             "edgeColor": 0.9634146341463414,
             "edgeOpacity": 0.9878048780487805,
+            "edgeWidth": 0.8658536585365854,
             "lineStyle": 1,
             "arrows": 0.9634146341463414,
             "edgeLabel": 1

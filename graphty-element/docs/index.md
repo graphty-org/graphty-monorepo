@@ -1,7 +1,20 @@
 ---
+head:
+    - - link
+      - rel: icon
+        href: /docs/brand/graphty-element/favicon.ico
+        sizes: 48x48
+    - - link
+      - rel: icon
+        href: /docs/brand/graphty-element/favicon.svg
+        type: image/svg+xml
 layout: home
 
 hero:
+    image:
+        light: /brand/graphty-graphty-element-lockup-color-on-light.svg
+        dark: /brand/graphty-graphty-element-lockup-color-on-dark.svg
+        alt: graphty graphty-element
     name: graphty-element
     text: 3D/2D Graph Visualization
     tagline: Web Component built with Lit and Babylon.js

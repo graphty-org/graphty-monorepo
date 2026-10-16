@@ -1,3 +1,14 @@
+## 0.0.21 (2026-10-15)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.56
+- Updated graph-samples to 0.1.34
+- Updated graph-format to 1.4.2
+- Updated algorithms to 3.4.9
+- Updated graph-io to 0.3.41
+- Updated layout to 2.5.5
+
 ## 0.0.20 (2026-10-15)
 
 ### 🚀 Features

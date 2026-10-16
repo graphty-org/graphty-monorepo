@@ -1185,8 +1185,9 @@ export class SimulationLayoutEngine extends LayoutEngine {
             }
         }
 
-        // The rows a scoped layout holds, which the lane never carries: a hold is not a pin.
-        if (this.holdMask !== null) {
+        // The rows a scoped layout holds, and the groups that follow their members, which the
+        // lane never carries: a hold is not a pin.
+        if (this.holdsAny) {
             for (let i = 0; i < nodeCount; i += 1) {
                 if (this.isHeld(i)) {
                     maskSet(mask, i, true);

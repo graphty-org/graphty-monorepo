@@ -247,6 +247,18 @@ export class UpdateManager implements Manager {
     private appliedShowContext = false;
     private appliedAnything = false;
 
+    /** The node and edge sets (`DataManager.nodeVersion`, `edgeVersion`) the masks were applied to. */
+    private appliedNodeSet = NO_MASK_VERSION;
+    private appliedEdgeSet = NO_MASK_VERSION;
+
+    /**
+     * The nodes and edges the last pass drew as selected. A pass where only the selection moved
+     * un-selects these and selects the mask's members, so its cost is the size of the two
+     * selections rather than of the graph (issue #2899).
+     */
+    private drawnSelectedNodes = new Set<Node>();
+    private drawnSelectedEdges = new Set<Edge>();
+
     /**
      * Whether the state the most recent update pass left behind is a finished picture: the layout
      * has stopped, no framing is outstanding that could still move the camera, no style work is
@@ -358,9 +370,11 @@ export class UpdateManager implements Manager {
     /**
      * Forget which mask versions the meshes are in line with, so the next pass writes all of them.
      *
-     * Call this when the render objects have changed under the masks -- a dataset load, a clear, a
-     * 2D/3D switch -- because the versions would otherwise say "nothing moved" about elements that
-     * are not the elements those versions were measured against.
+     * The pass calls this itself whenever a node or edge render object was added or removed --
+     * a load, a clear, an undo -- because a new object starts drawn and unselected whatever the
+     * masks say, and a mask's version does not move when it merely grows by rows outside the set
+     * (issue #2953). A 2D/3D switch needs nothing: it rebuilds the meshes of the same objects,
+     * and each one puts its own render state back on its new mesh.
      */
     invalidateViewMasks(): void {
         this.appliedNodeSelection = NO_MASK_VERSION;
@@ -368,6 +382,20 @@ export class UpdateManager implements Manager {
         this.appliedNodeVisibility = NO_MASK_VERSION;
         this.appliedEdgeVisibility = NO_MASK_VERSION;
         this.appliedAnything = false;
+        this.drawnSelectedNodes.clear();
+        this.drawnSelectedEdges.clear();
+    }
+
+    /**
+     * Invalidate the masks when the set of render objects has changed since they were applied.
+     */
+    private followElementSets(): void {
+        const { nodeVersion, edgeVersion } = this.dataManager;
+        if (nodeVersion !== this.appliedNodeSet || edgeVersion !== this.appliedEdgeSet) {
+            this.invalidateViewMasks();
+            this.appliedNodeSet = nodeVersion;
+            this.appliedEdgeSet = edgeVersion;
+        }
     }
 
     /**
@@ -378,7 +406,9 @@ export class UpdateManager implements Manager {
      * actually changed -- `Node.setRenderState` and `Edge.setRenderVisible` return false and touch
      * no mesh when handed what they already hold. So scrubbing a time window that moves 200 nodes
      * costs 200 mesh operations and not 50,000, and re-running a filter that lands on the same
-     * answer costs none.
+     * answer costs none. When ONLY the selection moved, the pass does not walk at all: it touches
+     * the elements it last drew selected and the selection's members, so a click costs the size of
+     * the selection and not of the graph.
      *
      * Mesh instancing is what bounds the rest: a node is one `InstancedMesh` of a source shared by
      * every node of its style, so hiding one is a flag on that instance rather than a geometry
@@ -402,6 +432,7 @@ export class UpdateManager implements Manager {
         // highlighted. Returning early here instead would freeze the last answer on screen after
         // an unbind, which is the one state nobody asked for.
         const masks = this.viewMasks ?? EMPTY_MASKS;
+        this.followElementSets();
 
         const nodeSelection = masks.selection?.nodes() ?? null;
         const edgeSelection = masks.selection?.edges() ?? null;
@@ -430,20 +461,24 @@ export class UpdateManager implements Manager {
         // out of date. See `settleActiveMeshFreeze`.
         this.sceneChanged = true;
 
-        if (nodesMoved) {
-            const hiddenState: NodeRenderState = showContext ? "context" : "hidden";
+        // With what is drawn unchanged, only the selection moved: touch the elements that leave
+        // it and the ones in it, not the whole graph. A visibility or context change rewrites its
+        // mask wholesale, so that one still walks everything.
+        const nodeSelectionOnly =
+            this.appliedAnything &&
+            nodeVisibilityVersion === this.appliedNodeVisibility &&
+            showContext === this.appliedShowContext;
+        const edgeSelectionOnly = this.appliedAnything && edgeVisibilityVersion === this.appliedEdgeVisibility;
 
-            for (const node of this.dataManager.nodes.values()) {
-                const { index } = node;
-                const placed = index !== INVALID_INDEX;
-                const visible = nodeVisibility === null || !placed || nodeVisibility.has(index);
-
-                node.setRenderState(visible ? "visible" : hiddenState);
-                node.setSelected(nodeSelection !== null && placed && nodeSelection.has(index));
-            }
+        if (nodesMoved && nodeSelectionOnly) {
+            this.applyNodeSelection(nodeSelection);
+        } else if (nodesMoved) {
+            this.applyNodeMasks(nodeVisibility, nodeSelection, showContext);
         }
 
-        if (edgesMoved) {
+        if (edgesMoved && edgeSelectionOnly) {
+            this.applyEdgeSelection(edgeSelection);
+        } else if (edgesMoved) {
             this.applyEdgeMasks(edgeVisibility, edgeSelection);
         }
 
@@ -453,6 +488,92 @@ export class UpdateManager implements Manager {
         this.appliedEdgeVisibility = edgeVisibilityVersion;
         this.appliedShowContext = showContext;
         this.appliedAnything = true;
+    }
+
+    /**
+     * Show, hide, select and deselect every node to match the masks.
+     * @param nodeVisibility - The visible nodes, or null when nothing hides.
+     * @param nodeSelection - The selected nodes, or null when nothing is selected.
+     * @param showContext - Whether hidden nodes are drawn faintly.
+     */
+    private applyNodeMasks(
+        nodeVisibility: ElementMask<NodeId> | null,
+        nodeSelection: ElementMask<NodeId> | null,
+        showContext: boolean,
+    ): void {
+        const hiddenState: NodeRenderState = showContext ? "context" : "hidden";
+        this.drawnSelectedNodes.clear();
+
+        for (const node of this.dataManager.nodes.values()) {
+            const { index } = node;
+            const placed = index !== INVALID_INDEX;
+            const visible = nodeVisibility === null || !placed || nodeVisibility.has(index);
+            const selected = nodeSelection !== null && placed && nodeSelection.has(index);
+
+            node.setRenderState(visible ? "visible" : hiddenState);
+            node.setSelected(selected);
+            if (selected) {
+                this.drawnSelectedNodes.add(node);
+            }
+        }
+    }
+
+    /**
+     * Bring only the selected state of the nodes into line with the selection mask: the nodes
+     * drawn selected last time and the mask's members, the same states a full walk would write.
+     * @param nodeSelection - The selected nodes, or null when nothing is selected.
+     */
+    private applyNodeSelection(nodeSelection: ElementMask<NodeId> | null): void {
+        const next = new Set<Node>();
+
+        // `ids()` reads the bytes with an indexed loop, the same reach as the write that moved
+        // the mask; the per-element work below is one lookup per member.
+        for (const id of nodeSelection?.ids() ?? []) {
+            const node = this.dataManager.nodes.get(id);
+            if (node && node.index !== INVALID_INDEX && nodeSelection?.has(node.index) === true) {
+                next.add(node);
+            }
+        }
+
+        for (const node of this.drawnSelectedNodes) {
+            if (!next.has(node)) {
+                node.setSelected(false);
+            }
+        }
+
+        for (const node of next) {
+            node.setSelected(true);
+        }
+
+        this.drawnSelectedNodes = next;
+    }
+
+    /**
+     * Bring only the selected state of the edges into line with the selection mask; see
+     * {@link UpdateManager.applyNodeSelection}.
+     * @param edgeSelection - The selected edges, or null when nothing is selected.
+     */
+    private applyEdgeSelection(edgeSelection: ElementMask<EdgeId> | null): void {
+        const next = new Set<Edge>();
+
+        edgeSelection?.forEachMember((index) => {
+            const edge = this.dataManager.edgesByIndex[index];
+            if (edge) {
+                next.add(edge);
+            }
+        });
+
+        for (const edge of this.drawnSelectedEdges) {
+            if (!next.has(edge)) {
+                edge.setSelected(false);
+            }
+        }
+
+        for (const edge of next) {
+            edge.setSelected(true);
+        }
+
+        this.drawnSelectedEdges = next;
     }
 
     /**
@@ -466,6 +587,7 @@ export class UpdateManager implements Manager {
         edgeSelection: ElementMask<EdgeId> | null,
     ): void {
         let revealed = false;
+        this.drawnSelectedEdges.clear();
 
         for (const edge of this.dataManager.edges.values()) {
             const { index } = edge;
@@ -482,7 +604,11 @@ export class UpdateManager implements Manager {
                 revealed = true;
             }
 
-            edge.setSelected(edgeSelection !== null && placed && edgeSelection.has(index));
+            const selected = edgeSelection !== null && placed && edgeSelection.has(index);
+            edge.setSelected(selected);
+            if (selected) {
+                this.drawnSelectedEdges.add(edge);
+            }
         }
 
         // A REVEALED EDGE IS PLACED BY ITS NEXT UPDATE, not by being shown: hiding collapsed
@@ -534,6 +660,7 @@ export class UpdateManager implements Manager {
      */
     private viewMasksPending(): boolean {
         const masks = this.viewMasks ?? EMPTY_MASKS;
+        this.followElementSets();
         const { nodesMoved, edgesMoved } = this.viewMasksMoved(
             masks.selection?.nodes().version ?? NO_MASK_VERSION,
             masks.selection?.edges().version ?? NO_MASK_VERSION,
@@ -1259,6 +1386,10 @@ export class UpdateManager implements Manager {
      */
     private updateNodes(): void {
         this.statsManager.nodeUpdate.beginMonitoring();
+
+        // Groups following their members are placed on the box their members now make, before
+        // anything is drawn.
+        this.layoutManager.placeGroups();
 
         for (const node of this.layoutManager.nodes) {
             // The mesh position is updated by node.update()

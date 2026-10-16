@@ -107,6 +107,28 @@ interface RewrittenNumbers {
 }
 
 /**
+ * Every JSON string literal of a text, quotes included, in one left-to-right pass (a regex over
+ * untrusted text would scan again from every quote of an unterminated string). An unterminated
+ * literal at the end is left out.
+ * @param text - the document text
+ * @yields each literal
+ */
+function* stringLiterals(text: string): Generator<string> {
+    let i = text.indexOf('"');
+    while (i >= 0) {
+        let j = i + 1;
+        while (j < text.length && text[j] !== '"') {
+            j += text[j] === "\\" ? 2 : 1;
+        }
+        if (j >= text.length) {
+            return;
+        }
+        yield text.slice(i, j + 1);
+        i = text.indexOf('"', j + 1);
+    }
+}
+
+/**
  * The sentinel prefix of one rewrite: SENTINEL with a colon, or a numbered variant when the document
  * already holds that one. A string can only decode to a NUL by escaping it (`\u0000`), so when the
  * text holds that escape the escaped strings are decoded and searched too: any other escape in them
@@ -118,7 +140,7 @@ function sentinelFor(text: string): string {
     let haystack = text;
     if (/\\u0000/i.test(text)) {
         const decoded: string[] = [];
-        for (const [literal] of text.matchAll(/"(?:[^"\\]|\\.)*"/g)) {
+        for (const literal of stringLiterals(text)) {
             if (literal.includes("\\")) {
                 decoded.push(decodeString(literal));
             }

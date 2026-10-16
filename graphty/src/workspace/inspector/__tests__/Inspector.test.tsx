@@ -71,6 +71,13 @@ function controlNames(): string[] {
     ].map((control) => control.getAttribute("aria-label") ?? control.textContent ?? "");
 }
 
+/** A segmented control's visible label, which a reader presses: the radio itself is drawn invisible. */
+function segment(radio: HTMLInputElement): HTMLElement {
+    const label = radio.labels?.[0];
+    assert.isDefined(label);
+    return label;
+}
+
 describe("the inspector", () => {
     it("shows the graph's Overview with the element's counts when nothing is selected", async () => {
         await renderInspector();
@@ -217,7 +224,7 @@ describe("the inspector", () => {
         assert.lengthOf(screen.getAllByRole("group", { name: "n0 and 3 connections" }), 1);
         assert.isNull(screen.queryByRole("region"));
 
-        await userEvent.click(within(list).getByRole("radio", { name: "2" }));
+        await userEvent.click(segment(within(list).getByRole<HTMLInputElement>("radio", { name: "2" })));
         // Past one hop the Hops control says how far; the heading stays the count alone.
         const wider = await screen.findByRole("group", { name: "n0 and 7 connections" });
         assert.equal(within(wider).getByRole<HTMLInputElement>("radio", { name: "2" }).checked, true);
@@ -275,7 +282,11 @@ describe("the inspector", () => {
         });
         await userEvent.click(await screen.findByRole("button", { name: /Degree/ }));
         await userEvent.click(
-            within(await screen.findByRole("radiogroup", { name: "Hops" })).getByRole("radio", { name: "2" }),
+            segment(
+                within(await screen.findByRole("radiogroup", { name: "Hops" })).getByRole<HTMLInputElement>("radio", {
+                    name: "2",
+                }),
+            ),
         );
         await screen.findByRole("group", { name: "n0 and 7 connections" });
         await userEvent.click(screen.getByRole("button", { name: "Filter to neighbors" }));
@@ -288,7 +299,11 @@ describe("the inspector", () => {
             await on.visibility.setSteps(on.visibility.steps.map((step) => ({ ...step, on: false })));
         });
         await userEvent.click(
-            within(screen.getByRole("radiogroup", { name: "Hops" })).getByRole("radio", { name: "1" }),
+            segment(
+                within(screen.getByRole("radiogroup", { name: "Hops" })).getByRole<HTMLInputElement>("radio", {
+                    name: "1",
+                }),
+            ),
         );
         await screen.findByRole("group", { name: "n0 and 3 connections" });
         await userEvent.click(screen.getByRole("button", { name: "Filter to neighbors" }));

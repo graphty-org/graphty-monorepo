@@ -1260,6 +1260,10 @@ export class UpdateManager implements Manager {
     private updateNodes(): void {
         this.statsManager.nodeUpdate.beginMonitoring();
 
+        // Groups following their members are placed on the box their members now make, before
+        // anything is drawn.
+        this.layoutManager.placeGroups();
+
         for (const node of this.layoutManager.nodes) {
             // The mesh position is updated by node.update()
             node.update();

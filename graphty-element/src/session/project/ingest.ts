@@ -21,6 +21,7 @@ import { decideRepeat, edgeIdOf } from "../../data/edgeIdentity";
 import { readEndpoint, type ResolvedEndpoints, resolveEndpoints } from "../../data/endpoints";
 import { type DataLoadingError, ErrorAggregator } from "../../data/ErrorAggregator";
 import type { GraphStore } from "../../data/GraphStore";
+import { GROUPS_VALUE, readGroups } from "../../data/groups";
 import { otherIdSpelling } from "../../data/nodeIdSpelling";
 import {
     type ImportReport,
@@ -1314,6 +1315,14 @@ export class Ingest<K extends KnownEdge> {
                 // handed over, so it reported 254 for a file that produced zero edges. The old
                 // meaning survives, under its true name, as `report.counts.edgeRecords`.
                 const report = this.sealLoad(type, tally, writer);
+                // The file's groups with no stored position, which the layout places by their members.
+                // ponytail: a merge's groups replace the graph's earlier ones; keep both when merging
+                // two nested files matters.
+                const fileReader = held === undefined ? source : (HELD_READERS.get(held) ?? null);
+                const groups = fileReader === null ? [] : await readGroups(fileReader, (id) => this.heldNode(id));
+                if (groups.length > 0) {
+                    writer.setGraphValues({ [GROUPS_VALUE]: Object.freeze(groups) });
+                }
 
                 this.logger.info("Data source loading complete", {
                     nodeRecords: progress.nodeRecords,

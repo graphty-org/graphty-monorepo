@@ -66,6 +66,16 @@ describe("the style fidelity corpus", () => {
         expect(new Set(all.map((s) => s.id)).size).toBe(all.length);
         expect(new Set(all.map((s) => s.file)).size).toBe(all.length);
     });
+
+    it("judges node size on files sigma drew itself, from the sizes it drew", () => {
+        // sigma's sizes are screen pixels and its positions are fitted to the canvas, so its scene
+        // records both as drawn, in viewport pixels; a scene that skipped size passed every size.
+        for (const id of ["json-sigma-lesmis", "json-graphology-synth"]) {
+            const scene = JSON.parse(readFileSync(`${here}scenes/${id}/sigma.ref.json`, "utf8")) as Scene;
+            expect(scene.gaps.map((g) => g.property)).not.toContain("size");
+            expect(scene.canCarry.size).toBe("yes");
+        }
+    });
 });
 
 describe("shared extractor logic", () => {

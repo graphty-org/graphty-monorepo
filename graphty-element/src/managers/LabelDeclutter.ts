@@ -58,7 +58,9 @@ export const NO_NODE_LABELS: NodeLabelCounts = Object.freeze({ labeled: 0, nodeH
 
 /**
  * How many frames the labels must stay put before their counts are published, so a camera
- * gesture or a moving layout publishes once when it stops rather than every frame.
+ * gesture or a moving layout publishes once when it stops rather than every frame. A caller of
+ * {@link LabelDeclutter.whenPublished} does not wait for them: its counts are published on the
+ * first frame with nothing to re-decide.
  */
 const QUIET_FRAMES = 10;
 
@@ -345,7 +347,12 @@ export class LabelDeclutter {
 
             this.quiet = 0;
             this.releaseFrames ??= animatesEveryFrame(this.scene);
-        } else if (++this.quiet === QUIET_FRAMES) {
+        } else if (++this.quiet === QUIET_FRAMES || this.waiters.length > 0) {
+            // Someone waiting for the counts (`waitForStableFrame`) gets them on the first frame
+            // with nothing to re-decide: the labels have settled, and the QUIET_FRAMES wait only
+            // keeps a gesture from publishing every frame. Counting those frames instead made the
+            // wait take ten drawn frames however settled the picture, which a slow GPU cannot
+            // draw in time (issue #2983).
             this.publish();
             this.releaseFrames?.();
             this.releaseFrames = null;
@@ -356,8 +363,9 @@ export class LabelDeclutter {
      * Resolves once the counts of the last pass have been published -- at once when they already
      * are -- so a wait for the finished picture (`waitForStableFrame`) also waits for the
      * `graphty-label-change` that announces them. Without it a picture taken on the stable frame
-     * shows whatever the page last read, which depends on whether the {@link QUIET_FRAMES} frames
-     * after it happened to be drawn before the picture was taken.
+     * shows whatever the page last read. While anyone waits, the counts are published on the
+     * first frame with nothing to re-decide rather than after {@link QUIET_FRAMES} of them, so
+     * the wait is bounded by the label work left, not by how fast frames are drawn.
      * @returns A promise that resolves when nothing is left to publish.
      */
     whenPublished(): Promise<void> {
@@ -365,12 +373,20 @@ export class LabelDeclutter {
         // wait started right after `labels.declutter` changed resolved before any label moved.
         const { declutter, avoidNodesAndEdges } = this.context.getStyles().config.behavior.labels;
         const on = declutter || avoidNodesAndEdges;
-        if (
-            !this.dirty &&
-            on === this.wasOn &&
-            avoidNodesAndEdges === this.wasAvoiding &&
-            sameCounts(this.counts, this.published)
-        ) {
+        const settled = !this.dirty && on === this.wasOn && avoidNodesAndEdges === this.wasAvoiding;
+        if (settled && sameCounts(this.counts, this.published)) {
+            return Promise.resolve();
+        }
+
+        // The caller waits for the finished picture, and a frame has been drawn since the last
+        // pass with nothing moved: the counts are final, so they are published now rather than
+        // after QUIET_FRAMES more frames. That debounce is for a gesture or a moving layout; on a
+        // software GPU drawing a few hundred labels a frame takes most of a second, and waiting
+        // ten of them made a still graph's wait last many seconds.
+        if (settled && this.quiet > 0) {
+            this.publish();
+            this.releaseFrames?.();
+            this.releaseFrames = null;
             return Promise.resolve();
         }
 

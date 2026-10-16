@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
-import { act, fireEvent, render, screen } from "../../../../test/test-utils";
+import { act, render, screen } from "../../../../test/test-utils";
 import { STATUS_BAR_SLOT_ORDER } from "../../constants";
 import { LAYOUT_MENU_LABEL } from "../LayoutChipMenu";
 import { DETAILS_LABEL } from "../LoadCompleteToast";
@@ -48,14 +49,22 @@ function renderBar(props: Partial<StatusBarRegionProps> = {}) {
     // is measured: on a viewport narrower than the bar's content it correctly drops
     // slots. These boards are about what the bar draws with room for everything, so
     // they are given a desktop-width host.
+    // Room above the bar, as the shell gives it: the completion toast hangs ABOVE the bar, and
+    // a bar at the top of the page would put it off screen where no pointer can reach it.
     return render(
-        <div style={{ width: WIDE_SHELL }}>
+        <div style={{ width: WIDE_SHELL, paddingTop: 240 }}>
             <StatusBar slots={slots ?? { counts }} {...rest} />
         </div>,
     );
 }
 
 describe("StatusBar", () => {
+    // A real click scrolls its target into view; put the page back so the next test measures
+    // from where it starts
+    afterEach(() => {
+        window.scrollTo(0, 0);
+    });
+
     describe("geometry", () => {
         it("stands 24 px tall with 12 px padding and a 12 px slot gap", () => {
             const { container } = renderBar();
@@ -173,11 +182,11 @@ describe("StatusBar", () => {
     });
 
     describe("slot 1, counts", () => {
-        it("draws the two spans and opens the data table drawer", () => {
+        it("draws the two spans and opens the data table drawer", async () => {
             const onClick = vi.fn();
 
             renderBar({ slots: { counts: { ...counts, onClick } } });
-            fireEvent.click(screen.getByRole("button", { name: /20 nodes/ }));
+            await userEvent.click(screen.getByRole("button", { name: /20 nodes/ }));
 
             expect(onClick).toHaveBeenCalledTimes(1);
         });
@@ -196,7 +205,7 @@ describe("StatusBar", () => {
     });
 
     describe("slot 2, zoom", () => {
-        it("opens the zoom menu", () => {
+        it("opens the zoom menu", async () => {
             const onClick = vi.fn();
 
             renderBar({ slots: { counts, zoom: { label: "Zoom 100%", onClick } } });
@@ -204,19 +213,19 @@ describe("StatusBar", () => {
             const zoom = screen.getByRole("button", { name: "Zoom 100%" });
 
             expect(zoom).toHaveAttribute("aria-haspopup", "menu");
-            fireEvent.click(zoom);
+            await userEvent.click(zoom);
             expect(onClick).toHaveBeenCalledTimes(1);
         });
     });
 
     describe("slot 3, the XR mode chip", () => {
-        it("renders only while a session is running, and ends it", () => {
+        it("renders only while a session is running, and ends it", async () => {
             const onExit = vi.fn();
 
             renderBar({ slots: { counts, xr: { mode: "VR", onExit } } });
             expect(screen.getByText("VR")).toBeInTheDocument();
 
-            fireEvent.click(screen.getByRole("button", { name: "Exit" }));
+            await userEvent.click(screen.getByRole("button", { name: "Exit" }));
             expect(onExit).toHaveBeenCalledTimes(1);
         });
 
@@ -245,18 +254,18 @@ describe("StatusBar", () => {
             expect(getBar(container).textContent).not.toContain("ngraph");
         });
 
-        it("re-runs the layout when the chip body is clicked", () => {
+        it("re-runs the layout when the chip body is clicked", async () => {
             const onRerun = vi.fn();
 
             renderBar({ slots: { counts, layout: { ...layout, onRerun } } });
-            fireEvent.click(screen.getByRole("button", { name: "Force directed - settled" }));
+            await userEvent.click(screen.getByRole("button", { name: "Force directed - settled" }));
 
             expect(onRerun).toHaveBeenCalledTimes(1);
         });
 
         it("opens the layout menu from the caret half", async () => {
             renderBar({ slots: { counts, layout } });
-            fireEvent.click(screen.getByRole("button", { name: LAYOUT_MENU_LABEL }));
+            await userEvent.click(screen.getByRole("button", { name: LAYOUT_MENU_LABEL }));
 
             expect(await screen.findByRole("menuitem", { name: "Layout settings..." })).toBeInTheDocument();
         });
@@ -265,7 +274,7 @@ describe("StatusBar", () => {
             const onOpenMenu = vi.fn();
 
             renderBar({ slots: { counts, layout: { ...layout, onOpenMenu } } });
-            fireEvent.click(screen.getByRole("button", { name: LAYOUT_MENU_LABEL }));
+            await userEvent.click(screen.getByRole("button", { name: LAYOUT_MENU_LABEL }));
 
             expect(await screen.findByRole("menuitem", { name: "Layout settings..." })).toBeInTheDocument();
             expect(onOpenMenu).toHaveBeenCalledTimes(1);
@@ -275,12 +284,13 @@ describe("StatusBar", () => {
             const { onRerun: _rerun, onStop: _stop, onOpenSettings: _settings, picks: _picks, ...bare } = layout;
 
             renderBar({ slots: { counts, layout: bare } });
-            fireEvent.click(screen.getByRole("button", { name: LAYOUT_MENU_LABEL }));
+            await userEvent.click(screen.getByRole("button", { name: LAYOUT_MENU_LABEL }));
             const stop = await screen.findByRole("menuitem", { name: "Stop" });
 
             expect(screen.getByRole("menuitem", { name: "Re-run" })).toBeInTheDocument();
             expect(screen.getByRole("menuitem", { name: "Layout settings..." })).toBeInTheDocument();
-            expect(() => fireEvent.click(stop)).not.toThrow();
+            // A handler that threw would surface as an uncaught error and fail the run
+            await expect(userEvent.click(stop)).resolves.not.toThrow();
         });
 
         it("draws no caret when the model asks for none", () => {
@@ -291,7 +301,7 @@ describe("StatusBar", () => {
     });
 
     describe("slot 5, algorithm progress", () => {
-        it("draws the progress, Cancel and the queue suffix", () => {
+        it("draws the progress, Cancel and the queue suffix", async () => {
             const onCancel = vi.fn();
 
             renderBar({
@@ -310,7 +320,7 @@ describe("StatusBar", () => {
             expect(screen.getByText("Computing Bridges (betweenness)... 42%")).toBeInTheDocument();
             expect(screen.getByText("and 2 queued")).toBeInTheDocument();
 
-            fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+            await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
             expect(onCancel).toHaveBeenCalledTimes(1);
         });
 
@@ -326,7 +336,7 @@ describe("StatusBar", () => {
             expect(screen.queryByText(/%/)).toBeNull();
         });
 
-        it("disables Cancel with its reason while the run reports no progress", () => {
+        it("disables Cancel with its reason while the run reports no progress", async () => {
             const onCancel = vi.fn();
 
             renderBar({
@@ -341,7 +351,8 @@ describe("StatusBar", () => {
             expect(cancel).toHaveAttribute("aria-disabled", "true");
             expect(cancel).toHaveAttribute("title", "Cannot cancel this run");
 
-            fireEvent.click(cancel);
+            // force: a reader can still press a disabled control, and it must do nothing
+            await userEvent.click(cancel, { force: true });
             expect(onCancel).not.toHaveBeenCalled();
         });
 
@@ -372,7 +383,7 @@ describe("StatusBar", () => {
     });
 
     describe("slot 7, the issues slot", () => {
-        it("names kinds first and counts the instances in parentheses", () => {
+        it("names kinds first and counts the instances in parentheses", async () => {
             const onClick = vi.fn();
 
             renderBar({
@@ -387,15 +398,15 @@ describe("StatusBar", () => {
             const chip = screen.getByRole("button", { name: "4 issue types (27)" });
 
             expect(chip).toHaveAttribute("title", "4 issue types, 27 issues");
-            fireEvent.click(chip);
+            await userEvent.click(chip);
             expect(onClick).toHaveBeenCalledTimes(1);
         });
 
-        it("opens Explore at its Notes section from the notes chip", () => {
+        it("opens Explore at its Notes section from the notes chip", async () => {
             const onClick = vi.fn();
 
             renderBar({ slots: { counts, issues: { notes: { label: "5 notes", onClick } } } });
-            fireEvent.click(screen.getByRole("button", { name: "5 notes" }));
+            await userEvent.click(screen.getByRole("button", { name: "5 notes" }));
 
             expect(onClick).toHaveBeenCalledTimes(1);
         });
@@ -409,7 +420,7 @@ describe("StatusBar", () => {
             expect(screen.queryByRole("button", { name: "5 notes" })).toBeNull();
         });
 
-        it("names the label cap only and keeps the rule list in its tooltip", () => {
+        it("names the label cap only and keeps the rule list in its tooltip", async () => {
             const title =
                 "Performance mode: 20 labels, hover and tooltips off, edges capped at 500k, uniform node size. On above about 18,000 nodes, measured on this machine. Settings > Performance";
             const onClick = vi.fn();
@@ -424,7 +435,7 @@ describe("StatusBar", () => {
             const chip = screen.getByRole("button", { name: "Performance mode: labels 20" });
 
             expect(chip).toHaveAttribute("title", title);
-            fireEvent.click(chip);
+            await userEvent.click(chip);
             expect(onClick).toHaveBeenCalledTimes(1);
         });
     });
@@ -445,9 +456,9 @@ describe("StatusBar", () => {
             expect(slotOrder(getBar(container))).toContain("issues");
         });
 
-        it("opens Settings when clicked", () => {
+        it("opens Settings when clicked", async () => {
             renderBar({ slots: { counts, issues: { acceleration } } });
-            fireEvent.click(screen.getByText(acceleration.label));
+            await userEvent.click(screen.getByText(acceleration.label));
 
             expect(acceleration.onClick).toHaveBeenCalledTimes(1);
         });
@@ -532,7 +543,7 @@ describe("StatusBar", () => {
             expect(screen.queryByRole("button", { name: LAYOUT_MENU_LABEL })).toBeNull();
         });
 
-        it("draws Cancel in the reading phase", () => {
+        it("draws Cancel in the reading phase", async () => {
             const onCancel = vi.fn();
 
             renderBar({
@@ -540,7 +551,7 @@ describe("StatusBar", () => {
                 slots: { counts },
             });
 
-            fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+            await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
             expect(onCancel).toHaveBeenCalledTimes(1);
         });
 
@@ -572,7 +583,7 @@ describe("StatusBar", () => {
     });
 
     describe("the completion toast", () => {
-        it("reports the load and offers Details", () => {
+        it("reports the load and offers Details", async () => {
             const onDetails = vi.fn();
 
             renderBar({
@@ -582,7 +593,7 @@ describe("StatusBar", () => {
 
             expect(screen.getByText("Loaded 51,000 nodes and 212,000 edges in 34 s.")).toBeInTheDocument();
 
-            fireEvent.click(screen.getByRole("button", { name: "Details" }));
+            await userEvent.click(screen.getByRole("button", { name: "Details" }));
             expect(onDetails).toHaveBeenCalledTimes(1);
         });
 
@@ -649,7 +660,7 @@ describe("StatusBar", () => {
                 actionLabel: "Open Data",
             };
 
-            it("announces itself and names where its link goes", () => {
+            it("announces itself and names where its link goes", async () => {
                 const onDetails = vi.fn();
 
                 renderBar({ completion: { ...failure, onDetails }, slots: { counts } });
@@ -660,7 +671,7 @@ describe("StatusBar", () => {
 
                 /* Not "Details": that word goes to a mapping line in the Loaded data
                    section, and a load that never arrived has no mapping to show. */
-                fireEvent.click(screen.getByRole("button", { name: "Open Data" }));
+                await userEvent.click(screen.getByRole("button", { name: "Open Data" }));
                 expect(onDetails).toHaveBeenCalledTimes(1);
                 expect(screen.queryByRole("button", { name: DETAILS_LABEL })).toBeNull();
             });

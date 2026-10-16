@@ -13,6 +13,7 @@ import { resolveOptionValues } from "../catalog/options";
 import type { AuthoredLayoutDescriptor, Scope, ScopeInput } from "../catalog/types";
 import type { GraphLayoutBehavior } from "../config/GraphBehavior";
 import { type OptionsSchema, toZodSchema } from "../config/OptionsSchema";
+import type { NodeGroup } from "../data/groups";
 import { WRITABLE_LANE } from "../data/lane";
 import type { Edge } from "../Edge";
 import { GraphtyError, isGraphtyError } from "../errors";
@@ -628,6 +629,13 @@ export class LayoutManager implements Manager {
      * outside it is held, including one that arrives later.
      */
     private members: ReadonlySet<NodeIdType> | null = null;
+
+    /** The engine and the rows {@link syncFollowers} last handed it. */
+    private followersOf: LayoutEngine | null = null;
+    private followersKey = "";
+
+    /** Each following group's box, from the last {@link placeGroups}. */
+    private readonly groupBoxes = new Map<NodeIdType, GroupBox>();
 
     /**
      * Strict state: something asked to step the layout while the lane was restoring, which only a
@@ -1823,6 +1831,8 @@ export class LayoutManager implements Manager {
         // Cleared before the first await, so a frame that arrives while the chunks are still in
         // flight does not order the same count a second time.
         this.preStepsOwed = false;
+        // A group that follows its members is held before the first step, so it pushes nothing.
+        this.syncFollowers();
 
         if (engine instanceof SimulationLayoutEngine) {
             for (let remaining = preSteps; remaining > 0 && !engine.isSettled;) {
@@ -1983,6 +1993,156 @@ export class LayoutManager implements Manager {
     }
 
     /**
+     * The groups that follow their members, when the behaviour asks for it: see
+     * `behavior.layout.groupsFollowMembers`.
+     * @returns The groups with no stored position.
+     */
+    private followingGroups(): readonly NodeGroup[] {
+        return this.styles.config.behavior.layout.groupsFollowMembers === false ? [] : this.dataManager.groups;
+    }
+
+    /**
+     * Tell the engine which rows are groups following their members, when that has changed: a
+     * new engine, new groups, or a freeze that renumbered them. Held, they are never moved by a
+     * layout step and exert no force.
+     */
+    private syncFollowers(): void {
+        const engine = this.layoutEngine;
+        if (engine === undefined) {
+            return;
+        }
+
+        const rows: number[] = [];
+        for (const { group } of this.followingGroups()) {
+            const index = this.dataManager.nodes.get(group)?.index;
+            if (index !== undefined && validRow(index)) {
+                rows.push(index);
+            }
+        }
+
+        const key = rows.join(",");
+        if (engine === this.followersOf && key === this.followersKey) {
+            return;
+        }
+
+        this.followersOf = engine;
+        this.followersKey = key;
+        layoutEngineInternals.setFollowers(engine, rows.length === 0 ? null : new Set(rows));
+    }
+
+    /**
+     * Place every group with no stored position on its members' bounding box, padded by its
+     * largest member's radius: its position is the box's centre, written as a placement, and the
+     * box is what {@link LayoutManager.groupBox} answers and the node is drawn at. A group inside a
+     * group counts with its own box. Called before the nodes are drawn, every frame they are.
+     */
+    placeGroups(): void {
+        this.syncFollowers();
+        const engine = this.layoutEngine;
+        const groups = this.followingGroups();
+        this.groupBoxes.clear();
+        if (engine === undefined || groups.length === 0) {
+            return;
+        }
+
+        const byId = new Map(groups.map((g) => [g.group, g]));
+        const at = { x: 0, y: 0, z: 0 };
+        const { positions, nodes } = this.dataManager;
+        for (const group of groups) {
+            const box = this.boxOf(group, byId, new Set());
+            const node = nodes.get(group.group);
+            if (box === null || node === undefined || !validRow(node.index)) {
+                continue;
+            }
+
+            const placed = positions.isPlaced(node.index);
+            if (placed) {
+                positions.read(node.index, at);
+            }
+
+            const { center } = box;
+            if (!placed || Math.abs(at.x - center.x) + Math.abs(at.y - center.y) + Math.abs(at.z - center.z) > 1e-6) {
+                layoutEngineInternals.setNodePosition(engine, node, this.onEnginePlane(center));
+            }
+        }
+    }
+
+    /**
+     * One group's box: its members' extents (an inner group's own box), padded by its largest
+     * member's radius. Remembered in {@link groupBoxes}.
+     * @param group - The group.
+     * @param byId - Every following group, by id.
+     * @param seen - The groups on the way here, so a cycle ends.
+     * @returns The box, or null when no member is placed.
+     */
+    private boxOf(group: NodeGroup, byId: ReadonlyMap<NodeIdType, NodeGroup>, seen: Set<NodeIdType>): GroupBox | null {
+        const known = this.groupBoxes.get(group.group);
+        if (known !== undefined || seen.has(group.group)) {
+            return known ?? null;
+        }
+
+        seen.add(group.group);
+        const min = [Infinity, Infinity, Infinity];
+        const max = [-Infinity, -Infinity, -Infinity];
+        let pad = 0;
+        for (const id of group.members) {
+            const inner = byId.get(id);
+            const extent = inner === undefined ? this.nodeExtent(id) : this.boxOf(inner, byId, seen);
+            if (extent === null) {
+                continue;
+            }
+
+            const c = [extent.center.x, extent.center.y, extent.center.z];
+            const h = [extent.half.x, extent.half.y, extent.half.z];
+            for (let axis = 0; axis < 3; axis++) {
+                min[axis] = Math.min(min[axis], c[axis] - h[axis]);
+                max[axis] = Math.max(max[axis], c[axis] + h[axis]);
+            }
+
+            pad = inner === undefined ? Math.max(pad, extent.half.x) : pad;
+        }
+
+        if (!Number.isFinite(min[0])) {
+            return null;
+        }
+
+        const half = (axis: number): number => (max[axis] - min[axis]) / 2 + pad;
+        const box: GroupBox = {
+            center: { x: (min[0] + max[0]) / 2, y: (min[1] + max[1]) / 2, z: (min[2] + max[2]) / 2 },
+            half: { x: half(0), y: half(1), z: half(2) },
+        };
+        this.groupBoxes.set(group.group, box);
+        return box;
+    }
+
+    /**
+     * Where a placed node is and how far its drawn sphere reaches.
+     * @param id - The node.
+     * @returns Its centre and its radius on every axis, or null when it is not placed.
+     */
+    private nodeExtent(id: NodeIdType): GroupBox | null {
+        const node = this.dataManager.nodes.get(id);
+        const { positions } = this.dataManager;
+        if (node === undefined || !validRow(node.index) || !positions.isPlaced(node.index)) {
+            return null;
+        }
+
+        const center = { x: 0, y: 0, z: 0 };
+        positions.read(node.index, center);
+        const r = node.drawnRadius;
+        return { center, half: { x: r, y: r, z: r } };
+    }
+
+    /**
+     * The box a group with no stored position is drawn at, from the last {@link placeGroups}.
+     * @param id - The node.
+     * @returns Its centre and half extents, or undefined for a node that is no such group.
+     */
+    groupBox(id: NodeIdType): GroupBox | undefined {
+        return this.groupBoxes.get(id);
+    }
+
+    /**
      * Step the layout engine forward
      */
     step(): void {
@@ -1999,6 +2159,7 @@ export class LayoutManager implements Manager {
         }
 
         this.runPreStepsOnceThereIsSomethingToStep();
+        this.syncFollowers();
 
         if (this.layoutEngine && this.running && !this.layoutEngine.isSettled) {
             this.layoutEngine.step();
@@ -2186,6 +2347,12 @@ export class LayoutManager implements Manager {
 
         return Promise.resolve();
     }
+}
+
+/** Where a group with no stored position is drawn: its members' padded box, in scene units. */
+export interface GroupBox {
+    readonly center: { readonly x: number; readonly y: number; readonly z: number };
+    readonly half: { readonly x: number; readonly y: number; readonly z: number };
 }
 
 /**

@@ -1,4 +1,76 @@
 {
+    "cx/fidelity/repro-locked-own-size.cx": {
+        "nodes": ["NODE_HEIGHT", "NODE_WIDTH", "asmSize", "id", "name", "position"],
+        "edges": ["id", "interaction", "source", "target"]
+    },
+    "cx/fidelity/repro-unplaced-boxes.cx": {
+        "nodes": ["id", "name"],
+        "edges": ["id", "interaction", "source", "target"]
+    },
+    "cx/fidelity/syn-bypass.cx": {
+        "nodes": [
+            "NODE_BORDER_PAINT",
+            "NODE_BORDER_STROKE",
+            "NODE_BORDER_WIDTH",
+            "NODE_CUSTOMGRAPHICS_1",
+            "NODE_CUSTOMGRAPHICS_SIZE_1",
+            "NODE_CUSTOMGRAPHICS_SIZE_2",
+            "NODE_CUSTOMGRAPHICS_SIZE_3",
+            "NODE_CUSTOMGRAPHICS_SIZE_4",
+            "NODE_CUSTOMGRAPHICS_SIZE_5",
+            "NODE_CUSTOMGRAPHICS_SIZE_6",
+            "NODE_CUSTOMGRAPHICS_SIZE_7",
+            "NODE_CUSTOMGRAPHICS_SIZE_8",
+            "NODE_CUSTOMGRAPHICS_SIZE_9",
+            "NODE_DEPTH",
+            "NODE_FILL_COLOR",
+            "NODE_HEIGHT",
+            "NODE_LABEL",
+            "NODE_LABEL_COLOR",
+            "NODE_LABEL_FONT_FACE",
+            "NODE_LABEL_FONT_SIZE",
+            "NODE_LABEL_POSITION",
+            "NODE_LABEL_ROTATION",
+            "NODE_SHAPE",
+            "NODE_SIZE",
+            "NODE_TRANSPARENCY",
+            "NODE_VISIBLE",
+            "NODE_WIDTH",
+            "NODE_Z_LOCATION",
+            "a",
+            "b",
+            "c",
+            "id",
+            "img",
+            "name",
+            "position",
+            "z"
+        ],
+        "edges": [
+            "EDGE_BEND",
+            "EDGE_CURVED",
+            "EDGE_LABEL",
+            "EDGE_LABEL_COLOR",
+            "EDGE_LABEL_FONT_SIZE",
+            "EDGE_LINE_TYPE",
+            "EDGE_SOURCE_ARROW_SHAPE",
+            "EDGE_STROKE_UNSELECTED_PAINT",
+            "EDGE_TARGET_ARROW_SHAPE",
+            "EDGE_TRANSPARENCY",
+            "EDGE_VISIBLE",
+            "EDGE_WIDTH",
+            "EDGE_Z_ORDER",
+            "id",
+            "id#cx",
+            "interaction",
+            "source",
+            "target"
+        ]
+    },
+    "cx/fidelity/syn-mappings.cx": {
+        "nodes": ["grp", "id", "kind", "name", "note", "pos", "position", "rank", "score", "tier", "z"],
+        "edges": ["elabel", "etype", "id", "id#cx", "interaction", "source", "stype", "target", "weight"]
+    },
     "cx/generated/graphty-written-block-other-graph.cx": {
         "nodes": [
             "AOPid",
@@ -395,6 +467,136 @@
             "position"
         ],
         "edges": ["id", "interaction", "name", "source", "target"]
+    },
+    "cx2/fidelity/repro-shared-interaction.cx2": {
+        "nodes": ["id", "name", "position"],
+        "edges": ["id", "interaction", "source", "target"]
+    },
+    "cx2/fidelity/syn-bypass.cx2": {
+        "nodes": [
+            "NODE_BACKGROUND_COLOR",
+            "NODE_BACKGROUND_OPACITY",
+            "NODE_BORDER_COLOR",
+            "NODE_BORDER_STYLE",
+            "NODE_BORDER_WIDTH",
+            "NODE_CUSTOMGRAPHICS_1",
+            "NODE_CUSTOMGRAPHICS_SIZE_1",
+            "NODE_CUSTOMGRAPHICS_SIZE_2",
+            "NODE_CUSTOMGRAPHICS_SIZE_3",
+            "NODE_CUSTOMGRAPHICS_SIZE_4",
+            "NODE_CUSTOMGRAPHICS_SIZE_5",
+            "NODE_CUSTOMGRAPHICS_SIZE_6",
+            "NODE_CUSTOMGRAPHICS_SIZE_7",
+            "NODE_CUSTOMGRAPHICS_SIZE_8",
+            "NODE_CUSTOMGRAPHICS_SIZE_9",
+            "NODE_HEIGHT",
+            "NODE_LABEL",
+            "NODE_LABEL_COLOR",
+            "NODE_LABEL_FONT_FACE",
+            "NODE_LABEL_FONT_SIZE",
+            "NODE_LABEL_POSITION",
+            "NODE_LABEL_ROTATION",
+            "NODE_SHAPE",
+            "NODE_VISIBILITY",
+            "NODE_WIDTH",
+            "NODE_Z_LOCATION",
+            "a",
+            "b",
+            "c",
+            "id",
+            "img",
+            "name",
+            "position",
+            "z"
+        ],
+        "edges": [
+            "EDGE_CONTROL_POINTS",
+            "EDGE_CURVED",
+            "EDGE_LABEL",
+            "EDGE_LABEL_COLOR",
+            "EDGE_LABEL_FONT_SIZE",
+            "EDGE_LINE_COLOR",
+            "EDGE_LINE_STYLE",
+            "EDGE_OPACITY",
+            "EDGE_SOURCE_ARROW_SHAPE",
+            "EDGE_TARGET_ARROW_SHAPE",
+            "EDGE_VISIBILITY",
+            "EDGE_WIDTH",
+            "EDGE_Z_ORDER",
+            "id",
+            "id#cx2",
+            "interaction",
+            "source",
+            "target"
+        ]
+    },
+    "cx2/fidelity/syn-mappings.cx2": {
+        "nodes": ["grp", "id", "kind", "name", "note", "pos", "position", "rank", "score", "tier", "z"],
+        "edges": ["elabel", "etype", "id", "id#cx2", "interaction", "source", "stype", "target", "weight"]
+    },
+    "cx2/fidelity/wp1449-tlr.cx2": {
+        "nodes": [
+            "BorderThickness",
+            "Color",
+            "Ensembl",
+            "FillColor",
+            "HGNC",
+            "Height",
+            "IsGPMLShape",
+            "LabelFont",
+            "LabelSize",
+            "NODE_BACKGROUND_COLOR",
+            "NODE_BACKGROUND_OPACITY",
+            "NODE_BORDER_COLOR",
+            "NODE_BORDER_OPACITY",
+            "NODE_BORDER_STYLE",
+            "NODE_BORDER_WIDTH",
+            "NODE_HEIGHT",
+            "NODE_IMAGE_1_SIZE",
+            "NODE_IMAGE_2_SIZE",
+            "NODE_IMAGE_3_SIZE",
+            "NODE_IMAGE_4_SIZE",
+            "NODE_IMAGE_5_SIZE",
+            "NODE_IMAGE_6_SIZE",
+            "NODE_IMAGE_7_SIZE",
+            "NODE_IMAGE_8_SIZE",
+            "NODE_IMAGE_9_SIZE",
+            "NODE_LABEL",
+            "NODE_LABEL_COLOR",
+            "NODE_LABEL_FONT_FACE",
+            "NODE_LABEL_FONT_SIZE",
+            "NODE_SELECTED_PAINT",
+            "NODE_SHAPE",
+            "NODE_WIDTH",
+            "NODE_Z_LOCATION",
+            "Shape",
+            "Transparent",
+            "Type",
+            "Width",
+            "X__gpml.textlabel",
+            "__gpml:GraphID",
+            "__gpml:XrefDatasource",
+            "__gpml:XrefId",
+            "id",
+            "name",
+            "position",
+            "shared.name",
+            "z"
+        ],
+        "edges": [
+            "Color",
+            "ConnectorType",
+            "EDGE_CONTROL_POINTS",
+            "EDGE_WIDTH",
+            "EndArrow",
+            "LineStyle",
+            "LineThickness",
+            "id",
+            "sboType",
+            "source",
+            "target",
+            "type"
+        ]
     },
     "cx2/generated/graphty-written-block-other-graph.cx2": {
         "nodes": [
@@ -863,6 +1065,229 @@
             "target"
         ]
     },
+    "cys/fidelity/affinity-purification.cys": {
+        "nodes": [
+            "Annotations",
+            "Features",
+            "Gene Symbol",
+            "Gene Synonyms",
+            "GeneID",
+            "HEKScore",
+            "Human Readable Label",
+            "Interactor Type",
+            "Interactor Type ID",
+            "JurkatScore",
+            "Matching.Attribute",
+            "Protein Name   (**also co-purified with >1 unrelated membrane proteins)",
+            "Taxonomy ID",
+            "Taxonomy Name",
+            "Xref",
+            "Xref ID",
+            "graphics",
+            "id",
+            "intact",
+            "name",
+            "position",
+            "psi-mi",
+            "selected",
+            "shared name",
+            "uniprot",
+            "uniprotkb_accession",
+            "z"
+        ],
+        "edges": [
+            "ScoreAverage",
+            "graphics",
+            "id",
+            "interaction",
+            "name",
+            "selected",
+            "shared interaction",
+            "shared name",
+            "source",
+            "target"
+        ]
+    },
+    "cys/fidelity/galfiltered.cys": {
+        "nodes": [
+            "AverageShortestPathLength",
+            "BetweennessCentrality",
+            "COMMON",
+            "ClosenessCentrality",
+            "ClusteringCoefficient",
+            "Degree",
+            "Eccentricity",
+            "IsSingleNode",
+            "NeighborhoodConnectivity",
+            "NumberOfDirectedEdges",
+            "NumberOfUndirectedEdges",
+            "PartnerOfMultiEdgedNodePairs",
+            "Radiality",
+            "SelfLoops",
+            "Stress",
+            "TopologicalCoefficient",
+            "degree.layout",
+            "gal1RGexp",
+            "gal1RGsig",
+            "gal4RGexp",
+            "gal4RGsig",
+            "gal80Rexp",
+            "gal80Rsig",
+            "id",
+            "isExcludedFromPaths",
+            "name",
+            "position",
+            "selected",
+            "shared name",
+            "z"
+        ],
+        "edges": [
+            "EdgeBetweenness",
+            "id",
+            "interaction",
+            "name",
+            "selected",
+            "shared interaction",
+            "shared name",
+            "source",
+            "target"
+        ]
+    },
+    "cys/fidelity/import-and-save.cys": {
+        "nodes": ["TYPE", "id", "name", "position", "represents", "selected", "shared name", "z"],
+        "edges": [
+            "ANNOTATOR",
+            "CELL_DATA",
+            "DIRECT",
+            "MECHANISM",
+            "NOTES",
+            "RESIDUE",
+            "SENTENCE",
+            "SEQUENCE",
+            "TISSUE_DATA",
+            "citation",
+            "id",
+            "interaction",
+            "name",
+            "selected",
+            "shared interaction",
+            "shared name",
+            "source",
+            "target"
+        ]
+    },
+    "cys/fidelity/luad-vest-v2.cys": {
+        "nodes": [
+            "ClusterMutations",
+            "Ensembl Gene ID",
+            "Ensembl Protein ID",
+            "Entrez Gene ID",
+            "FractionMutation",
+            "ID",
+            "PropScoreSAM",
+            "RefSeq Protein ID",
+            "RefSeq mRNA ID",
+            "Symbol",
+            "Synonym",
+            "TotalMutationCount",
+            "Uniprot ID",
+            "annotation name",
+            "annotations",
+            "gene name",
+            "id",
+            "isOncoSanger",
+            "isVogelstein",
+            "log score",
+            "name",
+            "node type",
+            "pathways",
+            "position",
+            "propFDR",
+            "propFold",
+            "score",
+            "selected",
+            "shared name",
+            "z"
+        ],
+        "edges": [
+            "data type",
+            "highlight",
+            "id",
+            "interaction",
+            "name",
+            "networks",
+            "normalized max weight",
+            "raw weights",
+            "selected",
+            "shared interaction",
+            "shared name",
+            "source",
+            "target"
+        ]
+    },
+    "cys/fidelity/syn-bypass.cys": {
+        "nodes": [
+            "NumChildren",
+            "NumDescendents",
+            "a",
+            "b",
+            "c",
+            "graphics",
+            "id",
+            "img",
+            "name",
+            "parent",
+            "position",
+            "selected",
+            "shared name",
+            "xgmml.subgraph",
+            "z"
+        ],
+        "edges": [
+            "graphics",
+            "id",
+            "id#2",
+            "interaction",
+            "name",
+            "selected",
+            "shared interaction",
+            "shared name",
+            "source",
+            "target"
+        ]
+    },
+    "cys/fidelity/syn-mappings.cys": {
+        "nodes": [
+            "grp",
+            "id",
+            "kind",
+            "name",
+            "note",
+            "pos",
+            "position",
+            "rank",
+            "score",
+            "selected",
+            "shared name",
+            "tier",
+            "z"
+        ],
+        "edges": [
+            "elabel",
+            "etype",
+            "id",
+            "id#2",
+            "interaction",
+            "name",
+            "selected",
+            "shared interaction",
+            "shared name",
+            "source",
+            "stype",
+            "target",
+            "weight"
+        ]
+    },
     "cys/generated/graphty-written-block-other-graph.cys": {
         "nodes": [
             "NODE_TYPE",
@@ -1042,6 +1467,152 @@
         ],
         "edges": ["arrowhead", "dir", "fontname", "label", "lhead", "ltail", "source", "style", "target"]
     },
+    "dot/fidelity/real-crazy.gv": {
+        "nodes": ["color", "distortion", "fontname", "id", "orientation", "shape", "sides", "skew", "style"],
+        "edges": ["source", "target"]
+    },
+    "dot/fidelity/real-depcruise.gv": {
+        "nodes": [
+            "URL",
+            "color",
+            "fillcolor",
+            "fontcolor",
+            "fontname",
+            "fontsize",
+            "height",
+            "id",
+            "label",
+            "shape",
+            "style",
+            "tooltip"
+        ],
+        "edges": ["arrowhead", "arrowsize", "color", "fontname", "fontsize", "penwidth", "source", "target"]
+    },
+    "dot/fidelity/real-happiness.gv": {
+        "nodes": ["URL", "fillcolor", "fontcolor", "fontname", "fontsize", "id", "label", "penwidth", "shape", "style"],
+        "edges": ["color", "constraint", "penwidth", "source", "style", "target", "weight"]
+    },
+    "dot/fidelity/real-linux-kernel.gv": {
+        "nodes": [
+            "URL",
+            "color",
+            "fillcolor",
+            "fixedsize",
+            "fontcolor",
+            "fontname",
+            "fontsize",
+            "height",
+            "id",
+            "label",
+            "row",
+            "shape",
+            "style",
+            "tooltip",
+            "width"
+        ],
+        "edges": [
+            "arrowhead",
+            "arrowsize",
+            "color",
+            "fontname",
+            "labelfontname",
+            "minlen",
+            "row",
+            "source",
+            "style",
+            "target",
+            "weight"
+        ]
+    },
+    "dot/fidelity/real-siblings.gv": {
+        "nodes": ["URL", "color", "fontname", "id", "outline", "size", "style"],
+        "edges": ["source", "target"]
+    },
+    "dot/fidelity/real-softmaint.gv": {
+        "nodes": ["fontname", "fontsize", "height", "id", "label", "shape", "width"],
+        "edges": ["fontname", "source", "target"]
+    },
+    "dot/fidelity/synth-edges-clusters.gv": {
+        "nodes": [
+            "bgcolor",
+            "color",
+            "fillcolor",
+            "fontcolor",
+            "fontname",
+            "fontsize",
+            "gradientangle",
+            "id",
+            "label",
+            "labeljust",
+            "labelloc",
+            "pencolor",
+            "penwidth",
+            "peripheries",
+            "shape",
+            "style"
+        ],
+        "edges": [
+            "arrowhead",
+            "arrowsize",
+            "arrowtail",
+            "color",
+            "constraint",
+            "decorate",
+            "dir",
+            "fontcolor",
+            "fontname",
+            "fontsize",
+            "headlabel",
+            "label",
+            "labelangle",
+            "labeldistance",
+            "labelfontcolor",
+            "labelfontsize",
+            "lhead",
+            "ltail",
+            "minlen",
+            "penwidth",
+            "source",
+            "style",
+            "taillabel",
+            "tailport",
+            "target",
+            "weight",
+            "xlabel"
+        ]
+    },
+    "dot/fidelity/synth-nodes.gv": {
+        "nodes": [
+            "URL",
+            "color",
+            "colorscheme",
+            "distortion",
+            "fillcolor",
+            "fixedsize",
+            "fontcolor",
+            "fontname",
+            "fontsize",
+            "gradientangle",
+            "height",
+            "id",
+            "image",
+            "imagescale",
+            "label",
+            "labelloc",
+            "orientation",
+            "penwidth",
+            "peripheries",
+            "regular",
+            "shape",
+            "sides",
+            "skew",
+            "style",
+            "tooltip",
+            "width",
+            "xlabel"
+        ],
+        "edges": ["arrowsize", "color", "constraint", "source", "target"]
+    },
     "dot/generated/clusters-200.gv": {
         "nodes": ["fillcolor", "id", "style"],
         "edges": []
@@ -1189,6 +1760,33 @@
     "gexf/cns-iu_cns-pubvis__wos-extract.isi_full-layout.gexf.gz": {
         "nodes": ["color", "id", "label", "number_of_authored_works", "position", "show_label", "size", "times_cited"],
         "edges": ["gexfId", "number_of_coauthored_works", "source", "target", "weight"]
+    },
+    "gexf/fidelity/graphology-rio.gexf.gz": {
+        "nodes": [
+            "Category",
+            "Degree",
+            "In-Degree",
+            "Information Resources",
+            "Label2",
+            "Language",
+            "Latest Six Posts Frequency",
+            "Nature of institution:",
+            "Out-Degree",
+            "color",
+            "id",
+            "label",
+            "position",
+            "size"
+        ],
+        "edges": ["hypertext", "source", "target"]
+    },
+    "gexf/fidelity/synth-13-hierarchy.gexf": {
+        "nodes": ["color", "id", "label", "position", "size"],
+        "edges": ["gexfId", "label", "source", "target", "type", "weight"]
+    },
+    "gexf/fidelity/synth-nx-viz.gexf": {
+        "nodes": ["cluster", "color", "id", "label", "position", "size"],
+        "edges": ["gexfId", "label", "networkx_key", "source", "target", "weight"]
     },
     "gexf/generated/alpha-text.gexf": {
         "nodes": ["color", "id"],
@@ -1425,6 +2023,14 @@
     "gml/di-unipi-socc_dgLBF__germany50.gml": {
         "nodes": ["LabelGraphics", "graphics", "id", "label", "position"],
         "edges": ["graphics", "id", "source", "target"]
+    },
+    "gml/fidelity/repro-groups-no-creator.gml": {
+        "nodes": ["LabelGraphics", "gid", "graphics", "id", "isGroup", "label", "position"],
+        "edges": ["graphics", "source", "target"]
+    },
+    "gml/fidelity/synthetic-coverage.gml": {
+        "nodes": ["LabelGraphics", "gid", "graphics", "id", "isGroup", "label", "position"],
+        "edges": ["LabelGraphics", "edgeAnchor", "graphics", "label", "source", "target"]
     },
     "gml/generated/cytoscape-interactions.gml": {
         "nodes": ["canonicalName", "graphics", "id", "label", "position", "root_index"],
@@ -1682,6 +2288,53 @@
             "shared name"
         ],
         "edges": []
+    },
+    "graphml/fidelity/galaxy-lcms-workflow.graphml": {
+        "nodes": ["borderColor", "borderWidth", "color", "height", "id", "label", "position", "shape", "url", "width"],
+        "edges": ["source", "target"]
+    },
+    "graphml/fidelity/libcitygml-mapping.graphml": {
+        "nodes": ["id", "url"],
+        "edges": ["color", "description", "directed", "source", "target", "targetArrow", "url", "width"]
+    },
+    "graphml/fidelity/open-archaeo.graphml": {
+        "nodes": [
+            "borderColor",
+            "borderWidth",
+            "color",
+            "description",
+            "height",
+            "id",
+            "label",
+            "position",
+            "shape",
+            "url",
+            "width"
+        ],
+        "edges": ["color", "directed", "source", "sourceArrow", "target", "targetArrow", "width"]
+    },
+    "graphml/fidelity/scala-collection-mutable.graphml": {
+        "nodes": ["height", "id", "position", "width"],
+        "edges": ["color", "description", "directed", "source", "target", "targetArrow", "width"]
+    },
+    "graphml/fidelity/synthetic-edges.graphml": {
+        "nodes": ["borderColor", "borderWidth", "color", "height", "id", "label", "position", "shape", "width"],
+        "edges": ["color", "directed", "source", "sourceArrow", "target", "targetArrow", "width"]
+    },
+    "graphml/fidelity/synthetic-nodes.graphml": {
+        "nodes": [
+            "borderColor",
+            "borderWidth",
+            "color",
+            "description",
+            "height",
+            "id",
+            "label",
+            "position",
+            "shape",
+            "width"
+        ],
+        "edges": ["color", "directed", "source", "target", "targetArrow", "width"]
     },
     "graphml/generated/fill-oddities.graphml": {
         "nodes": ["borderColor", "borderWidth", "color", "height", "id", "position", "shape", "width"],
@@ -2249,6 +2902,202 @@
             "zoom"
         ]
     },
+    "json/fidelity/cyjs-graphmaker.json": {
+        "nodes": [
+            "avg_distance_from_root",
+            "classes",
+            "grabbable",
+            "group",
+            "id",
+            "locked",
+            "name",
+            "paperID",
+            "position",
+            "removed",
+            "selectable",
+            "selected",
+            "type"
+        ],
+        "edges": ["classes", "grabbable", "id", "locked", "removed", "selectable", "selected", "source", "target"]
+    },
+    "json/fidelity/cyjs-synth-edges-saved.json": {
+        "nodes": ["classes", "id", "label", "parent", "position"],
+        "edges": ["classes", "id", "lbl", "source", "target", "w"]
+    },
+    "json/fidelity/cyjs-synth-edges.json": {
+        "nodes": ["classes", "id", "label", "parent", "position"],
+        "edges": ["classes", "id", "lbl", "source", "target", "w"]
+    },
+    "json/fidelity/cyjs-synth-nodes.json": {
+        "nodes": [
+            "a",
+            "b",
+            "c",
+            "classes",
+            "deg",
+            "fill",
+            "flag",
+            "id",
+            "kind",
+            "name",
+            "position",
+            "score",
+            "selected",
+            "style#element",
+            "w"
+        ],
+        "edges": []
+    },
+    "json/fidelity/cyjs-tokyo.json.gz": {
+        "nodes": [
+            "SUID",
+            "add",
+            "close_ymd",
+            "e_status",
+            "id",
+            "lat",
+            "line_cd",
+            "lon",
+            "name",
+            "open_ymd",
+            "position",
+            "post",
+            "pref_name",
+            "selected",
+            "shared_name",
+            "station_g_cd",
+            "station_name",
+            "x",
+            "y"
+        ],
+        "edges": [
+            "SUID",
+            "company_cd",
+            "company_name",
+            "company_name_h",
+            "company_name_k",
+            "company_name_r",
+            "company_type",
+            "company_url",
+            "e_status_x",
+            "e_status_y",
+            "id",
+            "interaction",
+            "is_bullet",
+            "lat",
+            "line_name",
+            "line_name_h",
+            "line_name_k",
+            "lon",
+            "name",
+            "rr_cd",
+            "selected",
+            "shared_interaction",
+            "shared_name",
+            "source",
+            "target",
+            "zoom"
+        ]
+    },
+    "json/fidelity/cyjs-winecheese.json.gz": {
+        "nodes": [
+            "Country",
+            "Milk",
+            "NodeType",
+            "Quality",
+            "SUID",
+            "Strength",
+            "Synonym",
+            "Type",
+            "canonicalName",
+            "cytoscape_alias_list",
+            "id",
+            "name",
+            "position",
+            "selected",
+            "shared_name"
+        ],
+        "edges": [
+            "SUID",
+            "Special_Pairing",
+            "canonicalName",
+            "id",
+            "interaction",
+            "name",
+            "selected",
+            "shared_interaction",
+            "shared_name",
+            "source",
+            "target"
+        ]
+    },
+    "json/fidelity/graphology-synth.json": {
+        "nodes": ["attributes", "id", "key"],
+        "edges": ["attributes", "key", "source", "target", "undirected"]
+    },
+    "json/fidelity/sigma-lesmis.json": {
+        "nodes": ["attributes", "id", "key"],
+        "edges": ["attributes", "key", "source", "target"]
+    },
+    "json/fidelity/vis-lesmiserables.json": {
+        "nodes": ["group", "id", "label"],
+        "edges": ["from", "to"]
+    },
+    "json/fidelity/vis-siblings.json": {
+        "nodes": ["URL", "color", "font", "id", "label", "outline", "size"],
+        "edges": ["arrows", "from", "to"]
+    },
+    "json/fidelity/vis-synth.json": {
+        "nodes": [
+            "borderWidth",
+            "color",
+            "font",
+            "group",
+            "heightConstraint",
+            "hidden",
+            "icon",
+            "id",
+            "image",
+            "label",
+            "opacity",
+            "shadow",
+            "shape",
+            "shapeProperties",
+            "size",
+            "title",
+            "value",
+            "widthConstraint",
+            "x",
+            "y"
+        ],
+        "edges": [
+            "arrows",
+            "color",
+            "dashes",
+            "font",
+            "from",
+            "hidden",
+            "id",
+            "label",
+            "selfReference",
+            "smooth",
+            "to",
+            "value",
+            "width"
+        ]
+    },
+    "json/fidelity/vis-transparency.json": {
+        "nodes": ["color", "id", "label"],
+        "edges": ["f", "from", "to"]
+    },
+    "json/fidelity/vis-unix.json": {
+        "nodes": ["color", "id", "label"],
+        "edges": ["arrows", "from", "to"]
+    },
+    "json/fidelity/vis-world.json": {
+        "nodes": ["id", "label"],
+        "edges": ["arrows", "from", "to"]
+    },
     "json/generated/cytoscape-graphty-written.json": {
         "nodes": [
             "color",
@@ -2558,6 +3407,63 @@
     "pajek/SamTseng_CATAR__Pajek_format.net": {
         "nodes": ["bc", "ic", "id", "label", "x", "x_fact", "y", "y_fact", "z"],
         "edges": ["c", "directed", "source", "target", "weight"]
+    },
+    "pajek/fidelity/synth-lines.net": {
+        "nodes": ["bc", "fos", "ic", "id", "label", "position", "shape", "x", "y", "z"],
+        "edges": [
+            "a",
+            "a1",
+            "a2",
+            "ap",
+            "c",
+            "directed",
+            "font",
+            "fos",
+            "h1",
+            "h2",
+            "k1",
+            "k2",
+            "l",
+            "la",
+            "lc",
+            "lp",
+            "lphi",
+            "lr",
+            "p",
+            "relation",
+            "s",
+            "source",
+            "target",
+            "w",
+            "weight"
+        ]
+    },
+    "pajek/fidelity/synth-vertices.net": {
+        "nodes": [
+            "bc",
+            "bw",
+            "font",
+            "fos",
+            "ic",
+            "id",
+            "la",
+            "label",
+            "lc",
+            "lphi",
+            "lr",
+            "phi",
+            "position",
+            "q",
+            "r",
+            "s_size",
+            "shape",
+            "x",
+            "x_fact",
+            "y",
+            "y_fact",
+            "z"
+        ],
+        "edges": ["directed", "source", "target", "weight"]
     },
     "pajek/generated/b98-trailing-zero.net": {
         "nodes": ["bc", "ic", "id", "label", "lc", "position", "shape", "x", "x_fact", "y", "y_fact", "z"],
@@ -2972,6 +3878,129 @@
             "source",
             "target",
             "textmining"
+        ]
+    },
+    "xgmml/fidelity/repro-name-only-labels.xgmml": {
+        "nodes": ["canonicalName", "graphics", "id", "label", "name", "position"],
+        "edges": ["graphics", "interaction", "label", "source", "target"]
+    },
+    "xgmml/fidelity/syn-bypass.xgmml.gz": {
+        "nodes": [
+            "NumChildren",
+            "NumDescendents",
+            "__groupNetworks.SUID",
+            "__isGroup",
+            "__xLocation",
+            "__yLocation",
+            "a",
+            "b",
+            "c",
+            "graphics",
+            "id",
+            "img",
+            "label",
+            "name",
+            "parent",
+            "position",
+            "selected",
+            "shared name",
+            "xgmml.subgraph",
+            "z"
+        ],
+        "edges": [
+            "CX Element ID",
+            "__isMetaEdge",
+            "graphics",
+            "id",
+            "id#2",
+            "interaction",
+            "label",
+            "name",
+            "selected",
+            "shared interaction",
+            "shared name",
+            "source",
+            "target"
+        ]
+    },
+    "xgmml/fidelity/syn-mappings.xgmml.gz": {
+        "nodes": [
+            "graphics",
+            "grp",
+            "id",
+            "kind",
+            "label",
+            "name",
+            "note",
+            "pos",
+            "position",
+            "rank",
+            "score",
+            "selected",
+            "shared name",
+            "tier",
+            "z"
+        ],
+        "edges": [
+            "elabel",
+            "etype",
+            "graphics",
+            "id",
+            "id#2",
+            "interaction",
+            "label",
+            "name",
+            "selected",
+            "shared interaction",
+            "shared name",
+            "source",
+            "stype",
+            "target",
+            "weight"
+        ]
+    },
+    "xgmml/fidelity/wp4271-cy3-export.xgmml.gz": {
+        "nodes": [
+            "BorderThickness",
+            "ChEBI",
+            "Color",
+            "Ensembl",
+            "FillColor",
+            "GraphID",
+            "Height",
+            "IsGPMLShape",
+            "LabelFont",
+            "LabelSize",
+            "Shape",
+            "Transparent",
+            "Type",
+            "Width",
+            "XrefDatasource",
+            "XrefId",
+            "graphics",
+            "id",
+            "label",
+            "name",
+            "position",
+            "selected",
+            "shared name",
+            "z"
+        ],
+        "edges": [
+            "Color",
+            "ConnectorType",
+            "EndArrow",
+            "LineStyle",
+            "LineThickness",
+            "StartArrow",
+            "graphics",
+            "id",
+            "interaction",
+            "label",
+            "selected",
+            "shared interaction",
+            "source",
+            "target"
         ]
     },
     "xgmml/generated/graphics-mix.xgmml": {

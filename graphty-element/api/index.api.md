@@ -601,6 +601,7 @@ export class DataManager implements Manager {
     };
     get graphResults(): AdHocData | undefined;
     set graphResults(value: AdHocData | undefined);
+    get groups(): readonly NodeGroup[];
     heldCounts(): {
         nodes: number;
         edges: number;
@@ -617,6 +618,7 @@ export class DataManager implements Manager {
     // (undocumented)
     nodeCache: Map<NodeIdType, Node_2>;
     get nodes(): ReadonlyMap<string | number, Node_2>;
+    nodeVersion: number;
     get positions(): ReadonlyElementPositions;
     reconcile(slice: GraphSlice, dirty: ReadonlySet<string>, cause: HistoryCause): {
         added: number;
@@ -2976,9 +2978,11 @@ export abstract class LayoutEngine {
     static getZodOptionsSchema(): OptionsSchema;
     static hasZodOptions(): boolean;
     get holdMask(): NodeMask | null;
+    protected get holdsAny(): boolean;
     static honoursWeights: boolean;
     // (undocumented)
     abstract init(): Promise<void>;
+    protected isFollower(index: number): boolean;
     protected isHeld(index: number): boolean;
     // (undocumented)
     abstract get isSettled(): boolean;
@@ -3004,6 +3008,7 @@ export abstract class LayoutEngine {
     protected removeEdge(_e: Edge): void;
     protected removeNode(_n: Node_2): void;
     static scoped: boolean;
+    protected setFollowers(rows: ReadonlySet<number> | null): void;
     setHoldMask(mask: NodeMask | null, rows: number): void;
     protected abstract setNodePosition(n: Node_2, p: Position): void;
     // (undocumented)
@@ -3034,6 +3039,7 @@ export class LayoutManager implements Manager {
         edgeCount: number;
     };
     graphWritesWaiting: () => boolean;
+    groupBox(id: NodeIdType): GroupBox | undefined;
     hasLayoutEngine(): boolean;
     init(): Promise<void>;
     isCurrent(choice: LayoutChoice): boolean;
@@ -3044,6 +3050,7 @@ export class LayoutManager implements Manager {
     loadArrangement(restoring: boolean, wrote?: boolean): void;
     get nodes(): Iterable<Node_2>;
     onRest: (() => void) | null;
+    placeGroups(): void;
     // @internal
     releaseDetachedScope(): void;
     replacing: () => boolean;

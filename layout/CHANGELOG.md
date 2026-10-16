@@ -1,3 +1,11 @@
+## 2.5.5 (2026-10-15)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.34
+- Updated graph-format to 1.4.2
+- Updated algorithms to 3.4.9
+
 ## 2.5.4 (2026-10-15)
 
 ### 🧱 Updated Dependencies

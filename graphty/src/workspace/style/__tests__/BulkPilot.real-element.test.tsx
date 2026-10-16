@@ -200,14 +200,20 @@ describe("bulk editing a run's folder of group layers, after the first pilot", (
         const legend = screen.getByRole("region", { name: "Legend" });
         assert.lengthOf(within(legend).getAllByRole("group", { name: "Color: Louvain" }), 1);
         assert.lengthOf(within(legend).getAllByRole("group", { name: "Shape: Louvain" }), 1);
-        // Each shape row draws the shape picker's own picture beside the shape's name.
-        const shapeRows = within(within(legend).getByRole("group", { name: "Shape: Louvain" })).getAllByTestId(
-            "data-row-icon",
+        // Each shape row draws the shape beside its name: the picker's glyph at once, then the
+        // node itself as graphty-element draws it (its nodeThumbnail).
+        const shapeKey = within(legend).getByRole("group", { name: "Shape: Louvain" });
+        const icons = within(shapeKey).getAllByTestId("data-row-icon");
+        assert.isNotEmpty(icons);
+        await waitFor(
+            () => {
+                for (const icon of icons) {
+                    const picture = icon.querySelector<HTMLImageElement>("img[data-node-picture]");
+                    assert.match(picture?.src ?? "", /^data:image\/png/, "the node's own picture");
+                }
+            },
+            { timeout: 30_000 },
         );
-        assert.isNotEmpty(shapeRows);
-        for (const icon of shapeRows) {
-            assert.isNotNull(icon.querySelector("svg"), "a shape's picture");
-        }
 
         const before = paintedGroups(session);
         const run = session.runs.get(runId);

@@ -1,7 +1,7 @@
 import { DataRow, RampRow } from "@graphty/compact-mantine";
 import type { GraphSession, LegendBlock } from "@graphty/graphty-element/session";
 import { ColorSwatch, Paper, Stack, Text } from "@mantine/core";
-import React, { useLayoutEffect, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
@@ -43,6 +43,51 @@ function Ramp({ block, title }: Readonly<{ block: LegendBlock; title: string }>)
     );
 }
 
+/** How large a node's picture is drawn in a key row, in CSS pixels. */
+const PICTURE_PX = 16;
+
+/**
+ * A key row's picture of what it paints: a node shape drawn by graphty-element as its nodes are
+ * (`nodeThumbnail`, a mid gray: the color is another row's), the catalog glyph until it is ready
+ * and for every other kind.
+ * @param props - Component props
+ * @param props.channel - the block's channel
+ * @param props.value - what the row paints
+ * @returns The picture
+ */
+function ShapePicture({
+    channel,
+    value,
+}: Readonly<{ channel: LegendBlock["channel"]; value: unknown }>): React.JSX.Element {
+    const { element } = useWorkspace();
+    const [src, setSrc] = useState<string | null>(null);
+    const shape = channel === "node.shape" && typeof value === "string" ? value : null;
+    useEffect(() => {
+        if (shape === null || element === null) {
+            return undefined;
+        }
+        let live = true;
+        element
+            .nodeThumbnail({ shape, size: PICTURE_PX * Math.ceil(window.devicePixelRatio || 1) })
+            .then((url) => {
+                if (live) {
+                    setSrc(url);
+                }
+            })
+            .catch(() => {
+                // The glyph stays.
+            });
+        return () => {
+            live = false;
+        };
+    }, [element, shape]);
+    return src === null || shape === null ? (
+        <CatalogGlyph channel={channel} value={value} />
+    ) : (
+        <img src={src} alt="" width={PICTURE_PX} height={PICTURE_PX} data-node-picture="" />
+    );
+}
+
 /**
  * One block as a list: a row per value with what it paints -- a color chip; a shape, line pattern
  * or arrow as its picture and its name; or a size in words -- the Other row last. A color row's value is how many elements carry
@@ -62,8 +107,9 @@ function List({ block, entry }: Readonly<{ block: LegendBlock; entry: string }>)
                     value={swatchValue(block, swatch, entry)}
                     icon={
                         swatch.color === undefined ? (
-                            // A shape, line pattern or arrow: the picture the Style tab's picker draws.
-                            <CatalogGlyph channel={block.channel} value={swatch.paints} />
+                            // A node shape as the canvas draws it; a line pattern or arrow as the
+                            // picture the Style tab's picker draws.
+                            <ShapePicture channel={block.channel} value={swatch.paints} />
                         ) : (
                             <ColorSwatch className="ws-legend-chit" color={swatch.color} size={12} />
                         )

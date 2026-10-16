@@ -24,6 +24,7 @@ import {
     type ColumnRef,
     type ExtractedStyles,
     type Mapping,
+    matchPredicate,
     planStyles,
     type Predicate,
     resolveStyles,
@@ -31,7 +32,9 @@ import {
     type StyleProperty,
     type StyleRule,
     type StyleTarget,
+    type StyleTool,
     type StyleValue,
+    toolDefaults,
 } from "@graphty/graph-io/styles";
 
 import type { LabelLocation } from "../../../catalog/label-style";
@@ -530,30 +533,20 @@ function channelPlans(
 }
 
 /**
- * The largest corner radius, in the file's units, of a rounded rectangle whose file gives none:
- * Cytoscape.js's (`getRoundRectangleRadius`, cytoscape.js 3.34.3 dist/cytoscape.cjs.js line 4386),
- * the one program that publishes its rule. yEd and the rest draw barely rounded corners too, so a
- * 513 x 453 group keeps small corners instead of a quarter of its side.
- */
-const FILE_CORNER_RADIUS = 8;
-
-/**
- * A node rule of the writing program's defaults with the corner radius it draws when the file gives
- * none. Every other rule, and a file graphty wrote, is unchanged.
+ * A node rule of the writing program's defaults with the corner radius it draws on a rounded
+ * rectangle when the file gives none (graph-io's `roundedCornerRadius`, in the file's units), so a
+ * 513 x 453 group keeps small corners instead of a quarter of its side. Every other rule, and a
+ * file whose program has no such default, is unchanged.
  * @param rule - The rule.
  * @param tool - The program that wrote the file.
  * @returns The rule.
  */
-function withCornerCap(rule: StyleRule, tool: string | null): StyleRule {
-    if (
-        rule.origin !== "tool" ||
-        rule.target !== "node" ||
-        tool === "graphty" ||
-        rule.set?.cornerRadius !== undefined
-    ) {
+function withCornerCap(rule: StyleRule, tool: StyleTool | null): StyleRule {
+    const cap = tool === null ? undefined : toolDefaults(tool)?.roundedCornerRadius?.value;
+    if (rule.origin !== "tool" || rule.target !== "node" || cap === undefined || rule.set?.cornerRadius !== undefined) {
         return rule;
     }
-    return { ...rule, set: { ...rule.set, cornerRadius: FILE_CORNER_RADIUS } };
+    return { ...rule, set: { ...rule.set, cornerRadius: cap } };
 }
 
 /** The properties the element draws nothing for, per kind. */
@@ -1061,21 +1054,7 @@ class KindTranslation {
             return held;
         }
 
-        const probe: StyleRule = {
-            id: "match",
-            target: this.#kind,
-            role: "group",
-            origin: "inferred",
-            where,
-            set: { label: "1" },
-        };
-        const values = resolveStyles(
-            { ...source, styles: { ...source.styles, rules: [probe] } },
-            this.#kind,
-            "label",
-            this.#input.snapshot,
-        );
-        const out = values.map((value) => value !== null);
+        const out = matchPredicate(source, this.#kind, where, this.#input.snapshot);
         this.#matchCache.set(key, out);
         return out;
     }

@@ -306,10 +306,7 @@ export const FromAButtonInteractions: Story = {
         await userEvent.click(trigger);
         const body = within(canvasElement.ownerDocument.body);
         await waitFor(() => expect(body.getByRole("menu")).toBeVisible());
-        // Opened by a click, the menu itself has focus and no row is highlighted; ArrowDown
-        // reaches the first row.
-        await waitFor(() => expect(body.getByRole("menu")).toHaveFocus());
-        await userEvent.keyboard("{ArrowDown}");
+        // Opened by a click, the first row has focus, so Enter would pick it.
         await waitFor(() => expect(body.getByRole("menuitem", { name: /^Actions/ })).toHaveFocus());
         await userEvent.keyboard("{ArrowDown}{ArrowRight}");
         // Rows with a shortcut carry it in their accessible name ("New design fileCtrl+Alt+N").

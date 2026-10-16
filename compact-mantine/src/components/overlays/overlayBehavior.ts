@@ -58,8 +58,6 @@ let pointerAt: { x: number; y: number } | null = null;
 let movedOver: EventTarget | null = null;
 /** The control the last pointer-down landed on, until the pointer leaves it: its tooltips stay closed. */
 let pressed: Element | null = null;
-/** The keyboard opened the menu that is opening (the last key came after the last pointer-down). */
-let keyLast = false;
 
 /**
  * Whether a tooltip other than `except` is showing (not held, not dismissed).
@@ -255,13 +253,11 @@ function consumeMenuEscape(event: KeyboardEvent): void {
 
 /**
  * A menu's first focus: Mantine's focus trap focuses the first focusable row as the menu opens,
- * which highlights it as if already chosen, and a disabled row that stays focusable to show its
- * reason would be the row Enter cannot run (its ArrowDown from the dropdown does the same).
- * Opened by a key, focus moves on to the first enabled row, or the menu itself when none is.
- * Opened by the pointer, it goes to the menu itself, whatever the first row is, so no row is
- * highlighted until an arrow key (ArrowDown then lands here again, from a key, and reaches the
- * first enabled row). Focus coming from another row (an arrow, a click on the row to read its
- * reason) stays.
+ * and a disabled row that stays focusable to show its reason would be the row Enter cannot run
+ * (its ArrowDown from the dropdown does the same). However the menu was opened, by a key or the
+ * pointer, focus moves on to the first enabled row, or the menu itself when none is, so Enter
+ * picks the first thing it can do. Focus coming from another row (an arrow, a click on the row to
+ * read its reason) stays.
  * @param event - a focusin anywhere in the document
  */
 function skipDisabledFirstRow(event: FocusEvent): void {
@@ -282,7 +278,7 @@ function skipDisabledFirstRow(event: FocusEvent): void {
     if (from instanceof Node && from !== menu && menu.contains(from)) {
         return;
     }
-    const first = keyLast ? menuRows(menu).at(0) : undefined;
+    const first = menuRows(menu).at(0);
     if (row === first) {
         return;
     }
@@ -370,7 +366,6 @@ export function installOverlayBehavior(): void {
     document.addEventListener(
         "pointerdown",
         (event) => {
-            keyLast = false;
             const target = event.target instanceof Element ? event.target : null;
             // The control, not the label span inside it: moving onto its padding is not leaving.
             pressed = target?.closest("button, a, input, select, textarea, [role], [tabindex]") ?? target;
@@ -390,7 +385,6 @@ export function installOverlayBehavior(): void {
     document.addEventListener(
         "keydown",
         (event) => {
-            keyLast = true;
             if (!MODIFIER_KEYS.has(event.key)) {
                 dismissTooltips();
             }

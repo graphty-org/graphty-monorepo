@@ -284,19 +284,15 @@ describe("HelpMenu", () => {
     });
 
     describe("keyboard", () => {
-        it("opened by a click highlights no row, then walks down the rows with the arrow keys", async () => {
+        it("opened by a click puts focus on the first row, then walks down the rows with the arrow keys", async () => {
             const user = userEvent.setup();
 
             render(<Harness />);
 
             await user.click(opener());
-            const menu = await screen.findByRole("menu", { name: "Help" });
+            await screen.findByRole("menu", { name: "Help" });
 
-            // Opened by the pointer, the menu itself takes focus, so no row looks already chosen.
-            await waitFor(() => {
-                expect(document.activeElement).toBe(menu);
-            });
-            await user.keyboard("{ArrowDown}");
+            // The WAI-ARIA menu pattern: opening a menu focuses its first item, so Enter picks it.
             await waitFor(() => {
                 expect(document.activeElement).toBe(screen.getByRole("menuitem", { name: /Keyboard shortcuts/ }));
             });

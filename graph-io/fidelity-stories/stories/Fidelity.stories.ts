@@ -46,7 +46,6 @@ import gexfHskCharsUrl from "../../test/corpus/styles/gexf/glxxyz_hskhsk.com__HS
 import gexfGsaFpkiCertsUrl from "../../test/corpus/styles/gexf/gsa-fpki-certs.gexf?url";
 import gexfQvgeMineAiringUrl from "../../test/corpus/styles/gexf/qvge-mine-airing.gexf?url";
 import gexfSigmaEdiasporaUrl from "../../test/corpus/styles/gexf/sigma-moroccan-ediaspora.gexf.gz?url";
-import gmlBionetgenRulevizPatternUrl from "../../test/corpus/styles/gml/fidelity/bionetgen-ruleviz-pattern.gml?url";
 import gmlDunnartAutobahnUrl from "../../test/corpus/styles/gml/fidelity/dunnart-autobahn.gml?url";
 import gmlDunnartPlanarOrthogonalUrl from "../../test/corpus/styles/gml/fidelity/dunnart-planar-orthogonal.gml?url";
 import gmlJgraphtGridTerritorioUrl from "../../test/corpus/styles/gml/fidelity/jgrapht-grid-territorio.gml?url";
@@ -186,7 +185,6 @@ export const CxPolygenicSle = fidelityStory("cx-polygenic-sle", cxPolygenicSleUr
 export const CxRadiationBibliography = fidelityStory("cx-radiation-bibliography", cxRadiationBibliographyUrl);
 export const GexfCnsWos = fidelityStory("gexf-cns-wos", gexfCnsWosUrl);
 export const GexfHskChars = fidelityStory("gexf-hsk-chars", gexfHskCharsUrl);
-export const GmlBionetgenRulevizPattern = fidelityStory("gml-bionetgen-ruleviz-pattern", gmlBionetgenRulevizPatternUrl);
 export const GmlDunnartAutobahn = fidelityStory("gml-dunnart-autobahn", gmlDunnartAutobahnUrl);
 export const GmlDunnartPlanarOrthogonal = fidelityStory("gml-dunnart-planar-orthogonal", gmlDunnartPlanarOrthogonalUrl);
 export const GmlJgraphtGridTerritorio = fidelityStory("gml-jgrapht-grid-territorio", gmlJgraphtGridTerritorioUrl);

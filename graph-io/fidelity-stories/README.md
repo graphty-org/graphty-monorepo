@@ -35,7 +35,8 @@ except:
   yFiles for HTML GraphML files (`graphml-yfiles-html-ss13-tree`, `graphml-yfiles-html-stag-flowchart`), and the
   small reproduction files (`cx-repro-locked-own-size`, `cx-repro-unplaced-boxes`, `cx2-repro-shared-interaction`,
   `xgmml-repro-name-only-labels`, `gml-repro-groups-no-creator`).
-- Draws differently on each load: `json-cyjs-synth-edges` (its group boxes), left out until that is fixed.
+- Draws differently on each load: `json-cyjs-synth-edges` (its group boxes) and `gml-bionetgen-ruleviz-pattern`
+  (two captures of its story differ), left out until that is fixed.
 
 `stories/Fidelity.stories.ts` lists one story per sample. To add one, put its picture at
 `references/<sample id>.png`, add a row to `references/SOURCES.md`, and add the story.

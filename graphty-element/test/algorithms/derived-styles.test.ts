@@ -26,17 +26,15 @@ import { suggestStyles } from "../../src/session/styles";
  * Written out rather than derived from the same table the code reads, because a test that derives
  * its expectation from the implementation asserts only that the implementation is self-consistent.
  */
-const EXPECTED: Readonly<
-    Record<ResultShape, { as: "encoding" | "highlight" | "nothing"; channels: readonly Channel[] }>
-> = {
+const EXPECTED: Readonly<Record<ResultShape, { as: "encoding" | "mark" | "nothing"; channels: readonly Channel[] }>> = {
     "node-metric": { as: "encoding", channels: ["node.color"] },
     "edge-metric": { as: "encoding", channels: ["edge.color"] },
     community: { as: "encoding", channels: ["node.color"] },
     "layered-grouping": { as: "encoding", channels: ["node.color"] },
     "category-table": { as: "encoding", channels: ["node.color"] },
-    path: { as: "highlight", channels: ["node.color", "edge.color"] },
-    "node-set": { as: "highlight", channels: ["node.color"] },
-    "edge-set": { as: "highlight", channels: ["edge.color"] },
+    path: { as: "mark", channels: ["node.color", "edge.color"] },
+    "node-set": { as: "mark", channels: ["node.color"] },
+    "edge-set": { as: "mark", channels: ["edge.color"] },
     "pair-list": { as: "nothing", channels: [] },
     temporal: { as: "nothing", channels: [] },
     fact: { as: "nothing", channels: [] },

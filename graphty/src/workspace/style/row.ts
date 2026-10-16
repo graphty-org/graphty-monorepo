@@ -542,12 +542,20 @@ export function propose(
     choice: DataChoice,
     channel: Channel,
 ): ReturnType<GraphSession["styles"]["proposeEncoding"]> {
-    // The app's own choice: an opacity that varies never fades below 20%, so the faintest element
-    // stays visible. The element's default range stays 0 to 1.
-    const range = OPACITY.test(channel) ? { range: [...OPACITY_RANGE] as [number, number] } : {};
+    const range = appRange(channel);
     return choice.kind === "column"
         ? session.styles.proposeEncoding({ column: choice.column, channel, ...range })
         : session.styles.proposeEncoding({ run: choice.runId, field: choice.field, channel, ...range });
+}
+
+/**
+ * The app's own range for a channel that varies: an opacity never fades below 20%, so the faintest
+ * element stays visible. The element's default range stays 0 to 1.
+ * @param channel - the channel.
+ * @returns `{ range }` for an opacity, else nothing.
+ */
+export function appRange(channel: Channel): { range?: [number, number] } {
+    return OPACITY.test(channel) ? { range: [...OPACITY_RANGE] as [number, number] } : {};
 }
 
 /** The channels the app's opacity range applies to: every opacity. */
@@ -787,3 +795,13 @@ export function startingEverything(session: GraphSession): string | undefined {
 
 /** The template id graphty-element gives the Everything starting row's layers. */
 export const EVERYTHING_TEMPLATE = "graphty:starting-everything";
+
+/**
+ * The palettes a set of layers or groups can be told apart by: the categorical ones.
+ * @param session - the element's session.
+ * @returns the palettes.
+ */
+export function groupPalettes(session: GraphSession): ReturnType<GraphSession["catalog"]["palettes"]> {
+    // Two-color highlight palettes name one value against the rest, never a set of groups.
+    return session.catalog.palettes().filter((p) => p.kind === "categorical" && p.colors.length > 2);
+}

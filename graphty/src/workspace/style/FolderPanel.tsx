@@ -1,10 +1,8 @@
-import { Stack } from "@mantine/core";
 import React from "react";
 
 import { findTreeRow } from "../graph-place/rows";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { MultiRowPanel } from "./MultiRowPanel";
-import { SelectionColors } from "./SelectionColors";
 import { StateLine } from "./StylePanel";
 import { useStyleVersion } from "./useStyleVersion";
 
@@ -26,12 +24,7 @@ export function FolderPanel({ id }: Readonly<{ id: string }>): React.JSX.Element
         return <StateLine>This row is gone</StateLine>;
     }
     if (found.row.children.length === 0) {
-        return (
-            <Stack gap={0}>
-                <StateLine>Empty: drag rows onto the folder to put them in it</StateLine>
-                <SelectionColors rowIds={[id]} />
-            </Stack>
-        );
+        return <StateLine>Empty: drag rows onto the folder to put them in it</StateLine>;
     }
     return <MultiRowPanel ids={[id]} />;
 }

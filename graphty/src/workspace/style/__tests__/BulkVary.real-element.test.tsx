@@ -1,8 +1,8 @@
 /**
  * Vary by data on several layers, on the REAL graphty-element with real clicks and keys: on the
  * Louvain folder, Fill > Vary > the run's group shows what the copied rule paints in each layer,
- * and Apply writes it into each as its own rule, one undo step; Shape the same; a folder of layers
- * that share no field's value has Vary off and says why.
+ * and Apply writes it into each as its own rule, one undo step; Shape the same; on a folder of layers
+ * that share no field's value, Vary stays on because it offers Layer.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -139,7 +139,7 @@ describe("vary by data on several layers", () => {
         });
     });
 
-    it("is off, with the reason, for layers that share no field's value", async () => {
+    it("stays on for layers that share no field's value, offering Layer", async () => {
         const { session } = await openScene();
         const idOf = (name: string): string => String(session.data.nodes().find((n) => n.name === name)?.id);
         const folder = await session.styles.addFolder("Story highlights");
@@ -159,10 +159,12 @@ describe("vary by data on several layers", () => {
         await clickRow("Story highlights");
 
         const fill = await line("node.color");
-        const vary = within(fill).getByRole("button", {
-            name: /^Node color by attribute: Varying by data copies one rule into each layer that holds one group\. Heroes and Law hold more than one group/,
-        });
-        assert.equal(vary.getAttribute("aria-disabled"), "true");
+        await userEvent.hover(fill);
+        const vary = within(fill).getByRole("button", { name: "Node color by attribute" });
+        assert.notEqual(vary.getAttribute("aria-disabled"), "true", "Layer is offered");
+        await userEvent.click(vary);
+        await screen.findByRole("option", { name: /^Layer/ });
+        await userEvent.keyboard("{Escape}");
         // A typed Fill still writes to both.
         await userEvent.click(within(fill).getByRole("textbox", { name: /^Node color/ }));
         await userEvent.keyboard("009E73{Enter}");

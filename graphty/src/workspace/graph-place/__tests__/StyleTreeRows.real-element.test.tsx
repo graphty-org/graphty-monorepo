@@ -310,7 +310,7 @@ describe("the style tree's rows, menu and Graph settings door on the real elemen
         });
     });
 
-    it("draws the tree, its row menu, a folder's Selection colors and Graph settings at two window sizes", async () => {
+    it("draws the tree, its row menu, a folder's panel and Graph settings at two window sizes", async () => {
         const { session } = await openSample();
         const ids = session.data.nodes().map((node) => String(node.id));
         const folder = await session.styles.addFolder("Annotations");
@@ -338,22 +338,8 @@ describe("the style tree's rows, menu and Graph settings door on the real elemen
 
             await userEvent.click(await row("Annotations"));
             const inspector = await screen.findByRole("complementary", { name: "Inspector" });
-            await userEvent.click(
-                await within(inspector).findByRole("button", { name: /^Show \d+ selection colors?$/ }),
-            );
-            const group = await within(inspector).findByRole("group", { name: /^#E8590C, from Key people/ });
-            const heading = within(inspector).getByRole("heading", { name: "Selection colors" });
-            const field = group.querySelector(".ws-field");
-            assert.isNotNull(field);
-            // On the field column: the section's content edge, as every unnamed field of the panel.
-            const edge = heading.closest(".cm-section")?.querySelector(".cm-section-content");
-            assert.closeTo(
-                field?.getBoundingClientRect().left ?? 0,
-                (edge?.getBoundingClientRect().left ?? 0) +
-                    Number.parseFloat(getComputedStyle(edge ?? document.body).paddingLeft),
-                1,
-            );
-            await page.screenshot({ path: `${SHOTS}/folder-selection-colors-${size}.png` });
+            await within(inspector).findByText(/ in Annotations\b/);
+            await page.screenshot({ path: `${SHOTS}/folder-panel-${size}.png` });
 
             await userEvent.click(screen.getByRole("button", { name: "Graph settings" }));
             const settings = await within(inspector).findByRole("tabpanel");

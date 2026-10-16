@@ -5,6 +5,7 @@ import React, { useState } from "react";
 
 import { count, findTreeRow, type FoundRow } from "../graph-place/rows";
 import { useWorkspace } from "../state/WorkspaceContext";
+import type { LayerSequence, LayerValues } from "./LayerVary";
 import type { BeneathValue, BulkReceipt, ManyRows, RowContext } from "./PropertyRow";
 import {
     beneathOf,
@@ -16,13 +17,12 @@ import {
     type Target,
     without,
 } from "./row";
-import { SelectionColors } from "./SelectionColors";
 import { RowStyle, StateLine } from "./StylePanel";
 import { useStyleVersion } from "./useStyleVersion";
 import { channelWord, hexOf } from "./words";
 
-/** One value or binding written to a channel. */
-type Write = LiteralWrite | { readonly binding: DataBinding };
+/** One value or binding written to a channel, or each layer its own values (Vary by Layer). */
+type Write = LiteralWrite | { readonly binding: DataBinding } | { readonly each: LayerSequence };
 
 /** What the last write did, and the rows it left unset, so "Also set those" can write them. */
 interface LastWrite extends BulkReceipt {
@@ -40,12 +40,33 @@ interface LastWrite extends BulkReceipt {
  * @param write - the value or the binding.
  * @returns the patch.
  */
-function patchOf(layer: Layer, channel: Channel, write: Write): Pick<Layer, "set" | "encode"> {
+function patchOf(
+    layer: Layer,
+    channel: Channel,
+    write: LiteralWrite | { readonly binding: DataBinding },
+): Pick<Layer, "set" | "encode"> {
     if ("value" in write && (write.combine === undefined || write.combine === "replace")) {
         return { set: { ...layer.set, [channel]: write.value }, encode: without(layer.encode, channel) };
     }
     const encoded = "binding" in write ? write.binding : { value: write.value, combine: write.combine };
     return { set: without(layer.set, channel), encode: { ...layer.encode, [channel]: encoded } };
+}
+
+/**
+ * The patch that writes a layer its own plain values, one channel after another (the property's,
+ * and an overflow's second cue's).
+ * @param layer - the layer.
+ * @param values - the values, by channel.
+ * @returns the patch.
+ */
+function patchOfValues(layer: Layer, values: LayerValues): Pick<Layer, "set" | "encode"> {
+    let next: Pick<Layer, "set" | "encode"> = { set: layer.set, encode: layer.encode };
+    for (const [channel, value] of Object.entries(values) as [Channel, LayerValues[Channel]][]) {
+        if (value !== undefined) {
+            next = patchOf({ ...layer, ...next }, channel, { value });
+        }
+    }
+    return next;
 }
 
 /**
@@ -166,15 +187,29 @@ function manyOf(
         const setting = rows.filter((_, at) => lines[at] !== undefined);
         return setting.length > 0 ? setting : rows;
     };
+    // Beneath the lowest of them in paint order, so no selected row reads as beneath another.
+    const stack = session.styles.list().map((layer) => layer.id);
+    // The rows as the tree lists them, top first, by the layer a write of the channel reaches.
+    const topFirst = (targets: readonly FoundRow[], channel: Channel): FoundRow[] =>
+        [...targets].sort(
+            (a, b) => stack.indexOf(homeOf(b, channel)?.id ?? "") - stack.indexOf(homeOf(a, channel)?.id ?? ""),
+        );
+    // `from`: where in a Vary by Layer sequence these rows start ("Also set those" goes on after the first write).
     const writeRows = async (
         targets: readonly FoundRow[],
         channel: Channel,
         write: Write,
+        from = 0,
     ): Promise<{ readonly updated: readonly unknown[]; readonly skipped: readonly unknown[] }> => {
-        const patches = targets.flatMap((row) => {
+        const ordered = "each" in write ? topFirst(targets, channel) : targets;
+        const values = "each" in write ? write.each(from + ordered.length) : [];
+        const patches = ordered.flatMap((row, at) => {
             const layer = homeOf(row, channel);
             if (layer === undefined) {
                 return [];
+            }
+            if ("each" in write) {
+                return [{ id: layer.id, patch: patchOfValues(layer, values[from + at] ?? {}) }];
             }
             const each = "binding" in write ? { binding: bindingFor(session, layer, channel, write.binding) } : write;
             return [{ id: layer.id, patch: patchOf(layer, channel, each) }];
@@ -182,8 +217,6 @@ function manyOf(
         // Named in the history as what it did ("Undid changing fill on 5 layers").
         return session.transaction(stepWords(channel, patches.length), (tx) => tx.styles.updateMany(patches));
     };
-    // Beneath the lowest of them in paint order, so no selected row reads as beneath another.
-    const stack = session.styles.list().map((layer) => layer.id);
     const lowest = [...rows].sort(
         (a, b) =>
             stack.indexOf(treeLayers(session, a.row.id)[0] ?? "") -
@@ -267,13 +300,19 @@ function manyOf(
             const { take, leave } = varyRows(channel);
             await record(channel, { binding }, take, leave);
         },
+        inOrder: (channel) =>
+            topFirst(targetsOf(channel), channel).flatMap((row) => {
+                const layer = homeOf(row, channel);
+                return layer === undefined ? [] : [{ id: layer.id, name: row.row.name }];
+            }),
+        writeEach: (channel, each) => record(channel, { each }, targetsOf(channel), []),
         receipt: (channel) => (last?.channel === channel ? last : undefined),
         alsoSet: async (channel) => {
             if (last?.channel !== channel) {
                 return;
             }
             const targets = rows.filter((row) => last.left.includes(row.row.id));
-            const result = await writeRows(targets, channel, last.write);
+            const result = await writeRows(targets, channel, last.write, last.changed);
             bulk.setLast({
                 ...last,
                 changed: last.changed + result.updated.length,
@@ -361,7 +400,8 @@ function scopeWords(tree: readonly StyleRow[], picked: readonly FoundRow[], reac
  * an edit reaches -- through folders at every depth -- and which it skips; a group for each kind
  * the reached rows paint, each field holding the value they share or Mixed, which takes a typed
  * or picked value; every write reaching, in one undo step, the rows that already set the property
- * (all of them when none does), with a receipt under the field; then their Selection colors.
+ * (all of them when none does), with a receipt under the field. Vary by Layer gives each its own
+ * value, in list order.
  * @param props - Component props
  * @param props.ids - the rows' ids: layer rows and folders, top first
  * @returns The panel
@@ -398,7 +438,6 @@ export function MultiRowPanel({ ids }: Readonly<{ ids: readonly string[] }>): Re
                     many={(side) => manyOf(session, open, side, bulk)}
                 />
             )}
-            <SelectionColors rowIds={picked.map((row) => row.row.id)} />
         </Stack>
     );
 }

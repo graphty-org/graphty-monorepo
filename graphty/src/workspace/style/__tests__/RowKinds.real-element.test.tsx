@@ -1,7 +1,6 @@
 /**
  * The panels of the style tree's other row kinds on the REAL graphty-element, driven by real input
- * (tier3 design, section 2.2): a folder lists its rows in paint order and a click opens one; its
- * Selection colors rewrite a color in every row that wrote it, undone in one step; several rows
+ * (tier3 design, section 2.2): a folder's Style tab says what an edit of it reaches; several rows
  * selected together read "Mixed" where the rows that set a property set it differently, and the
  * value they agree on where only some set it, saying who does not; the minus takes it off every
  * layer in one undo step,
@@ -112,7 +111,7 @@ describe("folders, several rows and the draft on the real element", () => {
         await page.viewport(1440, 900);
     });
 
-    it("a folder's Style tab edits every row in it, says so, and its Selection colors repaint every row in one Undo", async () => {
+    it("a folder's Style tab says what an edit of it reaches, with no panel of its own colors", async () => {
         const { session, key, ring } = await openProject();
         const folder = await session.styles.addFolder("Annotations");
         for (const id of [key, ring]) {
@@ -123,27 +122,7 @@ describe("folders, several rows and the draft on the real element", () => {
         // The tree lists the folder's rows; the panel says what an edit of the folder reaches.
         await screen.findByText("2 layers in Annotations. Layers added later are not changed.");
         assert.isNull(screen.queryByRole("list", { name: "In Annotations" }));
-
-        const colors = screen.getByRole("button", { name: "Show 1 selection color" });
-        await userEvent.click(colors);
-        const color = await screen.findByRole("group", { name: "#FF0000, from Key people, Ring" });
-        const hex = within(color).getByRole("textbox", { name: /Replace #FF0000/ });
-        await userEvent.tripleClick(hex);
-        await userEvent.keyboard("00AA00{Enter}");
-        await waitFor(() => {
-            assert.equal(written(session, key, "node.color"), "#00AA00");
-            assert.equal(written(session, ring, "edge.color"), "#00AA00");
-        });
-        assert.equal(
-            session.styles.explain({ node: 1 }).merged["node.color"]?.hex.slice(0, 7).toLowerCase(),
-            "#00aa00",
-        );
-
-        await userEvent.click(screen.getByRole("button", { name: "Undo" }));
-        await waitFor(() => {
-            assert.equal(written(session, key, "node.color"), "#ff0000", "one Undo restores both");
-            assert.equal(written(session, ring, "edge.color"), "#FF0000");
-        });
+        assert.isNull(screen.queryByRole("heading", { name: "Selection colors" }));
     });
 
     it("two rows of different sizes read Mixed; the minus takes it off both in one Undo; a locked row is counted and left out", async () => {

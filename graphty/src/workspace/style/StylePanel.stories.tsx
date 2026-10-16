@@ -202,7 +202,7 @@ function sceneStory(play: (scene: Scene) => Promise<void>): Story {
     };
 }
 
-// Checkpoint 1: the tree, the Style tab, Clear, a folder's Selection colors, several rows.
+// Checkpoint 1: the tree, the Style tab, Clear, a folder's panel, several rows.
 
 /** The tree with both row kinds, and Everything's Style tab. */
 export const Tree: Story = sceneStory(async () => {
@@ -254,12 +254,10 @@ export const EverythingHidden: Story = sceneStory(async () => {
     await openStyle("Everything");
 });
 
-/** The Annotations folder: the Style panel acting on its rows, under its scope line, and its Selection colors open. */
-export const FolderSelectionColors: Story = sceneStory(async () => {
+/** The Annotations folder: the Style panel acting on its rows, under its scope line. */
+export const FolderPanel: Story = sceneStory(async () => {
     await clickRow("Annotations");
     await page().findByText(/ in Annotations\b/);
-    await userEvent.click(page().getByRole("button", { name: /^Show \d+ selection colors?$/ }));
-    await page().findByRole("group", { name: /^#E8590C, from Key people/i });
 });
 
 /** Key people and Degree selected together: one panel for both, Mixed with who sets it where one sets a property. */
@@ -330,6 +328,16 @@ export const BulkVaryByData: Story = sceneStory(async () => {
     const options = await page().findAllByRole("option", { name: /group|community|leiden/i });
     await userEvent.click(options[0]);
     await within(fill).findByRole("group", { name: /, in each layer$/ });
+});
+
+/** Fill > Vary > Layer on Leiden's folder: a palette spread over the layers in list order, each layer's color before Apply. */
+export const BulkVaryByLayer: Story = sceneStory(async () => {
+    const tab = await openLeidenFolder();
+    const fill = await fillRow(tab);
+    await userEvent.hover(fill);
+    await userEvent.click(within(fill).getByRole("button", { name: "Node color by attribute" }));
+    await userEvent.click(await page().findByRole("option", { name: /^Layer/ }));
+    await within(fill).findByRole("group", { name: / by layer$/ });
 });
 
 /** "+" > Layer: a real "Layer 1" on nodes and edges, its name ready to type, writing nothing yet. */

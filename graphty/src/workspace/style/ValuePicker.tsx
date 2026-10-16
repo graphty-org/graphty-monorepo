@@ -29,6 +29,11 @@ interface ValuePickerProps {
     fixedLabel?: string;
     /** Called when the reader picks `fixedLabel`. */
     onFixed?: () => void;
+    /**
+     * Several layers edited together: a first choice, "Layer", that gives each of them its own
+     * value in list order. `count` is how many layers it reaches.
+     */
+    byLayer?: { readonly count: number; readonly onPick: () => void };
 }
 
 /** A run's fields that only reorder its main value. */
@@ -39,6 +44,8 @@ const TEXT_CHANNEL = /\.(label|tooltip|arrowHeadText|arrowTailText)$/;
 
 /** The key of the `fixedLabel` row; entry keys are the values' paths. */
 const FIXED = "fixed";
+/** The key of the "Layer" row. */
+const LAYER = "layer";
 /** The key of the closing row that folds what the property cannot take. */
 const FOLD = "fold";
 
@@ -154,6 +161,7 @@ function entriesOf(session: GraphSession, target: Target, inUse: readonly string
  * @param props.onClose - called by Escape
  * @param props.fixedLabel - a first choice that keeps the field's own value
  * @param props.onFixed - called when the reader picks it
+ * @param props.byLayer - several layers: the "Layer" choice
  * @returns The picker, or nothing before the element has come up
  */
 export function ValuePicker({
@@ -165,6 +173,7 @@ export function ValuePicker({
     onClose,
     fixedLabel,
     onFixed,
+    byLayer,
 }: Readonly<ValuePickerProps>): React.JSX.Element | null {
     const { session, element } = useWorkspace();
     useStyleVersion(session, element);
@@ -222,6 +231,18 @@ export function ValuePicker({
             emptyText={entries.length === 0 ? emptyWords(target) : undefined}
             actions={[
                 ...(fixedLabel === undefined ? [] : [{ value: FIXED, label: fixedLabel }]),
+                ...(byLayer === undefined
+                    ? []
+                    : [
+                          {
+                              value: LAYER,
+                              label: "Layer",
+                              icon: <GLYPHS.layer size={14} aria-hidden />,
+                              description: `${String(byLayer.count)} layers`,
+                              keywords: ["selected layers", "each layer"],
+                              section: "Selected layers",
+                          },
+                      ]),
                 ...used,
                 ...fits,
                 ...fold,
@@ -241,6 +262,10 @@ export function ValuePicker({
             onRun={(key) => {
                 if (key === FIXED) {
                     onFixed?.();
+                    return;
+                }
+                if (key === LAYER) {
+                    byLayer?.onPick();
                     return;
                 }
                 if (key === FOLD) {

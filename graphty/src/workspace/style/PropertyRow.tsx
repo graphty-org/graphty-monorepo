@@ -16,9 +16,11 @@ import { factSentence, paintWords, swatchName } from "../canvas/legendWords";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { BindingPopover } from "./BindingPopover";
+import { type LayerSequence, LayerVary } from "./LayerVary";
 import {
     type DataBinding,
     type DataChoice,
+    groupPalettes,
     layerWord,
     type Line,
     lineIn,
@@ -112,6 +114,13 @@ export interface ManyRows {
     readonly varies?: (channel: Channel) => { readonly layers: readonly Layer[]; readonly left: readonly string[] };
     /** Copies a binding into each layer `varies` names, as its own rule. */
     readonly vary?: (channel: Channel, binding: DataBinding) => Promise<unknown>;
+    /**
+     * The layers Vary by Layer gives a value each, in list order (top first): of those a write
+     * reaches, one layer per row, with the row's name.
+     */
+    readonly inOrder?: (channel: Channel) => readonly { readonly id: LayerId; readonly name: string }[];
+    /** Writes each layer of `inOrder` its own plain values, as one undo step. */
+    readonly writeEach?: (channel: Channel, sequence: LayerSequence) => Promise<unknown>;
     /** What the last write of the channel did, while it is the last write. */
     readonly receipt?: (channel: Channel) => BulkReceipt | undefined;
     /** Writes the last write again to the rows it left unset. */
@@ -320,8 +329,9 @@ export function Field({
     // "=" in a field opens the value picker, as Figma's "apply variable" does (a typed text keeps
     // its "="). A Tooltip just added opens it at once: an empty tooltip says nothing.
     const [varyOpen, setVaryOpen] = useState(() => listOpensNext(channel));
-    // Several layers: the value picked in Vary, waiting for Apply under its per-layer preview.
-    const [pendingVary, setPendingVary] = useState<DataChoice | null>(null);
+    // Several layers: the value picked in Vary ("layer" for Layer), waiting for Apply under its
+    // per-layer preview.
+    const [pendingVary, setPendingVary] = useState<DataChoice | "layer" | null>(null);
     useFocusOnRemoval(box);
     const line = lineIn(ctx, channel);
     // A line on a locked layer (the element's own base layers) is not this row's.
@@ -552,6 +562,9 @@ export function Field({
                     ctx={ctx}
                     descriptor={descriptor}
                     onPick={bind}
+                    onLayer={() => {
+                        setPendingVary("layer");
+                    }}
                     open={varyOpen}
                     onOpenChange={setVaryOpen}
                 />
@@ -615,7 +628,28 @@ export function Field({
                     {breakdownWords(word ?? channelWord(channel), ctx.many.breakdown(channel))}
                 </Text>
             ) : null}
-            {pendingVary === null ? null : (
+            {pendingVary === "layer" ? (
+                <LayerVary
+                    session={session}
+                    descriptor={descriptor}
+                    layers={ctx.many?.inOrder?.(channel) ?? []}
+                    onApply={(sequence) => {
+                        setPendingVary(null);
+                        ctx.many
+                            ?.writeEach?.(channel, sequence)
+                            .then(() => {
+                                requestAnimationFrame(() => {
+                                    box.current?.querySelector<HTMLElement>("[data-receipt] button")?.focus();
+                                });
+                            })
+                            .catch(fail);
+                    }}
+                    onCancel={() => {
+                        setPendingVary(null);
+                    }}
+                />
+            ) : null}
+            {pendingVary === null || pendingVary === "layer" ? null : (
                 <VaryPreview
                     ctx={ctx}
                     descriptor={descriptor}
@@ -655,22 +689,12 @@ export function Field({
  */
 function varyOffReason(ctx: RowContext, channel: Channel): string | null {
     const varies = ctx.many?.varies?.(channel);
-    if (varies === undefined || varies.layers.length > 0) {
+    if (varies === undefined || varies.layers.length > 0 || (ctx.many?.inOrder?.(channel).length ?? 0) > 1) {
         return null;
     }
     const { left } = varies;
     const whose = left.length === 0 ? "None of these layers" : namesWords(left);
     return `Varying by data copies one rule into each layer that holds one group. ${whose} ${left.length === 1 ? "holds" : "hold"} more than one group, or none.`;
-}
-
-/**
- * The palettes a rule copied into several group layers can paint with: the categorical ones.
- * @param session - the element's session.
- * @returns the palettes.
- */
-function groupPalettes(session: GraphSession): ReturnType<GraphSession["catalog"]["palettes"]> {
-    // Two-color highlight palettes name one value against the rest, never a set of groups.
-    return session.catalog.palettes().filter((p) => p.kind === "categorical" && p.colors.length > 2);
 }
 
 /**
@@ -818,6 +842,7 @@ function VaryPreview({
             <div className="ws-bulk-vary-actions">
                 <Button
                     size="compact-xs"
+                    disabled={varies.layers.length === 0}
                     onClick={() => {
                         onApply(binding);
                     }}
@@ -872,6 +897,7 @@ export function VarySlot({
  * @param props.ctx - the row
  * @param props.descriptor - the property
  * @param props.onPick - binds the property to the picked value
+ * @param props.onLayer - several layers: gives each its own value
  * @param props.open - whether the picker is open
  * @param props.onOpenChange - opens or closes it
  * @returns The button and its pop-out
@@ -880,12 +906,15 @@ function VaryButton({
     ctx,
     descriptor,
     onPick,
+    onLayer,
     open,
     onOpenChange: setOpen,
 }: Readonly<{
     ctx: RowContext;
     descriptor: ChannelDescriptor;
     onPick: (choice: DataChoice) => void;
+    /** Several layers: gives each its own value ("Layer" in the list). */
+    onLayer?: () => void;
     /** Whether the picker is open; the field opens it on "=" too. */
     open: boolean;
     onOpenChange: (open: boolean) => void;
@@ -898,6 +927,7 @@ function VaryButton({
         setOpen(next);
     };
     const label = bindLabel(descriptor);
+    const layers = ctx.many?.inOrder?.(channel).length ?? 0;
     return (
         <Popout opened={open} onOpenChange={openList}>
             <Popout.Trigger>
@@ -923,6 +953,17 @@ function VaryButton({
                     target={ctx.side}
                     channel={channel}
                     fixedLabel={FIXED_LABELS[channel]}
+                    byLayer={
+                        onLayer === undefined || layers < 2
+                            ? undefined
+                            : {
+                                  count: layers,
+                                  onPick: () => {
+                                      openList(false);
+                                      onLayer();
+                                  },
+                              }
+                    }
                     onFixed={() => {
                         openList(false);
                         // The field keeps its value; focus goes to it to change it.

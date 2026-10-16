@@ -29,6 +29,7 @@ import { NodeEffects } from "./meshes/NodeEffects";
 import { NodeMesh } from "./meshes/NodeMesh";
 import { readColor } from "./meshes/readColor";
 import { RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
+import { isFlatShape } from "./meshes/shapeOutlines";
 import { NodeBehavior, type NodeDragHandler } from "./NodeBehavior";
 import { dispatcherOf } from "./session/GraphSession";
 import { frozenRecord } from "./session/project/draft";
@@ -76,6 +77,34 @@ const MIN_OVERLAY_SIZE = 0.2;
 
 /** How deep a group following its members is drawn, as a fraction of its smaller side. */
 const GROUP_DEPTH_RATIO = 0.02;
+
+/** How opaque a group following its members is drawn when no layer styled it: a faint region. */
+const GROUP_REGION_OPACITY = 0.25;
+
+/** The flat shape a group following its members is drawn as when its style names a solid. */
+const GROUP_REGION_SHAPE = "round-rectangle";
+
+/**
+ * What a group that follows its members is drawn as: a region behind them, never a solid round
+ * them. A solid shape becomes a flat {@link GROUP_REGION_SHAPE} (a flat shape the file named is
+ * kept), and a group no layer gave an opacity or a draw level -- one the file's styles did not
+ * describe, since they give every group a level -- is drawn in its colour at
+ * {@link GROUP_REGION_OPACITY}.
+ * @param meshKey - The key the paint's style is drawn under.
+ * @param style - The resolved style.
+ * @returns The key and style to draw the group with.
+ */
+function groupRegionPaint(meshKey: string, style: NodeStyleConfig): { meshKey: string; style: NodeStyleConfig } {
+    const type = style.shape?.type;
+    const shape = { ...style.shape, type: type !== undefined && isFlatShape(type) ? type : GROUP_REGION_SHAPE };
+    const painted = style.texture?.color;
+    const styled = typeof painted === "object" || style.shape?.zIndex !== undefined;
+    const texture = styled
+        ? style.texture
+        : { ...style.texture, color: { colorType: "solid" as const, value: painted, opacity: GROUP_REGION_OPACITY } };
+
+    return { meshKey: `${meshKey}|group`, style: { ...style, shape, texture } };
+}
 
 interface NodeOpts {
     pinOnDrag?: boolean;
@@ -347,6 +376,9 @@ export class Node {
     /** The halo instance drawn around this node while it is selected, or null when it is not. */
     private halo: AbstractMesh | null = null;
 
+    /** Whether the mesh was built as a group following its members: see `groupRegionPaint`. */
+    private drawnAsGroup = false;
+
     /** The faint point drawn in this node's place while it is a context node, or null. */
     private contextPoint: AbstractMesh | null = null;
 
@@ -609,6 +641,12 @@ export class Node {
 
         const pos = layoutEngine?.getNodePosition(this);
         const box = layoutManager.groupBox(this.id);
+        // A node becomes, or stops being, a group following its members after it is painted (the
+        // groups arrive with the file, the behaviour can turn them off): draw it again as one.
+        if ((box !== undefined) !== this.drawnAsGroup) {
+            this.updateStyle();
+        }
+
         if (box !== undefined) {
             this.drawAsGroup(box);
         } else if (pos) {
@@ -638,7 +676,7 @@ export class Node {
         const far = eye !== undefined && eye < center.z ? (back - eye) / (center.z - eye) : 1;
         // A round shape is grown to the ellipse through the box's corners, so a member in a
         // corner is still inside it.
-        const round = this.shapeType !== undefined && ROUND_SHAPES.has(this.shapeType);
+        const round = this.shapeType === "ellipse";
         const grow = round ? far * Math.SQRT2 : far;
         const scale = (want: number, local: number): number => (local > 0 ? want / local : 1);
         this.mesh.scaling.set(
@@ -819,12 +857,29 @@ export class Node {
      * The one place a node's appearance is applied, whichever stack resolved it. It is keyed on
      * the SOURCE MESH rather than on a style, because that is what decides whether anything has
      * to be rebuilt: two nodes of one shape and size differing only in colour share a mesh, and
-     * the colour is one buffer write on an instance that is already correct.
+     * the colour is one buffer write on an instance that is already correct. A group following
+     * its members is drawn as a region behind them (`groupRegionPaint`).
      * @param meshKey - Which source mesh this node is drawn from.
-     * @param o - The resolved style the mesh, the label and the effects are built from.
+     * @param style - The resolved style the mesh, the label and the effects are built from.
      * @param color - The per-instance colour, or null when the style carries it itself.
      */
-    private paintFrom(meshKey: string, o: NodeStyleConfig, color: Rgba | null): void {
+    private paintFrom(meshKey: string, style: NodeStyleConfig, color: Rgba | null): void {
+        this.drawnAsGroup = this.context.getLayoutManager().groupBox(this.id) !== undefined;
+        if (this.drawnAsGroup) {
+            const region = groupRegionPaint(meshKey, style);
+            this.drawPaint(region.meshKey, region.style, color);
+        } else {
+            this.drawPaint(meshKey, style, color);
+        }
+    }
+
+    /**
+     * Draw a paint as it is: see `paintFrom`.
+     * @param meshKey - Which source mesh the paint draws from.
+     * @param o - The resolved style.
+     * @param color - The per-instance colour.
+     */
+    private drawPaint(meshKey: string, o: NodeStyleConfig, color: Rgba | null): void {
         this.context.getStatsManager().startMeasurement("Node.updateMesh");
 
         // Only skip update if the source mesh is the same AND mesh is not disposed

@@ -788,6 +788,11 @@ export interface StyleWriteCapabilities {
     readonly edge: readonly EdgeStyleProperty[];
     /** Graph properties written natively. */
     readonly graph?: readonly GraphStyleProperty[];
+    /**
+     * The program that draws the files this writer writes, when there is one. A graph property the format has no
+     * place for is not reported lost when its value is what that program draws anyway (its tool default).
+     */
+    readonly tool?: StyleTool;
     /** Where the block and the tagged values go. */
     readonly block: "native" | "attributes" | "none";
 }

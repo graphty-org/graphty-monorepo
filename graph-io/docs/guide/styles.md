@@ -459,8 +459,8 @@ if (styles) {
 
 ```text
 csv { W_STYLE_NOT_WRITTEN: 23, W_STYLE_RULES_NOT_KEPT: 1 }
-gexf { W_STYLE_APPROXIMATED: 1, W_STYLE_NOT_WRITTEN: 15 }
-graphml { W_STYLE_NOT_WRITTEN: 2 }
+gexf { W_STYLE_APPROXIMATED: 1, W_STYLE_NOT_WRITTEN: 14 }
+graphml { W_STYLE_NOT_WRITTEN: 1 }
 { format: 'graphml', dialect: 'graphty', tool: 'graphty' }
 true
 [ 'E_STYLES_MISMATCH' ]
@@ -479,6 +479,10 @@ it:
 | [`W_STYLE_RULES_NOT_KEPT`](./codes.md#W_STYLE_RULES_NOT_KEPT)   | The format keeps no `graphty.styles` block, so reading the file back finds the rules again from the values, if it can                             |
 | [`W_STYLE_LAYER_FLATTENED`](./codes.md#W_STYLE_LAYER_FLATTENED) | A rule the format's own style language cannot express was written as each element's value, so it is no longer editable as one rule there          |
 | [`E_STYLES_MISMATCH`](./codes.md#E_STYLES_MISMATCH)             | The styles belong to a different graph: nothing is written                                                                                        |
+
+A graph's background that the format has no place for is not reported when it is the color the
+program the format is written for draws anyway: a white background saved as yEd GraphML or GML, or
+as GEXF for Gephi, loses nothing.
 
 Styles are stored by node and edge position, so they belong to exactly one graph. When the graph
 you save has other nodes or edges than the one the styles were read from (you added or removed

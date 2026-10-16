@@ -211,6 +211,39 @@ describe.each(styled.map((f) => [f] as const))("hand-made styles written as %s",
     });
 });
 
+describe("a graph background the format has no place for", () => {
+    /**
+     * The W_STYLE_NOT_WRITTEN notes about the graph's background when the hand-made styles, with this background,
+     * are written as a format.
+     * @param format - the format
+     * @param background - the background
+     * @returns the notes' properties
+     */
+    function backgroundLosses(format: string, background: `#${string}`): string[] {
+        const { loaded, ex } = handMade();
+        const styles = { ...ex, styles: { ...ex.styles, graph: { background } } };
+        const writer = writerFor(format, loaded.snapshot);
+        return createRegistry()
+            .checkExport(loaded.snapshot, format, { ...writer?.options, styles })
+            .filter((n) => n.code === "W_STYLE_NOT_WRITTEN" && n.style?.target === "graph")
+            .map((n) => `${format} ${n.style?.property ?? ""}`);
+    }
+
+    // the program each format is written for paints white where the file gives no background
+    it.each(["graphml", "gml", "gexf"])("is not reported lost as %s when it is the white that program draws", (f) => {
+        expect(backgroundLosses(f, "#ffffff")).toEqual([]);
+    });
+
+    it.each(["graphml", "gml", "gexf"])("is reported lost as %s when it is any other color", (f) => {
+        expect(backgroundLosses(f, "#102030")).toEqual([`${f} background`]);
+    });
+
+    // Pajek states no background default, and JSON is drawn by several programs
+    it.each(["pajek", "json"])("is reported lost as %s even when it is white", (f) => {
+        expect(backgroundLosses(f, "#ffffff")).toEqual([`${f} background`]);
+    });
+});
+
 describe.each(unstyled.map((f) => [f] as const))("hand-made styles written as %s", (format) => {
     it("lose every property with W_STYLE_NOT_WRITTEN and its count", () => {
         const { loaded, ex } = handMade();

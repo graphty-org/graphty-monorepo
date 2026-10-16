@@ -143,6 +143,9 @@ describe("vary by layer", () => {
         const fill = await line("node.color");
         const panel = await varyByLayer(fill);
         assert.lengthOf(within(panel).getAllByRole("listitem"), groups.length, "one line per layer");
+        await waitFor(() => {
+            assert.isTrue(panel.contains(document.activeElement), "focus goes into the panel");
+        });
         await userEvent.click(within(panel).getByRole("button", { name: "Apply" }));
 
         const palette = session.catalog.palettes().filter((p) => p.kind === "categorical" && p.colors.length > 2)[0];

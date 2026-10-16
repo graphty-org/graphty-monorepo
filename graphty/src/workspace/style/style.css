@@ -232,6 +232,11 @@
     flex: 1 1 auto;
     min-width: 0;
 }
+/* A layer's own value in Vary by Layer: a list value's select stays narrow, so the name keeps its room. */
+.ws-bulk-vary-value {
+    flex: none;
+    max-width: 96px;
+}
 .ws-bulk-vary-chit {
     flex: none;
     width: 12px;

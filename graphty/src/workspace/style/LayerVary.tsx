@@ -3,12 +3,12 @@ import type { ChannelDescriptor } from "@graphty/graphty-element/catalog";
 import type { Channel, ChannelValue, LayerId } from "@graphty/graphty-element/schema";
 import type { GraphSession, StyleSequence } from "@graphty/graphty-element/session";
 import { Button, Text } from "@mantine/core";
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 import { OVERFLOW_WORDS, Range } from "./BindingPopover";
 import { appRange, groupPalettes } from "./row";
 import { ValueField } from "./ValueField";
-import { channelWord, hexOf, paletteWord, valueFieldKind } from "./words";
+import { channelWord, enumWords, GLYPH_TABLES, hexOf, paletteWord, valueFieldKind } from "./words";
 
 /** One layer's values: the property's, and the overflow's second cue's when it steps one. */
 export type LayerValues = Readonly<Partial<Record<Channel, ChannelValue>>>;
@@ -86,6 +86,11 @@ export function LayerVary({ session, descriptor, layers, onApply, onCancel }: La
     const [range, setRange] = useState<[number, number] | undefined>(appRange(channel).range);
     // A line edited by hand keeps its value whatever the palette or range does.
     const [edits, setEdits] = useState<Readonly<Record<number, ChannelValue>>>({});
+    // Opened from the Vary list: focus goes to its first control, so Tab walks it next.
+    const box = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        box.current?.querySelector<HTMLElement>("input, button, [tabindex='0']")?.focus();
+    }, []);
     const binding: SequenceBinding = {
         ...(palette === undefined ? {} : { palette }),
         ...(isColor ? { overflow: overflow as SequenceBinding["overflow"] } : {}),
@@ -106,7 +111,7 @@ export function LayerVary({ session, descriptor, layers, onApply, onCancel }: La
         });
     };
     return (
-        <div className="ws-bulk-vary" role="group" aria-label={`${name} by layer`}>
+        <div ref={box} className="ws-bulk-vary" role="group" aria-label={`${name} by layer`}>
             {palettes.length === 0 ? null : (
                 <StyleSelect
                     label="Palette"
@@ -170,21 +175,26 @@ export function LayerVary({ session, descriptor, layers, onApply, onCancel }: La
                             </Text>
                             {typeof cue === "string" ? (
                                 <Text size="xs" span data-cue>
-                                    {cue}
+                                    {(shown?.cue === null || shown?.cue === undefined
+                                        ? undefined
+                                        : GLYPH_TABLES[shown.cue.channel]?.find((g) => g.id === cue)?.plainName) ??
+                                        enumWords(cue)}
                                 </Text>
                             ) : null}
-                            <ValueField
-                                compact
-                                descriptor={descriptor}
-                                label={`${name} of ${layer.name}`}
-                                value={value}
-                                shown={value}
-                                onChange={(next) => {
-                                    if (typeof next !== "boolean") {
-                                        setEdits({ ...edits, [at]: next });
-                                    }
-                                }}
-                            />
+                            <span className="ws-bulk-vary-value">
+                                <ValueField
+                                    compact
+                                    descriptor={descriptor}
+                                    label={`${name} of ${layer.name}`}
+                                    value={value}
+                                    shown={value}
+                                    onChange={(next) => {
+                                        if (typeof next !== "boolean") {
+                                            setEdits({ ...edits, [at]: next });
+                                        }
+                                    }}
+                                />
+                            </span>
                         </li>
                     );
                 })}

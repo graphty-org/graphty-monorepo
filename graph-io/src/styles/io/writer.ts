@@ -129,6 +129,37 @@ export function prepareStyleExport(
 }
 
 /**
+ * The work an exporter shares between the check and the write of one export call, by the styles input made for that
+ * call (null until the first exporter step does it). Only an input writePlan() made is here, so an input a caller
+ * builds and changes in place is always worked out again.
+ */
+const CALL_WORK = new WeakMap<
+    ExporterStyleInput,
+    { readonly key: readonly unknown[]; readonly value: unknown } | null
+>();
+
+/**
+ * Work an exporter does from its styles input once per export call: the registry checks before it writes, with the
+ * same input, graph and options. Outside an export call (an input the caller made) it is done every time.
+ * @param input - the exporter's `options.styles`
+ * @param key - what else the work reads (the graph, options), compared by identity
+ * @param compute - the work
+ * @returns its result
+ */
+export function sharedInExportCall<T>(input: ExporterStyleInput, key: readonly unknown[], compute: () => T): T {
+    if (!CALL_WORK.has(input)) {
+        return compute();
+    }
+    const done = CALL_WORK.get(input);
+    if (done?.key.length === key.length && done.key.every((k, i) => k === key[i])) {
+        return done.value as T;
+    }
+    const value = compute();
+    CALL_WORK.set(input, { key, value });
+    return value;
+}
+
+/**
  * What an exporter is handed to write a graph's styles: the snapshot with the block and tagged values added where
  * the format keeps them, and its `options.styles`.
  * @param snapshot - the graph
@@ -164,9 +195,13 @@ function writePlan(
         }
     }
     const block = writeStyleBlock(extracted, { snapshot });
+    const input = exporter.styles === undefined ? null : { picture, block, tags, rules: extracted };
+    if (input !== null) {
+        CALL_WORK.set(input, null);
+    }
     return {
         snapshot: styledSnapshot(snapshot, caps, tags, block, extracted.styles.rules),
-        input: exporter.styles === undefined ? null : { picture, block, tags, rules: extracted },
+        input,
         extracted,
         picture,
     };

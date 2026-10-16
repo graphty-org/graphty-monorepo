@@ -373,6 +373,25 @@ export function isXmlName(text: string): boolean {
     if (text.length === 0) {
         return false;
     }
+    // an ASCII name (nearly every one) by table, without iterating the string by code point
+    for (let i = 0; i < text.length; i++) {
+        const c = text.codePointAt(i) ?? 0;
+        if (c >= 128) {
+            return isXmlNameByCodePoint(text);
+        }
+        if ((i === 0 ? ASCII_NAME_START[c] : ASCII_NAME_CHAR[c]) === 0) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/**
+ * Whether a non-empty text is an XML Name, code point by code point.
+ * @param text - the text
+ * @returns true for a well-formed name
+ */
+function isXmlNameByCodePoint(text: string): boolean {
     let first = true;
     for (const ch of text) {
         const cp = ch.codePointAt(0);

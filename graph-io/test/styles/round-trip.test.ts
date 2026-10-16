@@ -24,6 +24,7 @@ import {
 } from "../../src/styles/internal.js";
 import { handMade } from "./hand-made.js";
 import {
+    checkHostileBlocks,
     corpusFiles,
     fileInput,
     formatInputs,
@@ -56,6 +57,17 @@ const REWRITE = { sanitizeIds: "mangle", sanitizeKeys: "mangle" } as const;
  * @param snapshot - the graph
  * @returns the writer, or null
  */
+/**
+ * The round trip's failures and the hostile blocks'.
+ * @param writer - how the format writes
+ * @param loaded - the graph as read
+ * @param ex - its styles
+ * @returns the failures
+ */
+async function writtenFailures(writer: StyleWriter, loaded: LoadedGraph, ex: ExtractedStyles): Promise<string[]> {
+    return [...(await roundTrip(writer, loaded, ex)), ...(await checkHostileBlocks(writer, loaded, ex))];
+}
+
 function writerFor(format: string, snapshot: GraphSnapshot): StyleWriter | null {
     const writer = writers.get(format);
     if (writer === undefined) {
@@ -207,7 +219,7 @@ describe.each(styled.map((f) => [f] as const))("hand-made styles written as %s",
         const { loaded, ex } = handMade();
         const writer = writerFor(format, loaded.snapshot);
         expect(writer).not.toBeNull();
-        expect(writer === null ? [] : await roundTrip(writer, loaded, ex)).toEqual([]);
+        expect(writer === null ? [] : await writtenFailures(writer, loaded, ex)).toEqual([]);
     });
 });
 
@@ -260,7 +272,7 @@ describe("a styled file of each corpus format", async () => {
                 // is listed in REFUSED; any other refusal fails
                 expect(writer === null).toBe(refused);
                 if (writer !== null) {
-                    expect(await roundTrip(writer, loaded, ex)).toEqual([]);
+                    expect(await writtenFailures(writer, loaded, ex)).toEqual([]);
                 }
             });
         }
@@ -416,7 +428,7 @@ describe("a file graphty wrote whose block was set aside", () => {
             it(`written as ${format} reads back as the styles extracted now`, async () => {
                 const writer = writerFor(format, loaded.snapshot);
                 if (writer !== null) {
-                    expect(await roundTrip(writer, loaded, ex)).toEqual([]);
+                    expect(await writtenFailures(writer, loaded, ex)).toEqual([]);
                 }
             });
         }

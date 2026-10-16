@@ -12,6 +12,7 @@ import { describe, expect, it } from "vitest";
 import { extractStyles, type StyleRule } from "../../src/styles/internal.js";
 import { editJsonNodeFill } from "./formats/json.js";
 import {
+    checkHostileBlocks,
     checkInput,
     checkStyles,
     fileInput,
@@ -64,6 +65,14 @@ describe.each(FORMATS.map((f) => [f.name, f] as const))("%s", (_name, format) =>
                 const loaded = await input.load();
                 const ex = extractStyles(loaded.importer, loaded.snapshot, loaded.report);
                 expect(ex === null ? [] : await roundTrip(writer, loaded, ex)).toEqual([]);
+            },
+        );
+        it.each(inputs.map((input) => [input.name, input] as const))(
+            "%s ignores a hostile graphty.styles block in the written file",
+            async (_input, input) => {
+                const loaded = await input.load();
+                const ex = extractStyles(loaded.importer, loaded.snapshot, loaded.report);
+                expect(ex === null ? [] : await checkHostileBlocks(writer, loaded, ex)).toEqual([]);
             },
         );
     }

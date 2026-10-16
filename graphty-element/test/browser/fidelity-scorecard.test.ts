@@ -34,6 +34,9 @@ const EPSILON = 1e-9;
  * - gml-repro-groups-no-creator: nested yEd groups drawn as boxes.
  * - cys-import-and-save: 22 self-loops and parallel edges.
  * - xgmml-syn-bypass: expanded Cytoscape groups the source never draws as boxes.
+ * - and every other corpus file whose story settles in under 0.7 s under SwiftShader: yEd GML and
+ *   GraphML drawings, Cytoscape 2.x and 3.x XGMML, NDEx CX and CX2, Cytoscape.js SBGN, vis-network
+ *   groups and Pajek arcs.
  */
 const DRAWN = [
     "gml-yed-pmodel",
@@ -42,6 +45,19 @@ const DRAWN = [
     "gml-repro-groups-no-creator",
     "cys-import-and-save",
     "xgmml-syn-bypass",
+    "xgmml-gcmodeller-demo",
+    "gml-visualgraph-tree30",
+    "gml-jgrapht-grid-territorio",
+    "xgmml-dream4-signaling",
+    "json-vis-nodelegend",
+    "graphml-magiclantern-architecture",
+    "gml-dunnart-planar-orthogonal",
+    "cx-nci-pid-rhoa",
+    "xgmml-pathguide-allpathwaysdb",
+    "json-cyjs-sbgn-sciluna",
+    "pajek-football",
+    "cx2-synthetic-lethal",
+    "gml-dunnart-autobahn",
 ];
 
 interface Floors {

@@ -54,6 +54,7 @@ const KNOWN_FAILURES: ReadonlyMap<string, string> = new Map([
         "the written Cytoscape.js stylesheet does not read back as the same rules",
     ],
     ["dot/fidelity/real-depcruise.gv writes", "an outside edit of the written DOT gives no new exception"],
+    ["pajek/fidelity/lin-rel4.net writes", 'a vertex with an empty label is written with none and reads back as ""'],
 ]);
 
 /**

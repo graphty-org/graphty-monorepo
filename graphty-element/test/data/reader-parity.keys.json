@@ -1,4 +1,187 @@
 {
+    "cx/fidelity/ddram.cx": {
+        "nodes": [
+            "LabelSize",
+            "NODE_HEIGHT",
+            "NODE_LABEL_FONT_SIZE",
+            "NODE_LABEL_POSITION",
+            "NODE_LABEL_ROTATION",
+            "NODE_LABEL_WIDTH",
+            "NODE_SHAPE",
+            "NODE_WIDTH",
+            "aeCeena8_pval",
+            "asmSize",
+            "coabundance",
+            "codependency",
+            "coexpression",
+            "displayLabel",
+            "fractionNovel",
+            "id",
+            "name",
+            "newAPMSfraction",
+            "novelProteinCnt",
+            "novelProteins",
+            "opencell_fraction",
+            "opencell_truth",
+            "percKnown",
+            "physical",
+            "position",
+            "proteins",
+            "robustness"
+        ],
+        "edges": [
+            "BEND_MAP_ID",
+            "EDGE_BEND",
+            "EDGE_STROKE_UNSELECTED_PAINT",
+            "id",
+            "interaction",
+            "name",
+            "source",
+            "target",
+            "type"
+        ]
+    },
+    "cx/fidelity/lianhe-affiliation.cx.gz": {
+        "nodes": [
+            "AverageShortestPathLength",
+            "BetweennessCentrality",
+            "ClosenessCentrality",
+            "ClusteringCoefficient",
+            "Degree",
+            "Eccentricity",
+            "IsSingleNode",
+            "NeighborhoodConnectivity",
+            "NumberOfDirectedEdges",
+            "NumberOfUndirectedEdges",
+            "PartnerOfMultiEdgedNodePairs",
+            "Radiality",
+            "SelfLoops",
+            "Stress",
+            "TopologicalCoefficient",
+            "id",
+            "name",
+            "position",
+            "type1",
+            "type2"
+        ],
+        "edges": ["EdgeBetweenness", "date", "id", "interaction", "name", "place", "source", "target", "wght"]
+    },
+    "cx/fidelity/nci-pid-rhoa.cx": {
+        "nodes": ["alias", "id", "name", "position", "represents", "type"],
+        "edges": [
+            "Relationships",
+            "__directed",
+            "__edge_source",
+            "__relationship_score",
+            "__reverse_directed",
+            "id",
+            "interaction",
+            "source",
+            "target"
+        ]
+    },
+    "cx/fidelity/polygenic-sle.cx.gz": {
+        "nodes": [
+            "@id",
+            "NODE_FILL_COLOR",
+            "NODE_SHAPE",
+            "compartment::cytoskeleton",
+            "compartment::cytosol",
+            "compartment::endoplasmic reticulum",
+            "compartment::endosome",
+            "compartment::extracellular",
+            "compartment::golgi apparatus",
+            "compartment::lysosome",
+            "compartment::mitochondrion",
+            "compartment::nucleus",
+            "compartment::peroxisome",
+            "compartment::plasma membrane",
+            "display name",
+            "id",
+            "name",
+            "position",
+            "query term",
+            "stringdb::STRING style",
+            "stringdb::canonical name",
+            "stringdb::database identifier",
+            "stringdb::description",
+            "stringdb::enhancedLabel Passthrough",
+            "stringdb::namespace",
+            "stringdb::node type",
+            "stringdb::sequence",
+            "stringdb::species",
+            "stringdb::structures",
+            "target::development level",
+            "target::family",
+            "tissue::adrenal gland",
+            "tissue::blood",
+            "tissue::bone",
+            "tissue::bone marrow",
+            "tissue::eye",
+            "tissue::gall bladder",
+            "tissue::heart",
+            "tissue::intestine",
+            "tissue::kidney",
+            "tissue::liver",
+            "tissue::lung",
+            "tissue::muscle",
+            "tissue::nervous system",
+            "tissue::pancreas",
+            "tissue::saliva",
+            "tissue::skin",
+            "tissue::spleen",
+            "tissue::stomach",
+            "tissue::thyroid gland",
+            "tissue::urine"
+        ],
+        "edges": [
+            "id",
+            "interaction",
+            "name",
+            "source",
+            "stringdb::coexpression",
+            "stringdb::databases",
+            "stringdb::experiments",
+            "stringdb::score",
+            "stringdb::textmining",
+            "target"
+        ]
+    },
+    "cx/fidelity/radiation-bibliography.cx.gz": {
+        "nodes": [
+            "ChEBI",
+            "FPLX",
+            "GO",
+            "HGNC",
+            "HMDB",
+            "InterPro",
+            "MESH",
+            "NCIT",
+            "NextProtFamily",
+            "Pfam",
+            "PubChem",
+            "UniProt",
+            "id",
+            "name",
+            "type"
+        ],
+        "edges": [
+            "INDRA statement",
+            "__INDRA json",
+            "belief",
+            "citations",
+            "id",
+            "indra",
+            "interaction",
+            "polarity",
+            "source",
+            "supportType",
+            "supports",
+            "target",
+            "text",
+            "type"
+        ]
+    },
     "cx/fidelity/repro-locked-own-size.cx": {
         "nodes": ["NODE_HEIGHT", "NODE_WIDTH", "asmSize", "id", "name", "position"],
         "edges": ["id", "interaction", "source", "target"]
@@ -468,9 +651,69 @@
         ],
         "edges": ["id", "interaction", "name", "source", "target"]
     },
+    "cx2/fidelity/imatinib-smpdb.cx2": {
+        "nodes": [
+            "biocyc",
+            "boundaryCondition",
+            "cas",
+            "chebi",
+            "chemspider",
+            "compartmentCode",
+            "constant",
+            "cyId",
+            "derivedUnits",
+            "exponent",
+            "fast",
+            "hasOnlySubstanceUnits",
+            "hmdb",
+            "id",
+            "inchi",
+            "inchikey",
+            "kegg.compound",
+            "kind",
+            "label",
+            "metaId",
+            "multiplier",
+            "position",
+            "pubchem.compound",
+            "reversible",
+            "sbml compartment",
+            "sbml id",
+            "sbml initial amount",
+            "sbml type",
+            "sbml type ext",
+            "sbo",
+            "scale",
+            "substanceUnits",
+            "uniprot",
+            "unitSid",
+            "units",
+            "value"
+        ],
+        "edges": ["id", "interaction", "interaction type", "sbo", "source", "stoichiometry", "target"]
+    },
     "cx2/fidelity/repro-shared-interaction.cx2": {
         "nodes": ["id", "name", "position"],
         "edges": ["id", "interaction", "source", "target"]
+    },
+    "cx2/fidelity/signor-aml.cx2": {
+        "nodes": ["id", "location", "member", "name", "position", "represents", "type"],
+        "edges": [
+            "annotator",
+            "cell_data",
+            "citation",
+            "direct",
+            "id",
+            "interaction",
+            "mechanism",
+            "notes",
+            "residue",
+            "sentence",
+            "sequence",
+            "source",
+            "target",
+            "tissue_data"
+        ]
     },
     "cx2/fidelity/syn-bypass.cx2": {
         "nodes": [
@@ -533,6 +776,110 @@
     "cx2/fidelity/syn-mappings.cx2": {
         "nodes": ["grp", "id", "kind", "name", "note", "pos", "position", "rank", "score", "tier", "z"],
         "edges": ["elabel", "etype", "id", "id#cx2", "interaction", "source", "stype", "target", "weight"]
+    },
+    "cx2/fidelity/synthetic-lethal.cx2": {
+        "nodes": [
+            "293T_f",
+            "293T_f_Abs",
+            "293T_f_sd",
+            "A549_f",
+            "A549_f_Abs",
+            "A549_f_sd",
+            "Alt_gene_name",
+            "Av_f",
+            "Av_f_Abs",
+            "Category",
+            "EntrezID",
+            "FDA_approved?",
+            "HeLa_f",
+            "HeLa_f_Abs",
+            "HeLa_f_sd",
+            "MutSig_p",
+            "Process",
+            "Vogelstein_Oncogene",
+            "id",
+            "inhibitor",
+            "name",
+            "pathway",
+            "position"
+        ],
+        "edges": [
+            "293T_Edge_SL",
+            "293T_Z",
+            "A549_Edge_SL",
+            "A549_Z",
+            "Conserved?",
+            "Edge",
+            "HeLa_Z",
+            "PMID",
+            "PriorSL_report",
+            "Validate_Hit",
+            "id",
+            "interaction",
+            "name",
+            "source",
+            "target",
+            "type"
+        ]
+    },
+    "cx2/fidelity/u2os-hierarchy.cx2": {
+        "nodes": [
+            "CD_AnnotatedMembers",
+            "CD_AnnotatedMembers_Overlap",
+            "CD_AnnotatedMembers_Pvalue",
+            "CD_AnnotatedMembers_Size",
+            "CD_CommunityName",
+            "CD_Labeled",
+            "CD_MemberList",
+            "CD_MemberList_LogSize",
+            "CD_MemberList_Size",
+            "CORUM_FDRs",
+            "CORUM_jaccard_indexes",
+            "CORUM_max_jaccard_index",
+            "CORUM_overlap_genes",
+            "CORUM_terms",
+            "GO_CC_FDRs",
+            "GO_CC_descriptions",
+            "GO_CC_jaccard_indexes",
+            "GO_CC_max_jaccard_index",
+            "GO_CC_overlap_genes",
+            "GO_CC_terms",
+            "HCX::isRoot",
+            "HCX::members",
+            "HPA_FDRs",
+            "HPA_jaccard_indexes",
+            "HPA_max_jaccard_index",
+            "HPA_overlap_genes",
+            "HPA_terms",
+            "HiDeF_persistence",
+            "id",
+            "name",
+            "position",
+            "represents"
+        ],
+        "edges": ["id", "source", "target"]
+    },
+    "cx2/fidelity/us-returned-students.cx2": {
+        "nodes": [
+            "AverageShortestPathLength",
+            "BetweennessCentrality",
+            "ClosenessCentrality",
+            "ClusteringCoefficient",
+            "Degree",
+            "Eccentricity",
+            "NeighborhoodConnectivity",
+            "NumberOfDirectedEdges",
+            "NumberOfUndirectedEdges",
+            "PartnerOfMultiEdgedNodePairs",
+            "Radiality",
+            "SelfLoops",
+            "Stress",
+            "TopologicalCoefficient",
+            "id",
+            "name",
+            "position"
+        ],
+        "edges": ["EdgeBetweenness", "id", "interaction", "name", "source", "target", "weight"]
     },
     "cx2/fidelity/wp1449-tlr.cx2": {
         "nodes": [
@@ -2024,6 +2371,22 @@
         "nodes": ["LabelGraphics", "graphics", "id", "label", "position"],
         "edges": ["graphics", "id", "source", "target"]
     },
+    "gml/fidelity/bionetgen-ruleviz-pattern.gml": {
+        "nodes": ["LabelGraphics", "gid", "graphics", "id", "isGroup", "label"],
+        "edges": ["graphics", "source", "target"]
+    },
+    "gml/fidelity/dunnart-autobahn.gml": {
+        "nodes": ["LabelGraphics", "graphics", "id", "label", "position"],
+        "edges": ["LabelGraphics", "graphics", "label", "source", "target"]
+    },
+    "gml/fidelity/dunnart-planar-orthogonal.gml": {
+        "nodes": ["LabelGraphics", "graphics", "id", "label", "position"],
+        "edges": ["edgeAnchor", "graphics", "source", "target"]
+    },
+    "gml/fidelity/jgrapht-grid-territorio.gml": {
+        "nodes": ["LabelGraphics", "graphics", "id", "label", "position"],
+        "edges": ["graphics", "source", "target"]
+    },
     "gml/fidelity/repro-groups-no-creator.gml": {
         "nodes": ["LabelGraphics", "gid", "graphics", "id", "isGroup", "label", "position"],
         "edges": ["graphics", "source", "target"]
@@ -2031,6 +2394,10 @@
     "gml/fidelity/synthetic-coverage.gml": {
         "nodes": ["LabelGraphics", "gid", "graphics", "id", "isGroup", "label", "position"],
         "edges": ["LabelGraphics", "edgeAnchor", "graphics", "label", "source", "target"]
+    },
+    "gml/fidelity/visualgraph-tree30.gml": {
+        "nodes": ["LabelGraphics", "graphics", "id", "label", "position"],
+        "edges": ["graphics", "source", "target"]
     },
     "gml/generated/cytoscape-interactions.gml": {
         "nodes": ["canonicalName", "graphics", "id", "label", "position", "root_index"],
@@ -2296,6 +2663,22 @@
     "graphml/fidelity/libcitygml-mapping.graphml": {
         "nodes": ["id", "url"],
         "edges": ["color", "description", "directed", "source", "target", "targetArrow", "url", "width"]
+    },
+    "graphml/fidelity/magiclantern-architecture.graphml": {
+        "nodes": [
+            "borderColor",
+            "borderWidth",
+            "color",
+            "description",
+            "height",
+            "id",
+            "label",
+            "position",
+            "shape",
+            "url",
+            "width"
+        ],
+        "edges": ["color", "description", "directed", "source", "sourceArrow", "target", "targetArrow", "width"]
     },
     "graphml/fidelity/open-archaeo.graphml": {
         "nodes": [
@@ -2920,6 +3303,83 @@
         ],
         "edges": ["classes", "grabbable", "id", "locked", "removed", "selectable", "selected", "source", "target"]
     },
+    "json/fidelity/cyjs-perf.json.gz": {
+        "nodes": [
+            "classes",
+            "grabbable",
+            "grabbed#element",
+            "id",
+            "locked",
+            "position",
+            "removed",
+            "selectable",
+            "selected",
+            "weight"
+        ],
+        "edges": [
+            "classes",
+            "grabbable",
+            "grabbed#element",
+            "id",
+            "locked",
+            "removed",
+            "selectable",
+            "selected",
+            "source",
+            "target",
+            "weight"
+        ]
+    },
+    "json/fidelity/cyjs-sbgn-sciluna.json": {
+        "nodes": [
+            "acc",
+            "classes",
+            "displayName",
+            "grabbable",
+            "graph",
+            "height",
+            "html",
+            "id",
+            "inputs",
+            "isBackground",
+            "locked",
+            "nodeId",
+            "nodeReactomeId",
+            "output",
+            "pannable",
+            "position",
+            "radius",
+            "reactionId",
+            "reactomeId",
+            "removed",
+            "selectable",
+            "selected",
+            "textX",
+            "textY",
+            "width"
+        ],
+        "edges": [
+            "classes",
+            "curveStyle",
+            "distances",
+            "grabbable",
+            "graph",
+            "id",
+            "locked",
+            "pannable",
+            "reactionId",
+            "reactomeId",
+            "removed",
+            "selectable",
+            "selected",
+            "source",
+            "sourceEndpoint",
+            "stoichiometry",
+            "target",
+            "targetEndpoint",
+            "weights"
+        ]
+    },
     "json/fidelity/cyjs-synth-edges-saved.json": {
         "nodes": ["classes", "id", "label", "parent", "position"],
         "edges": ["classes", "id", "lbl", "source", "target", "w"]
@@ -3031,6 +3491,10 @@
             "target"
         ]
     },
+    "json/fidelity/gephi-worldcup.json.gz": {
+        "nodes": ["attributes", "color", "id", "label", "position", "size", "x", "y"],
+        "edges": ["attributes", "color", "id", "size", "source", "target"]
+    },
     "json/fidelity/graphology-synth.json": {
         "nodes": ["attributes", "id", "key", "position"],
         "edges": ["attributes", "key", "source", "target", "undirected"]
@@ -3042,6 +3506,10 @@
     "json/fidelity/vis-lesmiserables.json": {
         "nodes": ["group", "id", "label"],
         "edges": ["from", "to"]
+    },
+    "json/fidelity/vis-nodelegend.json": {
+        "nodes": ["fixed", "group", "id", "label", "physics", "value", "x", "y"],
+        "edges": ["color", "fontColor", "from", "label", "length", "to", "width"]
     },
     "json/fidelity/vis-siblings.json": {
         "nodes": ["URL", "color", "font", "id", "label", "outline", "size"],
@@ -3408,6 +3876,26 @@
     "pajek/SamTseng_CATAR__Pajek_format.net": {
         "nodes": ["bc", "ic", "id", "label", "x", "x_fact", "y", "y_fact", "z"],
         "edges": ["c", "directed", "source", "target", "weight"]
+    },
+    "pajek/fidelity/1crn.net": {
+        "nodes": ["ic", "id", "label", "position", "x", "x_fact", "y", "y_fact", "z"],
+        "edges": ["0.700", "c", "directed", "source", "target", "weight"]
+    },
+    "pajek/fidelity/c.net": {
+        "nodes": ["bw", "fos", "id", "label", "position", "shape", "x", "x_fact", "y", "y_fact"],
+        "edges": ["a1", "a2", "directed", "k1", "k2", "source", "target", "w", "weight"]
+    },
+    "pajek/fidelity/football.net": {
+        "nodes": ["id", "label", "position", "x", "y", "z"],
+        "edges": ["directed", "s", "source", "target", "w", "weight"]
+    },
+    "pajek/fidelity/kdorola.net": {
+        "nodes": ["fos", "id", "label", "lphi", "lr", "position", "shape", "x", "y", "z"],
+        "edges": ["c", "directed", "source", "target", "weight"]
+    },
+    "pajek/fidelity/lin-rel4.net": {
+        "nodes": ["ic", "id", "label", "position", "shape", "spells", "x", "y", "z"],
+        "edges": ["directed", "relation", "source", "spells", "target", "weight"]
     },
     "pajek/fidelity/synth-lines.net": {
         "nodes": ["bc", "fos", "ic", "id", "label", "position", "shape", "x", "y", "z"],
@@ -3880,6 +4368,144 @@
             "target",
             "textmining"
         ]
+    },
+    "xgmml/fidelity/aracne-mycccnd1.xgmml.gz": {
+        "nodes": [
+            "canonicalName",
+            "displayedName",
+            "geneID",
+            "geneName",
+            "geneType",
+            "graphics",
+            "id",
+            "label",
+            "position",
+            "swissprotIDs"
+        ],
+        "edges": ["canonicalName", "confidence value", "graphics", "interaction", "label", "source", "target"]
+    },
+    "xgmml/fidelity/dream4-signaling.xgmml": {
+        "nodes": ["canonicalName", "graphics", "id", "label", "position", "typeexp"],
+        "edges": ["canonicalName", "graphics", "interaction", "label", "source", "target"]
+    },
+    "xgmml/fidelity/gcmodeller-demo.xgmml": {
+        "nodes": ["graphics", "id", "label", "name", "position", "selected", "shared name", "z"],
+        "edges": [
+            "graphics",
+            "id",
+            "interaction",
+            "label",
+            "name",
+            "selected",
+            "shared interaction",
+            "shared name",
+            "source",
+            "target"
+        ]
+    },
+    "xgmml/fidelity/imagenet-dog-children.xgmml": {
+        "nodes": ["canonicalName", "graphics", "id", "label", "label#2", "position", "words"],
+        "edges": ["canonicalName", "graphics", "interaction", "label", "source", "target"]
+    },
+    "xgmml/fidelity/networkportal-nsoxphos.xgmml": {
+        "nodes": [
+            "COG",
+            "COGDesc",
+            "COGFun",
+            "Degree",
+            "EC",
+            "ECDesc",
+            "GI",
+            "GO",
+            "ID",
+            "TIGRFam",
+            "TIGRRoles",
+            "accession",
+            "bicluster",
+            "canonicalName",
+            "consensus",
+            "cytoscape.alias.list",
+            "desc",
+            "e.val.1",
+            "e.val.2",
+            "e.value",
+            "gene",
+            "graphics",
+            "id",
+            "imgURL",
+            "interaction",
+            "label",
+            "llr",
+            "locusId",
+            "long.name",
+            "n.sites",
+            "name",
+            "ncols",
+            "node",
+            "node.fillColor",
+            "nrows",
+            "p.clust",
+            "pathway",
+            "pathway.0",
+            "pathway.1",
+            "pathway.2",
+            "position",
+            "resid",
+            "short.name",
+            "synonyms",
+            "type",
+            "url",
+            "vizmap:Union NODE_BORDER_COLOR",
+            "vizmap:Union NODE_FILL_COLOR",
+            "vizmap:Union NODE_SHAPE",
+            "vizmap:Union NODE_SIZE",
+            "vizmap:Union_1 NODE_BORDER_COLOR",
+            "vizmap:Union_1 NODE_FILL_COLOR",
+            "vizmap:Union_1 NODE_SHAPE",
+            "vizmap:Union_1 NODE_SIZE",
+            "vizmap:Union_2 NODE_BORDER_COLOR",
+            "vizmap:Union_2 NODE_FILL_COLOR",
+            "vizmap:Union_2 NODE_SHAPE",
+            "vizmap:Union_2 NODE_SIZE",
+            "width"
+        ],
+        "edges": [
+            "canonicalName",
+            "cytoscape.alias.list",
+            "e.value",
+            "edge",
+            "graphics",
+            "interaction",
+            "label",
+            "llr",
+            "nsites",
+            "offset",
+            "overlap",
+            "p.value",
+            "q.value",
+            "source",
+            "target",
+            "vizmap:Union_1 EDGE_COLOR",
+            "vizmap:Union_1 EDGE_LINE_WIDTH",
+            "weight",
+            "width"
+        ]
+    },
+    "xgmml/fidelity/pathguide-allpathwaysdb.xgmml": {
+        "nodes": [
+            "Canonical Name",
+            "ID",
+            "PGID",
+            "URL",
+            "canonicalName",
+            "cytoscape.alias.list",
+            "graphics",
+            "id",
+            "label",
+            "node.fillColor",
+            "position"
+        ],
+        "edges": ["canonicalName", "graphics", "interaction", "label", "source", "target"]
     },
     "xgmml/fidelity/repro-name-only-labels.xgmml": {
         "nodes": ["canonicalName", "graphics", "id", "label", "name", "position"],

@@ -1114,9 +1114,15 @@ export function compareSample(
     graphtyKeys: Partial<Record<"name" | "label", ReadonlyMap<string, string>>> = {},
 ): SampleResult {
     const byReference: SampleResult["byReference"] = {};
+    // Cytoscape names a node with no `name` by its label (a Cytoscape 2.x XGMML file often carries only `label=`).
+    const names =
+        graphtyKeys.label === undefined
+            ? graphtyKeys.name
+            : new Map([...graphtyKeys.label, ...(graphtyKeys.name ?? new Map<string, string>())]);
+    const keyed = { name: names, label: graphtyKeys.label };
     for (const ref of refs) {
         const key = ROUTE_NODE_KEY[ref.provenance.route];
-        byReference[ref.provenance.route] = compareScenes(ref, graphty, { idMap: key ? graphtyKeys[key] : undefined });
+        byReference[ref.provenance.route] = compareScenes(ref, graphty, { idMap: key ? keyed[key] : undefined });
     }
     const properties = {} as SampleResult["properties"];
     for (const p of PROPERTIES) {

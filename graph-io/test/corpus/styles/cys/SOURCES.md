@@ -32,6 +32,9 @@ scenes in `graph-io/test/fidelity/scenes/<sample id>/`). Generated files were wr
 | `fidelity/syn-mappings.cys` | built in Cytoscape 3.10.5 by generators/build-synthetic.mjs over CyREST, saved by Cytoscape | MIT (generated for this project) | 96 nodes/140 edges; every feature through the style: defaults, discrete/continuous/passthrough mappings over all 9 shapes, 8 border strokes, 16 line types, 22 arrow shapes, 7 label positions, 5 fonts, label rotation/width/background/opacity, z-order, tooltips, separate arrow colors, background |
 | `fidelity/syn-bypass.cys` | built in Cytoscape 3.10.5 by generators/build-synthetic.mjs over CyREST, saved by Cytoscape | MIT (generated for this project) | 64 nodes/90 edges; every feature per element (bypasses): fills, shapes, w!=h sizes, borders, opacity, labels, rotation, z, hidden nodes/edges, pie/bar/ring charts, linear/radial gradients, image custom graphics, edge bends, curved=false, edge labels, 3 groups (1 collapsed), 6 annotations |
 
+Cytoscape's `Yeast Perturbation.cys` sample session (Cytoscape 3.10.5 distribution, sampleData/sessions) is byte for byte
+`fidelity/galfiltered.cys`, so it is committed once, as that file.
+
 ## Not committed
 
 These licensed files are over 2 MB, so they are not committed; `graph-io/scripts/styles-corpus.mjs` reads them from a local

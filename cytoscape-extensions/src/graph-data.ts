@@ -21,6 +21,12 @@ export interface AddedGraph {
     readonly directed: boolean;
 }
 
+/** The part of a core's live style graphtyImport appends rules with, which Cytoscape's typings leave out. */
+interface AppendableStyle {
+    selector(s: string): { style(props: object): AppendableStyle };
+    update(): void;
+}
+
 /** What graphtyImport adds to the core. */
 export interface ImportedGraph extends AddedGraph {
     /** The format the input was read as. */
@@ -30,8 +36,9 @@ export interface ImportedGraph extends AddedGraph {
     /**
      * With `styles: true`, the file's styles as a Cytoscape.js stylesheet whose every rule applies only to this
      * import's elements (they hold its id in `data.graphty_import`). `applyStyles: true` has already appended it to
-     * the core's stylesheet; otherwise append it yourself:
-     * `cy.style().fromJson([...cy.style().json(), ...stylesheet]).update()`. Absent without `styles`.
+     * the core's stylesheet; otherwise append it yourself, rule by rule:
+     * `for (const r of stylesheet) cy.style().selector(r.selector).style(r.style); cy.style().update()`.
+     * Absent without `styles`.
      */
     readonly stylesheet?: CytoscapeStylesheetRule[];
 }
@@ -56,7 +63,8 @@ export interface GraphtyGraphData {
     /**
      * Adds the graph in a file: GEXF, GraphML, GML, DOT, Pajek, CSV, JSON, Neo4j, XGMML, CX2, CX, OBO or a
      * Cytoscape session (`.cys`, as bytes). Every attribute becomes a data field, and positions in the file become
-     * node positions (y negated for the formats whose y grows upward: GEXF, GML, DOT, Pajek). Throws, adding
+     * node positions, the way up the program that wrote the file draws them (a yEd box's top-left corner is
+     * moved to its center). Throws, adding
      * nothing, when the core already holds one of the graph's node ids.
      * `{ styles: true }` also reads the file's colors, sizes, shapes, ... and returns them as `stylesheet`;
      * `{ styles: true, applyStyles: true }` draws them too (the core needs `styleEnabled` when headless).
@@ -215,10 +223,15 @@ export function registerGraphData(cytoscape: Register): void {
                 // bypass before the edge has its endpoints, and a `curve-style` there throws in parallelEdges().
                 applyBypass(elements, r.elements, r.bypass);
             }
-            const style = this.style() as unknown as
-                { json(): unknown[]; fromJson(j: unknown[]): { update(): void } } | undefined;
+            const style = this.style() as unknown as AppendableStyle | undefined;
             if (apply && r.stylesheet !== undefined && style !== undefined) {
-                style.fromJson([...style.json(), ...r.stylesheet]).update();
+                // appended rule by rule: a round trip through style.json() turns the core's own function-valued
+                // properties into the string "fn", which Cytoscape then rejects
+                let s = style;
+                for (const rule of r.stylesheet) {
+                    s = s.selector(rule.selector).style(rule.style);
+                }
+                s.update();
             }
             return {
                 elements,

@@ -5,6 +5,7 @@
  */
 
 import { type Column, type ColumnInput, fromEdgeArrays, type GraphSnapshot } from "@graphty/graph-format";
+import { writtenPositions } from "@graphty/graph-io/positions";
 import type { Collection, ElementDefinition } from "cytoscape";
 
 /**
@@ -333,6 +334,8 @@ export function exportedEdges(eles: Collection): Collection {
  * @param options.directed - write a directed graph (default false)
  * @param options.integerIds - when every node id is a non-negative integer written plainly ("0", "17"), give the
  * snapshot number ids, so a format that holds only integer ids (GML, CX2) writes them as they are (default false)
+ * @param options.format - the format the snapshot is written in: the positions are spelled as its writer expects
+ * them (GML and Pajek draw y downward); without it they are graph-io's neutral form, y up
  * @returns the snapshot
  */
 export function elementsToSnapshot(
@@ -340,6 +343,7 @@ export function elementsToSnapshot(
     options: {
         readonly directed?: boolean | undefined;
         readonly integerIds?: boolean | undefined;
+        readonly format?: string | undefined;
     } = {},
 ): GraphSnapshot {
     const nodes = eles.nodes();
@@ -357,12 +361,19 @@ export function elementsToSnapshot(
         src[k] = index.get(e.source().id()) ?? 0;
         dst[k] = index.get(e.target().id()) ?? 0;
     });
-    const xy = new Float64Array(nodes.length * 2);
+    const xyz = new Float64Array(nodes.length * 3);
     nodes.forEach((n, i) => {
         const p = n.position();
-        xy[2 * i] = p.x;
-        xy[2 * i + 1] = flipY(p.y);
+        xyz[3 * i] = p.x;
+        xyz[3 * i + 1] = flipY(p.y);
     });
+    // spelled as the format's writer expects its position column (GML and Pajek: y down)
+    const written = options.format === undefined ? xyz : writtenPositions(options.format, xyz);
+    const xy = new Float64Array(nodes.length * 2);
+    for (let i = 0; i < nodes.length; i++) {
+        xy[2 * i] = written[3 * i];
+        xy[2 * i + 1] = written[3 * i + 1];
+    }
     const parents = nodes.map((n) => index.get(n.parent().first().id()) ?? null);
     const edgeColumns = columns(edges.map((e) => e.data() as Record<string, unknown>));
     let weights: Float64Array<ArrayBuffer> | undefined;

@@ -12,6 +12,7 @@ import { gunzipSync } from "node:zlib";
 
 import type { GraphSnapshot } from "@graphty/graph-format";
 
+import { escapeXmlAttribute, quoteDotId, quotePajekLabel } from "../../src/common/escape.js";
 import { createRegistry, type FormatRegistry, type ImportGraphOptions } from "../../src/registry.js";
 import {
     type ExtractedStyles,
@@ -1075,6 +1076,16 @@ const STYLE_SLOTS: Readonly<Record<string, RegExp>> = {
 };
 
 /**
+ * A value as the DOT or Pajek writer quotes it.
+ * @param format - "dot" or "pajek"
+ * @param value - the value
+ * @returns the quoted value
+ */
+function quoteText(format: string, value: string): string {
+    return format === "dot" ? quoteDotId(value) : quotePajekLabel(value);
+}
+
+/**
  * Hostile copies of a file: one style attribute replaced everywhere by one hostile value per copy (design 7.4).
  * Seeded by the file's own name, so every run checks the same copies.
  * @param format - the corpus format
@@ -1105,12 +1116,11 @@ export function mutants(
     const out: { value: string; bytes: Uint8Array }[] = [];
     for (let k = 0; k < count; k++) {
         const value = HOSTILE_VALUES[(seed + k * 7) % HOSTILE_VALUES.length];
-        const quoted = xml
-            ? value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;")
-            : value.replace(/"/g, '\\"');
+        // each format's own writer spelling, so the file holds exactly the value
+        const written = xml ? `"${escapeXmlAttribute(value)}"` : quoteText(format, value);
         out.push({
             value,
-            bytes: new TextEncoder().encode(text.replace(slot, (_m, start: string) => `${start}"${quoted}"`)),
+            bytes: new TextEncoder().encode(text.replace(slot, (_m, start: string) => `${start}${written}`)),
         });
     }
     return out;

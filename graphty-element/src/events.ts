@@ -442,14 +442,15 @@ export interface LayoutChangedEvent {
 }
 
 /**
- * Emitted when the data kept a layout from placing every node as asked.
- * It carries a warning code and its parameters, never a sentence.
+ * Emitted when a layout could not do everything it was asked.
+ * The data kept it from placing every node (`W_NO_POSITION`), or it ran without options it does
+ * not take (`W_UNKNOWN_OPTION`). It carries a warning code and its parameters, never a sentence.
  */
 export interface LayoutWarningEvent {
     type: "layout-warning";
     /** The layout that reported it, as `setLayout` was given it. */
     layoutType: string;
-    /** What happened, such as `W_NO_POSITION`. */
+    /** What happened, such as `W_NO_POSITION` or `W_UNKNOWN_OPTION`. */
     code: GraphtyWarningCode;
     /** The code's parameters, as the code's documentation lists them. */
     params: Readonly<Record<string, unknown>>;

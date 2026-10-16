@@ -141,7 +141,8 @@ outline, width and height, shape, label font and color, line style and arrows), 
 Gephi's and OGDF's. That program's defaults are added. A file with no `Creator` line that holds keys
 only yEd writes (`isGroup`, `gid`, the graph's `hierarchic`) is read as yEd's. A file from any other
 writer (NetworkX, igraph, a hand-written file) is read with the keys of the GML draft, and gets no
-defaults. A node label's `anchor` places it (`c` centered, `n` or `t` above, `se` below right, ...).
+defaults. A node label's `anchor` places it: `n`, `s`, `e`, `w` and the corners `nw` ... `se` outside the node,
+`c` and yEd's inside places (`t`, `b`, ...) centered.
 
 A save with styles writes yEd's `graphics` and `LabelGraphics` keys, which yEd draws, and keeps the
 rules for graphty as a graph key. See [Styles](../styles.md).

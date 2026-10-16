@@ -56,7 +56,6 @@ import {
     valueColumns,
     YED_ARROWS,
     YED_LINES,
-    YED_POSITIONS,
     YED_SHAPES,
     yedColor,
     yedSpelled,
@@ -174,6 +173,23 @@ function graphText(snapshot: GraphSnapshot, name: string): string | null {
     }
     return typeof v === "number" ? String(v) : null;
 }
+
+/**
+ * A node label's `anchor` as a label position: yEd's `n`, `s`, `e`, `w` and the corners `nw`, `ne`, `sw`, `se` place it
+ * outside the node; `c` and the inside places `t`, `b`, `l`, `r`, `tl`, `tr`, `bl`, `br` keep it inside, which graphty
+ * draws centered.
+ */
+const GML_ANCHORS: ReadonlyMap<string, string> = new Map([
+    ...["c", "t", "b", "l", "r", "tl", "tr", "bl", "br"].map((a): [string, string] => [a, "center"]),
+    ["n", "top"],
+    ["s", "bottom"],
+    ["e", "right"],
+    ["w", "left"],
+    ["nw", "top-left"],
+    ["ne", "top-right"],
+    ["sw", "bottom-left"],
+    ["se", "bottom-right"],
+]);
 
 /** Node keys only yEd writes: its group hierarchy. */
 const YED_NODE_KEYS: readonly string[] = ["isGroup", "gid"];
@@ -502,7 +518,7 @@ function readLabelGraphics(raw: unknown, writer: GmlWriter, node: boolean, put: 
     readLabelFont(lg, put, at);
     if (node && lg.anchor !== undefined) {
         const anchor = scalarText(lg.anchor, at("labelPosition"))?.trim().toLowerCase() ?? "";
-        const known = YED_POSITIONS.get(anchor);
+        const known = GML_ANCHORS.get(anchor);
         if (known === undefined) {
             noteAt(at("labelPosition"), STYLE_ISSUE.UNKNOWN_VALUE, anchor.slice(0, MAX_STYLE_VALUE_LENGTH));
         }

@@ -51,3 +51,21 @@ A panel that shows an empty field as "not set here" can say what the layers bene
 `styles.agreement(scope, channel, { below: rowId })` reads only the layers under that row, and
 answers with the shared value and the layer that paints it, or with a breakdown when they differ.
 Add `over: rowId` to read only the row's own elements; see [What Lies Beneath a Row](./beneath-a-row).
+
+## A value for each of several layers
+
+To give each of several layers its own color, shape or size -- a palette across a folder's layers,
+say -- ask for the values in order with `styles.sequence`, then write each layer its own value.
+No data is read: item `i` stands for the `i`-th layer.
+
+```ts
+const layers = ["hubs", "bridges", "leaves"]; // your layer ids, in the order you list them
+const { values } = session.styles.sequence({ palette: "okabe-ito" }, { channel: "node.color", count: layers.length });
+await session.styles.updateMany(layers.map((id, i) => ({ id, patch: { set: { "node.color": values[i] } } })));
+```
+
+A color or a list value (a shape, a line pattern) takes the palette's or the channel's values in
+order, and past the palette the binding's `overflow` decides: `"extend"` gives every item a color
+of its own, `"shape"` (or `"pattern"` on edges) repeats the colors and returns the second cue in
+`cue`. A number is spread evenly over `range`: `sequence({ range: [1, 3] }, { channel: "node.size",
+count: 3 })` gives `[1, 2, 3]`.

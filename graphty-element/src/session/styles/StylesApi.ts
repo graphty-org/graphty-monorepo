@@ -137,6 +137,8 @@ import {
     type PreviewSpan,
     requireChannel,
     type RuleBinding,
+    sequenceOf,
+    type StyleSequence,
 } from "./encoding";
 import {
     type ColumnEncodingSpec,
@@ -785,6 +787,37 @@ export interface StylesApi {
             readonly within?: LayerId;
         },
     ): BindingPreview;
+    /**
+     * What a binding paints for each of `count` items taken in order -- one value per layer of a
+     * folder, per row of a list -- without reading any data: item `i` is read as the value `i`.
+     * The same palettes, ranges, choices and overflow policies as a written binding, so "a
+     * palette across these 8 layers" or "a size from 1 to 3 across them" is one call, and each
+     * value can be written as a plain literal.
+     *
+     * ```ts
+     * const { values } = session.styles.sequence({ palette: "okabe-ito" }, { channel: "node.color", count: 8 });
+     * ```
+     *
+     * A colour or a list value (a shape, a line pattern) reads the items as categories, in order
+     * (scale `"ordinal"` unless the binding names one): item `i` takes the palette's `i`-th colour
+     * or the channel's `i`-th value, and past the palette the binding's `overflow` decides
+     * (`"extend"`, or `"shape"` / `"pattern"`, whose second cue comes back in `cue`). A number reads
+     * them as amounts spread evenly over the binding's `range` (the channel's default range when
+     * absent), first item at its first end; a single item takes the first end.
+     * @param binding - The binding without `by`: `{ palette, range, choices, overflow, ... }`.
+     * @param options - What to paint.
+     * @param options.channel - The channel.
+     * @param options.count - How many items.
+     * @returns One value per item, first item first, and the overflow's second cue.
+     * @throws A `GraphtyError`: `E_UNKNOWN_CHANNEL`, `E_BAD_LAYER`, `E_UNKNOWN_SCALE`,
+     *     `E_UNKNOWN_PALETTE` or `E_CAP_EXCEEDED` for a binding the channel cannot take, as writing
+     *     it would.
+     * @since 3.30.0
+     */
+    sequence(
+        binding: Omit<RuleBinding, "by">,
+        options: { readonly channel: Channel; readonly count: number },
+    ): StyleSequence;
     /**
      * How many elements one layer covers, and on how many it decides each channel it writes.
      *
@@ -4305,6 +4338,23 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                     ? column.filter((_, at) => selector.test === null || selector.test(indices[at]))
                     : [];
             return previewColumn(binding, descriptor.channel, column, { ...options, counted });
+        },
+
+        sequence(
+            binding: Omit<RuleBinding, "by">,
+            options: { readonly channel: Channel; readonly count: number },
+        ): StyleSequence {
+            const descriptor = requireChannel(options.channel);
+            const rule: RuleBinding = { ...binding, by: "sequence" };
+            // The session's default palette, as a written layer's and a preview's.
+            const kind = descriptor.accepts === "color" ? paletteKindOf(rule) : null;
+            const palette = kind === null || rule.palette !== undefined ? undefined : defaultPalettes[kind];
+            return sequenceOf({
+                channel: descriptor.channel,
+                binding: palette === undefined ? rule : { ...rule, palette },
+                count: options.count,
+                scales,
+            });
         },
 
         counts(id: LayerId): StyleCounts {

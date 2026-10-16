@@ -531,6 +531,7 @@ export type {
     StyleRowPin,
     StyleRowPlace,
     StylesApi,
+    StyleSequence,
     StyleSuggestion,
     StyleUpdateOptions,
     TemplateOptions,

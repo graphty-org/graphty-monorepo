@@ -4058,6 +4058,10 @@ export interface StylesApi {
     replaceColor(rowIds: readonly StyleRowId[], from: string, to: string, options?: RunOptions): Run<readonly Layer[]>;
     resolveToStatic(id: LayerId, channel: Channel, at?: ExplainTarget, options?: RunOptions): Run<Layer>;
     restoreStartingRows(options?: RunOptions): Run<readonly RowParts[]>;
+    sequence(binding: Omit<RuleBinding, "by">, options: {
+        readonly channel: Channel;
+        readonly count: number;
+    }): StyleSequence;
     setDefaultPalettes(palettes: DefaultPalettes, options?: {
         readonly reapply?: boolean;
     }): void;
@@ -4074,6 +4078,17 @@ export interface StylesApi {
     validate(spec: LayerSpec): ValidationResult;
     valueAt(target: ExplainTarget, path: Path): unknown;
     writeRow(id: LayerId, write: RowWrite, options?: RunOptions): Run<RowParts>;
+}
+
+// @public
+export interface StyleSequence {
+    readonly channel: Channel;
+    readonly cue: {
+        readonly channel: Channel;
+        readonly values: readonly (EncodedValue | undefined)[];
+    } | null;
+    readonly palette: PaletteId | null;
+    readonly values: readonly (EncodedValue | undefined)[];
 }
 
 // @public

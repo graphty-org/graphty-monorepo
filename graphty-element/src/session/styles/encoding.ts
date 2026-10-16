@@ -2169,3 +2169,77 @@ export function previewBinding(options: PreviewBindingOptions): BindingPreview {
 
     return { ...base, stepCounts, domain: [domain[0], domain[1]], bins, below, above, noValue, outsideScale };
 }
+
+// ---------------------------------------------------------------------------------------------
+// A binding's values for items in order
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * What a binding paints for each of a number of items taken in order: item `i` read as the value
+ * `i`. See {@link StylesApi.sequence}.
+ * @since 3.30.0
+ */
+export interface StyleSequence {
+    /** The channel it paints. */
+    readonly channel: Channel;
+    /** What each item paints, first item first; undefined where the binding paints nothing. */
+    readonly values: readonly (EncodedValue | undefined)[];
+    /**
+     * The second cue an overflow policy steps through (`overflow: "shape"` on `node.color` gives
+     * node shapes, `"pattern"` on `edge.color` gives edge patterns), one per item; null when the
+     * binding cycles none.
+     */
+    readonly cue: { readonly channel: Channel; readonly values: readonly (EncodedValue | undefined)[] } | null;
+    /** The palette painting a colour channel, `"custom"` for its own stops, null otherwise. */
+    readonly palette: PaletteId | null;
+}
+
+/** Everything {@link sequenceOf} is given. */
+export interface SequenceOptions {
+    /** The channel. */
+    readonly channel: Channel;
+    /** The binding, its `by` ignored: the items are read as 0, 1, 2 and so on. */
+    readonly binding: RuleBinding;
+    /** How many items. */
+    readonly count: number;
+    /** The session's scales. */
+    readonly scales: ScaleRegistry;
+}
+
+/**
+ * What a binding paints for `count` items in order, prepared exactly as a written binding is over
+ * a column holding 0 to `count - 1`. A scale of categories numbers them in that order (equal
+ * counts tie-break by value), so item `i` takes the palette's or the channel's `i`-th value, and
+ * past the palette the binding's own overflow policy decides; a numeric scale spreads them evenly
+ * from the range's first end to its last.
+ * @param options - The channel, the binding, the count and the scales.
+ * @returns One value per item, and the second cue's when the overflow policy cycles one.
+ */
+export function sequenceOf(options: SequenceOptions): StyleSequence {
+    const { channel, scales } = options;
+    const descriptor = requireChannel(channel);
+    const count = Math.max(0, Math.floor(options.count));
+    const numeric = descriptor.accepts === "number";
+    // Items are groups for a colour or a list value, amounts for a number.
+    const binding: RuleBinding =
+        options.binding.scale === undefined && !numeric ? { ...options.binding, scale: "ordinal" } : options.binding;
+    if (count === 0) {
+        return { channel: descriptor.channel, values: [], cue: null, palette: null };
+    }
+    const items = Array.from({ length: count }, (_, at) => at);
+    // One item on a number has no extent of its own: it stands at the range's first end.
+    const column = count === 1 && numeric ? [0, 1] : items;
+    const prepare = (bound: Channel, rule: RuleBinding): PreparedBinding =>
+        prepareBinding({ channel: bound, binding: rule, column, scales });
+    const main = prepare(descriptor.channel, binding);
+    const half = overflowHalf(descriptor.channel, binding);
+    const cue = half === null ? null : prepare(half[0], half[1]);
+    const paintAll = (prepared: PreparedBinding): (EncodedValue | undefined)[] => items.map((at) => prepared.paint(at));
+
+    return {
+        channel: descriptor.channel,
+        values: paintAll(main),
+        cue: half === null || cue === null ? null : { channel: half[0], values: paintAll(cue) },
+        palette: binding.stops === undefined ? (main.palette?.id ?? null) : "custom",
+    };
+}

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
-import { fireEvent, render, screen } from "../../../test/test-utils";
+import { render, screen } from "../../../test/test-utils";
 import { formatChords, SHELL_KEY_BINDINGS } from "../bindings";
 import {
     KEYBOARD_SHORTCUTS_CLOSE_TITLE,
@@ -70,7 +71,7 @@ describe("KeyboardShortcutsOverlay", () => {
     });
 
     describe("closing", () => {
-        it("offers one X, titled for the Escape ladder", () => {
+        it("offers one X, titled for the Escape ladder", async () => {
             const onClose = vi.fn();
 
             render(<KeyboardShortcutsOverlay opened onClose={onClose} />);
@@ -79,7 +80,7 @@ describe("KeyboardShortcutsOverlay", () => {
 
             expect(close).toHaveAttribute("title", KEYBOARD_SHORTCUTS_CLOSE_TITLE);
 
-            fireEvent.click(close);
+            await userEvent.click(close);
 
             expect(onClose).toHaveBeenCalledTimes(1);
         });

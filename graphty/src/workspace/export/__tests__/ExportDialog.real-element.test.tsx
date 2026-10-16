@@ -12,6 +12,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import userEvent from "@testing-library/user-event";
 import { afterEach, assert, describe, it, vi } from "vitest";
 
+import { storyWaitOptions } from "../../../stories/wait";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { Workspace } from "../../Workspace";
 
@@ -104,11 +105,16 @@ describe("Export: save a picture and the numbers (task T13)", () => {
         await userEvent.click(await screen.findByRole("option", { name: "Nodes" }));
         assert.isNotNull(within(again).getByText(/^One row for every node, with every computed value/));
         const header = session.results.path(root.runId, "value");
+        // The preview and the saved file both wait on exportGraph, which first waits for the
+        // element's whole operation queue to drain: wait on what they show, with no deadline of
+        // their own, so the test's timeout is the only backstop (#3021).
+        const preview = within(again).getByLabelText("Preview of the exported data");
         await waitFor(() => {
-            assert.include(within(again).getByLabelText("Preview of the exported data").textContent, header);
-        });
+            assert.notEqual(preview.textContent, "Writing the preview...");
+        }, storyWaitOptions(1000));
+        assert.include(preview.textContent, header);
         await userEvent.click(within(again).getByRole("button", { name: "Export" }));
-        await screen.findByText("Exported untitled_nodes.csv");
+        await screen.findByText("Exported untitled_nodes.csv", {}, storyWaitOptions(1000));
         const table = saved.find(({ name }) => name === "untitled_nodes.csv");
         assert.isDefined(table, "the table was saved");
         const lines = (await table?.blob.text())?.trim().split(/\r?\n/) ?? [];

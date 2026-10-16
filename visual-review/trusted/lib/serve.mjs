@@ -617,6 +617,12 @@ export function createApp({
                 mine.set(k, posted && !onBranch(t, project, item, d.decision) ? rest : d);
             }
         }
+        addApprovedBefore(t, mine);
+        return mine;
+    };
+
+    // Adds an accept to `mine` for each undecided item whose exact image was approved before.
+    const addApprovedBefore = (t, mine) => {
         for (const p of t.projects) {
             for (const item of p.results?.items ?? []) {
                 const k = `${p.project}/${item.file}`;
@@ -633,7 +639,6 @@ export function createApp({
                 }
             }
         }
-        return mine;
     };
 
     /**
@@ -998,7 +1003,7 @@ export function createApp({
     const keptOr = (info, err) => {
         const old = targets.get(info.id);
         return old?.runId
-            ? { ...old, warnings: [retryLater("could not refresh", err.message)] }
+            ? { ...old, draft: info.draft, warnings: [retryLater("could not refresh", err.message)] }
             : blank(info, retryLater("failed to load", err.message));
     };
 
@@ -1118,6 +1123,7 @@ export function createApp({
                         url: pr.url,
                         branch: pr.branch,
                         head: pr.headSha,
+                        draft: pr.draft,
                     };
                     try {
                         const run = await runOf(pr, read);
@@ -1348,6 +1354,11 @@ export function createApp({
                       () => null,
                   )
                 : null;
+        await markBehind(t, base, known);
+    }
+
+    // Whether each of a target's projects is behind the default branch, and what is newer there.
+    async function markBehind(t, base, known) {
         t.mergeMasterFirst = false;
         for (const p of t.projects) {
             p.newer = [];
@@ -1399,6 +1410,8 @@ export function createApp({
             title: t.title,
             url: t.url,
             branch: t.branch,
+            // Its author is still working on it: the inbox never offers it (inbox.mjs).
+            draft: t.draft === true,
             runId: t.runId,
             runAttempt: t.runAttempt,
             runUrl: t.runUrl,
@@ -1580,12 +1593,10 @@ export function createApp({
         return { t, p: p?.results ? p : undefined };
     }
 
-    const gone = (id) => [
-        404,
-        {
-            error: `${id === "master" ? defaultBranch : `#${id}`} is not listed any more (closed, or it could not be loaded): reload the list`,
-        },
-    ];
+    const gone = (id) => {
+        const name = id === "master" ? defaultBranch : `#${id}`;
+        return [404, { error: `${name} is not listed any more (closed, or it could not be loaded): reload the list` }];
+    };
 
     // Whether a write is about the capture the page shows: `hash` (the image), or `runId` and
     // `runAttempt`. A page that sends neither is not checked.
@@ -2689,14 +2700,19 @@ export function createApp({
         setInterval(() => refresh().catch(failed("background")), POLL).unref();
     }
 
+    // The page's own files: GET only, and only those it names.
+    async function sendStatic(req, res, pathname) {
+        const entry = req.method === "GET" && Object.hasOwn(STATIC, pathname) ? STATIC[pathname] : null;
+        return entry
+            ? send(res, 200, await readFile(join(HERE, entry[0])), entry[1])
+            : send(res, 404, { error: "not found" });
+    }
+
     const handler = async (req, res) => {
         try {
             const url = new URL(req.url, origin);
             if (!url.pathname.startsWith("/api/")) {
-                const entry = req.method === "GET" && Object.hasOwn(STATIC, url.pathname) ? STATIC[url.pathname] : null;
-                return entry
-                    ? send(res, 200, await readFile(join(HERE, entry[0])), entry[1])
-                    : send(res, 404, { error: "not found" });
+                return await sendStatic(req, res, url.pathname);
             }
             if (!tokenOk(req.headers["x-review-token"])) {
                 return send(res, 401, { error: "missing or wrong session token: open the URL serve printed" });

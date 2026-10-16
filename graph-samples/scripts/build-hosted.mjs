@@ -41,9 +41,11 @@ const cacheDir =
 const outDir = path.join(packageRoot, "public-data/v1");
 const BASE_URL = "https://graphty.app/data/graph-samples/v1/";
 
-// graph-format from its build output, so the script runs without a workspace install
+// graph-format from its tsc output, so the script runs without a workspace install. Not its bundle: the
+// bundle stamps the commit it was built from into every file's manifest (`producer`), which would change
+// each file's checksum with every commit; the tsc output writes "@graphty/graph-format@dev"
 const { fromEdgeArrays } = await import(
-    pathToFileURL(path.resolve(packageRoot, "../graph-format/dist/graph-format.js")).href
+    pathToFileURL(path.resolve(packageRoot, "../graph-format/dist/src/index.js")).href
 );
 
 /** Every source file, its URL and its checksum. */

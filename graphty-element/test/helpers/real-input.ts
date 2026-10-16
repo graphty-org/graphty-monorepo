@@ -8,10 +8,11 @@
  * Points are CSS pixels from the target element's top-left corner, the pixels
  * `nodeScreenPosition` and `worldToScreen` return. The test page runs in an iframe of the vitest
  * page, possibly scaled to fit, so each point is mapped into the top page's coordinates first.
- * The keyboard needs nothing here: `userEvent.keyboard` already presses real keys.
+ * The keyboard needs no protocol: `userEvent.keyboard` already presses real keys, and `holdKey` and
+ * `releaseKey` only name the hold and the release.
  */
 
-import { cdp } from "vitest/browser";
+import { cdp, userEvent } from "vitest/browser";
 
 /** A point in CSS pixels from an element's top-left corner. */
 export interface Point {
@@ -86,6 +87,8 @@ function modifierBits(modifiers: Modifiers = {}): number {
  * @param point - Where, on the element.
  * @param buttons - The buttons held during the event.
  * @param modifiers - The modifier keys held.
+ * @param timestamp - When the event happened, in seconds since the epoch; the browser stamps it
+ *     with the time it arrives when this is left out.
  */
 async function mouseEvent(
     type: "mouseMoved" | "mousePressed" | "mouseReleased",
@@ -93,6 +96,7 @@ async function mouseEvent(
     point: Point,
     buttons: Buttons,
     modifiers?: Modifiers,
+    timestamp?: number,
 ): Promise<void> {
     const at = toPage(element, point);
     await send()("Input.dispatchMouseEvent", {
@@ -103,6 +107,7 @@ async function mouseEvent(
         buttons,
         clickCount: type === "mouseMoved" ? 0 : 1,
         modifiers: modifierBits(modifiers),
+        ...(timestamp === undefined ? {} : { timestamp }),
     });
 }
 
@@ -131,6 +136,56 @@ export async function click(element: Element, point: Point, modifiers?: Modifier
         mouseEvent("mousePressed", element, point, 1, modifiers),
         mouseEvent("mouseReleased", element, point, 0, modifiers),
     ]);
+}
+
+/**
+ * Press and release the left button at one point, the two events stamped `heldMs` apart, so the
+ * element sees a button held that long however quickly the page gets to them. Both stamps are in
+ * the past when they are sent.
+ * @param element - The element the point is on.
+ * @param point - Where.
+ * @param heldMs - How long the button was down, by the events' own stamps.
+ * @param beforeRelease - Run after the press is handled and before the release is sent.
+ */
+export async function pressFor(
+    element: Element,
+    point: Point,
+    heldMs: number,
+    beforeRelease?: () => void,
+): Promise<void> {
+    const releasedAt = (performance.timeOrigin + performance.now()) / 1000;
+    await mouseEvent("mouseMoved", element, point, 0);
+    await mouseEvent("mousePressed", element, point, 1, undefined, releasedAt - heldMs / 1000);
+    beforeRelease?.();
+    await mouseEvent("mouseReleased", element, point, 0, undefined, releasedAt);
+}
+
+/**
+ * Move the mouse to a point and press the left button there, holding it.
+ * @param element - The element the point is on.
+ * @param point - Where.
+ */
+export async function press(element: Element, point: Point): Promise<void> {
+    await mouseEvent("mouseMoved", element, point, 0);
+    await mouseEvent("mousePressed", element, point, 1);
+}
+
+/**
+ * Move the mouse in one step with the left button held, as after `press`.
+ * @param element - The element the point is on.
+ * @param point - Where to.
+ */
+export async function moveHeld(element: Element, point: Point): Promise<void> {
+    await mouseEvent("mouseMoved", element, point, 1);
+}
+
+/**
+ * Release the left button at a point, as after `press`.
+ * @param element - The element the point is on.
+ * @param point - Where.
+ */
+export async function release(element: Element, point: Point): Promise<void> {
+    await mouseEvent("mouseReleased", element, point, 0);
 }
 
 /**
@@ -163,10 +218,11 @@ export async function drag(element: Element, from: Point, to: Point, steps = 8):
  * @param element - The element the point is on.
  * @param point - Where the pointer is.
  * @param deltaY - How far; positive scrolls down (away from the reader).
+ * @param deltaX - How far sideways; positive scrolls right.
  */
-export async function wheel(element: Element, point: Point, deltaY: number): Promise<void> {
+export async function wheel(element: Element, point: Point, deltaY: number, deltaX = 0): Promise<void> {
     const at = toPage(element, point);
-    await send()("Input.dispatchMouseEvent", { type: "mouseWheel", x: at.x, y: at.y, deltaX: 0, deltaY });
+    await send()("Input.dispatchMouseEvent", { type: "mouseWheel", x: at.x, y: at.y, deltaX, deltaY });
 }
 
 /**
@@ -220,6 +276,37 @@ export async function pinch(element: Element, center: Point, fromGap: number, to
     }
 
     await send()("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+}
+
+/** Keys `holdKey` pressed and nothing has released yet. */
+const heldKeys = new Set<string>();
+
+/**
+ * Press a key and hold it, on whatever has focus: a real key press, through `userEvent`.
+ * @param key - The key, as `KeyboardEvent.key` names it ("w", "ArrowLeft", "+").
+ */
+export async function holdKey(key: string): Promise<void> {
+    await userEvent.keyboard(`{${key}>}`);
+    heldKeys.add(key);
+}
+
+/**
+ * Release a key `holdKey` pressed.
+ * @param key - The key.
+ */
+export async function releaseKey(key: string): Promise<void> {
+    await userEvent.keyboard(`{/${key}}`);
+    heldKeys.delete(key);
+}
+
+/**
+ * Release every key still held, so a key a test left down does not carry into the next test.
+ * Call it from `afterEach`.
+ */
+export async function releaseHeldKeys(): Promise<void> {
+    for (const key of [...heldKeys]) {
+        await releaseKey(key);
+    }
 }
 
 /**

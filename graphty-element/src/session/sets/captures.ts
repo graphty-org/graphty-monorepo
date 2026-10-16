@@ -150,22 +150,39 @@ export function captureItem(
     }
 
     if (kinds.has("edge")) {
-        const keyed: [string, EdgeMember][] = [];
-        for (let row = 0; row < snapshot.edgeCount; row++) {
-            const member = matches(result.edgeValue(row, key.field), key.value) ? edgeMemberOf(row) : undefined;
-            if (member !== undefined) {
-                keyed.push([edgeMemberKey(member), member]);
-            }
-        }
-
-        keyed.sort((a, b) => (a[0] < b[0] ? -1 : Number(a[0] > b[0])));
-        edges = compactEdgeMembers(keyed.map(([, member]) => member));
+        edges = capturedEdges(result, key, snapshot, edgeMemberOf);
     }
 
     return Object.freeze({
         ...(nodes === undefined ? {} : { nodes: Object.freeze(nodes) }),
         ...(edges === undefined ? {} : { edges }),
     });
+}
+
+/**
+ * The edges one item of a result holds now, in stable-identity order.
+ * @param result - The run's current result, by dense index.
+ * @param key - The item's key.
+ * @param snapshot - The snapshot the result is read against.
+ * @param edgeMemberOf - An edge row's stable identity.
+ * @returns The edge half of the capture.
+ */
+function capturedEdges(
+    result: FilterRunResult,
+    key: ItemKey,
+    snapshot: GraphSnapshot,
+    edgeMemberOf: (row: number) => EdgeMember | undefined,
+): EdgeMemberList {
+    const keyed: [string, EdgeMember][] = [];
+    for (let row = 0; row < snapshot.edgeCount; row++) {
+        const member = matches(result.edgeValue(row, key.field), key.value) ? edgeMemberOf(row) : undefined;
+        if (member !== undefined) {
+            keyed.push([edgeMemberKey(member), member]);
+        }
+    }
+
+    keyed.sort((a, b) => (a[0] < b[0] ? -1 : Number(a[0] > b[0])));
+    return compactEdgeMembers(keyed.map(([, member]) => member));
 }
 
 /**

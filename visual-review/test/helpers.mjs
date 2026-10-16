@@ -262,7 +262,7 @@ export function copyFixture(project, dest, overrides = {}) {
 /**
  * The GraphQL answer openPullRequests reads: one page holding every pull request, each with its
  * head's check suites (the CI run's, when it has one, beside another workflow's).
- * @param {{ number: number, head: string, branch: string }[]} prs the pull requests
+ * @param {{ number: number, head: string, branch: string, draft?: boolean }[]} prs the pull requests
  * @param {(head: string) => { id: number, attempt?: number, status?: string, conclusion?: string | null } | undefined} runOf
  *     the head's CI run
  * @returns {string} the answer
@@ -288,6 +288,7 @@ export function pullsGraphql(prs, runOf) {
             url: `https://gh/pull/${p.number}`,
             headRefName: p.branch,
             headRefOid: p.head,
+            isDraft: p.draft === true,
             commits: { nodes: [{ commit: { checkSuites: { nodes: suites } } }] },
         };
     });
@@ -437,12 +438,14 @@ export const withMoved = (r, extra = []) => {
  * request sent right after `await page.route(...)` can still go out unintercepted (about one in
  * ten on a CPU throttled sixfold, as a slow CI runner is). With this never-matching route held,
  * later routes only change what Playwright matches, which is in force before `page.route` returns.
+ * Its waits (waitFor, click and the rest) have no limit of Playwright's 30 s: the test's ends them.
  * @param {import("playwright").Browser} browser the browser to open it in
  * @param {import("playwright").BrowserContextOptions} options the viewport and the rest, as for newPage
  * @returns {Promise<import("playwright").Page>} the tab
  */
 export async function interceptedPage(browser, options) {
     const page = await browser.newPage(options);
+    page.setDefaultTimeout(0);
     await page.route("**/interception-stays-on", (route) => route.continue());
     return page;
 }

@@ -2,7 +2,7 @@ import userEvent from "@testing-library/user-event";
 import React, { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { render, screen, waitFor, within } from "../../../../test/test-utils";
+import { render, screen, untilPasses, waitFor, within } from "../../../../test/test-utils";
 import { HelpMenu } from "../HelpMenu";
 
 interface HarnessProps {
@@ -177,7 +177,8 @@ describe("HelpMenu", () => {
 
             const menu = await screen.findByRole("menu", { name: "Help" });
 
-            await waitFor(() => {
+            // floating-ui places the menu on a later frame: wait on the placement, not a deadline (#2754).
+            await untilPasses(() => {
                 const target = opener().getBoundingClientRect();
                 const box = menu.getBoundingClientRect();
 

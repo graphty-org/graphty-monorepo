@@ -22,12 +22,16 @@ import type { ArrowCap } from "./ArrowCapBatch";
 import { CustomLineRenderer } from "./CustomLineRenderer";
 import type { EdgeLineBatch } from "./EdgeLineBatch";
 import { FilledArrowRenderer } from "./FilledArrowRenderer";
+import { FrameRoster } from "./FrameRoster";
 import type { MeshCache } from "./MeshCache";
 import { PatternedLineMesh } from "./PatternedLineMesh";
 import { PatternedLineRenderer } from "./PatternedLineRenderer";
 import { Simple2DLineRenderer } from "./Simple2DLineRenderer";
 
 /** The line types drawn as a run of pattern elements rather than as one line. */
+/** The animated edge lines of each scene, behind one before-render observer; see {@link FrameRoster}. */
+const animatedEdgeFrames = new FrameRoster();
+
 const PATTERNED_TYPES = new Set(["dot", "star", "box", "dash", "diamond", "dash-dot", "sinewave", "zigzag"]);
 
 interface EdgeMeshOptions {
@@ -65,6 +69,10 @@ interface ArrowGeometry {
 // eslint-disable-next-line @typescript-eslint/no-extraneous-class -- Static factory class for edge mesh creation
 export class EdgeMesh {
     private static readonly UNIT_VECTOR_POINTS = [0, 0, -0.5, 0, 0, 0.5];
+    /** A self-loop's radius around a node it clears. */
+    static readonly SELF_LOOP_RADIUS = 2;
+    /** How far a self-loop stays outside a node too big for {@link EdgeMesh.SELF_LOOP_RADIUS}. */
+    static readonly SELF_LOOP_CLEARANCE = 0.5;
     private static shadersRegistered = false;
 
     /**
@@ -245,12 +253,14 @@ void main() {
             style.line?.type as "dot" | "star" | "box" | "dash" | "diamond" | "dash-dot" | "sinewave" | "zigzag",
             new Vector3(0, 0, -0.5), // Placeholder start (Edge.update() will set real positions)
             new Vector3(0, 0, 0.5), // Placeholder end (Edge.update() will set real positions)
-            options.width / 40, // Convert back from scaled width - need /40 to match solid line thickness
-            options.color,
-            style.line?.opacity ?? 1,
             scene,
-            this.is2DMode(scene), // Pass 2D mode detection flag
-            style.line?.patternCount, // undefined means follow the spacing rule
+            {
+                width: options.width / 40, // Convert back from scaled width - need /40 to match solid line thickness
+                color: options.color,
+                opacity: style.line?.opacity ?? 1,
+                is2DMode: this.is2DMode(scene), // Pass 2D mode detection flag
+                patternCount: style.line?.patternCount, // undefined means follow the spacing rule
+            },
         );
     }
 
@@ -667,7 +677,7 @@ void main() {
 
         const perFrame = EDGE_CONSTANTS.MOVING_TEXTURE_ANIMATION_SPEED * animationSpeed;
 
-        const observer = scene.onBeforeRenderObservable.add(() => {
+        const stopFrames = animatedEdgeFrames.join(scene, () => {
             // PARKED AT THE START OF THE GRADIENT WHEN THE SCENE SAYS NOT TO ANIMATE, rather than
             // left wherever the last frame put it. `scene.animationsEnabled` is Babylon's own
             // switch for "do not animate", and honouring it is what lets a visual baseline of an
@@ -689,7 +699,7 @@ void main() {
         // rebuilt animated line would leave both behind.
         mesh.onDisposeObservable.addOnce(() => {
             releaseFrames();
-            scene.onBeforeRenderObservable.remove(observer);
+            stopFrames();
             texture.dispose();
         });
     }
@@ -882,12 +892,19 @@ void main() {
      * @param srcPoint - Start point of the curve
      * @param dstPoint - End point of the curve
      * @param controlPoints - Optional custom control points (default: auto-calculated)
+     * @param loopRadius - A self-loop's radius, when the two points are one (default
+     *     {@link EdgeMesh.SELF_LOOP_RADIUS}).
      * @returns Flat array of coordinates [x1, y1, z1, x2, y2, z2, ...]
      */
-    static createBezierLine(srcPoint: Vector3, dstPoint: Vector3, controlPoints?: Vector3[]): number[] {
+    static createBezierLine(
+        srcPoint: Vector3,
+        dstPoint: Vector3,
+        controlPoints?: Vector3[],
+        loopRadius = EdgeMesh.SELF_LOOP_RADIUS,
+    ): number[] {
         // Handle self-loops (source === destination)
         if (srcPoint.equalsWithEpsilon(dstPoint, 0.01)) {
-            return this.createSelfLoopCurve(srcPoint);
+            return this.createSelfLoopCurve(srcPoint, loopRadius);
         }
 
         // Calculate automatic control points if not provided
@@ -972,10 +989,10 @@ void main() {
     /**
      * Create a self-loop curve (circular arc) when source === destination
      * @param center - Center point for the self-loop
+     * @param radius - The loop's radius
      * @returns Flat array of coordinates forming a circular arc
      */
-    private static createSelfLoopCurve(center: Vector3): number[] {
-        const radius = 2; // Loop radius
+    private static createSelfLoopCurve(center: Vector3, radius: number): number[] {
         const segments = 32; // Smooth circle
         const points: number[] = [];
 

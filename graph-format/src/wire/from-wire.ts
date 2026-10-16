@@ -740,19 +740,8 @@ class WireDecoder {
         const w = asObject(value, path);
         const metaRaw = asObject(w.meta, `${path}.meta`);
         const name = asString(metaRaw.name, `${path}.meta.name`);
-        const { dtype, itemDtype } = metaRaw;
-        const unknown = !isKnownDtype(dtype) || (dtype === "list" && !isKnownDtype(itemDtype));
-        if (unknown) {
-            const found = dtype === "list" ? itemDtype : dtype;
-            if (this.options.unknownColumns === "skip") {
-                this.skipped.push({ domain, table, name, dtype: String(found) });
-                return null;
-            }
-            throw new GraphFormatError("E_UNSUPPORTED", `column "${name}" has unknown dtype ${String(found)}`, {
-                dtype: found,
-                column: name,
-                ref: path,
-            });
+        if (this.skipUnknownDtype(metaRaw, name, domain, table, path)) {
+            return null;
         }
         const meta = this.columnMeta(metaRaw, name, domain, path);
         const kind: RangeKind = meta.mutable ? "mutable" : "immutable";
@@ -841,6 +830,40 @@ class WireDecoder {
      * @param path - the column's manifest path
      * @returns the resolved metadata
      */
+    /**
+     * Whether a column with an unknown dtype (or list item dtype) is dropped under unknownColumns:
+     * "skip" (recorded in `skipped`); E_UNSUPPORTED otherwise. False for a known dtype.
+     * @param metaRaw - the column's raw meta
+     * @param name - the column name
+     * @param domain - the table's domain
+     * @param table - the extension table name, or null
+     * @param path - the manifest path
+     * @returns true when the column is skipped
+     */
+    private skipUnknownDtype(
+        metaRaw: Record<string, unknown>,
+        name: string,
+        domain: ColumnDomain,
+        table: string | null,
+        path: string,
+    ): boolean {
+        const { dtype, itemDtype } = metaRaw;
+        const unknown = !isKnownDtype(dtype) || (dtype === "list" && !isKnownDtype(itemDtype));
+        if (!unknown) {
+            return false;
+        }
+        const found = dtype === "list" ? itemDtype : dtype;
+        if (this.options.unknownColumns === "skip") {
+            this.skipped.push({ domain, table, name, dtype: String(found) });
+            return true;
+        }
+        throw new GraphFormatError("E_UNSUPPORTED", `column "${name}" has unknown dtype ${String(found)}`, {
+            dtype: found,
+            column: name,
+            ref: path,
+        });
+    }
+
     private columnMeta(raw: Record<string, unknown>, name: string, domain: ColumnDomain, path: string): ColumnMeta {
         const metaPath = `${path}.meta`;
         const optional = <T>(key: string, check: (v: unknown, p: string) => T): T | undefined => {
@@ -1449,6 +1472,53 @@ function decodeCore(decoder: WireDecoder, refs: CoreRefs, counts: WireCounts, fl
     };
 }
 
+/** The byte range a manifest's arena descriptor names: a buffer index and a region-relative range. */
+interface ArenaRange {
+    readonly buffer: number;
+    readonly byteOffset: number;
+    readonly byteLength: number;
+}
+
+/**
+ * The arena segment of one core array: null when the array is absent, empty or outside the arena's
+ * range; E_BAD_WIRE when it lies inside but off the alignment grid or is not the view the segment
+ * describes.
+ * @param name - the core array name
+ * @param ref - its reference
+ * @param array - the decoded array
+ * @param range - the arena's range
+ * @param located - where the arena's range lies in memory
+ * @returns the frozen segment, or null
+ */
+function arenaSegmentOf(
+    name: CoreArrayName,
+    ref: WireBufferRef | null,
+    array: U32 | F32 | null,
+    range: ArenaRange,
+    located: LocatedRange,
+): ArenaSegment | null {
+    if (ref === null || array === null || array.length === 0) {
+        return null;
+    }
+    const inside =
+        ref.buffer === range.buffer &&
+        ref.byteOffset >= range.byteOffset &&
+        ref.byteOffset + ref.byteLength <= range.byteOffset + range.byteLength;
+    if (!inside) {
+        return null;
+    }
+    const relative = ref.byteOffset - range.byteOffset;
+    if (relative % ALIGNMENT !== 0) {
+        throw badWire(`core.${name}`, `inside the arena at offset ${relative}, not a multiple of ${ALIGNMENT}`, {
+            byteOffset: relative,
+        });
+    }
+    if (array.buffer !== located.buffer || array.byteOffset !== located.byteOffset + relative) {
+        throw badWire(`core.${name}`, "the arena describes a segment the array is not a view of");
+    }
+    return Object.freeze({ byteOffset: located.byteOffset + relative, byteLength: ref.byteLength });
+}
+
 /**
  * Honour the manifest's arena descriptor (design sections 9.1 and 10.3): the core arrays lying at
  * 256-aligned offsets inside the described range become its segments; hotByteLength is recomputed
@@ -1497,32 +1567,17 @@ function decodeArena(
         edgeToArc: null,
     };
     let hotByteLength = 0;
+    const range: ArenaRange = { buffer, byteOffset, byteLength };
     const names: readonly CoreArrayName[] = CORE_ORDER;
     for (const name of names) {
-        const ref = refs[name];
-        const array = arrays[name];
-        if (ref === null || array === null || array.length === 0) {
+        const segment = arenaSegmentOf(name, refs[name], arrays[name], range, located);
+        if (segment === null) {
             continue;
         }
-        const inside =
-            ref.buffer === buffer &&
-            ref.byteOffset >= byteOffset &&
-            ref.byteOffset + ref.byteLength <= byteOffset + byteLength;
-        if (!inside) {
-            continue;
-        }
-        const relative = ref.byteOffset - byteOffset;
-        if (relative % ALIGNMENT !== 0) {
-            throw badWire(`core.${name}`, `inside the arena at offset ${relative}, not a multiple of ${ALIGNMENT}`, {
-                byteOffset: relative,
-            });
-        }
-        if (array.buffer !== located.buffer || array.byteOffset !== located.byteOffset + relative) {
-            throw badWire(`core.${name}`, "the arena describes a segment the array is not a view of");
-        }
-        segments[name] = Object.freeze({ byteOffset: located.byteOffset + relative, byteLength: ref.byteLength });
+        segments[name] = segment;
         if (name === "rowPtr" || name === "colIdx" || name === "weights") {
-            hotByteLength = relative + ref.byteLength;
+            // the segment's end relative to the arena start
+            hotByteLength = segment.byteOffset - located.byteOffset + segment.byteLength;
         }
     }
     if (structure && a.hotByteLength !== hotByteLength) {

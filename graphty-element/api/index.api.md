@@ -597,6 +597,8 @@ export class DataManager implements Manager {
     };
     // @internal
     get holdsNoRows(): boolean;
+    // @internal
+    incidentEdgeIds(node: Node_2): EdgeId[];
     init(): Promise<void>;
     get isLoading(): boolean;
     get lastImport(): LoadReport | null;
@@ -605,6 +607,7 @@ export class DataManager implements Manager {
     // (undocumented)
     nodeCache: Map<NodeIdType, Node_2>;
     get nodes(): ReadonlyMap<string | number, Node_2>;
+    nodeVersion: number;
     get positions(): ReadonlyElementPositions;
     reconcile(slice: GraphSlice, dirty: ReadonlySet<string>, cause: HistoryCause): {
         added: number;
@@ -1876,7 +1879,7 @@ export interface GraphErrorEvent {
 }
 
 // @public (undocumented)
-export type GraphEvent = GraphSettledEvent | GraphErrorEvent | GraphDataLoadedEvent | GraphDataAddedEvent | GraphSnapshotReplacedEvent | GraphSnapshotDroppedEvent | GraphDataClearedEvent | GraphLayoutInitializedEvent | CameraStateChangedEvent | GraphGenericEvent | DataLoadingProgressEvent | DataLoadingErrorEvent | DataLoadingErrorSummaryEvent | DataLoadingCompleteEvent | ElementsRemovedEvent | StyleChangedEvent | SelectionChangedEvent | GraphStartedEvent | LayoutChangedEvent | OperationCancelledEvent | StatsUpdateEvent | InputEnabledChangedEvent | XRSessionStartedEvent | XRSessionEndedEvent | InputPointerEvent | InputWheelEvent | InputTouchEvent | InputTouchEndEvent | InputKeyEvent | InputShortcutEvent;
+export type GraphEvent = GraphSettledEvent | GraphErrorEvent | GraphDataLoadedEvent | GraphDataAddedEvent | GraphSnapshotReplacedEvent | GraphSnapshotDroppedEvent | GraphDataClearedEvent | GraphLayoutInitializedEvent | CameraStateChangedEvent | GraphGenericEvent | DataLoadingProgressEvent | DataLoadingErrorEvent | DataLoadingErrorSummaryEvent | DataLoadingCompleteEvent | ElementsRemovedEvent | StyleChangedEvent | SelectionChangedEvent | GraphStartedEvent | LayoutChangedEvent | LayoutWarningEvent | OperationCancelledEvent | StatsUpdateEvent | InputEnabledChangedEvent | XRSessionStartedEvent | XRSessionEndedEvent | InputPointerEvent | InputWheelEvent | InputTouchEvent | InputTouchEndEvent | InputKeyEvent | InputShortcutEvent;
 
 // @public (undocumented)
 export type GraphEventType = GraphEvent["type"];
@@ -2743,7 +2746,21 @@ export type GraphtyWarningCode =
 * draw it translucent, so the color is drawn opaque. `params.channel` is the channel and
 * `params.path` where in the layer the color sits. Today only `node.outline` cannot.
 */
-| "W_ALPHA_IGNORED";
+| "W_ALPHA_IGNORED"
+/**
+* A layout that places nodes from their data found no usable `data.position` (`{ x, y, z? }`
+* or `[x, y, z?]`) for some nodes, and put them at the origin or left them where they were.
+* Emitted as a `layout-warning` event. `params.missing` is how many nodes had none and
+* `params.total` how many the layout placed. Today only the `fixed` layout reports it.
+*/
+| "W_NO_POSITION"
+/**
+* A layout was given options it does not take, and ran without them. Emitted as a
+* `layout-warning` event by the layouts that do not refuse an unknown option with
+* `E_UNKNOWN_OPTION`: `ngraph`, `forceatlas2`, `spring` and `spring-electrical`.
+* `params.options` lists the names it ignored and `params.available` the names it takes.
+*/
+| "W_UNKNOWN_OPTION";
 
 // @public
 export const GREEN_SUCCESS: {
@@ -3018,6 +3035,15 @@ export class LayoutManager implements Manager {
 }
 
 // @public
+export interface LayoutWarningEvent {
+    code: GraphtyWarningCode;
+    layoutType: string;
+    params: Readonly<Record<string, unknown>>;
+    // (undocumented)
+    type: "layout-warning";
+}
+
+// @public
 export interface Limits {
     approximateAboveNodes: number;
     edgesDrawn: number;
@@ -3096,6 +3122,11 @@ class Node_2 {
     dragging: boolean;
     // (undocumented)
     dragHandler?: NodeDragHandler;
+    get drawnHalfExtents(): Readonly<{
+        x: number;
+        y: number;
+        z: number;
+    }>;
     get drawnRadius(): number;
     // @internal
     framingHalf(axis: "x" | "y" | "z"): number;
@@ -3257,6 +3288,12 @@ export interface NodeLabelCounts {
 
 // @public
 export interface NodeScreenPosition {
+    bounds: {
+        left: number;
+        top: number;
+        right: number;
+        bottom: number;
+    };
     radius: number;
     visible: boolean;
     x: number;
@@ -4491,6 +4528,7 @@ export interface SnapshotLayoutInput {
     readonly scope: NodeMask | null;
     readonly signal: AbortSignal;
     readonly stored: GraphSnapshot;
+    warn(warning: SnapshotLayoutWarning): void;
 }
 
 // @public
@@ -4506,6 +4544,14 @@ export interface SnapshotLayoutRegistration {
         readonly honoursWeights?: boolean;
         readonly scoped?: boolean;
     };
+}
+
+// @public
+export interface SnapshotLayoutWarning {
+    // (undocumented)
+    readonly code: GraphtyWarningCode;
+    // (undocumented)
+    readonly params: Readonly<Record<string, unknown>>;
 }
 
 // @public

@@ -215,7 +215,7 @@ Explore the graph systematically:
 | `dfs`     | Depth-first search   |
 
 ```typescript
-await graph.runAlgorithm("graphty", "bfs", { startNode: "node1" });
+await graph.runAlgorithm("graphty", "bfs", { algorithmOptions: { source: "node1" } });
 ```
 
 ### Shortest Path
@@ -231,8 +231,7 @@ Find optimal paths between nodes:
 
 ```typescript
 await graph.runAlgorithm("graphty", "dijkstra", {
-    source: "node1",
-    target: "node5",
+    algorithmOptions: { source: "node1", target: "node5" },
 });
 ```
 
@@ -279,8 +278,7 @@ Network flow analysis:
 
 ```typescript
 await graph.runAlgorithm("graphty", "max-flow", {
-    source: "source",
-    sink: "sink",
+    algorithmOptions: { source: "source", sink: "sink" },
 });
 ```
 

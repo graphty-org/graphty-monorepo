@@ -57,6 +57,12 @@ describe("committed reference scenes", () => {
         expect(scene.provenance.route).toBe(route);
         expect(scene.provenance.sourceSha256).toBe(sha256(`${here}../${sample.file}`));
         expect(scene.canCarry).toEqual(canCarry(route, PROPERTIES));
+        // A scene whose nodes all sit at one point drew no positions (gml2gv writes pos="0,0" for a
+        // node without coordinates); it must say so with a position gap, not stack the drawing.
+        const spots = new Set(scene.nodes.map((n) => `${String(n.x)},${String(n.y)}`));
+        if (scene.nodes.length > 1 && spots.size === 1) {
+            expect(scene.gaps.map((g) => g.property)).toContain("position");
+        }
     });
 });
 

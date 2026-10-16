@@ -11,3 +11,4 @@ the same bytes for the same seed; the committed files and their reference scenes
 | `gen-synthetic.py`      | `graphml/fidelity/synthetic-nodes.graphml`, `graphml/fidelity/synthetic-edges.graphml`, `gml/fidelity/synthetic-coverage.gml` (needs networkx) |
 | `dot_make_synthetic.py` | `dot/fidelity/synth-nodes.gv`, `dot/fidelity/synth-edges-clusters.gv`                                                                          |
 | `json_gen_synthetic.py` | the `json/fidelity/*synth*.json` files                                                                                                         |
+| `gen_repros.py`         | the `repro-*` files: small reproductions of defects found in corpus files whose licenses do not allow committing them                          |

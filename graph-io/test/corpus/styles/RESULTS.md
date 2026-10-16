@@ -7,10 +7,12 @@ values are those that differ from their property's most common value; opaque one
 copies values (an unexplained passthrough or the exceptions), exception ones from the exceptions rule alone.
 Tool values are elements drawn with the writing program's default.
 
-418 inputs, 415 with styles; at most 15 node and 16 edge rules.
+423 inputs, 420 with styles; at most 15 node and 16 edge rules.
 
 | Input | Import | Nodes | Edges | Node rules | Edge rules | Varying | Opaque | Exceptions | Approximated | Tool values | Declared selecting nothing | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| cx/fidelity/repro-locked-own-size.cx | ok | 12 | 12 | 4 | 2 | 22 | 0% | 0% | 0 | 216 | 0 |  |
+| cx/fidelity/repro-unplaced-boxes.cx | ok | 24 | 29 | 3 | 2 | 0 | - | - | 0 | 434 | 0 |  |
 | cx/fidelity/syn-bypass.cx | ok | 64 | 90 | 4 | 4 | 195 | 100% | 100% | 0 | 0 | 0 | W_STYLE_NOT_CARRIED |
 | cx/fidelity/syn-mappings.cx | ok | 96 | 140 | 10 | 8 | 1175 | 0% | 0% | 0 | 0 | 0 | W_STYLE_MAPPING_COLUMN_MISSING, W_STYLE_NOT_CARRIED |
 | cx/generated/graphty-written-block-other-graph.cx | ok | 75 | 108 | 8 | 3 | 102 | 8% | 8% | 0 | 0 | 0 | W_STYLE_BLOCK_IGNORED |
@@ -21,6 +23,7 @@ Tool values are elements drawn with the writing program's default.
 | cx/ndex-90f78bcd-1dd0-11ef-9621-005056ae23aa.cx | ok | 75 | 108 | 6 | 3 | 102 | 8% | 8% | 0 | 0 | 0 | W_STYLE_NOT_CARRIED |
 | cx/ndex-da86cc1f-9544-11e5-b435-06603eb7f303.cx.gz | ok | 2207 | 2282 | 1 | 1 | 0 | - | - | 0 | 62846 | 0 |  |
 | cx/ndex-f5fd4274-a8c1-11e8-9520-0ac135e8bacf.cx.gz | ok | 599 | 739 | 5 | 2 | 580 | 83% | 83% | 0 | 0 | 0 | W_STYLE_NOT_CARRIED |
+| cx2/fidelity/repro-shared-interaction.cx2 | ok | 16 | 16 | 3 | 3 | 0 | - | - | 0 | 224 | 0 | W_STYLE_MAPPING_COLUMN_MISSING |
 | cx2/fidelity/syn-bypass.cx2 | ok | 64 | 90 | 4 | 4 | 277 | 100% | 100% | 0 | 0 | 0 | W_STYLE_NOT_CARRIED |
 | cx2/fidelity/syn-mappings.cx2 | ok | 96 | 140 | 10 | 8 | 1175 | 0% | 0% | 0 | 0 | 0 | W_STYLE_MAPPING_COLUMN_MISSING, W_STYLE_NOT_CARRIED |
 | cx2/fidelity/wp1449-tlr.cx2 | ok | 280 | 159 | 13 | 8 | 988 | 47% | 47% | 0 | 0 | 0 | W_STYLE_NOT_CARRIED |
@@ -188,6 +191,7 @@ Tool values are elements drawn with the writing program's default.
 | gml/ImperialCollegeLondon_pyrealm__pmodel.gml | ok | 36 | 57 | 5 | 6 | 53 | 36% | 4% | 0 | 429 | 0 |  |
 | gml/TwelveYC_network-vi__metabolicpos.gml | ok | 453 | 2040 | 2 | 4 | 0 | - | - | 0 | 9066 | 0 |  |
 | gml/di-unipi-socc_dgLBF__germany50.gml | ok | 50 | 88 | 2 | 1 | 0 | - | - | 0 | 0 | 0 | W_STYLE_UNKNOWN_VALUE |
+| gml/fidelity/repro-groups-no-creator.gml | ok | 21 | 11 | 5 | 2 | 36 | 25% | 25% | 0 | 0 | 0 |  |
 | gml/fidelity/synthetic-coverage.gml | ok | 82 | 80 | 3 | 3 | 714 | 100% | 0% | 0 | 367 | 0 | W_STYLE_GRADIENT, W_STYLE_NOT_CARRIED, W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
 | gml/generated/cytoscape-interactions.gml | ok | 30 | 45 | 4 | 3 | 87 | 0% | 0% | 0 | 690 | 0 |  |
 | gml/generated/gephi-unquoted-creator.gml | ok | 40 | 70 | 2 | 5 | 87 | 0% | 0% | 0 | 346 | 0 |  |
@@ -419,6 +423,7 @@ Tool values are elements drawn with the writing program's default.
 | xgmml/BasicDataVizDemo.xgmml.gz | ok | 331 | 362 | 7 | 2 | 437 | 74% | 0% | 0 | 0 | 0 | W_STYLE_NOT_CARRIED |
 | xgmml/STRING-BreastCancer_expr.xgmml.gz | ok | 21 | 98 | 4 | 3 | 101 | 19% | 0% | 0 | 0 | 0 | W_STYLE_NOT_CARRIED |
 | xgmml/String_Network-breast_cancer.xgmml.gz | ok | 90 | 378 | 3 | 3 | 324 | 0% | 0% | 0 | 0 | 0 | W_STYLE_NOT_CARRIED |
+| xgmml/fidelity/repro-name-only-labels.xgmml | ok | 14 | 13 | 5 | 2 | 9 | 0% | 0% | 0 | 120 | 0 |  |
 | xgmml/fidelity/syn-bypass.xgmml.gz | ok | 67 | 110 | 2 | 8 | 197 | 88% | 29% | 0 | 420 | 0 | W_STYLE_NOT_CARRIED |
 | xgmml/fidelity/syn-mappings.xgmml.gz | ok | 96 | 140 | 5 | 6 | 1517 | 58% | 0% | 0 | 0 | 0 | W_STYLE_NOT_CARRIED |
 | xgmml/fidelity/wp4271-cy3-export.xgmml.gz | ok | 158 | 90 | 6 | 6 | 481 | 49% | 9% | 0 | 0 | 0 | W_STYLE_NOT_CARRIED |

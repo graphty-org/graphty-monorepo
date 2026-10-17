@@ -1,44 +1,43 @@
-# Design studio, tier 3: unified styles
+# Design studio, tier 3: first use and styling
 
-Tier 3 brings unified style layers into the real graphty app: one style layer that can style
-nodes and edges together, edited in one panel, replacing the separate node and edge style rows.
-The style panel mock is the starting concept, not the final design.
+This study asks whether a person who has never used graphty can open it, bring in data, and make
+the drawing say something: one color for everything, a subset picked by its data, sizes that
+follow a number, names on the drawing, ties styled apart from the people, clusters the program
+finds, many layers changed at once, a change taken back, and reading what someone else's color
+picks out.
+
+It studies the combined Style panel. A layer's Style area has a Node tab and an Edge tab; each tab
+opens with a collapsible picker of which nodes or ties the layer paints, built from condition
+cards typed by the column they read (a number range, category values, text that contains or starts
+with something, yes or no, has or has no value), all of which must hold. Selecting a folder or
+several layers shows the same tabs, picker and fields for all of them at once; a field whose
+layers differ shows a purple "Layer" token.
+
+## The files
+
+| File                                                         | What it holds                                                                |
+| ------------------------------------------------------------ | ---------------------------------------------------------------------------- |
+| [criteria.md](criteria.md)                                   | The bars that decide "done", the round plan, the preflight and the stop rule |
+| [tasks.md](tasks.md)                                         | The fourteen tasks (T37 to T50), the words they avoid, the dry run's detours |
+| [answers.md](answers.md)                                     | Graders only: success, success paths, reference values                       |
+| [roster.md](roster.md)                                       | The nine first-time personas and who takes which task                        |
+| `pilot-materials/`                                           | Hand pilots of four tasks that checked the answer key                        |
+| [bulk-edit-plan.md](bulk-edit-plan.md)                       | The design of editing several layers at once                                 |
+| [design.md](design.md), [style-catalog.md](style-catalog.md) | The Style panel's design and every style graphty-element supports            |
+
+The study files participants may bring are in `../tool/files/`. The scripts that score the bars
+are in `../tool/`: `score.mjs` (task success, false "done", wrong turns, time to the first styled
+graph), `bars.mjs --tier 3` (accessibility and words at rest on every tier 3 screen),
+`wording.mjs` (no prompt names what is on screen) and `tier3.test.mjs` (the tool reads tier 3's
+files; the style-tree dump catches a removal).
 
 ## How it runs
 
-1. **Build.** The studio builds the unified style panel in the real app, iterating on the open
-   questions below, and sends the owner screenshots along the way. The owner approves the UI
-   before anything else happens.
-2. **Study.** Only after that approval does the studio run its simulated user studies, expert
-   walkthroughs and screenshot audits on the approved UI, and fix what they find.
+The design studio's workflow runs it (`.claude/skills/design-studio/SKILL.md`), with `tier: 3`
+and `users: "first-time"`: review and freeze the criteria, freeze and serve one build, dry-run every
+task on it until a pass finds nothing new, then rounds of 56 simulated sessions with expert
+walkthroughs and a screenshot audit, scored by the scripts above and checked by two skeptics, with
+fixes between rounds.
 
-## Open questions for the build
-
-- When an option can have only one value (node shape, size, edge style, arrowheads), is "add"
-  the right control, or a toggle, or something else? Where adding is right, what should the add
-  menu look like (a color picker, a menu with icons, something else)?
-- How to keep the panel short when a layer styles both nodes and edges (accordions, tabs).
-- Whether to hide or disable the node or edge section when a layer does not touch it.
-- How the "vary by" field picker works on data sets with many fields, and which properties can
-  vary (color, size, shape, labels).
-- A visual way to set a gradient that keeps every feature of the current degree control.
-- Whether a group (such as a community folder) is itself a style layer, and what that means for
-  folders in general.
-- How a reader picks which elements a layer applies to: generically (by field value, by search,
-  by selection, by expression), not only through a few favored algorithms; and whether nodes and
-  edges are picked separately or together.
-- Whether the mock covers every style graphty-element supports (see the style catalog below).
-- How to handle the many text label options (a pop-out panel, presets, something else).
-
-## Inputs
-
-- The agreed model for unified style layers: `design/ui/unified-style-layers.md`, pull request
-  #2065 (branch `docs/unified-style-layers-design`).
-- The style panel organization and its live mock: `design/ui/style-panel-organization.md`,
-  `graphty/src/stories/mocks/StylePanelMock.stories.tsx` and `stylePanelMockData.ts`, pull
-  request #2098 (branch `mock/style-panel`).
-- Every style graphty-element has today: [style-catalog.md](style-catalog.md), a reference copy.
-  Its citations are to graphty-element source at the commit it names.
-
-This branch builds on the tier 1 and 2 app (pull request #1727), which is not merged yet; once it
-merges, this branch is updated from master.
+Every participant is simulated and every session starts on the empty start screen. A failure is
+strong evidence; a pass is weak until real people confirm it.

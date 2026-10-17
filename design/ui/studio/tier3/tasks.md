@@ -1,251 +1,320 @@
-**DRAFT -- not frozen.** These tasks run only after the owner approves the unified style panel. The
-wording check (`criteria.md`, preflight item 6) runs on the frozen build before the first round and
-may change any prompt; what it changes is written under the task.
+# Tier 3 tasks: first use and styling
 
-# Tier 3 tasks for participants
+Every participant in this study uses graphty for the **first time**. Each session starts on the
+app's empty start screen; the participant opens a ready-made sample or a file they brought, and
+then styles it. Each task asks for a look on the drawing, never for a control. Every task whose
+wording could lead the way runs on two domains' data (halves A and B), so a pass cannot come from
+one domain's vocabulary.
 
-Tier 3 is the styling work of a **returning** user: someone who has opened files, run analyses and
-colored and sized dots before, and now comes back to make a figure say something. Each task asks
-for a look, never for a control. Every task that depends on a word runs on two datasets, so an
-answer cannot come from one domain's vocabulary or from memory of one sample.
-
-Success definitions, success paths and reference values: `answers.md` (graders only). Bars and the
-round plan: `criteria.md`. Participants, their earlier sessions and their starts: `roster.md`.
+Success definitions, success paths and reference values: `answers.md` (graders only). Bars and
+the round plan: `criteria.md`. Participants and which tasks they take: `roster.md`.
 
 ## Rules for whoever runs a session
 
-Every rule of tier 2 (`../tier2/tasks.md`, "Rules for whoever runs a session") holds, with these
-changes:
+- **A participant gets** only the briefing `real.mjs --brief` writes: their persona file, the line
+  in `roster.md` that says this is their first time, the **Prompt** below word for word, their
+  start command, and the tool's participant instructions (`../tool/README.md`, "A session",
+  "Steps", "Names, dialogs and lists"). Never this file, the answers, the criteria or the roster.
+- **Every session starts `empty`**: the start screen of a first-time visitor, with clean browser
+  storage. Keyboard-only Sam starts `empty --keys`, which refuses every pointer step.
+- **Files** a prompt says the participant brought are in `../tool/files/` and reach the app by the
+  tool's `--upload` (the participant names the file; the tool finds it there): `volunteers.graphml`
+  (a food bank's 24 volunteers), `sources.graphml` (a reporter's 24 sources), `neighbors.csv` (16
+  residents of one street), `yeast-galactose.graphml` (331 yeast genes), and two saved projects,
+  `lesmis-poster.graphty.json` and `volunteers-thanks.graphty.json`.
+- **A follow-up** (T49 only) is given by the tool at the participant's first `--end`, word for
+  word; the participant never sees it before.
+- **Step notes** are one or two sentences, in character. No step cap: a session ends when the
+  participant is done, gives up or stops making progress.
 
-- **A participant gets:** their persona file, their earlier sessions from `roster.md` word for word,
-  the **Prompt** below word for word, the tool's participant instructions (`../tool/README.md`, "A
-  session" and "Steps"), and nothing else.
-- **Prompts start with "You have used this program a few times"**, and open work is described as
-  the participant's own ("is already open").
-- **Starts** are setups from `../rounds/tier-3/setups/` (`roster.md`), which the participant never
-  sees. No task starts empty: every task is about changing the look of work already open.
-- **Files** are in `../tool/files/`. Tier 3 uses `friends.csv` and `yeast-galactose.graphml`
-  (331 yeast genes from Cytoscape's galactose demo, with three expression columns) beside the
-  samples Les Miserables, Zachary's karate club, College football and Florentine families.
-- **Words.** No prompt uses a word a target control shows, nor an interface word (button, menu,
-  panel, tab, layer, folder, field). Each task lists the words it avoids and any word kept on
-  purpose. These words are avoided in every task: layer, style, vary, scale, rule, condition,
-  which elements, everything, selected, hovered, folder, clear, reset, remove, override, palette,
-  gradient, ramp, effect, label (as a verb), select.
+## Words
+
+No prompt uses a word a control on the success path shows, nor an interface word. Checked by
+`../tool/wording.mjs` against every screen `../tool/bars.mjs --tier 3` measures; each word it
+finds is reworded or kept on purpose below with its reason.
+
+**Avoided in every task:** layer, style, folder, condition, card, which, node, edge, fill, size,
+shape, text, label, value, mixed, group, everything, selected, hovered, undo, analyze, run,
+louvain, community, match, contains, starts, between, highest, any, add, find, data, graph,
+legend, tab, panel, button, menu, field, filter, select, edit, done.
+
+**Kept in every task:** `color` -- the everyday word for the job; whoever goes straight to a Color
+line from it is recorded, and T49 and T50 test color without asking for it. `character`, `member`,
+`team`, `family`, `chapter`, `ready-made`, `network`, `les`, `miserables`, `zachary`, `karate`,
+`club`, `college`, `football`, `florentine` -- the samples' own names and nouns, which the start
+screen prints to describe them; they name the data, not a control. `file` -- what the participant
+brought is a file, and no everyday word replaces it. `volunteers`, `sources`, `neighbors`,
+`yeast-galactose`, `graphml`, `csv`, `lesmis-poster`, `volunteers-thanks`, `graphty`, `json` -- the
+names of the files the participant brought, which the app shows once a file is read. `name` -- the everyday word; the data's own
+column is also called `name`, and a participant who picks it from the prompt is recorded. `tie` --
+the study's word for a link; the app never shows it.
 
 ## The tasks
 
-| Task | What it is about                                         | A                     | B                     |
-| ---- | -------------------------------------------------------- | --------------------- | --------------------- |
-| T25  | Color by group, then recolor one group                   | Les Miserables        | College football      |
-| T26  | A gradient over a count, with a cap                      | Les Miserables        | Zachary's karate club |
-| T27  | A route that stands out                                  | Florentine families   | running club          |
-| T28  | Elements picked by a rule: odd-numbered ids              | Zachary's karate club | College football      |
-| T29  | Elements picked by a rule: the letters in a name         | Les Miserables        | yeast genes           |
-| T30  | Two looks kept together and switched off in one go       | Les Miserables        | Zachary's karate club |
-| T31  | The base look and a clicked element on a dark background | Les Miserables        | Florentine families   |
-| T32  | Names on the drawing, the top five bold                  | Les Miserables        | Zachary's karate club |
-| T33  | A shape for each group, for print in black and white     | College football      | Les Miserables        |
-| T34  | Groups found again, the hand-made color kept             | Les Miserables        | Zachary's karate club |
-| T35  | One look stops covering another (unsetting)              | Les Miserables        | Zachary's karate club |
-| T36  | An expression figure (genomics personas)                 | yeast genes           | --                    |
+| Task | What it is about                                  | A                  | B                     |
+| ---- | ------------------------------------------------- | ------------------ | --------------------- |
+| T37  | First look at a ready-made network                | Les Miserables     | Zachary's karate club |
+| T38  | Your own file, then a kind of person picked out   | volunteers.graphml | sources.graphml       |
+| T39  | One color for the whole drawing                   | Les Miserables     | College football      |
+| T40  | Picked out by letters in a name                   | Les Miserables     | yeast genes           |
+| T41  | Picked out by two facts at once (yes/no, missing) | volunteers.graphml | sources.graphml       |
+| T42  | Picked out by a number at or over a line          | volunteers.graphml | sources.graphml       |
+| T43  | Bigger for more                                   | volunteers.graphml | sources.graphml       |
+| T44  | Names on the drawing                              | Les Miserables     | volunteers.graphml    |
+| T45  | Ties styled apart from the people                 | neighbors.csv      | Les Miserables        |
+| T46  | Clusters found by the program, one made red       | Les Miserables     | College football      |
+| T47  | Every cluster changed at once, colors kept        | Les Miserables     | College football      |
+| T48  | Cluster colors kept on only some people           | volunteers.graphml | sources.graphml       |
+| T49  | Put it back the way it was                        | Les Miserables     | Zachary's karate club |
+| T50  | What a colleague's color picks out, and why       | lesmis-poster      | volunteers-thanks     |
 
-### T25. Each group its own color, one group in red (two datasets)
+Card types the tasks reach: text (T40, T50 A), category (T38, T45 A), yes/no and "has no value"
+together (T41, T48), number at or over a line (T42, T45 B, T50 B). Several layers picked by data
+at once: T48. A bulk field whose layers differ (the clusters' colors): T47. Undo: T49.
 
-- **Prompt A (Les Miserables):** "You have used this program a few times. The ready-made network of
-  characters from Les Miserables is already open. For a poster, you want the characters drawn in
-  the circles they move in, each circle in its own color, so the circles can be told apart. Then
-  make the circle Javert moves in bright red, while every other circle keeps its own color. Tell us
+### T37. A first look (two datasets)
+
+- **Prompt A (Les Miserables):** "This is your first time using this program, and it has just
+  opened. It comes with a few ready-made networks. Open the one about the characters of Les
+  Miserables and have a first look around. Tell us how many characters it holds, how many ties
+  link them, and which character looks the most connected."
+- **Prompt B (karate club):** "This is your first time using this program, and it has just
+  opened. It comes with a few ready-made networks. Open the one about Zachary's karate club and
+  have a first look around. Tell us how many members it holds, how many ties link them,
+  and which member looks the most connected."
+- **Measures:** the first minutes before any styling: where a newcomer looks first, and whether the
+  counts and the most connected one are read from the screen.
+- **Kept on purpose:** `connected` -- the everyday word; the app's run is named Degree, which the
+  prompt avoids.
+
+### T38. Your own file, then one kind of person (two datasets)
+
+- **Prompt A (volunteers):** "This is your first time using this program, and it has just opened.
+  A colleague exported the food bank's volunteer list from another program as volunteers.graphml,
+  and you have it on this computer. Bring it into the program and tell us how many people and how
+  many ties it holds. Then make every board member and every staff member blue on the drawing, and
+  leave the volunteers as they are."
+- **Prompt B (sources):** "This is your first time using this program, and it has just opened. A
+  colleague exported your sources for the waterfront zoning story from another program as
+  sources.graphml, and you have it on this computer. Bring it into the program and tell us how many
+  sources and how many ties it holds. Then make every company and every agency blue on the drawing,
+  and leave the people as they are."
+- **Card type reached:** category (the file's `role` or `kind` column).
+- **Kept on purpose:** `board`, `staff`, `volunteer`, `company`, `agency`, `people`, `person` -- the
+  file's own values, which the participant must find on screen to pick by.
+
+### T39. One color for the whole drawing (two datasets)
+
+- **Prompt A (Les Miserables):** "This is your first time using this program, and it has just
+  opened. Open the ready-made network of the characters of Les Miserables. For a printed handout,
+  make every character dark green."
+- **Prompt B (College football):** "This is your first time using this program, and it has just
+  opened. Open the ready-made network of American college football teams. For your sports page's
+  colors, make every team orange."
+- **Measures:** the time to the first styled graph (`criteria.md`, bar 4) on its simplest route.
+
+### T40. Picked out by letters in a name (two datasets)
+
+- **Prompt A (Les Miserables):** "This is your first time using this program, and it has just
+  opened. Open the ready-made network of the characters of Les Miserables. Mark every married woman
+  -- every character whose name has 'Mme' in it -- in purple on the drawing, and leave everyone
+  else as they are. Tell us how many there are."
+- **Prompt B (yeast genes):** "This is your first time using this program, and it has just opened.
+  Your network of 331 yeast genes is on this computer as yeast-galactose.graphml. Bring it into the
+  program. Mark every gene of the galactose pathway -- every gene whose name begins with GAL -- in
+  purple on the drawing, and leave every other gene as it is. Tell us how many there are."
+- **Card type reached:** text ("contains" or "starts with").
+- **Kept on purpose:** `gene`, `yeast`, `galactose`, `mme`, `gal` -- the data's own words.
+
+### T41. Two facts at once (two datasets)
+
+- **Prompt A (volunteers):** "This is your first time using this program, and it has just opened.
+  The food bank's volunteer list, volunteers.graphml, is on this computer. Bring it into the
+  program. Before the summer drive you must call everyone who has finished food-safety training,
+  and some of them you have no way to call: make red every person who has finished the training and has no phone
+  number on file. Everyone else stays as they are. Tell us their names."
+- **Prompt B (sources):** "This is your first time using this program, and it has just opened.
+  Your sources for the waterfront zoning story, sources.graphml, are on this computer. Bring them
+  into the program. Make red every source who agreed to speak on the record but for whom you have
+  no email address. Everyone else stays as they are. Tell us their names."
+- **Card types reached:** yes/no, and "has no value" on a text column, combined.
+- **Kept on purpose:** `training`, `phone`, `record`, `email` -- the file's own column words.
+
+### T42. At or over a line (two datasets)
+
+- **Prompt A (volunteers):** "This is your first time using this program, and it has just opened.
+  The food bank's volunteer list, volunteers.graphml, is on this computer. Bring it into the
+  program. Make orange everyone who gave 20 or more hours this quarter, and leave everyone else as
+  they are. Tell us how many people that is."
+- **Prompt B (sources):** "This is your first time using this program, and it has just opened.
+  Your sources for the waterfront zoning story, sources.graphml, are on this computer. Bring them
+  into the program. Make orange every source who gave 10,000 dollars or more in political
+  donations, and leave everyone else as they are. Tell us how many that is."
+- **Card type reached:** number (a range with its low end set).
+- **Kept on purpose:** `hours`, `donations`, `quarter` -- the file's own words.
+
+### T43. Bigger for more (two datasets)
+
+- **Prompt A (volunteers):** "This is your first time using this program, and it has just opened.
+  The food bank's volunteer list, volunteers.graphml, is on this computer. Bring it into the
+  program. For the annual report, draw each person bigger the more hours they gave this quarter, so
+  the busiest stand out at a glance. Tell us who gave the most."
+- **Prompt B (sources):** "This is your first time using this program, and it has just opened.
+  Your sources for the waterfront zoning story, sources.graphml, are on this computer. Bring them
+  into the program. Draw each source bigger the more they gave in political donations, so the
+  biggest donors stand out at a glance. Tell us who gave the most."
+- **Measures:** whether a newcomer finds a way to make a look follow a number.
+- **Kept on purpose:** `hours`, `donations` -- as T42.
+
+### T44. Names on the drawing (two datasets)
+
+- **Prompt A (Les Miserables):** "This is your first time using this program, and it has just
+  opened. Open the ready-made network of the characters of Les Miserables. Put every character's
+  name on the drawing, so that a reader can spot Cosette by eye."
+- **Prompt B (volunteers):** "This is your first time using this program, and it has just opened.
+  The food bank's volunteer list, volunteers.graphml, is on this computer. Bring it into the
+  program. Put every person's name on the drawing, so that the board can spot Lucy Grant by eye."
+- **Not scored as new findings:** a new name drawn too small at the default framing, and the
+  default font naming no fallback; both are open owner decisions (`../owner-decisions.md`).
+- **Kept on purpose:** `cosette`, `lucy`, `grant` -- data; `board` -- the food bank's board, and a
+  value of the file's `role` column.
+
+### T45. Ties apart from the people (two datasets)
+
+- **Prompt A (neighbors):** "This is your first time using this program, and it has just opened.
+  You keep a list of who knows whom on your street, neighbors.csv, on this computer. Bring it into
+  the program. Make the family ties thick and red so they stand out, and leave the people and every
+  other tie as they are."
+- **Prompt B (Les Miserables):** "This is your first time using this program, and it has just
+  opened. Open the ready-made network of the characters of Les Miserables. Make every tie linking
+  two characters who share 5 or more chapters thick and black, and leave the characters and every
+  other tie as they are."
+- **Card types reached:** category on a tie (A), number on a tie (B).
+- **Kept on purpose:** `neighbors`, `street`, `share` -- data; `chapters` -- data (the ties' own
+  column is `shared_chapters`).
+
+### T46. Clusters found by the program, one in red (two datasets)
+
+- **Prompt A (Les Miserables):** "This is your first time using this program, and it has just
+  opened. Open the ready-made network of the characters of Les Miserables. Have the program work
+  out the circles of characters who appear together, each circle drawn in its own color. Then make
+  the circle Javert belongs to bright red, while every other circle keeps its own color. Tell us
   how many characters are in Javert's circle."
-- **Prompt B (College football):** "You have used this program a few times. A network of American
-  college football teams is already open: two teams are tied when they played each other in the
-  2000 season, and every team carries a number for its conference. For a sports page, draw each
-  conference in its own color, so the conferences can be told apart. Then make the conference
-  Florida State plays in bright red, while every other conference keeps its own color. Tell us how
-  many teams are in that conference."
-- **Start:** `lesmis.txt` (A), `football.txt` (B): the sample open, nothing run.
-- **Suits:** everyone; the analysts and the genomics persona above all.
-- **Why two datasets:** A needs a run to find the circles; B has the groups in the data. The same
-  category rows and the same one-group recolor must serve both.
-- **Words avoided:** community, communities, group (the run's values are named "Group 1" to "Group
-  6"), Louvain, category, value, "one color per value", new layer. "color" is kept: it is the
-  everyday word for the job, and a participant who goes straight to a Color row from it is recorded.
+- **Prompt B (College football):** "This is your first time using this program, and it has just
+  opened. Open the ready-made network of American college football teams. Have the program work
+  out clusters of teams that play each other most often, each cluster drawn in its own color --
+  not the conferences in the file, the program's own clusters. Then make Nebraska's cluster
+  bright red, while every other cluster keeps its own color. Tell us how many teams are in it."
+- **Kept on purpose:** `javert`, `nebraska`, `conference` -- data.
 
-### T26. Pale to dark by how connected (two datasets)
+### T47. Every cluster at once, colors kept (two datasets)
 
-- **Prompt A (Les Miserables):** "You have used this program a few times. The ready-made network of
-  characters from Les Miserables is already open. For an essay you want each character's color to
-  say how many other characters they share chapters with: pale for the fewest, dark for the most.
-  Most characters share chapters with only a few others, so make everyone who shares with 10 or
-  more count as fully dark, and let the differences among the rest show. Tell us how many
-  characters end up fully dark."
-- **Prompt B (karate club):** "You have used this program a few times. The ready-made network of
-  Zachary's karate club is already open; each tie is two members who trained together. You want
-  each member's color to say how many others they trained with: pale for the fewest, dark for the
-  most. Make everyone with 6 or more training partners count as fully dark, and let the
-  differences among the rest show. Tell us how many members end up fully dark."
-- **Start:** `lesmis.txt` (A), `karate.txt` (B).
-- **Words avoided:** degree, connections (the run's row is named "Connections"), gradient, ramp,
-  clamp, range, domain, maximum, scale, steps.
+- **Prompt A (Les Miserables):** "This is your first time using this program, and it has just
+  opened. Open the ready-made network of the characters of Les Miserables. Have the program work
+  out the circles of characters who appear together, each circle in its own color. Then make the
+  characters of every circle twice as big as they are now, while every circle keeps its own color."
+- **Prompt B (College football):** "This is your first time using this program, and it has just
+  opened. Open the ready-made network of American college football teams. Have the program work
+  out clusters of teams that play each other most often, each cluster in its own color. Then draw
+  the teams of every cluster as cubes instead of balls, while every cluster keeps its own color."
+- **Route under study:** whether the clusters are changed together, and whether the field that
+  holds a different color for each cluster is left alone. A route through the whole drawing's own
+  look also passes and is recorded.
+- **Kept on purpose:** `cube`, `ball` -- everyday words; the app's names for these looks are Box
+  and Icosphere, which the prompt avoids.
 
-### T27. The chain that stands out (two datasets)
+### T48. Cluster colors on only some people (two datasets)
 
-- **Prompt A (Florentine families):** "You have used this program a few times. The ready-made
-  network of marriages between the leading families of Renaissance Florence is already open. Work
-  out how a message passes from the Strozzi to the Pazzi through as few marriages as possible, and
-  make that chain stand out for a slide: its families and the marriages between them in orange,
-  with those marriages drawn thicker than the rest. Every other family and marriage stays as it
-  is."
-- **Prompt B (running club):** "You have used this program a few times. Your running club's list,
-  friends.csv, is already open. Work out the chain of introductions from Chloe to Milo with the
-  fewest people in between, and make that chain stand out for a flyer: its people and the ties
-  between them in orange, with those ties drawn thicker than the rest. Everyone else stays as they
-  are."
-- **Start:** `florentine.txt` (A), `friends.txt` (B).
-- **Words avoided:** path, route, shortest, highlight, width, line, edge, "on the route". Finding
-  the chain was measured in tier 2 (T18); here it is the step before the styling being measured.
+- **Prompt A (volunteers):** "This is your first time using this program, and it has just opened.
+  The food bank's volunteer list, volunteers.graphml, is on this computer. Bring it into the
+  program. Have the program work out the clusters of people who work shifts together, each cluster
+  in its own color. Then keep those colors only on people who have finished food-safety training;
+  everyone else looks as they did before."
+- **Prompt B (sources):** "This is your first time using this program, and it has just opened.
+  Your sources for the waterfront zoning story, sources.graphml, are on this computer. Bring them
+  into the program. Have the program work out clusters of sources that deal with each other, each
+  cluster in its own color. Then keep those colors only on sources who agreed to speak on the
+  record; everyone else looks as they did before."
+- **Route under study:** picking by data across several clusters at once.
+- **Kept on purpose:** `training`, `record` -- data.
 
-### T28. Every odd number (two datasets)
+### T49. Put it back (two datasets)
 
-- **Prompt A (karate club):** "You have used this program a few times. The ready-made network of
-  Zachary's karate club is already open; each member is known only by a number. The club trains in
-  two shifts, and members with odd numbers train on Mondays. Make every Monday member green on the
-  drawing and leave everyone else as they are. Tell us how many Monday members there are."
-- **Prompt B (College football):** "You have used this program a few times. The network of American
-  college football teams is already open. In the file every team has a number as well as a name.
-  The league draws lots by that number, and teams with odd numbers play at home first. Make every
-  home-first team green on the drawing and leave the others as they are. Tell us how many there
-  are."
-- **Start:** `karate.txt` (A), `football.txt` (B).
-- **Words avoided:** id, pattern, matches, ends with, where, find, rule, condition, filter.
+- **Prompt A (Les Miserables):** "This is your first time using this program, and it has just
+  opened. Open the ready-made network of the characters of Les Miserables, and make every
+  character red."
+- **Prompt B (karate club):** "This is your first time using this program, and it has just opened.
+  Open the ready-made network of Zachary's karate club, and make every member yellow."
+- **Follow-up** (given by the tool at the first `--end`):
+    - A: "Your editor liked the drawing better the way it was when you opened it. Put it back exactly
+      as it was."
+    - B: "The coach liked the drawing better the way it was when you opened it. Put it back exactly
+      as it was."
+- **Measures:** how a newcomer reverses a change: the arrow at the top, Control+Z, typing the old
+  color back, or removing what they made. Words avoided as well: undo, revert, reset, restore,
+  default, original.
+- **Kept on purpose:** `back` -- "put it back" is the everyday phrase for the job; the only "Back"
+  on screen is the arrow that returns the analysis list, which no route here needs.
 
-### T29. Every name with some letters in it (two datasets)
+### T50. What a colleague's color picks out (two datasets)
 
-- **Prompt A (Les Miserables):** "You have used this program a few times. The ready-made network of
-  characters from Les Miserables is already open. Mark every married woman -- every character
-  whose name has 'Mme' in it -- in purple on the drawing, and leave everyone else as they are. Tell
-  us how many there are."
-- **Prompt B (yeast genes):** "You have used this program a few times. Your network of yeast genes,
-  yeast-galactose.graphml, is already open. Mark every gene of the galactose pathway -- every gene
-  whose name begins with GAL -- in purple on the drawing, and leave every other gene as it is. Tell
-  us how many there are."
-- **Start:** `lesmis.txt` (A), `yeast.txt` (B).
-- **Words avoided:** contains, starts with, matches, find, search, where, rule, condition, name
-  (as a column name: "name" is kept in "whose name", the everyday phrase; a participant who picks
-  the `name` column straight from it is recorded).
-
-### T30. Two looks that go together (two datasets)
-
-- **Prompt A (Les Miserables):** "You have used this program a few times. Les Miserables is open
-  with work from last time: the married women (Mme) in purple and the unmarried ones (Mlle) in
-  pink. For a talk you want those two looks kept together, under the name 'Women', so you can
-  switch both off and on in one go. Set that up, switch them off once to check, and switch them
-  back on."
-- **Prompt B (karate club):** "You have used this program a few times. The karate club is open with
-  work from last time: the Monday members in green and the Tuesday members in blue. You want those
-  two looks kept together, under the name 'Shifts', so you can switch both off and on in one go.
-  Set that up, switch them off once to check, and switch them back on."
-- **Start:** `lesmis-women.txt` (A), `karate-shifts.txt` (B).
-- **Words avoided:** folder, group, layer, hide, show, eye, visible, add, new.
-
-### T31. A dark room (two datasets)
-
-- **Prompt A (Les Miserables):** "You have used this program a few times. Les Miserables is open,
-  colored by the circles characters move in. You will present it on a projector in a dark room.
-  Make the background black and every tie between characters a light gray, so the ties show. Then
-  click Javert: he must still clearly stand out from the characters around him. If he does not,
-  change how a clicked character looks until he does."
-- **Prompt B (Florentine families):** "You have used this program a few times. The Florentine
-  marriages network is open, colored by how many marriages each family made. It will be shown on a
-  dark screen. Make everything behind the families black, and every marriage a light gray so the
-  marriages show. Then click the Medici: they must still clearly stand out from the families
-  around them. If they do not, change how a clicked family looks until it does."
-- **Start:** `lesmis-circles.txt` (A), `florentine-ranked.txt` (B).
-- **Words kept on purpose:** A says "background", a word of Graph settings; B says "everything
-  behind the families", which names no control. The two halves together show whether the word
-  leads the way; a pass on A with a fail on B is reported as a wording echo.
-- **Words avoided:** selected, selection, highlight, halo, ring, glow, everything (B uses it as a
-  plain word in "everything behind"; recorded if a participant goes to the Everything row from it),
-  edge, line, color of the edges.
-
-### T32. Names that a room can read (two datasets)
-
-- **Prompt A (Les Miserables):** "You have used this program a few times. Les Miserables is open.
-  For a slide, put every character's name on the drawing, large enough to read from the back of a
-  room, and make the names of the five characters who share chapters with the most others bold."
-- **Prompt B (karate club):** "You have used this program a few times. The karate club is open. For
-  a handout, put each member's number on the drawing, large enough to read when printed, and make
-  the numbers of the five members with the most training partners bold."
-- **Start:** `lesmis.txt` (A), `karate.txt` (B).
-- **Words avoided:** label, text, font, weight, size, top, rank, degree, connections, look.
-
-### T33. Readable without color (two datasets)
-
-- **Prompt A (College football):** "You have used this program a few times. The football network is
-  open, each conference in its own color. The journal prints in black and white. Keep the colors,
-  and also give each conference its own shape, so readers can tell the conferences apart without
-  color."
-- **Prompt B (Les Miserables):** "You have used this program a few times. Les Miserables is open,
-  colored by the circles characters move in. The book prints in black and white. Keep the colors,
-  and also draw each circle with its own symbol, so readers can tell the circles apart without
-  color."
-- **Start:** `football-conferences.txt` (A), `lesmis-circles.txt` (B).
-- **Words kept on purpose:** A says "shape", the name of the property; B says "symbol", which names
-  no control. A pass on A with a fail on B is reported as a wording echo.
-- **Words avoided:** vary, by, per value, scheme, category, sphere, cube, icon.
-
-### T34. Find the circles again, keep the red (two datasets)
-
-- **Prompt A (Les Miserables):** "You have used this program a few times. Les Miserables is open
-  with work from last time: the circles characters move in, each in its own color, and Javert's
-  circle made bright red. A colleague asks for smaller, finer circles. Find the circles again that
-  way, and make sure Javert's circle is still the bright red one afterwards. Tell us how many
-  characters are in Javert's circle now."
-- **Prompt B (karate club):** "You have used this program a few times. The karate club is open
-  with work from last time: the groups that train together, each in its own color, and the group
-  of member 34 made bright red. The coach asks for smaller, finer groups. Find the groups again
-  that way, and make sure member 34's group is still the bright red one afterwards. Tell us how
-  many members are in it now."
-- **Start:** `lesmis-javert-red.txt` (A), `karate-34-red.txt` (B).
-- **Words avoided:** re-run, rerun, run again, resolution, community, Louvain, settings, update.
-
-### T35. Back to the group's own color (two datasets)
-
-- **Prompt A (Les Miserables):** "You have used this program a few times. Les Miserables is open
-  with work from last time: the circles characters move in, each in its own color, and the most
-  connected characters made bigger and orange. Now you want those characters to show the color of
-  their own circle, like everyone else, while staying bigger. Change that, and keep the circles'
-  colors as they are."
-- **Prompt B (karate club):** "You have used this program a few times. The karate club is open with
-  work from last time: the groups that train together, each in its own color, and the members with
-  the most training partners made bigger and orange. Now you want those members to show the color
-  of their own group, like everyone else, while staying bigger. Change that, and keep the groups'
-  colors as they are."
-- **Start:** `lesmis-key-people.txt` (A), `karate-key-people.txt` (B).
-- **Why this task:** it is the owner's first question. The orange is a value set on a layer above
-  the groups' colors; the only way back to the groups' colors without losing the size is to unset
-  that one value.
-- **Words avoided:** clear, unset, remove, delete, reset, undo, override, cover, inherit, default,
-  layer, beneath.
-
-### T36. The expression figure (one dataset, genomics personas)
-
-- **Prompt:** "You have used this program a few times. Your network of 331 yeast genes,
-  yeast-galactose.graphml, is already open. It has three columns of expression log ratios, one per
-  knockout. For Figure 3, color every gene by its log ratio in the gal1 knockout: blue for genes
-  that went down, white at zero, red for genes that went up, with zero exactly in the middle so
-  that a small change reads pale. Check that the key on the figure says so."
-- **Start:** `yeast.txt`.
-- **Suits:** the two genomics personas only; it is the job their persona files name first.
-- **One dataset, on purpose:** no other study file carries signed values. The task is reported per
-  persona and is not used to judge wording.
-- **Words avoided:** diverging, midpoint, center, palette, gradient, scale, legend (the persona's
-  word "key" is kept).
+- **Prompt A (lesmis-poster):** "This is your first time using this program, and it has just
+  opened. A colleague sent you their project, lesmis-poster.graphty.json, which is on this
+  computer. Open it. Some characters are drawn in orange. Tell us which characters are orange and
+  what they have in common that made the project draw them orange."
+- **Prompt B (volunteers-thanks):** "This is your first time using this program, and it has just
+  opened. A colleague sent you their project, volunteers-thanks.graphty.json, which is on this
+  computer. Open it. Some people are drawn in green. Tell us how many people are green and what
+  they have in common that made the project draw them green."
+- **Measures:** finding what one look applies to, and reading why, from a project the participant
+  did not make.
+- **Kept on purpose:** `project` -- what the colleague sent is a project file; the start screen
+  says "Open project or file", and a newcomer has no other word for it.
 
 ## Detours the dry run walks (facilitator side, never shown to a participant)
 
-Written after the owner's approval, from the pilots of the approved build: for each task, the
-success path by pointer and by keyboard, and the two or three commonest wrong turns a person who
-does not know the path would try first (for example, on T35: deleting the orange layer, setting the
-orange layer's color to one of the groups' colors, hiding the orange layer; on T25: making a new
-layer by hand for Javert's circle; on T28: typing "odd" into find).
+The dry run walks each task's success path (`answers.md`), then these detours, then the success
+path again by keyboard only. They come from the pilot walks of the combined Style panel
+(`build/walk-p1/` to `walk-p3/`), the bulk and picker pilots (`build/pilot-bulk/`,
+`build/pilot-bulk-rewalk/`) and earlier tiers' commonest wrong turns.
+
+- **Every task from an empty start:** the consent notice left open while working; a sample opened
+  from the main menu's "Open sample" instead of the start screen; Control+O pressed with a graph
+  already open, which adds the file to the open graph ("Add to ...") instead of starting anew.
+- **T38, T41, T42, T43, T44 B, T48 (a file brought):** the file opened through the start screen's
+  "New from data..." instead of "Open project or file"; Cancel on the read-the-file page, then a
+  second try.
+- **T39:** a new layer with no condition instead of the starting layer's color; the color typed as
+  a word ("dark green") into the hex box; the color set on the Edge tab first.
+- **T40 A, T50 A:** typing straight after adding a card (focus lands on the card's first control,
+  the "contains" menu); the find box used instead ("Mme" typed there, then styling what it
+  selected); "Use the selected nodes".
+- **T41, T48:** the yes/no card left on its default; "has no value" looked for in the add menu
+  instead of the card's own menu; an unfinished card left without a value and the picker closed
+  (it disappears with no notice); Escape inside the picker.
+- **T42:** the number typed into the slider's high end; "Highest" chosen instead of a range.
+- **T43:** a fixed bigger size on a picked subset instead of a size that follows the number; the
+  link icon beside Size opened, then closed with Escape.
+- **T44:** the names put on through the Text "+" with no column picked; labels made larger after.
+- **T45:** the Node tab's color changed instead of the Edge tab's; a new layer that styles both
+  kinds with the node condition expected to carry to its ties (it does not: a node condition added
+  after the layer was made leaves its ties unpicked); width typed after the default (8) was not
+  replaced.
+- **T46, T47:** the run's layers edited one by one instead of together; the folder's color field
+  (the purple "Layer" token) clicked and set to one color, which paints every cluster the same; a
+  new layer made by hand for Javert's circle; the conferences in the file used for B; "Nebraska" typed into the find box (the file's
+  team names have no spaces: "Florida State" finds nothing, "Florida" finds the University of
+  Florida).
+- **T47:** the starting layer's size changed instead of the clusters' (passes, recorded).
+- **T48:** a yes/no card added to one cluster only; a new layer above the clusters that paints
+  everyone else back to the old color.
+- **T49:** Control+Z pressed several times past the color change; the red typed over with the old
+  hex; the layer they made deleted.
+- **T50:** the legend read without opening the layer; the picker opened and closed again; Values
+  read instead of the picker.
+
+## Change log
+
+- 2026-10-17: Written for the first-use styling study on the combined Style panel (Node and Edge
+  tabs, typed condition cards, bulk editing of several layers). Replaces the earlier tier 3 drafts
+  for returning users, whose tasks started from saved work; they are kept in git history only.

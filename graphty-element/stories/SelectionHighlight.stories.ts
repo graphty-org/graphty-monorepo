@@ -53,7 +53,7 @@ interface HighlightArgs {
 function render(args: HighlightArgs): Element {
     const element = document.createElement("graphty-element");
 
-    // Stepped before the first frame under Chromatic, so the snapshot is the same picture twice.
+    // Stepped before the first frame under visual capture, so the snapshot is the same picture twice.
     setLayoutPreSteps(element, 2000);
 
     if (args.selectionStyle) {

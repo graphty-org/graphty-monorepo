@@ -65,7 +65,7 @@ export function readPersistedAccelerationSettings(): Partial<PersistedAccelerati
     let raw: string | null = null;
 
     try {
-        raw = window.localStorage.getItem(ACCELERATION_SETTINGS_STORAGE_KEY);
+        raw = globalThis.localStorage.getItem(ACCELERATION_SETTINGS_STORAGE_KEY);
     } catch {
         return {};
     }
@@ -102,7 +102,7 @@ export function readPersistedAccelerationSettings(): Partial<PersistedAccelerati
  */
 export function writePersistedAccelerationSettings(settings: PersistedAccelerationSettings): void {
     try {
-        window.localStorage.setItem(ACCELERATION_SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+        globalThis.localStorage.setItem(ACCELERATION_SETTINGS_STORAGE_KEY, JSON.stringify(settings));
     } catch {
         // Deliberately ignored: see the JSDoc above.
     }

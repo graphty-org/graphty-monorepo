@@ -13,7 +13,7 @@
 
 import { type AttributeTable } from "../columns/table.js";
 
-export type { AttributeTable };
+export type { AttributeTable } from "../columns/table.js";
 
 // ============================================================ scalars, sentinels, typed-array aliases
 

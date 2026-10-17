@@ -21,6 +21,7 @@ import { createSpringElectrical } from "../../src/layouts/spring-electrical.js";
 import type { GpuLayoutTuning, SpringElectricalStats } from "../../src/types/layout.js";
 import type { SpringElectricalOptions } from "../../src/types/options.js";
 import { type SeOracleOptions, SpringElectricalOracle } from "../oracle/spring-electrical.js";
+import { type CheckReport, ratioOf } from "./check-report.js";
 import {
     asF32,
     assertUnitStart,
@@ -33,7 +34,6 @@ import {
     yieldToEventLoop,
 } from "./fa2-parity.js";
 import { noiseFloorFor } from "./noise-floor.js";
-import { type CheckReport, ratioOf } from "./sabotage.js";
 
 // ---------------------------------------------------------------- options and simulations
 
@@ -48,8 +48,9 @@ export const SE_BASE_OPTIONS: SpringElectricalOptions = Object.freeze({
 });
 /** The tuning every spring parity case uses: the exact tier. */
 export const SE_TUNING: GpuLayoutTuning = Object.freeze({ repulsion: "exact" });
+// `process` is absent in the browser project, which bundles this module for the browser noise-fixture writers
 /** True in a recording run: every spring parity test is then held to the spec cap, not to the derived value. */
-const WRITE = process.env.GRAPHTY_NOISE_FLOOR_WRITE === "1";
+const WRITE = typeof process !== "undefined" && process.env.GRAPHTY_NOISE_FLOOR_WRITE === "1";
 
 /** The simulation createSpringElectrical builds, with its @internal members visible. */
 type SeSim = ForceSimulation<SpringElectricalOptions, SpringElectricalStats>;

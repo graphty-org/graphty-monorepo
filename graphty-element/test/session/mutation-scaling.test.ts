@@ -8,7 +8,7 @@
  * test runs under walk the whole history on every write by design, and would be counted here.
  */
 
-import { describe, it } from "vitest";
+import { assert, describe, it } from "vitest";
 
 import { createRunResult } from "../../src/session/results";
 import type { RunExecutionContext, RunOutcome } from "../../src/session/runs";
@@ -156,6 +156,16 @@ async function groupLayer(session: GraphSession): Promise<string> {
     });
     await session.styles.settled();
     return layer.id;
+}
+
+/**
+ * Add as many new nodes as the graph holds, as one recorded step.
+ * @param session - The session.
+ * @param size - The node count.
+ */
+async function addAsManyNodes(session: GraphSession, size: number): Promise<void> {
+    await session.data.addNodes(Array.from({ length: size }, (_, at) => ({ id: `x${String(at)}` })));
+    assert.lengthOf(session.history.steps, 1, "the nodes were added as one step");
 }
 
 const CASES: readonly Case[] = [
@@ -366,25 +376,28 @@ const CASES: readonly Case[] = [
         },
     },
     // Notes: one note per node, so a write that walks every note grows with the graph. The write
-    // itself no longer does (#1890, test/session/notes/scaling.test.ts); what still grows here is
-    // the history re-charge after it (#1891, one step per note added) and the derivation pass's
-    // copy of the notes slice (#1906).
+    // itself does not (#1890, test/session/notes/scaling.test.ts), nor does the commit after it,
+    // which no longer republishes the whole step list (#2733).
     {
         method: "NotesApi.update",
         growth: "constant",
-        superlinear: 1891,
-        prepare: (session, size) => {
+        prepare: async (session, size) => {
             const notes = ids(size).map((node) => session.notes.add({ text: node, targets: [{ node }] }));
-            return Promise.resolve(() => session.notes.update(notes[0], { text: "edited" }));
+            // Measured after the adds' pass has finished, so the count never depends on whether
+            // it has (#2844).
+            await session.styles.settled();
+            return () => session.notes.update(notes[0], { text: "edited" });
         },
     },
     {
         method: "NotesApi.remove",
         growth: "constant",
-        superlinear: 1891,
-        prepare: (session, size) => {
+        prepare: async (session, size) => {
             const notes = ids(size).map((node) => session.notes.add({ text: node, targets: [{ node }] }));
-            return Promise.resolve(() => session.notes.remove(notes[0]));
+            // Measured after the adds' pass has finished, so the count never depends on whether
+            // it has (#2844).
+            await session.styles.settled();
+            return () => session.notes.remove(notes[0]);
         },
     },
     {
@@ -470,6 +483,74 @@ const CASES: readonly Case[] = [
             await everyNodeLayer(session);
             return async () => {
                 await session.config.set({ data: { knownFields: { nodeLabelPath: "group" } } });
+                await session.styles.settled();
+            };
+        },
+    },
+    // Commands
+    {
+        method: "GraphSession.execute",
+        growth: "constant",
+        prepare: (session) => {
+            // One record: a structural edit would rebuild the frozen snapshot, whatever its size.
+            const id = session.sets.create({ kind: "fixed", nodes: ["n0"], reading: "induced" }, { name: "One" });
+            return Promise.resolve(async () => {
+                await session.execute({ op: "set.rename", id, name: "Renamed" });
+                assert.lengthOf(session.history.steps, 2, "the rename was recorded as a step");
+            });
+        },
+    },
+    // History: a step that adds as many nodes as the graph holds, so moving across it touches
+    // every one of them.
+    {
+        method: "GraphSession.redo",
+        growth: "linear",
+        prepare: async (session, size) => {
+            await addAsManyNodes(session, size);
+            await session.undo();
+            return async () => {
+                assert.strictEqual((await session.redo()).kind, "redone");
+            };
+        },
+    },
+    {
+        method: "SessionHistory.restoreTo",
+        growth: "linear",
+        prepare: async (session, size) => {
+            await addAsManyNodes(session, size);
+            return async () => {
+                assert.strictEqual((await session.history.restoreTo(null)).kind, "restored");
+            };
+        },
+    },
+    {
+        method: "SessionHistory.clear",
+        growth: "linear",
+        prepare: async (session, size) => {
+            await addAsManyNodes(session, size);
+            return () => {
+                session.history.clear();
+                assert.lengthOf(session.history.steps, 0);
+            };
+        },
+    },
+    // Project
+    {
+        method: "ProjectApi.rename",
+        growth: "constant",
+        prepare: (session) => Promise.resolve(() => session.project.rename("Renamed")),
+    },
+    {
+        method: "ProjectApi.open",
+        growth: "linear",
+        prepare: async (session, size) => {
+            const source = pathSession(size);
+            everyNodeSet(source, size);
+            await everyNodeLayer(source);
+            const { text } = await source.project.save();
+            source.dispose();
+            return async () => {
+                await session.project.open(text, { discard: true });
                 await session.styles.settled();
             };
         },

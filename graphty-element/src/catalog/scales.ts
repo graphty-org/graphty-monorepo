@@ -38,7 +38,7 @@ const MIDPOINT: OptionDescriptor = {
     plainName: "Midpoint",
     technicalName: "midpoint",
     type: "number",
-    description: "The value that lands on the middle colour of a diverging palette.",
+    description: "The value that lands on the middle color of a diverging palette.",
 };
 
 /**
@@ -124,7 +124,7 @@ export const SCALE_DESCRIPTORS: readonly ScaleDescriptor[] = [
     },
     {
         name: "ordinal",
-        plainName: "One Colour per Value",
+        plainName: "One Color per Value",
         domainKind: "categorical",
         options: [REVERSE],
     },

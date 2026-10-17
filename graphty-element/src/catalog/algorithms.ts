@@ -487,7 +487,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         plainName: "Influence by association",
         technicalName: "Eigenvector centrality",
         description:
-            "Scores a node by how influential its neighbours are, so a few important connections count for more than many unimportant ones.",
+            "Scores a node by how influential its neighbors are, so a few important connections count for more than many unimportant ones.",
         category: "centrality",
         shape: "node-metric",
         fields: metricFields("node", { plainName: "Influence by association", technicalName: "eigenvector score" }),
@@ -566,7 +566,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         plainName: "Communities, fast",
         technicalName: "Label propagation",
         description:
-            "Groups nodes into communities by letting every node repeatedly take whichever label most of its neighbours carry.",
+            "Groups nodes into communities by letting every node repeatedly take whichever label most of its neighbors carry.",
         category: "community",
         shape: "community",
         fields: communityFields("Community", false),
@@ -993,7 +993,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         plainName: "Core depth",
         technicalName: "K-core decomposition",
         description:
-            "Peels the graph layer by layer and gives each node the depth of the most tightly knit core it belongs to: a node of depth k has at least k neighbours inside that core.",
+            "Peels the graph layer by layer and gives each node the depth of the most tightly knit core it belongs to: a node of depth k has at least k neighbors inside that core.",
         category: "structure",
         shape: "node-metric",
         fields: metricFields("node", { plainName: "Core depth", technicalName: "core number", type: "integer" }),
@@ -1007,7 +1007,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         plainName: "How tightly knit",
         technicalName: "Clustering coefficient",
         description:
-            "Scores a node by how many of its neighbours are also neighbours of each other, and counts the triangles that makes.",
+            "Scores a node by how many of its neighbors are also neighbors of each other, and counts the triangles that makes.",
         category: "structure",
         shape: "node-metric",
         fields: [
@@ -1044,7 +1044,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         plainName: "Likely new links",
         technicalName: "Link prediction",
         description:
-            "Scores the pairs of nodes that are not yet joined by the neighbours they share, and lists the pairs most likely to be joined next.",
+            "Scores the pairs of nodes that are not yet joined by the neighbors they share, and lists the pairs most likely to be joined next.",
         category: "prediction",
         shape: "pair-list",
         fields: [

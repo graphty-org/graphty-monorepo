@@ -369,8 +369,7 @@ export function tokenDeclarations(): string {
     for (const [name, value] of Object.entries(CM_MOTION)) {
         lines.push(`--cm-${name}: ${value};`);
     }
-    lines.push(`--cm-font-family: ${CM_FONT_FAMILY};`);
-    lines.push(`--cm-font-family-mono: ${CM_FONT_FAMILY_MONO};`);
+    lines.push(`--cm-font-family: ${CM_FONT_FAMILY};`, `--cm-font-family-mono: ${CM_FONT_FAMILY_MONO};`);
     return lines.join("\n    ");
 }
 

@@ -49,6 +49,7 @@ import {
 } from "../../../extend";
 import { Graph } from "../../../index.js";
 import { operationQueueOf } from "../../../src/Graph";
+import { assertPlaced } from "../../helpers/placed-position";
 import { nextFrame } from "../../helpers/real-input";
 
 /** Three nodes at known coordinates, so every box in this file can be checked by eye. */
@@ -217,16 +218,6 @@ function boxAround(points: readonly Coords[]): { center: Coords; maxDimension: n
 }
 
 /**
- * Let the page draw some frames.
- * @param count - How many frames to wait.
- */
-async function frames(count: number): Promise<void> {
-    for (let frame = 0; frame < count; frame++) {
-        await nextFrame();
-    }
-}
-
-/**
  * Poll until something becomes true, or give up loudly.
  * @param condition - What is being waited for.
  * @param what - How to describe it if the wait fails.
@@ -250,11 +241,32 @@ describe("a third party's camera view", () => {
     let graph: Graph;
 
     /**
+     * Where the element has drawn a node, refused while its mesh is still at the template's position.
+     * @param node - The node.
+     * @returns Its position.
+     */
+    function placedPosition(node: { readonly id: string | number; getPosition(): Coords }): Coords {
+        const at = node.getPosition();
+        assertPlaced(at, `node ${String(node.id)}`);
+        return at;
+    }
+
+    /**
+     * Whether the camera has moved away from where a test put it.
+     * @param start - Where it was put.
+     * @returns True once its position differs.
+     */
+    function cameraHasLeft(start: Coords): boolean {
+        const at = graph.getCameraState().position;
+        return at !== undefined && Math.hypot(at.x - start.x, at.y - start.y, at.z - start.z) > 1e-6;
+    }
+
+    /**
      * Where the element currently has every node, which is the box a view frames by default.
      * @returns The centre of the graph and its longest side.
      */
     function graphBox(): { center: Coords; maxDimension: number } {
-        return boxAround(graph.getNodes().map((node) => node.getPosition()));
+        return boxAround(graph.getNodes().map((node) => placedPosition(node)));
     }
 
     /**
@@ -270,7 +282,7 @@ describe("a third party's camera view", () => {
                     throw new Error(`the graph has no node "${id}"`);
                 }
 
-                return node.getPosition();
+                return placedPosition(node);
             }),
         );
     }
@@ -292,7 +304,9 @@ describe("a third party's camera view", () => {
         await graph.setLayout("fixed");
         await graph.addNodes(NODES);
         await graph.addEdges(EDGES);
-        await graph.waitForSettled();
+        // A drawn frame, not just an empty queue: the boxes below are measured off the meshes,
+        // which only a frame moves from the template's position to the layout's.
+        await graph.waitForStableFrame();
     });
 
     afterEach(() => {
@@ -606,6 +620,9 @@ describe("a third party's camera view", () => {
             const destination = { x: center.x + offset, y: center.y + offset, z: center.z + offset };
 
             await graph.setCameraPosition({ x: 1, y: 1, z: 1 });
+            // Every animated frame advances the animation by the same 16 ms, however long the frame
+            // really took, so the sample below is one step into the move on a loaded machine too.
+            graph.getScene().useConstantAnimationDeltaTime = true;
 
             // A long duration and a sample taken early, because "it ended up in the right place"
             // is also true of a move that jumped there instantly, and a plugin's view is supposed
@@ -615,11 +632,7 @@ describe("a third party's camera view", () => {
                 duration: 1200,
                 easing: "easeInOut",
             });
-            await waitFor(
-                () => operationQueueOf(graph).getActiveOperations().length > 0,
-                "the camera animation to start",
-            );
-            await frames(4);
+            await waitFor(() => cameraHasLeft({ x: 1, y: 1, z: 1 }), "the camera animation to take its first step");
 
             const midFlight = graph.getCameraState();
             assert.ok(midFlight.position, "the element reports where the camera is part way");
@@ -650,13 +663,11 @@ describe("a third party's camera view", () => {
             const destination = { x: center.x + offset, y: center.y + offset, z: center.z + offset };
 
             await graph.setCameraPosition({ x: 1, y: 1, z: 1 });
+            // As above: a step is 16 ms of animation, so cancelling after the first one is part way.
+            graph.getScene().useConstantAnimationDeltaTime = true;
 
             const travelling = graph.applyCameraView("acme-corner", { animate: true, duration: 4000 });
-            await waitFor(
-                () => operationQueueOf(graph).getActiveOperations().length > 0,
-                "the camera animation to start",
-            );
-            await frames(4);
+            await waitFor(() => cameraHasLeft({ x: 1, y: 1, z: 1 }), "the camera animation to take its first step");
 
             for (const id of operationQueueOf(graph).getActiveOperations()) {
                 operationQueueOf(graph).cancelOperation(id);

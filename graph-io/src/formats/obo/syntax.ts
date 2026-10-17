@@ -304,7 +304,7 @@ export function unclosedBlock(value: string): number {
  */
 function addQualifier(record: Qualifiers, name: string, value: string | string[]): void {
     const values = Array.isArray(value) ? value : [value];
-    if (!Object.prototype.hasOwnProperty.call(record, name)) {
+    if (!Object.hasOwn(record, name)) {
         record[name] = Array.isArray(value) ? [...value] : value;
         return;
     }

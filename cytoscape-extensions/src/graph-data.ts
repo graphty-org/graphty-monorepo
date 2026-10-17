@@ -8,6 +8,7 @@ import type { ImportInput, ImportReport } from "@graphty/graph-io";
 import type { FetchDatasetOptions } from "@graphty/graph-samples";
 import type { Collection, CollectionReturnValue, Core, ElementDefinition } from "cytoscape";
 
+import { coreDestroyedError } from "./gpu.js";
 import type { ExportFormat, ExportOptions, ImportFormat, ImportOptions } from "./io.js";
 import { loadPart } from "./lazy.js";
 import type { GeneratorName, GeneratorOptions } from "./samples.js";
@@ -39,8 +40,8 @@ export interface GraphtyGraphData {
      */
     graphtyGenerate<N extends GeneratorName>(name: N, options: GeneratorOptions<N>): Promise<AddedGraph>;
     /**
-     * Adds a sample dataset: `cy.graphtyDataset("karate")`. The small ones ship with the package; the large ones
-     * (road-ny, ogbn-arxiv, com-dblp) are downloaded from graphty.app. Throws, adding nothing, when the core already holds one of the graph's node ids.
+     * Adds a sample dataset: `cy.graphtyDataset("karate")`, downloaded from graphty.app (`options.baseUrl` for a
+     * mirror of your own). Throws, adding nothing, when the core already holds one of the graph's node ids.
      * `options.signal` cancels it: once aborted, it rejects with the signal's reason and adds nothing, whatever
      * `options.fetch` does with the signal.
      */
@@ -108,8 +109,13 @@ export class IdTakenError extends Error {
  * @param elements - the definitions; edge data may be changed
  * @returns the added elements
  * @throws IdTakenError naming the first node id the core already holds; nothing is added
+ * @throws Error coded E_CORE_DESTROYED when the core was destroyed (before the call or while it loaded); nothing
+ * is added
  */
 function addTo(cy: Core, elements: ElementDefinition[]): CollectionReturnValue {
+    if (cy.destroyed()) {
+        throw coreDestroyedError();
+    }
     for (const el of elements) {
         if (el.group === "nodes" && el.data.id !== undefined && cy.getElementById(el.data.id).nonempty()) {
             throw new IdTakenError(el.data.id);

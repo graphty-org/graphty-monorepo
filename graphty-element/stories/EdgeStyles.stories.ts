@@ -10,6 +10,7 @@ import {
 } from "@babylonjs/core";
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
+import type { LayerSpec } from "../src/catalog/types";
 import {
     assertArrowCaptionsDrawn,
     assertArrowVariety,
@@ -117,7 +118,7 @@ const LINE_GRID = ["solid", "dot", "star", "box", "dash", "diamond", "dash-dot",
  * How much of the canvas the edge's own colour covers.
  *
  * Bucketed to the nearest thousand so that it separates one picture from another without being a
- * pixel-exact baseline, which is Chromatic's job and not this one's.
+ * pixel-exact baseline, which is visual review's job and not this one's.
  * @param scene - What the story drew.
  * @returns The reading, as a short string for a picture digest.
  */
@@ -2087,13 +2088,13 @@ export const AnimationSpeed: Story = {
         }
 
         // THE FREEZE, AND THE PROOF THAT IT FREEZES. A moving picture cannot have a visual
-        // baseline, so this story parks its gradient at the start before it ends and Chromatic
-        // photographs it parked. That baseline is only worth having if the parking is reliable,
+        // baseline, so this story parks its gradient at the start before it ends and the visual
+        // capture photographs it parked. That baseline is only worth having if the parking is reliable,
         // which is what the rest of this block checks: turn the scene's animations off, let
         // frames pass, and both textures must sit at exactly zero and stay there. If they creep,
-        // every Chromatic build after this one differs from the last for no reason anybody can
+        // every visual capture after this one differs from the last for no reason anybody can
         // act on -- so the check belongs here, in the run that happens on every pull request,
-        // rather than in the Chromatic build that would merely suffer from it.
+        // rather than in the visual capture that would merely suffer from it.
         scene.graph.scene.animationsEnabled = false;
 
         await framesOf(scene, 5);
@@ -2170,11 +2171,100 @@ export const AnimationSpeed: Story = {
         chromatic: {
             // The picture IS snapshotted, because the play function parks the gradient before it
             // ends and a parked gradient is the same picture every time. Setting the speed to
-            // zero under Chromatic would have been the easier freeze and the wrong one: zero
+            // zero under capture would have been the easier freeze and the wrong one: zero
             // routes the edge to the static line renderer, so the baseline would photograph a
             // code path this story is not about and the eight-unit-thick slab that shipped here
             // would have passed it.
             delay: 1000,
         },
+    },
+};
+
+/**
+ * A straight and a curved edge of one width draw one thickness (issue #125).
+ *
+ * MEASURED AS INK PER PIXEL OF SPAN, as `Width` is, once per edge colour. A curve is a little
+ * longer than the straight span between its ends, so it reads somewhat more ink per pixel of span
+ * than the straight edge, and never several times more: a curve once drew ten pixels per unit of
+ * width under the 2D camera while the straight edge beside it drew `width / 40` world units.
+ * @param story - The story, for the message.
+ * @param scene - What the story drew.
+ */
+const assertCurveMatchesStraight = async (story: string, scene: Drawn): Promise<void> => {
+    const straight = (await pixelsOfColour(scene, "#e6194b")) / edgeSpanPx(scene, "S1", "S2");
+    const curved = (await pixelsOfColour(scene, "#3cb44b")) / edgeSpanPx(scene, "C1", "C2");
+
+    await holds(
+        straight > 1 && curved > 0.7 * straight && curved < 1.6 * straight,
+        `${story}: both edges ask for one width, and the straight one draws ${straight.toFixed(1)} pixels of ` +
+            `ink per pixel of span where the curved one draws ${curved.toFixed(1)}`,
+    );
+};
+
+/** The straight edge above, red; the curved edge below, green; both of the element's own width. */
+const CURVATURE_WIDTH_LAYERS: LayerSpec[] = [
+    {
+        name: "edges where data.source == 'S1'",
+        target: "edge",
+        selector: { match: "expression", where: "data.source == 'S1'" },
+        set: { "edge.color": "#e6194b", "edge.width": 8, "edge.arrowHead": "none" },
+    },
+    {
+        name: "edges where data.source == 'C1'",
+        target: "edge",
+        selector: { match: "expression", where: "data.source == 'C1'" },
+        set: { "edge.color": "#3cb44b", "edge.width": 8, "edge.arrowHead": "none", "edge.curvature": true },
+    },
+];
+
+/** Two pairs of nodes, one above the other. */
+const CURVATURE_WIDTH_NODES = [
+    { id: "S1", position: { x: -3, y: 1.5, z: 0 } },
+    { id: "S2", position: { x: 3, y: 1.5, z: 0 } },
+    { id: "C1", position: { x: -3, y: -1.5, z: 0 } },
+    { id: "C2", position: { x: 3, y: -1.5, z: 0 } },
+];
+
+/** One edge per pair. */
+const CURVATURE_WIDTH_EDGES = [
+    { src: "S1", dst: "S2" },
+    { src: "C1", dst: "C2" },
+];
+
+export const TwoDCurvatureWidth: Story = {
+    play: async ({ canvasElement }) => {
+        const scene = await drawn(canvasElement, "Styles/Edge TwoDCurvatureWidth");
+
+        await assertGraphLoaded(scene, { nodes: 4, edges: 2 });
+        await assertViewMode(scene, "2d");
+        await assertCurveMatchesStraight("Styles/Edge TwoDCurvatureWidth", scene);
+    },
+    args: {
+        setup: storySetup({
+            viewMode: "2d",
+            node: { "node.color": "#5A67D8" },
+            layers: CURVATURE_WIDTH_LAYERS,
+        }),
+        nodeData: CURVATURE_WIDTH_NODES,
+        edgeData: CURVATURE_WIDTH_EDGES,
+    },
+};
+
+export const ThreeDCurvatureWidth: Story = {
+    play: async ({ canvasElement }) => {
+        const scene = await drawn(canvasElement, "Styles/Edge ThreeDCurvatureWidth");
+
+        await assertGraphLoaded(scene, { nodes: 4, edges: 2 });
+        await assertViewMode(scene, "3d");
+        await assertCurveMatchesStraight("Styles/Edge ThreeDCurvatureWidth", scene);
+    },
+    args: {
+        setup: storySetup({
+            viewMode: "3d",
+            node: { "node.color": "#5A67D8" },
+            layers: CURVATURE_WIDTH_LAYERS,
+        }),
+        nodeData: CURVATURE_WIDTH_NODES,
+        edgeData: CURVATURE_WIDTH_EDGES,
     },
 };

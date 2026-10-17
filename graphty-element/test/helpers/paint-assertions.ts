@@ -285,45 +285,23 @@ export function assertStackContains(session: GraphSession, expected: readonly st
 }
 
 /**
- * A run reaches an answer -- either answer -- within a bounded time.
+ * A run reaches an answer -- either answer.
  *
  * NEITHER OUTCOME IS A FAILURE HERE. The element's published contract is that no write verb throws
  * and that a malformed specification, an unknown id or a locked layer "arrives as a rejected run";
  * a caller may fire one from a click handler and forget it. What this catches is the third outcome
  * the contract does not allow: a run that never commits and never refuses, which reports nothing
  * to a console, nothing to the paint problems and nothing to whoever is awaiting it, because
- * nobody is.
+ * nobody is. That outcome is caught by the test's own timeout, never by a wall-clock bound here:
+ * a slow run that does settle is a correct run.
  * @param run - The run to watch.
- * @param ms - How long it may take.
- * @param what - What the run was asked to do, for the failure message.
  * @returns Which way it settled, so a caller can go on to assert the outcome it expected.
  */
-export async function assertRunSettles<T>(run: Run<T>, ms: number, what: string): Promise<RunOutcomeKind> {
-    let timer: ReturnType<typeof setTimeout> | undefined;
-
-    const settled = Promise.resolve(run).then(
+export async function assertRunSettles<T>(run: Run<T>): Promise<RunOutcomeKind> {
+    return Promise.resolve(run).then(
         (): RunOutcomeKind => "resolved",
         (): RunOutcomeKind => "rejected",
     );
-
-    const timedOut = new Promise<null>((resolve) => {
-        timer = setTimeout(() => {
-            resolve(null);
-        }, ms);
-    });
-
-    const outcome = await Promise.race([settled, timedOut]);
-
-    if (timer !== undefined) {
-        clearTimeout(timer);
-    }
-
-    assert.isNotNull(
-        outcome,
-        `${what}: the run neither committed nor refused within ${String(ms)}ms, so nothing will ever hear about it`,
-    );
-
-    return outcome;
 }
 
 /**
@@ -427,7 +405,7 @@ export async function darkPixelsNear(
  * A short digest of what one graph actually drew.
  *
  * FOR COMPARING TWO PICTURES WITH EACH OTHER, which is the one question no per-story visual
- * baseline can answer: Chromatic compares a story to its own past and never to its siblings, so
+ * baseline can answer: visual review compares a story to its own past and never to its siblings, so
  * "these thirteen stories are byte-identical to one another" is invisible to it. Two stories that
  * promise different pictures and hash the same have collapsed onto one.
  * @param graph - The graph to read.

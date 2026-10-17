@@ -1,11 +1,12 @@
 import { type DatasetMeta } from "../build.js";
+import { PACKED } from "../packed.js";
 
 /** What the politicalBooks dataset is, where it came from and under which terms. */
 export const politicalBooksMeta: DatasetMeta = {
     name: "political-books",
     title: "Books about US politics",
     description:
-        "Books about US politics sold by Amazon.com around the 2004 election, joined when the same buyers frequently bought both. Mark Newman labelled each book liberal, neutral or conservative from its descriptions and reviews.",
+        "Books about US politics sold by Amazon.com around the 2004 election, joined when the same buyers frequently bought both. Mark Newman labeled each book liberal, neutral or conservative from its descriptions and reviews.",
     citation: "V. Krebs, unpublished (compiled 2004), http://www.orgnet.com/; labels by M. E. J. Newman.",
     source: "https://web.archive.org/web/20240730210010id_/https://public.websites.umich.edu/~mejn/netdata/polbooks.zip",
     license:
@@ -18,6 +19,8 @@ export const politicalBooksMeta: DatasetMeta = {
     groundTruth: "lean",
     showcases: [
         "two- and three-way community detection against the political lean",
-        "force-directed layouts coloured by lean",
+        "force-directed layouts colored by lean",
     ],
+    hosting: "remote",
+    ...PACKED["political-books"],
 };

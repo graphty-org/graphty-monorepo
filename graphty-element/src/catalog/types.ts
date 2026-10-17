@@ -29,7 +29,7 @@ import type { LabelStyle } from "./label-style";
  * Declared once, in the error module, so a code cannot mean one thing to a descriptor
  * and another to the error that carries it.
  */
-export type { GraphtyErrorCode };
+export type { GraphtyErrorCode } from "../errors/codes";
 
 /**
  * Which way the element is drawing: flat, or in three dimensions.
@@ -38,7 +38,7 @@ export type { GraphtyErrorCode };
  * {@link CameraDescriptor.modes} is nameable from `./catalog` without a consumer reaching into
  * a second module for one word.
  */
-export type { DrawingMode };
+export type { DrawingMode } from "../camera/types";
 
 // ---------------------------------------------------------------------------------------------
 // Identity
@@ -492,6 +492,7 @@ export interface OptionDescriptor extends OptionDescriptorDomain {
 export type Channel =
     | "node.color"
     | "node.size"
+    | "node.sizeMode"
     | "node.shape"
     | "node.label"
     | "node.labelStyle"

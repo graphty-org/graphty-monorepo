@@ -547,6 +547,10 @@ const STYLES_API: Readonly<Record<string, Door>> = {
         [{ run: "no-such-run" }],
         [{ op: "style.patch", action: "highlight", spec: { run: "no-such-run" } }],
     ),
+    mark: calls(
+        [{ run: "no-such-run", set: { "node.color": "#ff0000" } }],
+        [{ op: "style.patch", action: "mark", spec: { run: "no-such-run", set: { "node.color": "#ff0000" } } }],
+    ),
     legend: READ,
     proposeEncoding: READ,
     settled: READ,
@@ -1058,6 +1062,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             getPosition: READ,
             isPinned: READ,
             roundRadius: READ,
+            drawnRadius: READ,
+            drawnHalfExtents: READ,
         },
     },
     {
@@ -1163,6 +1169,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             nodes: READ,
             edges: READ,
             edgeVersion: RENDER,
+            nodeVersion: RENDER,
             nodeCache: RENDER,
             edgesByIndex: READ,
             isLoading: READ,
@@ -1194,6 +1201,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             addEdges: calls([[{ src: "n3", dst: "n2" }]], [addEdges({ src: "n3", dst: "n2" })]),
             getEdge: READ,
             getEdgesBetween: READ,
+            incidentEdgeIds: READ,
             // Called while no edge is drawn: the one the row above added waits for its endpoint.
             setEdges: calls(
                 [[{ src: "n1", dst: "n2" }]],
@@ -1433,6 +1441,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             setPositionDirect: GESTURE,
             getNode: READ,
             sceneObservers: READ,
+            forgetSceneObservers: LIFECYCLE,
             select: SELECTION,
             dispose: LIFECYCLE,
         },
@@ -1942,6 +1951,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             ...SELECTION_API,
             applyNow: SELECTION,
             applyAtNextRead: SELECTION,
+            edgeRemovalChangesNothing: READ,
             nodeMembers: READ,
             edgeMembers: READ,
             remapNodes: SELECTION,
@@ -2145,6 +2155,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             requestFrame: RENDER,
             applyBackground: RENDER,
             getRenderStats: READ,
+            ticks: READ,
         },
     },
     {

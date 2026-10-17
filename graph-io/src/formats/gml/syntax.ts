@@ -209,7 +209,7 @@ export class GmlTokens {
             // a line break inside a string is part of it, as LF whatever the file's line ends
             text = text.replaceAll(/\r\n?/g, "\n");
         }
-        if (text.indexOf("&") < 0) {
+        if (!text.includes("&")) {
             return text;
         }
         const report = this.onUnknownEntity;
@@ -583,14 +583,7 @@ export function parseRecord(tokens: GmlTokens, open: number): Record<string, unk
         const key = tokens.textOf(p);
         const v = p + 1;
         if (tokens.kind[v] === TOKEN_STRING) {
-            const text = tokens.stringOf(v);
-            if (text === LIST_START_MARKER) {
-                frame.record[key] = [];
-                frame.listKeys ??= new Set();
-                frame.listKeys.add(key);
-                continue;
-            }
-            storeValue(frame, key, text === EMPTY_LIST_TEXT || text === EMPTY_TUPLE_TEXT ? [] : text);
+            storeString(frame, key, tokens.stringOf(v));
         } else if (tokens.kind[v] === TOKEN_OPEN) {
             stack.push({
                 record: Object.create(null) as Record<string, unknown>,
@@ -607,6 +600,23 @@ export function parseRecord(tokens: GmlTokens, open: number): Record<string, unk
 }
 
 /**
+ * Store a string value: the list-start marker opens an empty list for the key, the empty list and
+ * tuple texts store an empty list, anything else stores the text.
+ * @param frame - the open record
+ * @param key - the key
+ * @param text - the string
+ */
+function storeString(frame: RecordFrame, key: string, text: string): void {
+    if (text === LIST_START_MARKER) {
+        frame.record[key] = [];
+        frame.listKeys ??= new Set();
+        frame.listKeys.add(key);
+        return;
+    }
+    storeValue(frame, key, text === EMPTY_LIST_TEXT || text === EMPTY_TUPLE_TEXT ? [] : text);
+}
+
+/**
  * Store one value under a key: appended to the key's list when the key is a list, paired with the
  * earlier value when the key repeats, set otherwise.
  * @param frame - the open record
@@ -615,7 +625,7 @@ export function parseRecord(tokens: GmlTokens, open: number): Record<string, unk
  */
 function storeValue(frame: RecordFrame, key: string, value: unknown): void {
     const { record } = frame;
-    if (frame.listKeys !== null && frame.listKeys.has(key)) {
+    if (frame.listKeys?.has(key)) {
         (record[key] as unknown[]).push(value);
     } else if (key in record) {
         record[key] = [record[key], value];

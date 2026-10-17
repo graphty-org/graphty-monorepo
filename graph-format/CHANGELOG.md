@@ -1,3 +1,64 @@
+## 1.4.3 (2026-10-17)
+
+### 🩹 Fixes
+
+- **graph-format:** keep the staging reservation growth constants module-private ([bd9e2bf64](https://github.com/graphty-org/graphty-monorepo/commit/bd9e2bf64))
+- **graph-format:** reserve staging address space in proportion to use ([328de8926](https://github.com/graphty-org/graphty-monorepo/commit/328de8926))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 1.4.2 (2026-10-15)
+
+This was a version bump only for graph-format to align it with other projects, there were no code changes.
+
+## 1.4.1 (2026-10-14)
+
+This was a version bump only for graph-format to align it with other projects, there were no code changes.
+
+## 1.4.0 (2026-10-14)
+
+### 🚀 Features
+
+- **graph-format:** export engine-independent log, exp, sin, cos, acos, hypot and pow ([#2440](https://github.com/graphty-org/graphty-monorepo/issues/2440))
+
+### 🩹 Fixes
+
+- **graph-format:** list the engine-independent math in design section 12.2 ([#2440](https://github.com/graphty-org/graphty-monorepo/issues/2440))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 1.3.15 (2026-10-13)
+
+This was a version bump only for graph-format to align it with other projects, there were no code changes.
+
+## 1.3.14 (2026-10-13)
+
+### 🩹 Fixes
+
+- **tools:** cap each test slot's Node workers at its share of the cores ([9daf98f16](https://github.com/graphty-org/graphty-monorepo/commit/9daf98f16))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 1.3.13 (2026-10-12)
+
+This was a version bump only for graph-format to align it with other projects, there were no code changes.
+
+## 1.3.12 (2026-10-11)
+
+### 🚀 Features
+
+- **tools:** fail a CI test that uses more than 25% of its time limit ([#1602](https://github.com/graphty-org/graphty-monorepo/issues/1602))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 1.3.11 (2026-10-09)
 
 This was a version bump only for graph-format to align it with other projects, there were no code changes.

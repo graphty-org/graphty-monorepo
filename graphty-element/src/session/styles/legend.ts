@@ -452,7 +452,7 @@ function formatNumber(value: number): string {
  */
 function humanisePath(path: Path): FieldWords {
     const segments = path.split(".");
-    const last = segments[segments.length - 1] ?? path;
+    const last = segments.at(-1) ?? path;
     const words = last
         .replaceAll(/([a-z\d])([A-Z])/g, "$1 $2")
         .split(/[\s_-]+/u)
@@ -569,7 +569,7 @@ function sweepRuns(prepared: PreparedBinding, domain: readonly [number, number])
             continue;
         }
 
-        const last = runs[runs.length - 1];
+        const last = runs.at(-1);
         if (sampleKey === key && last !== undefined) {
             runs[runs.length - 1] = { from: last.from, to: value, painted: last.painted };
             continue;

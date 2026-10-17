@@ -1,3 +1,97 @@
+## 3.4.10 (2026-10-17)
+
+### 🚀 Features
+
+- **docs:** theme the documentation site with the graphty brand colors ([#3041](https://github.com/graphty-org/graphty-monorepo/issues/3041))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.35
+- Updated graph-format to 1.4.3
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.4.9 (2026-10-15)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.34
+- Updated graph-format to 1.4.2
+
+## 3.4.8 (2026-10-15)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.33
+
+## 3.4.7 (2026-10-14)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.32
+- Updated graph-format to 1.4.1
+
+## 3.4.6 (2026-10-14)
+
+### 🩹 Fixes
+
+- **algorithms:** stop seeded and iterative algorithms calling engine-dependent Math ([#2440](https://github.com/graphty-org/graphty-monorepo/issues/2440))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.31
+- Updated graph-format to 1.4.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.4.5 (2026-10-13)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.30
+- Updated graph-format to 1.3.15
+
+## 3.4.4 (2026-10-13)
+
+### 🩹 Fixes
+
+- **tools:** cap each test slot's Node workers at its share of the cores ([9daf98f16](https://github.com/graphty-org/graphty-monorepo/commit/9daf98f16))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.29
+- Updated graph-format to 1.3.14
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.4.3 (2026-10-12)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.28
+- Updated graph-format to 1.3.13
+
+## 3.4.2 (2026-10-11)
+
+### 🚀 Features
+
+- **tools:** fail a CI test that uses more than 25% of its time limit ([#1602](https://github.com/graphty-org/graphty-monorepo/issues/1602))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.27
+- Updated graph-format to 1.3.12
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.4.1 (2026-10-11)
 
 ### 🩹 Fixes

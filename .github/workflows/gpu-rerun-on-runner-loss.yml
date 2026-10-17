@@ -8,9 +8,9 @@
 # Which runs it watches, and why "Release" is one of them: a workflow_run event fires for the workflow a run
 # belongs to, and when release.yml calls gpu.yml (job "t4") the T4 job is a job of the RELEASE run -- no "GPU" run
 # exists, so a watch on "GPU" alone would never see the release train's T4. Re-running the Release run's failed
-# jobs re-runs the T4 job and its dependents (held, train) while CI, Hosts and the audit keep their first
-# attempt's results and builds, so the train opens its release pull request on the second attempt exactly as if
-# the T4 had passed the first time. "GPU" covers a manual dispatch of gpu.yml; the weekly paired benchmark is its
+# jobs re-runs the T4 job and its dependents (held, version, land, publish) while CI, Hosts and the audit keep
+# their first attempt's results and builds, so the train releases on the second attempt exactly as if the T4 had
+# passed the first time. "GPU" covers a manual dispatch of gpu.yml; the weekly paired benchmark is its
 # own workflow.
 name: GPU rerun on runner loss
 on:

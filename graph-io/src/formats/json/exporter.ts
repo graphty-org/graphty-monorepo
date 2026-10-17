@@ -1246,7 +1246,7 @@ function idText(id: NodeId): string {
  */
 function edgeIdText(p: Plan, e: number, c: Cursor): string | null {
     const column = p.edgeIds;
-    if (column === null || !column.isSet(e)) {
+    if (!column?.isSet(e)) {
         return null;
     }
     return cellText(column, e, c.ids, c.nonfinite);
@@ -1609,7 +1609,6 @@ function* writeCytoscape(snapshot: GraphSnapshot, p: Plan): Generator<string, vo
     const c: Cursor = { w: new JsonWriter(resolved.indent), ids: snapshot.ids, nonfinite: { count: 0 } };
     const { w } = c;
     const parentSlots: ReadonlySet<Slot> = new Set(["parent"]);
-    const positionSlots: ReadonlySet<Slot> = new Set(["cytoscapePosition"]);
     w.open("{");
     w.key("elements");
     w.open("{");
@@ -1625,18 +1624,7 @@ function* writeCytoscape(snapshot: GraphSnapshot, p: Plan): Generator<string, vo
         writeSlots(c, p.nodes, i, parentSlots);
         writeSlots(c, p.nodes, i, ATTRIBUTE_SLOTS);
         w.close("}");
-        for (const item of p.nodes) {
-            if (positionSlots.has(item.slot) && item.column.isSet(i)) {
-                const value = item.column.value(i) as ArrayLike<number>;
-                const f32 = item.column.dtype === "f32";
-                w.key("position");
-                w.open("{");
-                w.member("x", numberText(value[0], f32, c.nonfinite));
-                // stored y-up; Cytoscape's y grows downward
-                w.member("y", numberText(flipY(value[1]), f32, c.nonfinite));
-                w.close("}");
-            }
-        }
+        writeCytoscapePosition(c, p.nodes, i);
         writeSlots(c, p.nodes, i, ELEMENT_SLOTS);
         w.close("}");
         yield w.take();
@@ -1673,16 +1661,47 @@ function* writeCytoscape(snapshot: GraphSnapshot, p: Plan): Generator<string, vo
         w.key("data");
         writeGraphObject(c, p);
     }
-    const extra = resolved.shape.cytoscape;
-    if (extra !== undefined) {
-        for (const key of Object.keys(extra)) {
-            if (key !== "elements" && key !== "data") {
-                w.member(key, valueText(extra[key], false, c.nonfinite));
-            }
-        }
-    }
+    writeCytoscapeExtra(c, resolved.shape.cytoscape);
     w.close("}");
     yield w.take();
+}
+
+/**
+ * Write a node's `position` member (Cytoscape.js), when its position is set.
+ * @param c - the cursor
+ * @param items - the node plan items
+ * @param i - the node index
+ */
+function writeCytoscapePosition(c: Cursor, items: readonly ColumnPlan[], i: number): void {
+    const { w } = c;
+    for (const item of items) {
+        if (item.slot === "cytoscapePosition" && item.column.isSet(i)) {
+            const value = item.column.value(i) as ArrayLike<number>;
+            const f32 = item.column.dtype === "f32";
+            w.key("position");
+            w.open("{");
+            w.member("x", numberText(value[0], f32, c.nonfinite));
+            // stored y-up; Cytoscape's y grows downward
+            w.member("y", numberText(flipY(value[1]), f32, c.nonfinite));
+            w.close("}");
+        }
+    }
+}
+
+/**
+ * Write the extra top-level members of a Cytoscape.js document, beyond `elements` and `data`.
+ * @param c - the cursor
+ * @param extra - the extra members, when any
+ */
+function writeCytoscapeExtra(c: Cursor, extra: Readonly<Record<string, unknown>> | undefined): void {
+    if (extra === undefined) {
+        return;
+    }
+    for (const key of Object.keys(extra)) {
+        if (key !== "elements" && key !== "data") {
+            c.w.member(key, valueText(extra[key], false, c.nonfinite));
+        }
+    }
 }
 
 /**

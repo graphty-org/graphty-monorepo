@@ -343,7 +343,7 @@ function DataTableInner<TRow extends object>(
         getColumnCanGlobalFilter: () => true,
         globalFilterFn: (row, columnId, filterValue): boolean => {
             const value = filterValue as GlobalSearch | undefined;
-            if (value === undefined || !value.columnIds.includes(columnId)) {
+            if (!value?.columnIds.includes(columnId)) {
                 return false;
             }
 

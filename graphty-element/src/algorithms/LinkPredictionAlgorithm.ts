@@ -29,7 +29,7 @@ const linkPredictionOptionsSchema = defineOptions({
         meta: {
             label: "Method",
             description:
-                "Common neighbours counts the neighbours two nodes share. Adamic-Adar counts them too, but a shared neighbour with few connections counts for more than one with many.",
+                "Common neighbors counts the neighbors two nodes share. Adamic-Adar counts them too, but a shared neighbor with few connections counts for more than one with many.",
         },
     },
     topK: {
@@ -66,10 +66,10 @@ export class LinkPredictionAlgorithm extends DeclaredAlgorithm<LinkPredictionOpt
             default: "adamic-adar",
             label: "Method",
             description:
-                "Common neighbours counts the neighbours two nodes share. Adamic-Adar counts them too, but a shared neighbour with few connections counts for more than one with many.",
+                "Common neighbors counts the neighbors two nodes share. Adamic-Adar counts them too, but a shared neighbor with few connections counts for more than one with many.",
             options: [
                 { value: "adamic-adar", label: "Adamic-Adar" },
-                { value: "common-neighbors", label: "Common neighbours" },
+                { value: "common-neighbors", label: "Common neighbors" },
             ],
         },
         topK: {

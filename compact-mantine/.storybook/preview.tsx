@@ -146,7 +146,7 @@ const preview: Preview = {
                 dynamicTitle: true,
             },
         },
-        // No toolbar: set by the Chromatic modes below (and by a `globals=schemes:single` URL),
+        // No toolbar: set by the capture modes below (and by a `globals=schemes:single` URL),
         // so a BOTH_SCHEMES story is captured as one real, un-nested render per mode.
         schemes: {
             description:
@@ -179,7 +179,7 @@ const preview: Preview = {
 
             // A States story with `parameters: BOTH_SCHEMES` renders twice, light
             // and dark side by side, and ignores the toolbar's theme; contrast
-            // and direction still apply. Chromatic's modes set the `schemes`
+            // and direction still apply. The capture modes set the `schemes`
             // global to "single", so it captures every story as one real,
             // un-nested render per scheme.
             if (context.parameters.schemes === "both" && context.globals.schemes !== "single") {
@@ -205,8 +205,8 @@ const preview: Preview = {
             // own white canvas, where dark-scheme text would otherwise vanish.
             // In the canvas view it is the same color as the body.
             //
-            // The canvas padding is the snapshot frame. Chromatic crops a
-            // snapshot to the story root's box, and an outline or a
+            // The canvas padding is the snapshot frame. A capture cropped
+            // to the story root's box loses what lies outside it, and an outline or a
             // box-shadow is not part of any box: a 1px focus ring drawn 1px
             // outside a button at the root's edge, or a toolbar's shadow,
             // was cut off. 32px holds the deepest elevation the theme draws

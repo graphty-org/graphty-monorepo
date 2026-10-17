@@ -91,7 +91,9 @@ let shaderCompilers: Promise<ShaderCompilers> | null = null;
 async function loadCompiler(name: "glslang" | "twgsl"): Promise<unknown> {
     const base = `${Tools._DefaultCdnUrl}/${name}/${name}`;
     await Tools.LoadBabylonScriptAsync(`${base}.js`);
-    const factory = (self as unknown as Record<string, ((wasmPath: string) => Promise<unknown>) | undefined>)[name];
+    const factory = (globalThis as unknown as Record<string, ((wasmPath: string) => Promise<unknown>) | undefined>)[
+        name
+    ];
     if (factory === undefined) {
         throw new Error(`${name}.js loaded but defined no ${name}`);
     }
@@ -283,6 +285,13 @@ export class RenderManager implements Manager {
     private lastFrameFence: WebGLSync | null = null;
     /** The time of the ticks skipped since the last frame drawn, for the GPU to catch up. */
     private skippedMs = 0;
+    /**
+     * What the loop's ticks have done since it started, outside a hold: drew a frame, rested on
+     * the picture already shown, or waited for the GPU. A count of the loop's chances to draw, for
+     * whoever must tell "it drew nothing" from "it had no chance to" -- a test of drawing on
+     * demand, on a machine whose frame rate it does not control.
+     */
+    readonly ticks = { drawn: 0, rested: 0, gpuBehind: 0 };
     /** See `RenderManagerConfig.pictureIsFinal`; null draws every tick. */
     private readonly pictureIsFinal: (() => boolean) | null;
     /** See `RenderManagerConfig.drawsOnDemand`. */
@@ -320,7 +329,7 @@ export class RenderManager implements Manager {
             this.drawOwed = true;
         }
     };
-    private resizeHandler: () => void;
+    private readonly resizeHandler: () => void;
     /** The one skybox dome, and the image it shows; null while the background is a colour. */
     private dome: { readonly url: string; readonly dome: PhotoDome } | null = null;
 
@@ -330,7 +339,7 @@ export class RenderManager implements Manager {
      * canvas. This one does the same thing without scrolling.
      * @param evt - The pointer down or up event on the canvas
      */
-    private focusOnPointer = (evt: PointerEvent): void => {
+    private readonly focusOnPointer = (evt: PointerEvent): void => {
         evt.preventDefault();
         this.canvas.focus({ preventScroll: true });
     };
@@ -342,9 +351,9 @@ export class RenderManager implements Manager {
      * @param config - Optional render configuration
      */
     constructor(
-        private canvas: HTMLCanvasElement,
-        private eventManager: EventManager,
-        private config: RenderManagerConfig = {},
+        private readonly canvas: HTMLCanvasElement,
+        private readonly eventManager: EventManager,
+        private readonly config: RenderManagerConfig = {},
     ) {
         // Set Babylon.js log level
         Logger.LogLevels = Logger.ErrorLogLevel;
@@ -428,12 +437,6 @@ export class RenderManager implements Manager {
      * Dispose the render manager and clean up resources
      */
     dispose(): void {
-        // Twice is once: a graph shut down while it was initialising disposes this before its
-        // lifecycle manager gets to it.
-        if (this.engine.isDisposed) {
-            return;
-        }
-
         // Stop render loop
         this.stopRenderLoop();
 
@@ -483,6 +486,7 @@ export class RenderManager implements Manager {
             // keeps to wall-clock pace would run slower by exactly the ticks skipped.
             if (this.gpuBehind()) {
                 this.skippedMs += this.engine.getDeltaTime();
+                this.ticks.gpuBehind++;
                 return;
             }
 
@@ -501,6 +505,7 @@ export class RenderManager implements Manager {
                 // this.camera.update();
 
                 if (this.mayRest()) {
+                    this.ticks.rested++;
                     return;
                 }
 
@@ -508,6 +513,7 @@ export class RenderManager implements Manager {
                 // next one.
                 this.drawOwed = false;
                 this.scene.render();
+                this.ticks.drawn++;
                 this.fenceFrame();
                 this.noteDrawnFrom();
             } catch (error) {
@@ -885,10 +891,12 @@ export class RenderManager implements Manager {
     private setupCameras(): void {
         const orbitCamera = new OrbitCameraController(this.canvas, this.scene, {
             trackballRotationSpeed: 0.005,
-            keyboardRotationSpeed: 0.03,
-            keyboardZoomSpeed: 0.2,
+            // Radians a frame while an arrow is held: the same angular speed as A and D
+            keyboardRotationSpeed: 0.02,
+            // A held W or S changes the distance tenfold in the 157 frames A or D take to spin
+            // half a turn (PI / keyboardYawSpeed): 0.985 ** 157 = 0.093
+            keyboardZoomSpeed: 0.015,
             keyboardYawSpeed: 0.02,
-            pinchZoomSensitivity: 10,
             twistYawSensitivity: 1.5,
             minZoomDistance: 2,
             maxZoomDistance: 2000, // The zoom-out ceiling for a small graph; a fit of a larger one raises it

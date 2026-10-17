@@ -52,7 +52,12 @@ export interface LayoutMetadata {
 /**
  * The option types that name part of the graph rather than a value the reader types in.
  */
-const STRUCTURAL_OPTION_TYPES: readonly OptionDescriptor["type"][] = ["node-id", "node-set", "partition", "ordering"];
+const STRUCTURAL_OPTION_TYPES: ReadonlySet<OptionDescriptor["type"]> = new Set([
+    "node-id",
+    "node-set",
+    "partition",
+    "ordering",
+]);
 
 /**
  * Options the layout modal owns and the options form must not draw.
@@ -80,7 +85,7 @@ const INPUT_FOR_OPTION_TYPE: Readonly<Record<string, string>> = {
  * @returns The metadata for that engine.
  */
 function toMetadata(entry: LayoutCatalogEntry, implementation: LayoutImplementation): LayoutMetadata {
-    const structural = implementation.options.filter((option) => STRUCTURAL_OPTION_TYPES.includes(option.type));
+    const structural = implementation.options.filter((option) => STRUCTURAL_OPTION_TYPES.has(option.type));
     const requiredFields = structural.filter((option) => option.default === undefined).map((option) => option.name);
     const covered = new Set(structural.map((option) => INPUT_FOR_OPTION_TYPE[option.type]));
 

@@ -12,16 +12,30 @@
  * instead of the committed one.
  */
 
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+// namespace imports, and no node call at module load: the parity helpers (fa2-, fr-, se-parity.ts) import this
+// module and are bundled for Chromium too, where Vite externalizes node:* and throws on the first property read
+import * as fs from "node:fs";
+import * as nodePath from "node:path";
+import * as url from "node:url";
 
 import { type GpuCaps } from "../../src/types/context.js";
 
-const HERE = dirname(fileURLToPath(import.meta.url));
-const PACKAGE_ROOT = resolve(HERE, "..", "..");
-const NOISE_DIR = resolve(PACKAGE_ROOT, "test", "fixtures", "noise");
-const NOISE_FLOOR_FILE = resolve(PACKAGE_ROOT, "benchmarks", "results", "noise-floor.json");
+/**
+ * A path under the package root, resolved on use (never at module load, see the imports).
+ * @param segments - the path segments below the package root
+ * @returns the absolute path
+ */
+function packagePath(...segments: string[]): string {
+    return nodePath.resolve(nodePath.dirname(url.fileURLToPath(import.meta.url)), "..", "..", ...segments);
+}
+
+/**
+ * benchmarks/results/noise-floor.json.
+ * @returns the absolute path
+ */
+function noiseFloorFile(): string {
+    return packagePath("benchmarks", "results", "noise-floor.json");
+}
 
 /**
  * The fixture directory: test/fixtures/noise, or GRAPHTY_NOISE_DIR when set (test-only redirection).
@@ -29,7 +43,9 @@ const NOISE_FLOOR_FILE = resolve(PACKAGE_ROOT, "benchmarks", "results", "noise-f
  */
 function noiseDir(): string {
     const override = process.env.GRAPHTY_NOISE_DIR;
-    return override === undefined || override === "" ? NOISE_DIR : resolve(override);
+    return override === undefined || override === ""
+        ? packagePath("test", "fixtures", "noise")
+        : nodePath.resolve(override);
 }
 
 /**
@@ -40,8 +56,8 @@ function noiseDir(): string {
  */
 function writeAtomic(path: string, contents: string): void {
     const tmp = `${path}.tmp`;
-    writeFileSync(tmp, contents);
-    renameSync(tmp, path);
+    fs.writeFileSync(tmp, contents);
+    fs.renameSync(tmp, path);
 }
 
 /** The kind of comparison a row records (5.6). */
@@ -112,7 +128,7 @@ function writing(): boolean {
  * @returns the absolute path
  */
 export function noiseFixturePath(kernel: string, fixture: string, adapterClass: string): string {
-    return resolve(noiseDir(), `${safe(kernel)}-${safe(fixture)}-${safe(adapterClass)}.json`);
+    return nodePath.resolve(noiseDir(), `${safe(kernel)}-${safe(fixture)}-${safe(adapterClass)}.json`);
 }
 
 /** The largest subgroup / workgroup lane count a strided sample must reach every residue of (both are powers of two). */
@@ -170,7 +186,7 @@ export function writeNoiseFixture(
     if (!writing()) {
         return;
     }
-    mkdirSync(noiseDir(), { recursive: true });
+    fs.mkdirSync(noiseDir(), { recursive: true });
     const doc: NoiseFixtureDocument = { kernel, fixture, adapterClass, dtype, values: Array.from(values) };
     writeAtomic(noiseFixturePath(kernel, fixture, adapterClass), `${JSON.stringify(doc, null, 4)}\n`);
 }
@@ -188,13 +204,13 @@ const parsedFixtures = new Map<string, { readonly stamp: string; readonly doc: P
  * @returns its document
  */
 function parseFixture(path: string): Partial<NoiseFixtureDocument> {
-    const { mtimeMs, size } = statSync(path);
+    const { mtimeMs, size } = fs.statSync(path);
     const stamp = `${mtimeMs}:${size}`;
     const hit = parsedFixtures.get(path);
     if (hit?.stamp === stamp) {
         return hit.doc;
     }
-    const doc = JSON.parse(readFileSync(path, "utf8")) as Partial<NoiseFixtureDocument>;
+    const doc = JSON.parse(fs.readFileSync(path, "utf8")) as Partial<NoiseFixtureDocument>;
     parsedFixtures.set(path, { stamp, doc });
     return doc;
 }
@@ -212,15 +228,15 @@ export function readNoiseFixtures(
     fixture: string,
 ): readonly { readonly adapterClass: string; readonly values: Float64Array; readonly dtype: "f32" | "u32" }[] {
     const dir = noiseDir();
-    if (!existsSync(dir)) {
+    if (!fs.existsSync(dir)) {
         return [];
     }
     const out: { readonly adapterClass: string; readonly values: Float64Array; readonly dtype: "f32" | "u32" }[] = [];
-    for (const name of readdirSync(dir).sort()) {
+    for (const name of fs.readdirSync(dir).sort()) {
         if (!name.endsWith(".json")) {
             continue;
         }
-        const doc = parseFixture(resolve(dir, name));
+        const doc = parseFixture(nodePath.resolve(dir, name));
         if (doc.kernel !== kernel || doc.fixture !== fixture) {
             continue;
         }
@@ -241,10 +257,10 @@ export function readNoiseFixtures(
  * @returns the parsed document or null
  */
 function readNoiseFloor(): NoiseFloorDocument | null {
-    if (!existsSync(NOISE_FLOOR_FILE)) {
+    if (!fs.existsSync(noiseFloorFile())) {
         return null;
     }
-    return JSON.parse(readFileSync(NOISE_FLOOR_FILE, "utf8")) as NoiseFloorDocument;
+    return JSON.parse(fs.readFileSync(noiseFloorFile(), "utf8")) as NoiseFloorDocument;
 }
 
 /**
@@ -258,7 +274,7 @@ export function recordNoiseRow(row: NoiseRow): void {
     if (!writing()) {
         return;
     }
-    mkdirSync(dirname(NOISE_FLOOR_FILE), { recursive: true });
+    fs.mkdirSync(nodePath.dirname(noiseFloorFile()), { recursive: true });
     const doc: NoiseFloorDocument = readNoiseFloor() ?? {
         recordedAt: new Date().toISOString(),
         adapters: [],
@@ -266,7 +282,7 @@ export function recordNoiseRow(row: NoiseRow): void {
         tolerances: {},
     };
     doc.rows = [...doc.rows.filter((r) => r.id !== row.id), row];
-    writeAtomic(NOISE_FLOOR_FILE, `${JSON.stringify(doc, null, 4)}\n`);
+    writeAtomic(noiseFloorFile(), `${JSON.stringify(doc, null, 4)}\n`);
 }
 
 /**
@@ -279,7 +295,7 @@ export function noiseFloorFor(testId: string): { readonly value: number; readonl
     const doc = readNoiseFloor();
     if (doc === null) {
         throw new Error(
-            `noise floor: ${NOISE_FLOOR_FILE} does not exist, so there is no committed tolerance for "${testId}"`,
+            `noise floor: ${noiseFloorFile()} does not exist, so there is no committed tolerance for "${testId}"`,
         );
     }
     const entry = doc.tolerances[testId];

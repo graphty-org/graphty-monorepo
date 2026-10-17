@@ -43,7 +43,7 @@ export function readPersistedInsightsMemory(): Partial<PersistedInsightsMemory> 
     let raw: string | null = null;
 
     try {
-        raw = window.localStorage.getItem(INSIGHTS_MEMORY_STORAGE_KEY);
+        raw = globalThis.localStorage.getItem(INSIGHTS_MEMORY_STORAGE_KEY);
     } catch {
         return {};
     }
@@ -83,7 +83,7 @@ export function readPersistedInsightsMemory(): Partial<PersistedInsightsMemory> 
  */
 export function writePersistedInsightsMemory(memory: PersistedInsightsMemory): void {
     try {
-        window.localStorage.setItem(INSIGHTS_MEMORY_STORAGE_KEY, JSON.stringify(memory));
+        globalThis.localStorage.setItem(INSIGHTS_MEMORY_STORAGE_KEY, JSON.stringify(memory));
     } catch {
         // Deliberately ignored: see the JSDoc above.
     }

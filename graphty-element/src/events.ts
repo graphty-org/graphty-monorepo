@@ -6,6 +6,7 @@ import type { EdgeId, NodeId } from "./catalog/types";
 import type { NodeIdType } from "./config";
 import type { ImportReport } from "./data/report";
 import type { Edge } from "./Edge";
+import type { GraphtyWarningCode } from "./errors/codes";
 import type { Graph } from "./Graph";
 import type { StatsManager } from "./managers/StatsManager";
 import type { Node } from "./Node";
@@ -79,6 +80,7 @@ export type GraphEvent =
     | SelectionChangedEvent
     | GraphStartedEvent
     | LayoutChangedEvent
+    | LayoutWarningEvent
     | OperationCancelledEvent
     | StatsUpdateEvent
     | InputEnabledChangedEvent
@@ -295,6 +297,8 @@ export interface StyleChangedEvent {
     painted: StyleChange["painted"];
     /** The paths the changed layers read that nothing in the session answers yet. */
     unresolvedPaths: string[];
+    /** What the changed layers will paint nothing for, as codes (`W_UNKNOWN_ID`), or draw without the alpha their color asked for (`W_ALPHA_IGNORED`). */
+    warnings: StyleChange["warnings"];
 }
 
 // Data loading events
@@ -435,6 +439,21 @@ export interface LayoutChangedEvent {
     layoutType: string;
     /** The options the layout was built with: the caller's, filled in with the layout's defaults. */
     options: Record<string, unknown>;
+}
+
+/**
+ * Emitted when a layout could not do everything it was asked.
+ * The data kept it from placing every node (`W_NO_POSITION`), or it ran without options it does
+ * not take (`W_UNKNOWN_OPTION`). It carries a warning code and its parameters, never a sentence.
+ */
+export interface LayoutWarningEvent {
+    type: "layout-warning";
+    /** The layout that reported it, as `setLayout` was given it. */
+    layoutType: string;
+    /** What happened, such as `W_NO_POSITION` or `W_UNKNOWN_OPTION`. */
+    code: GraphtyWarningCode;
+    /** The code's parameters, as the code's documentation lists them. */
+    params: Readonly<Record<string, unknown>>;
 }
 
 /** Emitted when a queued operation is aborted before it finished. */

@@ -76,7 +76,7 @@ interface NumberField {
  */
 export function useNumberField(options: NumberFieldOptions): NumberField {
     const { value, display, onCommit, parse, suffix, min, max, step = 1, decimalScale, locked = false } = options;
-    const format = options.format ?? ((n: number): string => String(n));
+    const format = options.format ?? String;
     const [draft, setDraftState] = useState<string | null>(null);
     // Mirrored in a ref: Escape clears the draft and blurs in one handler, and the blur's commit
     // must see the cleared draft, not the render's.

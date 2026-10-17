@@ -106,7 +106,7 @@ What does not survive:
 - JSON values are written as text (`W_CX_JSON_AS_STRING`).
 - A NaN or infinite position, and a NaN weight, are not written (`W_NONFINITE_AS_NULL`). NaN and
   the infinities in double attributes survive.
-- Edge ids are generated when the graph has none (`W_EDGE_IDS_GENERATED`).
+- Edge ids are generated when the graph has none (`W_EDGE_IDS_GENERATED`), and a generated id is never also a node id.
 
 A file read from CX gets its citations, supports, style rules and other aspects back.
 

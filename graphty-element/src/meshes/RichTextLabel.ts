@@ -13,10 +13,15 @@ import {
 
 import { BadgeStyleManager } from "../BadgeStyleManager";
 import { type RichTextStyleType } from "../config";
+import { FrameRoster } from "./FrameRoster";
+import { buildMaterial, deferLabelRelease, giveAlphaQuietly, setUpQuietly } from "./LabelBatch";
 import { type ContentArea as PointerContentArea, type PointerDirection, PointerRenderer } from "./PointerRenderer";
 import { RichTextAnimator } from "./RichTextAnimator";
 import { measureLine, RichTextParser } from "./RichTextParser";
 import { RichTextRenderer } from "./RichTextRenderer";
+
+/** The depth-fading labels of each scene, behind one before-render observer; see {@link FrameRoster}. */
+const depthFadeFrames = new FrameRoster();
 
 /** The Babylon rendering group a label drawn on top uses: after nodes and edges (group 0). */
 const ON_TOP_RENDERING_GROUP = 1;
@@ -143,13 +148,13 @@ type ResolvedRichTextLabelOptions = RequiredExceptOptional<
  * Rich text label with support for formatting, badges, animations, and speech bubble pointers
  */
 export class RichTextLabel {
-    private scene: Scene;
-    private options: ResolvedRichTextLabelOptions;
+    private readonly scene: Scene;
+    private readonly options: ResolvedRichTextLabelOptions;
     private mesh: Mesh | null = null;
     private texture: DynamicTexture | null = null;
     private material: StandardMaterial | null = null;
     private parsedContent: TextSegment[][] = [];
-    private actualDimensions: ActualDimensions = { width: 0, height: 0 };
+    private readonly actualDimensions: ActualDimensions = { width: 0, height: 0 };
     private contentArea: ContentArea = { x: 0, y: 0, width: 0, height: 0 };
     /** The size of the words alone, in the same units as `actualDimensions`. */
     private textSize = { width: 0, height: 0 };
@@ -161,14 +166,15 @@ export class RichTextLabel {
     private totalBorderWidth = 0;
     private pointerInfo: PointerInfo | null = null;
     private _progressValue = 0;
-    private id: string;
+    private readonly id: string;
     private originalPosition: Vector3 | null = null;
 
-    private parser: RichTextParser;
-    private renderer: RichTextRenderer;
-    private animator: RichTextAnimator | null = null;
-    private pointerRenderer: PointerRenderer;
-    private depthFadeCallback: (() => void) | null = null;
+    private readonly parser: RichTextParser;
+    private readonly renderer: RichTextRenderer;
+    private readonly animator: RichTextAnimator | null = null;
+    private readonly pointerRenderer: PointerRenderer;
+    /** Ends this label's depth fade; see {@link depthFadeFrames}. */
+    private stopDepthFade: (() => void) | null = null;
     private animationStarted = false;
 
     /**
@@ -496,7 +502,8 @@ export class RichTextLabel {
         canvas.getContext("2d", { willReadFrequently: true });
         this.texture = new DynamicTexture(`richTextTexture_${this.id}`, canvas, this.scene, true);
 
-        this.texture.hasAlpha = true;
+        // Nothing uses the texture yet; see LabelBatch (issue #2762).
+        giveAlphaQuietly(this.scene, this.texture);
         this.texture.updateSamplingMode(Texture.TRILINEAR_SAMPLINGMODE);
 
         this._drawContent();
@@ -899,23 +906,31 @@ export class RichTextLabel {
     }
 
     private _createMaterial(): void {
-        this.material = new StandardMaterial(`richTextMaterial_${this.id}`, this.scene);
-        if (this.texture) {
-            this.material.diffuseTexture = this.texture;
-        }
+        // Built and set up without the scene-wide searches and walks Babylon makes for a material
+        // that nothing draws yet; see LabelBatch (issue #2762).
+        const material = buildMaterial(
+            this.scene,
+            () => new StandardMaterial(`richTextMaterial_${this.id}`, this.scene),
+        );
+        this.material = material;
+        setUpQuietly(material, () => {
+            if (this.texture) {
+                material.diffuseTexture = this.texture;
+            }
 
-        this.material.specularColor = new Color3(0, 0, 0);
-        // Only set emissiveColor if we're not using glow animation
-        if (this.options.animation !== "glow") {
-            this.material.emissiveColor = new Color3(1, 1, 1);
-        } else {
-            // Start with a neutral emissive for glow animation
-            this.material.emissiveColor = new Color3(0.65, 0.65, 0.65);
-        }
+            material.specularColor = new Color3(0, 0, 0);
+            // Only set emissiveColor if we're not using glow animation
+            if (this.options.animation !== "glow") {
+                material.emissiveColor = new Color3(1, 1, 1);
+            } else {
+                // Start with a neutral emissive for glow animation
+                material.emissiveColor = new Color3(0.65, 0.65, 0.65);
+            }
 
-        this.material.backFaceCulling = false;
-        this.material.useAlphaFromDiffuseTexture = true;
-        this.material.alphaMode = Engine.ALPHA_COMBINE;
+            material.backFaceCulling = false;
+            material.useAlphaFromDiffuseTexture = true;
+            material.alphaMode = Engine.ALPHA_COMBINE;
+        });
     }
 
     private _createMesh(): void {
@@ -1058,7 +1073,7 @@ export class RichTextLabel {
     private _setupDepthFading(): void {
         const cameraAt = new Vector3();
 
-        this.depthFadeCallback = () => {
+        this.stopDepthFade = depthFadeFrames.join(this.scene, () => {
             // READ EVERY FRAME: switching between 2D and 3D swaps the active camera.
             const camera = this.scene.activeCamera;
             if (!camera || !this.mesh || !this.material) {
@@ -1090,9 +1105,7 @@ export class RichTextLabel {
             }
 
             this.material.alpha = fadeFactor;
-        };
-
-        this.scene.registerBeforeRender(this.depthFadeCallback);
+        });
     }
 
     /**
@@ -1187,13 +1200,17 @@ export class RichTextLabel {
      */
     public dispose(): void {
         // Clean up scene callback first
-        if (this.depthFadeCallback) {
-            this.scene.unregisterBeforeRender(this.depthFadeCallback);
-            this.depthFadeCallback = null;
-        }
+        this.stopDepthFade?.();
+        this.stopDepthFade = null;
 
         if (this.animator) {
             this.animator.dispose();
+        }
+
+        // A repaint that disposes many labels releases them all at once when it ends; see
+        // LabelBatch (issue #2762).
+        if (deferLabelRelease({ mesh: this.mesh, material: this.material, texture: this.texture })) {
+            return;
         }
 
         if (this.mesh) {

@@ -92,7 +92,7 @@ const DEFAULT_PROVIDER_ITEM = "default-provider";
  * and nothing else.
  */
 export class ApiKeyManager {
-    private keys = new Map<ProviderType, string>();
+    private readonly keys = new Map<ProviderType, string>();
     private defaultProvider: ProviderType | null = null;
     private persistenceConfig: Required<PersistenceConfig> | null = null;
     private encryptStorage: EncryptStorage | null = null;

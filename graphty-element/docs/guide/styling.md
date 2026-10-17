@@ -38,7 +38,7 @@ map beside the element deleted the element's own base layer with an off-by-one.
 ## Reading is free, writing is a command
 
 `list`, `get`, `validate`, `legend`, `explain` and `agreement` answer from what the session already holds and
-cost nothing. `add`, `update`, `remove`, `move`, `removeBySource`, `encode` and `highlight`
+cost nothing. `add`, `update`, `remove`, `move`, `removeBySource`, `encode`, `mark` and `highlight`
 **validate and repaint**, so each one returns a `Run`: it can report progress on a large graph,
 take an `AbortSignal`, and be fired from a click handler and forgotten.
 
@@ -72,6 +72,11 @@ rather than implied:
 { match: "expression", where: "data.type == 'server'" }
 { match: "member", of: { set: id } }           // the members of a set, or any other scope
 ```
+
+An `ids` selector finds an integer id in either spelling, as every other id lookup does: `["1", "3"]`
+paints nodes `1` and `3` of a graph whose ids are numbers. An id that names nothing paints nothing,
+and `styles.validate()` and the `style:changed` change report it as a `W_UNKNOWN_ID` warning, with
+`params.target` and `params.ids` (the ids as the layer named them).
 
 ### A set
 
@@ -168,7 +173,8 @@ A channel is one visual property with one name. These are all of them:
 | Node channel        | Takes                                                              |
 | ------------------- | ------------------------------------------------------------------ |
 | `node.color`        | any CSS colour                                                     |
-| `node.size`         | a number                                                           |
+| `node.size`         | 0 or more, in scene units; what it measures is `node.sizeMode`'s   |
+| `node.sizeMode`     | `scale` (the default) or `diameter`                                |
 | `node.shape`        | `sphere`, `box`, `cylinder`, `icosphere`, ...                      |
 | `node.label`        | the words to draw                                                  |
 | `node.labelStyle`   | `{font, sizePx, weight, color, background, outline, padding, ...}` |
@@ -177,26 +183,26 @@ A channel is one visual property with one name. These are all of them:
 | `node.opacity`      | 0 to 1                                                             |
 | `node.outline`      | a colour                                                           |
 | `node.glow`         | a colour                                                           |
-| `node.glowStrength` | a number                                                           |
+| `node.glowStrength` | 0 or more, scaling `node.glow`; 0 or on its own it draws no glow   |
 | `node.wireframe`    | true or false                                                      |
-| `node.flat`         | true or false                                                      |
+| `node.flat`         | true or false: one normal per face, so a sphere looks faceted (3D) |
 
 | Edge channel              | Takes                                                                      |
 | ------------------------- | -------------------------------------------------------------------------- |
 | `edge.color`              | any CSS colour                                                             |
-| `edge.width`              | a number                                                                   |
+| `edge.width`              | 0 or more; 0 draws no line (the caps and label still draw)                 |
 | `edge.opacity`            | 0 to 1                                                                     |
 | `edge.style`              | `solid`, `dash`, `dot`, `zigzag`, ...                                      |
 | `edge.patternCount`       | how many dots or dashes to draw, 2 or more (zigzag and sinewave ignore it) |
 | `edge.curvature`          | true or false (a bezier)                                                   |
 | `edge.arrowHead`          | `normal`, `inverted`, `diamond`, `none`, ...                               |
-| `edge.arrowHeadSize`      | a number, 1 being the element's own size                                   |
+| `edge.arrowHeadSize`      | 0 or more, 1 being the element's own size; 0 draws no head                 |
 | `edge.arrowHeadColor`     | a colour                                                                   |
 | `edge.arrowHeadOpacity`   | 0 to 1                                                                     |
 | `edge.arrowHeadText`      | words drawn beside the head cap                                            |
 | `edge.arrowHeadTextStyle` | as `node.labelStyle`                                                       |
 | `edge.arrowTail`          | the same arrows                                                            |
-| `edge.arrowTailSize`      | a number                                                                   |
+| `edge.arrowTailSize`      | 0 or more; 0 draws no tail                                                 |
 | `edge.arrowTailColor`     | a colour                                                                   |
 | `edge.arrowTailOpacity`   | 0 to 1                                                                     |
 | `edge.arrowTailText`      | words drawn beside the tail cap                                            |
@@ -204,6 +210,14 @@ A channel is one visual property with one name. These are all of them:
 | `edge.animationSpeed`     | a number                                                                   |
 | `edge.label`              | the words to draw                                                          |
 | `edge.labelStyle`         | as `node.labelStyle`                                                       |
+
+A color may carry an alpha (`#ff000080`, `rgba(255, 0, 0, 0.5)`). On `node.color`,
+`edge.color` and the two arrow colors the alpha multiplies the matching opacity channel, so
+`#ff000080` draws as `#ff0000` at opacity 0.5; an arrow with no color of its own takes its line's
+color, alpha included. On `node.glow` it fades the glow. An outline cannot be drawn translucent:
+`node.outline` draws the color opaque, and `styles.validate()` and the `style:changed` change
+report it as a `W_ALPHA_IGNORED` warning, with `params.channel` and `params.path`. The selection
+halo's color (`setSelectionStyle`) works the same way, multiplied with its `opacity`.
 
 Writing `node.label` or `edge.label` is what switches a label on. To switch node labels on
 without choosing the words, write `{ enabled: true }` to `node.labelStyle`: each node is labelled
@@ -225,6 +239,44 @@ at 24 px, and each field takes the value from the highest layer that set it.
 Glowing nodes are drawn through one mesh per distinct `node.glow` and `node.glowStrength`
 pair. A handful of glow styles costs nothing; a strength encoded from data, with a different value
 on every node, gives up instancing for the glowing nodes.
+
+### What a node's size measures
+
+`node.sizeMode` says how `node.size` is read. With `scale`, the default, the size multiplies each
+shape's own geometry, so shapes of one size are drawn at different extents. With `diameter`, the
+size is the largest width, height or depth of the drawn shape, the same for every shape: a size-1
+octahedron is as wide as a size-1 sphere.
+
+```typescript
+await element.session.styles.add({
+    name: "Same extent for every shape",
+    target: "node",
+    selector: { match: "everything" },
+    set: { "node.sizeMode": "diameter" },
+});
+```
+
+Under `scale`, a node's largest extent is its size times:
+
+| Shape                                                    | Factor |
+| -------------------------------------------------------- | ------ |
+| `sphere`, `box`, `capsule`                               | 1      |
+| `torus-knot`                                             | 1.25   |
+| `goldberg`, `icosphere`, `torus`                         | 1.5    |
+| `square_pyramid`                                         | 1.51   |
+| `cylinder`, `cone`                                       | 1.62   |
+| `geodesic`                                               | 1.7    |
+| `triangular_dipyramid`, `elongated_pentagonal_dipyramid` | 1.96   |
+| `pentagonal_pyramid`                                     | 2.01   |
+| `pentagonal_dipyramid`                                   | 2.06   |
+| `elongated_pentagonal_cupola`                            | 2.07   |
+| `dodecahedron`, `rhombicuboctahedron`                    | 2.14   |
+| `pentagonal_prism`                                       | 2.16   |
+| `hexagonal_prism`                                        | 2.24   |
+| `triangular_prism`                                       | 2.29   |
+| `icosahedron`                                            | 2.35   |
+| `elongated_square_dipyramid`                             | 2.43   |
+| `tetrahedron`, `octahedron`                              | 2.83   |
 
 ### Drawing a style editor
 
@@ -404,9 +456,27 @@ await element.session.styles.encode({ run, channel: "node.size" });
 second one on it, so running an algorithm twice does not leave two legend blocks on one channel
 with one of them invisible under the other.
 
-For an algorithm that chooses a subset -- a route, a cut, a matching -- the verb is `highlight()`,
-and a highlight is exclusive: a second route replaces the first rather than being painted beside
-it.
+For an algorithm that chooses a subset -- a route, a spanning tree, a cut, a matching -- the verb
+is `mark()`. It adds an ordinary layer per half the run chose, scoped to the elements it chose, that
+sets exactly the channels you name:
+
+```typescript
+const route = await element.run("shortest-path", { source: "a", target: "f" }, { style: false });
+
+await element.session.styles.mark({
+    run: route,
+    set: { "node.color": "#D55E00", "edge.color": "#D55E00", "edge.width": 24 },
+});
+```
+
+Marks stack like any other layer: a second algorithm's mark is painted beside the first, and the
+one higher in the stack wins only on the elements both chose. Marking the same run again replaces
+its earlier mark. This is what an algorithm paints by itself when it finishes: vermilion on the
+chosen nodes and edges, with each chosen edge three times the default width.
+
+`highlight()` takes the same run but is exclusive: a second highlight replaces the first rather
+than being painted beside it, and with no `set` it uses the element's own highlight color. Use it
+for a selection-like "show me this one" view; an algorithm's own picture never goes through it.
 
 ## The element's own layers
 

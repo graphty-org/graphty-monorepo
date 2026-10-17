@@ -37,7 +37,8 @@ import {
 } from "./columns.js";
 import { type ToBytesOptions, type ToWireOptions, type WireSnapshot } from "./wire.js";
 
-export type { GraphSnapshot, NodeIdMap };
+export type { NodeIdMap } from "../ids/node-id-map.js";
+export type { GraphSnapshot } from "../snapshot/graph-snapshot.js";
 
 // ============================================================ id map
 

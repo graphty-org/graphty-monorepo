@@ -65,20 +65,6 @@
                 "cwd": "graphty-element"
             }
         },
-        "test:visual": {
-            "executor": "nx:run-commands",
-            "options": {
-                "command": "npm run test:visual",
-                "cwd": "graphty-element"
-            }
-        },
-        "chromatic": {
-            "executor": "nx:run-commands",
-            "options": {
-                "command": "npm run chromatic",
-                "cwd": "graphty-element"
-            }
-        },
         "docs:build": {
             "executor": "nx:run-commands",
             "outputs": ["{projectRoot}/docs/.vitepress/dist"],

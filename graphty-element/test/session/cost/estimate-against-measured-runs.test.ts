@@ -15,8 +15,8 @@
  * ## Why a live stopwatch is steady enough for CI
  *
  * - Each algorithm is run once untimed on its smaller graph first, so the JIT is warm.
- * - Each size keeps the fastest of three runs. Load from other processes (other vitest workers,
- *   other jobs) only ever adds time, so the minimum is the steadiest reading of the work itself.
+ * - Each size keeps its fastest run. Load from other processes (other vitest workers, other jobs)
+ *   only ever adds time, so the minimum is the steadiest reading of the work itself.
  *   Sizes are chosen so one run takes roughly 0.05 to 1 s here: long enough that timer noise is
  *   small, short enough that the whole file stays near 40 s on the reference machine.
  * - Time is read on a clock that stops while this thread waits for a CPU (`runningMs`), and the
@@ -30,8 +30,13 @@
  *   divided by what that workload does on the machine the defaults were fitted on, scales every
  *   rate by this machine's speed. On the fitting machine the calibration is the defaults (the
  *   test prints the factor when `COST_GUARD_VERBOSE` is set); on a machine twice as slow every
- *   estimate doubles. The probe is re-run on both sides of each size's runs and its fastest
- *   reading kept, for the same reason the runs keep their fastest (see `machineSpeed`).
+ *   estimate doubles. The probe keeps its fastest reading for the same reason the runs keep
+ *   theirs, and the two are taken turn about over the same few seconds, a probe then a run (see
+ *   `machineSpeed`), so a quiet moment that gives the probe its best reading gives a run one too.
+ * - The probe stays in cache, so it cannot see a cloud runner's memory loaded by another tenant,
+ *   which slows the rows that walk large graphs 3 to 6x and leaves the rest alone. Each size's
+ *   memory is checked on both sides of its runs, and a size timed while it was loaded is skipped
+ *   with a warning instead of judged (see `memorySpeed`).
  *
  * Rows on other graph shapes are the worst cases found for each model when it was fitted: a model
  * can be tight on the default random graph and optimistic elsewhere, and only a row on the shape
@@ -564,29 +569,43 @@ function fastestCoreCpus(): string | undefined {
     return fast.length === 0 ? undefined : fast.join(",");
 }
 
-/** Probes per calibration. Each is a few milliseconds, so many are cheap. */
+/** Probes per size, each followed by a run. A probe is a quarter of a second, a run 0.01 to 1 s. */
 const PROBES = 9;
 
 /**
  * How fast this machine is right now against the one the defaults were fitted on, as the
- * element's calibration probe measures it.
+ * element's calibration probe measures it, with a run of the work being judged after each probe.
  *
  * The FASTEST of several probes, as the runs keep their fastest time: contention from other
  * processes only ever adds time, so the minimum is the steadiest reading of the work itself.
  * The three classes' factors are collapsed to their median, because under load one class's probe
  * can swing by 2x on its own and the median discards it.
- * @returns The speed factor; 1 on the reference machine, 0.5 on one twice as slow.
+ *
+ * The runs are taken between the probes, not after them, because {@link runningMs} hides the time
+ * this thread waits for a CPU but not contention while it holds one: a busy SMT sibling on the same
+ * core, a shared cache, a lower clock under load. That comes and goes over seconds, and slows a
+ * run's code by a third. When the probes were taken on both sides of three back-to-back runs, the
+ * fastest of eighteen probes over about 4.5 s found a quiet moment that the three runs, about 0.1 s
+ * at 600 nodes, had missed: on 2026-10-12 (issue #2218) betweenness read 35 ms on a CI runner where
+ * one of the same kind read 27 ms, with the same probe reading, an estimate 0.94 of the stopwatch.
+ * Turn about, a quiet moment long enough for a probe is long enough for a run beside it.
+ * @param run - One run of the work being judged, timed after each probe.
+ * @returns The speed factor (1 on the reference machine, 0.5 on one twice as slow) and the
+ * fastest run, in running seconds.
  */
-async function machineSpeed(): Promise<number> {
+async function machineSpeed(run: () => unknown): Promise<{ speed: number; fastest: number }> {
     const probes: MachineCalibration[] = [];
-    // The probe reads `performance.now`; it is timed on the runs' clock so the two compare.
-    const clock = vi.spyOn(performance, "now").mockImplementation(runningMs);
-    try {
-        for (let probe = 0; probe < PROBES; probe++) {
+    let fastest = Infinity;
+    for (let probe = 0; probe < PROBES; probe++) {
+        // The probe reads `performance.now`; it is timed on the runs' clock so the two compare.
+        const clock = vi.spyOn(performance, "now").mockImplementation(runningMs);
+        try {
             probes.push(await calibrateCost({ budgetMs: 250 }));
+        } finally {
+            clock.mockRestore();
         }
-    } finally {
-        clock.mockRestore();
+
+        fastest = Math.min(fastest, seconds(run));
     }
 
     assert.isTrue(
@@ -597,21 +616,70 @@ async function machineSpeed(): Promise<number> {
         (key) => Math.max(...probes.map((probe) => probe.rates[key])) / DEFAULT_COST_RATES[key],
     );
 
-    return speeds.sort((a, b) => a - b)[1];
+    return { speed: speeds.sort((a, b) => a - b)[1], fastest };
+}
+
+/** A table larger than any machine's last-level cache: 64 MB, against 32 to 36 MB. */
+const FAR_TABLE = new Uint32Array(1 << 24);
+
+/**
+ * Milliseconds the reference machine takes for {@link memorySpeed}'s increments: 29 to 34 on its
+ * P-cores. A cache miss waits on DRAM, which is about as fast on a cloud runner as on a desktop:
+ * an unloaded 0.51x CI runner takes about 34.
+ */
+const REFERENCE_SCATTER_MS = 29;
+
+/**
+ * How fast this machine's memory is right now against the reference machine's, timed by 4M
+ * increments at pseudo-random places in {@link FAR_TABLE} (the same work as the degree row's
+ * counting loop), the fastest of three on {@link runningMs}.
+ *
+ * The calibration probe works on a graph of 20,000 nodes that stays in cache, so it measures the
+ * cores and cannot see the memory behind them. On a cloud runner that memory (the last-level cache
+ * and the DRAM bandwidth) is shared with other tenants, and one of them can load it hard: on
+ * 2026-10-11 (issue #2025) a runner's probe read 1.2x slower than usual while every row that
+ * walks a large graph at random -- degree at 800,000 nodes, PageRank and Louvain on random graphs,
+ * eigenvector on scale-free -- ran 3 to 6x slower, and the rows that stay in cache (betweenness,
+ * closeness, paths, stars) ran as usual. No estimate that scales by the probe can be held to a
+ * stopwatch on such a machine, so a reading under {@link MIN_MEMORY_SPEED} skips the size.
+ * @returns The speed factor; 1 on the reference machine, 0.5 with memory twice as slow.
+ */
+function memorySpeed(): number {
+    const once = (): number => {
+        let state = 1;
+        const started = runningMs();
+        for (let i = 0; i < 1 << 22; i++) {
+            state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+            FAR_TABLE[state >>> 8]++;
+        }
+
+        return runningMs() - started;
+    };
+
+    return REFERENCE_SCATTER_MS / Math.min(once(), once(), once());
 }
 
 /**
- * The default rates scaled to a machine of this speed, which is what `calibrateCost` produces.
+ * The slowest memory a size is timed on, against the reference machine's. Unloaded CI runners
+ * read about 0.85; the loaded one slowed the degree row's same increments 4 to 5x.
+ */
+const MIN_MEMORY_SPEED = 0.5;
+
+/**
+ * The default rates scaled to a machine of this speed, with this memory reading, which is what
+ * `calibrateCost` produces. Its memory probe makes the same increments into a table of the same
+ * size, against the same 29 ms, so the two readings are on one scale.
  * @param speed - The machine's speed factor.
+ * @param memory - The memory speed factor, from {@link memorySpeed}.
  * @returns A calibration to estimate with.
  */
-function calibrationAt(speed: number): MachineCalibration {
+function calibrationAt(speed: number, memory: number): MachineCalibration {
     const rates = { ...DEFAULT_COST_RATES };
     for (const key of Object.keys(rates) as (keyof CostRates)[]) {
         rates[key] *= speed;
     }
 
-    return { rates, at: new Date().toISOString(), machine: "this test", basis: "probe" };
+    return { rates, at: new Date().toISOString(), machine: "this test", basis: "probe", memorySpeed: memory };
 }
 
 /** This process's CPU affinity before the guard pinned it, restored afterwards; undefined if unpinned. */
@@ -626,7 +694,7 @@ beforeAll(async () => {
         execFileSync("taskset", ["-a", "-p", "-c", cpus, String(process.pid)]);
     }
 
-    await machineSpeed(); // warm the probe's JIT; its first answers are low
+    await machineSpeed(() => undefined); // warm the probe's JIT; its first answers are low
 });
 
 afterAll(() => {
@@ -647,7 +715,7 @@ describe.runIf(process.env.COST_GUARD === "1")(
             const bounds =
                 row.optimismOnly === undefined ? `[${MAX_OPTIMISM}, ${MAX_PESSIMISM}]` : `at least ${MAX_OPTIMISM}`;
             // eslint-disable-next-line local/no-test-timing -- no condition to wait on, a row is timed runs on graphs of up to 800,000 nodes between calibration probes of about 2.3 s each; degree takes 6.4 s locally and about twice that on CI's 0.5x-speed runners, more than a third of the 30 s budget; tracked in #1636
-            it(`${row.key} on ${row.shapeName ?? "random, m = 5n"}: estimate / measured stays ${bounds}`, async () => {
+            it(`${row.key} on ${row.shapeName ?? "random, m = 5n"}: estimate / measured stays ${bounds}`, async (context) => {
                 const descriptor = algorithmByKey(row.key);
                 const graphs = row.sizes.map((nodes) => measuredGraph(row.shape ?? random(5), nodes));
                 const once = (index: number): unknown => row.run(graphs[index].data, row.sizes[index]);
@@ -656,12 +724,11 @@ describe.runIf(process.env.COST_GUARD === "1")(
 
                 for (const [index, nodes] of row.sizes.entries()) {
                     const { edges, maxDegree, transitivity } = graphs[index];
-                    // Probed on both sides of the runs, keeping the faster reading, so a burst of load
-                    // during one probe window does not read as a slow machine.
-                    const before = await machineSpeed();
-                    const measured = Math.min(...[0, 1, 2].map(() => seconds(() => once(index))));
-                    const speed = Math.max(before, await machineSpeed());
-                    const calibration = calibrationAt(speed);
+                    const memoryBefore = memorySpeed();
+                    const { speed, fastest: measured } = await machineSpeed(() => once(index));
+                    // Either side loaded means the runs between them may have been.
+                    const memory = Math.min(memoryBefore, memorySpeed());
+                    const calibration = calibrationAt(speed, memory);
                     const estimate = estimateCost({
                         algorithm: row.key,
                         descriptor,
@@ -673,7 +740,15 @@ describe.runIf(process.env.COST_GUARD === "1")(
                     const ratio = estimate.seconds / measured;
                     const facts = `${row.key} on ${row.shapeName ?? "random, m = 5n"} n=${nodes} m=${edges} T=${transitivity.toFixed(3)}: estimated ${estimate.seconds.toFixed(3)} s, measured ${measured.toFixed(3)} s, ratio ${ratio.toFixed(2)}`;
                     if (process.env.COST_GUARD_VERBOSE !== undefined) {
-                        process.stdout.write(`${facts}, machine speed ${speed.toFixed(2)}x the reference\n`);
+                        process.stdout.write(
+                            `${facts}, machine speed ${speed.toFixed(2)}x the reference, memory ${memory.toFixed(2)}x\n`,
+                        );
+                    }
+
+                    if (memory < MIN_MEMORY_SPEED) {
+                        const note = `not timed: another tenant is loading this machine's memory (${memory.toFixed(2)}x the reference, under ${MIN_MEMORY_SPEED}). ${facts}`;
+                        process.stdout.write(`::warning title=Cost Estimate Accuracy::${note}\n`);
+                        context.skip(note);
                     }
 
                     assert.isAtLeast(ratio, MAX_OPTIMISM, `too optimistic. ${facts}`);

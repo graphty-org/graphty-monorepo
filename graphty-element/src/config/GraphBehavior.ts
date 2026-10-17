@@ -35,26 +35,54 @@ const LabelBehaviorOpts = z
          * the selection changes, and never on a frame where none of them did.
          */
         declutter: z.boolean().default(false),
+        /*
+         * Whether a node label moves off the other nodes and the edges it would cover.
+         *
+         * OFF BY DEFAULT, so a label is drawn where its style puts it. On, the element tries the
+         * label's own place first and then the places around its node (above, below, beside, the
+         * four corners) and draws it at the first one that covers no other label, node or edge;
+         * failing that, at one that covers no label or node. When none of them is clear of other
+         * labels and nodes, `declutter` hides the label; with `declutter` off it stays where its
+         * style puts it. Decided again whenever `declutter` is.
+         */
+        avoidNodesAndEdges: z.boolean().default(false),
     })
     .prefault({});
 
-const RenderingBehaviorOpts = z
+const CameraBehaviorOpts = z
     .strictObject({
         /*
-         * Whether a frame is drawn only when the picture can have changed.
+         * Whether the selection becomes the camera's pivot.
          *
-         * OFF BY DEFAULT, so the element draws every animation frame, as Babylon.js does and as a
-         * consumer who changes the Babylon scene directly (through `element.graph.scene`) relies
-         * on. On, the element skips a frame once the layout has settled, the styles are painted and
-         * the camera is still, and draws again when anything it drives or the reader's input changes
-         * the picture. A still graph then costs the page nothing per frame, which on a software GPU
-         * is tens to hundreds of milliseconds of every frame. Something added to or removed from the
-         * scene from outside the element is drawn; a property changed on something already in it
-         * is not seen until something else asks for a frame.
+         * OFF BY DEFAULT, so the camera turns about the point it always has. On, selecting one node
+         * makes it the pivot, and selecting several makes the plain average of their positions the
+         * pivot: the 3D camera glides to look at it and orbits, spins and zooms about it, the 2D view
+         * glides to center it, and in VR or AR the reader's turns and scaling happen about it without
+         * moving the reader. The pivot follows the selected nodes while they move, and stays where it
+         * is when the selection is cleared.
          */
-        onDemand: z.boolean().default(false),
+        pivotOnSelection: z.boolean().default(false),
     })
     .prefault({});
+
+/** The rendering settings: the fields `setRenderSettings` accepts. */
+export const RenderSettingsOpts = z.strictObject({
+    /*
+     * Whether a frame is drawn only when the picture can have changed.
+     *
+     * OFF BY DEFAULT, so the element draws every animation frame, as Babylon.js does and as a
+     * consumer who changes the Babylon scene directly (through `element.graph.scene`) relies
+     * on. On, the element skips a frame once the layout has settled, the styles are painted and
+     * the camera is still, and draws again when anything it drives or the reader's input changes
+     * the picture. A still graph then costs the page nothing per frame, which on a software GPU
+     * is tens to hundreds of milliseconds of every frame. Something added to or removed from the
+     * scene from outside the element is drawn; a property changed on something already in it
+     * is not seen until something else asks for a frame.
+     */
+    onDemand: z.boolean().default(false),
+});
+
+const RenderingBehaviorOpts = RenderSettingsOpts.prefault({});
 
 const GraphLayoutOpts = z.strictObject({
     type: z.string().default("ngraph"),
@@ -99,6 +127,7 @@ export const GraphBehaviorOpts = z.strictObject({
     node: NodeBehaviorOpts,
     labels: LabelBehaviorOpts,
     rendering: RenderingBehaviorOpts,
+    camera: CameraBehaviorOpts,
     fetchNodes: z.optional(z.instanceof(Function)),
     fetchEdges: z.optional(z.instanceof(Function)),
 });

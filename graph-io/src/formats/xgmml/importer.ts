@@ -174,7 +174,39 @@ export async function parseXgmml(
     common: ResolvedImportOptions,
     options: XgmmlImportOptions | undefined,
 ): Promise<XgmmlDocument> {
-    const repairs: XmlRepairs = {
+    const repairs = repairsOf(options, report);
+    const parser = new XgmmlParser(report);
+    const seen = { content: false };
+    try {
+        await tokenizeXml(
+            watch(textChunks(input, report, { ...common, declaredEncoding: xmlDeclaredEncoding, xml: true }), seen),
+            parser,
+            repairs,
+        );
+    } catch (err) {
+        failOnSyntax(err, seen.content, report);
+        throw err;
+    }
+    const doc = parser.document();
+    if (!doc.xgmmlNamespace && !XGMML_DOCTYPE.test(doc.doctype ?? "")) {
+        report.warning(
+            "validation-error",
+            XGMML_ISSUE.NO_NAMESPACE,
+            "the root <graph> has neither the XGMML namespace nor an XGMML DOCTYPE; it is read as XGMML",
+            { line: doc.root.line },
+        );
+    }
+    return doc;
+}
+
+/**
+ * The XML repairs the options switch on, each reporting where it repaired.
+ * @param options - the XGMML options
+ * @param report - the report
+ * @returns the repairs
+ */
+function repairsOf(options: XgmmlImportOptions | undefined, report: ImportReportBuilder): XmlRepairs {
+    return {
         bareAmpersand: booleanOption("repairBareAmpersands", options?.repairBareAmpersands, false)
             ? (line): void => {
                   report.warning("parse-error", XGMML_ISSUE.AMPERSAND_REPAIRED, "a bare & was read as &amp;", { line });
@@ -191,33 +223,23 @@ export async function parseXgmml(
               }
             : undefined,
     };
-    const parser = new XgmmlParser(report);
-    const seen = { content: false };
-    try {
-        await tokenizeXml(
-            watch(textChunks(input, report, { ...common, declaredEncoding: xmlDeclaredEncoding, xml: true }), seen),
-            parser,
-            repairs,
-        );
-    } catch (err) {
-        if (err instanceof XmlSyntaxError) {
-            if (!seen.content) {
-                report.fail(XGMML_ISSUE.EMPTY_INPUT, "the input is empty");
-            }
-            report.fail(XGMML_ISSUE.XML_SYNTAX, err.message, { line: err.line });
-        }
-        throw err;
+}
+
+/**
+ * Fail the report on an XML syntax error: an input with no content is empty, any other is
+ * malformed. Any other error is left to the caller.
+ * @param err - the error the tokenizer threw
+ * @param content - whether non-whitespace text was seen
+ * @param report - the report
+ */
+function failOnSyntax(err: unknown, content: boolean, report: ImportReportBuilder): void {
+    if (!(err instanceof XmlSyntaxError)) {
+        return;
     }
-    const doc = parser.document();
-    if (!doc.xgmmlNamespace && !XGMML_DOCTYPE.test(doc.doctype ?? "")) {
-        report.warning(
-            "validation-error",
-            XGMML_ISSUE.NO_NAMESPACE,
-            "the root <graph> has neither the XGMML namespace nor an XGMML DOCTYPE; it is read as XGMML",
-            { line: doc.root.line },
-        );
+    if (!content) {
+        report.fail(XGMML_ISSUE.EMPTY_INPUT, "the input is empty");
     }
-    return doc;
+    report.fail(XGMML_ISSUE.XML_SYNTAX, err.message, { line: err.line });
 }
 
 /**
@@ -439,7 +461,7 @@ function sniffXgmml(head: Uint8Array): number {
     const root = /<(?![?!])([A-Za-z_][\w.-]*:)?([A-Za-z_][\w.-]*)[\s/>]/.exec(
         text.replaceAll(/<!--[\s\S]*?(-->|$)/g, ""),
     );
-    if (root === null || root[2] !== "graph") {
+    if (root?.[2] !== "graph") {
         return 0;
     }
     const tagEnd = text.indexOf(">", root.index);

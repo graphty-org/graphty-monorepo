@@ -2,15 +2,16 @@
 Copyright (c) 2024 Adam Powers. The code is under the MIT License (see LICENSE).
 
 The sample datasets are not the work of this package's authors. Each is listed below with where
-it was taken from, what to cite and its license as far as it is known. The bundled datasets
-(datasets/<name>) were converted by scripts/convert-datasets.mjs and the hosted ones (hosted:
-<name>, published at https://graphty.app/data/graph-samples/v1/<name>.gsnp.gz) by
-scripts/build-hosted.mjs; both record the exact source files and their SHA-256. The converted
-data are changed files, not the originals (node order, encoding, merged or dropped repeated
-links, and the corrections listed). To have a dataset removed, open an issue at
-https://github.com/graphty-org/graphty-monorepo/issues; removing one means deleting its
-src/datasets/<name>/ directory (or its entry in scripts/build-hosted.mjs) and its entries in
-src/datasets/catalog.ts and this file.
+it was taken from, what to cite and its license as far as it is known. The package itself holds
+none of their data: every dataset is published at
+https://graphty.app/data/graph-samples/v1/<name>.gsnp.gz and downloaded on demand. The small ones
+(datasets/<name>, also a subpath of the package) were converted by scripts/convert-datasets.mjs
+and the large ones (hosted: <name>) by scripts/build-hosted.mjs; both record the exact source
+files and their SHA-256. The converted data are changed files, not the originals (node order,
+encoding, merged or dropped repeated links, and the corrections listed). To have a dataset
+removed, open an issue at https://github.com/graphty-org/graphty-monorepo/issues; removing one
+means deleting its src/datasets/<name>/ directory and data/<name>.ts (or its entry in
+scripts/build-hosted.mjs) and its entries in src/datasets/catalog.ts and this file.
 
 ----------------------------------------------------------------------------------------------------
 Zachary's karate club (datasets/karate)
@@ -67,7 +68,7 @@ Contiguous United States (datasets/contiguous-usa)
 Source:   https://www2.census.gov/geo/docs/reference/county_adjacency/county_adjacency2024.txt
 Also:     https://www2.census.gov/geo/docs/reference/cenpop2020/CenPop2020_Mean_ST.txt
 Cite:     U.S. Census Bureau, County Adjacency File (2024); U.S. Census Bureau, Centers of Population by State, 2020 Census.
-License:  Public domain: works of the US federal government (17 U.S.C. 105). Borders derived from the Census county adjacency file; centres of population from https://www2.census.gov/geo/docs/reference/cenpop2020/CenPop2020_Mean_ST.txt
+License:  Public domain: works of the US federal government (17 U.S.C. 105). Borders derived from the Census county adjacency file; centers of population from https://www2.census.gov/geo/docs/reference/cenpop2020/CenPop2020_Mean_ST.txt
 
 ----------------------------------------------------------------------------------------------------
 Knuth's North American city mileages (datasets/knuth-miles)

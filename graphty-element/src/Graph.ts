@@ -76,9 +76,11 @@ import {
     type XRConfig,
 } from "./config";
 import { type AlgorithmOnLoad, DataConfig } from "./config/DataConfig";
+import { RenderSettingsOpts } from "./config/GraphBehavior";
 import { type PartialXRConfig, xrConfigSchema } from "./config/xr-config-schema";
 import { type ExportGraphOptions, type ExportResult, exportSession } from "./data/export";
 import { sampleOf } from "./data/source-bytes";
+import type { Edge } from "./Edge";
 import { GraphtyError } from "./errors";
 import {
     EventCallbackType,
@@ -112,6 +114,7 @@ import {
     UpdateManager,
     type ViewMasks,
 } from "./managers";
+import { dataManagerInternals, disposeReleased } from "./managers/DataManager";
 import { animatesEveryFrame } from "./managers/everyFrameAnimations";
 import { LabelDeclutter, NO_NODE_LABELS, type NodeLabel, type NodeLabelCounts } from "./managers/LabelDeclutter";
 import { layoutManagerInternals } from "./managers/LayoutManager";
@@ -125,7 +128,7 @@ import { bootstrapEdgePaint, bootstrapNodePaint } from "./managers/StylePainter"
 import { payLabelAnimations } from "./meshes/labelAnimationDebt";
 import { MeshCache } from "./meshes/MeshCache";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
-import { Node } from "./Node";
+import { Node, releaseNodeMesh } from "./Node";
 import { pickNodeId, pointerEventTime } from "./NodeBehavior";
 import { ScreenshotCapture } from "./screenshot/ScreenshotCapture.js";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
@@ -168,7 +171,6 @@ import { Styles } from "./Styles";
 import { XRUIManager } from "./ui/XRUIManager";
 import type { QueueableOptions, RunAlgorithmOptions, SetLayoutOptions } from "./utils/queue-migration";
 import { type XRSessionEndCause, XRSessionManager } from "./xr/XRSessionManager";
-// import {createXrButton} from "./xr-button";
 
 /**
  * A catalogue key the element can start as a run, and the parameters that go with it.
@@ -198,8 +200,67 @@ function isAbort(error: unknown): boolean {
     return (error as { name?: unknown } | null)?.name === "AbortError";
 }
 
+/**
+ * Dispose an edge's line and arrowheads for a 2D/3D switch, after the mesh cache was cleared.
+ *
+ * A batched line is not disposed here: clearing the cache disposed the batch it belongs to, and
+ * `edge.mesh` then points at that disposed mesh, which is what tells `updateStyle()` to build the
+ * line again. A line the cache does not track (Simple2DLineRenderer, a patterned line) is.
+ * @param edge - The edge.
+ */
+function disposeEdgeMeshes(edge: Edge): void {
+    if (edge.drawnLine === null && (edge.mesh instanceof PatternedLineMesh || !edge.mesh.isDisposed())) {
+        edge.mesh.dispose();
+    }
+
+    if (edge.arrowCap && !edge.arrowCap.isDisposed()) {
+        edge.arrowCap.dispose();
+    }
+
+    if (edge.arrowTailCap && !edge.arrowTailCap.isDisposed()) {
+        edge.arrowTailCap.dispose();
+    }
+}
+
 /** The three layout-behaviour settings a project file saves. The others are the view's. */
 const PROJECT_LAYOUT_KEYS: ReadonlySet<string> = new Set(["preSteps", "stepMultiplier", "minDelta"]);
+
+/**
+ * Check what `setRenderSettings` was handed, before anything is queued or changed.
+ * @param settings - The caller's settings.
+ * @returns The settings, checked.
+ * @throws A `GraphtyError`: `E_UNKNOWN_OPTION` for a field that is no render setting,
+ *     `E_OPTION_RANGE` for a value the setting does not take.
+ */
+function parseRenderSettings(settings: Record<string, unknown>): GraphBehaviorConfig["rendering"] {
+    const available = Object.keys(RenderSettingsOpts.shape);
+    const unknown = Object.keys(settings).filter((key) => !available.includes(key));
+    if (unknown.length > 0) {
+        throw new GraphtyError({
+            code: "E_UNKNOWN_OPTION",
+            message: `not a render setting: ${unknown.join(", ")}. The render settings are: ${available.join(", ")}`,
+            source: "view",
+            details: { unknown, available },
+        });
+    }
+
+    const parsed = RenderSettingsOpts.partial().safeParse(settings);
+    if (!parsed.success) {
+        const [issue] = parsed.error.issues;
+        const option = String(issue?.path[0]);
+        throw new GraphtyError({
+            code: "E_OPTION_RANGE",
+            message: `the render setting "${option}" was refused: ${issue?.message}`,
+            source: "view",
+            details: { option, value: settings[option] },
+            cause: parsed.error,
+        });
+    }
+
+    // The caller's own fields, not the parse's: a field left out is filled with its default there,
+    // which would reset a setting the caller did not name.
+    return settings;
+}
 
 /**
  * The settings of this view that a project file does not save (design/undo/undo-design.md section
@@ -302,6 +363,14 @@ export interface NodeScreenPosition {
     visible: boolean;
     /** The node's radius on screen in pixels: its largest half-extent, projected. 0 behind the camera. */
     radius: number;
+    /**
+     * The rectangle the node covers on screen, in the same pixels: its bounding box's eight
+     * corners, projected. Unlike {@link NodeScreenPosition.radius} it follows the node's shape --
+     * a box seen corner-on reaches past the radius, and a tall cylinder is narrower than it. The
+     * corners behind the camera are left out; with none in front it is the centre, zero in size.
+     * @since 3.27.0
+     */
+    bounds: { left: number; top: number; right: number; bottom: number };
 }
 
 /**
@@ -375,7 +444,7 @@ export class Graph implements GraphContext {
     private wasSettled = false; // Track previous settlement state
     /** How many loads `addDataFromSource` has started; the last one's id. */
     private loadCount = 0;
-    private resizeHandler = (): void => {
+    private readonly resizeHandler = (): void => {
         this.engine.resize();
         // If we've already zoomed to fit, re-zoom after resize to ensure content still fits
         // if (this.updateManager.zoomToFitCompleted) {
@@ -424,7 +493,7 @@ export class Graph implements GraphContext {
     /** Told the node label counts once the view is still and they changed. */
     readonly onNodeLabelCounts = new Observable<NodeLabelCounts>();
     private renderManager: RenderManager;
-    private lifecycleManager: LifecycleManager;
+    private readonly lifecycleManager: LifecycleManager;
     /** The managers the lifecycle manager runs, kept so the renderer chosen at init can replace its own. */
     private readonly managers: Map<string, Manager>;
     /** Whether input is mocked, kept so the input manager can be rebuilt on the renderer chosen at init. */
@@ -435,11 +504,11 @@ export class Graph implements GraphContext {
     #rendererStatus: RendererStatus | null = null;
     /** Set when {@link Graph.init} starts opening the renderer; from then on the request is fixed. */
     #rendererChosen = false;
-    private dataManager: DataManager;
-    private layoutManager: LayoutManager;
-    private statsManager: StatsManager;
-    private updateManager: UpdateManager;
-    private algorithmManager: AlgorithmManager;
+    private readonly dataManager: DataManager;
+    private readonly layoutManager: LayoutManager;
+    private readonly statsManager: StatsManager;
+    private readonly updateManager: UpdateManager;
+    private readonly algorithmManager: AlgorithmManager;
     private inputManager: InputManager;
     /** While an immersive session is active: its mode and when it started, stamped on steps. */
     private immersiveSince: string | null = null;
@@ -459,7 +528,7 @@ export class Graph implements GraphContext {
         this.updateManager.frameIsStable && (this.xrSessionManager?.getActiveMode() ?? null) === null;
     /** How many `batchOperations` callbacks are open. */
     private openBatches = 0;
-    private selectionManager: SelectionManager;
+    private readonly selectionManager: SelectionManager;
 
     /**
      * What the session's style stack resolved for each element, and which stack owns the paint.
@@ -656,8 +725,17 @@ export class Graph implements GraphContext {
             // queue: queued work ran after the add's step had sealed, or inside a later undo
             // before its `arrangement` hook, and moved an arrangement being restored. An import
             // places them once, in the pass its end schedules, not after every chunk: placing
-            // steps an engine like ngraph over the whole graph each time.
-            if (this.#placementOwed && cause === "command" && this.#importsReading === 0) {
+            // steps an engine like ngraph over the whole graph each time. Likewise a graph write
+            // with another still waiting behind it leaves the placing to the last of them, so a
+            // run of queued adds -- `addNode` in a loop -- places once over the whole graph, not
+            // once per add (issue #2733); the pass that paints the run places it.
+            const dispatcher = dispatcherOf(this.session);
+            if (
+                this.#placementOwed &&
+                cause === "command" &&
+                this.#importsReading === 0 &&
+                !dispatcher.graphWritesWaiting
+            ) {
                 this.#placementOwed = false;
                 await this.layoutManager.updatePositions([...this.dataManager.nodes.values()]);
             }
@@ -667,7 +745,6 @@ export class Graph implements GraphContext {
             // write with another still waiting behind it leaves the paint to the last of them,
             // so a run of queued adds repaints once, not once per add. Everything else -- undo,
             // redo, a rollback, an edit, a session verb -- is painted here, in its own pass.
-            const dispatcher = dispatcherOf(this.session);
             if (cause !== "command" || (this.#importsReading === 0 && !dispatcher.graphWritesWaiting)) {
                 dispatcher.paintOwed = false;
                 await this.repaintFromSession();
@@ -791,6 +868,7 @@ export class Graph implements GraphContext {
                 layers: change.layers.length,
                 painted: change.painted,
                 unresolvedPaths: [...change.unresolvedPaths],
+                warnings: change.warnings,
             });
         });
 
@@ -1129,10 +1207,6 @@ export class Graph implements GraphContext {
 
         // Dispose all managers through lifecycle manager
         this.lifecycleManager.dispose();
-        // A graph shut down before `init()` finished never had its managers initialised, so the
-        // lifecycle manager disposed none of them -- but the engine was opened in the constructor,
-        // and left alive it holds a WebGL context. Disposing it twice does nothing.
-        this.renderManager.dispose();
 
         // The buffers go after the managers, for the reason the controller goes after them too:
         // disposing the managers is what stops the running layout, so by now no simulation can be
@@ -1421,7 +1495,6 @@ export class Graph implements GraphContext {
         const canvas = document.createElement("canvas");
         canvas.setAttribute("id", `graphty-canvas-${Date.now()}`);
         canvas.setAttribute("touch-action", "none");
-        canvas.setAttribute("autofocus", "true");
         canvas.setAttribute("tabindex", "0");
         canvas.style.width = "100%";
         canvas.style.height = "100%";
@@ -1502,10 +1575,8 @@ export class Graph implements GraphContext {
 
             // Initialize all managers through lifecycle manager
             await this.lifecycleManager.init();
-            // Shut down while the managers were initialising: `shutdown()` found none to dispose,
-            // so they are disposed here instead of being started on a graph that is gone.
+            // Shut down while the managers were initialising: they are disposed, so nothing starts.
             if (this.#teardown.signal.aborted) {
-                this.lifecycleManager.dispose();
                 return;
             }
 
@@ -1560,21 +1631,10 @@ export class Graph implements GraphContext {
                 // Only process settlement events if there are nodes - an empty graph
                 // has nothing to settle, so we shouldn't emit events or log
                 if (this.dataManager.nodes.size > 0) {
-                    // A label built while the layout is at rest -- by the load, a style layer or
-                    // any later write -- has no settlement coming to start its animation, so the
-                    // first frame at rest does. See `oweLabelAnimations`.
-                    if (!this.layoutManager.running && !this.layoutManager.building && payLabelAnimations(this.scene)) {
-                        this.dataManager.startLabelAnimations();
-                    }
-
                     // Check if layout has settled
                     if (this.layoutManager.isSettled && this.layoutManager.running) {
                         this.eventManager.emitGraphSettled(this);
                         this.layoutManager.running = false;
-
-                        // Start label animations after layout has settled
-                        payLabelAnimations(this.scene);
-                        this.dataManager.startLabelAnimations();
 
                         // Only zoom to fit on FIRST settlement after data load.
                         // Subsequent settlements (e.g., after node selection/style change)
@@ -1594,31 +1654,60 @@ export class Graph implements GraphContext {
                         }
                     }
 
-                    // Report performance when transitioning from unsettled to settled
-                    if (this.layoutManager.isSettled && !this.wasSettled) {
-                        this.wasSettled = true;
-                        // End layout session tracking
-                        this.statsManager.endLayoutSession();
-                        const snapshot = this.statsManager.getSnapshot();
-                        graphLogger.debug("Layout settled", {
-                            updateCalls: snapshot.cpu.find((m) => m.label === "Graph.update")?.count ?? 0,
-                        });
-                        this.statsManager.reportDetailed();
-                        // Reset measurements after reporting so next settlement shows fresh data
-                        this.statsManager.resetMeasurements();
-                    } else if (!this.layoutManager.isSettled && this.wasSettled) {
-                        // Reset when layout becomes unsettled (so we can report next settlement)
-                        this.wasSettled = false;
-                        // Restart layout session tracking
-                        this.statsManager.startLayoutSession();
-                        graphLogger.debug("Layout became unsettled, will report on next settlement");
-                    }
+                    this.startOwedLabelAnimations();
+
+                    this.reportSettlementChange();
                 }
             });
         });
 
         // End frame profiling (correlates operations with inter-frame time)
         this.statsManager.endFrameProfiling();
+    }
+
+    /**
+     * Report performance when the layout goes from unsettled to settled, and start a new layout
+     * session when it goes back.
+     */
+    private reportSettlementChange(): void {
+        if (this.layoutManager.isSettled && !this.wasSettled) {
+            this.wasSettled = true;
+            // End layout session tracking
+            this.statsManager.endLayoutSession();
+            const snapshot = this.statsManager.getSnapshot();
+            graphLogger.debug("Layout settled", {
+                updateCalls: snapshot.cpu.find((m) => m.label === "Graph.update")?.count ?? 0,
+            });
+            this.statsManager.reportDetailed();
+            // Reset measurements after reporting so next settlement shows fresh data
+            this.statsManager.resetMeasurements();
+        } else if (!this.layoutManager.isSettled && this.wasSettled) {
+            // Reset when layout becomes unsettled (so we can report next settlement)
+            this.wasSettled = false;
+            // Restart layout session tracking
+            this.statsManager.startLayoutSession();
+            graphLogger.debug("Layout became unsettled, will report on next settlement");
+        }
+    }
+
+    /**
+     * Start the label animations the built labels owe, on the first frame that finds the layout at
+     * rest -- settled, or never running -- and no style paint still to draw. A load's labels are
+     * built from that paint, and a pass not drawn yet (a slow machine settles a `fixed` layout
+     * first) would leave some unbuilt, start the rest early, and then start them again. See
+     * `oweLabelAnimations`.
+     */
+    private startOwedLabelAnimations(): void {
+        const painter = this.getStylePainter();
+        if (
+            !this.layoutManager.running &&
+            !this.layoutManager.building &&
+            !painter.hasPending &&
+            !painter.isPainting &&
+            payLabelAnimations(this.scene)
+        ) {
+            this.dataManager.startLabelAnimations();
+        }
     }
 
     /**
@@ -1716,6 +1805,7 @@ export class Graph implements GraphContext {
             node: { ...current.node, ...behavior.node },
             labels: { ...current.labels, ...behavior.labels },
             rendering: { ...current.rendering, ...behavior.rendering },
+            camera: { ...current.camera, ...behavior.camera },
         };
 
         // Checked whole, the project half over the settings in force, before anything is written.
@@ -2368,7 +2458,7 @@ export class Graph implements GraphContext {
      *   springLength: 100,
      *   springCoefficient: 0.0008,
      *   gravity: -1.2,
-     *   dimensions: 3
+     *   dim: 3
      * });
      *
      * // Wait for layout to settle then zoom to fit
@@ -2376,7 +2466,7 @@ export class Graph implements GraphContext {
      * graph.zoomToFit();
      *
      * // Switch to circular layout
-     * await graph.setLayout('circular', { radius: 5 });
+     * await graph.setLayout('circular', { scale: 2 });
      * ```
      */
     async setLayout(type: string, opts: object = {}, options: SetLayoutOptions = {}): Promise<void> {
@@ -2663,7 +2753,8 @@ export class Graph implements GraphContext {
      * DERIVED, NOT WRITTEN OUT. A run already declares its result shape and its fields, and that
      * is everything a first picture needs: a node metric suggests a sequential colour over the
      * nodes it measured, a community suggests a categorical one, a route or a chosen set suggests
-     * a highlight, and a table of pairs suggests nothing at all. There is one derivation for
+     * a mark (an ordinary layer setting a colour, and an edge width, on what it chose), and a
+     * table of pairs suggests nothing at all. There is one derivation for
      * every algorithm rather than a block per algorithm, so there is no per-algorithm branch that
      * can paint the elements its own run measured nothing about.
      *
@@ -2899,10 +2990,13 @@ export class Graph implements GraphContext {
         }
 
         const doomedEdges: string[] = [...edgeIds];
-        if (doomed.size > 0) {
-            for (const edge of this.dataManager.edges.values()) {
-                if (doomed.has(edge.srcId) || doomed.has(edge.dstId)) {
-                    doomedEdges.push(edge.id);
+        // The edges of a doomed node, from the store's incidence lists, and only when one of them
+        // could be selected: a run of removals stays linear either way.
+        if (doomed.size > 0 && !this.session.selection.edgeRemovalChangesNothing()) {
+            for (const id of doomed) {
+                const node = this.dataManager.getNode(id);
+                if (node) {
+                    doomedEdges.push(...this.dataManager.incidentEdgeIds(node));
                 }
             }
         }
@@ -2982,14 +3076,27 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Update rendering settings for the graph visualization.
-     * @param _settings - Object containing rendering configuration options (reserved for future use)
-     * @param options - Queue options for operation ordering
+     * Update rendering settings for the graph visualization: the `layoutBehavior.rendering` group.
+     *
+     * `onDemand` is the one setting: whether a frame is drawn only when the picture can have
+     * changed, the same switch as the element's `renderOnDemand`. Merged, not replaced: a field
+     * left out keeps its value. A preference of this view, so it records no undo step and is not
+     * saved in a project file.
+     * @param settings - The fields to change, e.g. `{ onDemand: true }`.
+     * @param options - Queue options for operation ordering. With `skipQueue` the settings apply
+     *     before this returns; otherwise they apply when the queue reaches them.
+     * @throws A `GraphtyError` with `E_UNKNOWN_OPTION` for a field that is not a render setting
+     *     (`details.available` lists them), or `E_OPTION_RANGE` for a value the setting does not take.
+     *     Nothing is changed then.
      */
-    async setRenderSettings(_settings: Record<string, unknown>, options?: QueueableOptions): Promise<void> {
+    async setRenderSettings(settings: Record<string, unknown>, options?: QueueableOptions): Promise<void> {
+        const rendering = parseRenderSettings(settings);
+        const apply = (): void => {
+            this.setLayoutBehavior({ rendering });
+        };
+
         if (options?.skipQueue) {
-            // Apply render settings directly
-            // TODO: Add render settings support when available
+            apply();
             return;
         }
 
@@ -3000,7 +3107,7 @@ export class Graph implements GraphContext {
                     throw new Error("Operation cancelled");
                 }
 
-                // TODO: Add render settings support when available
+                apply();
             },
             {
                 description: "Updating render settings",
@@ -3874,8 +3981,27 @@ export class Graph implements GraphContext {
      * @param twoD - Whether the scene becomes 2D.
      */
     private enterDimension(twoD: boolean): void {
-        // Clear mesh cache if switching between 2D and 3D modes
-        this.dataManager.meshCache.clear();
+        // The meshes of nodes just removed go first: the cache disposes the source meshes they
+        // are instances of.
+        dataManagerInternals.flushReleasing(this.dataManager);
+        const nodes = [...this.getNodes()];
+        const edges = [...this.dataManager.edges.values()];
+
+        // Every mesh goes in one bulk teardown, then every mesh is built again. Disposed one
+        // element at a time, each mesh, action manager and drag handler left scene-wide lists by
+        // a search, so the switch cost the size of the scene per element (issue #2895).
+        disposeReleased(nodes, edges, () => {
+            // Disposes every cached source mesh and line batch, and with them each instance and
+            // batched line drawn from them.
+            this.dataManager.meshCache.clear();
+            for (const node of nodes) {
+                releaseNodeMesh(node);
+            }
+
+            for (const edge of edges) {
+                disposeEdgeMeshes(edge);
+            }
+        });
         this.writeSceneDimension(twoD);
 
         // Activate camera BEFORE mesh recreation so that is2DMode() checks
@@ -3886,36 +4012,11 @@ export class Graph implements GraphContext {
         // Reset flag so initial camera state gets re-captured after layout settles
         this.initialCameraStateCaptured = false;
 
-        // Force all nodes to recreate their meshes (they were disposed when cache was cleared)
-        for (const node of this.getNodes()) {
+        for (const node of nodes) {
             node.updateStyle();
         }
 
-        // Force all edges to recreate their meshes
-        // Note: Edge meshes from Simple2DLineRenderer are NOT tracked by MeshCache,
-        // so we must explicitly dispose them before calling updateStyle()
-        for (const edge of this.dataManager.edges.values()) {
-            // Dispose edge mesh if not already disposed (handles non-cached meshes like Simple2DLineRenderer).
-            // A batched line is not disposed here: `meshCache.clear()` above disposed the
-            // batch it belongs to, and `edge.mesh` then points at that disposed mesh, which
-            // is what tells `updateStyle()` below to build the line again.
-            if (edge.drawnLine !== null) {
-                // the batch this edge was drawn from is already gone
-            } else if (edge.mesh instanceof PatternedLineMesh) {
-                edge.mesh.dispose();
-            } else if (!edge.mesh.isDisposed()) {
-                edge.mesh.dispose();
-            }
-
-            // Dispose arrow meshes too
-            if (edge.arrowCap && !edge.arrowCap.isDisposed()) {
-                edge.arrowCap.dispose();
-            }
-
-            if (edge.arrowTailCap && !edge.arrowTailCap.isDisposed()) {
-                edge.arrowTailCap.dispose();
-            }
-
+        for (const edge of edges) {
             edge.updateStyle();
         }
 
@@ -4191,9 +4292,13 @@ export class Graph implements GraphContext {
 
     /**
      * Where a node is drawn on screen, in the same pixels {@link worldToScreen} returns.
+     * @remarks
+     * Read off the node's mesh, which a frame places: before the first frame after a node is
+     * created it reports the hidden mesh template's position, off screen and not visible. Wait
+     * for {@link Graph.waitForStableFrame} first.
      * @param nodeId - The node's id.
-     * @returns The centre, whether it is drawn on screen, and its radius in pixels; undefined for
-     *     an id the graph does not hold.
+     * @returns The centre, whether it is drawn on screen, its radius and the rectangle it covers in
+     *     pixels; undefined for an id the graph does not hold.
      */
     nodeScreenPosition(nodeId: string | number): NodeScreenPosition | undefined {
         const node = this.getNode(nodeId);
@@ -4228,11 +4333,31 @@ export class Graph implements GraphContext {
         const w = camera.mode === Camera.ORTHOGRAPHIC_CAMERA ? 1 : depth;
         const radius = inDepth ? (worldRadius * Math.abs(projection[5]) * height) / (2 * w) : 0;
 
+        const bounds = { left: Infinity, top: Infinity, right: -Infinity, bottom: -Infinity };
+        for (const corner of mesh.getBoundingInfo().boundingBox.vectorsWorld) {
+            const ahead = corner.x * view[2] + corner.y * view[6] + corner.z * view[10] + view[14];
+            if (ahead < camera.minZ) {
+                continue;
+            }
+
+            const at = this.worldToScreen(corner);
+            bounds.left = Math.min(bounds.left, at.x);
+            bounds.top = Math.min(bounds.top, at.y);
+            bounds.right = Math.max(bounds.right, at.x);
+            bounds.bottom = Math.max(bounds.bottom, at.y);
+        }
+
+        if (bounds.left > bounds.right) {
+            bounds.left = bounds.right = x;
+            bounds.top = bounds.bottom = y;
+        }
+
         return {
             x,
             y,
             visible: node.getRenderState() === "visible" && inDepth && onScreen,
             radius,
+            bounds,
         };
     }
 
@@ -4302,6 +4427,11 @@ export class Graph implements GraphContext {
      * regression snapshot -- wait for {@link Graph.waitForStableFrame} instead, which waits for
      * this queue AND for the layout to converge AND for the camera to finish framing AND for a
      * frame to be drawn in that state.
+     *
+     * Nor does it wait for a frame, and a node's mesh is moved to its layout position only by a
+     * frame. So `Node.getPosition()` and {@link Graph.nodeScreenPosition} read right after this
+     * resolves can still see a new node at its mesh template's position; wait for
+     * {@link Graph.waitForStableFrame} before reading where nodes are drawn.
      * @returns Promise that resolves when all operations are complete
      * @since 1.0.0
      * @see {@link zoomToFit} to zoom after settling
@@ -4362,7 +4492,8 @@ export class Graph implements GraphContext {
      * @remarks
      * Resolves when all four of these are true, in this order: every queued operation has run,
      * the layout has converged, the camera has finished framing what the layout arrived at, and a
-     * frame has been drawn showing it.
+     * frame has been drawn showing it. Every node's mesh is then where the layout put it, so this
+     * is what to wait for before reading `Node.getPosition()` or {@link Graph.nodeScreenPosition}.
      *
      * The `graph-settled` event is NOT that moment. It fires the instant the layout engine
      * reports convergence, in the same update pass that merely ASKS for the final framing, so a

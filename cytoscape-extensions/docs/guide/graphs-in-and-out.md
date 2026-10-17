@@ -50,9 +50,8 @@ lists all 59. A misspelled name or option (`seeed`) rejects with a `RangeError` 
 each member's faction in `data("club")` (`"Mr. Hi"` for node `"0"`). Edges get random ids from
 Cytoscape on every load; match them by `source()` and `target()`.
 
-Sixteen datasets ship inside the package and load from where the page loaded it, so serve the page
-over HTTP. `road-ny`, `ogbn-arxiv`, `go-basic`, `disease-ontology`, `bioplex3-hct116` and `com-dblp`
-download from graphty.app. `yeast-perturbation`, `stelzl-interactome`,
+Every dataset downloads from graphty.app when it is asked for; none is inside the package, so the
+first call needs the network (pass `baseUrl` to load them from a mirror of your own). `yeast-perturbation`, `stelzl-interactome`,
 `wikipathways-senescence-autophagy` and `bioplex3-hct116` are drawings: each node sits where
 Cytoscape drew it. Each dataset has its own license, not this package's MIT; the
 [dataset reference](../reference/graphs#datasets) lists them.
@@ -245,7 +244,7 @@ const gexf = await exportElements(eles, "gexf");
 
 ## Next
 
-- [Export and import demo](https://graphty.app/storybook/cytoscape-extensions/?path=/story/demo-graphs--export-and-import): try every format in the browser.
+- [Karate club story](https://graphty.app/storybook/cytoscape-extensions/?path=/story/gallery-datasets--karate): pick a format in its round-trip control to write the graph and read it back in the browser.
 
 - [Load a GraphML file](./recipes/load-graphml-file): let a user pick a file, show it, and save it back.
 - [Generators, datasets and formats](../reference/graphs): every option, size and license, and the galleries.

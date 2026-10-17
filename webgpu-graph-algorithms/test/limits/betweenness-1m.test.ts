@@ -13,6 +13,7 @@ import { rmatEdges } from "../../benchmarks/datasets.js";
 import { betweennessWithTuning, planBatchSize } from "../../src/algorithms/betweenness.js";
 import { scoreError, vertexConvention } from "../helpers/centrality-check.js";
 import { expectBitwiseEqual } from "../helpers/matchers.js";
+import { progressLine } from "../helpers/progress.js";
 import { brandesOracle } from "../oracle/betweenness.js";
 import { acquire, requireGpu } from "../setup/gpu.js";
 
@@ -29,14 +30,29 @@ describe("sampled betweenness at 1M nodes / 10M edges (node-limits)", () => {
                 { directed: false, nodeCount: e.nodeCount, src: e.src, dst: e.dst },
                 { label: "limits/rmat20" },
             );
+            // A progress line after each step (test/helpers/progress.ts): this case ran 70-84 s without a line on the
+            // Tesla T4, and the wrapper fails a run silent for 90 s (issue #2158). The reference runs in slices so it
+            // can print between them.
+            const progress = (step: string): Promise<void> => progressLine(`[betweenness-1m] ${step}`);
+            await progress(`rmat20 built: ${s.nodeCount} nodes / ${s.arcCount} arcs`);
             const sources = spreadSources(s.nodeCount, SOURCES);
             const k = planBatchSize(s.nodeCount, SOURCES, ctx.caps.limits);
             let batches = 0;
             const planned = await betweennessWithTuning(ctx, s, { sources }, { onBatch: () => batches++ });
+            await progress(`the planned run: ${batches} batch(es) of k = ${k}`);
             expect(batches).toBe(Math.ceil(SOURCES / k));
             expect(planned.sourcesUsed).toBe(SOURCES);
             expect(planned.sigmaOverflow).toBe(false);
-            const want = vertexConvention(s, brandesOracle(s, { sources }).vertex);
+            // The reference's vertex sums are sums over the sources, so slices of eight add up to the whole.
+            const sums = new Float64Array(s.nodeCount);
+            for (let first = 0; first < SOURCES; first += 8) {
+                const slice = brandesOracle(s, { sources: sources.slice(first, first + 8) }).vertex;
+                for (let v = 0; v < sums.length; v++) {
+                    sums[v] += slice[v];
+                }
+                await progress(`the Brandes reference: ${first + 8} of ${SOURCES} sources`);
+            }
+            const want = vertexConvention(s, sums);
             expect(scoreError(planned.scores, want)).toBeLessThanOrEqual(1e-4);
             let small = 0;
             const eight = await betweennessWithTuning(
@@ -48,7 +64,10 @@ describe("sampled betweenness at 1M nodes / 10M edges (node-limits)", () => {
                         maxStorageBufferBindingSize: ctx.caps.limits.maxStorageBufferBindingSize,
                         maxBufferSize: 8 * 16 * s.nodeCount * 4,
                     },
-                    onBatch: () => small++,
+                    onBatch: () => {
+                        small++;
+                        console.warn(`[betweenness-1m] k = 8: batch ${small} of ${SOURCES / 8}`);
+                    },
                 },
             );
             expect(small).toBe(SOURCES / 8);

@@ -65,7 +65,7 @@ interface InfoCircleTriggerProps {
  * @param props.bubbleId - The id of the bubble, used as the button's description while open
  * @returns The info button
  */
-function InfoCircleTrigger({ name, bubbleId }: InfoCircleTriggerProps): React.JSX.Element {
+function InfoCircleTrigger({ name, bubbleId }: Readonly<InfoCircleTriggerProps>): React.JSX.Element {
     const { isOpen, open, close } = usePopoutContext();
 
     return (

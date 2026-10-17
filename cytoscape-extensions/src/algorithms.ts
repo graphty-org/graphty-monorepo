@@ -136,7 +136,16 @@ import type {
 } from "cytoscape";
 
 import { OPTION_NAMES } from "./algorithm-options.js";
-import { type Backend, backendOf, checkGpuMode, gpuFor, type GpuMode, recording, warnIfFixable } from "./gpu.js";
+import {
+    type Backend,
+    backendOf,
+    checkGpuMode,
+    coreDestroyedError,
+    gpuFor,
+    type GpuMode,
+    recording,
+    warnIfFixable,
+} from "./gpu.js";
 import {
     coreOf,
     type CytoscapeSnapshot,
@@ -1534,7 +1543,11 @@ const IMPLS = {
     hierarchicalClustering: (
         c: Ctx,
         _o: AlgorithmOptions & HierarchicalOptions = {},
-    ): { cut(height: number): Partition; readonly merges: number } => {
+    ): {
+        cut(height: number): Partition;
+        cutAt(by: { readonly clusters: number } | { readonly distance: number }): Partition;
+        readonly merges: number;
+    } => {
         const r = hierarchicalClustering(c.s, c.rest);
         const quiet: Ctx = { ...c, field: undefined };
         const cut = (h: number): Partition => {
@@ -1546,7 +1559,9 @@ const IMPLS = {
             });
             return partition(quiet, labels, {});
         };
-        return { merges: r.left.length, cut };
+        const cutAt = (by: { readonly clusters: number } | { readonly distance: number }): Partition =>
+            partition(quiet, r.cutAt(by).labels, {});
+        return { merges: r.left.length, cut, cutAt };
     },
     teraHAC: (c: Ctx, _o: AlgorithmOptions & TeraHacOptions = {}): Partition<{ merges: number }> => {
         const r = teraHAC(c.s, c.rest);
@@ -1859,7 +1874,12 @@ function runSync(eles: Collection, key: keyof Impls, options: AlgorithmOptions =
  */
 async function runAsync(eles: Collection, key: keyof Impls, options: AlgorithmOptions = {}): Promise<unknown> {
     checkGpuMode(`${methodName(key)}Async`, options?.gpu);
-    const d = await gpuFor(coreOf(eles), options.gpu);
+    const cy = coreOf(eles);
+    const d = await gpuFor(cy, options.gpu);
+    // destroyed while the device was acquired: its device is disposed and its elements are gone with it
+    if (cy.destroyed()) {
+        throw coreDestroyedError();
+    }
     const rec = d.gpu === null ? null : recording(d.gpu.accelerator);
     warnIfFixable(d, eles.nodes().length);
     const { result, snapshot } = run(eles, key, options, accelerated(rec?.accelerator ?? null));
@@ -1868,6 +1888,9 @@ async function runAsync(eles: Collection, key: keyof Impls, options: AlgorithmOp
     let value: object;
     try {
         value = (await result) as object;
+    } catch (e) {
+        // destroyed mid-run, the device fails with "GpuContext is disposed"; the cause is the destroy
+        throw cy.destroyed() ? coreDestroyedError() : e;
     } finally {
         unhold();
         if (d.gpu !== null && typeof options.weight === "function") {
@@ -1875,11 +1898,7 @@ async function runAsync(eles: Collection, key: keyof Impls, options: AlgorithmOp
             d.gpu.accelerator.release(snapshot);
         }
     }
-    const backend = backendOf(
-        d,
-        rec?.used() ?? false,
-        "the options or the graph need the CPU implementation (the @graphty/algorithms dispatcher does not say which)",
-    );
+    const backend = backendOf(d, rec?.used() ?? false, "the options or the graph need the CPU implementation");
     return Object.assign(value, { backend });
 }
 

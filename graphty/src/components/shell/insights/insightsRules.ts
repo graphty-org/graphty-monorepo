@@ -176,13 +176,13 @@ export const INSIGHT_ACTION_LABEL = "Try it";
  * unconditional in 7.3, and a card promising a run that cannot happen is worse than a short
  * strip.
  */
-const ABOVE_THRESHOLD_DETERMINISTIC_SET: readonly InsightCapability[] = [
+const ABOVE_THRESHOLD_DETERMINISTIC_SET: ReadonlySet<InsightCapability> = new Set([
     "data-validation",
     "narrow-the-view",
     "component-analysis",
     "centrality-degree",
     "search",
-];
+]);
 
 /**
  * Builds one card. Every string a caller sees passes through here, so the frozen copy
@@ -423,7 +423,7 @@ function mayBeOffered(shape: InsightsGraphShape, capability: InsightCapability, 
     const listed = elementListing(shape, capability);
 
     if (listed === undefined) {
-        return !aboveThreshold || ABOVE_THRESHOLD_DETERMINISTIC_SET.includes(capability);
+        return !aboveThreshold || ABOVE_THRESHOLD_DETERMINISTIC_SET.has(capability);
     }
 
     if (!listed.available) {
@@ -444,6 +444,79 @@ function isAboveThreshold(shape: InsightsGraphShape): boolean {
 }
 
 /**
+ * The deterministic set offered above the large-graph threshold, before Search.
+ * @param shape - the loaded graph's shape.
+ * @returns the candidates, highest priority first.
+ */
+function aboveThresholdCandidates(shape: InsightsGraphShape): InsightCardSpec[] {
+    const candidates: InsightCardSpec[] = [];
+
+    if (shape.validationIssueTypeCount > 0) {
+        candidates.push(validationCard(shape.validationIssueTypeCount));
+    }
+
+    if (shape.nodeCount > NARROW_VIEW_NODE_FLOOR) {
+        candidates.push(narrowViewCard());
+    }
+
+    // Spec 7.3: "Between the threshold and 1M nodes Find groups may appear as a
+    // fourth card only when its label-propagation estimate is under 60 s." The gate
+    // below refuses it outright when the element said nothing about it, so pushing the
+    // community card here is safe.
+    candidates.push(componentCard(), degreeCard(), communityCard());
+
+    return candidates;
+}
+
+/**
+ * Spec 7.3's rule table, offered at or below the large-graph threshold, before Search.
+ * @param shape - the loaded graph's shape.
+ * @returns the candidates, highest priority first.
+ */
+function belowThresholdCandidates(shape: InsightsGraphShape): InsightCardSpec[] {
+    const candidates: InsightCardSpec[] = [];
+
+    // Rule 1.
+    if (shape.validationIssueTypeCount > 0) {
+        candidates.push(validationCard(shape.validationIssueTypeCount));
+    }
+
+    // Rule 2: always.
+    candidates.push(communityCard());
+
+    // Rule 3: directed. Only "directed" counts; "mixed" and "unknown" do not.
+    //
+    // The gate is consulted HERE rather than only in the filter below, because rule 4
+    // reads whether the Influence card actually survived: a PageRank card the element
+    // refuses, or one the 60 s ceiling refuses, is a card that is "not shown", and rule
+    // 4's second disjunct exists so the degree card takes its slot.
+    const influenceShown = shape.directedness === "directed" && mayBeOffered(shape, "centrality-pagerank", false);
+
+    if (influenceShown) {
+        candidates.push(pagerankCard());
+    }
+
+    // Rule 4: "Not directed, or Influence not shown".
+    if (shape.directedness !== "directed" || !influenceShown) {
+        candidates.push(degreeCard());
+    }
+
+    // Rule 5: nodes > 20, and below the threshold -- which this branch already is.
+    if (shape.nodeCount > 20) {
+        candidates.push(betweennessCard());
+    }
+
+    // Rule 6: a time role has been assigned.
+    if (shape.hasTimeRole) {
+        candidates.push(temporalCard());
+    }
+
+    // Rule 7 belongs to the above-threshold branch and cannot fire here.
+
+    return candidates;
+}
+
+/**
  * Every candidate the rule table produces for this shape, in priority order with
  * Search last, before the cap and before retirement.
  *
@@ -458,64 +531,9 @@ function isAboveThreshold(shape: InsightsGraphShape): boolean {
  */
 export function insightCandidates(shape: InsightsGraphShape): readonly InsightCardSpec[] {
     const aboveThreshold = isAboveThreshold(shape);
-    const candidates: InsightCardSpec[] = [];
-
-    if (aboveThreshold) {
-        if (shape.validationIssueTypeCount > 0) {
-            candidates.push(validationCard(shape.validationIssueTypeCount));
-        }
-
-        if (shape.nodeCount > NARROW_VIEW_NODE_FLOOR) {
-            candidates.push(narrowViewCard());
-        }
-
-        candidates.push(componentCard());
-        candidates.push(degreeCard());
-
-        // Spec 7.3: "Between the threshold and 1M nodes Find groups may appear as a
-        // fourth card only when its label-propagation estimate is under 60 s." The gate
-        // below refuses it outright when the element said nothing about it, so pushing it
-        // here is safe.
-        candidates.push(communityCard());
-    } else {
-        // Rule 1.
-        if (shape.validationIssueTypeCount > 0) {
-            candidates.push(validationCard(shape.validationIssueTypeCount));
-        }
-
-        // Rule 2: always.
-        candidates.push(communityCard());
-
-        // Rule 3: directed. Only "directed" counts; "mixed" and "unknown" do not.
-        //
-        // The gate is consulted HERE rather than only in the filter below, because rule 4
-        // reads whether the Influence card actually survived: a PageRank card the element
-        // refuses, or one the 60 s ceiling refuses, is a card that is "not shown", and rule
-        // 4's second disjunct exists so the degree card takes its slot.
-        const influenceShown =
-            shape.directedness === "directed" && mayBeOffered(shape, "centrality-pagerank", aboveThreshold);
-
-        if (influenceShown) {
-            candidates.push(pagerankCard());
-        }
-
-        // Rule 4: "Not directed, or Influence not shown".
-        if (shape.directedness !== "directed" || !influenceShown) {
-            candidates.push(degreeCard());
-        }
-
-        // Rule 5: nodes > 20, and below the threshold -- which this branch already is.
-        if (shape.nodeCount > 20) {
-            candidates.push(betweennessCard());
-        }
-
-        // Rule 6: a time role has been assigned.
-        if (shape.hasTimeRole) {
-            candidates.push(temporalCard());
-        }
-
-        // Rule 7 belongs to the above-threshold branch and cannot fire here.
-    }
+    const candidates: InsightCardSpec[] = aboveThreshold
+        ? aboveThresholdCandidates(shape)
+        : belowThresholdCandidates(shape);
 
     // Last, always -- but only with an example to name. With no example the body would
     // read "Type a name like  to find it on the canvas.", so there is no honest card.

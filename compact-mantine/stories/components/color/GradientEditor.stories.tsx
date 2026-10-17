@@ -9,6 +9,7 @@ import { ColorPickerPanel, type ColorStop, createColorStop, GradientEditor, Labe
 import { expectStatesApply } from "../../helpers/assert-states";
 import { ForceState, StateCell } from "../../helpers/force-state";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
+import { storyWaitOptions } from "../../helpers/settled";
 
 /**
  * An editor for a multi-stop linear gradient: stop handles over a gradient bar, one color
@@ -192,7 +193,7 @@ export const SelectingAStop: Story = {
     },
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
-        const chits = canvas.getAllByRole("button", { name: "Color swatch" });
+        const chits = canvas.getAllByRole("button", { name: /^Edit stop \d+ color$/ });
         await expect(chits[0]).toHaveAttribute("aria-pressed", "true");
         await userEvent.click(chits[1]);
         await expect(chits[1]).toHaveAttribute("aria-pressed", "true");
@@ -212,12 +213,15 @@ export const TypingAStopColor: Story = {
     },
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
-        const hex = canvas.getAllByRole("textbox", { name: "Color hex value" })[1];
+        const hex = canvas.getByRole("textbox", { name: "Stop 2 color" });
         await userEvent.clear(hex);
         await userEvent.type(hex, "22C55E{Enter}");
         await expect(hex).toHaveValue("22C55E");
         // The picker follows a render later: its own effect takes the new stop color.
-        await waitFor(() => expect(canvas.getByRole("textbox", { name: "Color value" })).toHaveValue("22C55E"));
+        await waitFor(
+            () => expect(canvas.getByRole("textbox", { name: "Color value" })).toHaveValue("22C55E"),
+            storyWaitOptions(1000),
+        );
     },
 };
 
@@ -387,8 +391,8 @@ export const Translated: Story = {
                     colorStopPosition: (position) => `Position de l'etape ${position}`,
                     direction: "Sens",
                     gradientDirection: "Sens du degrade",
-                    colorSwatch: "Nuancier",
-                    colorHexValue: "Valeur hexadecimale",
+                    editColorStop: (position) => `Modifier la couleur de l'etape ${position}`,
+                    colorStopColor: (position) => `Couleur de l'etape ${position}`,
                     resetToDefault: (label) => `Retablir ${label}`,
                     degrees: (value) => `${value} deg`,
                 }}

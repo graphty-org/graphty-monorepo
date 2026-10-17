@@ -55,6 +55,7 @@ import type {
 } from "../../catalog/types";
 import { rowOfEitherSpelling } from "../../data/nodeIdSpelling";
 import { GraphtyError } from "../../errors";
+import { quoteEach } from "../../utils/quote-each";
 import { rankEntries, topOfRanking } from "../results/statistics";
 import { type ComponentLabels, edgeSpaceOf, type ElementMask } from "../scope/index";
 import {
@@ -324,7 +325,7 @@ function outOfRange(message: string, details: Readonly<Record<string, unknown>>)
  */
 function readsItself(through: readonly ChainStep[]): GraphtyError {
     return malformed(
-        `This filter reads ${through.map((step) => `"${step}"`).join(" through ")}, which is what the visibility ` +
+        `This filter reads ${quoteEach(through, " through ")}, which is what the visibility ` +
             "filter computes, so it would depend on itself. Create a set from the current members instead.",
         { reason: "cycle", through },
     );
@@ -1067,9 +1068,11 @@ function resultOf(context: CompileContext, kind: string, run: RunId): FilterRunR
  * @returns Whether nodes and edges carry it.
  */
 function fieldHalves(result: FilterRunResult, field: string): { node: boolean; edge: boolean } {
-    const kinds = result.fields.filter((descriptor) => descriptor.name === field).map((descriptor) => descriptor.kind);
+    const kinds = new Set(
+        result.fields.filter((descriptor) => descriptor.name === field).map((descriptor) => descriptor.kind),
+    );
 
-    return { node: kinds.includes("node"), edge: kinds.includes("edge") };
+    return { node: kinds.has("node"), edge: kinds.has("edge") };
 }
 
 /**
@@ -1583,14 +1586,14 @@ export async function runPassInSlices(
         });
 
         if (signal.aborted) {
-            throw signal.reason as Error;
+            throw signal.reason as Error; // NOSONAR(S3696): rethrows the abort signal's reason, as the platform does
         }
 
         deadline = performance.now() + SLICE_MS;
     };
 
     if (signal.aborted) {
-        throw signal.reason as Error;
+        throw signal.reason as Error; // NOSONAR(S3696): rethrows the abort signal's reason, as the platform does
     }
 
     for (let from = 0; from < nodeCount; from += CHUNK) {

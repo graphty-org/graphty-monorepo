@@ -71,16 +71,6 @@ const EXPECTED_SOURCE_NAME: Record<string, string> = {
 };
 
 /**
- * The two shapes whose creators ignore the requested size.
- *
- * `NodeMesh.createCapsule` and `createTorus` take `_size` and call the Babylon builder with an
- * empty options object, so both always come out at the builder's default dimensions. That is a
- * real difference in behaviour from every other shape, it is invisible in the type signature, and
- * a test that silently skipped these two would let a later fix go unnoticed.
- */
-const SIZE_IGNORING_SHAPES = new Set(["capsule", "torus"]);
-
-/**
  * Hyphenated spellings `NodeMesh` registers for backward compatibility that the `NodeShapes`
  * schema does NOT accept. The retired mock's shape list was written entirely in these, which is
  * how it managed to claim coverage of shapes a parsed style can never carry.
@@ -188,7 +178,8 @@ describe("Node Golden Masters", () => {
     });
 
     describe("Size Variations", () => {
-        const testShapes: ShapeName[] = ["sphere", "box", "cylinder", "tetrahedron"];
+        // capsule and torus once ignored size entirely (#2070).
+        const testShapes: ShapeName[] = ["sphere", "box", "cylinder", "tetrahedron", "capsule", "torus"];
         const sizes = [0.5, 2, 5];
 
         testShapes.forEach((shape) => {
@@ -214,12 +205,6 @@ describe("Node Golden Masters", () => {
             assert.equal(result.mesh.scaling.y, 1);
             assert.equal(result.mesh.scaling.z, 1);
             assert.closeTo(boundingExtent("sphere", 5), 5, 1e-6);
-        });
-
-        SIZE_IGNORING_SHAPES.forEach((shape) => {
-            test(`${shape} ignores the requested size`, () => {
-                assert.closeTo(boundingExtent(shape as ShapeName, 5), boundingExtent(shape as ShapeName, 1), 1e-6);
-            });
         });
     });
 

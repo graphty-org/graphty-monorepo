@@ -154,7 +154,7 @@ export function createNoteFacts(
         const now = version();
         // ponytail: rebuilt whole on any note write (O(notes x targets)); update per changed
         // note if editing in a session of thousands of notes shows it.
-        if (index === null || index.version !== now || index.snapshot !== graph) {
+        if (index?.version !== now || index.snapshot !== graph) {
             index = build(notes(), graph, now);
         }
 

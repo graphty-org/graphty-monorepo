@@ -5,6 +5,7 @@ import type {
     SimulationType,
     SpringElectricalOptions,
 } from "@graphty/layout";
+import { z } from "zod/v4";
 
 import type { AccelerationController } from "../acceleration/AccelerationController";
 import { LAYOUT_DESCRIPTORS, layoutDescriptor } from "../catalog/layouts";
@@ -15,9 +16,14 @@ import { type OptionsSchema, toZodSchema } from "../config/OptionsSchema";
 import { WRITABLE_LANE } from "../data/lane";
 import type { Edge } from "../Edge";
 import { GraphtyError, isGraphtyError } from "../errors";
-import type { GraphSnapshotReplacedEvent, LayoutChangedEvent } from "../events";
+import type { GraphSnapshotReplacedEvent, LayoutChangedEvent, LayoutWarningEvent } from "../events";
 import { ForceAtlas2Layout } from "../layout/ForceAtlas2LayoutEngine";
-import { LayoutEngine, layoutEngineInternals, StaticLayoutEngine } from "../layout/LayoutEngine";
+import {
+    LayoutEngine,
+    layoutEngineInternals,
+    type LayoutEngineStatics,
+    StaticLayoutEngine,
+} from "../layout/LayoutEngine";
 import { NGraphEngine } from "../layout/NGraphLayoutEngine";
 import {
     SIMULATION_CAPABILITY,
@@ -25,7 +31,11 @@ import {
     type SimulationEngineOptions,
     SimulationLayoutEngine,
 } from "../layout/SimulationLayoutEngine";
-import { SnapshotLayoutEngine, snapshotLayoutInternals } from "../layout/SnapshotLayoutEngine";
+import {
+    SnapshotLayoutEngine,
+    snapshotLayoutInternals,
+    type SnapshotLayoutWarning,
+} from "../layout/SnapshotLayoutEngine";
 import { SpringElectricalLayout } from "../layout/SpringElectricalLayoutEngine";
 import { SpringLayout } from "../layout/SpringLayoutEngine";
 import { GraphtyLogger, type Logger } from "../logging/GraphtyLogger.js";
@@ -308,6 +318,78 @@ function resolveLayoutOptions(
 }
 
 /**
+ * The refusal for options an engine's own schema rejected while it was built: an engine that
+ * declares no descriptor validates its options with Zod in its constructor, and a missing
+ * required option (`bfs` with no `start`) used to arrive as `E_INTERNAL` whose message was Zod's
+ * issue dump. It is the same refusal `resolveLayoutOptions` gives: `E_UNKNOWN_OPTION` for a name
+ * the engine does not take, `E_OPTION_RANGE` for a value it does not accept or a required option
+ * that is missing.
+ * @param type - The layout name.
+ * @param error - What the build threw.
+ * @param passed - The options the engine was built with.
+ * @returns The error to report, or undefined when the build failed for another reason.
+ */
+function optionRefusal(type: string, error: unknown, passed: Record<string, unknown>): GraphtyError | undefined {
+    const issue = error instanceof z.ZodError ? error.issues[0] : undefined;
+    if (issue === undefined) {
+        return undefined;
+    }
+
+    const where = { kind: "layout", id: type };
+    if (issue.code === "unrecognized_keys") {
+        const option = issue.keys[0] ?? "";
+        return new GraphtyError({
+            code: "E_UNKNOWN_OPTION",
+            message: `the layout "${type}" has no option named "${option}"`,
+            source: "config",
+            details: { ...where, option },
+            cause: error,
+        });
+    }
+
+    const option = String(issue.path[0] ?? "");
+    const value = passed[option];
+    return new GraphtyError({
+        code: "E_OPTION_RANGE",
+        message:
+            value === undefined
+                ? `the layout "${type}" needs the option "${option}"`
+                : `the layout "${type}" does not accept that "${option}"`,
+        source: "config",
+        details: value === undefined ? { ...where, option } : { ...where, option, value },
+        cause: error,
+    });
+}
+
+/** What a simulation layout reads beside its published schema: see {@link resolveSimulationOptions}. */
+const FRAME_LOOP_OPTIONS: readonly string[] = ["iterationsPerStep", "maxInFlight", "settleThreshold", "settleWindow"];
+
+/**
+ * The options a layout will run without, for the engines that do not refuse an unknown name.
+ *
+ * `ngraph` and the simulation layouts read their options without a strict schema, so a misspelled
+ * option used to be dropped with no sign. Refusing it now would break a call that runs today, so
+ * it is reported instead, as `W_UNKNOWN_OPTION`. Every other built-in engine refuses an unknown
+ * name with `E_UNKNOWN_OPTION` while it is built, and a registered layout's descriptor does.
+ * @param engineClass - The engine the consumer named.
+ * @param passed - The consumer's options.
+ * @returns The ignored names and the names the layout takes, or undefined when none is ignored.
+ */
+function ignoredOptions(
+    engineClass: LayoutEngineStatics & { simulationType?: SimulationType },
+    passed: Record<string, unknown>,
+): { options: string[]; available: string[] } | undefined {
+    const simulation = engineClass.simulationType !== undefined;
+    if (!simulation && engineClass.type !== NGraphEngine.type) {
+        return undefined;
+    }
+
+    const available = [...Object.keys(engineClass.getZodOptionsSchema()), ...(simulation ? FRAME_LOOP_OPTIONS : [])];
+    const options = Object.keys(passed).filter((name) => !available.includes(name));
+    return options.length > 0 ? { options, available } : undefined;
+}
+
+/**
  * The refusal for a layout name nothing answers to.
  *
  * It used to be a bare `TypeError` whose message a consumer had to read to find out what had gone
@@ -536,7 +618,7 @@ export class LayoutManager implements Manager {
      */
     private driverOptions: object = {};
 
-    private logger: Logger = GraphtyLogger.getLogger(["graphty", "layout"]);
+    private readonly logger: Logger = GraphtyLogger.getLogger(["graphty", "layout"]);
 
     /** Told when the layout comes to rest: it settled, was paused, or finished placing. */
     onRest: (() => void) | null = null;
@@ -700,8 +782,8 @@ export class LayoutManager implements Manager {
      * @param styles - Styles instance for layout configuration
      */
     constructor(
-        private eventManager: EventManager,
-        private dataManager: DataManager,
+        private readonly eventManager: EventManager,
+        private readonly dataManager: DataManager,
         private styles: Styles,
     ) {
         // A FREEZE IS A NEW GRAPH FOR THE SIMULATION. A simulation layout runs over the snapshot
@@ -997,6 +1079,36 @@ export class LayoutManager implements Manager {
     }
 
     /**
+     * Log a layout's warning and emit it as `layout-warning`.
+     * @param type - The layout that reported it.
+     * @param warning - Its code and parameters.
+     */
+    private warnLayout(type: string, warning: SnapshotLayoutWarning): void {
+        this.logger.warn("The layout could not do everything it was asked", { layoutType: type, ...warning });
+        this.eventManager.emit("layout-warning", {
+            layoutType: type,
+            ...warning,
+        } satisfies Omit<LayoutWarningEvent, "type">);
+    }
+
+    /**
+     * Report the consumer's options a layout will run without, as `W_UNKNOWN_OPTION`.
+     * @param type - The layout.
+     * @param engineClass - Its engine.
+     * @param passed - The consumer's options.
+     */
+    private warnIgnoredOptions(
+        type: string,
+        engineClass: LayoutEngineStatics & { simulationType?: SimulationType },
+        passed: Record<string, unknown>,
+    ): void {
+        const ignored = ignoredOptions(engineClass, passed);
+        if (ignored !== undefined) {
+            this.warnLayout(type, { code: "W_UNKNOWN_OPTION", params: ignored });
+        }
+    }
+
+    /**
      * Internal method for setting layout - bypasses queue
      * Used by operations that are already queued to prevent nested queueing
      * @param layout - A registered engine name, or a catalogue layout id
@@ -1106,7 +1218,7 @@ export class LayoutManager implements Manager {
                 throw cancelledBuild();
             }
 
-            throw this.reportLayoutFailure(type, error, "built");
+            throw this.reportLayoutFailure(type, optionRefusal(type, error, layoutOpts) ?? error, "built");
         }
 
         if (engine instanceof SnapshotLayoutEngine) {
@@ -1114,6 +1226,9 @@ export class LayoutManager implements Manager {
             snapshotLayoutInternals.connect(built, {
                 progress: (progress) => {
                     this.eventManager.emit("layout-progress", { layoutType: type, ...progress });
+                },
+                warn: (warning) => {
+                    this.warnLayout(type, warning);
                 },
                 fail: (error) => {
                     if (this.layoutEngine === built) {
@@ -1138,6 +1253,8 @@ export class LayoutManager implements Manager {
             // not answering, because from the caller's side that is what happened.
             throw unknownLayout(type);
         }
+
+        this.warnIgnoredOptions(type, engineClass, callerOpts);
 
         // Kept so that a failure during set-up leaves the element exactly as it found it: the
         // engine that was working is still the one working, and it is still configured the way the
@@ -1353,24 +1470,26 @@ export class LayoutManager implements Manager {
 
         this.logger.error(`Layout could not be ${phase}`, thrown, { layoutType: type });
 
-        if (this.graphContext) {
-            this.eventManager.emitGraphError(this.graphContext, thrown, "layout", { layoutType: type, phase });
-        }
-
-        if (isGraphtyError(thrown)) {
-            return thrown;
-        }
-
         // An uncoded throw from an engine has no better code in the union than this one, and
         // inventing a code is not allowed. An engine that wants a consumer to be able to switch on
-        // its failure throws a `GraphtyError`, and the branch above hands that back untouched. A
-        // sibling package's coded throw (the layout package's E_TOO_LARGE) keeps its code and params.
-        return GraphtyError.wrap(thrown, {
-            code: "E_INTERNAL",
-            message: `the layout "${type}" could not be ${phase}: ${thrown.message}`,
-            source: "layout",
-            details: { layout: type, phase },
-        });
+        // its failure throws a `GraphtyError`, which comes back untouched. A sibling package's
+        // coded throw (the layout package's E_TOO_LARGE, planar's E_NOT_PLANAR) keeps its code and
+        // params. The error event carries the same coded error the caller is handed, so a
+        // consumer listening for refusals can switch on `code` there too.
+        const reported = isGraphtyError(thrown)
+            ? thrown
+            : GraphtyError.wrap(thrown, {
+                  code: "E_INTERNAL",
+                  message: `the layout "${type}" could not be ${phase}: ${thrown.message}`,
+                  source: "layout",
+                  details: { layout: type, phase },
+              });
+
+        if (this.graphContext) {
+            this.eventManager.emitGraphError(this.graphContext, reported, "layout", { layoutType: type, phase });
+        }
+
+        return reported;
     }
 
     /**
@@ -1626,7 +1745,7 @@ export class LayoutManager implements Manager {
     releaseDetachedScope(): void {
         const scope = this.carriedScope;
         const source = this.scopeSource;
-        if (this.members === null || scope === undefined || source === null || !source.detached(scope)) {
+        if (this.members === null || scope === undefined || !source?.detached(scope)) {
             return;
         }
 

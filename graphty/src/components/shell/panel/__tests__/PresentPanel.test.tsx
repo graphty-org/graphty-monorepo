@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
-import { fireEvent, render, screen } from "../../../../test/test-utils";
+import { render, screen } from "../../../../test/test-utils";
 import { ShellProvider } from "../../ShellContext";
 import { PresentPanel, type PresentPanelProps } from "../PresentPanel";
 
@@ -65,12 +66,12 @@ describe("PresentPanel", () => {
             expect(screen.getByRole("button", { name: "Image options" })).toBeDisabled();
         });
 
-        it("reports the export", () => {
+        it("reports the export", async () => {
             const onExportImage = vi.fn();
 
             renderPanel({ onExportImage });
 
-            fireEvent.click(screen.getByRole("button", { name: "Export image" }));
+            await userEvent.click(screen.getByRole("button", { name: "Export image" }));
 
             expect(onExportImage).toHaveBeenCalledTimes(1);
         });
@@ -80,7 +81,7 @@ describe("PresentPanel", () => {
         it("keeps Copy node ids beside it", async () => {
             renderPanel();
 
-            fireEvent.click(screen.getByRole("button", { name: "Expand Export data" }));
+            await userEvent.click(screen.getByRole("button", { name: "Expand Export data" }));
 
             expect(await screen.findByRole("button", { name: "Copy node ids" })).toBeInTheDocument();
             expect(screen.getByRole("button", { name: "Export data" })).toBeInTheDocument();
@@ -89,7 +90,7 @@ describe("PresentPanel", () => {
         it("keeps the Include notes checkbox resident", async () => {
             renderPanel();
 
-            fireEvent.click(screen.getByRole("button", { name: "Expand Export data" }));
+            await userEvent.click(screen.getByRole("button", { name: "Expand Export data" }));
 
             expect(await screen.findByRole("checkbox", { name: "Include notes" })).toBeInTheDocument();
         });
@@ -105,7 +106,7 @@ describe("PresentPanel", () => {
         it("draws every control disabled, because the app has not wired the export yet", async () => {
             renderPanel({ onExportData: vi.fn(), onCopyNodeIds: vi.fn(), onOpenDataOptions: vi.fn() });
 
-            fireEvent.click(screen.getByRole("button", { name: "Expand Export data" }));
+            await userEvent.click(screen.getByRole("button", { name: "Expand Export data" }));
 
             expect(await screen.findByRole("button", { name: "Export data" })).toBeDisabled();
             expect(screen.getByRole("button", { name: "Copy node ids" })).toBeDisabled();
@@ -120,27 +121,27 @@ describe("PresentPanel", () => {
         it("names the first data format the element's catalogue says it can write", async () => {
             renderPanel();
 
-            fireEvent.click(screen.getByRole("button", { name: "Expand Export data" }));
+            await userEvent.click(screen.getByRole("button", { name: "Expand Export data" }));
 
             expect(await screen.findByRole("combobox", { name: "Data format" })).toHaveValue("JSON");
         });
     });
 
     describe("the unshipped rows", () => {
-        it("draws all five, in order, under one group", () => {
+        it("draws all five, in order, under one group", async () => {
             renderPanel();
 
-            fireEvent.click(screen.getByRole("button", { name: "Expand Reports" }));
+            await userEvent.click(screen.getByRole("button", { name: "Expand Reports" }));
 
             UNSHIPPED_ROWS.forEach((row) => {
                 expect(screen.getByText(row)).toBeInTheDocument();
             });
         });
 
-        it("tags the group once rather than every row", () => {
+        it("tags the group once rather than every row", async () => {
             renderPanel();
 
-            fireEvent.click(screen.getByRole("button", { name: "Expand Reports" }));
+            await userEvent.click(screen.getByRole("button", { name: "Expand Reports" }));
 
             // One tag on Export data, one on Reports, and none on the five rows.
             expect(screen.getAllByTestId("coming-tag")).toHaveLength(2);

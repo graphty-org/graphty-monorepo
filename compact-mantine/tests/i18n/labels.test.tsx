@@ -66,8 +66,8 @@ describe("useLabels", () => {
         expect(defaultLabels.scaleSqrt).toBe("Square root scale");
         expect(defaultLabels.scaleLinear).toBe("Linear scale");
         expect(defaultLabels.scaleLog).toBe("Logarithmic scale");
-        expect(defaultLabels.departure).toBe("Departure");
-        expect(defaultLabels.colorSwatch).toBe("Color swatch");
+        expect(defaultLabels.departure).toBe("Warning");
+        expect(defaultLabels.colorSwatch).toBe("Pick color");
         expect(defaultLabels.colorHexValue).toBe("Color hex value");
         expect(defaultLabels.opacity).toBe("Opacity");
         expect(defaultLabels.colorPanelTitle).toBe("Color");
@@ -85,6 +85,14 @@ describe("useLabels", () => {
         expect(defaultLabels.resetToDefault("Size")).toBe("Reset Size to default");
         expect(defaultLabels.colorStopPosition("2")).toBe("Stop 2 position");
         expect(defaultLabels.removeColorStop("2")).toBe("Remove color stop 2");
+        expect(defaultLabels.editColorStop("2")).toBe("Edit stop 2 color");
+        expect(defaultLabels.colorStopColor("2")).toBe("Stop 2 color");
+        expect(defaultLabels.pickColor("Fill")).toBe("Pick Fill color");
+        expect(defaultLabels.pickColor("Text color")).toBe("Pick Text color");
+        expect(defaultLabels.colorValue("Fill")).toBe("Fill color");
+        expect(defaultLabels.colorValue("Background Colour")).toBe("Background Colour");
+        expect(defaultLabels.colorValue("Colorful")).toBe("Colorful color");
+        expect(defaultLabels.colorOpacity("Fill")).toBe("Fill opacity");
         expect(defaultLabels.degrees("90")).toBe("90\u00b0");
         expect(defaultLabels.percent("50")).toBe("50%");
     });

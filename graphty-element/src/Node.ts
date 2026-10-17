@@ -18,6 +18,7 @@ import { AdHocData, DEFAULT_SELECTION_STYLE, type GraphSelectionStyleConfig, Nod
 import { writableLane } from "./data/lane";
 import type { ElementPositions } from "./data/positions";
 import type { Graph } from "./Graph";
+import { NGraphEngine } from "./layout/NGraphLayoutEngine";
 import { GraphtyLogger } from "./logging/GraphtyLogger.js";
 import type { GraphContext } from "./managers/GraphContext";
 import { LabelDeclutter } from "./managers/LabelDeclutter";
@@ -25,6 +26,7 @@ import { bootstrapNodePaint, type NodePaint } from "./managers/StylePainter";
 import { oweLabelAnimations } from "./meshes/labelAnimationDebt";
 import { NodeEffects } from "./meshes/NodeEffects";
 import { NodeMesh } from "./meshes/NodeMesh";
+import { readColor } from "./meshes/readColor";
 import { RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
 import { NodeBehavior, type NodeDragHandler } from "./NodeBehavior";
 import { dispatcherOf } from "./session/GraphSession";
@@ -102,6 +104,61 @@ export function adoptNodeRecord(node: Node, record: AdHocData<string | number>):
     writeRecord(node, record);
 }
 
+/** Reads whether a paint rebuilds a node's mesh; see {@link nodeRebuildsFor}. */
+let rebuildsFor: (node: Node, paint: NodePaint) => boolean;
+
+/**
+ * Whether {@link Node.applySessionPaint} with this paint would dispose the node's mesh and build
+ * a new one, rather than only write to the mesh it has. A repaint of many nodes asks first, so it
+ * can hand every mesh about to go to the bulk teardown before any of them is disposed (#2749).
+ * @param node - The node.
+ * @param paint - The paint it is about to be handed.
+ * @returns Whether the mesh is rebuilt.
+ */
+export function nodeRebuildsFor(node: Node, paint: NodePaint): boolean {
+    return rebuildsFor(node, paint);
+}
+
+/**
+ * Dispose what a node's rebuild replaces -- its mesh, the label parented to it and its drag
+ * handler -- ahead of the rebuild. A repaint of many nodes disposes every one of them first, inside
+ * the bulk teardown, and only then builds the new meshes: built in between, the new meshes would
+ * fill the scene lists the teardown emptied, and each later dispose would search them (#2749).
+ * The rebuild then finds the mesh disposed and builds a new one, as it does after a 2D/3D switch.
+ * @param node - A node {@link nodeRebuildsFor} said is rebuilt.
+ */
+export function releaseNodeMesh(node: Node): void {
+    node.dragHandler?.dispose();
+    node.dragHandler = undefined;
+    node.label?.dispose();
+    node.label = undefined;
+    if (!node.mesh.isDisposed()) {
+        node.mesh.dispose();
+    }
+}
+
+/** Collects the nodes whose size or shape changed while {@link collectResizedNodes} runs. */
+let resizedSink: Set<Node> | null = null;
+
+/**
+ * Run a repaint and collect the nodes whose size or shape it changed, instead of each of them
+ * walking every edge in the graph to find its own. The caller then finds their edges in one walk
+ * (#2749).
+ * @param work - The repaint.
+ * @returns The nodes whose geometry changed.
+ */
+export function collectResizedNodes(work: () => void): Set<Node> {
+    const resized = new Set<Node>();
+    resizedSink = resized;
+    try {
+        work();
+    } finally {
+        resizedSink = null;
+    }
+
+    return resized;
+}
+
 /**
  * Node shapes whose outline is a circle from every direction.
  *
@@ -128,6 +185,7 @@ export class Node {
         writeRecord = (node, record) => {
             node.#record = frozenRecord(record);
         };
+        rebuildsFor = (node, paint) => !node.disposed && !node.keepsMeshFor(paint.meshKey, paint.style, paint.color);
     }
 
     /**
@@ -230,6 +288,16 @@ export class Node {
     /** The last measured radius, or null for a node that is not round. */
     private roundRadiusValue: number | null = null;
 
+    /** What {@link Node.drawnRadius} last measured, and the mesh and scaling it measured. */
+    private drawnRadiusMesh: AbstractMesh | null = null;
+    private drawnRadiusScale = 0;
+    private drawnRadiusValue = 0;
+
+    /** What {@link Node.drawnHalfExtents} last measured, and the mesh and scaling it measured. */
+    private halfExtentsMesh: AbstractMesh | null = null;
+    private readonly halfExtentsScale = { x: 0, y: 0, z: 0 };
+    private readonly halfExtentsValue = { x: 0, y: 0, z: 0 };
+
     /**
      * What the visibility mask says about this node, as the renderer is currently drawing it.
      *
@@ -323,8 +391,7 @@ export class Node {
 
         this.meshKey = paint.meshKey;
 
-        // create graph node
-        // TODO: Node is added to layout engine by DataManager, not here
+        // The layout engine gets this node from DataManager, not from here.
 
         // create mesh
         const o = paint.style;
@@ -452,10 +519,10 @@ export class Node {
         // A DELIBERATELY disposed node must never be resurrected here. The recreate-on-disposed
         // branch below exists for the 2D/3D mode switch, which disposes meshes out from under
         // live nodes; it cannot tell that case apart from a node this graph has finished with.
-        // Both the layout engine (which DataManager.clear does not notify -- see its TODO) and
-        // SelectionManager.selectedNode keep hard references to Nodes after a dataset is dropped,
-        // and both of them call update(), so without this guard clearing a dataset would silently
-        // rebuild every node's mesh on the next frame or the next deselect.
+        // SelectionManager.selectedNode keeps a hard reference to a Node after its dataset is
+        // dropped, and the layout engine keeps them after DataManager.dispose() (clear() takes
+        // them out of it, #121); both call update(), so without this guard a dropped node's mesh
+        // would silently be rebuilt on the next frame or the next deselect.
         if (this.disposed) {
             return;
         }
@@ -613,6 +680,44 @@ export class Node {
     }
 
     /**
+     * Whether a paint keeps the mesh this node has: the same source mesh, or a style deep-equal to
+     * the one the mesh was built from, and a mesh that is still alive. See `paintFrom`.
+     * @param meshKey - Which source mesh the paint draws from.
+     * @param o - The resolved style.
+     * @param color - The per-instance colour.
+     * @returns Whether the mesh stays.
+     */
+    private keepsMeshFor(meshKey: string, o: NodeStyleConfig, color: Rgba | null): boolean {
+        const sameGeometry =
+            meshKey === this.meshKey || (isEqual(o, this.drawnStyle) && isEqual(color, this.drawnColor));
+        return sameGeometry && !this.mesh.isDisposed();
+    }
+
+    /**
+     * Tell the layout and this node's edges that its size or shape changed. See `paintFrom`.
+     */
+    private geometryChanged(): void {
+        // A layout that keeps nodes apart by their drawn size (`nodeGap`) has to look again;
+        // the frame loop steps it while it is not settled.
+        const engine = this.context.getLayoutManager().layoutEngine;
+        if (engine instanceof NGraphEngine) {
+            engine.wakeForResize();
+        }
+
+        if (resizedSink) {
+            // A repaint of many nodes finds all their edges in one walk afterwards.
+            resizedSink.add(this);
+            return;
+        }
+
+        for (const edge of this.context.getDataManager().edges.values()) {
+            if (edge.srcNode === this || edge.dstNode === this) {
+                edge.invalidatePositionCache();
+            }
+        }
+    }
+
+    /**
      * Build the mesh, the label and the effects one resolved style asks for.
      *
      * The one place a node's appearance is applied, whichever stack resolved it. It is keyed on
@@ -646,10 +751,7 @@ export class Node {
         // deep-equal to the one the current mesh was built from means the same geometry, the same
         // colour and the same content by construction, so the key is adopted and nothing is
         // touched.
-        const sameGeometry =
-            meshKey === this.meshKey || (isEqual(o, this.drawnStyle) && isEqual(color, this.drawnColor));
-
-        if (sameGeometry && !this.mesh.isDisposed()) {
+        if (this.keepsMeshFor(meshKey, o, color)) {
             this.meshKey = meshKey;
             this.drawnStyle = o;
             this.drawnColor = color;
@@ -732,12 +834,7 @@ export class Node {
         // that changes every node's shape ever hitches, the answer is a per-node edge index, not
         // removing the guard.
         if (this.size !== oldSize || this.shapeType !== oldShapeType) {
-            const dataManager = this.context.getDataManager();
-            for (const edge of dataManager.edges.values()) {
-                if (edge.srcNode === this || edge.dstNode === this) {
-                    edge.invalidatePositionCache();
-                }
-            }
+            this.geometryChanged();
         }
 
         this.mesh = NodeMesh.create(
@@ -825,12 +922,12 @@ export class Node {
      * instanced node the layer never held.
      *
      * A DISPOSED NODE STILL RECEIVES CALLS, which is why the private `disposed` flag exists rather than
-     * this method simply freeing things. `DataManager.clear()` does not notify the layout engine
-     * (its own standing TODO), so `UpdateManager` keeps iterating the engine's node and edge
-     * lists; and `SelectionManager.selectedNode` holds a Node across a dataset boundary and calls
-     * `updateStyle` + `update` on it when the selection is finally cleared. Both paths would have
-     * hit `update()`'s recreate-if-disposed branch and rebuilt the mesh of a node nobody owns.
-     * Calling this twice is safe.
+     * this method simply freeing things. `DataManager.dispose()` does not take nodes out of the
+     * layout engine (`clear()` does, #121), so `UpdateManager` can keep iterating the engine's
+     * node and edge lists; and `SelectionManager.selectedNode` holds a Node across a dataset
+     * boundary and calls `updateStyle` + `update` on it when the selection is finally cleared.
+     * Both paths would have hit `update()`'s recreate-if-disposed branch and rebuilt the mesh of a
+     * node nobody owns. Calling this twice is safe.
      */
     dispose(): void {
         if (this.disposed) {
@@ -1073,26 +1170,77 @@ export class Node {
      * @returns The scaling for a unit-diameter overlay sphere.
      */
     private haloScale(multiplier: number): number {
-        // THE NODE'S OWN EXTENT, not its world one. The halo is a sibling of the node under
-        // `graph-root`, and an XR gesture scales that root -- so measuring in world space and
-        // then writing a local scaling would count the gesture twice and the halo would grow away
-        // from the node every time a reader pinched to zoom.
-        const box = this.mesh.isDisposed() ? null : this.mesh.getBoundingInfo().boundingBox;
-        const own = this.mesh.scaling;
-        const radius =
-            box === null
-                ? 0
-                : Math.max(box.extendSize.x, box.extendSize.y, box.extendSize.z) *
-                  Math.max(Math.abs(own.x), Math.abs(own.y), Math.abs(own.z));
-
-        // A mesh whose bounds have not been computed yet answers zero, which would collapse the
-        // halo. Falling back to the style's own size keeps a halo on screen at roughly the right
-        // place until the next pass measures it properly.
-        const drawn = radius > 0 ? radius : Math.max(this.size, MIN_OVERLAY_SIZE) / 2;
-
         // Doubled because the source is a sphere of DIAMETER one, so a scaling of `s` draws a
         // radius of `s / 2`.
-        return 2 * drawn * multiplier;
+        return 2 * this.drawnRadius * multiplier;
+    }
+
+    /**
+     * How far the node's drawn surface reaches from its centre at most: its largest half-extent,
+     * in the units its position is laid out in.
+     *
+     * THE NODE'S OWN EXTENT, not its world one. The node and the halo are children of
+     * `graph-root`, and an XR gesture scales that root -- so measuring in world space would
+     * count the gesture in a value that is compared with layout coordinates and local scalings.
+     *
+     * Read by the selection halo and by a layout that keeps nodes apart by their drawn size
+     * (`ngraph`'s `nodeGap`). Measured once per mesh and scaling: a bounding-box read per node per
+     * layout step is the cost {@link Node.roundRadius} documents.
+     * @returns The radius; the style's own size when the mesh has no bounds yet.
+     */
+    get drawnRadius(): number {
+        const own = this.mesh.scaling;
+        const scale = Math.max(Math.abs(own.x), Math.abs(own.y), Math.abs(own.z));
+        if (this.drawnRadiusMesh !== this.mesh || this.drawnRadiusScale !== scale || this.drawnRadiusValue <= 0) {
+            const box = this.mesh.isDisposed() ? null : this.mesh.getBoundingInfo().boundingBox;
+            this.drawnRadiusMesh = this.mesh;
+            this.drawnRadiusScale = scale;
+            this.drawnRadiusValue =
+                box === null ? 0 : Math.max(box.extendSize.x, box.extendSize.y, box.extendSize.z) * scale;
+        }
+
+        // A mesh whose bounds have not been computed yet answers zero. Falling back to the
+        // style's own size keeps the answer roughly right until the mesh is measured.
+        return this.drawnRadiusValue > 0 ? this.drawnRadiusValue : Math.max(this.size, MIN_OVERLAY_SIZE) / 2;
+    }
+
+    /**
+     * How far the node's drawn surface reaches from its centre along each axis: its bounding
+     * box's half-size, in the units its position is laid out in (the node's own space, not the
+     * world, for the reason {@link Node.drawnRadius} gives).
+     *
+     * One number per axis because one radius is wrong for most shapes: a box reaches 1.41 times
+     * its half-width at a corner, and a tall cylinder is far narrower than it is tall. Read by
+     * `ngraph`'s `nodeGap` and by edge self-loops. Measured once per mesh and scaling.
+     * @returns The half-extents; the style's own size on every axis when the mesh has no bounds yet.
+     */
+    get drawnHalfExtents(): Readonly<{ x: number; y: number; z: number }> {
+        const own = this.mesh.scaling;
+        const seen = this.halfExtentsScale;
+        const value = this.halfExtentsValue;
+        if (
+            this.halfExtentsMesh !== this.mesh ||
+            seen.x !== own.x ||
+            seen.y !== own.y ||
+            seen.z !== own.z ||
+            value.x <= 0
+        ) {
+            const extent = this.mesh.isDisposed() ? null : this.mesh.getBoundingInfo().boundingBox.extendSize;
+            this.halfExtentsMesh = this.mesh;
+            seen.x = own.x;
+            seen.y = own.y;
+            seen.z = own.z;
+            value.x = extent ? extent.x * Math.abs(own.x) : 0;
+            value.y = extent ? extent.y * Math.abs(own.y) : 0;
+            value.z = extent ? extent.z * Math.abs(own.z) : 0;
+        }
+
+        if (value.x > 0 || value.y > 0 || value.z > 0) {
+            return value;
+        }
+
+        const fallback = this.drawnRadius;
+        return { x: fallback, y: fallback, z: fallback };
     }
 
     /**
@@ -1138,8 +1286,11 @@ export class Node {
             return;
         }
 
-        material.emissiveColor = Color3.FromHexString(selection.color);
-        material.alpha = selection.opacity;
+        // The color's own alpha multiplies the configured opacity (issue #2071).
+        const { rgb, alpha } = readColor(selection.color, DEFAULT_SELECTION_STYLE.color);
+
+        material.emissiveColor = rgb;
+        material.alpha = selection.opacity * alpha;
     }
 
     /**
@@ -1157,10 +1308,12 @@ export class Node {
         // Unlit on purpose: an overlay is a marker, and a marker that changes shade as the camera
         // orbits reads as another node rather than as an annotation on one.
         material.disableLighting = true;
-        material.emissiveColor = Color3.FromHexString(color);
+        const painted = readColor(color, DEFAULT_SELECTION_STYLE.color);
+
+        material.emissiveColor = painted.rgb;
         material.diffuseColor = Color3.Black();
         material.specularColor = Color3.Black();
-        material.alpha = alpha;
+        material.alpha = alpha * painted.alpha;
         // Both faces, so a halo drawn around a node is still a ring when the camera is inside it.
         material.backFaceCulling = false;
         source.material = material;
@@ -1402,7 +1555,7 @@ export class Node {
         // Labels that would overlap on screen are thinned out when `labels.declutter` is on; see
         // LabelDeclutter.
         LabelDeclutter.track(scene, this.context, this);
-        // Its animation starts on the next frame the layout is at rest, or when it settles.
+        // Its animation starts on the first frame at rest with no style paint left to draw.
         oweLabelAnimations(scene);
         return new RichTextLabel(scene, labelOptions);
     }
@@ -1556,6 +1709,12 @@ export class Node {
     // Test helper methods
     /**
      * Gets the current 3D position of the node's mesh.
+     * @remarks
+     * This is where the node is DRAWN, which a frame's update pass copies from the layout. Until
+     * the first frame after the node's mesh is created -- a new node, or a 2D/3D switch that
+     * rebuilds the meshes -- it is the hidden mesh template's position (y = -10000), not the
+     * node's. `waitForSettled()` does not wait for that frame; wait for
+     * {@link Graph.waitForStableFrame} before reading it.
      * @returns An object containing the x, y, and z coordinates of the node
      */
     getPosition(): { x: number; y: number; z: number } {

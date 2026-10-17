@@ -1,15 +1,16 @@
 /**
  * src/device/error-scope.ts (contract 3.4; spec 5.7, 5.1): withValidationScope, AllocationTracker and
- * formatCompilationInfo on RAW devices from acquireRaw(). The out-of-memory path is driven by a Proxy that
- * substitutes popErrorScope (a real OOM needs the node-limits project of P4); the proxy binds every other
- * member to the real device so Dawn's native `this` checks pass.
+ * formatCompilationInfo on RAW devices on Dawn's null backend (acquireRawNullBackend(): nothing is read back, and the
+ * scopes surface the same codes and messages as a real device's, issue #275). The out-of-memory path is driven by a
+ * Proxy that substitutes popErrorScope (a real OOM needs the node-limits project of P4); the proxy binds every other
+ * member to the underlying device so Dawn's native `this` checks pass.
  */
 
 import { OOM_SCOPE_THRESHOLD_BYTES } from "../../src/constants.js";
 import { AllocationTracker, formatCompilationInfo, withValidationScope } from "../../src/device/error-scope.js";
 import { BufferUsage, ShaderStage } from "../../src/device/webgpu-constants.js";
 import { isWebGpuGraphError, type WebGpuGraphError, type WebGpuGraphErrorCode } from "../../src/errors.js";
-import { acquireRaw, requireGpu } from "../setup/gpu.js";
+import { acquireRawNullBackend, requireGpu } from "../setup/gpu.js";
 
 type ScopeOverrides = Partial<{
     pushErrorScope: (filter: GPUErrorFilter) => void;
@@ -64,7 +65,7 @@ function expectCode(err: unknown, code: WebGpuGraphErrorCode, details?: Record<s
 describe("withValidationScope", () => {
     it("surfaces a bad bind group as E_VALIDATION { label, message } and keeps it out of the uncaptured path", async (t) => {
         requireGpu(t);
-        const { device } = await acquireRaw();
+        const { device } = await acquireRawNullBackend();
         let uncapturedEvents = 0;
         device.addEventListener("uncapturederror", () => {
             uncapturedEvents += 1;
@@ -85,14 +86,14 @@ describe("withValidationScope", () => {
 
     it("returns the function's value when nothing was captured, for a sync and for an async fn", async (t) => {
         requireGpu(t);
-        const { device } = await acquireRaw();
+        const { device } = await acquireRawNullBackend();
         expect(await withValidationScope(device, "sync", () => 7)).toBe(7);
         expect(await withValidationScope(device, "async", () => Promise.resolve("ok"))).toBe("ok");
     });
 
     it("rethrows the function's own error unchanged and pops the scope so a later scope still works", async (t) => {
         requireGpu(t);
-        const { device } = await acquireRaw();
+        const { device } = await acquireRawNullBackend();
         const own = new Error("mine");
         const err = await rejection(
             withValidationScope(device, "own", () => {
@@ -113,7 +114,7 @@ describe("withValidationScope", () => {
 describe("AllocationTracker", () => {
     it("wraps only allocations at or above the threshold in an out-of-memory scope; resident / liveBuffers follow create and destroy", async (t) => {
         requireGpu(t);
-        const { device } = await acquireRaw();
+        const { device } = await acquireRawNullBackend();
         const pushes: GPUErrorFilter[] = [];
         const dev = patched(device, {
             pushErrorScope: (filter) => {
@@ -150,7 +151,7 @@ describe("AllocationTracker", () => {
 
     it("defaults the threshold to OOM_SCOPE_THRESHOLD_BYTES (16 MiB)", async (t) => {
         requireGpu(t);
-        const { device } = await acquireRaw();
+        const { device } = await acquireRawNullBackend();
         const pushes: GPUErrorFilter[] = [];
         const dev = patched(device, {
             pushErrorScope: (filter) => {
@@ -176,7 +177,7 @@ describe("AllocationTracker", () => {
 
     it("check() surfaces a captured out-of-memory error as E_OUT_OF_MEMORY { requested, resident, label }, again until reset()", async (t) => {
         requireGpu(t);
-        const { device } = await acquireRaw();
+        const { device } = await acquireRawNullBackend();
         const tracker = new AllocationTracker(
             patched(device, {
                 popErrorScope: () => Promise.resolve({ message: "simulated out-of-memory" } as GPUError),

@@ -17,8 +17,9 @@
 import { FORMAT_DESCRIPTORS, formatDescriptor } from "@graphty/graphty-element/catalog";
 import React, { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
-import { fireEvent, render, screen, waitFor } from "../../test/test-utils";
+import { render, screen, waitFor } from "../../test/test-utils";
 import { type InputMethod, LoadDataModal, type LoadDataModalProps, type LoadDataRequest } from "../LoadDataModal";
 
 /** What the dialog says when a refusal carried no message of its own. */
@@ -69,10 +70,10 @@ function renderModal(onLoad: (request: LoadDataRequest) => Promise<void>) {
  * Puts a URL in the dialog and presses Load.
  * @param url - the URL to type.
  */
-function loadFromUrl(url: string): void {
-    fireEvent.click(screen.getByText("URL"));
-    fireEvent.change(screen.getByLabelText("Data URL"), { target: { value: url } });
-    fireEvent.click(screen.getByRole("button", { name: /^Load / }));
+async function loadFromUrl(url: string): Promise<void> {
+    await userEvent.click(screen.getByText("URL"));
+    await userEvent.fill(screen.getByLabelText("Data URL"), url);
+    await userEvent.click(screen.getByRole("button", { name: /^Load / }));
 }
 
 describe("LoadDataModal", () => {
@@ -85,7 +86,7 @@ describe("LoadDataModal", () => {
             });
 
             renderModal(onLoad);
-            loadFromUrl("https://example.com/missing.json");
+            await loadFromUrl("https://example.com/missing.json");
 
             expect(await screen.findByText("Failed to fetch URL: 404 Not Found")).toBeInTheDocument();
 
@@ -104,11 +105,9 @@ describe("LoadDataModal", () => {
             });
 
             renderModal(onLoad);
-            fireEvent.click(screen.getByText("Paste"));
-            fireEvent.change(screen.getByLabelText("Paste graph data"), {
-                target: { value: '{"nodes": [{"id": "a"}' },
-            });
-            fireEvent.click(screen.getByRole("button", { name: /^Load / }));
+            await userEvent.click(screen.getByText("Paste"));
+            await userEvent.fill(screen.getByLabelText("Paste graph data"), '{"nodes": [{"id": "a"}');
+            await userEvent.click(screen.getByRole("button", { name: /^Load / }));
 
             expect(await screen.findByText("Unexpected end of JSON input")).toBeInTheDocument();
             expect(screen.getByLabelText("Paste graph data")).toHaveValue('{"nodes": [{"id": "a"}');
@@ -122,7 +121,7 @@ describe("LoadDataModal", () => {
             });
 
             renderModal(onLoad);
-            loadFromUrl("https://example.com/missing.json");
+            await loadFromUrl("https://example.com/missing.json");
 
             // Never an empty line at a reader: an error line that says nothing is the
             // silent failure again, one indirection further along.
@@ -138,7 +137,7 @@ describe("LoadDataModal", () => {
             });
 
             renderModal(onLoad);
-            loadFromUrl("https://example.com/graph.json");
+            await loadFromUrl("https://example.com/graph.json");
 
             await waitFor(() => {
                 expect(screen.queryByRole("dialog")).toBeNull();
@@ -155,8 +154,8 @@ describe("LoadDataModal", () => {
 
             // And the next opening starts clean, which is what `resetState` is for.
             // It reopens on its initial tab (File), so go back to URL to look.
-            fireEvent.click(screen.getByRole("button", { name: REOPEN }));
-            fireEvent.click(await screen.findByText("URL"));
+            await userEvent.click(screen.getByRole("button", { name: REOPEN }));
+            await userEvent.click(await screen.findByText("URL"));
 
             expect(await screen.findByLabelText("Data URL")).toHaveValue("");
         });
@@ -174,16 +173,14 @@ describe("LoadDataModal", () => {
          * thing the change could have broken: the dialog still has ONE error line, and a
          * rejected load and the dialog's own state share it.
          */
-        it("leaves Load disabled rather than refusing afterwards, when the pasted text names no format", () => {
+        it("leaves Load disabled rather than refusing afterwards, when the pasted text names no format", async () => {
             const onLoad = vi.fn(async () => {
                 await Promise.resolve();
             });
 
             renderModal(onLoad);
-            fireEvent.click(screen.getByText("Paste"));
-            fireEvent.change(screen.getByLabelText("Paste graph data"), {
-                target: { value: "this is not a graph in any format" },
-            });
+            await userEvent.click(screen.getByText("Paste"));
+            await userEvent.fill(screen.getByLabelText("Paste graph data"), "this is not a graph in any format");
 
             expect(screen.getByRole("button", { name: /^Load / })).toBeDisabled();
             expect(onLoad).not.toHaveBeenCalled();
@@ -197,7 +194,7 @@ describe("LoadDataModal", () => {
             });
 
             renderModal(onLoad);
-            loadFromUrl("https://example.com/missing.json");
+            await loadFromUrl("https://example.com/missing.json");
 
             const message = await screen.findByText("Failed to fetch URL: 404 Not Found");
 
@@ -207,7 +204,7 @@ describe("LoadDataModal", () => {
 
             // And the line clears when the reader changes the input, so a stale refusal
             // cannot sit under a URL it was never about.
-            fireEvent.click(screen.getByText("Paste"));
+            await userEvent.click(screen.getByText("Paste"));
 
             expect(screen.queryByText("Failed to fetch URL: 404 Not Found")).toBeNull();
         });
@@ -228,12 +225,12 @@ describe("LoadDataModal", () => {
             const file = new File([JSON.stringify(doc)], "two-networks.json", { type: "application/json" });
             const input = container.ownerDocument.querySelector<HTMLInputElement>("#file-input");
             expect(input).not.toBeNull();
-            fireEvent.change(input as HTMLInputElement, { target: { files: [file] } });
+            await userEvent.upload(input as HTMLInputElement, [file]);
 
             const picker = await screen.findByRole("combobox", { name: "Network" });
-            fireEvent.click(picker);
-            fireEvent.click(await screen.findByRole("option", { name: /^Alpha/ }));
-            fireEvent.click(screen.getByRole("button", { name: /^Load / }));
+            await userEvent.click(picker);
+            await userEvent.click(await screen.findByRole("option", { name: /^Alpha/ }));
+            await userEvent.click(screen.getByRole("button", { name: /^Load / }));
 
             await waitFor(() => {
                 expect(onLoad).toHaveBeenCalledTimes(1);
@@ -248,7 +245,7 @@ describe("LoadDataModal", () => {
                 }),
             );
 
-            fireEvent.click(screen.getByRole("combobox", { name: "Format" }));
+            await userEvent.click(screen.getByRole("combobox", { name: "Format" }));
 
             const options = (await screen.findAllByRole("option", { hidden: true })).map(
                 (option) => option.textContent,
@@ -262,32 +259,28 @@ describe("LoadDataModal", () => {
             ]);
         });
 
-        it("recognises a URL by every extension the element claims, such as .tsv for CSV", () => {
+        it("recognises a URL by every extension the element claims, such as .tsv for CSV", async () => {
             renderModal(
                 vi.fn(async () => {
                     await Promise.resolve();
                 }),
             );
 
-            fireEvent.click(screen.getByText("URL"));
-            fireEvent.change(screen.getByLabelText("Data URL"), {
-                target: { value: "https://example.com/edges.tsv" },
-            });
+            await userEvent.click(screen.getByText("URL"));
+            await userEvent.fill(screen.getByLabelText("Data URL"), "https://example.com/edges.tsv");
 
             expect(screen.getByText(`Detected: ${formatDescriptor("csv")?.plainName}`)).toBeInTheDocument();
         });
 
-        it("recognises pasted text with the element's detector", () => {
+        it("recognises pasted text with the element's detector", async () => {
             renderModal(
                 vi.fn(async () => {
                     await Promise.resolve();
                 }),
             );
 
-            fireEvent.click(screen.getByText("Paste"));
-            fireEvent.change(screen.getByLabelText("Paste graph data"), {
-                target: { value: "graph [\n  node [ id 1 ]\n]" },
-            });
+            await userEvent.click(screen.getByText("Paste"));
+            await userEvent.fill(screen.getByLabelText("Paste graph data"), "graph [\n  node [ id 1 ]\n]");
 
             expect(screen.getByText(`Detected: ${formatDescriptor("gml")?.plainName}`)).toBeInTheDocument();
         });
@@ -327,14 +320,14 @@ describe("LoadDataModal", () => {
 
             render(<Harness />);
 
-            fireEvent.click(screen.getByRole("button", { name: "open paste" }));
+            await userEvent.click(screen.getByRole("button", { name: "open paste" }));
             expect(await screen.findByLabelText("Paste graph data")).toBeInTheDocument();
-            fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+            await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
             await waitFor(() => {
                 expect(screen.queryByRole("dialog")).toBeNull();
             });
 
-            fireEvent.click(screen.getByRole("button", { name: "open url" }));
+            await userEvent.click(screen.getByRole("button", { name: "open url" }));
             expect(await screen.findByLabelText("Data URL")).toBeInTheDocument();
         });
     });

@@ -79,7 +79,7 @@ export class XmlTreeBuilder {
      * @param text - the text
      */
     text(text: string): void {
-        const frame = this.frames.length > 0 ? this.frames[this.frames.length - 1] : this.root;
+        const frame = this.frames.at(-1) ?? this.root;
         frame.text += text;
     }
 
@@ -91,7 +91,7 @@ export class XmlTreeBuilder {
                 reason: "tree builder underflow",
             });
         }
-        const parent = this.frames.length > 0 ? this.frames[this.frames.length - 1] : this.root;
+        const parent = this.frames.at(-1) ?? this.root;
         attachChild(parent, frame.name, valueOf(frame));
     }
 
@@ -270,18 +270,7 @@ function writeElements(name: string, value: unknown, indent: string, out: string
         return;
     }
     const object = value as XmlTreeObject;
-    let attrs = "";
-    let text: string | null = null;
-    let hasChildren = false;
-    for (const [key, child] of Object.entries(object)) {
-        if (key === TEXT_KEY) {
-            text = scalarText(child);
-        } else if (key.startsWith(ATTRIBUTE_PREFIX)) {
-            attrs += ` ${key.slice(ATTRIBUTE_PREFIX.length)}="${escapeXmlAttribute(scalarText(child))}"`;
-        } else {
-            hasChildren = true;
-        }
-    }
+    const { attrs, text, hasChildren } = scanElement(object);
     if (!hasChildren) {
         out.push(
             text === null || text.length === 0
@@ -301,6 +290,27 @@ function writeElements(name: string, value: unknown, indent: string, out: string
         out.push(escapeXmlText(text));
     }
     out.push(`\n${indent}</${name}>`);
+}
+
+/**
+ * Split an element object into its attribute text, its text content and whether it has children.
+ * @param object - the element object
+ * @returns the attribute text, the text content (null when absent) and the children flag
+ */
+function scanElement(object: XmlTreeObject): { attrs: string; text: string | null; hasChildren: boolean } {
+    let attrs = "";
+    let text: string | null = null;
+    let hasChildren = false;
+    for (const [key, child] of Object.entries(object)) {
+        if (key === TEXT_KEY) {
+            text = scalarText(child);
+        } else if (key.startsWith(ATTRIBUTE_PREFIX)) {
+            attrs += ` ${key.slice(ATTRIBUTE_PREFIX.length)}="${escapeXmlAttribute(scalarText(child))}"`;
+        } else {
+            hasChildren = true;
+        }
+    }
+    return { attrs, text, hasChildren };
 }
 
 /**

@@ -68,7 +68,7 @@ import { createSetsApi, sessionEdgeMember, setsStoreOf } from "../sets/SetsApi";
 import type { ElementSet, SetsApi } from "../sets/types";
 import type { FilterSources, FilterValueSource, ScopeLeaf } from "../visibility/filter";
 import type { ElementMask } from "./ElementMask";
-import { edgeSpaceOf, nodeSpaceOf } from "./spaces";
+import { edgeSpaceOf } from "./spaces";
 
 export type { ComponentLabels } from "../sets/resolve";
 
@@ -80,7 +80,7 @@ export const DEFAULT_SCOPE_SAMPLE = 10_000;
 // ---------------------------------------------------------------------------------------------
 
 // In their own module, so a caller that needs only these does not load the resolver.
-export { edgeSpaceOf, nodeSpaceOf };
+export { edgeSpaceOf, nodeSpaceOf } from "./spaces";
 
 // ---------------------------------------------------------------------------------------------
 // What the resolver needs from the rest of the session

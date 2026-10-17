@@ -181,7 +181,7 @@ export class PageRankAlgorithm extends MetricAlgorithm<PageRankOptions> {
     /**
      * Resolved options using the NEW Zod-based validation
      */
-    private zodOptions: PageRankSchemaOptions;
+    private readonly zodOptions: PageRankSchemaOptions;
 
     /**
      * The two Map-valued options, kept from what the caller passed.

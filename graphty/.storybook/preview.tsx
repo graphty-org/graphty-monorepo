@@ -3,7 +3,6 @@ import "@mantine/core/styles.css";
 
 import { MantineProvider } from "@mantine/core";
 import type { Preview, StoryContext } from "@storybook/react";
-import isChromatic from "chromatic/isChromatic";
 import React from "react";
 
 import { pinErudaTopRight } from "../src/lib/eruda";
@@ -34,7 +33,7 @@ function hasErudaFlag(read: () => string): boolean {
 // URL (the preview iframe's or the manager's), and never in a visual capture or an automated
 // browser, where it would be drawn into every snapshot.
 if (
-    !isChromatic() &&
+    !/[?&]chromatic=true/.test(globalThis.location.search) &&
     !navigator.webdriver &&
     (hasErudaFlag(() => window.location.search) || hasErudaFlag(() => window.parent.location.search))
 ) {
@@ -148,7 +147,7 @@ const preview: Preview = {
         },
         // Disable the default backgrounds addon since we use Mantine's color scheme
         backgrounds: { disable: true },
-        // Chromatic visual testing configuration
+        // Visual capture settings (visual-review reads them)
         chromatic: {
             // Capture both light and dark color schemes
             modes: {

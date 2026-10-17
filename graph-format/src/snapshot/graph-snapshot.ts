@@ -582,7 +582,7 @@ export class GraphSnapshot implements GraphSnapshotContract {
     edgeIndexOf(id: EdgeId): number {
         const { state } = this;
         const version = columnSetVersion(this.edges);
-        if (state.edgeIds === null || state.edgeIds.version !== version) {
+        if (state.edgeIds?.version !== version) {
             // the role lookup is repeated only when the column set changed
             const column = this.edges.byRole("id");
             state.edgeIds = { version, column, index: column === null ? null : new EdgeIdIndex(column) };
@@ -976,20 +976,10 @@ export class GraphSnapshot implements GraphSnapshotContract {
             bytes += this.arcToEdge.byteLength + this.edgeToArc.byteLength;
         }
         if (options.views === true) {
-            const { views } = this.state;
-            for (const name of VIEW_NAMES) {
-                const value = views[name];
-                if (value !== null && !(name === "reverseDegreeOrder" && value === views.degreeOrder)) {
-                    bytes += viewByteLength(this, name, value);
-                }
-            }
+            bytes += cachedViewsByteLength(this, this.state.views);
         }
         if (options.columns === true) {
-            for (const table of [this.nodes, this.edges, this.graph, ...this.extensions.values()]) {
-                for (const column of table) {
-                    bytes += column.byteLength;
-                }
-            }
+            bytes += columnsByteLength(this);
         }
         if (options.ids === true) {
             bytes += this.ids.byteLength();
@@ -1442,6 +1432,39 @@ export function equalsTopology(a: GraphSnapshot, b: GraphSnapshot): boolean {
 }
 
 /**
+ * Resident bytes of the materialised views (reverseDegreeOrder counts zero when it shares
+ * degreeOrder's array).
+ * @param snapshot - the snapshot
+ * @param views - its view cache
+ * @returns the byte count
+ */
+function cachedViewsByteLength(snapshot: GraphSnapshot, views: ViewCache): number {
+    let bytes = 0;
+    for (const name of VIEW_NAMES) {
+        const value = views[name];
+        if (value !== null && !(name === "reverseDegreeOrder" && value === views.degreeOrder)) {
+            bytes += viewByteLength(snapshot, name, value);
+        }
+    }
+    return bytes;
+}
+
+/**
+ * Resident bytes of every attribute column: node, edge, graph and extension tables.
+ * @param snapshot - the snapshot
+ * @returns the byte count
+ */
+function columnsByteLength(snapshot: GraphSnapshot): number {
+    let bytes = 0;
+    for (const table of [snapshot.nodes, snapshot.edges, snapshot.graph, ...snapshot.extensions.values()]) {
+        for (const column of table) {
+            bytes += column.byteLength;
+        }
+    }
+    return bytes;
+}
+
+/**
  * Record the digests of a materialised view in the checksum records, when the snapshot keeps any.
  * @param snapshot - the snapshot
  * @param state - its state record
@@ -1473,7 +1496,7 @@ export function seedView<K extends ViewName>(
     value: NonNullable<ViewCache[K]>,
 ): boolean {
     const state = STATES.get(snapshot);
-    if (state === undefined || state.views[name] !== null) {
+    if (state?.views[name] !== null) {
         return false;
     }
     state.views[name] = value;

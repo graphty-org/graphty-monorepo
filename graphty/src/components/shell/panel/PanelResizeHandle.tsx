@@ -75,7 +75,7 @@ export function PanelResizeHandle(props: PanelResizeHandleProps): React.JSX.Elem
     const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>): void => {
         const drag = dragRef.current;
 
-        if (drag === null || drag.pointerId !== event.pointerId) {
+        if (drag?.pointerId !== event.pointerId) {
             return;
         }
 
@@ -85,7 +85,7 @@ export function PanelResizeHandle(props: PanelResizeHandleProps): React.JSX.Elem
     const endDrag = (event: React.PointerEvent<HTMLDivElement>): void => {
         const drag = dragRef.current;
 
-        if (drag === null || drag.pointerId !== event.pointerId) {
+        if (drag?.pointerId !== event.pointerId) {
             return;
         }
 

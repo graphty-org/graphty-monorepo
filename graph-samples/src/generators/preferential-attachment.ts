@@ -99,7 +99,7 @@ export function barabasiAlbertGraph(options: BarabasiAlbertOptions): SampleGraph
             do {
                 target = targets[next++];
             } while (adjacency !== null && adjacency[s].includes(target) && next < m);
-            if (adjacency !== null && adjacency[s].includes(target)) {
+            if (adjacency?.[s].includes(target)) {
                 // every planned target is taken: fall back to a fresh preferential draw
                 do {
                     target = repeated[stream.nextBelow(length)];

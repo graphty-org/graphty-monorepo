@@ -63,9 +63,13 @@ describe("Automatic Layout Updates", () => {
                 },
                 labels: {
                     declutter: false,
+                    avoidNodesAndEdges: false,
                 },
                 rendering: {
                     onDemand: false,
+                },
+                camera: {
+                    pivotOnSelection: false,
                 },
             },
             data: {

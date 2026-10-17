@@ -163,6 +163,9 @@ export function renderGraph(
     const nodeGroup = svg.querySelector(".nodes") as SVGGElement;
     const labelGroup = svg.querySelector(".labels") as SVGGElement;
 
+    // Stop a running animation, which would keep moving the elements removed below
+    cancelAnimation(svg);
+
     // Clear existing content
     edgeGroup.innerHTML = "";
     nodeGroup.innerHTML = "";
@@ -218,7 +221,6 @@ function renderNode(
     circle.setAttribute("stroke", "#4338ca");
     circle.setAttribute("stroke-width", "2");
     circle.setAttribute("data-node-id", String(node.id));
-    circle.style.transition = "cx 0.5s ease, cy 0.5s ease";
     nodeGroup.appendChild(circle);
 
     // Create label
@@ -232,7 +234,6 @@ function renderNode(
     text.setAttribute("font-weight", "bold");
     text.setAttribute("font-family", "system-ui, sans-serif");
     text.setAttribute("data-node-label", String(node.id));
-    text.style.transition = "x 0.5s ease, y 0.5s ease";
     text.textContent = node.label;
     labelGroup.appendChild(text);
 }
@@ -255,13 +256,39 @@ function renderEdge(
     line.setAttribute("stroke-width", "2");
     line.setAttribute("data-source", String(edge.source));
     line.setAttribute("data-target", String(edge.target));
-    line.style.transition = "x1 0.5s ease, y1 0.5s ease, x2 0.5s ease, y2 0.5s ease";
     edgeGroup.appendChild(line);
+}
+
+/** How long a layout animation takes, in milliseconds. */
+const ANIMATION_MS = 500;
+
+/** The animation frame each SVG is waiting on, so a new animation or a re-render can cancel it. */
+const runningFrames = new WeakMap<SVGSVGElement, number>();
+
+function cancelAnimation(svg: SVGSVGElement): void {
+    const frame = runningFrames.get(svg);
+    if (frame !== undefined) {
+        cancelAnimationFrame(frame);
+        runningFrames.delete(svg);
+    }
+}
+
+/** Ease in and out (cubic), close to CSS's `ease`. */
+function ease(t: number): number {
+    return t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
 }
 
 /**
  * Update node and edge positions with animation.
  * Uses auto-scaling to fit positions within the SVG viewport.
+ *
+ * Nodes, labels and edges move together, frame by frame: every frame sets each circle's
+ * cx/cy, each label's x/y and each edge's x1..y2 from the same interpolated node positions, so
+ * an edge always ends at its nodes' centers. (A CSS transition cannot do this: it moves a
+ * circle's cx/cy, but a line's x1..y2 are plain attributes CSS never transitions.) The last
+ * frame sets the layout's positions exactly. With reduced motion it sets them at once.
+ * @returns a promise that resolves once the last frame is applied; it never resolves when a
+ *     later call or renderGraph cancels the animation
  */
 export function updatePositions(
     svg: SVGSVGElement,
@@ -270,7 +297,9 @@ export function updatePositions(
     _scale: number = 200,
     _offsetX: number = 250,
     _offsetY: number = 250,
-): void {
+): Promise<void> {
+    cancelAnimation(svg);
+
     // Get SVG dimensions
     const width = parseInt(svg.getAttribute("width") ?? "500", 10);
     const height = parseInt(svg.getAttribute("height") ?? "500", 10);
@@ -278,35 +307,68 @@ export function updatePositions(
     // Use auto-scaling to normalize positions to fit the viewport
     const screenPositions = normalizePositionsToScreen(positions, graph, width, height, 40);
 
-    // Update node positions
-    for (const node of graph.nodes) {
-        const pos = screenPositions[node.id];
-        if (pos) {
-            const circle = svg.querySelector(`[data-node-id="${node.id}"]`);
-            const text = svg.querySelector(`[data-node-label="${node.id}"]`);
-            if (circle) {
-                circle.setAttribute("cx", String(pos.x));
-                circle.setAttribute("cy", String(pos.y));
-            }
-            if (text) {
-                text.setAttribute("x", String(pos.x));
-                text.setAttribute("y", String(pos.y));
+    // Each node's elements, where it starts (where its circle is now) and where it ends
+    const moves = graph.nodes.flatMap((node) => {
+        const to = screenPositions[node.id];
+        const circle = svg.querySelector(`[data-node-id="${node.id}"]`);
+        if (!to || !circle) {
+            return [];
+        }
+        const from = {
+            x: Number(circle.getAttribute("cx")),
+            y: Number(circle.getAttribute("cy")),
+        };
+        return [{ id: node.id, from, to, circle, text: svg.querySelector(`[data-node-label="${node.id}"]`) }];
+    });
+    const lines = graph.edges.map((edge) => ({
+        edge,
+        line: svg.querySelector(`[data-source="${edge.source}"][data-target="${edge.target}"]`),
+    }));
+
+    /** Puts every node, label and edge at fraction t (0 to 1) of the way; t = 1 sets the final positions exactly. */
+    function draw(t: number): void {
+        const current: Record<number, { x: number; y: number }> = {};
+        const k = ease(t);
+        for (const { id, from, to, circle, text } of moves) {
+            const pos = t >= 1 ? to : { x: from.x + (to.x - from.x) * k, y: from.y + (to.y - from.y) * k };
+            current[id] = pos;
+            circle.setAttribute("cx", String(pos.x));
+            circle.setAttribute("cy", String(pos.y));
+            text?.setAttribute("x", String(pos.x));
+            text?.setAttribute("y", String(pos.y));
+        }
+        for (const { edge, line } of lines) {
+            const sourcePos = current[edge.source];
+            const targetPos = current[edge.target];
+            if (line && sourcePos && targetPos) {
+                line.setAttribute("x1", String(sourcePos.x));
+                line.setAttribute("y1", String(sourcePos.y));
+                line.setAttribute("x2", String(targetPos.x));
+                line.setAttribute("y2", String(targetPos.y));
             }
         }
     }
 
-    // Update edge positions
-    for (const edge of graph.edges) {
-        const sourcePos = screenPositions[edge.source];
-        const targetPos = screenPositions[edge.target];
-        const line = svg.querySelector(`[data-source="${edge.source}"][data-target="${edge.target}"]`);
-        if (line && sourcePos && targetPos) {
-            line.setAttribute("x1", String(sourcePos.x));
-            line.setAttribute("y1", String(sourcePos.y));
-            line.setAttribute("x2", String(targetPos.x));
-            line.setAttribute("y2", String(targetPos.y));
-        }
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+        draw(1);
+        return Promise.resolve();
     }
+
+    return new Promise((resolve) => {
+        let start: number | undefined;
+        const frame = (now: number): void => {
+            start ??= now;
+            const t = Math.min((now - start) / ANIMATION_MS, 1);
+            draw(t);
+            if (t < 1) {
+                runningFrames.set(svg, requestAnimationFrame(frame));
+            } else {
+                runningFrames.delete(svg);
+                resolve();
+            }
+        };
+        runningFrames.set(svg, requestAnimationFrame(frame));
+    });
 }
 
 /**

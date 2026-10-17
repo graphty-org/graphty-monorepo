@@ -320,7 +320,7 @@ export class Edge {
     /** The arrow-tail text block the glyph on screen was built from. See {@link syncContent}. */
     private drawnArrowTailText?: NonNullable<EdgeStyleConfig["arrowTail"]>["text"];
     // Debug flag for logging lineDirection (reserved for future use)
-    private _loggedLineDirection: boolean = false;
+    private readonly _loggedLineDirection: boolean = false;
 
     // Dirty tracking: Cache last node positions to skip unnecessary updates
     private _lastSrcPos: Vector3 | null = null;
@@ -548,14 +548,16 @@ export class Edge {
         this.srcNode = srcNode;
         this.dstNode = dstNode;
 
-        // create ray for direction / intercept finding
-        // Ray constructor expects (origin, direction), not (origin, destination)
-        this.ray = new Ray(this.srcNode.mesh.position, this.dstNode.mesh.position.subtract(this.srcNode.mesh.position));
+        // The ray the intercept search aims and casts; its own vectors, never a mesh's, because
+        // the search writes into them.
+        this.ray = new Ray(
+            this.srcNode.mesh.position.clone(),
+            this.dstNode.mesh.position.subtract(this.srcNode.mesh.position),
+        );
 
         this.meshKey = paint.meshKey;
 
-        // create ngraph link
-        // TODO: Edge is added to layout engine by DataManager, not here
+        // The layout engine gets this edge from DataManager, not from here.
 
         // create mesh
         const { style } = paint;
@@ -630,10 +632,11 @@ export class Edge {
      */
     update(): void {
         // A DELIBERATELY disposed edge must never rebuild itself. UpdateManager iterates the
-        // LAYOUT ENGINE's edge list every frame, and DataManager.clear() does not notify the
-        // layout engine (its own standing TODO), so this method keeps being called on edges whose
-        // dataset was dropped. Without this guard the style branch below would take a brand new
-        // slot (or build a patterned line) for an edge nobody owns.
+        // LAYOUT ENGINE's edge list every frame. DataManager.clear() takes a dropped dataset's
+        // edges out of the engine before disposing them (#121), but DataManager.dispose() does
+        // not, so this method can still be called on an edge whose dataset is gone. Without this
+        // guard the style branch below would take a brand new slot (or build a patterned line)
+        // for an edge nobody owns.
         if (this.disposed) {
             return;
         }
@@ -882,11 +885,18 @@ export class Edge {
             color: style.line?.color ?? "#FFFFFF",
         };
 
-        this.lineBatch = EdgeMesh.lineBatch(this.context.getMeshCache(), options, style, this.context.getScene());
+        // A WIDTH OF 0 DRAWS NO LINE (#2067). The edge still takes one straight slot, so it has a
+        // line to point at like any other, but the slot is never placed (transformEdgeMesh), and
+        // an unplaced slot is a zero matrix the shader draws no fragments for. Taking the solid
+        // path also keeps a pattern from building elements nobody can see.
+        const drawnStyle =
+            options.width > 0 ? style : { ...style, line: { ...style.line, type: "solid" as const, bezier: false } };
+
+        this.lineBatch = EdgeMesh.lineBatch(this.context.getMeshCache(), options, drawnStyle, this.context.getScene());
 
         if (this.lineBatch) {
             // A curve's run of slots is sized to its length when it is first placed.
-            this.lineIsCurve = style.line?.bezier === true;
+            this.lineIsCurve = drawnStyle.line?.bezier === true;
             this.lineSlots = [this.lineBatch.acquire()];
 
             // No per-edge mesh to make unpickable and nothing to hang `parentEdge` on: the batch
@@ -1197,6 +1207,11 @@ export class Edge {
      * @param dstPoint - The destination point position
      */
     transformEdgeMesh(srcPoint: Vector3, dstPoint: Vector3): void {
+        // A line of width 0 is never placed, so it stays the zero matrix it was acquired as.
+        if (this.drawnStyle?.line?.width === 0) {
+            return;
+        }
+
         // A batched line is sixteen floats in a shared buffer, and this is the write that moves
         // it. The whole buffer reaches the GPU once a frame, from the batch itself.
         if (this.lineBatch && this.lineIsCurve) {
@@ -1207,6 +1222,19 @@ export class Edge {
             // Pattern lines: Update element positions in world space
             this.mesh.update(srcPoint, dstPoint);
         }
+    }
+
+    /**
+     * How far a self-loop runs from its node's centre: the usual radius, or far enough out to
+     * clear a node too big for it -- the loop is a circle in the x-y plane, so the node's reach
+     * there is its radius when round, and its box's half-diagonal in that plane otherwise.
+     * @returns The radius.
+     */
+    private selfLoopRadius(): number {
+        const node = this.srcNode;
+        const half = node.drawnHalfExtents;
+        const reach = node.roundRadius ?? Math.hypot(half.x, half.y);
+        return Math.max(EdgeMesh.SELF_LOOP_RADIUS, reach + EdgeMesh.SELF_LOOP_CLEARANCE);
     }
 
     /**
@@ -1222,7 +1250,8 @@ export class Edge {
      * @param dstPoint - Where it ends.
      */
     private placeCurve(batch: EdgeLineBatch, srcPoint: Vector3, dstPoint: Vector3): void {
-        const flat = EdgeMesh.createBezierLine(srcPoint, dstPoint);
+        const loopRadius = this.srcNode === this.dstNode ? this.selfLoopRadius() : undefined;
+        const flat = EdgeMesh.createBezierLine(srcPoint, dstPoint, undefined, loopRadius);
         const segments = flat.length / 3 - 1;
 
         // Grow before shrinking, and never below one slot: the batch disposes itself when its last
@@ -1252,14 +1281,27 @@ export class Edge {
      * @returns Edge line positions adjusted for arrow placement
      */
     transformArrowCap(): EdgeLine {
-        if (this.arrowCap) {
-            const { srcPoint, dstPoint, newEndPoint } = this.getInterceptPoints();
+        const { arrowCap } = this;
 
-            // If we can't find intercept points, fall back to approximate positions
-            if (!srcPoint || !dstPoint || !newEndPoint) {
-                return this.placeArrowFromCentres(this.arrowCap);
-            }
+        // A TAIL IS PLACED WITHOUT A HEAD TOO. This used to return here unless the edge had a
+        // head, so a tail drawn with no head (type "none", or size 0, #2067) was never placed.
+        if (!arrowCap && !this.arrowTailCap) {
+            return {
+                srcPoint: null,
+                dstPoint: null,
+            };
+        }
 
+        const { srcPoint, dstPoint, newEndPoint } = this.getInterceptPoints();
+
+        // If we can't find intercept points, fall back to approximate positions
+        if (!srcPoint || !dstPoint || !newEndPoint) {
+            return arrowCap ? this.placeArrowFromCentres(arrowCap) : { srcPoint: null, dstPoint: null };
+        }
+
+        const direction = dstPoint.subtract(srcPoint).normalize();
+
+        if (arrowCap) {
             // Use common arrow geometry functions for positioning
             this.context.getStatsManager().startMeasurement("Edge.transformArrowCap.mainPath");
             const arrowStyle = this.currentStyle;
@@ -1271,29 +1313,22 @@ export class Edge {
             // PHASE 4: Override scaleFactor for 2D arrows
             // In 2D mode, sphere-dot and open-dot use full-size circles (not tiny 0.25x spheres)
             // so their scaleFactor should be 1.0, not 0.25
-            if (this.arrowCap.is2D && geometry.scaleFactor !== undefined) {
+            if (arrowCap.is2D && geometry.scaleFactor !== undefined) {
                 geometry.scaleFactor = 1;
             }
-
-            const direction = dstPoint.subtract(srcPoint).normalize();
 
             // Calculate arrow position using common function
             const arrowPosition = EdgeMesh.calculateArrowPosition(dstPoint, direction, arrowLength, geometry);
             this.context.getStatsManager().endMeasurement("Edge.transformArrowCap.mainPath");
 
-            this.arrowCap.place(arrowPosition, direction);
-
-            const adjustedSrcPoint = this.placeArrowTail(srcPoint, dstPoint, direction);
-
-            return {
-                srcPoint: adjustedSrcPoint,
-                dstPoint: newEndPoint, // Line ends before arrow to create gap for arrow to fill
-            };
+            arrowCap.place(arrowPosition, direction);
         }
 
+        const adjustedSrcPoint = this.placeArrowTail(srcPoint, dstPoint, direction);
+
         return {
-            srcPoint: null,
-            dstPoint: null,
+            srcPoint: adjustedSrcPoint,
+            dstPoint: newEndPoint, // Line ends before arrow to create gap for arrow to fill
         };
     }
 
@@ -1471,24 +1506,42 @@ export class Edge {
         } else {
             // AIMED HERE, BY THE ONE EDGE THAT IS ABOUT TO FIRE IT. A pass over every edge in the
             // graph used to do this, once a frame, whether or not the edge had moved.
-            this.ray.origin = srcMesh.position;
-            dstMesh.position.subtractToRef(srcMesh.position, this.ray.direction);
-
             const frame = this.context.getScene().getFrameId();
 
             freshenWorldMatrix(srcMesh, frame);
             freshenWorldMatrix(dstMesh, frame);
 
+            // CAST IN THE WORLD, DRAWN IN GRAPH-ROOT SPACE. The intersection is against the
+            // meshes' world geometry, so the ray runs between their world centres; the line is
+            // drawn under graph-root, so each hit is carried back as how far along the centre
+            // line it is, which a move, turn or scale of graph-root (an XR gesture) leaves alone.
+            const srcWorld = srcMesh.getAbsolutePosition();
+            const dstWorld = dstMesh.getAbsolutePosition();
+            this.ray.origin.copyFrom(srcWorld);
+            dstWorld.subtractToRef(srcWorld, this.ray.direction);
+            const worldSpan = this.ray.direction.length();
+
             const dstHitInfo = this.ray.intersectsMeshes([dstMesh]);
             const srcHitInfo = this.ray.intersectsMeshes([srcMesh]);
 
-            if (dstHitInfo.length && srcHitInfo.length) {
-                dstPoint = dstHitInfo[0].pickedPoint;
-                srcPoint = srcHitInfo[0].pickedPoint;
+            if (dstHitInfo.length && srcHitInfo.length && worldSpan > 0) {
+                const dstHit = dstHitInfo[0].pickedPoint;
+                const srcHit = srcHitInfo[0].pickedPoint;
 
-                if (!srcPoint || !dstPoint) {
+                if (!srcHit || !dstHit) {
                     throw new TypeError("error picking points");
                 }
+
+                srcPoint = Vector3.Lerp(
+                    srcMesh.position,
+                    dstMesh.position,
+                    Vector3.Distance(srcWorld, srcHit) / worldSpan,
+                );
+                dstPoint = Vector3.Lerp(
+                    srcMesh.position,
+                    dstMesh.position,
+                    Vector3.Distance(srcWorld, dstHit) / worldSpan,
+                );
             }
         }
 

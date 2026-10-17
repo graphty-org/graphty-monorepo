@@ -8,21 +8,19 @@ import { OrbitCameraController, OrbitConfig } from "./OrbitCameraController";
  * Processes mouse, touch, and keyboard input for camera manipulation.
  */
 export class OrbitInputController {
-    private canvas: HTMLCanvasElement;
-    private controller: OrbitCameraController;
+    private readonly canvas: HTMLCanvasElement;
+    private readonly controller: OrbitCameraController;
     private isPointerDown = false;
     private lastX = 0;
     private lastY = 0;
     private isMultiTouch = false;
-    private rotationVelocityX = 0;
-    private rotationVelocityY = 0;
     private keysDown: Record<string, boolean> = {};
-    private config: OrbitConfig;
+    private readonly config: OrbitConfig;
     private hammer: HammerManager | null = null;
     private enabled = false;
 
     // Store handlers for attach/detach
-    private pointerDownHandler = (evt: PointerEvent): void => {
+    private readonly pointerDownHandler = (evt: PointerEvent): void => {
         if (evt.button === 0 && !this.isMultiTouch) {
             this.isPointerDown = true;
             this.lastX = evt.clientX;
@@ -32,11 +30,11 @@ export class OrbitInputController {
         }
     };
 
-    private pointerUpHandler = (): void => {
+    private readonly pointerUpHandler = (): void => {
         this.isPointerDown = false;
     };
 
-    private pointerMoveHandler = (evt: PointerEvent): void => {
+    private readonly pointerMoveHandler = (evt: PointerEvent): void => {
         if (!this.isPointerDown || this.isMultiTouch) {
             return;
         }
@@ -48,11 +46,11 @@ export class OrbitInputController {
         this.controller.rotate(dx, dy);
     };
 
-    private keyDownHandler = (evt: KeyboardEvent): void => {
+    private readonly keyDownHandler = (evt: KeyboardEvent): void => {
         this.keysDown[evt.key.toLowerCase()] = true;
     };
 
-    private keyUpHandler = (evt: KeyboardEvent): void => {
+    private readonly keyUpHandler = (evt: KeyboardEvent): void => {
         this.keysDown[evt.key.toLowerCase()] = false;
     };
 
@@ -91,8 +89,8 @@ export class OrbitInputController {
         });
 
         this.hammer.on("pinchmove rotatemove", (ev: HammerInput) => {
-            const scaleDelta = ev.scale - lastScale;
-            this.controller.zoom(-scaleDelta * this.config.pinchZoomSensitivity);
+            // The distance follows the finger gap: spreading the fingers to twice the gap halves it
+            this.controller.zoomBy(lastScale / ev.scale);
             lastScale = ev.scale;
 
             const rotationDelta = (ev.rotation - lastRotation) * (Math.PI / 180) * this.config.twistYawSensitivity;
@@ -159,29 +157,24 @@ export class OrbitInputController {
 
         const keys = this.keysDown;
         const cam = this.controller;
+        // A held arrow turns by exactly keyboardRotationSpeed radians every frame, from the first
+        // frame to the last, as A and D spin by keyboardYawSpeed: no velocity, so nothing builds
+        // up while it is held and nothing coasts on after it is let go.
+        const turn = this.config.keyboardRotationSpeed / this.config.trackballRotationSpeed;
+        const yaw = (keys.arrowleft ? 1 : 0) - (keys.arrowright ? 1 : 0);
+        const pitch = (keys.arrowup ? 1 : 0) - (keys.arrowdown ? 1 : 0);
 
-        if (keys.arrowleft) {
-            this.rotationVelocityY += this.config.keyboardRotationSpeed;
+        if (yaw !== 0 || pitch !== 0) {
+            cam.rotate(-yaw * turn, -pitch * turn);
         }
 
-        if (keys.arrowright) {
-            this.rotationVelocityY -= this.config.keyboardRotationSpeed;
-        }
-
-        if (keys.arrowup) {
-            this.rotationVelocityX += this.config.keyboardRotationSpeed;
-        }
-
-        if (keys.arrowdown) {
-            this.rotationVelocityX -= this.config.keyboardRotationSpeed;
-        }
-
+        // W and S are exact inverses, so a press of one undoes the same press of the other
         if (keys.w) {
-            cam.zoom(-this.config.keyboardZoomSpeed);
+            cam.zoomBy(1 - this.config.keyboardZoomSpeed);
         }
 
         if (keys.s) {
-            cam.zoom(this.config.keyboardZoomSpeed);
+            cam.zoomBy(1 / (1 - this.config.keyboardZoomSpeed));
         }
 
         if (keys.a) {
@@ -190,16 +183,6 @@ export class OrbitInputController {
 
         if (keys.d) {
             cam.spin(-this.config.keyboardYawSpeed);
-        }
-
-        if (Math.abs(this.rotationVelocityX) > 0.00001) {
-            cam.rotate(0, -this.rotationVelocityX / this.config.trackballRotationSpeed);
-            this.rotationVelocityX *= this.config.inertiaDamping;
-        }
-
-        if (Math.abs(this.rotationVelocityY) > 0.00001) {
-            cam.rotate(-this.rotationVelocityY / this.config.trackballRotationSpeed, 0);
-            this.rotationVelocityY *= this.config.inertiaDamping;
         }
 
         cam.updateCameraPosition();

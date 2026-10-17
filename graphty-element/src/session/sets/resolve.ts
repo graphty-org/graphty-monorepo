@@ -36,6 +36,7 @@ import type {
 import { EDGE_ID_COLUMN, identityColumnsOf, pairsOrdered } from "../../data/edgeIdentity";
 import { rowOfEitherSpelling } from "../../data/nodeIdSpelling";
 import { GraphtyError, isGraphtyError } from "../../errors";
+import { quoteEach } from "../../utils/quote-each";
 import type { AttributeRevisions, InputTick } from "../attributes";
 import { canonicalize } from "../runs/runId";
 import type { ElementMask } from "../scope/ElementMask";
@@ -231,7 +232,7 @@ const packed = new WeakMap<ElementMask<unknown>, { version: number; length: numb
  */
 function packMask(mask: ElementMask<unknown>, length: number): U32 {
     const cached = packed.get(mask);
-    if (cached !== undefined && cached.version === mask.version && cached.length === length) {
+    if (cached?.version === mask.version && cached.length === length) {
         return cached.bits;
     }
 
@@ -428,7 +429,7 @@ function cycleAt(id: SetId, seen: readonly SetId[]): GraphtyError {
 
     return new GraphtyError({
         code: "E_BAD_COMMAND",
-        message: `The set "${id}" reaches itself through ${through.map((step) => `"${step}"`).join(", ")}, so it names no elements.`,
+        message: `The set "${id}" reaches itself through ${quoteEach(through, ", ")}, so it names no elements.`,
         source: "run",
         target: { kind: "scope", id },
         details: { reason: "cycle", through },

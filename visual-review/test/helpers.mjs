@@ -4,7 +4,7 @@
  */
 
 import { execFileSync } from "node:child_process";
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -18,6 +18,27 @@ import { CONFIG_FILE, normalizeConfig } from "../trusted/lib/config.mjs";
 
 // Every test file already runs isolated (vitest.config.mjs's setup file); kept for the files that call it.
 export { isolateGit };
+
+const made = [];
+
+/**
+ * A new temporary directory, removed when the test file that made it finishes (removeTempDirs,
+ * run after each file by isolate-git.setup.mjs).
+ * @param {string} prefix the directory name's prefix
+ * @returns {string} its path
+ */
+export function tempDir(prefix) {
+    const dir = mkdtempSync(join(tmpdir(), prefix));
+    made.push(dir);
+    return dir;
+}
+
+/** Removes every directory tempDir has made so far. */
+export function removeTempDirs() {
+    for (const dir of made.splice(0)) {
+        rmSync(dir, { recursive: true, force: true });
+    }
+}
 
 export const FIXTURE = fileURLToPath(new URL("fixtures/results/", import.meta.url));
 export const ROOT = fileURLToPath(new URL("../../", import.meta.url));
@@ -106,7 +127,7 @@ export const makeRepo = (name = "repoTemplate") => copyRepo(inject(name));
  * @returns {{ dir: string, repo: string, remote: string }} the copy, with the template's other fields
  */
 function copyRepo(template) {
-    const dir = mkdtempSync(join(tmpdir(), "vr-repo-"));
+    const dir = tempDir("vr-repo-");
     cpSync(template.dir, dir, { recursive: true });
     const repo = join(dir, "repo");
     const remote = join(dir, "remote.git");
@@ -119,7 +140,7 @@ function copyRepo(template) {
  * @returns {{ dir: string, repo: string, remote: string, master: string, head: string }} it
  */
 export function buildRepo() {
-    const dir = mkdtempSync(join(tmpdir(), "vr-repo-"));
+    const dir = tempDir("vr-repo-");
     const remote = join(dir, "remote.git");
     const repo = join(dir, "repo");
     git(dir, "init", "-q", "--bare", "-b", "master", remote);
@@ -212,7 +233,7 @@ export function buildConflicted(template, { code = false } = {}) {
  * @returns {string} the new commit's sha
  */
 export function pushCommit(remote, branch, path) {
-    const clone = mkdtempSync(join(tmpdir(), "vr-other-"));
+    const clone = tempDir("vr-other-");
     git(clone, "clone", "-q", "-b", branch, remote, ".");
     git(clone, "config", "user.name", "Other");
     git(clone, "config", "user.email", "other@example.com");
@@ -236,6 +257,44 @@ export function copyFixture(project, dest, overrides = {}) {
     const results = { ...JSON.parse(readFileSync(path, "utf8")), ...overrides };
     writeFileSync(path, JSON.stringify(results));
     return { dir: dest, results };
+}
+
+/**
+ * The GraphQL answer openPullRequests reads: one page holding every pull request, each with its
+ * head's check suites (the CI run's, when it has one, beside another workflow's).
+ * @param {{ number: number, head: string, branch: string, draft?: boolean }[]} prs the pull requests
+ * @param {(head: string) => { id: number, attempt?: number, status?: string, conclusion?: string | null } | undefined} runOf
+ *     the head's CI run
+ * @returns {string} the answer
+ */
+export function pullsGraphql(prs, runOf) {
+    const checkSuite = (id, path, x) => ({
+        databaseId: id,
+        status: (x.status ?? "completed").toUpperCase(),
+        conclusion: x.conclusion === undefined ? "SUCCESS" : (x.conclusion?.toUpperCase() ?? null),
+        workflowRun: {
+            databaseId: x.id,
+            url: `https://gh/runs/${x.id}`,
+            updatedAt: `attempt ${x.attempt ?? 1}`,
+            workflow: { resourcePath: `/o/r/actions/workflows/${path}` },
+        },
+    });
+    const nodes = prs.map((p) => {
+        const x = runOf(p.head);
+        const suites = [checkSuite(1, "other.yml", { id: 1 }), ...(x ? [checkSuite(x.id, "ci.yml", x)] : [])];
+        return {
+            number: p.number,
+            title: `PR ${p.number}`,
+            url: `https://gh/pull/${p.number}`,
+            headRefName: p.branch,
+            headRefOid: p.head,
+            isDraft: p.draft === true,
+            commits: { nodes: [{ commit: { checkSuites: { nodes: suites } } }] },
+        };
+    });
+    return JSON.stringify({
+        data: { repository: { pullRequests: { pageInfo: { hasNextPage: false, endCursor: null }, nodes } } },
+    });
 }
 
 /**
@@ -266,23 +325,16 @@ export function fakeGh({
     const run = (r) => ({
         id: r.id,
         run_attempt: r.attempt ?? 1,
-        status: "completed",
-        conclusion: "success",
+        status: r.status ?? "completed",
+        conclusion: r.conclusion === undefined ? "success" : r.conclusion,
         html_url: `https://gh/runs/${r.id}`,
         head_sha: r.head,
     });
     return async (args, input) => {
         const path = args[0] === "api" ? args[1] : null;
         let m;
-        if (path?.startsWith("repos/{owner}/{repo}/pulls?")) {
-            return JSON.stringify(
-                prs.map((p) => ({
-                    number: p.number,
-                    title: `PR ${p.number}`,
-                    html_url: `https://gh/pull/${p.number}`,
-                    head: { sha: p.head, ref: p.branch },
-                })),
-            );
+        if (path === "graphql") {
+            return pullsGraphql(prs, (head) => runs[head]);
         }
         if (path?.startsWith("repos/{owner}/{repo}/commits?sha=master")) {
             return JSON.stringify(masterRuns.map((r) => ({ sha: r.head })));
@@ -300,7 +352,7 @@ export function fakeGh({
             });
         }
         if ((m = /actions\/runs\/(\d+)$/.exec(path))) {
-            return JSON.stringify(run(runsById[m[1]]));
+            return JSON.stringify(run(runsById[m[1]] ?? Object.values(runs).find((x) => String(x.id) === m[1])));
         }
         if (/issues\/\d+\/comments$/.test(path ?? "") || /\/statuses\/\w+$/.test(path ?? "")) {
             posted.push({ path, body: JSON.parse(args.length > 2 ? (input ?? "{}") : "{}") });
@@ -386,12 +438,14 @@ export const withMoved = (r, extra = []) => {
  * request sent right after `await page.route(...)` can still go out unintercepted (about one in
  * ten on a CPU throttled sixfold, as a slow CI runner is). With this never-matching route held,
  * later routes only change what Playwright matches, which is in force before `page.route` returns.
+ * Its waits (waitFor, click and the rest) have no limit of Playwright's 30 s: the test's ends them.
  * @param {import("playwright").Browser} browser the browser to open it in
  * @param {import("playwright").BrowserContextOptions} options the viewport and the rest, as for newPage
  * @returns {Promise<import("playwright").Page>} the tab
  */
 export async function interceptedPage(browser, options) {
     const page = await browser.newPage(options);
+    page.setDefaultTimeout(0);
     await page.route("**/interception-stays-on", (route) => route.continue());
     return page;
 }
@@ -431,7 +485,7 @@ export async function keepTiles({ origin, token, tmp }, id) {
                 ]),
         );
     }
-    const kept = mkdtempSync(join(tmpdir(), "vr-tiles-"));
+    const kept = tempDir("vr-tiles-");
     for (const dir of ["thumbs", "spots"]) {
         cpSync(join(tmp, dir), join(kept, dir), { recursive: true, filter: (f) => !f.endsWith(".tmp") });
     }

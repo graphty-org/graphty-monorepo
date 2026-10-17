@@ -2,14 +2,14 @@
  * The option lists the style inspector's pickers are built from.
  */
 
+import { CHANNEL_DESCRIPTORS } from "@graphty/graphty-element/catalog";
 import { EdgeArrowTypes, EdgeLineTypes, NodeShapes } from "@graphty/graphty-element/schema";
 
 /**
- * One row of a `StyleSelect`: the value written into the layer and the word drawn for it.
+ * One choice of a style picker: the value written into the layer and the word drawn for it.
  *
- * Structurally identical to compact-mantine's `StyleSelectOption`, and declared here
- * rather than imported so this module stays a plain constants file with no component
- * dependency. Every list below is assignable to `StyleSelectOption[]`.
+ * The `{ value, label }` shape a select's `data` takes, declared here so this module stays a
+ * plain constants file with no component dependency.
  * @public
  */
 export interface StyleOption {
@@ -82,3 +82,11 @@ export const ARROW_TYPE_OPTIONS: StyleOption[] = EdgeArrowTypes.options.map((typ
     value: type,
     label: optionLabel(type),
 }));
+
+/**
+ * How a node's size is read ("scale" or "diameter"), derived from the element's own
+ * `node.sizeMode` channel so a mode added to the element appears here with no edit.
+ */
+export const NODE_SIZE_MODE_OPTIONS: StyleOption[] = (CHANNEL_DESCRIPTORS["node.sizeMode"].values ?? []).map(
+    (mode) => ({ value: mode, label: optionLabel(mode) }),
+);

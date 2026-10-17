@@ -309,8 +309,13 @@ header h1 {
     border-bottom: 1px solid var(--line);
 }
 
-#status-row > span {
+#status-row > :is(span, output) {
     min-width: 0;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
+    overflow: hidden;
 }
 
 #elapsed,
@@ -323,20 +328,12 @@ header h1 {
     height: auto;
 }
 
-#status-row.open > span {
+#status-row.open > :is(span, output) {
     -webkit-line-clamp: unset;
     line-clamp: unset;
 }
 
-#status-row > span {
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 1;
-    line-clamp: 1;
-    overflow: hidden;
-}
-
-#status-row > span:empty {
+#status-row > :is(span, output):empty {
     display: none;
 }
 
@@ -345,7 +342,7 @@ header h1 {
         height: calc(2.8em + 6px);
     }
 
-    #status-row > span {
+    #status-row > :is(span, output) {
         -webkit-line-clamp: 2;
         line-clamp: 2;
     }
@@ -391,7 +388,8 @@ select {
 }
 
 input[type="text"],
-input[type="search"] {
+input[type="search"],
+input[type="password"] {
     padding: 4px 8px;
     border: 1px solid var(--line);
     border-radius: 4px;
@@ -1603,6 +1601,22 @@ details.menu > div {
 
 .all-heading {
     margin: 24px 0 8px;
+}
+
+/* The token form: one field and one button, each a full touch target. */
+.token-form {
+    display: grid;
+    gap: 8px;
+    max-width: 480px;
+}
+
+.token-form input,
+.token-form button {
+    min-height: 44px;
+}
+
+.token-form .error:empty {
+    display: none;
 }
 
 /* The grid's own groups: approved before (collapsed), known capture noise, and the clusters of

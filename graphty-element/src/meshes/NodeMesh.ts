@@ -95,11 +95,13 @@ interface GradientColor {
 export class NodeMesh {
     // Shared with every other copy of graphty-element on the page, so a shape registered through
     // one reaches them all; each copy still builds its own built-ins with its own Babylon.js.
-    private static shapeCreators = new SharedImplementationMap<ShapeCreator>("shape");
+    private static readonly shapeCreators = new SharedImplementationMap<ShapeCreator>("shape");
 
     static {
-        NodeMesh.registerShapeCreator("box", (size) => NodeMesh.createBox(size));
-        NodeMesh.registerShapeCreator("sphere", (size) => NodeMesh.createSphere(size));
+        // Every creator passes the scene on. Without it Babylon builds the mesh in the scene created
+        // last on the page, so with several graphs every graph's mesh lands in one of them (#2257).
+        NodeMesh.registerShapeCreator("box", (size, scene) => NodeMesh.createBox(size, scene));
+        NodeMesh.registerShapeCreator("sphere", (size, scene) => NodeMesh.createSphere(size, scene));
         NodeMesh.registerShapeCreator("cylinder", (size, scene) => NodeMesh.createCylinder(size, scene));
         NodeMesh.registerShapeCreator("cone", (size, scene) => NodeMesh.createCone(size, scene));
         NodeMesh.registerShapeCreator("capsule", (size, scene) => NodeMesh.createCapsule(size, scene));
@@ -207,6 +209,16 @@ export class NodeMesh {
 
         return cache.get(cacheKey, () => {
             const mesh = this.createMeshWithoutCache(options, createOptions, scene);
+
+            // `node.flat`: one normal per triangle, so every face is lit as one plane and a sphere
+            // reads as a faceted ball. Done on the SOURCE mesh before the cache instances it, so
+            // every node sharing this style id shares the faceted geometry; `node.flat` is a mesh
+            // column in the style interner, so flat and smooth nodes never share a source mesh.
+            // An unindexed mesh (only a registered shape can be one) has no faces to split.
+            if (createOptions.effect?.flatShaded && !mesh.isUnIndexed && mesh.getTotalIndices() > 0) {
+                mesh.convertToFlatShadedMesh();
+            }
+
             const material = this.createMaterial(createOptions, options.is2D, scene);
             mesh.material = material;
 
@@ -243,7 +255,31 @@ export class NodeMesh {
         // of size 0 used to draw larger than a node of size 0.01. Flooring here keeps size 0 the
         // smallest visible node for every shape creator, built-in or registered (#117).
         const size = Math.max(createOptions.shape.size ?? options.size, MIN_NODE_SIZE);
-        return creator(size, scene);
+        const mesh = creator(size, scene);
+        if (createOptions.shape.sizeMode === "diameter") {
+            NodeMesh.scaleToExtent(mesh, size);
+        }
+
+        return mesh;
+    }
+
+    /**
+     * Rescales a freshly built mesh so its largest width, height or depth is `extent`: what
+     * `sizeMode: "diameter"` means. Each creator builds at its own proportions (a polyhedron at
+     * `size` reaches 1.41 x size from centre to tip, an icosphere is 1.5 x size across), so this
+     * runs on every shape, built-in or registered, after it is built. A sphere and a box of size 1
+     * are already 1 across, so they are left as they were.
+     * @param mesh - The mesh a shape creator returned
+     * @param extent - The largest width, height or depth it should be drawn at, in scene units
+     */
+    private static scaleToExtent(mesh: Mesh, extent: number): void {
+        mesh.computeWorldMatrix(true);
+        const { minimumWorld: min, maximumWorld: max } = mesh.getBoundingInfo().boundingBox;
+        const drawn = Math.max(max.x - min.x, max.y - min.y, max.z - min.z);
+        if (drawn > 0) {
+            mesh.scaling.scaleInPlace(extent / drawn);
+            mesh.bakeCurrentTransformIntoVertices();
+        }
     }
 
     /**
@@ -592,12 +628,20 @@ export class NodeMesh {
         );
     }
 
-    private static createCapsule(_size: number, scene?: Scene): Mesh {
-        return MeshBuilder.CreateCapsule("capsule", {}, scene);
+    private static createCapsule(size: number, scene?: Scene): Mesh {
+        return MeshBuilder.CreateCapsule(
+            "capsule",
+            { height: size, radius: size * SHAPE_CONSTANTS.CAPSULE_RADIUS_MULTIPLIER },
+            scene,
+        );
     }
 
-    private static createTorus(_size: number, scene?: Scene): Mesh {
-        return MeshBuilder.CreateTorus("torus", {}, scene);
+    private static createTorus(size: number, scene?: Scene): Mesh {
+        return MeshBuilder.CreateTorus(
+            "torus",
+            { diameter: size, thickness: size * SHAPE_CONSTANTS.TORUS_THICKNESS_MULTIPLIER },
+            scene,
+        );
     }
 
     private static createTorusKnot(size: number, scene?: Scene): Mesh {

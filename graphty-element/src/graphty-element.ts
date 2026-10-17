@@ -111,8 +111,8 @@ export class Graphty extends LitElement {
         }
     `;
 
-    #graph: Graph;
-    #element: Element;
+    #builtGraph: Graph | undefined;
+    readonly #element: Element;
     #resizeObserver: ResizeObserver | null = null;
     #capabilitiesMirrored = false;
     #unwatchRuns: (() => void) | null = null;
@@ -123,7 +123,7 @@ export class Graphty extends LitElement {
     #unwatchNotes: (() => void) | null = null;
     #unwatchProgress: (() => void) | null = null;
     readonly #progressAt = new Map<string, number>();
-    #runProgressAt = new Map<string, number>();
+    readonly #runProgressAt = new Map<string, number>();
     #reportedStrayAttributes = false;
 
     /**
@@ -137,13 +137,28 @@ export class Graphty extends LitElement {
         // the host's box, never from the canvas's intrinsic 2:1 ratio; being positioned also
         // anchors the absolutely positioned XR UI overlay.
         this.#element.setAttribute("style", "position: absolute; inset: 0; display: block;");
-        this.#graph = new Graph(this.#element);
-        // The graph is never rebuilt, so this subscription lives as long as the element.
-        this.#graph.onNodeLabelCounts.add((counts) => {
-            this.dispatchEvent(
-                new CustomEvent("graphty-label-change", { detail: counts, bubbles: true, composed: true }),
-            );
-        });
+    }
+
+    /**
+     * The graph this element draws, built the first time anything needs it: being attached, or a
+     * property, attribute, method or `session` reached before that. Building it opens a Babylon
+     * engine and so a WebGL context, and a browser keeps only about 16 of those per page, evicting
+     * the oldest live one -- so an element that is created and never used opens none.
+     * @returns The graph.
+     */
+    get #graph(): Graph {
+        if (this.#builtGraph === undefined) {
+            const graph = new Graph(this.#element);
+            this.#builtGraph = graph;
+            // The graph is never rebuilt, so this subscription lives as long as the element.
+            graph.onNodeLabelCounts.add((counts) => {
+                this.dispatchEvent(
+                    new CustomEvent("graphty-label-change", { detail: counts, bubbles: true, composed: true }),
+                );
+            });
+        }
+
+        return this.#builtGraph;
     }
 
     /**
@@ -392,7 +407,8 @@ export class Graphty extends LitElement {
                     reason,
                     version: history.version,
                     position: history.position,
-                    steps: history.steps.length,
+                    // The count alone: the step list is rebuilt after every change.
+                    steps: dispatcherOf(session).history.length,
                     canUndo: session.canUndo,
                     canRedo: session.canRedo,
                 } satisfies GraphtyHistoryChangeDetail,
@@ -1406,7 +1422,7 @@ export class Graphty extends LitElement {
          * hand the setter "true" and "false" as text) is right on its own.
          */
         converter: {
-            fromAttribute: (value: string | null): boolean | "auto" | undefined => {
+            fromAttribute: (value: string | null): Graphty["directed"] => {
                 if (value === null) {
                     return undefined;
                 }
@@ -1684,7 +1700,9 @@ export class Graphty extends LitElement {
      * a reader drags stays where they put it. `labels.declutter` (off by default) hides a node
      * label whose words would be drawn over another label's, keeping a selected node's label
      * first and then the label of the node with more edges; it takes effect on the next frame.
-     * {@link Graphty.nodeLabelCounts} says how many it hid.
+     * {@link Graphty.nodeLabelCounts} says how many it hid. `camera.pivotOnSelection` (off by
+     * default) makes the selection the camera's pivot: one selected node, or the average position
+     * of several, is what the camera turns and zooms about, in 2D, 3D, VR and AR.
      *
      * Merged over what is already set, so naming one field leaves the others alone.
      * @since 2.0.0
@@ -1692,6 +1710,7 @@ export class Graphty extends LitElement {
      * ```typescript
      * element.layoutBehavior = { layout: { preSteps: 1000 } };
      * element.layoutBehavior = { labels: { declutter: true } };
+     * element.layoutBehavior = { camera: { pivotOnSelection: true } };
      * ```
      * @returns The view preferences set on this element, with the pacing settings saved in the
      *     project (`preSteps`, `stepMultiplier`, `minDelta`) as they are in effect
@@ -3275,7 +3294,7 @@ export class Graphty extends LitElement {
      * @since 1.5.0
      * @example
      * ```typescript
-     * await element.setLayout('circular', { radius: 5 });
+     * await element.setLayout('circular', { scale: 2 });
      * await element.setLayout('force'); // the catalogue id; runs the "ngraph" engine
      * await element.setLayout('ngraph', { springLength: 100 });
      * ```
@@ -3311,6 +3330,11 @@ export class Graphty extends LitElement {
      * The QUEUE only -- data loading, layout changes, algorithm runs. The layout may still be
      * running and the camera may still be moving when this resolves. For a picture that will not
      * change again, wait for {@link Graphty.waitForStableFrame}.
+     *
+     * It does not wait for a frame either, and only a frame moves a new node's mesh to its layout
+     * position: {@link Graphty.nodeScreenPosition} read right after this can still report a new
+     * node at its mesh template's position, off screen. Wait for
+     * {@link Graphty.waitForStableFrame} before reading where nodes are drawn.
      * @returns Promise that resolves when all operations are complete
      * @since 1.5.0
      * @example
@@ -3652,13 +3676,17 @@ export class Graphty extends LitElement {
      * `x` and `y` are the node's centre in CSS pixels from the element's top-left corner, the
      * same pixels {@link worldToScreen} returns: a click there selects the node. `visible` is
      * false when the centre is outside the element, behind the camera, or the node is hidden by
-     * a filter. `radius` is how big the node is drawn, in pixels. Read it again after the camera
-     * or the layout moves; it is not a live value.
+     * a filter. `radius` is how big the node is drawn, in pixels; `bounds` is the rectangle it
+     * covers, which follows a box's corners or a tall node's height. Read it again after the camera
+     * or the layout moves; it is not a live value. It reads where a frame drew the node, so a node
+     * no frame has drawn yet reports its mesh template's position, off screen and not visible:
+     * wait for {@link Graphty.waitForStableFrame} first.
      * @param nodeId - The node's id.
      * @returns The position, or undefined for an id the graph does not hold.
      * @since 3.15.0
      * @example
      * ```typescript
+     * await element.waitForStableFrame();
      * const at = element.nodeScreenPosition("Valjean");
      * if (at?.visible) {
      *     marker.style.left = `${at.x - at.radius}px`;
@@ -3868,10 +3896,20 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Set render settings for advanced rendering control.
-     * @param settings - Render settings object
-     * @param options - Queue options
+     * Set render settings: the `layoutBehavior.rendering` group.
+     * @remarks
+     * `onDemand` is the one setting, the same switch as `renderOnDemand`: whether a frame is
+     * drawn only when the picture can have changed. A field left out keeps its value. A
+     * preference of this view: it records no undo step and is not saved in a project file.
+     * @example
+     * ```typescript
+     * await element.setRenderSettings({ onDemand: true });
+     * ```
+     * @param settings - The fields to change
+     * @param options - Queue options; with `skipQueue` the settings apply at once
      * @returns Promise that resolves when settings are applied
+     * @throws A `GraphtyError` with `E_UNKNOWN_OPTION` for a field that is not a render setting
+     * (`details.available` lists them), or `E_OPTION_RANGE` for a value the setting does not take
      * @since 1.5.0
      */
     async setRenderSettings(

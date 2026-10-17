@@ -44,9 +44,10 @@ export interface ControlSectionProps extends DisclosureProps {
     /**
      * Whether the section is set up at all.
      *
-     * An empty section is drawn as one 32px row: the name in the secondary text
-     * color, no chevron, and a single "+" in the trailing slot. It shows no
-     * content and no empty-state sentence, and its children are not rendered.
+     * An empty section is drawn as its 40px header alone, with the 1px rule
+     * below it (41px in all): the name in the secondary text color, no chevron,
+     * and a single "+" in the trailing slot. It shows no content and no
+     * empty-state sentence, and its children are not rendered.
      *
      * The dimmed name is never the only thing that says so. The chevron is
      * gone, the "+" is there, and the group holds nothing, so the state still
@@ -107,6 +108,29 @@ export interface ControlSectionProps extends DisclosureProps {
      * @default true
      */
     collapsible?: boolean;
+}
+
+/**
+ * The section's name: the plain-then-technical pair, as one label. Its title
+ * is what a pointer and a screen reader get; the drawn halves differ only in
+ * weight and ink.
+ * @param id - The id the group's aria-labelledby points at
+ * @param label - The plain name
+ * @param technicalName - The technical name drawn after it, if any
+ * @returns The name element
+ */
+function sectionName(id: string, label: string, technicalName: string | undefined): React.JSX.Element {
+    const fullName = technicalName === undefined ? label : `${label} (${technicalName})`;
+    return (
+        <Box component="span" id={id} title={fullName} data-testid="control-section-name" className="cm-section-title">
+            {label}
+            {technicalName === undefined ? null : (
+                <Box component="span" data-testid="control-section-technical-name" className="cm-section-technical">
+                    {` (${technicalName})`}
+                </Box>
+            )}
+        </Box>
+    );
 }
 
 /**
@@ -250,25 +274,7 @@ export function ControlSection(props: ControlSectionProps): React.JSX.Element {
     const toggleName = isOpen ? labels.collapseSection(label) : labels.expandSection(label);
     const addName = labels.addToSection(label);
 
-    // The plain-then-technical pair, as one label. `fullName` is what a pointer
-    // and a screen reader get; the drawn halves differ only in weight and ink.
-    const fullName = technicalName === undefined ? label : `${label} (${technicalName})`;
-    const name = (
-        <Box
-            component="span"
-            id={nameId}
-            title={fullName}
-            data-testid="control-section-name"
-            className="cm-section-title"
-        >
-            {label}
-            {technicalName === undefined ? null : (
-                <Box component="span" data-testid="control-section-technical-name" className="cm-section-technical">
-                    {` (${technicalName})`}
-                </Box>
-            )}
-        </Box>
-    );
+    const name = sectionName(nameId, label, technicalName);
 
     // Accessibility: the APG "Disclosure (Show/Hide)" pattern. The header is a
     // button carrying aria-expanded and aria-controls, and the section around

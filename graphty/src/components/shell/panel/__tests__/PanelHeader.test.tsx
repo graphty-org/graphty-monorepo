@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
-import { fireEvent, render, screen } from "../../../../test/test-utils";
+import { render, screen } from "../../../../test/test-utils";
 import { PANEL_HEADER_HEIGHT } from "../../constants";
 import type { PanelOverflowItem } from "../../types";
 import { MORE_LABEL, PanelHeader } from "../PanelHeader";
@@ -144,7 +145,7 @@ describe("PanelHeader", () => {
 
             render(<PanelHeader title="Data" glyph={glyph} overflowItems={rows} />);
 
-            fireEvent.click(screen.getByRole("button", { name: MORE_LABEL }));
+            await userEvent.click(screen.getByRole("button", { name: MORE_LABEL }));
 
             const items = await screen.findAllByRole("menuitem");
             expect(items.map((item) => item.textContent)).toEqual(["Expand all sections", "Collapse all sections"]);
@@ -167,7 +168,7 @@ describe("PanelHeader", () => {
                 />,
             );
 
-            fireEvent.click(screen.getByRole("button", { name: MORE_LABEL }));
+            await userEvent.click(screen.getByRole("button", { name: MORE_LABEL }));
 
             const row = await screen.findByRole("menuitem", { name: "Close dataset. Starts a new session" });
             expect(row).toHaveAttribute("title", "Load data first");
@@ -184,10 +185,58 @@ describe("PanelHeader", () => {
                 />,
             );
 
-            fireEvent.click(screen.getByRole("button", { name: MORE_LABEL }));
-            fireEvent.click(await screen.findByRole("menuitem", { name: "Expand all sections" }));
+            await userEvent.click(screen.getByRole("button", { name: MORE_LABEL }));
+            await userEvent.click(await screen.findByRole("menuitem", { name: "Expand all sections" }));
 
             expect(onSelect).toHaveBeenCalledTimes(1);
+        });
+        /* Focus returns to More when the menu closes and nothing else took it, but a row that
+           moves focus on purpose keeps it there (issue #2950). */
+        it("returns focus to More when a row leaves focus where it was", async () => {
+            render(
+                <PanelHeader
+                    title="Data"
+                    glyph={glyph}
+                    overflowItems={[{ id: "one", label: "Expand all sections", onSelect: vi.fn() }]}
+                />,
+            );
+
+            const more = screen.getByRole("button", { name: MORE_LABEL });
+            await userEvent.click(more);
+            await userEvent.click(await screen.findByRole("menuitem", { name: "Expand all sections" }));
+
+            await vi.waitFor(() => {
+                expect(document.activeElement).toBe(more);
+            });
+        });
+
+        it("leaves focus where a row moved it", async () => {
+            const target = document.createElement("button");
+            document.body.append(target);
+
+            render(
+                <PanelHeader
+                    title="Data"
+                    glyph={glyph}
+                    overflowItems={[{ id: "one", label: "Close dataset", onSelect: () => target.focus() }]}
+                />,
+            );
+
+            await userEvent.click(screen.getByRole("button", { name: MORE_LABEL }));
+            const row = await screen.findByRole("menuitem", { name: "Close dataset" });
+
+            /* The menu decides where focus goes on a timer after it closes, so the clock is
+               run past every timer the close starts rather than waited on. */
+            vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+            try {
+                await userEvent.click(row);
+                vi.runAllTimers();
+            } finally {
+                vi.useRealTimers();
+            }
+
+            expect(document.activeElement).toBe(target);
+            target.remove();
         });
     });
 });

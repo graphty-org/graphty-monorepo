@@ -49,7 +49,7 @@ import { PNG } from "pngjs";
 import { classify, DEFAULT_THRESHOLD, readBaseline, sha256 } from "../trusted/lib/compare.mjs";
 import { validateResults } from "../trusted/lib/results.mjs";
 
-/* global document, window, requestAnimationFrame -- read only inside the page */
+/* global document, requestAnimationFrame -- read only inside the page */
 
 /** The instant every page's clock starts at. It keeps running from there. */
 const CLOCK_START = "2026-01-01T12:00:00Z";
@@ -304,11 +304,11 @@ async function extract(browser, base) {
     try {
         const page = await context.newPage();
         await page.goto(`${base}iframe.html`, { waitUntil: "load", timeout: RENDER_TIMEOUT });
-        await page.waitForFunction(() => /** @type {any} */ (window).__STORYBOOK_PREVIEW__?.storyStoreValue, null, {
+        await page.waitForFunction(() => /** @type {any} */ (globalThis).__STORYBOOK_PREVIEW__?.storyStoreValue, null, {
             timeout: RENDER_TIMEOUT,
         });
         return await page.evaluate(async () => {
-            const preview = /** @type {any} */ (window).__STORYBOOK_PREVIEW__;
+            const preview = /** @type {any} */ (globalThis).__STORYBOOK_PREVIEW__;
             const all = await preview.extract();
             const params = {};
             for (const [id, story] of Object.entries(all)) {
@@ -317,7 +317,10 @@ async function extract(browser, base) {
             }
             const gl = document.createElement("canvas").getContext("webgl");
             const info = gl?.getExtension("WEBGL_debug_renderer_info");
-            const renderer = gl ? String(gl.getParameter(info ? info.UNMASKED_RENDERER_WEBGL : gl.RENDERER)) : null;
+            let renderer = null;
+            if (gl) {
+                renderer = String(gl.getParameter(info ? info.UNMASKED_RENDERER_WEBGL : gl.RENDERER));
+            }
             return { params, renderer, gpu: "gpu" in navigator };
         });
     } finally {
@@ -372,7 +375,7 @@ async function shootOnce(browser, url, { delay, waitFor }) {
                     if (document.body.classList.contains("sb-show-errordisplay")) {
                         return "errored";
                     }
-                    const p = /** @type {any} */ (window).__STORYBOOK_PREVIEW__?.currentRender?.phase;
+                    const p = /** @type {any} */ (globalThis).__STORYBOOK_PREVIEW__?.currentRender?.phase;
                     return ["completed", "afterEach", "finished", "errored", "aborted"].includes(p) && p;
                 },
                 null,
@@ -441,6 +444,16 @@ export const MAX_SHOT_HEIGHT = 8192;
  */
 export async function screenshotWholePage(page) {
     const options = /** @type {const} */ ({ animations: "disabled", caret: "hide", fullPage: true });
+    // Chromium's first screenshot beyond the viewport lays text out again, and line boxes of
+    // 'normal' height can come out a pixel shorter for good (11px monospace: 21 CSS px a line
+    // before, 20 after), so a page measured before it is taller than the page it draws: the image
+    // gets background rows below the story (#1982), and later slices of a tall page come back
+    // short (#1976). One throwaway capture settles the layout; everything below measures after it.
+    // A full-page capture also resizes the page while it runs, and a story that redraws on resize
+    // (Cytoscape's canvases) draws again in the next frames: wait for them, or the real capture
+    // catches that redraw half done and two captures of the story differ.
+    await page.screenshot({ ...options, clip: { x: 0, y: 0, width: 1, height: 1 } });
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
     // The page's size as Playwright measures it for a full-page screenshot.
     const size = await page.evaluate(() => {
         const [b, d] = [document.body, document.documentElement];
@@ -461,18 +474,11 @@ export async function screenshotWholePage(page) {
     if (height <= MAX_SHOT_HEIGHT) {
         return page.screenshot(options);
     }
-    // Chromium's first screenshot beyond the viewport lays text out again, and line boxes of
-    // 'normal' height can come out a pixel shorter, so the page can shrink after the first slice.
-    // Playwright measures the page again before every screenshot and trims the clip to it, so
-    // later slices would come back short (#1976). A hidden box as large as the first measure,
-    // added only while each slice is taken, keeps the page that size: the slices then draw what
-    // one screenshot of the measured size would, with the canvas below a shrunk page.
-    const style = `html::after { content: ""; position: absolute; top: 0; left: 0; visibility: hidden; width: ${size.width}px; height: ${size.height}px; }`;
     const out = new PNG({ width, height });
     for (let top = 0; top < height; top += MAX_SHOT_HEIGHT) {
         const rows = Math.min(MAX_SHOT_HEIGHT, height - top);
         const clip = { x: 0, y: top / SCALE, width: size.width, height: rows / SCALE };
-        const slice = PNG.sync.read(await page.screenshot({ ...options, style, clip }));
+        const slice = PNG.sync.read(await page.screenshot({ ...options, clip }));
         if (slice.width !== width || slice.height !== rows) {
             throw new Error(
                 `screenshot slice at ${top} px is ${slice.width} x ${slice.height}, not ${width} x ${rows}`,
@@ -752,8 +758,9 @@ export async function capture({
 
         const emojiFont = hasEmojiFont({ ...process.env, ...fontEnv });
         if (emojiFont === false) {
+            const where = fontconfig ? `in ${fontconfig}` : "on this machine";
             log(
-                `warning: no font ${fontconfig ? `in ${fontconfig}` : "on this machine"} draws emoji (fc-list ` +
+                `warning: no font ${where} draws emoji (fc-list ` +
                     ":charset=1f680 found none), so every emoji in a story is captured as an empty box; " +
                     "add one, such as Noto Color Emoji",
             );
@@ -855,7 +862,8 @@ export async function capture({
                     const item = await run(b, jobs[next++]);
                     items.push(item);
                     if (item.status !== "unchanged") {
-                        log(`${item.status} ${item.file}${item.reason ? `: ${item.reason}` : ""}`);
+                        const why = item.reason ? `: ${item.reason}` : "";
+                        log(`${item.status} ${item.file}${why}`);
                     }
                     await save();
                 }

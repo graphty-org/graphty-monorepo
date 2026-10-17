@@ -77,6 +77,7 @@ export type StyleRole = "mesh" | "instance" | "content";
 const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     // Geometry and material: a different value is a different source mesh.
     "node.size": "mesh",
+    "node.sizeMode": "mesh",
     "node.shape": "mesh",
     "node.wireframe": "mesh",
     "node.flat": "mesh",
@@ -193,10 +194,10 @@ export function meshChannelsFor(target: "node" | "edge"): readonly Channel[] {
 // ---------------------------------------------------------------------------------------------
 
 /** The 32-bit FNV-1a offset basis, which is where every sequence's fold starts. */
-const HASH_SEED = 0x811c_9dc5;
+const HASH_SEED = 0x81_1c_9d_c5;
 
 /** The 32-bit FNV-1a prime, which is what each pushed value is folded in with. */
-const HASH_PRIME = 0x0100_0193;
+const HASH_PRIME = 0x01_00_01_93;
 
 /** The value an absent channel contributes. */
 const ABSENT_TOKEN = 0;
@@ -256,7 +257,7 @@ const INT_VIEW = new Int32Array(FLOAT_BITS);
  */
 function finish(hash: number): number {
     let mixed = hash ^ (hash >>> 16);
-    mixed = Math.imul(mixed, 0x85eb_ca6b);
+    mixed = Math.imul(mixed, 0x85_eb_ca_6b);
     mixed ^= mixed >>> 13;
 
     return mixed | 0;
@@ -332,6 +333,14 @@ export interface StyleInterner<T> {
      */
     get(key: number): T | undefined;
 }
+
+/**
+ * Invocation counts the counted-work tests read: `comparisons` is held sequences compared with the
+ * one being looked up. A hash compares a new style with the few filed under its hash, so the count
+ * per lookup stays flat however many styles are held; a scan would compare it with every one.
+ * Internal; never reset here.
+ */
+export const internCounters = { comparisons: 0 };
 
 /**
  * Build an interner.
@@ -445,6 +454,8 @@ export function createStyleInterner<T>(): StyleInterner<T> {
      * @returns True when they hold the same values in the same order.
      */
     const matches = (slot: number): boolean => {
+        internCounters.comparisons++;
+
         if (lengths[slot] !== length) {
             return false;
         }

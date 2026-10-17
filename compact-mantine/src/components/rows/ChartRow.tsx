@@ -352,7 +352,7 @@ interface AxisLabelProps {
  * @param props.id - Identifies the label so the drawing beside it can point at it
  * @returns The axis-end label
  */
-function AxisLabel({ children, end, id }: AxisLabelProps): React.JSX.Element {
+function AxisLabel({ children, end, id }: Readonly<AxisLabelProps>): React.JSX.Element {
     return (
         <Box
             component="span"
@@ -423,7 +423,7 @@ interface ChartValueTableProps {
  * @param props.testId - Identifies the table in tests
  * @returns The visually hidden table of values
  */
-function ChartValueTable({ caption, rows, testId }: ChartValueTableProps): React.JSX.Element {
+function ChartValueTable({ caption, rows, testId }: Readonly<ChartValueTableProps>): React.JSX.Element {
     // The table IS the visually hidden element rather than sitting inside one:
     // a table nested in Mantine's VisuallyHidden span would be invalid markup,
     // and a server-rendered page would come back from the browser's parser with

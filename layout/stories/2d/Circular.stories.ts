@@ -23,6 +23,7 @@ import {
     updatePositions,
     updateStatus,
 } from "../utils/visualization.js";
+import { storyWaitOptions } from "../utils/wait.js";
 
 /**
  * Story arguments interface.
@@ -78,8 +79,10 @@ function createCircularStory(args: CircularArgs): HTMLElement {
         isApplied = true;
 
         // Animate to final positions
-        updatePositions(svg, generatedGraph, finalPositions, 200, 250, 250);
-        updateStatus(statusPanel, "Circular layout applied! Nodes arranged evenly around a circle.");
+        // The status says "applied" once the last frame is drawn; the play function waits on it
+        void updatePositions(svg, generatedGraph, finalPositions, 200, 250, 250).then(() =>
+            updateStatus(statusPanel, "Circular layout applied! Nodes arranged evenly around a circle."),
+        );
     }
 
     /**
@@ -149,12 +152,9 @@ export const Circular: Story = {
         await userEvent.click(applyButton);
 
         // Wait for animation and status update
-        await waitFor(
-            async () => {
-                const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
-                await expect(statusText).toContain("applied");
-            },
-            { timeout: 5000 },
-        );
+        await waitFor(async () => {
+            const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
+            await expect(statusText).toContain("applied");
+        }, storyWaitOptions(5000));
     },
 };

@@ -4,13 +4,13 @@
 //
 //   node --test tools/sonar/sonar-baseline.test.mjs
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { spawn, spawnSync } from "node:child_process";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
 
-import { needsScan, pickCommit, scanLock } from "../sonar-baseline.mjs";
+import { buildChild, needsScan, pickCommit, prepareAlert, scanLock, weekOverWeek } from "../sonar-baseline.mjs";
 
 const run = (headSha, status, conclusion = "", event = "schedule", databaseId = headSha) => ({
     headSha,
@@ -112,5 +112,74 @@ describe("scanLock", () => {
         assert.equal(release, null);
         assert.equal(said.length, 1);
         assert.match(said[0], /held by a push for 1 s; retrying at the next poll/);
+    });
+});
+
+describe("buildChild", () => {
+    it("runs the command with core files off", () => {
+        const c = buildChild("sh", ["-c", "ulimit -c"]);
+        const out = spawnSync(c.cmd, c.args, { encoding: "utf8" });
+        assert.equal(out.stdout.trim(), "0");
+    });
+});
+
+describe("prepareAlert", () => {
+    const dir = mkdtempSync(join(tmpdir(), "sonar-baseline-alert-"));
+    after(() => rmSync(dir, { recursive: true, force: true }));
+    const stamp = join(dir, "prepare-alert");
+    const calls = [];
+    let ghWorks = true;
+    const issues = {
+        open: (why) => (calls.push(`open ${why}`), ghWorks ? 42 : null),
+        close: (n) => (calls.push(`close ${n}`), ghWorks),
+    };
+
+    it("opens one issue per failure streak and closes it at the next success", () => {
+        prepareAlert("build failed at c1", stamp, issues);
+        prepareAlert("build failed at c2", stamp, issues);
+        assert.deepEqual(calls, ["open build failed at c1"]);
+        prepareAlert("", stamp, issues);
+        prepareAlert("", stamp, issues);
+        assert.deepEqual(calls, ["open build failed at c1", "close 42"]);
+        assert.equal(existsSync(stamp), false);
+    });
+
+    it("tries again at the next poll when gh failed", () => {
+        calls.length = 0;
+        ghWorks = false;
+        prepareAlert("build failed at c3", stamp, issues);
+        assert.equal(existsSync(stamp), false);
+        ghWorks = true;
+        prepareAlert("build failed at c3", stamp, issues);
+        assert.equal(readFileSync(stamp, "utf8"), "42\n");
+        ghWorks = false;
+        prepareAlert("", stamp, issues);
+        assert.equal(existsSync(stamp), true, "the alert stays open until gh closes it");
+        assert.equal(calls.length, 3);
+    });
+});
+
+describe("weekOverWeek", () => {
+    const week = (w, packages) => ({ week: w, total: Object.values(packages).reduce((a, b) => a + b, 0), packages });
+
+    it("states each package's change since last week, and says when the total rose", () => {
+        const prev = week("2026-W41", { "graph-io": 267, layout: 21, tools: 17 });
+        const now = week("2026-W42", { "graph-io": 250, layout: 25, githerd: 3 });
+        const { lines, rose } = weekOverWeek(prev, now);
+        assert.deepEqual(lines, [
+            "- Change since 2026-W41: -27 (305 to 278)",
+            "  - graph-io: 250 (-17)",
+            "  - layout: 25 (+4)",
+            "  - githerd: 3 (new)",
+            "  - tools: 0 (-17)",
+        ]);
+        assert.equal(rose, false);
+        assert.equal(weekOverWeek(now, week("2026-W43", { "graph-io": 251, layout: 25, githerd: 3 })).rose, true);
+    });
+
+    it("lists the packages without a change on the first week recorded", () => {
+        const { lines, rose } = weekOverWeek(null, week("2026-W42", { a: 1, b: 5 }));
+        assert.deepEqual(lines, ["- Open issues by package (no earlier week recorded):", "  - b: 5", "  - a: 1"]);
+        assert.equal(rose, false);
     });
 });

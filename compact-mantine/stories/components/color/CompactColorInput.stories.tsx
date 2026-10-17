@@ -9,6 +9,7 @@ import { CompactColorInput, LabelsProvider, PopoutManager } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";
 import { ForceState, StateCell } from "../../helpers/force-state";
 import { BOTH_SCHEMES, OPEN_OVERLAY } from "../../helpers/schemes";
+import { storyWaitOptions } from "../../helpers/settled";
 
 /**
  * A color and its opacity in one 24px panel field: a color chit that opens a picker, the hex
@@ -61,8 +62,11 @@ import { BOTH_SCHEMES, OPEN_OVERLAY } from "../../helpers/schemes";
  * - The opacity box steps 1 with ArrowUp / ArrowDown (Shift for 10). Dragging the "%" sideways
  *   scrubs it, half a percent per pixel.
  * - The three controls sit in a group named by `label`, so a screen reader reads the label once
- *   on entry. Every other name ("Color swatch", "Color hex value", "Opacity", the reset) comes
- *   from `LabelsProvider`; typed opacity is read in the reader's locale.
+ *   on entry, and each control is named from the label too: with `label="Fill"` the chit is
+ *   "Pick Fill color", the hex box "Fill color" (its value, the hex, is read after the name) and
+ *   the opacity box "Fill opacity". Every name comes from `LabelsProvider` (`pickColor`,
+ *   `colorValue`, `colorOpacity`; `colorSwatch`, `colorHexValue` and `opacity` when there is no
+ *   label); typed opacity is read in the reader's locale.
  *
  * ## Measurements
  *
@@ -219,9 +223,11 @@ export const PickerOpen: Story = {
     },
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
-        await userEvent.click(canvas.getByRole("button", { name: /swatch/i }));
+        await userEvent.click(canvas.getByRole("button", { name: "Pick Fill color" }));
         // The row and the picker both have an Opacity box: this story drives the picker's.
-        const opacity = within(await canvas.findByRole("dialog")).getByRole("textbox", { name: /opacity/i });
+        const opacity = within(await canvas.findByRole("dialog", {}, storyWaitOptions(1000))).getByRole("textbox", {
+            name: /opacity/i,
+        });
         await userEvent.click(opacity);
         await userEvent.keyboard("{ArrowDown}");
         await expect(opacity).toHaveValue("99");
@@ -241,6 +247,9 @@ export const Translated: Story = {
                     colorSwatch: "Nuancier",
                     colorHexValue: "Valeur hexadecimale",
                     opacity: "Opacite",
+                    pickColor: (label) => `Choisir ${label}`,
+                    colorValue: (label) => label,
+                    colorOpacity: (label) => `Opacite de ${label}`,
                     colorPanelTitle: "Couleur",
                     colorGenericName: "couleur",
                     resetToDefault: (label) => `Retablir ${label}`,

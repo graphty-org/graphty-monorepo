@@ -67,10 +67,10 @@ export function LoadCompleteToast({ completion }: LoadCompleteToastProps): React
             return undefined;
         }
 
-        const timer = window.setTimeout(onDismiss, STATUS_BAR_GEOMETRY.TOAST_DURATION_MS);
+        const timer = globalThis.setTimeout(onDismiss, STATUS_BAR_GEOMETRY.TOAST_DURATION_MS);
 
         return () => {
-            window.clearTimeout(timer);
+            globalThis.clearTimeout(timer);
         };
     }, [onDismiss]);
 
@@ -85,7 +85,7 @@ export function LoadCompleteToast({ completion }: LoadCompleteToastProps): React
             style={{
                 position: "absolute",
                 bottom: "100%",
-                left: STATUS_BAR_GEOMETRY.PADDING_X,
+                left: STATUS_BAR_GEOMETRY.TOAST_LEFT,
                 marginBottom: STATUS_BAR_GEOMETRY.TOAST_GAP,
                 maxWidth: STATUS_BAR_GEOMETRY.TOAST_MAX_WIDTH,
             }}

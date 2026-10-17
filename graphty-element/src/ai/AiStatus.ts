@@ -72,7 +72,7 @@ export type StatusChangeCallback = (status: AiStatus) => void;
  */
 export class AiStatusManager {
     private status: AiStatus;
-    private listeners = new Set<StatusChangeCallback>();
+    private readonly listeners = new Set<StatusChangeCallback>();
 
     /**
      * Creates a new AiStatusManager instance.

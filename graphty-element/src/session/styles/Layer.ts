@@ -61,11 +61,13 @@ import type {
     StaticStyle,
 } from "../../catalog/types";
 import { isGraphtyError } from "../../errors";
+import type { GraphtyWarningCode } from "../../errors/codes";
 import { deepFreeze } from "../project/draft";
 import type { RunProgressReport } from "../runs";
 import { trimTrailingSeparators } from "../runs/runId";
+import type { CodedFact } from "../shared";
 import { type ChannelDescriptor, channelDescriptor, channelsFor, toColorValue } from "./channels";
-import type { CompiledSelector, SelectorSource, SelectorTarget } from "./predicate";
+import { columnsFor, type CompiledSelector, type SelectorSource, type SelectorTarget } from "./predicate";
 import type { ScaleRegistry } from "./scales";
 import { compileSelector, type Selector } from "./selector";
 
@@ -192,6 +194,17 @@ export interface ValidationResult {
      * have meant the column, which reads as `data.graphty.<name>`.
      */
     readonly shadowedPaths: readonly Path[];
+    /**
+     * What will paint nothing, as codes. Not errors: the layer is still added.
+     *
+     * `W_UNKNOWN_ID`: a `{ match: "ids" }` selector names ids no element of the layer's target
+     * answers to now, by either spelling of an integer id. `params.target` is `"node"` or
+     * `"edge"`, `params.ids` those ids as the layer named them.
+     *
+     * `W_ALPHA_IGNORED`: a color with an alpha written to a channel that cannot draw it
+     * translucent (`node.outline`), so it is drawn opaque. `params.channel` and `params.path`.
+     */
+    readonly warnings: readonly CodedFact<GraphtyWarningCode>[];
 }
 
 /**
@@ -368,6 +381,62 @@ const NO_PATHS: readonly Path[] = Object.freeze([]);
 
 /** Nothing was wrong. */
 const NO_PROBLEMS: readonly LayerProblem[] = Object.freeze([]);
+
+/** Nothing to warn about. */
+const NO_WARNINGS: readonly CodedFact<GraphtyWarningCode>[] = Object.freeze([]);
+
+/**
+ * The warnings a layer's selector earns: the ids an `ids` selector names that nothing answers to.
+ * @param spec - The specification.
+ * @param target - The layer's target, or null when it could not be settled.
+ * @param elements - Where an id is looked up.
+ * @returns The warnings; none when the session cannot look an id up.
+ */
+function selectorWarnings(
+    spec: LayerSpec,
+    target: SelectorTarget | null,
+    elements: SelectorSource,
+): readonly CodedFact<GraphtyWarningCode>[] {
+    const selector = spec.selector as { match?: unknown; nodes?: unknown; edges?: unknown } | null | undefined;
+    if (target === null || selector?.match !== "ids") {
+        return NO_WARNINGS;
+    }
+
+    const named = (target === "node" ? selector.nodes : selector.edges) as readonly (string | number)[] | undefined;
+    const { indexOf } = columnsFor(elements, target);
+    if (named === undefined || indexOf === null) {
+        return NO_WARNINGS;
+    }
+
+    const unknown = named.filter((id) => indexOf(id) === undefined);
+
+    return unknown.length === 0
+        ? NO_WARNINGS
+        : Object.freeze([
+              Object.freeze({ code: "W_UNKNOWN_ID" as const, params: Object.freeze({ target, ids: unknown }) }),
+          ]);
+}
+
+/** The color channels that draw a color opaque whatever its alpha. See `NodeEffects.applyOutlineEffect`. */
+const OPAQUE_COLOR_CHANNELS: readonly string[] = ["node.outline"];
+
+/**
+ * The warnings a layer's literal colors earn: an alpha written to a channel that cannot draw it.
+ *
+ * Every other color channel multiplies a color's alpha into its opacity (issue #2071); an
+ * outline cannot be drawn translucent, so its alpha is dropped and this says so.
+ * @param spec - The specification.
+ * @returns The warnings; none when every literal color can be drawn as written.
+ */
+function alphaWarnings(spec: LayerSpec): readonly CodedFact<GraphtyWarningCode>[] {
+    return OPAQUE_COLOR_CHANNELS.filter((channel) => {
+        const color = toColorValue(asColorInput(spec.set?.[channel as keyof typeof spec.set]));
+
+        return color !== null && color.a < 1;
+    }).map((channel) =>
+        Object.freeze({ code: "W_ALPHA_IGNORED" as const, params: Object.freeze({ channel, path: `set.${channel}` }) }),
+    );
+}
 
 /**
  * Mint the id a new layer will carry.
@@ -912,12 +981,7 @@ function checkSelector(
  */
 function admitSelectorScope(spec: LayerSpec, options: LayerCheckOptions, log: ProblemLog): LayerSpec {
     const selector = spec.selector as { match?: unknown; of?: unknown } | undefined;
-    if (
-        options.admitScope === undefined ||
-        typeof selector !== "object" ||
-        selector === null ||
-        selector.match !== "member"
-    ) {
+    if (options.admitScope === undefined || typeof selector !== "object" || selector?.match !== "member") {
         return spec;
     }
 
@@ -1014,13 +1078,22 @@ export function checkLayerSpec(given: LayerSpec, options: LayerCheckOptions): La
                 errors: Object.freeze([...log.problems]),
                 unresolvedPaths,
                 shadowedPaths,
+                warnings: NO_WARNINGS,
             }),
             layer: null,
         };
     }
 
+    const warnings = [...selectorWarnings(spec, target, options.elements), ...alphaWarnings(spec)];
+
     return {
-        result: Object.freeze({ ok: true, errors: NO_PROBLEMS, unresolvedPaths, shadowedPaths }),
+        result: Object.freeze({
+            ok: true,
+            errors: NO_PROBLEMS,
+            unresolvedPaths,
+            shadowedPaths,
+            warnings: warnings.length === 0 ? NO_WARNINGS : Object.freeze(warnings),
+        }),
         layer: buildLayer(spec, options.id, target, compiled, log.paths),
     };
 }

@@ -442,7 +442,7 @@ export function createSelectorSource(parts: SelectorSourceParts): SessionSelecto
     const current = (): Frame => {
         const graph = readSnapshot();
 
-        if (frame === null || frame.graph !== graph) {
+        if (frame?.graph !== graph) {
             frame = frameOf(graph);
         }
 

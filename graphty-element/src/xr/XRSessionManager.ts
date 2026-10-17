@@ -73,8 +73,8 @@ const OFFLINE_XR_OPTIONS = {
  * Handles session initialization, camera management, and cleanup.
  */
 export class XRSessionManager {
-    private scene: Scene;
-    private _config: XRSessionConfig;
+    private readonly scene: Scene;
+    private readonly _config: XRSessionConfig;
     private xrHelper: WebXRDefaultExperience | null = null;
     private activeMode: "immersive-vr" | "immersive-ar" | null = null;
     private referenceSpaceType: XRGrantedReferenceSpaceType | null = null;

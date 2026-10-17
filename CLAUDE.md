@@ -1190,6 +1190,13 @@ Several agents often work in this repository at once. They share one disk and on
 - A review or audit reads `git diff <base>...HEAD`, not the whole tree, unless the task is
   explicitly a whole-repository audit.
 - Report regressions and failures first, then everything else.
+- **Never wait inside a model turn.** Start a push or a long run in the background (Bash
+  `run_in_background`, or `githerd_push`), then end the turn or do other work; the harness
+  notifies you when it finishes. Never poll its log in a `sleep` or `until` loop, and never chain
+  sleeps: a wait longer than about five minutes drops the prompt cache, so the next turn re-reads
+  the whole conversation at full price. A subagent that pushes reports once the push has started,
+  naming its log, and stops; the session that started it checks the outcome. A prompt that starts
+  an agent which pushes carries this rule.
 
 ### The GitHub API budget
 
@@ -1225,7 +1232,8 @@ two sessions. Until the limit resets, every `gh` call fails with HTTP 403 and me
   ```
 
 - **Poll every 5 minutes or slower.** A loop that waits for a pull request or a run to finish
-  sleeps at least 300 seconds between calls.
+  sleeps at least 300 seconds between calls, and runs in the background, never inside a model turn
+  (see "Never wait inside a model turn" above).
 - **On a 403 "rate limit exceeded", wait; do not retry quickly.** `gh api rate_limit` costs nothing
   and shows the reset time. GitHub also has a secondary limit on bursts and concurrent requests,
   which `rate_limit` does not show: when calls fail while it reports requests left, retry every

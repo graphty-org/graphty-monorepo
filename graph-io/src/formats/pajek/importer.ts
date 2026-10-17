@@ -1654,7 +1654,7 @@ class PajekParser {
         for (let i = start; i < tokens.length;) {
             const token = tokens[i];
             if (token.startsWith("[")) {
-                extras.spells = this.intervals(token, domain);
+                extras.spells = this.intervals(token, domain, line);
                 i++;
                 continue;
             }
@@ -1677,8 +1677,11 @@ class PajekParser {
             }
             seen.add(token);
             extras.keys.push(token);
-            extras.values.push(tokens[i + 1]);
-            i += 2;
+            // a color written as three fractions, `c 0.700 0.700 0.700` (Pajek's course data, 1CRN.NET),
+            // is the color `RGB(0.700,0.700,0.700)`; a key is never a number, so the reading is unambiguous
+            const triple = COLOR_KEYS.has(token) ? colorTriple(tokens, i + 1) : null;
+            extras.values.push(triple ?? tokens[i + 1]);
+            i += triple === null ? 2 : 4;
         }
         return extras;
     }
@@ -1709,12 +1712,15 @@ class PajekParser {
     }
 
     /**
-     * The spells of a row's interval token; a malformed one skips the row.
+     * The spells of a row's interval token. A token not closed by "]" skips the row; a closed one
+     * whose times cannot be read (`[287-?]`, lin-rel4.net) is reported and dropped, and the rest of
+     * the row (its label, coordinates and parameters) is kept.
      * @param token - the token, starting with "["
-     * @param domain - what is skipped when the token is malformed
-     * @returns the spells, or null for an empty `[]`, which is no spell at all
+     * @param domain - what is skipped when the token is not closed
+     * @param line - the line number
+     * @returns the spells, or null for an empty `[]`, which is no spell at all, and for a dropped one
      */
-    private intervals(token: string, domain: "node" | "edge"): [number, number][] | null {
+    private intervals(token: string, domain: "node" | "edge", line: number): [number, number][] | null {
         if (!isIntervalToken(token)) {
             this.skip(domain);
             throw new LineError(
@@ -1727,12 +1733,13 @@ class PajekParser {
             const spells = parseIntervals(token);
             return spells.length === 0 ? null : spells;
         } catch (err) {
-            this.skip(domain);
-            throw new LineError(
+            this.report.error(
                 "validation-error",
                 PAJEK_ISSUE.INTERVAL,
-                err instanceof Error ? err.message : String(err),
+                `${err instanceof Error ? err.message : String(err)}; the interval is dropped and the rest of the line kept`,
+                { line },
             );
+            return null;
         }
     }
 
@@ -1771,6 +1778,21 @@ class PajekParser {
         }
         writer.write(row, text);
     }
+}
+
+/** The parameters that hold a color, which Pajek also reads as three fractions `r g b`. */
+const COLOR_KEYS: ReadonlySet<string> = new Set(["ic", "bc", "lc", "c"]);
+
+/**
+ * A color written as three numbers from 0 to 1 at a row's tokens, as `RGB(r,g,b)`.
+ * @param tokens - the row's tokens
+ * @param at - the first of the three
+ * @returns the color text, or null when the three tokens are not such numbers
+ */
+function colorTriple(tokens: readonly string[], at: number): string | null {
+    const parts = tokens.slice(at, at + 3);
+    const fraction = (t: string): boolean => /^(?:0|1)?(?:\.\d+)?$/.test(t) && t !== "" && Number(t) <= 1;
+    return parts.length === 3 && parts.every(fraction) ? `RGB(${parts.join(",")})` : null;
 }
 
 /**

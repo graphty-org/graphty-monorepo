@@ -58,7 +58,7 @@ import {
     paintOf,
     strandedOnBootstrap,
 } from "../test/helpers/paint-assertions";
-import { hover } from "../test/helpers/real-input";
+import { click, hover } from "../test/helpers/real-input";
 import * as projectAnnotations from "./preview";
 import { operationQueueOf } from "../src/Graph";
 
@@ -282,8 +282,8 @@ async function assertStoryDrewWhatItAskedFor(context: StoryContextLike): Promise
 // The hook below is a PROJECT-LEVEL afterEach, which `prepareStory` merges with the meta's and the
 // story's own.
 // Real input for the play functions (stories/helpers.ts, realInput): the browser's own pointer, so a
-// hover is a trusted event with hit testing, as a reader's is.
+// hover or a click is a trusted event with hit testing, as a reader's is.
 setProjectAnnotations([
     projectAnnotations,
-    { afterEach: assertStoryDrewWhatItAskedFor, parameters: { realInput: { hover } } },
+    { afterEach: assertStoryDrewWhatItAskedFor, parameters: { realInput: { click, hover } } },
 ]);

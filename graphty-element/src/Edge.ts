@@ -14,14 +14,16 @@ import type { ArrowCap } from "./meshes/ArrowCapBatch";
 import type { EdgeLineBatch } from "./meshes/EdgeLineBatch";
 import { EdgeMesh } from "./meshes/EdgeMesh";
 import {
-    bendPoints,
     fanArc,
     fanOffset,
     fanSlot,
+    fileRoute,
     loopTeardrop,
     parseBends,
+    parsePort,
     pointFromEnd,
     roundCorners,
+    routeEnds,
     routeOutside,
     surfaceReach,
     type Xyz,
@@ -286,12 +288,18 @@ export class Edge {
     private bundleVersion = -1;
 
     /**
-     * The bends this edge's line passes through (`line.bends`, flat along/across pairs), or null
-     * for a line straight from node to node. A bent line is a run of slots like a curve.
+     * The route the style stores for this edge's line: its bends (`line.bends`, flat pairs) and its
+     * ports (`line.sourcePort`, `line.targetPort`), or null for a line straight from node to node. A
+     * routed line is a run of slots like a curve.
      */
-    private lineBends: number[] | null = null;
+    private lineRoute: {
+        bends: number[] | null;
+        srcPort: [number, number] | null;
+        dstPort: [number, number] | null;
+        loop: boolean;
+    } | null = null;
 
-    /** The `line.bends` text {@link Edge.lineBends} was read from. See {@link syncContent}. */
+    /** The texts {@link Edge.lineRoute} was read from, joined. See {@link syncContent}. */
     private drawnBends?: string;
 
     /** The `line.fanSpacing` the edge's arc was last placed with. See {@link syncContent}. */
@@ -746,12 +754,11 @@ export class Edge {
      */
     private placeLine(src: Vector3, dst: Vector3): boolean {
         const drawsLine = this.lineBatch !== null && this.drawnStyle?.line?.width !== 0;
-        const bent = this.lineBends !== null && drawsLine;
+        const bent =
+            drawsLine && this.lineBatch !== null && this.lineRoute !== null && this.placeBent(this.lineBatch, src, dst);
         const route = !bent && drawsLine ? this.bundleRoute(src, dst) : null;
         this.bundled = route !== null && this.lineBatch !== null && this.placeRoute(this.lineBatch, src, dst, route);
-        if (bent && this.lineBatch && this.lineBends) {
-            this.placeBent(this.lineBatch, src, dst, this.lineBends);
-        } else if (!this.bundled) {
+        if (!bent && !this.bundled) {
             const { srcPoint, dstPoint } = this.transformArrowCap();
             this.transformEdgeMesh(srcPoint ?? src, dstPoint ?? dst);
         }
@@ -973,9 +980,7 @@ export class Edge {
 
         if (this.lineBatch) {
             // A curve's run of slots is sized to its length when it is first placed.
-            this.drawnBends = drawnStyle.line?.bends;
-            this.lineBends = this.srcNode === this.dstNode ? null : parseBends(this.drawnBends);
-            this.lineIsCurve = drawnStyle.line?.bezier === true || this.lineBends !== null;
+            this.readRoute(drawnStyle);
             this.lineSlots = [this.lineBatch.acquire()];
 
             // No per-edge mesh to make unpickable and nothing to hang `parentEdge` on: the batch
@@ -1129,15 +1134,12 @@ export class Edge {
      * @returns True when the bends changed.
      */
     private syncBends(style: EdgeStyleConfig): boolean {
-        const wanted = style.line?.bends;
         const batch = this.lineBatch;
-        if (wanted === this.drawnBends || batch === null) {
+        if (Edge.routeKey(style) === this.drawnBends || batch === null) {
             return false;
         }
 
-        this.drawnBends = wanted;
-        this.lineBends = this.srcNode === this.dstNode ? null : parseBends(wanted);
-        this.lineIsCurve = style.line?.bezier === true || this.lineBends !== null;
+        this.readRoute(style);
         // A straight line is one slot: hand back the rest of a run.
         while (!this.lineIsCurve && this.lineSlots.length > 1) {
             const slot = this.lineSlots.pop();
@@ -1147,6 +1149,32 @@ export class Edge {
         }
 
         return true;
+    }
+
+    /**
+     * The texts a style stores this edge's route in, joined, to tell when they change.
+     * @param style - The resolved style.
+     * @returns The key.
+     */
+    private static routeKey(style: EdgeStyleConfig): string {
+        const { line } = style;
+        return [line?.bends, line?.sourcePort, line?.targetPort].map((t) => t ?? "").join("|");
+    }
+
+    /**
+     * Read the route a style stores for this edge's line, and whether the line is a curve.
+     * @param style - The resolved style.
+     */
+    private readRoute(style: EdgeStyleConfig): void {
+        const loop = this.srcNode === this.dstNode;
+        const bends = parseBends(style.line?.bends);
+        // a loop's ports alone say nothing about its shape: it keeps its usual loop
+        const srcPort = loop && bends === null ? null : parsePort(style.line?.sourcePort);
+        const dstPort = loop && bends === null ? null : parsePort(style.line?.targetPort);
+        this.drawnBends = Edge.routeKey(style);
+        this.lineRoute =
+            bends === null && srcPort === null && dstPort === null ? null : { bends, srcPort, dstPort, loop };
+        this.lineIsCurve = style.line?.bezier === true || this.lineRoute !== null;
     }
 
     /**
@@ -1510,32 +1538,58 @@ export class Edge {
     }
 
     /**
-     * Draw this edge through its bends: straight segments from where the line leaves the source
-     * node toward the first bend, through every bend, to where it meets the target node from the
-     * last -- each end trimmed for its arrow cap along its own segment -- with the corners rounded
-     * when the line is also curved.
+     * Draw this edge along the route its style stores: from its source port, or from where the line
+     * leaves the source node toward the first bend outside it, through the bends, to its target port
+     * or to where it meets the target node -- each end trimmed for its arrow cap along its own
+     * segment -- with the corners rounded when the line is also curved. Bends inside a node are
+     * passed over, as a tool that clips a line at the outlines draws it.
      * @param batch - The batch the run is in.
      * @param src - The source node's center.
      * @param dst - The target node's center.
-     * @param bends - The bends, as `parseBends` reads them.
+     * @returns False, drawing nothing, when no stored point is outside the nodes (a self-loop whose
+     *     points all lie inside its node), so the edge is drawn as it would be without a route.
      */
-    private placeBent(batch: EdgeLineBatch, src: Vector3, dst: Vector3, bends: readonly number[]): void {
-        const mid = bendPoints(src, dst, bends);
-        const first = Vector3.FromArray(mid, 0);
-        const last = Vector3.FromArray(mid, mid.length - 3);
-        const start = this.leaveNode(this.srcNode, src, first);
-        const end = this.leaveNode(this.dstNode, dst, last);
+    private placeBent(batch: EdgeLineBatch, src: Vector3, dst: Vector3): boolean {
+        const stored = this.lineRoute;
+        if (stored === null) {
+            return false;
+        }
+
+        const route = fileRoute(src, dst, stored, this.srcNode.drawnHalfExtents, this.dstNode.drawnHalfExtents);
+        const ports = { src: stored.srcPort !== null, dst: stored.dstPort !== null };
+        const outside =
+            (node: Node, centre: Vector3) =>
+            (x: number, y: number, z: number): boolean => {
+                const d = Math.hypot(x - centre.x, y - centre.y, z - centre.z);
+                return (
+                    d > 0 &&
+                    d > Edge.reachOf(node, { x: (x - centre.x) / d, y: (y - centre.y) / d, z: (z - centre.z) / d })
+                );
+            };
+        const span = routeEnds(route, ports, outside(this.srcNode, src), outside(this.dstNode, dst));
+        if (span === null) {
+            return false;
+        }
+
+        const a = Vector3.FromArray(route, 3 * span.first);
+        const b = Vector3.FromArray(route, 3 * span.last);
+        const start = ports.src ? a : this.leaveNode(this.srcNode, src, a);
+        const end = ports.dst ? b : this.leaveNode(this.dstNode, dst, b);
+        const mid = route.slice(3 * (span.first + (ports.src ? 1 : 0)), 3 * (span.last + (ports.dst ? 0 : 1)));
+        const afterStart = mid.length > 0 ? Vector3.FromArray(mid, 0) : end;
+        const beforeEnd = mid.length > 0 ? Vector3.FromArray(mid, mid.length - 3) : start;
 
         const path = [start, ...points(mid), end];
         const { arrowCap } = this;
         if (arrowCap) {
-            this.placeArrowHead(arrowCap, end, end.subtract(last).normalize(), [...path].reverse());
+            this.placeArrowHead(arrowCap, end, end.subtract(beforeEnd).normalize(), [...path].reverse());
         }
 
-        const lineStart = this.placeArrowTail(start, first, first.subtract(start).normalize(), path);
-        const lineEnd = this.lineEndBefore(last, end);
+        const lineStart = this.placeArrowTail(start, afterStart, afterStart.subtract(start).normalize(), path);
+        const lineEnd = this.lineEndBefore(beforeEnd, end);
         const flat = [lineStart.x, lineStart.y, lineStart.z, ...mid, lineEnd.x, lineEnd.y, lineEnd.z];
         this.placeRun(batch, this.drawnStyle?.line?.bezier === true ? roundCorners(flat) : flat);
+        return true;
     }
 
     /**

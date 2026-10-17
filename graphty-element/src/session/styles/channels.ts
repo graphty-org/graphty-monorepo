@@ -313,6 +313,8 @@ export interface ChannelValues {
     "edge.curvature": boolean;
     "edge.bends": string;
     "edge.fanSpacing": number;
+    "edge.sourcePort": string;
+    "edge.targetPort": string;
     "edge.arrowHead": ArrowValue;
     "edge.arrowHeadSize": number;
     "edge.arrowHeadPosition": number;
@@ -1245,6 +1247,34 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "How far apart, at their middle, neighboring curved edges between the same two nodes " +
             "are drawn, in the scene's units. Left unset, they are two radii of the larger node " +
             "apart, closer when the nodes are close. A straight edge keeps the line between its nodes.",
+    },
+    "edge.sourcePort": {
+        channel: "edge.sourcePort",
+        target: "edge",
+        plainName: "Edge Source Port",
+        shortName: "Source port",
+        group: "line",
+        accepts: "text",
+        stylePath: "line.sourcePort",
+        renderable: true,
+        caveat:
+            "Where the line attaches to its source node, when not where the line from the node's center " +
+            "crosses its outline: `x,y` from the node's center as fractions of its half width and half " +
+            "height, y up (`1,0` is the middle of its right side, `0,1` the middle of its top).",
+    },
+    "edge.targetPort": {
+        channel: "edge.targetPort",
+        target: "edge",
+        plainName: "Edge Target Port",
+        shortName: "Target port",
+        group: "line",
+        accepts: "text",
+        stylePath: "line.targetPort",
+        renderable: true,
+        caveat:
+            "Where the line attaches to its target node, when not where the line from the node's center " +
+            "crosses its outline: `x,y` from the node's center as fractions of its half width and half " +
+            "height, y up (`1,0` is the middle of its right side, `0,1` the middle of its top).",
     },
     ...arrowEndChannels("Head"),
     ...arrowEndChannels("Tail"),

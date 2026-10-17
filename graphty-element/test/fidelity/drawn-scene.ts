@@ -536,6 +536,19 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
         color = cssColor(fields.color).hex;
         ({ opacity } = fields);
     }
+    // An arrow is part of the edge as drawn: its tip, not the line it caps, is where the edge ends.
+    // The line stops short of a tip by the arrow's length, which on a short edge between two ports
+    // can turn it round; a route judged to the node center from there would not be the one drawn.
+    const tip = (cap: ArrowCap | null): Vector3 | null =>
+        cap !== null && !cap.isDisposed() && cap.visibility > 0 ? cap.position.clone() : null;
+    const tail = tip(edge.arrowTailCap);
+    const head = tip(edge.arrowCap);
+    if (world.length >= 2 && tail !== null) {
+        world = [tail, ...world.slice(1)];
+    }
+    if (world.length >= 2 && head !== null) {
+        world = [...world.slice(0, -1), head];
+    }
     const caps = edge.drawnCaps.map((c) => {
         const cap = c.end === "arrowHead" ? edge.arrowCap : edge.arrowTailCap;
         const at = cap?.position ?? Vector3.Zero();

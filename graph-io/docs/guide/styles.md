@@ -182,6 +182,8 @@ is kept as `other:<the file's spelling>` and noted.
 | `curved`           |       | yes   |       | true or false                                                                                                                                           |
 | `bends`            |       | yes   |       | text                                                                                                                                                    |
 | `fanSpacing`       |       | yes   |       | a number                                                                                                                                                |
+| `sourcePort`       |       | yes   |       | text                                                                                                                                                    |
+| `targetPort`       |       | yes   |       | text                                                                                                                                                    |
 | `sourceLabel`      |       | yes   |       | text                                                                                                                                                    |
 | `targetLabel`      |       | yes   |       | text                                                                                                                                                    |
 | `background`       |       |       | yes   | a color, `#rrggbb`                                                                                                                                      |

@@ -75,6 +75,97 @@ export function bendPoints(src: Xyz, dst: Xyz, bends: readonly number[]): number
 }
 
 /**
+ * Read a port value (`line.sourcePort`, `line.targetPort`): one `x,y` pair.
+ * @param text - The value.
+ * @returns The pair, or null when the value is absent or not one pair of finite numbers.
+ */
+export function parsePort(text: string | undefined): [number, number] | null {
+    const pair = parseBends(text);
+    return pair?.length === 2 ? [pair[0], pair[1]] : null;
+}
+
+/**
+ * The route a file stored for an edge, from one end to the other: from its source port (the source
+ * node's center without one) through its bends to its target port (the target's center without
+ * one). A port, and a self-loop's bends, are `x,y` fractions of the node's half extents from its
+ * center; any other edge's bends are placed between the two centers ({@link bendPoints}).
+ * @param src - The source node's center.
+ * @param dst - The target node's center.
+ * @param route - What the file stored.
+ * @param route.bends - The bends, as {@link parseBends} reads them, or null.
+ * @param route.srcPort - The source port, or null.
+ * @param route.dstPort - The target port, or null.
+ * @param route.loop - Whether the edge is a self-loop, whose bends are placed around its node.
+ * @param srcHalf - The source node's half extents.
+ * @param dstHalf - The target node's half extents.
+ * @returns The points, flat x, y, z, both ends included.
+ */
+export function fileRoute(
+    src: Xyz,
+    dst: Xyz,
+    route: {
+        readonly bends: readonly number[] | null;
+        readonly srcPort: readonly number[] | null;
+        readonly dstPort: readonly number[] | null;
+        readonly loop: boolean;
+    },
+    srcHalf: Xyz,
+    dstHalf: Xyz,
+): number[] {
+    const around = (c: Xyz, half: Xyz, pairs: readonly number[]): number[] => {
+        const out: number[] = [];
+        for (let i = 0; i + 1 < pairs.length; i += 2) {
+            out.push(c.x + pairs[i] * half.x, c.y + pairs[i + 1] * half.y, c.z);
+        }
+
+        return out;
+    };
+    let mid: number[] = [];
+    if (route.bends !== null) {
+        mid = route.loop ? around(src, srcHalf, route.bends) : bendPoints(src, dst, route.bends);
+    }
+
+    return [
+        ...(route.srcPort ? around(src, srcHalf, route.srcPort) : [src.x, src.y, src.z]),
+        ...mid,
+        ...(route.dstPort ? around(dst, dstHalf, route.dstPort) : [dst.x, dst.y, dst.z]),
+    ];
+}
+
+/**
+ * Which part of a stored route is drawn: from its first point outside the source node to its last
+ * outside the target -- what a tool draws when it clips a line at the outlines -- except that an end
+ * at a port is drawn from the port itself, wherever it lies.
+ * @param flat - The route, flat x, y, z, from {@link fileRoute}.
+ * @param ports - Whether the route starts and ends at a port.
+ * @param ports.src - Whether it starts at a source port.
+ * @param ports.dst - Whether it ends at a target port.
+ * @param outsideSrc - Whether a point is outside the source node.
+ * @param outsideDst - Whether a point is outside the target node.
+ * @returns The indices of the first and last points drawn through, or null when no point is outside.
+ */
+export function routeEnds(
+    flat: readonly number[],
+    ports: { readonly src: boolean; readonly dst: boolean },
+    outsideSrc: (x: number, y: number, z: number) => boolean,
+    outsideDst: (x: number, y: number, z: number) => boolean,
+): { first: number; last: number } | null {
+    const n = flat.length / 3;
+    const at = (test: typeof outsideSrc, i: number): boolean => test(flat[3 * i], flat[3 * i + 1], flat[3 * i + 2]);
+    let first = 0;
+    while (!ports.src && first < n && !at(outsideSrc, first)) {
+        first++;
+    }
+
+    let last = n - 1;
+    while (!ports.dst && last >= first && !at(outsideDst, last)) {
+        last--;
+    }
+
+    return first < n && last >= first ? { first, last } : null;
+}
+
+/**
  * A polyline with every interior corner rounded: each corner is replaced by a quadratic curve
  * from a quarter of the way along the shorter of its two segments, on each side, through the
  * corner's pull.

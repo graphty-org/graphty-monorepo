@@ -176,6 +176,8 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "edge.bends": "content",
     // Per edge like a route, and read by the same placement.
     "edge.fanSpacing": "content",
+    "edge.sourcePort": "content",
+    "edge.targetPort": "content",
 
     // A caption at the end of an arrow is drawn beside the cap, not by it: it is a
     // `RichTextLabel` on its own plane, and `Edge.syncContent` compares and rebuilds it on every

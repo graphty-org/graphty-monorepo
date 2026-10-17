@@ -279,7 +279,9 @@ void main() {
             return false;
         }
 
-        const routed = loop || parseBends(style.line?.bends) !== null;
+        const { line } = style;
+        const routed =
+            loop || [line?.bends, line?.sourcePort, line?.targetPort].some((text) => parseBends(text) !== null);
         return !(routed && (lineType === "dash" || lineType === "dot"));
     }
 

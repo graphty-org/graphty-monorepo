@@ -546,6 +546,8 @@ function channelPlans(
         ["bends", [id("edge.bends")]],
         // Drawn in the scene's units, in proportion to the nodes it spaces the edges by.
         ["fanSpacing", [length("edge.fanSpacing", factors.node * SCENE_PER_UNIT.node)]],
+        ["sourcePort", [id("edge.sourcePort")]],
+        ["targetPort", [id("edge.targetPort")]],
         ["label", [id("edge.label")]],
         ["targetLabel", [id("edge.arrowHeadText")]],
         ["sourceLabel", [id("edge.arrowTailText")]],

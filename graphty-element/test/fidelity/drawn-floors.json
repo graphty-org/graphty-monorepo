@@ -265,7 +265,7 @@
             "edgeWidth": 1,
             "lineStyle": 1,
             "arrows": 1,
-            "edgePath": 0.8064516129032258,
+            "edgePath": 1,
             "edgeLabel": 1,
             "groups": 0.42857142857142855
         },
@@ -521,7 +521,7 @@
             "edgeWidth": 1,
             "lineStyle": 1,
             "arrows": 0.7798165137614679,
-            "edgePath": 0.963302752293578,
+            "edgePath": 1,
             "selfLoops": 1,
             "edgeLabel": 1
         },

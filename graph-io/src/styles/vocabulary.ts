@@ -81,6 +81,8 @@ export const STYLE_PROPERTIES: {
         ["curved", "boolean"],
         ["bends", "text"],
         ["fanSpacing", "number"],
+        ["sourcePort", "text"],
+        ["targetPort", "text"],
         ["label", "text"],
         ["tooltip", "text"],
         ["labelFont", "text"],

@@ -111,3 +111,111 @@ export function flattenCubic(controls: readonly BendPoint[], steps = 8): BendPoi
     }
     return out;
 }
+
+/**
+ * Points placed on and around one node, each relative to its center as fractions of its half width and half height,
+ * y up: `"1,0"` is the middle of its right side, `"0,1"` the middle of its top. The value of an edge end's port
+ * (`sourcePort`, `targetPort`) and of a self-loop's `bends`, which have no line between two centers to be relative
+ * to. Relative to the node's size, so a drawing that draws the node larger keeps the point on the same spot.
+ * @param center - the node's center
+ * @param size - its width and height
+ * @param points - the points
+ * @param yDown - true when the file's y axis points down (the value is always y up)
+ * @returns the value, or null with no points, a size that is not positive, or a coordinate that is not finite
+ * @category Styles
+ */
+export function canonNodeOffsets(
+    center: BendPoint,
+    size: BendPoint,
+    points: readonly BendPoint[],
+    yDown: boolean,
+): string | null {
+    const [hw, hh] = [size[0] / 2, size[1] / 2];
+    if (points.length === 0 || !(hw > 0) || !(hh > 0)) {
+        return null;
+    }
+    const flip = yDown ? -1 : 1;
+    const out: string[] = [];
+    for (const [px, py] of points) {
+        const x = (px - center[0]) / hw;
+        const y = ((py - center[1]) * flip) / hh;
+        if (!Number.isFinite(x) || !Number.isFinite(y)) {
+            return null;
+        }
+        out.push(`${fraction(x)},${fraction(y)}`);
+    }
+    return out.join(" ");
+}
+
+/**
+ * The points a node-relative value places around a node: the inverse of {@link canonNodeOffsets}.
+ * @param center - the node's center
+ * @param size - its width and height
+ * @param value - the value
+ * @param yDown - true when the points are wanted in a y-down file's coordinates
+ * @returns the points, or null when the value is not `x,y` pairs or a coordinate is not finite
+ * @category Styles
+ */
+export function nodeOffsetsToPoints(
+    center: BendPoint,
+    size: BendPoint,
+    value: string,
+    yDown: boolean,
+): BendPoint[] | null {
+    const flip = yDown ? -1 : 1;
+    const out: BendPoint[] = [];
+    for (const pair of value.trim().split(/\s+/)) {
+        const [a, b, extra] = pair.split(",").map(Number);
+        const x = center[0] + (a * size[0]) / 2;
+        const y = center[1] + (b * size[1] * flip) / 2;
+        if (extra !== undefined || !Number.isFinite(x) || !Number.isFinite(y)) {
+            return null;
+        }
+        out.push([x, y]);
+    }
+    return out.length === 0 ? null : out;
+}
+
+/**
+ * The points a quadratic spline passes through, as yEd draws a quad curve edge: its first and last control points are
+ * the ends, every control point between them pulls the curve without lying on it, and the curve runs from the middle
+ * of the leg before such a point to the middle of the leg after it (from the end itself on the first and last legs).
+ * `straightness` (0..1) keeps that share of every leg straight, so each curved piece covers only the part of its two
+ * legs nearest its control point: 0 is the smooth spline, 1 the control polygon.
+ * @param controls - the control points, ends included
+ * @param straightness - how straight the legs stay, 0..1
+ * @param steps - how many points each curved piece is sampled at
+ * @returns the points, ends included; the controls themselves with fewer than three
+ * @category Styles
+ */
+export function flattenQuadSpline(controls: readonly BendPoint[], straightness: number, steps = 8): BendPoint[] {
+    if (controls.length < 3) {
+        return [...controls];
+    }
+    const s = Math.min(1, Math.max(0, Number.isFinite(straightness) ? straightness : 0));
+    const lerp = (a: BendPoint, b: BendPoint, t: number): BendPoint => [
+        a[0] + (b[0] - a[0]) * t,
+        a[1] + (b[1] - a[1]) * t,
+    ];
+    const last = controls.length - 1;
+    const out: BendPoint[] = [controls[0]];
+    for (let i = 1; i < last; i++) {
+        const c = controls[i];
+        // the joins either side: the middle of each leg, or the end itself on the first and last
+        const before = i === 1 ? controls[0] : lerp(controls[i - 1], c, 0.5);
+        const after = i === last - 1 ? controls[last] : lerp(c, controls[i + 1], 0.5);
+        const from = lerp(c, before, 1 - s);
+        const to = lerp(c, after, 1 - s);
+        for (let k = 0; k <= steps; k++) {
+            const t = k / steps;
+            const u = 1 - t;
+            out.push([
+                u * u * from[0] + 2 * u * t * c[0] + t * t * to[0],
+                u * u * from[1] + 2 * u * t * c[1] + t * t * to[1],
+            ]);
+        }
+    }
+    out.push(controls[last]);
+    // a piece that starts where the one before ends (straightness 0) repeats the join
+    return out.filter((p, k) => k === 0 || p[0] !== out[k - 1][0] || p[1] !== out[k - 1][1]);
+}

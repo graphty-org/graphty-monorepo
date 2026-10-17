@@ -16,7 +16,13 @@
 
 import type { GraphSnapshot } from "@graphty/graph-format";
 
-import { type BendPoint, bendsToPoints, canonBends } from "../../styles/canon/bends.js";
+import {
+    type BendPoint,
+    bendsToPoints,
+    canonBends,
+    canonNodeOffsets,
+    nodeOffsetsToPoints,
+} from "../../styles/canon/bends.js";
 import { canonColor, colorOpacity } from "../../styles/canon/color.js";
 import { canonEnum } from "../../styles/canon/enums.js";
 import { canonNumber } from "../../styles/canon/number.js";
@@ -613,25 +619,58 @@ function centerOf(snapshot: GraphSnapshot, i: number): BendPoint {
 }
 
 /**
- * An edge's bends: the points of its `graphics` `Line` between the first and the last, which are where it leaves
- * the source and meets the target.
+ * A node's width and height: its `graphics` `w` and `h`.
+ * @param snapshot - the graph
+ * @param i - the node's index
+ * @returns the size; NaN where the node has none
+ */
+function sizeOf(snapshot: GraphSnapshot, i: number): BendPoint {
+    const g = cellOf(snapshot.nodes, "graphics", i);
+    return isRec(g) ? [Number(g.w ?? Number.NaN), Number(g.h ?? Number.NaN)] : [Number.NaN, Number.NaN];
+}
+
+/**
+ * An edge's route from its `graphics` `Line`, whose first and last points are where it attaches to its source and
+ * target (its ports: the centers unless yEd moved them) and whose points between are its bends: the bends relative to
+ * the two node centers (a self-loop's to its node's size), and each port off its node's center relative to the node.
  * @param snapshot - the graph
  * @param g - the edge's `graphics` value
  * @param e - the edge's row
- * @returns the `bends` value, or null without bends
+ * @param put - receives the values
  */
-function lineBends(snapshot: GraphSnapshot, g: unknown, e: number): string | null {
+function readLineRoute(
+    snapshot: GraphSnapshot,
+    g: unknown,
+    e: number,
+    put: (property: string, value: string) => void,
+): void {
     const raw = isRec(g) && isRec(g.Line) ? g.Line.point : undefined;
-    if (!Array.isArray(raw) || raw.length < 3) {
-        return null;
+    if (!Array.isArray(raw) || raw.length < 2) {
+        return;
     }
-    const points = raw.slice(1, -1).map((p): BendPoint => (isRec(p) ? [Number(p.x), Number(p.y)] : [Number.NaN, 0]));
-    return canonBends(
-        centerOf(snapshot, snapshot.edgeSource(e)),
-        centerOf(snapshot, snapshot.edgeTarget(e)),
-        points,
-        true,
-    );
+    const all = raw.map((p): BendPoint => (isRec(p) ? [Number(p.x), Number(p.y)] : [Number.NaN, 0]));
+    const [s, t] = [snapshot.edgeSource(e), snapshot.edgeTarget(e)];
+    for (const [property, k, end] of [
+        ["sourcePort", s, all[0]],
+        ["targetPort", t, all[all.length - 1]],
+    ] as const) {
+        const center = centerOf(snapshot, k);
+        const port =
+            end[0] === center[0] && end[1] === center[1]
+                ? null
+                : canonNodeOffsets(center, sizeOf(snapshot, k), [end], true);
+        if (port !== null) {
+            put(property, port);
+        }
+    }
+    const points = all.slice(1, -1);
+    const bends =
+        s === t
+            ? canonNodeOffsets(centerOf(snapshot, s), sizeOf(snapshot, s), points, true)
+            : canonBends(centerOf(snapshot, s), centerOf(snapshot, t), points, true);
+    if (bends !== null) {
+        put("bends", bends);
+    }
 }
 
 /**
@@ -674,11 +713,10 @@ function readValues(
                 at,
             );
             if (target === "edge") {
-                const bends = lineBends(snapshot, cellOf(table, "graphics", i), i);
-                if (bends !== null) {
+                readLineRoute(snapshot, cellOf(table, "graphics", i), i, (property, value) => {
                     found = true;
-                    out.put(i, "bends", bends);
-                }
+                    out.put(i, property, value);
+                });
             }
         }
         return out.values;
@@ -819,6 +857,8 @@ export const GML_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze({
         "targetArrow",
         "curved",
         "bends",
+        "sourcePort",
+        "targetPort",
         "label",
         "labelColor",
         "labelSize",
@@ -1162,12 +1202,17 @@ function writeGraphicsColumns(
         approximated.add(target, property, value);
     };
     const get = elementValues((t, p) => input.picture(t, p as never), target, GML_STYLE_CAPABILITIES[target]);
+    const getNode = elementValues((t, p) => input.picture(t, p as never), "node", GML_STYLE_CAPABILITIES.node);
+    const size = (k: number): BendPoint => {
+        const [w, h] = [getNode(k)("width"), getNode(k)("height")];
+        return typeof w === "number" && typeof h === "number" ? [w, h] : sizeOf(snapshot, k);
+    };
     const graphics: unknown[] = [];
     const labels: unknown[] = [];
     for (let i = 0; i < n; i++) {
         const g = target === "node" ? nodeGraphics(get(i), approximate) : edgeGraphics(get(i), approximate);
         if (target === "edge") {
-            const line = bendsLine(snapshot, get(i)("bends"), i);
+            const line = routeLine(snapshot, get(i), i, size);
             if (line !== null) {
                 g.Line = line;
             }
@@ -1188,21 +1233,38 @@ function writeGraphicsColumns(
 }
 
 /**
- * An edge's `Line` from its `bends` value: the node centers it is written between, with the bends placed between them,
- * so the bends read back as written.
+ * An edge's `Line` from its `bends`, `sourcePort` and `targetPort` values: from its source port (the node's center
+ * without one) through the bends placed between the node centers (a self-loop's around its node) to its target port,
+ * so the route reads back as written.
  * @param snapshot - the graph handed to the exporter
- * @param bends - the edge's `bends` value
+ * @param get - the edge's values
  * @param e - the edge's row
+ * @param size - each node's written width and height
  * @returns the `Line` record, or null without a value or without both centers
  */
-function bendsLine(snapshot: GraphSnapshot, bends: StyleValue | null, e: number): Rec | null {
-    const source = centerOf(snapshot, snapshot.edgeSource(e));
-    const target = centerOf(snapshot, snapshot.edgeTarget(e));
-    const points = typeof bends === "string" ? bendsToPoints(source, target, bends, true) : null;
-    if (points === null || ![...source, ...target].every(Number.isFinite)) {
+function routeLine(snapshot: GraphSnapshot, get: Get, e: number, size: (k: number) => BendPoint): Rec | null {
+    const [s, t] = [snapshot.edgeSource(e), snapshot.edgeTarget(e)];
+    const source = centerOf(snapshot, s);
+    const target = centerOf(snapshot, t);
+    if (![...source, ...target].every(Number.isFinite)) {
         return null;
     }
-    return { point: [source, ...points, target].map(([x, y]) => ({ x, y })) };
+    const bends = get("bends");
+    let points: BendPoint[] | null = null;
+    if (typeof bends === "string") {
+        points =
+            s === t ? nodeOffsetsToPoints(source, size(s), bends, true) : bendsToPoints(source, target, bends, true);
+    }
+    const port = (property: string, k: number, center: BendPoint): BendPoint | null => {
+        const value = get(property);
+        return typeof value === "string" ? (nodeOffsetsToPoints(center, size(k), value, true)?.[0] ?? null) : null;
+    };
+    const from = port("sourcePort", s, source);
+    const to = port("targetPort", t, target);
+    if (points === null && from === null && to === null) {
+        return null;
+    }
+    return { point: [from ?? source, ...(points ?? []), to ?? target].map(([x, y]) => ({ x, y })) };
 }
 
 /**

@@ -11,9 +11,12 @@ import {
     fanArcPieces,
     fanOffset,
     fanSlot,
+    fileRoute,
     parseBends,
+    parsePort,
     pointFromEnd,
     roundCorners,
+    routeEnds,
     routeOutside,
     surfaceReach,
 } from "../../src/meshes/edgeRoute";
@@ -116,6 +119,61 @@ describe("edge route geometry", () => {
         assert.deepEqual(slots([true, true, false, true, true]), [-2, -1, 0, 1, 2]);
         // the first edge drawn straight (Cytoscape desktop)
         assert.deepEqual(slots([false, true, true, true]), [0, -1, 1, -2]);
+    });
+
+    it("reads a port as one x,y pair", () => {
+        assert.deepEqual(parsePort("1,-0.5"), [1, -0.5]);
+        assert.isNull(parsePort(undefined));
+        assert.isNull(parsePort("1,0 0,1"));
+        assert.isNull(parsePort("1"));
+    });
+
+    it("runs a stored route from each port, or center, through the bends, placing ports and a loop's bends by node size", () => {
+        const half = at(2, 1);
+        // a port on the middle of the source's top, a bend half way and 4 below, the target's center
+        assert.deepEqual(
+            fileRoute(
+                at(0, 0),
+                at(8, 0),
+                { bends: [0.5, -0.5], srcPort: [0, 1], dstPort: null, loop: false },
+                half,
+                half,
+            ),
+            [0, 1, 0, 4, -4, 0, 8, 0, 0],
+        );
+        // a node drawn twice as wide keeps the port on the middle of its right side
+        assert.deepEqual(
+            fileRoute(
+                at(0, 0),
+                at(8, 0),
+                { bends: null, srcPort: [1, 0], dstPort: [-1, 0], loop: false },
+                at(4, 1),
+                half,
+            ),
+            [4, 0, 0, 6, 0, 0],
+        );
+        // a self-loop's bends sit around its node: up three heights and either side of its center
+        assert.deepEqual(
+            fileRoute(
+                at(10, 0),
+                at(10, 0),
+                { bends: [-0.5, 3, 0.5, 3], srcPort: null, dstPort: null, loop: true },
+                half,
+                half,
+            ),
+            [10, 0, 0, 9, 3, 0, 11, 3, 0, 10, 0, 0],
+        );
+    });
+
+    it("draws a stored route from its first point outside the source to its last outside the target, or from its ports", () => {
+        // a route from a center at x 0 to one at x 10, both nodes reaching 1 from their centers
+        const flat = [0, 0, 0, 0.5, 0, 0, 5, 3, 0, 9.5, 0, 0, 10, 0, 0];
+        const outside = (cx: number) => (x: number, y: number) => Math.hypot(x - cx, y) > 1;
+        assert.deepEqual(routeEnds(flat, { src: false, dst: false }, outside(0), outside(10)), { first: 2, last: 2 });
+        // a port is drawn from wherever it lies
+        assert.deepEqual(routeEnds(flat, { src: true, dst: true }, outside(0), outside(10)), { first: 0, last: 4 });
+        // nothing outside: a loop whose points all lie inside its node
+        assert.isNull(routeEnds([0, 0, 0, 0.5, 0.2, 0, 0, 0, 0], { src: false, dst: false }, outside(0), outside(0)));
     });
 });
 

@@ -69,6 +69,8 @@ const DECLARED = [
     "edge.curvature",
     "edge.bends",
     "edge.fanSpacing",
+    "edge.sourcePort",
+    "edge.targetPort",
     "edge.arrowHead",
     "edge.arrowHeadSize",
     "edge.arrowHeadPosition",
@@ -118,9 +120,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into thirty-six node channels and thirty-one edge channels", () => {
+    it("splits into thirty-six node channels and thirty-three edge channels", () => {
         assert.strictEqual(channelsFor("node").length, 36);
-        assert.strictEqual(channelsFor("edge").length, 31);
+        assert.strictEqual(channelsFor("edge").length, 33);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -326,6 +328,8 @@ describe("what a style editor needs to draw a row", () => {
         "edge.bends",
         // Unset, a bundle's curved edges are two node radii apart.
         "edge.fanSpacing",
+        "edge.sourcePort",
+        "edge.targetPort",
         "edge.arrowHeadText",
         "edge.arrowHeadTextStyle",
         "edge.arrowTailText",

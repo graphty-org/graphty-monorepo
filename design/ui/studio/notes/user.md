@@ -12,6 +12,16 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Top of mind
 
+- (2026-10-16, bulk iteration 7 frozen) Frozen as `tier3-bulk7-457aa9f0f2`, served by servherd
+  design-studio-tier3 at https://dev.ato.ms:9373/?next. Bulk field whose layers differ now draws
+  BoundValue (SpreadValues deleted): strip in the pill, <<Layer>> in the component purple where the
+  source name goes, detail "N layers", the same line of chits under it as one layer bound to data.
+  Color sets: strip of up to 4 hard stops or a gradient for a ramp; line shows every chit up to 6,
+  else 5 and "+N" (never "+1"), gray Other last and uncounted; ramp ends under the strip; the count
+  is in the pill's spoken name. Elena test: one look for one layer or ten, the purple token says the
+  colors come from each layer. Alex test: 35 clusters read as 5 chits + "+30" with the count spoken;
+  the full list is in the popover.
+
 - 2026-10-13 -- Tier 3 build paused for the owner's review after three iterations; the fourth is
   planned (`design/ui/studio/tier3/iterations/3/review.md`). Built: one line per property, Clear
   that names what comes back plus an announced Undo, a painted-over mark naming the layer above,

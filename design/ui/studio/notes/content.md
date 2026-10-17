@@ -7,6 +7,16 @@ I read this file at the start of every session and update it as I decide and lea
 
 ## Top of mind
 
+- (2026-10-16, bulk iteration 7 frozen) Frozen as `tier3-bulk7-457aa9f0f2`, served by servherd
+  design-studio-tier3 at https://dev.ato.ms:9373/?next. Bulk field whose layers differ now draws
+  BoundValue (SpreadValues deleted): strip in the pill, <<Layer>> in the component purple where the
+  source name goes, detail "N layers", the same line of chits under it as one layer bound to data.
+  Color sets: strip of up to 4 hard stops or a gradient for a ramp; line shows every chit up to 6,
+  else 5 and "+N" (never "+1"), gray Other last and uncounted; ramp ends under the strip; the count
+  is in the pill's spoken name. Words built: popover title "Color from each layer" (same property
+  word as "Color by Louvain"); Source line shows <<Layer>>; "N lumped into Other" (was "other" in
+  quotes); coverage caption "Covered by A, B, C and N more".
+
 - 2026-10-13 Tier 3 build paused for the owner's review after iteration 3 (`tier3/iterations/3/review.md`,
   plan for iteration 4 there). Words decided, with reasons:
     - Unsetting vs covering are two acts with two controls and two wordings. Unset: the minus on a

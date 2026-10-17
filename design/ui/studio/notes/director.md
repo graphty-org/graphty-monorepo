@@ -10,6 +10,16 @@ by the SonarQube gate, so no pull request yet).
 
 ## Top of mind
 
+- (2026-10-16, bulk iteration 7 frozen) Frozen as `tier3-bulk7-457aa9f0f2`, served by servherd
+  design-studio-tier3 at https://dev.ato.ms:9373/?next. Bulk field whose layers differ now draws
+  BoundValue (SpreadValues deleted): strip in the pill, <<Layer>> in the component purple where the
+  source name goes, detail "N layers", the same line of chits under it as one layer bound to data.
+  Color sets: strip of up to 4 hard stops or a gradient for a ramp; line shows every chit up to 6,
+  else 5 and "+N" (never "+1"), gray Other last and uncounted; ramp ends under the strip; the count
+  is in the pill's spoken name. For the study: does anyone read <<Layer>> as a data column named
+  Layer, and does anyone try to click a chit. Open director call: the lumped line draws the gray
+  Other chit before "+N".
+
 - 2026-10-16: DECIDED one BoundValue for single and bulk (SpreadValues deleted), the Layer token
   (guillemets, purple `--cm-text-component`, weight 600, via a new VariablePill `tone`), and color
   sets from 2 to dozens: 24 px strip of up to 4 hard stops or a gradient; one-row line of all chits

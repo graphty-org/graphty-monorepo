@@ -11,6 +11,17 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-16, bulk iteration 7 frozen) Frozen as `tier3-bulk7-457aa9f0f2`, served by servherd
+  design-studio-tier3 at https://dev.ato.ms:9373/?next. Bulk field whose layers differ now draws
+  BoundValue (SpreadValues deleted): strip in the pill, <<Layer>> in the component purple where the
+  source name goes, detail "N layers", the same line of chits under it as one layer bound to data.
+  Color sets: strip of up to 4 hard stops or a gradient for a ramp; line shows every chit up to 6,
+  else 5 and "+N" (never "+1"), gray Other last and uncounted; ramp ends under the strip; the count
+  is in the pill's spoken name. Pilot fixes committed with this build (palette by Layer recolors
+  untouched rows; Extend pins the shown palette; popover title "Color from each layer"; Layer token
+  in the Source line; coverage caption names three then "and N more"). Lint and the workspace
+  browser and real-element tests pass.
+
 - (2026-10-16) **Pilot of the one-BoundValue build (b3f7efee1): five defects fixed.** Walked by
   pointer and keyboard, light and dark, on Les Miserables + Louvain (6), College football + Leiden
   (10), Spectral and Hierarchical clustering (2 and 35), a 115-value text column, each beside one

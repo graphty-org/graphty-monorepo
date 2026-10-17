@@ -10,6 +10,15 @@ made and evidence comes in.
 
 ## Top of mind
 
+- (2026-10-16, bulk iteration 7 frozen) Frozen as `tier3-bulk7-457aa9f0f2`, served by servherd
+  design-studio-tier3 at https://dev.ato.ms:9373/?next. Bulk field whose layers differ now draws
+  BoundValue (SpreadValues deleted): strip in the pill, <<Layer>> in the component purple where the
+  source name goes, detail "N layers", the same line of chits under it as one layer bound to data.
+  Color sets: strip of up to 4 hard stops or a gradient for a ramp; line shows every chit up to 6,
+  else 5 and "+N" (never "+1"), gray Other last and uncounted; ramp ends under the strip; the count
+  is in the pill's spoken name. Study questions from this build: token misread as a column; chit
+  clicks attempted; whether "+N" reads as more groups. Pilot first per the dry-run rule.
+
 - 2026-10-13 -- **Tier 3 build paused for the owner's review after iteration 3** (served
   `tier3-i3-617b43b270`, app 0.8.68; review `tier3/iterations/3/review.md`). Built: one 28 px line
   per property, Clear that names what comes back plus announced Undo, effect and category rows as

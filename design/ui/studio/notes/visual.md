@@ -9,6 +9,15 @@ Last updated: 2026-10-16 (bulk edit: one BoundValue, the "Layer" source, color s
 
 ## Top of mind
 
+- (2026-10-16, bulk iteration 7 frozen) Frozen as `tier3-bulk7-457aa9f0f2`, served by servherd
+  design-studio-tier3 at https://dev.ato.ms:9373/?next. Bulk field whose layers differ now draws
+  BoundValue (SpreadValues deleted): strip in the pill, <<Layer>> in the component purple where the
+  source name goes, detail "N layers", the same line of chits under it as one layer bound to data.
+  Color sets: strip of up to 4 hard stops or a gradient for a ramp; line shows every chit up to 6,
+  else 5 and "+N" (never "+1"), gray Other last and uncounted; ramp ends under the strip; the count
+  is in the pill's spoken name. Built: 24 x 14 strip, 12 px chits on one row, purple weight 600
+  token, ring token. Line fits the ~96 px narrowest field at 40 values (5 chits + "+35").
+
 0. (2026-10-16 bulk iteration 7) Owner: bulk field = BoundValue, SpreadValues deleted; the source
    name slot says "Layer" set off. My proposal: \u00ABLayer\u00BB in --cm-text-component (purple,
    5.66:1 light on #fff, 7.15:1 dark on #2c2c2c; brand blue fails light at 4.23:1 and already means

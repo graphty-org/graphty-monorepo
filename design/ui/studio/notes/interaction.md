@@ -15,6 +15,15 @@ save and reopen.
 
 ## Top of mind
 
+- (2026-10-16, bulk iteration 7 frozen) Frozen as `tier3-bulk7-457aa9f0f2`, served by servherd
+  design-studio-tier3 at https://dev.ato.ms:9373/?next. Bulk field whose layers differ now draws
+  BoundValue (SpreadValues deleted): strip in the pill, <<Layer>> in the component purple where the
+  source name goes, detail "N layers", the same line of chits under it as one layer bound to data.
+  Color sets: strip of up to 4 hard stops or a gradient for a ramp; line shows every chit up to 6,
+  else 5 and "+N" (never "+1"), gray Other last and uncounted; ramp ends under the strip; the count
+  is in the pill's spoken name. Built without chit click shortcuts (rejected for now); the pill is
+  the only tab stop, bulk opens straight into Layer pre-filled, Escape unchanged writes nothing.
+
 - 2026-10-16 **Bulk field becomes BoundValue (owner).** My part proposed: the pill is the only tab
   stop; click/Enter/Space opens the one BindingPopover (single: "Color by Louvain"; bulk: "Color by
   layer", straight into Layer pre-filled). The strip in the pill is a glance cue, never clickable on

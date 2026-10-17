@@ -16,6 +16,16 @@ served at `/?next`.
 
 ## Top of mind
 
+- (2026-10-16, bulk iteration 7 frozen) Frozen as `tier3-bulk7-457aa9f0f2`, served by servherd
+  design-studio-tier3 at https://dev.ato.ms:9373/?next. Bulk field whose layers differ now draws
+  BoundValue (SpreadValues deleted): strip in the pill, <<Layer>> in the component purple where the
+  source name goes, detail "N layers", the same line of chits under it as one layer bound to data.
+  Color sets: strip of up to 4 hard stops or a gradient for a ramp; line shows every chit up to 6,
+  else 5 and "+N" (never "+1"), gray Other last and uncounted; ramp ends under the strip; the count
+  is in the pill's spoken name. SpreadValues deleted: one component, not two. Still to attack:
+  "Update <run> layer" on a selected run folder adds a second folder of the same name; a new layer
+  added while a folder is selected lands in it and shows Mixed.
+
 0. (2026-10-13) Tier 3 paused for the owner after iteration 3; iteration 4 is planned, not
    built. Answers to the owner's three questions: (a) unset = the minus on a set field (tooltip
    names what comes back), or empty + Enter; Undo names it; covering a lower layer is a separate

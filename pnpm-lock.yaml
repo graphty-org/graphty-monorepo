@@ -525,9 +525,6 @@ importers:
       '@graphty/graph-format':
         specifier: workspace:^
         version: link:../graph-format
-      neo4j-driver:
-        specifier: ^5.0.0
-        version: 5.28.3
     devDependencies:
       '@vitest/browser-playwright':
         specifier: 'catalog:'
@@ -547,6 +544,9 @@ importers:
       fast-xml-parser:
         specifier: ^5.11.1
         version: 5.11.2
+      neo4j-driver:
+        specifier: ^5.28.3
+        version: 5.28.3
       playwright:
         specifier: 1.57.0
         version: 1.57.0

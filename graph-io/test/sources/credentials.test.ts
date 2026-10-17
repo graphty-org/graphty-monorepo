@@ -55,14 +55,14 @@ describe("credentials", () => {
         expect(new URL(query.url).searchParams.get("x")).toBe("1");
     });
 
-    it("loads the SigV4 signer on first use, which is not built yet", async () => {
+    it("loads the SigV4 signer on first use and never puts the secret key in the request", async () => {
         const c = credentials.awsSigV4({
             region: "us-east-1",
             credentials: { accessKeyId: "a", secretAccessKey: SENTINEL },
         });
-        const err = await rejection(applyCredential(c, request()));
-        expect(err.issue?.code).toBe("E_SOURCE_UNSUPPORTED");
-        expect(err.issue?.params).toEqual({ feature: "aws-sigv4" });
+        const signed = await applyCredential(c, request());
+        expect(signed.headers.get("authorization")).toMatch(/^AWS4-HMAC-SHA256 Credential=a\//);
+        expect(JSON.stringify([...signed.headers])).not.toContain(SENTINEL);
     });
 
     it("refuses an origin that is not a URL", async () => {

@@ -11,6 +11,21 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-17, opened projects lost their rows, commit 619ce32be) A two-kind row's key is its
+  node part's id (`rowKeyOf` = `layer.row ?? layer.id`), and a style document saves that key in
+  each part's `row`. `planTemplate` minted new layer ids but kept the saved `row`, so any row whose
+  saved key differs from the freshly minted node id (a renamed row: "layer-1_2" became "Poster",
+  minted "poster_2") named no layer: the tree showed the raw key, `nameOf` fell back to the id,
+  every lookup by row id missed ("paints nothing", "Gone", "Covered by layer-1_2"). The starting
+  rows survived only because their minted ids happen to repeat. Fix in the element:
+  `documentRowKeys` re-keys each row to its node part's new id (last part's when no node part).
+  Test: styles-tree.test.ts "reopens a renamed two-kind row". Verified in the app on
+  lesmis-poster.graphty.json: Poster named, name card and orange Color, "3 nodes, 254 edges",
+  Why this look opens it, Everything "Covered by Poster on 3 of 77", the edge "Add a condition"
+  lists shared_chapters. Open question: the file's edge half matches everything and writes
+  nothing, so "Select what it paints" also selects all 254 edges and the tree says "254 edges".
+  Lesson: anything keyed by a layer id that a document carries must be remapped on apply.
+
 - (2026-10-17, pilot of the combined Style panel, 3 passes, commits 0acc14a7b, d813c3899,
   31e8c2387) Walked from an empty app with real.mjs: Les Miserables, a CSV of my own
   (`tmp/style-study/club-ties.csv`, an edge list with a category, a yes/no and a number column),

@@ -825,9 +825,8 @@ describe("the Data page on the real element", () => {
         );
         assert.isNotNull(screen.getByText("Weight: km (farther)"));
 
-        // The reset beside a chosen role says what it does on hover.
-        await userEvent.hover(screen.getByRole("button", { name: "Reset km to default" }));
-        assert.equal((await screen.findByRole("tooltip", {}, { timeout: 3000 })).textContent, "Reset km to default");
+        // The reset beside a chosen role says what it does on hover (its native title).
+        assert.equal(screen.getByRole("button", { name: "Reset km to default" }).title, "Reset km to default");
     });
 
     it("says an edge table with no weight counts each edge 1", async () => {

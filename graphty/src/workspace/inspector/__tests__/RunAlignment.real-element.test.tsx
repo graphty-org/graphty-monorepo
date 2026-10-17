@@ -69,20 +69,6 @@ function left(element: Element): number {
 }
 
 describe("the run inspector's left edges", () => {
-    it("hangs the Advanced run settings chevron in the gutter with the section chevrons", async () => {
-        const inspector = await inspectRun("shortest-path", { source: "b", target: "d" });
-        const fold = await inspector.findByRole("button", { name: /Advanced run settings/ });
-        const made = inspector.getByRole("button", { name: /Made with/ });
-        const foldChevron = fold.querySelector(".cm-subgroup-chevron");
-        const sectionChevron = made.querySelector(".cm-section-chevron");
-        assert.isNotNull(foldChevron);
-        assert.isNotNull(sectionChevron);
-        if (foldChevron === null || sectionChevron === null) {
-            return;
-        }
-        assert.closeTo(left(foldChevron), left(sectionChevron), 0.5);
-    });
-
     it("starts the histogram's summary line at the min label", async () => {
         const inspector = await inspectRun("pagerank", {});
         const line = await inspector.findByText(/have a value/);

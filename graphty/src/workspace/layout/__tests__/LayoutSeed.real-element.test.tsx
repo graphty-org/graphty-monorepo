@@ -62,7 +62,6 @@ describe("the app's layout seed", () => {
             await userEvent.click(layoutTool);
             const popover = await screen.findByRole("dialog", { name: "Layout" });
             await userEvent.click(within(popover).getByRole("option", { name: /^Random/ }));
-            await userEvent.click(within(popover).getByRole("button", { name: /Advanced/ }));
             assert.strictEqual(within(popover).getByRole<HTMLInputElement>("spinbutton", { name: "Seed" }).value, "1");
             await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
             const live = session;

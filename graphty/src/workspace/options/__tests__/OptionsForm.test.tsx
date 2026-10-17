@@ -9,7 +9,7 @@ import userEvent from "@testing-library/user-event";
 import React from "react";
 import { afterEach, assert, describe, it } from "vitest";
 
-import { render, screen } from "../../../test/test-utils";
+import { render, screen, within } from "../../../test/test-utils";
 import { optionWords } from "../../analyze/words";
 import { OptionsForm } from "../OptionsForm";
 
@@ -53,19 +53,15 @@ async function renderFor(key: string): Promise<readonly OptionDescriptor[]> {
 const labels = (): string[] => [...document.querySelectorAll("label")].map((label) => label.textContent.trim());
 
 describe("the options form", () => {
-    it("draws PageRank's key options, and its advanced ones only once Advanced opens", async () => {
+    it("draws PageRank's key options, and its advanced ones under the Advanced legend", async () => {
         const options = await renderFor("pagerank");
 
         assert.isNotNull(screen.getByRole("spinbutton", { name: "Damping factor" }));
         assert.isNotEmpty(screen.getAllByLabelText("Weight"));
-        const fold = screen.getByRole("button", { name: /Advanced/ });
-        assert.equal(fold.getAttribute("aria-expanded"), "false");
-        assert.isNull(screen.queryByRole("spinbutton", { name: "Max iterations", hidden: true }));
-        assert.isNull(screen.queryByText("Max iterations"));
-
-        await userEvent.click(fold);
-        assert.isNotNull(screen.getByRole("spinbutton", { name: "Max iterations" }));
-        assert.isNotNull(screen.getByRole("spinbutton", { name: "Tolerance" }));
+        const advanced = screen.getByRole("group", { name: "Advanced" });
+        assert.isNull(within(advanced).queryByRole("spinbutton", { name: "Damping factor" }));
+        assert.isNotNull(within(advanced).getByRole("spinbutton", { name: "Max iterations" }));
+        assert.isNotNull(within(advanced).getByRole("spinbutton", { name: "Tolerance" }));
         // useDelta is internal: never drawn, open or closed.
         assert.isNull(screen.queryByText(/Delta/));
 
@@ -118,18 +114,17 @@ describe("the options form", () => {
         assert.isNull(screen.queryByRole("button", { name: /reset/i }));
     });
 
-    it("puts Betweenness's sample size behind the Advanced fold", async () => {
+    it("puts Betweenness's sample size under the Advanced legend", async () => {
         await renderFor("betweenness");
 
-        assert.isNull(screen.queryByText("Sample size"));
-        await userEvent.click(screen.getByRole("button", { name: /Advanced/ }));
-        assert.isNotNull(screen.getByRole("spinbutton", { name: "Sample size" }));
+        const advanced = screen.getByRole("group", { name: "Advanced" });
+        assert.isNotNull(within(advanced).getByRole("spinbutton", { name: "Sample size" }));
     });
 
-    it("draws no fold for an algorithm with no advanced options", async () => {
+    it("draws no Advanced group for an algorithm with no advanced options", async () => {
         await renderFor("components");
 
-        assert.isNull(screen.queryByRole("button", { name: /Advanced/ }));
+        assert.isNull(screen.queryByRole("group", { name: "Advanced" }));
     });
 
     it("draws a weighted algorithm's Weight line: the loaded weight first, then None, then other columns", async () => {

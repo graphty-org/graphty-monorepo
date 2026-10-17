@@ -9,7 +9,7 @@ import userEvent from "@testing-library/user-event";
 import React from "react";
 import { assert, describe, it, vi } from "vitest";
 
-import { render, screen, waitFor } from "../../../test/test-utils";
+import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createRegistry } from "../../commands/registry";
 import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore } from "../../state/store";
@@ -178,7 +178,7 @@ describe("the Data output", () => {
         assert.notInclude(alert.textContent, "boom");
     });
 
-    it("keeps the advanced options behind a closed fold and previews with what the reader sets", async () => {
+    it("draws the advanced options under their Advanced legend and previews with what the reader sets", async () => {
         const exportGraph = vi.fn(() =>
             Promise.resolve({ format: "csv", losses: [], lossNotes: [], text: vi.fn(), bytes: manyLines() }),
         );
@@ -191,9 +191,8 @@ describe("the Data output", () => {
             },
         );
 
-        assert.isNull(screen.queryByLabelText("Column Separator"));
-        await userEvent.click(screen.getByRole("button", { name: /Advanced/ }));
-        const separator = screen.getByLabelText("Column Separator");
+        const advanced = screen.getByRole("group", { name: "Advanced" });
+        const separator = within(advanced).getByLabelText("Column Separator");
         assert.equal((separator as HTMLInputElement).placeholder, ",");
         await userEvent.type(separator, ";");
         await waitFor(() => {
@@ -204,9 +203,9 @@ describe("the Data output", () => {
         });
     });
 
-    it("draws no Advanced fold for a row with no options", () => {
+    it("draws no Advanced group for a row with no options", () => {
         const exportGraph = vi.fn(() => new Promise(() => undefined));
         renderData({ exportGraph } as unknown as Partial<GraphtyElement>);
-        assert.isNull(screen.queryByRole("button", { name: /Advanced/ }));
+        assert.isNull(screen.queryByRole("group", { name: "Advanced" }));
     });
 });

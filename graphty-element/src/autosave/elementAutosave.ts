@@ -14,16 +14,18 @@ import {
     type AutosaveClock,
     type AutosaveLocks,
     Autosaver,
+    entryError,
     lockName,
     noLocks,
     realClock,
     type RecoverOptions,
 } from "./Autosaver";
 import { indexedDbAutosaveStore } from "./indexedDbStore";
-import type { PageSource } from "./recovery";
+import { entryOfMeta, type PageSource } from "./recovery";
 import type {
     AutosaveApi,
     AutosaveAvailable,
+    AutosaveEntry,
     AutosaveOptions,
     AutosaveRestored,
     AutosaveStatus,
@@ -816,4 +818,76 @@ export class ElementAutosave {
             this.#env.window.removeEventListener("beforeunload", this.#guard);
         }
     }
+}
+
+/** Where {@link listAutosaves} and {@link removeAutosave} look. */
+export interface AutosaveLookupOptions {
+    /** The store the elements write to; the browser's IndexedDB by default. */
+    readonly store?: AutosaveStore;
+}
+
+/**
+ * Runs something against the store a lookup names, closing the default store afterwards.
+ * @param options - The lookup's options.
+ * @param act - What to do; receives no store where IndexedDB is missing.
+ * @returns What `act` returned.
+ */
+async function withLookupStore<T>(
+    options: AutosaveLookupOptions,
+    act: (store: AutosaveStore | undefined, env: AutosaveEnvironment) => Promise<T>,
+): Promise<T> {
+    const env = browserEnvironment();
+    const store = options.store ?? env.defaultStore();
+    try {
+        return await act(store, env);
+    } finally {
+        if (options.store === undefined) {
+            await store?.close?.();
+        }
+    }
+}
+
+/**
+ * The work kept under an autosave key, read without an element: for a page that offers it before
+ * it shows a graph, such as a start screen. The same list as `autosaver.list()`, oldest first;
+ * `live` is true for an entry an element (in any tab) is writing now. Empty where the browser
+ * keeps no storage. Open an entry with `autosaver.restore(id)` on an element with the same key.
+ * @param key - The autosave key.
+ * @param options - Where to look.
+ * @returns The entries.
+ */
+export function listAutosaves(key: string, options: AutosaveLookupOptions = {}): Promise<readonly AutosaveEntry[]> {
+    return withLookupStore(options, async (store, env) => {
+        if (store === undefined) {
+            return [];
+        }
+
+        const metas = await store.list(key);
+        const held = await env.locks.held();
+        return metas.map((meta) => entryOfMeta(meta, held.has(lockName(key, meta.id))));
+    });
+}
+
+/**
+ * Delete an entry of an autosave key that no element is writing, without an element: the
+ * reader declined to reopen it.
+ * @param key - The autosave key.
+ * @param id - The entry.
+ * @param options - Where to look.
+ * @returns Settles once the entry is deleted.
+ * @throws A `GraphtyError` (as a rejection): `E_AUTOSAVE_UNKNOWN_ENTRY` or `E_AUTOSAVE_ENTRY_TAKEN`.
+ */
+export function removeAutosave(key: string, id: string, options: AutosaveLookupOptions = {}): Promise<void> {
+    return withLookupStore(options, async (store, env) => {
+        const metas = store === undefined ? [] : await store.list(key);
+        if (store === undefined || !metas.some((meta) => meta.id === id)) {
+            throw entryError("E_AUTOSAVE_UNKNOWN_ENTRY", id);
+        }
+
+        if ((await env.locks.held()).has(lockName(key, id))) {
+            throw entryError("E_AUTOSAVE_ENTRY_TAKEN", id);
+        }
+
+        await store.remove(id);
+    });
 }

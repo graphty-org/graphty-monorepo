@@ -240,7 +240,7 @@ async function estimate(): Promise<{ usage: number | null; quota: number | null 
  * @param id - The entry.
  * @returns The error.
  */
-function entryError(code: "E_AUTOSAVE_UNKNOWN_ENTRY" | "E_AUTOSAVE_ENTRY_TAKEN", id: string): GraphtyError {
+export function entryError(code: "E_AUTOSAVE_UNKNOWN_ENTRY" | "E_AUTOSAVE_ENTRY_TAKEN", id: string): GraphtyError {
     return new GraphtyError({
         code,
         message: `Autosave entry ${id}: ${code}.`,

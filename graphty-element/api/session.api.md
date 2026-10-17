@@ -111,6 +111,11 @@ export type AttributeUse = {
 };
 
 // @public
+export interface AutosaveLookupOptions {
+    readonly store?: AutosaveStore;
+}
+
+// @public
 export interface BatchResult {
     readonly completed: number;
     readonly label: string;
@@ -1687,6 +1692,9 @@ export interface Limits {
 }
 
 // @public
+export function listAutosaves(key: string, options?: AutosaveLookupOptions): Promise<readonly AutosaveEntry[]>;
+
+// @public
 export const LOAD_ROLES: Readonly<Record<"nodes" | "edges", {
     readonly takes: readonly ColumnRole[];
     readonly requires: readonly ColumnRole[];
@@ -2361,6 +2369,9 @@ export interface RecordSort {
     readonly descending?: boolean;
     readonly key: string;
 }
+
+// @public
+export function removeAutosave(key: string, id: string, options?: AutosaveLookupOptions): Promise<void>;
 
 // @public
 export type RepaintReason = "add" | "update" | "remove" | "move" | "sweep";

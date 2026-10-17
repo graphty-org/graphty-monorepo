@@ -187,6 +187,27 @@ unless `discard: true` is passed; the current work then ends and stays listed. `
 `restore()` refuse an entry another tab is writing with `E_AUTOSAVE_ENTRY_TAKEN`, and a missing
 one with `E_AUTOSAVE_UNKNOWN_ENTRY`.
 
+### Before there is an element
+
+A page that shows something else first, such as a start screen, can offer the kept work before it
+creates an element. `listAutosaves(key)` lists a key's entries without one, and `removeAutosave(key, id)`
+deletes an entry no tab is writing:
+
+```javascript
+// From ./session, so the page does not load the element until it needs one.
+import { listAutosaves, removeAutosave } from "@graphty/graphty-element/session";
+
+const entries = await listAutosaves("acme.org-chart");
+const latest = [...entries].reverse().find((entry) => !entry.live && entry.ended === undefined);
+// The reader said Restore: create the element with the same key and open the entry.
+//     element.autosaveOptions = { restore: "manual" };
+//     await element.autosaver.restore(latest.id, { discard: true });
+// The reader said Discard:
+await removeAutosave("acme.org-chart", latest.id);
+```
+
+Both take `{ store }` for a store of your own. Where the browser keeps no storage, the list is empty.
+
 ## Status and codes
 
 `element.autosaver.status` is `{ state, savedAt, revision, entry, unexported, persisted, storage,

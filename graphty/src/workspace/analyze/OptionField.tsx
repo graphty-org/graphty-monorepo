@@ -1,4 +1,4 @@
-import { StyleNumberInput } from "@graphty/compact-mantine";
+import { FieldRow, PanelField, PanelLabelsProvider, ResetButton } from "@graphty/compact-mantine";
 import type { OptionDescriptor } from "@graphty/graphty-element/catalog";
 import { Checkbox, Select } from "@mantine/core";
 import type React from "react";
@@ -39,17 +39,35 @@ function NumberOption({
     onChange,
 }: Readonly<{ label: string } & Omit<OptionFieldProps, "algorithm">>): React.JSX.Element {
     const integer = option.type === "integer";
+    const set = num(value);
     return (
-        <StyleNumberInput
-            label={label}
-            value={num(value)}
-            defaultValue={num(option.default) ?? 0}
-            min={num(option.min)}
-            max={num(option.max)}
-            step={option.step ?? (integer ? 1 : undefined)}
-            decimalScale={integer ? 0 : undefined}
-            onChange={onChange}
-        />
+        <PanelLabelsProvider showLabels>
+            <FieldRow
+                trailing={
+                    set !== undefined && (
+                        <ResetButton
+                            label={label}
+                            onClick={() => {
+                                onChange(undefined);
+                            }}
+                        />
+                    )
+                }
+            >
+                <PanelField
+                    label={label}
+                    kind="number"
+                    value={set ?? num(option.default) ?? 0}
+                    min={num(option.min)}
+                    max={num(option.max)}
+                    step={option.step ?? (integer ? 1 : undefined)}
+                    decimalScale={integer ? 0 : undefined}
+                    onChange={(next) => {
+                        onChange(Number(next));
+                    }}
+                />
+            </FieldRow>
+        </PanelLabelsProvider>
     );
 }
 

@@ -127,6 +127,7 @@ const CHANNEL_UI: Readonly<Record<Channel, ChannelUi>> = {
     "node.drawOrder": { step: 1 },
     "node.borderColor": {},
     "node.borderWidth": { step: 0.05 },
+    "node.borderOpacity": { step: 0.05 },
     "node.borderStyle": { options: BORDER_STYLE_OPTIONS },
     "node.cornerRadius": { step: 0.05 },
     "edge.color": {},
@@ -136,6 +137,7 @@ const CHANNEL_UI: Readonly<Record<Channel, ChannelUi>> = {
     "edge.curvature": {},
     // A route is the numbers a file's drawing carries (yEd bends), not a value to type.
     "edge.bends": { hidden: true },
+    "edge.fanSpacing": { step: 0.1 },
     "edge.arrowHead": { options: ARROW_TYPE_OPTIONS },
     "edge.arrowHeadSize": { step: 0.1 },
     "edge.arrowHeadColor": {},

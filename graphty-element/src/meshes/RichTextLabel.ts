@@ -410,15 +410,7 @@ export class RichTextLabel {
         this.textSize = { width: maxWidth, height: totalHeight };
         const bgPadding = this.options.backgroundPadding * 2;
 
-        this.totalBorderWidth = 0;
-        if (this.options.borders.length > 0) {
-            for (let i = 0; i < this.options.borders.length; i++) {
-                this.totalBorderWidth += this.options.borders[i].width;
-                if (i < this.options.borders.length - 1 && this.options.borders[i].spacing > 0) {
-                    this.totalBorderWidth += this.options.borders[i].spacing;
-                }
-            }
-        }
+        this.totalBorderWidth = this._sumBorderWidth();
 
         const contentWidth = maxWidth + this.options.marginLeft + this.options.marginRight + bgPadding;
         const contentHeight = totalHeight + this.options.marginTop + this.options.marginBottom + bgPadding;
@@ -438,43 +430,11 @@ export class RichTextLabel {
         // to anything more. Without this a three-line label squeezed its canvas into one line's
         // height and drew its letters at a third of the size, and a line height of 2.5 shrank the
         // letters instead of spreading the lines.
-        // The first line WITH WORDS: a blank line has no height of its own to measure.
-        const firstLine = this.parsedContent.find((line) => line.length > 0);
-        if (firstLine === undefined) {
-            this.heightInLines = 1;
-        } else {
-            const { lineBox } = measureLine(tempCtx, firstLine, {
-                lineHeight: DEFAULT_LINE_HEIGHT,
-                textOutline: this.options.textOutline,
-                textOutlineWidth: this.options.textOutlineWidth,
-            });
-            const oneLine = this.actualDimensions.height - totalHeight + lineBox;
-            this.heightInLines = oneLine > 0 ? this.actualDimensions.height / oneLine : 1;
-        }
+        this.heightInLines = this._heightInLines(tempCtx, totalHeight);
 
         if (this.options.pointer) {
             this._calculatePointerDimensions();
-
-            if (this.pointerInfo) {
-                switch (this.pointerInfo.direction) {
-                    case "top":
-                        this.actualDimensions.height += this.options.pointerHeight;
-                        this.contentArea.y = this.totalBorderWidth + this.options.pointerHeight;
-                        break;
-                    case "bottom":
-                        this.actualDimensions.height += this.options.pointerHeight;
-                        break;
-                    case "left":
-                        this.actualDimensions.width += this.options.pointerHeight;
-                        this.contentArea.x = this.totalBorderWidth + this.options.pointerHeight;
-                        break;
-                    case "right":
-                        this.actualDimensions.width += this.options.pointerHeight;
-                        break;
-                    default:
-                        break;
-                }
-            }
+            this._addPointerRoom();
         }
 
         if (this.options._smartSizing) {
@@ -486,6 +446,76 @@ export class RichTextLabel {
             }
         }
 
+        this._addShadowRoom();
+    }
+
+    /**
+     * The width of every border plus the spacing between them.
+     * @returns The total, in canvas pixels.
+     */
+    private _sumBorderWidth(): number {
+        const { borders } = this.options;
+        let total = 0;
+        for (let i = 0; i < borders.length; i++) {
+            total += borders[i].width;
+            if (i < borders.length - 1 && borders[i].spacing > 0) {
+                total += borders[i].spacing;
+            }
+        }
+
+        return total;
+    }
+
+    /**
+     * How many single lines tall the label is, measured from its first line with words (a
+     * blank line has no height of its own to measure).
+     * @param ctx - A context to measure with.
+     * @param totalHeight - The height of the text.
+     * @returns The label's height in lines.
+     */
+    private _heightInLines(ctx: CanvasRenderingContext2D, totalHeight: number): number {
+        const firstLine = this.parsedContent.find((line) => line.length > 0);
+        if (firstLine === undefined) {
+            return 1;
+        }
+
+        const { lineBox } = measureLine(ctx, firstLine, {
+            lineHeight: DEFAULT_LINE_HEIGHT,
+            textOutline: this.options.textOutline,
+            textOutlineWidth: this.options.textOutlineWidth,
+        });
+        const oneLine = this.actualDimensions.height - totalHeight + lineBox;
+        return oneLine > 0 ? this.actualDimensions.height / oneLine : 1;
+    }
+
+    /** Grow the canvas on the pointer's side by the pointer's height. */
+    private _addPointerRoom(): void {
+        if (!this.pointerInfo) {
+            return;
+        }
+
+        switch (this.pointerInfo.direction) {
+            case "top":
+                this.actualDimensions.height += this.options.pointerHeight;
+                this.contentArea.y = this.totalBorderWidth + this.options.pointerHeight;
+                break;
+            case "bottom":
+                this.actualDimensions.height += this.options.pointerHeight;
+                break;
+            case "left":
+                this.actualDimensions.width += this.options.pointerHeight;
+                this.contentArea.x = this.totalBorderWidth + this.options.pointerHeight;
+                break;
+            case "right":
+                this.actualDimensions.width += this.options.pointerHeight;
+                break;
+            default:
+                break;
+        }
+    }
+
+    /** Grow the canvas evenly on every side to make room for the panel's shadow. */
+    private _addShadowRoom(): void {
         // ROOM FOR THE SHADOW, THE SAME ON EVERY SIDE, so the panel stays centered on the plane and
         // the shadow is not cut off at the canvas edge. The plane grows with it, in proportion, so
         // the letters keep their size.

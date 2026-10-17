@@ -31,6 +31,8 @@ export class RichTextParser {
         let currentPos = 0;
 
         const styleStack: RichTextStyle[] = [{ ...this.defaultStyle }];
+        // A copy of the style in force. The stack never empties: a closing tag never pops the base.
+        const top = (): RichTextStyle => ({ ...(styleStack.at(-1) ?? this.defaultStyle) });
 
         // `<lt>` draws a literal `<` (see escapeLabelMarkup); every other tag opens or closes a style.
         const tagRegex = /<(\/?)(bold|italic|color|size|font|bg|lt)(?:='([^']*)')?>/g;
@@ -40,7 +42,7 @@ export class RichTextParser {
             if (match.index > currentPos) {
                 segments.push({
                     text: line.substring(currentPos, match.index),
-                    style: { ...styleStack[styleStack.length - 1] },
+                    style: top(),
                 });
             }
 
@@ -48,7 +50,7 @@ export class RichTextParser {
             const tagName = match[2];
 
             if (tagName === "lt") {
-                segments.push({ text: "<", style: { ...styleStack[styleStack.length - 1] } });
+                segments.push({ text: "<", style: top() });
                 currentPos = match.index + match[0].length;
                 continue;
             }
@@ -59,7 +61,7 @@ export class RichTextParser {
                     styleStack.pop();
                 }
             } else {
-                const newStyle = { ...styleStack[styleStack.length - 1] };
+                const newStyle = top();
 
                 switch (tagName) {
                     case "bold":
@@ -93,7 +95,7 @@ export class RichTextParser {
         if (currentPos < line.length) {
             segments.push({
                 text: line.substring(currentPos),
-                style: { ...styleStack[styleStack.length - 1] },
+                style: top(),
             });
         }
 

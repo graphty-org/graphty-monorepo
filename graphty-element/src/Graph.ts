@@ -3630,18 +3630,7 @@ export class Graph implements GraphContext {
                 const distance = Math.sqrt(dx * dx + dy * dy);
 
                 if (duration < CLICK_MAX_DURATION_MS && distance < CLICK_MAX_MOVEMENT_PX) {
-                    // A click: on empty canvas it deselects. On a label with a close button it
-                    // deselects only on the x, and anywhere else on that label does nothing.
-                    const { pointerX: x, pointerY: y } = this.scene;
-                    const picked = this.scene.pick(x, y).pickedMesh;
-                    if (picked && isCloseLabel(picked)) {
-                        const close = closeRectOnScreen(picked);
-                        if (close !== undefined && inRect(close, x, y)) {
-                            this.selectionManager.deselect();
-                        }
-                    } else if ((picked?.metadata as { nodeId?: unknown } | null | undefined)?.nodeId === undefined) {
-                        this.selectionManager.deselect();
-                    }
+                    this.handleBackgroundClick();
                 }
             }
         });
@@ -3663,6 +3652,23 @@ export class Graph implements GraphContext {
                 this.canvas.style.cursor = over ? "pointer" : this.scene.defaultCursor;
             }
         });
+    }
+
+    /**
+     * A click on the canvas: on empty canvas it deselects. On a label with a close button it
+     * deselects only on the x, and anywhere else on that label does nothing.
+     */
+    private handleBackgroundClick(): void {
+        const { pointerX: x, pointerY: y } = this.scene;
+        const picked = this.scene.pick(x, y).pickedMesh;
+        if (picked && isCloseLabel(picked)) {
+            const close = closeRectOnScreen(picked);
+            if (close !== undefined && inRect(close, x, y)) {
+                this.selectionManager.deselect();
+            }
+        } else if ((picked?.metadata as { nodeId?: unknown } | null | undefined)?.nodeId === undefined) {
+            this.selectionManager.deselect();
+        }
     }
 
     /**

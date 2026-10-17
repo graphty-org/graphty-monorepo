@@ -1,4 +1,4 @@
-import { Axis, Matrix, type Mesh, type Scene, type TransformNode, Vector3 } from "@babylonjs/core";
+import { Axis, type Camera, Matrix, type Mesh, type Scene, type TransformNode, Vector3 } from "@babylonjs/core";
 
 import { FrameRoster } from "./FrameRoster";
 
@@ -151,50 +151,92 @@ class Fit {
         const parentScaleX = parent ? Math.abs(parent.absoluteScaling.x) : 1;
         const parentScaleY = parent ? Math.abs(parent.absoluteScaling.y) : 1;
 
-        // SCALE: twice, because how large a pixel is depends on how far away the label is, and
-        // where the label is depends on how large it is. The second pass is measured where the
-        // first one put it, which is where it is drawn.
         let scale = 1;
         if (label.screenHeight !== undefined) {
-            for (let pass = 0; pass < 2; pass++) {
-                this.place(label, label.placement, scale, parentWorld);
-                const perPixel = this.worldPerPixel(this.world);
-                if (perPixel <= 0) {
-                    return;
-                }
-
-                scale = (label.screenHeight * perPixel) / (label.planeHeight * parentScaleY);
+            const fitted = this.fitScale(label, label.screenHeight, parentWorld, parentScaleY);
+            if (fitted === undefined) {
+                return;
             }
 
+            scale = fitted;
             mesh.scaling.setAll(scale);
         }
 
-        let { placement } = label;
-        this.place(label, placement, scale, parentWorld);
+        this.place(label, label.placement, scale, parentWorld);
 
         if (label.keepInView) {
-            const widthWorld = label.planeWidth * scale * parentScaleX;
-            const heightWorld = label.planeHeight * scale * parentScaleY;
-            let over = this.overflow(widthWorld, heightWorld);
-            if (over !== null && (over.x !== 0 || over.y !== 0)) {
-                placement = mirrored(placement, over.x !== 0, over.y !== 0);
-                this.place(label, placement, scale, parentWorld);
-                over = this.overflow(widthWorld, heightWorld);
-            }
-
-            if (over !== null && (over.x !== 0 || over.y !== 0)) {
-                // Still out: move it in, along the screen's own axes, by what is out.
-                camera.getDirectionToRef(Axis.X, this.right);
-                camera.getDirectionToRef(Axis.Y, this.up);
-                this.right.scaleToRef(over.x * over.perPixel, this.shift);
-                this.up.scaleAndAddToRef(-over.y * over.perPixel, this.shift);
-                parentWorld.invertToRef(this.inverseParent);
-                Vector3.TransformNormalToRef(this.shift, this.inverseParent, this.shift);
-                this.local.addInPlace(this.shift);
-            }
+            this.keepInView(camera, label, scale, parentWorld, parentScaleX, parentScaleY);
         }
 
         mesh.position.copyFrom(this.local);
+    }
+
+    /**
+     * SCALE: twice, because how large a pixel is depends on how far away the label is, and
+     * where the label is depends on how large it is. The second pass is measured where the
+     * first one put it, which is where it is drawn.
+     * @param label - The label.
+     * @param screenHeight - The CSS pixels tall it is to be.
+     * @param parentWorld - The parent's world matrix.
+     * @param parentScaleY - The parent's vertical world scaling.
+     * @returns The plane's scaling, or undefined when the camera gives no pixel size there.
+     */
+    private fitScale(
+        label: ScreenFitLabel,
+        screenHeight: number,
+        parentWorld: Matrix,
+        parentScaleY: number,
+    ): number | undefined {
+        let scale = 1;
+        for (let pass = 0; pass < 2; pass++) {
+            this.place(label, label.placement, scale, parentWorld);
+            const perPixel = this.worldPerPixel(this.world);
+            if (perPixel <= 0) {
+                return undefined;
+            }
+
+            scale = (screenHeight * perPixel) / (label.planeHeight * parentScaleY);
+        }
+
+        return scale;
+    }
+
+    /**
+     * Keep a placed label on screen: mirror it to the other side of what it hangs from, and if
+     * it is still out, move it in along the screen's own axes by what is out.
+     * @param camera - The active camera.
+     * @param label - The label.
+     * @param scale - The plane's scaling.
+     * @param parentWorld - The parent's world matrix.
+     * @param parentScaleX - The parent's horizontal world scaling.
+     * @param parentScaleY - The parent's vertical world scaling.
+     */
+    private keepInView(
+        camera: Camera,
+        label: ScreenFitLabel,
+        scale: number,
+        parentWorld: Matrix,
+        parentScaleX: number,
+        parentScaleY: number,
+    ): void {
+        const widthWorld = label.planeWidth * scale * parentScaleX;
+        const heightWorld = label.planeHeight * scale * parentScaleY;
+        let over = this.overflow(widthWorld, heightWorld);
+        if (over !== null && (over.x !== 0 || over.y !== 0)) {
+            const placement = mirrored(label.placement, over.x !== 0, over.y !== 0);
+            this.place(label, placement, scale, parentWorld);
+            over = this.overflow(widthWorld, heightWorld);
+        }
+
+        if (over !== null && (over.x !== 0 || over.y !== 0)) {
+            camera.getDirectionToRef(Axis.X, this.right);
+            camera.getDirectionToRef(Axis.Y, this.up);
+            this.right.scaleToRef(over.x * over.perPixel, this.shift);
+            this.up.scaleAndAddToRef(-over.y * over.perPixel, this.shift);
+            parentWorld.invertToRef(this.inverseParent);
+            Vector3.TransformNormalToRef(this.shift, this.inverseParent, this.shift);
+            this.local.addInPlace(this.shift);
+        }
     }
 
     /**

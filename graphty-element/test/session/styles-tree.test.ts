@@ -213,6 +213,32 @@ describe("the style tree", () => {
         opened.dispose();
     });
 
+    it("reopens a renamed two-kind row with its name and both parts", async () => {
+        const saved = await threeNodes();
+        await saved.data.addEdges([{ source: "a", target: "b" }]);
+        const row = await saved.styles.addRow({
+            name: "Layer 1",
+            target: "both",
+            selector: { match: "everything" },
+            set: { "node.color": "#ffa500" },
+        });
+        await saved.styles.renameRow(row.id, "Poster");
+        const { text } = await saved.project.save();
+
+        const opened = createGraphSession();
+        assert.deepEqual((await opened.project.open(text)).problems, []);
+        const poster = opened.styles.tree().find((each) => each.name === "Poster");
+        assert.isDefined(poster, outline(opened));
+        const parts = opened.styles.parts(poster?.id ?? "");
+        assert.strictEqual(parts?.id, poster?.id);
+        assert.strictEqual(parts?.name, "Poster");
+        assert.strictEqual(parts?.target, "both");
+        assert.strictEqual(opened.styles.get(parts?.edge ?? "")?.name, "Poster");
+        assert.strictEqual(opened.styles.counts(parts?.node ?? "").matched, 3);
+        saved.dispose();
+        opened.dispose();
+    });
+
     it("makes each call one undo step and one change event", async () => {
         const session = await threeNodes();
         const red = await session.styles.add(paint("Red", "#ff0000"));

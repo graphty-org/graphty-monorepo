@@ -1674,6 +1674,39 @@ function stamped(spec: LayerSpec, templateId: string | undefined): LayerSpec {
 }
 
 /**
+ * The row each layer of a style document joins in this session.
+ *
+ * A document names a row by the id its node part had in the session that wrote it, and every layer
+ * is given a new id on the way in, so the saved key names no layer here: the row would lose its
+ * name and its parts. Each row is known again by its node part's new id (the last part's when it
+ * has no node part), as `addRow` keys one.
+ * @param specs - The document's layers.
+ * @param ids - The id each layer is given here, by position.
+ * @returns The new row key, by position, for each layer that is part of a row.
+ */
+function documentRowKeys(specs: readonly LayerSpec[], ids: readonly LayerId[]): Map<number, LayerId> {
+    const keyOf = new Map<string, LayerId>();
+    const nodeKeyed = new Set<string>();
+    specs.forEach((spec, index) => {
+        if (spec.row !== undefined && !nodeKeyed.has(spec.row)) {
+            keyOf.set(spec.row, ids[index]);
+            if (spec.target === "node") {
+                nodeKeyed.add(spec.row);
+            }
+        }
+    });
+
+    const keys = new Map<number, LayerId>();
+    specs.forEach((spec, index) => {
+        const key = spec.row === undefined ? undefined : keyOf.get(spec.row);
+        if (key !== undefined) {
+            keys.set(index, key);
+        }
+    });
+    return keys;
+}
+
+/**
  * Check a style document is one this element can read at all.
  *
  * A DOCUMENT MAY CARRY PALETTES AND THEY ARE NOT AN ERROR. The refusal here used to say that
@@ -3011,9 +3044,11 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         const imported: ImportedLayer[] = [];
         const unresolved = new Set<Path>();
         const warnings: CodedFact<GraphtyWarningCode>[] = [];
+        const ids = document.layers.map((spec) => id(spec.name));
+        const rowKeys = documentRowKeys(document.layers, ids);
 
-        for (const spec of document.layers) {
-            const authored = stamped(spec, templateId);
+        for (const [index, spec] of document.layers.entries()) {
+            const authored = stamped(rowKeys.has(index) ? { ...spec, row: rowKeys.get(index) } : spec, templateId);
 
             if (isElementSource(sourceOf(authored))) {
                 throw new GraphtyError({
@@ -3026,7 +3061,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 });
             }
 
-            const checked = check(authored, id(authored.name), false);
+            const checked = check(authored, ids[index], false);
 
             if (checked.layer === null) {
                 throw refusedSpec(authored.name, checked.result);

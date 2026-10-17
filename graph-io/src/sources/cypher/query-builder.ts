@@ -222,6 +222,8 @@ interface NeighborhoodShape {
     readonly direction: "out" | "in" | "both";
     /** The checked path limit, as text, or null for none. */
     readonly limit: string | null;
+    /** Whether the page starts after the neighbor key `$after` (a capped expansion's next page). */
+    readonly after?: boolean;
 }
 
 /**
@@ -246,12 +248,25 @@ export function neighborhood(
     const degrees = degree
         ? `, [m IN CASE WHEN p IS NULL THEN [s] ELSE nodes(p) END | [${idExpression("m", profile, filters)}, ${degreeOf("m")}]] AS degrees`
         : "";
-    return [
+    // A capped expansion is ordered by the neighbor's key, so its next page starts after the last
+    // key it returned. ponytail: a page boundary falling between two paths to the same neighbor
+    // (parallel relationships, or depth > 1) drops the later paths; page on (key, path) if that matters.
+    const head = [
         `MATCH (s) WHERE ${idExpression("s", profile, filters)} IN $ids`,
         `OPTIONAL MATCH p = (s)${pattern}(x)${x === null ? "" : ` WHERE ${x}`}`,
-        `WITH s, p${shape.limit === null ? "" : ` LIMIT ${shape.limit}`}`,
-        `RETURN s, p${degrees}`,
-    ].join(" ");
+    ];
+    if (shape.limit === null) {
+        return [...head, "WITH s, p", `RETURN s, p${degrees}`].join(" ");
+    }
+    return [
+        ...head,
+        `WITH s, p, ${idExpression("x", profile, filters)} AS key`,
+        shape.after === true ? "WHERE key > $after" : null,
+        `WITH s, p, key ORDER BY key LIMIT ${shape.limit}`,
+        `RETURN s, p, key${degrees}`,
+    ]
+        .filter((l) => l !== null)
+        .join(" ");
 }
 
 /**

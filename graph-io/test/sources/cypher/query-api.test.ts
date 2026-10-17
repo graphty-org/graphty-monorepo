@@ -16,6 +16,7 @@ import {
     type Recording,
     replayFetch,
     SOURCE_DEGREE_ATTR,
+    type SourceCursor,
     validateSource,
 } from "../../../src/index.js";
 import { neo4jSource } from "../../../src/sources/cypher/index.js";
@@ -35,6 +36,7 @@ function recorded(name: string): Recording[] {
 
 const PAGED = recorded("movies-paged");
 const QUERIES = recorded("movies-queries");
+const EXPAND_PAGED = recorded("movies-expand-paged");
 const MOVIES = { database: "movies", mode: "all", pageSize: 100 } as const;
 
 /** Load options against recordings, with the demo's published login. */
@@ -104,6 +106,37 @@ describe("cypher over the Query API (recorded from the Neo4j demo)", () => {
             options(QUERIES),
         );
         expect(expanded.snapshot.nodeCount).toBe(8);
+    });
+
+    it("pages a capped expansion by neighbor key, and its cursor continues where the last page stopped", async () => {
+        const keanu = "4:7bf987aa-a3d8-4759-97a2-84de2407046d:1";
+        const fetch = replayFetch(EXPAND_PAGED);
+        const request = { params: { database: "movies" }, ids: [keanu], limit: 3 };
+        const neighbors = new Set<string>();
+        let cursor: SourceCursor | undefined;
+        const pages: number[] = [];
+        for (;;) {
+            const page = await expandFromSource(neo4jSource, request, {
+                ...options(EXPAND_PAGED),
+                fetch,
+                ...(cursor === undefined ? {} : { cursor }),
+            });
+            pages.push(page.snapshot.nodeCount - 1);
+            for (const id of page.snapshot.ids) {
+                if (id !== keanu) {
+                    neighbors.add(String(id));
+                }
+            }
+            cursor = page.report.source?.next ?? undefined;
+            if (cursor === undefined) {
+                break;
+            }
+        }
+        // Keanu Reeves has 7 neighbors in the movies graph: 3, 3, then the last 1, none twice.
+        expect(pages).toEqual([3, 3, 1]);
+        expect(neighbors.size).toBe(7);
+        const bodies = EXPAND_PAGED.map((r) => JSON.parse(r.requestBody ?? "{}") as { statement: string });
+        expect(bodies[1].statement).toContain("WHERE key > $after");
     });
 
     it("reports a query error with the line and column the server named", async () => {

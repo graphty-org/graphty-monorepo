@@ -568,6 +568,35 @@ class SourceFetcher {
     }
 
     /**
+     * Whether a browser refused a credentialed request because it was redirected (sent with
+     * `redirect: "error"`, which fails like a CORS refusal): the same URL once more, WITHOUT the
+     * credential, under `redirect: "manual"`, whose answer to a redirect is an opaque redirect.
+     * @param url - the refused URL
+     * @returns true when the URL answers with a redirect
+     */
+    private async redirects(url: URL): Promise<boolean> {
+        if (this.input.options.retry === false) {
+            return false;
+        }
+        try {
+            const response = await this.fetchImpl(url, {
+                method: "GET",
+                redirect: "manual",
+                credentials: "omit",
+                cache: "no-store",
+                signal: this.signal,
+            });
+            await response.body?.cancel().catch(() => undefined);
+            return response.type === "opaqueredirect";
+        } catch {
+            if (this.signal.aborted) {
+                throw this.signal.reason as Error;
+            }
+            return false;
+        }
+    }
+
+    /**
      * Why the browser refused a request: one bodyless no-cors GET of the origin's root.
      * @param url - the refused URL
      * @returns the cause
@@ -613,6 +642,7 @@ class SourceFetcher {
      * @param attempt - the attempt, from 0
      * @param tries - the retries allowed
      * @param statuses - the statuses seen so far
+     * @param probeRedirect - whether a refused redirect may explain it (a credentialed GET or HEAD)
      * @returns true to retry
      */
     private async networkFailure(
@@ -621,6 +651,7 @@ class SourceFetcher {
         attempt: number,
         tries: number,
         statuses: (number | null)[],
+        probeRedirect: boolean,
     ): Promise<boolean> {
         if (this.signal.aborted) {
             throw this.signal.reason as Error;
@@ -631,6 +662,12 @@ class SourceFetcher {
         const { report } = this.input;
         statuses.push(null);
         if (this.runtime === "browser") {
+            if (probeRedirect && (await this.redirects(url))) {
+                return failOn(report, "E_SOURCE_REDIRECT", "a redirect while a credential was attached", {
+                    from: originPath(url),
+                    to: null,
+                });
+            }
             const cause = await this.diagnose(url);
             // a hidden 429 looks like a CORS refusal, so that one cause is retried once
             if (cause === "cors" && attempt === 0 && tries > 0) {
@@ -676,7 +713,17 @@ class SourceFetcher {
         try {
             return await this.send(url, init, 0);
         } catch (err) {
-            await this.networkFailure(err, url, attempt, tries, statuses);
+            const method = (init.method ?? "GET").toUpperCase();
+            const credentialed =
+                this.input.options.credential !== undefined && this.credentialOrigins.includes(originOf(url));
+            await this.networkFailure(
+                err,
+                url,
+                attempt,
+                tries,
+                statuses,
+                credentialed && (method === "GET" || method === "HEAD"),
+            );
             return null;
         } finally {
             release();

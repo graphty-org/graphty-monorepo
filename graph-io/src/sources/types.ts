@@ -175,9 +175,13 @@ export type SourceRequestInit = RequestInit & {
  * @category Network sources
  */
 export interface SourceLimitOptions {
-    /** Stop once this many nodes were written. */
+    /**
+     * Stop once this many nodes were written. Checked after each page a source returns, so a load
+     * can end one page past it (a page of works whose references become stub nodes can be
+     * thousands); a database source also sends it to the server as a LIMIT.
+     */
     readonly maxNodes?: number | undefined;
-    /** Stop once this many edges were written. */
+    /** Stop once this many edges were written. Checked after each page, as `maxNodes` is. */
     readonly maxEdges?: number | undefined;
     /** Stop once this many decoded response bytes were read. */
     readonly maxBytes?: number | undefined;

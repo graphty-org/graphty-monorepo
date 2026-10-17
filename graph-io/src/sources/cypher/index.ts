@@ -414,10 +414,12 @@ async function expand(reader: Reader, request: ExpandRequest<CypherParams>, sink
         failOn(report, "E_SOURCE_PARAM", "direction must be out, in or both", { name: "direction", reason: "enum" });
     }
     const limit = request.limit ?? ctx.limits.maxNodes;
+    const after = ctx.cursor?.after ?? null;
     const shape = {
         depth: checkedInteger(request.depth ?? 1, "depth", 1, MAX_DEPTH, report),
         direction,
         limit: limit === undefined ? null : checkedInteger(limit, "limit", 1, Number.MAX_SAFE_INTEGER, report),
+        after: after !== null,
     };
     const filters: QueryFilters =
         request.relationshipTypes === undefined
@@ -427,10 +429,17 @@ async function expand(reader: Reader, request: ExpandRequest<CypherParams>, sink
                   relationshipTypes: request.relationshipTypes.map((t) => quoted(t, "relationshipTypes", report)),
               };
     const profile = await reader.profile();
-    const { collected } = await reader.generated((d) => neighborhood(profile, filters, shape, d), { ids: request.ids });
+    const { collected, rows, fields } = await reader.generated((d) => neighborhood(profile, filters, shape, d), {
+        ids: request.ids,
+        ...(after === null ? {} : { after }),
+    });
     writeCollected(collected, sink, reader.idProperty, report, ctx.signal);
     const { server } = await reader.facts([]);
-    return ctx.finish({ server });
+    // A full page may have more behind it: hand back where the next one starts.
+    const last = rows.at(-1)?.[fields.indexOf("key")];
+    const full = shape.limit !== null && rows.length >= Number(shape.limit);
+    const next = full && (typeof last === "string" || typeof last === "number") ? { after: last } : null;
+    return ctx.finish({ server, next });
 }
 
 /**

@@ -46,6 +46,11 @@ export default async function setup(project: TestProject): Promise<() => Promise
             return;
         }
         const auth = req.headers.authorization ?? null;
+        if (req.url === "/cors/redirect") {
+            // a redirect to another origin, which a credentialed request must never follow
+            res.writeHead(302, { Location: "http://localhost:9/elsewhere" }).end();
+            return;
+        }
         if (req.method === "POST" && req.url === "/cors/db/neo4j/query/v2") {
             // a Neo4j Query API answer in typed JSON: one relationship between two nodes
             const node = (id: string): unknown => ({

@@ -65,6 +65,18 @@ describe("network sources in a browser", () => {
         expect(params).toEqual({ url: `${server}/plain/graph`, cause: "cors" });
     });
 
+    it("refuses a redirect of a credentialed request as E_SOURCE_REDIRECT, without following it", async () => {
+        const { code, params } = await failure(
+            loadFromSource(
+                remote,
+                { path: "/cors/redirect" },
+                { endpoint: server, credential: credentials.bearer("t0k"), retry: { baseDelayMs: 1 } },
+            ),
+        );
+        expect(code).toBe("E_SOURCE_REDIRECT");
+        expect(params).toEqual({ from: `${server}/cors/redirect`, to: null });
+    });
+
     it("reports a port nothing listens on as E_SOURCE_BLOCKED, cause unreachable", async () => {
         const dead = inject("deadServer");
         const { code, params } = await failure(loadFromSource(remote, { path: "/cors/graph" }, { endpoint: dead }));

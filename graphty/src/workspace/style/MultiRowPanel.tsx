@@ -1,5 +1,5 @@
 import type { Channel } from "@graphty/graphty-element/schema";
-import type { GraphSession, Layer, LayerReach, StyleRow } from "@graphty/graphty-element/session";
+import type { GraphSession, HistoryStepId, Layer, LayerReach, StyleRow } from "@graphty/graphty-element/session";
 import { Stack } from "@mantine/core";
 import React, { useState } from "react";
 
@@ -40,6 +40,8 @@ interface LastWrite extends BulkReceipt {
     readonly next: number;
     /** The history's position just after the write: undone past it, the receipt goes. */
     readonly position: number;
+    /** The layers it changed, so writes merged into one undo step count each layer once. */
+    readonly changedIds?: readonly string[];
 }
 
 /**
@@ -189,7 +191,8 @@ function manyOf(
         channel: Channel,
         write: Write,
         from = 0,
-    ): Promise<{ readonly updated: readonly unknown[]; readonly skipped: readonly unknown[] }> => {
+        after?: HistoryStepId,
+    ): Promise<{ readonly updated: readonly Layer[]; readonly skipped: readonly unknown[] }> => {
         const ordered = "each" in write ? topFirst(targets, channel) : targets;
         const values = "each" in write ? write.each(from + ordered.length) : [];
         const patches = ordered.flatMap((row, at) => {
@@ -209,8 +212,13 @@ function manyOf(
         if (patches.length === 0) {
             return { updated: [], skipped: [] };
         }
-        // Named in the history as what it did ("Undid changing fill on 5 layers").
-        return session.transaction(stepWords(channel, patches.length), (tx) => tx.styles.updateMany(patches));
+        // Named in the history as what it did ("Undid changing fill on 5 layers"). A value for
+        // each layer is written change by change into one step, named for every layer it reaches.
+        return session.transaction(
+            stepWords(channel, "each" in write ? ordered.length : patches.length),
+            (tx) => tx.styles.updateMany(patches),
+            after === undefined ? {} : { after },
+        );
     };
     const lowest = [...rows].sort(
         (a, b) =>
@@ -221,18 +229,22 @@ function manyOf(
     // A receipt speaks for its write only while that write is applied: undone, it goes. (Not
     // "the last step": "Also set those" adds a step before the receipt learns of it.)
     const last = bulk.last?.side === side && session.history.position >= bulk.last.position ? bulk.last : null;
-    const record = async (channel: Channel, write: Write): Promise<void> => {
+    const record = async (channel: Channel, write: Write, after?: HistoryStepId): Promise<void> => {
         const targets = targetsOf(channel);
         const left = rows.filter((row) => !targets.includes(row));
-        const result = await writeRows(targets, channel, write);
-        if (result.updated.length === 0 && result.skipped.length === 0 && left.length === 0) {
+        const result = await writeRows(targets, channel, write, 0, after);
+        // A write merged into the step before it adds to that step's receipt.
+        const merged = after !== undefined && last?.channel === channel ? (last.changedIds ?? []) : [];
+        const changedIds = [...new Set([...merged, ...result.updated.map((layer) => layer.id)])];
+        if (changedIds.length === 0 && result.skipped.length === 0 && left.length === 0) {
             return;
         }
         bulk.setLast({
             side,
             channel,
             write,
-            changed: result.updated.length,
+            changed: changedIds.length,
+            changedIds,
             unset: left.map((row) => row.row.name),
             left: left.map((row) => row.row.id),
             next: targets.length,
@@ -287,13 +299,13 @@ function manyOf(
                 return line?.value === undefined ? [] : [{ id: line.layer.id, name: row.row.name, value: line.value }];
             });
         },
-        vary: (channel, binding) => record(channel, { binding }),
+        vary: (channel, binding, after) => record(channel, { binding }, after),
         inOrder: (channel) =>
             topFirst(targetsOf(channel), channel).flatMap((row) => {
                 const layer = homeOf(row, channel);
                 return layer === undefined ? [] : [{ id: layer.id, name: row.row.name }];
             }),
-        writeEach: (channel, each, combine) => record(channel, { each, combine }),
+        writeEach: (channel, each, combine, after) => record(channel, { each, combine }, after),
         receipt: (channel) => (last?.channel === channel ? last : undefined),
         alsoSet: async (channel) => {
             if (last?.channel !== channel) {
@@ -357,7 +369,7 @@ function treeLayers(session: GraphSession, id: string): string[] {
  * @param tree - the style tree.
  * @param picked - the rows picked: layer rows and folders.
  * @param reach - the layer rows they reach.
- * @returns the words.
+ * @returns the words, or nothing when they would only repeat the header's count.
  */
 function scopeWords(tree: readonly StyleRow[], picked: readonly FoundRow[], reach: readonly LayerReach[]): string {
     const folders = picked.filter((row) => row.row.kind === "folder");
@@ -382,6 +394,10 @@ function scopeWords(tree: readonly StyleRow[], picked: readonly FoundRow[], reac
         ...(locked === 0 ? [] : [`${String(locked)} locked and skipped`]),
     ];
     const later = folders.length > 0 ? " Layers added later are not changed." : "";
+    // "3 layers." alone repeats the panel's header: there is nothing to add.
+    if (single === undefined && parts.length === 0 && later === "") {
+        return "";
+    }
     return `${head}${parts.length === 0 ? "" : `: ${parts.join(", ")}`}.${later}`;
 }
 
@@ -454,9 +470,10 @@ export function MultiRowPanel({ ids }: Readonly<{ ids: readonly string[] }>): Re
             />
         ),
     };
+    const scope = scopeWords(tree, picked, reach);
     return (
         <Stack gap={0}>
-            <StateLine id="ws-bulk-scope">{scopeWords(tree, picked, reach)}</StateLine>
+            {scope === "" ? null : <StateLine id="ws-bulk-scope">{scope}</StateLine>}
             {sides.length > 0 && (
                 <RowStyle
                     key={layerIds.join(" ")}

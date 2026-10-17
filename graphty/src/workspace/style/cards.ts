@@ -275,10 +275,15 @@ function leavesOf(session: GraphSession, selector: Selector): Leaves {
             return { leaves: [] };
         case "state":
             return { whole: selector, words: `On the canvas: ${selector.state}` };
-        case "ids":
-            return selector.edges === undefined
-                ? { leaves: [{ kind: "member", of: { nodes: selector.nodes ?? [] } }] }
-                : { whole: selector, words: "A rule set elsewhere" };
+        case "ids": {
+            // Ids picked by hand (a layer made from a selection): the nodes are a member leaf, so
+            // a condition can be added beside them; edge ids have no leaf form and stand alone.
+            const nodes = selector.nodes ?? [];
+            const edges = selector.edges ?? [];
+            return edges.length === 0
+                ? { leaves: [{ kind: "member", of: { nodes } }] }
+                : { whole: selector, words: pickedWords(nodes.length, edges.length) };
+        }
         case "member":
             return { leaves: [{ kind: "member", of: selector.of }] };
         default: {
@@ -293,6 +298,30 @@ function leavesOf(session: GraphSession, selector: Selector): Leaves {
             return { leaves, ...(rule.edges === undefined ? {} : { edges: rule.edges }) };
         }
     }
+}
+
+/**
+ * Whether a card is a fixed list of nodes picked by hand, whose words already say how many.
+ * @param card - the card.
+ * @returns true for that card.
+ */
+export const isPicked = (card: Card): boolean =>
+    card.type === "fixed" &&
+    card.leaf?.kind === "member" &&
+    typeof card.leaf.of === "object" &&
+    "nodes" in card.leaf.of;
+
+/**
+ * A fixed list of ids in words: "Picked by hand: 3 nodes", "Picked by hand: 1 node, 2 edges".
+ * @param nodes - how many nodes it lists.
+ * @param edges - how many edges it lists.
+ * @returns the words.
+ */
+export function pickedWords(nodes: number, edges: number): string {
+    const part = (n: number, one: string): string[] =>
+        n === 0 && one === "edge" ? [] : [`${String(n)} ${one}${n === 1 ? "" : "s"}`];
+    const parts = edges > 0 && nodes === 0 ? part(edges, "edge") : [...part(nodes, "node"), ...part(edges, "edge")];
+    return `Picked by hand: ${parts.join(", ")}`;
 }
 
 /**
@@ -408,17 +437,9 @@ function cardOf(session: GraphSession, leaf: RuleTree, fields: readonly CardFiel
             };
         }
         case "member": {
-            const name = field("id");
-            if (typeof leaf.of === "object" && "nodes" in leaf.of && name !== undefined) {
-                return {
-                    type: "text",
-                    key: keyOf(name),
-                    field: name,
-                    match: "list",
-                    text: "",
-                    caseSensitive: false,
-                    ids: leaf.of.nodes.map(String),
-                };
+            if (typeof leaf.of === "object" && "nodes" in leaf.of) {
+                // A fixed list of nodes reads as what it is, nodes picked by hand, whatever made it.
+                return { ...elsewhere, words: pickedWords(leaf.of.nodes.length, 0) };
             }
             if (typeof leaf.of === "object" && "set" in leaf.of) {
                 const set = session.sets.get(leaf.of.set)?.name ?? "a saved selection";
@@ -597,8 +618,7 @@ export function cardWords(session: GraphSession, card: Card): string {
             return `${name}: ${card.match}`;
         default: {
             if (card.match === "list") {
-                const ids = card.ids ?? [];
-                return ids.length === 1 ? `${name}: ${ids[0]}` : `${name}: ${String(ids.length)} nodes`;
+                return pickedWords((card.ids ?? []).length, 0);
             }
             if (card.text.trim() === "") {
                 return `${name}: type text`;

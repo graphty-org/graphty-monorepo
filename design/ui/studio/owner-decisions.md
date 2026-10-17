@@ -4,6 +4,25 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-17 -- Decided by the team: a pill's tooltip words, reachable refused rows, a still pointer, a caret target (compact-mantine)
+
+Additive, compact-mantine `VariablePill`: `tooltip?: string`, the tooltip's words when they are not
+the name and the value (lines break at "\n"); left out, the tooltip is the name then the value as
+before. The graphty app passes "Layer" where the pill shows the set-off token, so the tooltip never
+prints the token's marks. The pill's tooltip now opens above the field, so the line under it (the
+values a bound field reads) stays in view.
+
+Behavior, no API change:
+
+- `QuickActions`: the arrow keys reach a disabled row (its reason is its accessible description,
+  so a screen reader hears why), Enter there runs nothing, and the first highlight is still the
+  first enabled row. A disabled row's reason goes under its name and wraps whole, also where
+  `descriptions="end"` keeps other facts at the end of the line.
+- `StyleSelect`: a list that opens under a pointer that has not moved (a grid opens over its own
+  field) fills no option for it until the pointer moves, so it opens on the value in force.
+- `Tree`: a parent's caret has a 24 x 24 pointer target and a tooltip, "Expand <name>" or
+  "Collapse <name>" (the existing `expandSection` / `collapseSection` labels).
+
 ## 2026-10-17 -- Decided by the team: a draft says when its source is a graphty document, and a right-click keeps the selection
 
 Additive, graphty-element `./session`: `LoadDraft.graphtyDocument?: "project" | "document"`. Set

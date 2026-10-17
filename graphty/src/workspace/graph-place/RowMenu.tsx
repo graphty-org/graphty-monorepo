@@ -35,18 +35,26 @@ export function RowMenuItems({
     onMoveTo: (folderId: string | null) => void;
 }>): React.JSX.Element {
     const workspace = useWorkspace();
+    // A reason several rows share is drawn once, under the first of them.
+    const said = new Set<string>();
     const groups = GROUPS.map((group) => {
         const items = ROW_COMMANDS.filter((command) => command.group === group && command.applies(row)).map(
             (command) => {
                 const icon = typeof command.icon === "function" ? command.icon(row) : command.icon;
                 const Glyph = GLYPHS[icon];
+                const reason = command.disabled(row, workspace.session);
+                const drawn = reason === null || !said.has(reason);
+                if (reason !== null) {
+                    said.add(reason);
+                }
                 return (
                     <CommandMenuItem
                         key={command.id}
                         label={command.rowLabel?.(row) ?? command.label}
                         icon={<Glyph size={14} aria-hidden />}
                         shortcut={command.rowKeys[0]}
-                        reason={command.disabled(row, workspace.session)}
+                        reason={reason}
+                        reasonDrawn={drawn}
                         onRun={() => {
                             void command.run(workspace, row); // NOSONAR(S3735): a deliberately unawaited promise, marked as no-floating-promises asks
                         }}

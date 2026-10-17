@@ -246,6 +246,8 @@ const css = `
 .cm-listbox-multi .cm-menu-row[aria-selected="true"]:not(:hover):not([data-combobox-selected])::before {
     background: transparent;
 }
+/* A pointer that has not moved since the list opened is not hovering a choice (StyleSelect). */
+.cm-listbox.cm-pointer-still .cm-menu-row { pointer-events: none; }
 /* The check follows the value (data-checked), not aria-selected: Mantine's store moves
    aria-selected along with the keyboard highlight. */
 .cm-listbox .cm-menu-row .cm-menu-row-check {

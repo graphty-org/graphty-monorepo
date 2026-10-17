@@ -42,10 +42,13 @@ interface BulkBindingProps {
     readonly prefill?: readonly { readonly id: LayerId; readonly value: ChannelValue }[];
     /** What the popover sits beside: the property's row. */
     readonly anchor: React.RefObject<HTMLElement | null>;
-    /** By Layer: writes each layer its value, when the popover closes. */
-    readonly onApplyEach: (sequence: LayerSequence, combine: LayerBinding["combine"]) => void;
-    /** By a value of the data: copies the binding into each layer, when the popover closes. */
-    readonly onApplyBinding: (binding: DataBinding) => void;
+    /**
+     * By Layer: writes each layer its value, at each change (`last` false) and when the popover
+     * closes (`last` true); the caller makes them one undo step.
+     */
+    readonly onApplyEach: (sequence: LayerSequence, combine: LayerBinding["combine"], last: boolean) => void;
+    /** By a value of the data: copies the binding into each layer, at each change and when it closes. */
+    readonly onApplyBinding: (binding: DataBinding, last: boolean) => void;
     /** Closed with nothing to write. */
     readonly onCancel: () => void;
 }
@@ -82,10 +85,10 @@ function sameValue(a: unknown, b: unknown): boolean {
 }
 
 /**
- * Varying a property of several layers: the one binding popover, opened beside the property's row,
- * holding its binding until it closes. Closing it writes, as one undo step, each layer its own
- * plain value (by Layer) or its own copy of the binding (by a value of the data). Change source
- * moves between them without writing.
+ * Varying a property of several layers: the one binding popover, opened beside the property's row.
+ * Each change is written as it is made, so the drawing and the key show it, and the writes of one
+ * open are one undo step: each layer its own plain value (by Layer) or its own copy of the binding
+ * (by a value of the data). Closed unchanged, it writes nothing.
  * @param props - Component props
  * @param props.session - the element's session
  * @param props.descriptor - the property
@@ -117,11 +120,25 @@ export function BulkBinding({
         const proposal = propose(session, pick, channel);
         return proposal.ok ? { kind: "data", binding: proposal.binding } : null;
     };
-    const [held, setHeld] = useState<Held | null>(() => heldFor(start));
+    const [held, setHeldState] = useState<Held | null>(() => heldFor(start));
     // Opened on the layers' own values and closed unchanged: nothing to write.
     const [first] = useState(held);
+    // The values when it opened: each change is written at once, so the layers' values move on.
+    const [opened] = useState(prefill);
     const [open, setOpen] = useState(true);
     const ids = layers.map((layer) => layer.id);
+    const apply = (next: Held, last: boolean): void => {
+        if (next.kind === "layers") {
+            const { binding } = next;
+            onApplyEach((count) => layerValues(session, binding, channel, ids, count) ?? [], binding.combine, last);
+        } else {
+            onApplyBinding(next.binding, last);
+        }
+    };
+    const setHeld = (next: Held): void => {
+        setHeldState(next);
+        apply(next, false);
+    };
     if (held === null || ids.length === 0) {
         return null;
     }
@@ -137,16 +154,11 @@ export function BulkBinding({
                 if (next) {
                     return;
                 }
-                if (prefill !== undefined && held === first) {
+                if (opened !== undefined && held === first) {
                     onCancel();
                     return;
                 }
-                if (held.kind === "layers") {
-                    const { binding } = held;
-                    onApplyEach((count) => layerValues(session, binding, channel, ids, count) ?? [], binding.combine);
-                } else {
-                    onApplyBinding(held.binding);
-                }
+                apply(held, true);
             }}
         >
             <Popout.Panel
@@ -163,7 +175,7 @@ export function BulkBinding({
                             layers={ids}
                             binding={held.binding}
                             onChange={(binding) => {
-                                setHeld({ kind: "layers", binding: repaletted(held.binding, binding, prefill) });
+                                setHeld({ kind: "layers", binding: repaletted(held.binding, binding, opened) });
                             }}
                             onSource={change}
                         />

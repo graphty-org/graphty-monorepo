@@ -8,7 +8,7 @@ import { Box, Button, Checkbox, Group, Stack, Tabs, Text } from "@mantine/core";
 import React, { useEffect, useId, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
-import { findTreeRow, isHidden, isLocked, rowLayers as treeRowLayers } from "../graph-place/rows";
+import { findTreeRow, isBaseRow, isHidden, isLocked, rowLayers as treeRowLayers } from "../graph-place/rows";
 import { edgeName } from "../inspector/words";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
@@ -176,6 +176,7 @@ function rowKinds(session: GraphSession, store: WorkspaceStore, rowId: string): 
                 rows={[rowId]}
                 side={side}
                 autoOpen={justOn || isBlankRow(session, rowId)}
+                base={isBaseRow(session, rowId)}
             />
         ),
     };
@@ -644,11 +645,14 @@ function KindSwitch({
     onTurn: (on: boolean) => Promise<void>;
 }>): React.JSX.Element {
     const words = KIND_WORDS[side];
+    const all = state.on === state.of;
+    // A checked or clear box already says "all" or "none"; only a mixed one counts its layers.
     const label =
-        state.of > 1
+        state.of > 1 && state.on > 0 && !all
             ? `Style ${words.many}, on in ${String(state.on)} of ${String(state.of)} layers`
             : `Style ${words.many}`;
-    const all = state.on === state.of;
+    const fixed = only && all && state.of === 1;
+    const other = KIND_WORDS[side === "node" ? "edge" : "node"].many;
     return (
         <Checkbox
             size="xs"
@@ -656,8 +660,12 @@ function KindSwitch({
             label={label}
             checked={state.on > 0 && all}
             indeterminate={state.on > 0 && !all}
-            disabled={only && all && state.of === 1}
-            description={only && all && state.of === 1 ? "A layer styles nodes, edges or both" : undefined}
+            disabled={fixed}
+            description={
+                fixed
+                    ? `Stays on: a layer styles nodes, edges or both. To stop styling ${words.many}, style ${other} first.`
+                    : undefined
+            }
             onChange={() => {
                 void onTurn(!all);
             }}

@@ -47,10 +47,15 @@ describe("QuickActions", () => {
         expect(screen.getByRole("combobox")).toHaveAttribute("aria-activedescendant", first.id);
     });
 
-    it("moves the highlight with the arrows, skipping disabled rows, and runs with Enter", async () => {
+    it("moves the highlight with the arrows, reaching disabled rows, and runs with Enter", async () => {
         const onRun = vi.fn();
         renderShell(<QuickActions actions={ACTIONS} onRun={onRun} />);
+        // A disabled row is reached, so its reason is read; Enter there runs nothing.
         await userEvent.keyboard("{ArrowDown}{ArrowDown}");
+        expect(screen.getByRole("option", { name: "Boost resolution" })).toHaveAttribute("data-highlighted");
+        await userEvent.keyboard("{Enter}");
+        expect(onRun).not.toHaveBeenCalled();
+        await userEvent.keyboard("{ArrowDown}");
         expect(screen.getByRole("option", { name: /Frame/ })).toHaveAttribute("data-highlighted");
         await userEvent.keyboard("{ArrowDown}");
         expect(screen.getByRole("option", { name: "Ink Wireframe" })).toHaveAttribute("data-highlighted");
@@ -145,8 +150,13 @@ describe("QuickActions", () => {
             expect(list).not.toHaveAttribute("tabindex");
             expect(list).not.toHaveAttribute("aria-activedescendant");
             expect(input).toHaveAttribute("aria-activedescendant", screen.getByRole("option", { name: "degree" }).id);
-            // The disabled field stays listed, and the arrows skip it.
-            expect(screen.getByRole("option", { name: "community" })).toHaveAttribute("aria-disabled", "true");
+            // The disabled field stays listed, and the arrows reach it, so its reason is read.
+            const community = screen.getByRole("option", { name: "community" });
+            expect(community).toHaveAttribute("aria-disabled", "true");
+            await userEvent.keyboard("{ArrowDown}");
+            expect(input).toHaveAttribute("aria-activedescendant", community.id);
+            await userEvent.keyboard("{Enter}");
+            expect(onRun).not.toHaveBeenCalled();
             await userEvent.keyboard("{ArrowDown}");
             expect(input).toHaveFocus();
             expect(screen.getByRole("option", { name: /shared_chapters/ })).toHaveAttribute("data-highlighted");

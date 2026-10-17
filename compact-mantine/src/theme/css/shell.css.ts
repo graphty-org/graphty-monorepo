@@ -751,7 +751,7 @@ const css = `
 }
 .cm-qa-row[aria-disabled="true"] .cm-qa-row-description { color: var(--cm-text-disabled); }
 /* Why a row cannot run is read whole: it wraps, and the row grows to hold it. */
-.cm-qa-row[aria-disabled="true"][data-two-line] { height: auto; min-height: 44px; padding-block: 6px; }
+.cm-qa-row[aria-disabled="true"][data-two-line] { height: auto; min-height: 44px; }
 .cm-qa-row[aria-disabled="true"] .cm-qa-row-description { white-space: normal; overflow: visible; }
 /* A description at the end of the name's line: the row stays one line, the name gives way first. */
 .cm-qa-row-text[data-descriptions="end"] { flex-direction: row; align-items: baseline; gap: 8px; }

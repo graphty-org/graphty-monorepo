@@ -11,6 +11,7 @@ import {
     Stack,
     Text,
     TextInput,
+    Tooltip,
     UnstyledButton,
     useCombobox,
 } from "@mantine/core";
@@ -30,6 +31,7 @@ import {
     cardWords,
     edgeCards,
     isFinished,
+    isPicked,
     keyOf,
     leafOf,
     newCard,
@@ -269,9 +271,8 @@ function useHead(session: GraphSession, rows: readonly PickRow[], side: Side): s
     if (rows.length > 1) {
         // No one rule says what several Ends cards keep together (each reads its own layer's
         // nodes), so the union is left unsaid rather than drawn as "of 254 edges".
-        return matched === undefined
-            ? `${String(rows.length)} layers`
-            : `${String(rows.length)} layers, ${String(matched)} of ${String(total)} ${NOUN[side].many}`;
+        // How many layers is the panel's header's to say.
+        return `${matched === undefined ? "" : String(matched)} of ${String(total)} ${NOUN[side].many}`.trim();
     }
     return matched === undefined ? `of ${String(total)}` : `${String(matched)} of ${String(total)}`;
 }
@@ -284,6 +285,12 @@ interface WhichPickerProps {
     readonly side: Side;
     /** Open on arrival: a new layer, or a kind just turned on with no cards. */
     readonly autoOpen?: boolean;
+    /**
+     * The base layer (Everything holding the base look): it styles every element, so it is never
+     * narrowed. It reads "All 24 nodes", with no condition to add; a card it already holds can
+     * still be removed.
+     */
+    readonly base?: boolean;
 }
 
 /**
@@ -297,6 +304,7 @@ interface WhichPickerProps {
  * @param props.rows - the rows it writes
  * @param props.side - nodes or edges
  * @param props.autoOpen - open on arrival when it has no cards
+ * @param props.base - the base layer, which is never narrowed
  * @returns The picker
  */
 export function WhichPicker({
@@ -304,10 +312,11 @@ export function WhichPicker({
     rows: ids,
     side,
     autoOpen = false,
+    base = false,
 }: WhichPickerProps): React.JSX.Element | null {
     const rows = pickRows(session, ids, side);
     const shown = shownOf(rows);
-    const [open, setOpen] = useState(autoOpen && shown.length === 0);
+    const [open, setOpen] = useState(autoOpen && !base && shown.length === 0);
     // Opened on arrival, it starts on Add a condition -- unless the reader is moving between the
     // Node and Edge tabs with the arrow keys: focus stays on the tabs, which the arrows act on.
     const [focusKey, setFocusKey] = useState<string | null>(() =>
@@ -317,6 +326,9 @@ export function WhichPicker({
     const regionId = useId();
     if (rows.length === 0) {
         return null;
+    }
+    if (base && shown.length === 0 && !open) {
+        return <BaseRow session={session} rows={rows} side={side} />;
     }
     const close = (): void => {
         setOpen(false);
@@ -332,6 +344,7 @@ export function WhichPicker({
                     initial={shown}
                     focusKey={focusKey}
                     regionId={regionId}
+                    base={base}
                     onClose={close}
                 />
             ) : (
@@ -387,6 +400,7 @@ function WhichRow({
     const head = useHead(session, rows, side);
     const words = shown.map((each) => chipWords(session, each, rows.length));
     const empty = `All ${many(total, side)}: add a condition to narrow`;
+    const hint = `All ${many(total, side)}`;
     return (
         <UnstyledButton
             ref={buttonRef}
@@ -411,9 +425,10 @@ function WhichRow({
             </Group>
             <span className="ws-which-chips">
                 {shown.length === 0 ? (
-                    <span className="ws-chip" data-warn>
-                        {empty}
-                    </span>
+                    // Read with the panel, not a warning: every element is a fine answer.
+                    <Text size="xs" c="dimmed" span className="ws-which-hint">
+                        {hint}: add a condition to narrow
+                    </Text>
                 ) : (
                     shown.map((each, at) => (
                         <Chip key={each.key} session={session} shown={each} side={side} words={words[at]} />
@@ -421,6 +436,41 @@ function WhichRow({
                 )}
             </span>
         </UnstyledButton>
+    );
+}
+
+/**
+ * The base layer's Which row: the count and "All 24 nodes", read as a line, never opened.
+ * @param props - Component props
+ * @param props.session - the element's session
+ * @param props.rows - the rows it reads
+ * @param props.side - nodes or edges
+ * @returns The line
+ */
+function BaseRow({
+    session,
+    rows,
+    side,
+}: Readonly<{ session: GraphSession; rows: readonly PickRow[]; side: Side }>): React.JSX.Element {
+    const stats = session.data.statistics();
+    const total = side === "node" ? stats.nodeCount : stats.edgeCount;
+    const head = useHead(session, rows, side);
+    return (
+        <div className="ws-which" data-testid="which-picker" data-side={side} data-base="">
+            <div className="ws-which-base">
+                <Group gap={4} wrap="nowrap" className="ws-which-head">
+                    <Text size="xs" fw={600} span>
+                        Which {NOUN[side].many}
+                    </Text>
+                    <Text size="xs" c="dimmed" span ml="auto">
+                        {head}
+                    </Text>
+                </Group>
+                <Text size="xs" c="dimmed" className="ws-which-hint">
+                    All {many(total, side)}
+                </Text>
+            </div>
+        </div>
     );
 }
 
@@ -448,8 +498,9 @@ function chipWords(session: GraphSession, shown: Shown, rows: number): string {
         return cardWords(session, shown.card);
     }
     const holding = shown.per.filter((each) => each !== undefined).length;
-    const layers = holding < rows ? `${String(holding)} of ${String(rows)} layers` : `${String(rows)} layers`;
-    return `${cardName(shown.card)}: ${LAYER_TOKEN}, ${layers}`;
+    // Every layer holding it needs no count: the panel's header says how many layers there are.
+    const layers = holding < rows ? `, ${String(holding)} of ${String(rows)} layers` : "";
+    return `${cardName(shown.card)}: ${LAYER_TOKEN}${layers}`;
 }
 
 /**
@@ -468,7 +519,8 @@ function Chip({
     words,
 }: Readonly<{ session: GraphSession; shown: Shown; side: Side; words: string }>): React.JSX.Element {
     const { card } = shown;
-    const count = useLeafCount(session, shown.shared ? leafOf(card) : null, side);
+    // A card picked by hand says its count in its words.
+    const count = useLeafCount(session, shown.shared && !isPicked(card) ? leafOf(card) : null, side);
     const finished = isFinished(card);
     return (
         <span className="ws-chip" data-chip={shown.key} data-todo={finished ? undefined : ""}>
@@ -492,6 +544,7 @@ type OnCard = (next: Card) => void;
  * @param props.initial - the cards when it opened
  * @param props.focusKey - the card (or "add") to focus first
  * @param props.regionId - the open cards' id, which the row controls
+ * @param props.base - the base layer: no condition is added to it
  * @param props.onClose - closes the cards
  * @returns The region
  */
@@ -502,6 +555,7 @@ function Cards({
     initial,
     focusKey,
     regionId,
+    base,
     onClose,
 }: Readonly<{
     session: GraphSession;
@@ -510,6 +564,7 @@ function Cards({
     initial: readonly Shown[];
     focusKey: string | null;
     regionId: string;
+    base: boolean;
     onClose: () => void;
 }>): React.JSX.Element {
     const { store } = useWorkspace();
@@ -654,8 +709,9 @@ function Cards({
                     {why}
                 </Text>
             )}
-            {!standsAlone && <AddCondition fields={fields} used={list.map((each) => each.key)} onAdd={add} />}
-            {list.length > 0 && (
+            {!standsAlone && !base && <AddCondition fields={fields} used={list.map((each) => each.key)} onAdd={add} />}
+            {/* The base layer offers no condition, so Done stays to close it once its last card goes. */}
+            {(list.length > 0 || base) && (
                 <Group justify="flex-end">
                     <Button size="compact-xs" onClick={onClose}>
                         Done
@@ -1004,10 +1060,13 @@ function CardEditor({
     if (ends !== undefined && ends !== null && ends.length > 0) {
         endsLeaf = ends.length === 1 ? ends[0] : { kind: "all", of: ends };
     }
+    // A card picked by hand says its count in its words.
+    let counted: RuleTree | null = isPicked(card) ? null : leafOf(card);
+    if (card.type === "ends") {
+        counted = endsLeaf;
+    }
     // An unfinished card keeps nothing out yet, so it shows what the layer keeps without it.
-    const count =
-        useLeafCount(session, card.type === "ends" ? endsLeaf : leafOf(card), side, reading) ??
-        (isFinished(card) ? undefined : without);
+    const count = useLeafCount(session, counted, side, reading) ?? (isFinished(card) ? undefined : without);
     const name = card.type === "fixed" ? cardWords(session, card) : cardName(card);
     const label = count === undefined ? name : `${name}, ${many(count, side)}`;
     return (
@@ -1026,16 +1085,18 @@ function CardEditor({
                         {String(count)}
                     </Text>
                 )}
-                <CloseButton
-                    size="xs"
-                    aria-label={`Remove ${name}`}
-                    onClick={onRemove}
-                    onKeyDown={(event) => {
-                        if (event.key === "Delete") {
-                            onRemove();
-                        }
-                    }}
-                />
+                <Tooltip label={`Remove ${name}`}>
+                    <CloseButton
+                        size="xs"
+                        aria-label={`Remove ${name}`}
+                        onClick={onRemove}
+                        onKeyDown={(event) => {
+                            if (event.key === "Delete") {
+                                onRemove();
+                            }
+                        }}
+                    />
+                </Tooltip>
             </Group>
             <CardBody session={session} card={card} side={side} onChange={onChange} />
         </div>
@@ -1095,10 +1156,24 @@ function CardBody({
             // The rule's own text: an expression as it was typed, any other leaf as the element holds it.
             return card.leaf === null ? null : (
                 <Text size="xs" c="dimmed" style={{ overflowWrap: "anywhere" }}>
-                    {card.leaf.kind === "expression" ? card.leaf.where : JSON.stringify(card.leaf)}
+                    {fixedText(card.leaf)}
                 </Text>
             );
     }
+}
+
+/**
+ * A fixed card's leaf as its body says it: the ids picked by hand, an expression as it was typed,
+ * any other leaf as the element holds it.
+ * @param leaf - the leaf.
+ * @returns the text.
+ */
+function fixedText(leaf: RuleTree): string {
+    if (leaf.kind === "member" && typeof leaf.of === "object" && "nodes" in leaf.of) {
+        const ids = leaf.of.nodes.map(String);
+        return ids.length > 5 ? `${ids.slice(0, 5).join(", ")}, +${String(ids.length - 5)}` : ids.join(", ");
+    }
+    return leaf.kind === "expression" ? leaf.where : JSON.stringify(leaf);
 }
 
 /**
@@ -1662,7 +1737,9 @@ function LayerCard({
                 <Text size="xs" fw={600} truncate style={{ flex: 1, minWidth: 0 }}>
                     {name}
                 </Text>
-                <CloseButton size="xs" aria-label={`Remove ${name} from every layer`} onClick={onRemove} />
+                <Tooltip label={`Remove ${name} from every layer`}>
+                    <CloseButton size="xs" aria-label={`Remove ${name} from every layer`} onClick={onRemove} />
+                </Tooltip>
             </Group>
             <UnstyledButton
                 className="ws-card-layer"

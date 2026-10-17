@@ -12,6 +12,11 @@ export interface VariablePillProps {
     /** The variable's resolved value, shown in the pill and in its tooltip ("4"). */
     value?: string;
     /**
+     * The tooltip's words, when they are not the name and the value: a name set off by marks in
+     * the pill reads without them here. Lines break at "\n". @default the name, then the value
+     */
+    tooltip?: string;
+    /**
      * Called by the Detach (broken link) button, which appears while the field is hovered or
      * focused. Without it there is no Detach button.
      */
@@ -77,7 +82,8 @@ const DETACH_GLYPH = 12;
  *
  * In a number field the value becomes a 20px pill (`--cm-bg`, 1px `--cm-border`, radius 5) after
  * the field's 24px glyph slot; hovering the pill shows the variable's name and value, and
- * hovering the field shows a 16px Detach button at its end. With `swatch` it is the bound fill
+ * hovering the field shows a 16px Detach button at its end. The tooltip opens above the field, so
+ * a line under it (the values it reads, a message) stays in view. With `swatch` it is the bound fill
  * row: one 156 x 24 button with a 14px chit and the name, which gains a 24px Detach button on
  * hover. `kind="property"` draws the component-property chip.
  *
@@ -105,6 +111,7 @@ export function VariablePill(props: VariablePillProps): React.JSX.Element {
         detachLabel = "Detach variable",
         "aria-label": ariaLabel,
         "aria-describedby": describedBy,
+        tooltip: tooltipWords,
         tone,
         onValueCommit,
         valueLabel = "Value",
@@ -126,7 +133,7 @@ export function VariablePill(props: VariablePillProps): React.JSX.Element {
             onValueCommit?.(text, event);
         }
     };
-    const tooltip = value === undefined ? name : `${name}\n${value}`;
+    const tooltip = tooltipWords ?? (value === undefined ? name : `${name}\n${value}`);
 
     const detach =
         onDetach === undefined ? null : (
@@ -150,7 +157,7 @@ export function VariablePill(props: VariablePillProps): React.JSX.Element {
                 data-kind={kind}
             >
                 {/* The name may be cut to fit the row: the tooltip says it whole. */}
-                <Tooltip label={tooltip} style={{ whiteSpace: "pre-line" }}>
+                <Tooltip label={tooltip} position="top" style={{ whiteSpace: "pre-line" }}>
                     <button
                         type="button"
                         className="cm-var-fill-button"
@@ -195,7 +202,7 @@ export function VariablePill(props: VariablePillProps): React.JSX.Element {
                 {glyph}
             </span>
             <span className="cm-var-pill-slot">
-                <Tooltip label={tooltip} style={{ whiteSpace: "pre-line" }}>
+                <Tooltip label={tooltip} position="top" style={{ whiteSpace: "pre-line" }}>
                     <button
                         type="button"
                         className="cm-var-pill cm-focus-outside"

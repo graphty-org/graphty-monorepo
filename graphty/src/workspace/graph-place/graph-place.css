@@ -93,9 +93,12 @@
     font-family: var(--mantine-font-family-monospace);
 }
 
+/* The tree takes the room the find list and the footer leave and scrolls inside it, so a long
+   list never runs under Graph settings. */
 .ws-graph-place > .cm-tree {
     flex: 1 1 auto;
     min-height: 0;
+    overflow-y: auto;
 }
 
 .ws-graph-footer {

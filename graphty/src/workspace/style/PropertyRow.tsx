@@ -1,7 +1,7 @@
 import { ComboInput, CompactColorInput, Popout, PopoutButton, VariablePill } from "@graphty/compact-mantine";
 import type { ChannelDescriptor } from "@graphty/graphty-element/catalog";
 import type { Channel, ChannelValue, LayerId } from "@graphty/graphty-element/schema";
-import type { GraphSession, Layer, LayerGroup, LegendBlock } from "@graphty/graphty-element/session";
+import type { GraphSession, HistoryStepId, Layer, LayerGroup, LegendBlock } from "@graphty/graphty-element/session";
 import { ActionIcon, Button, Text, TextInput, Tooltip, VisuallyHidden } from "@mantine/core";
 import React, { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
@@ -109,8 +109,8 @@ export interface ManyRows {
      * when they hold different plain values; undefined when they share one or one holds a binding.
      */
     readonly plain?: (channel: Channel) => readonly LayerValue[] | undefined;
-    /** Copies a binding into each layer a write reaches, as its own rule. */
-    readonly vary?: (channel: Channel, binding: DataBinding) => Promise<unknown>;
+    /** Copies a binding into each layer a write reaches, as its own rule; `after` merges it into that undo step. */
+    readonly vary?: (channel: Channel, binding: DataBinding, after?: HistoryStepId) => Promise<unknown>;
     /**
      * The layers Vary by Layer gives a value each, in list order (top first): of those a write
      * reaches, one layer per row, with the row's name.
@@ -121,6 +121,7 @@ export interface ManyRows {
         channel: Channel,
         sequence: LayerSequence,
         combine?: DataBinding["combine"],
+        after?: HistoryStepId,
     ) => Promise<unknown>;
     /** What the last write of the channel did, while it is the last write. */
     readonly receipt?: (channel: Channel) => BulkReceipt | undefined;
@@ -353,6 +354,9 @@ export function Field({
     // Several layers: the value picked in Vary ("layer" for Layer), held in the binding popover
     // until it closes.
     const [pendingVary, setPendingVary] = useState<DataChoice | "layer" | null>(null);
+    // Its writes, one at a time, as one undo step: each change shows on the drawing as it is made.
+    const bulkStep = useRef<HistoryStepId | undefined>(undefined);
+    const bulkChain = useRef<Promise<unknown>>(Promise.resolve());
     useFocusOnRemoval(box);
     const line = lineIn(ctx, channel);
     // A line on a locked layer (the element's own base layers) is not this row's.
@@ -381,6 +385,28 @@ export function Field({
                 box.current?.querySelector<HTMLElement>("[data-receipt] button")?.focus();
             });
         }).catch(fail);
+    };
+    // A write from the binding popover of several layers: each change as it is made, merged into
+    // the first one's undo step; the last, when the popover closes, ends the step.
+    const bulkWrite = (
+        run: (after: HistoryStepId | undefined) => Promise<unknown> | undefined,
+        last: boolean,
+    ): void => {
+        const done = bulkChain.current.then(async () => {
+            const at = session.history.position;
+            await run(bulkStep.current);
+            if (bulkStep.current === undefined && session.history.position !== at) {
+                bulkStep.current = session.history.steps[session.history.position - 1]?.id;
+            }
+            if (last) {
+                bulkStep.current = undefined;
+            }
+        });
+        bulkChain.current = done.catch(fail);
+        if (last) {
+            setPendingVary(null);
+            afterBulk(done);
+        }
     };
     const writeValue = (value: ChannelValue): void => {
         write(own?.combine === undefined ? { value } : { value, combine: own.combine });
@@ -670,7 +696,7 @@ export function Field({
                 <div className="ws-field-control">{control}</div>
                 <span className="ws-slot ws-vary">{varySlot}</span>
                 <span className="ws-slot">
-                    <Tooltip label={removeName}>
+                    <Tooltip label={removeName} position="top">
                         <ActionIcon variant="subtle" size="sm" aria-label={removeName} onClick={remove}>
                             <GLYPHS.remove size={14} aria-hidden />
                         </ActionIcon>
@@ -695,13 +721,11 @@ export function Field({
                     start={pendingVary}
                     prefill={pendingVary === "layer" ? spread : undefined}
                     anchor={box}
-                    onApplyEach={(sequence, combine) => {
-                        setPendingVary(null);
-                        afterBulk(ctx.many?.writeEach?.(channel, sequence, combine));
+                    onApplyEach={(sequence, combine, last) => {
+                        bulkWrite((after) => ctx.many?.writeEach?.(channel, sequence, combine, after), last);
                     }}
-                    onApplyBinding={(binding) => {
-                        setPendingVary(null);
-                        afterBulk(ctx.many?.vary?.(channel, binding));
+                    onApplyBinding={(binding, last) => {
+                        bulkWrite((after) => ctx.many?.vary?.(channel, binding, after), last);
                     }}
                     onCancel={() => {
                         setPendingVary(null);
@@ -795,7 +819,8 @@ function VaryButton({
             <Popout.Trigger>
                 {/* The Tooltip passes the trigger's click and ref to the button, but not its ARIA,
                     so the button states its own. */}
-                <Tooltip label={label}>
+                {/* Above the row, so it never covers the line under the field. */}
+                <Tooltip label={label} position="top">
                     <PopoutButton
                         icon={<GLYPHS.link size={14} aria-hidden />}
                         // One name for the button, its tooltip and the pop-out it opens.
@@ -905,7 +930,10 @@ function BoundValue({
         <>
             <VariablePill
                 name={view.name}
-                value={view.detail}
+                // The pill names the column ("donations") where the line under it says the range
+                // ("From 1 to 3"); both are in the tooltip.
+                value={isColor || view.list === undefined ? view.detail : undefined}
+                tooltip={[view.plain ?? view.name, view.detail].filter((w) => w !== undefined).join("\n")}
                 tone={view.tone}
                 swatch={isColor ? stripOf(view.list, view.fallback) : undefined}
                 swatchWidth={isColor ? SWATCH_STRIP : undefined}
@@ -1010,6 +1038,8 @@ function BoundValue({
 interface BoundView {
     /** The source's name in the pill: "Louvain", or the Layer token. */
     readonly name: string;
+    /** The name without the token's marks, where words are read rather than set off: "Layer". */
+    readonly plain?: string;
     readonly tone?: "component";
     /** The pill's second fact: a palette's name, a range, "reads nothing"; a color's tooltip line. */
     readonly detail?: string;
@@ -1105,6 +1135,7 @@ function layersView(
     ].join(", ");
     return {
         name: LAYER_TOKEN,
+        plain: "Layer",
         tone: "component",
         // A color's pill shows only the name; this is its tooltip's second line.
         detail: isColor ? `Each layer's own value, ${count(reached, "layer")}` : undefined,
@@ -1308,14 +1339,14 @@ function VariedLine({ list }: Readonly<{ list: LineList | undefined }>): React.J
         ) : (
             <span className="ws-varied-chits">
                 {[...shown, ...(list.other === undefined ? [] : [list.other])].map((entry, at) => (
-                    <span
-                        // Two layers may share a name: the place in the list keeps each its own.
-                        key={`${String(at)}:${entry.name}`}
-                        className="ws-varied-chit"
-                        title={entry.name}
-                        data-other={entry === list.other ? "" : undefined}
-                        style={{ background: entry.color ?? "var(--mantine-color-gray-5)" }}
-                    />
+                    // Two layers may share a name: the place in the list keeps each its own.
+                    <Tooltip key={`${String(at)}:${entry.name}`} label={entry.name}>
+                        <span
+                            className="ws-varied-chit"
+                            data-other={entry === list.other ? "" : undefined}
+                            style={{ background: entry.color ?? "var(--mantine-color-gray-5)" }}
+                        />
+                    </Tooltip>
                 ))}
                 {plus === null ? null : (
                     <Text span size="xs" c="var(--cm-text-secondary)" data-more>

@@ -5,7 +5,7 @@
  */
 
 import { MenuItemDescription, MenuShortcut } from "@graphty/compact-mantine";
-import { Menu, Tooltip, UnstyledButton } from "@mantine/core";
+import { Menu, Tooltip, UnstyledButton, VisuallyHidden } from "@mantine/core";
 import React, { Fragment } from "react";
 
 import { START_SAMPLES } from "../../data/sampleManifest";
@@ -25,6 +25,8 @@ import { useCommand, useWorkspace } from "../state/WorkspaceContext";
  * @param props.reason - Why it cannot run now, or null
  * @param props.onRun - Runs it
  * @param props.icon - Its icon, drawn before the label
+ * @param props.reasonDrawn - Whether the reason is drawn; false where a row above already shows
+ *   the same words, so a menu says a shared reason once. It is still read with the row.
  * @returns The row
  */
 export function CommandMenuItem({
@@ -33,13 +35,23 @@ export function CommandMenuItem({
     reason,
     onRun,
     icon,
+    reasonDrawn = true,
 }: Readonly<{
     label: string;
     shortcut: string | undefined;
     reason: string | null;
     onRun: () => void;
     icon?: React.ReactNode;
+    reasonDrawn?: boolean;
 }>): React.JSX.Element {
+    let why: React.ReactNode = null;
+    if (reason !== null) {
+        why = reasonDrawn ? (
+            <MenuItemDescription>{reason}</MenuItemDescription>
+        ) : (
+            <VisuallyHidden>{reason}</VisuallyHidden>
+        );
+    }
     return (
         <Menu.Item
             leftSection={icon}
@@ -51,7 +63,7 @@ export function CommandMenuItem({
             rightSection={shortcut === undefined ? undefined : <MenuShortcut>{formatKey(shortcut)}</MenuShortcut>}
         >
             {label}
-            {reason === null ? null : <MenuItemDescription>{reason}</MenuItemDescription>}
+            {why}
         </Menu.Item>
     );
 }

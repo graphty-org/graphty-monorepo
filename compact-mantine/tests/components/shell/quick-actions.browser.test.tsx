@@ -40,4 +40,29 @@ describe("QuickActions layout", () => {
         expect(second.bottom).toBeLessThanOrEqual(option.getBoundingClientRect().bottom);
         expect(option.getBoundingClientRect().height).toBeCloseTo(44, 0);
     });
+
+    it("puts why a row cannot run under its name, whole, even where descriptions end the line", async () => {
+        const reason = "Holds groups, not amounts: pick a value that holds numbers to size by it";
+        await renderThemed(
+            <QuickActions
+                actions={[
+                    { value: "d", label: "degree", description: "1 to 36" },
+                    { value: "c", label: "community", disabled: true, description: reason },
+                ]}
+                onRun={vi.fn()}
+                descriptions="end"
+                width={240}
+            />,
+        );
+        const option = screen.getByRole("option", { name: "community" });
+        const name = option.querySelector(".cm-qa-row-label")!.getBoundingClientRect();
+        const why = screen.getByText(reason);
+        expect(why.getBoundingClientRect().top).toBeGreaterThanOrEqual(name.bottom - 0.5);
+        expect(why.scrollWidth).toBeLessThanOrEqual(why.clientWidth);
+        expect(why.getBoundingClientRect().bottom).toBeLessThanOrEqual(option.getBoundingClientRect().bottom + 0.5);
+        // A fact that is not a reason still ends its name's line.
+        const fact = screen.getByText("1 to 36").getBoundingClientRect();
+        const degree = screen.getByRole("option", { name: "degree" }).querySelector(".cm-qa-row-label")!;
+        expect(fact.top).toBeLessThan(degree.getBoundingClientRect().bottom);
+    });
 });

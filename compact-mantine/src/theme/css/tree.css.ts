@@ -109,6 +109,17 @@ const css = `
     color: var(--cm-icon-tertiary);
     visibility: hidden;
 }
+/* The caret's pointer target: 24 x 24, centered on the 16px slot and over its neighbours' edges. */
+.cm-tree-caret-hit {
+    position: relative;
+    z-index: 1;
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+}
 .cm-tree:hover .cm-tree-caret,
 .cm-tree:focus-within .cm-tree-caret,
 .cm-tree-row:hover .cm-tree-caret,

@@ -217,7 +217,7 @@
 }
 
 /* A card's chip: its words and its own count, 11 px on the secondary fill; an unfinished card's
-   chip is dashed, and the "add a condition" chip is a warning. */
+   chip is dashed. */
 .ws-chip {
     padding: 0 6px;
     font-size: 11px;
@@ -235,11 +235,18 @@
     outline-offset: -1px;
 }
 
-.ws-chip[data-warn] {
-    box-shadow:
-        inset 0 0 0 1px var(--cm-bg-warning),
-        inset 4px 0 0 var(--cm-bg-warning);
-    padding-inline-start: 10px;
+/* "All 24 nodes": a line of the panel's reading, not a warning. */
+.ws-which-hint {
+    font-size: 11px;
+    line-height: 18px;
+}
+
+/* The base layer's Which row: a line, laid out as the disclosure row is, that never opens. */
+.ws-which-base {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 4px 0;
 }
 
 /* One condition card: its header (name, count, x), its Match select and its editor. */

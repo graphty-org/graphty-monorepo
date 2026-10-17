@@ -1,6 +1,6 @@
 import { ActionIcon, Group, Select, Tooltip } from "@mantine/core";
 import { useUncontrolled } from "@mantine/hooks";
-import React from "react";
+import React, { useState } from "react";
 
 import { PANEL_GRID, PANEL_INK } from "../constants/panel";
 import { useLabels } from "../i18n";
@@ -224,6 +224,20 @@ export function StyleSelect({
         onChange,
     });
 
+    // A list that opens under a pointer that has not moved (a grid opens over its own field)
+    // fills no option for it: the fill starts on the value in force, until the pointer moves.
+    const [pointerStill, setPointerStill] = useState(false);
+    const handleDropdownOpen = (): void => {
+        setPointerStill(true);
+        document.addEventListener(
+            "pointermove",
+            () => {
+                setPointerStill(false);
+            },
+            { once: true },
+        );
+    };
+
     const isDefault = selected === undefined;
     const placeholder = mixed ? labels.mixed : placeholderProp;
     // The state joins the name, so the gray italic is not the only sign of it. A caller's own
@@ -366,7 +380,11 @@ export function StyleSelect({
                         </span>
                     )
                 }
-                classNames={grid ? { options: "cm-listbox-grid" } : undefined}
+                onDropdownOpen={handleDropdownOpen}
+                classNames={{
+                    ...(grid ? { options: "cm-listbox-grid" } : {}),
+                    ...(pointerStill ? { dropdown: "cm-pointer-still" } : {}),
+                }}
                 disabled={disabled}
                 data-is-default={isDefault ? "true" : "false"}
                 allowDeselect={false}

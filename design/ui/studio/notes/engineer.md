@@ -17,6 +17,45 @@ Summarized again 2026-10-17 (25.6 KB). The long entries for names and words, foc
 order, the number card, spoken messages, focus after adding, the color box and drawing and camera
 are in git: `git show afc2ee150:design/ui/studio/notes/engineer.md`.
 
+1. (2026-10-17, style panel polish, graphty + compact-mantine) The Style panel's small defects.
+   Built and checked on a fresh build (`design/ui/studio/tmp/r1-dry1-style-panel-polish/walk2`,
+   `walk4`; sources.graphml and Les Miserables with Louvain):
+    - The base layer (Everything holding the base look, `isBaseRow`) is never narrowed:
+      `WhichPicker` `base` draws `BaseRow` ("Which nodes 24 of 24 / All 24 nodes"), no button, no
+      Add a condition (a card it already holds can still be removed). Other layers' "All N nodes:
+      add a condition to narrow" is a dimmed line (`.ws-which-hint`); `data-warn` is gone.
+    - Ids picked by hand: `leavesOf` reads `{match:"ids", nodes, edges: []}` (what a layer made
+      from a selection holds) as a member leaf, and any `member` of nodes is a fixed card "Picked
+      by hand: 3 nodes" (`pickedWords`, `isPicked`; its count is in its words, so no second count),
+      body lists the ids; Add a condition ANDs beside it. Edge ids still stand alone (no leaf form).
+    - Disabled only-kind checkbox: "Stays on: a layer styles nodes, edges or both. To stop styling
+      nodes, style edges first." A checked or clear several-layer box drops "on in 3 of 3 layers";
+      the scope line that only says "3 layers." is gone (the header says it); the Which head reads
+      "48 of 77 nodes" and a shared chip "Louvain: <<Layer>>" with no layer count.
+    - A bound number field's pill names its column ("donations"), the line under it says "From 1
+      to 3", the tooltip both. Pill tooltips (compact-mantine `VariablePill`, new `tooltip` prop)
+      open above; the folder's reads "Layer" without the marks. Vary and minus tooltips open above.
+      Group chits have Mantine tooltips (a native `title` never shows in a screenshot).
+    - Color from each layer writes each change at once (`BulkBinding` `apply(next, last)`;
+      `PropertyRow` `bulkWrite` chains writes and merges them with `TransactionOptions.after`; the
+      receipt counts layers across merged writes, `changedIds`). One Ctrl+Z undid two colors.
+    - compact-mantine: `QuickActions` arrows reach disabled rows (Enter runs nothing) and a reason
+      wraps whole under the name; `StyleSelect` adds `cm-pointer-still` (rows take no pointer until
+      the pointer moves) so a grid opens on the value in force; `Tree` caret has a 24 px target and
+      "Expand/Collapse <name>" tooltip (shows on the second hover when the pointer lands on a
+      caret that was hidden: no mouseenter fires on an element made visible under a still pointer).
+    - Row menu: a reason several rows share is drawn under the first, `VisuallyHidden` on the rest
+      (`CommandMenuItem` `reasonDrawn`). The style tree scrolls inside its room
+      (`.ws-graph-place > .cm-tree { overflow-y: auto }`): non-virtual `.cm-tree` had no overflow,
+      so a long list ran under Graph settings.
+    - Tests: `style/__tests__/StylePanelPolish.real-element.test.tsx` (6, all fail on the old
+      code); compact-mantine quick-actions (2 changed, 1 new), VariablePill, StyleSelect grid,
+      Tree caret (all fail on the old code). Pre-existing, not mine: compact-mantine Tree story
+      "Keyboard" (Alt+ArrowDown posinset) fails with HEAD's Tree too; figma tree "toggles: 24px".
+    - Checked live: College football, 10 Louvain groups open, find list open (`walk5`): the tree
+      scrolls, nothing under Graph settings. The shape grid's still pointer is proven by its
+      browser test only (a click lands on the value cell in a walk by chance).
+
 1. (2026-10-17, page and selection, graphty + graphty-element) The workspace behaves like an
    application. `.ws-app` is `user-select: none` (text boxes and editable text stay selectable,
    `frame.css`), and Mod+A outside a text box is `preventDefault`ed in `useCommandKeys` (the
@@ -134,6 +173,13 @@ are in git: `git show afc2ee150:design/ui/studio/notes/engineer.md`.
 
 ## Decisions and reasons
 
+- (2026-10-17) **The base layer is never narrowed; a hint is not a warning.** A condition on
+  Everything made every other node vanish (severity 3 in the pilots), so Everything offers none.
+  "All N nodes" on another layer is a fine answer and reads as a line, not an outlined warning.
+- (2026-10-17) **A preview is the change.** The several-layer binding popover writes each change
+  as it is made, merged into one undo step, instead of holding it until close: the drawing and the
+  key are how a reader judges a color.
+
 - (2026-10-17) **A right-click never changes the selection it asks about.** On something
   selected it keeps the whole selection; on empty canvas it clears nothing; on anything else it
   selects that, as a click does. Fixed in the element, where the click selects, so every host gets
@@ -248,6 +294,13 @@ are in git: `git show afc2ee150:design/ui/studio/notes/engineer.md`.
   simulation understates costs a person pays; weigh those findings up.
 
 ## Tried: worked / did not work
+
+- (2026-10-17) WORKED: splitting a shared file's changes since a snapshot taken before my first
+  edit (`tmp/style-panel-polish/split.py list|build`): theirs = snapshot + other agents' hunks,
+  mine = theirs -> working, staged = HEAD + mine. A hunk where both of us edited one line needs
+  the theirs file fixed by hand. Another agent's commit can sweep an uncommitted hunk of mine (it
+  took a shell.css.ts line) and their file restore can drop my edits (a WhichPicker batch): grep
+  for each edit's marker before building and before staging.
 
 - (2026-10-17) DID NOT WORK: swapping my files to HEAD for a "fails without" run when the test
   waited behind 13 others for a slot: the files sat at HEAD for minutes in the shared worktree

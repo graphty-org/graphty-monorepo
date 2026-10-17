@@ -631,6 +631,23 @@ describe("Tree: pointer", () => {
         expect(onSelect).not.toHaveBeenCalled();
     });
 
+    it("gives the caret a 24 px target that says what it does", async () => {
+        await renderThemed(<Tree items={ITEMS} />);
+        await userEvent.hover(row("Frame"));
+        const hit = within(row("Frame")).getByTestId("tree-caret").querySelector<HTMLElement>(".cm-tree-caret-hit");
+        expect(hit).not.toBeNull();
+        const box = hit!.getBoundingClientRect();
+        expect(box.width).toBeGreaterThanOrEqual(24);
+        expect(box.height).toBeGreaterThanOrEqual(24);
+        // A click past the 16 px glyph slot, over the type glyph's edge, still opens the row.
+        const slot = within(row("Frame")).getByTestId("tree-caret").getBoundingClientRect();
+        expect(box.right).toBeGreaterThan(slot.right);
+        await userEvent.click(hit!, { position: { x: slot.right - box.left + 2, y: 12 } });
+        expect(row("Frame")).toHaveAttribute("aria-expanded", "true");
+        await userEvent.hover(hit!);
+        await expect.poll(() => document.querySelector("[role=tooltip]")?.textContent).toBe("Collapse Frame");
+    });
+
     it("renames on double-click", async () => {
         const onRename = vi.fn();
         await renderThemed(<Tree items={ITEMS} onRename={onRename} />);

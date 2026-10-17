@@ -1,4 +1,4 @@
-import { Checkbox, VisuallyHidden } from "@mantine/core";
+import { Checkbox, Tooltip, VisuallyHidden } from "@mantine/core";
 import { useUncontrolled } from "@mantine/hooks";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import React, { forwardRef, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -157,6 +157,7 @@ export const TreeItem = forwardRef<HTMLDivElement, TreeItemProps>(function TreeI
     ref,
 ) {
     useCompactStyles();
+    const labels = useLabels();
     const isStrong = strong ?? (level === 1 && hasChildren);
     const hasActions = actions !== undefined && actions !== null && actions !== false;
     const hasSwatch = swatch !== undefined && swatch !== null && swatch !== false;
@@ -228,7 +229,14 @@ export const TreeItem = forwardRef<HTMLDivElement, TreeItemProps>(function TreeI
         >
             <span className="cm-tree-indent" style={{ width: iconOffset(level) - 16 }} />
             <span className="cm-tree-caret" aria-hidden="true" data-testid="tree-caret">
-                {hasChildren && <UiGlyph name={expanded ? "caretDown" : "caretRight"} size={PANEL_GRID.CHEVRON} />}
+                {hasChildren && (
+                    // A pointer target of 24 x 24 around the 16px glyph (WCAG 2.5.8), saying what it does.
+                    <Tooltip label={expanded ? labels.collapseSection(name) : labels.expandSection(name)}>
+                        <span className="cm-tree-caret-hit">
+                            <UiGlyph name={expanded ? "caretDown" : "caretRight"} size={PANEL_GRID.CHEVRON} />
+                        </span>
+                    </Tooltip>
+                )}
             </span>
             {checkbox && (
                 <span className="cm-tree-check" aria-hidden="true" data-testid="tree-check">

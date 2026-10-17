@@ -153,6 +153,22 @@ describe("StyleSelect grid", () => {
         expect(onChange).toHaveBeenCalledWith("shape-13");
     });
 
+    it("opens with no cell filled for a pointer that has not moved, until it moves", async () => {
+        await renderThemed(
+            <StyleSelect label="Shape" defaultValue="shape-24" options={OPTIONS} layout="grid" columns={4} />,
+        );
+        await userEvent.click(screen.getByRole("combobox", { name: /^Shape/ }));
+        const list = await screen.findByRole("listbox");
+        // The pointer rests where it clicked; a cell drawn under it is not hovered.
+        expect(list.closest(".cm-listbox")).toHaveClass("cm-pointer-still");
+        const cell = screen.getByRole("option", { name: "Sphere" });
+        expect(getComputedStyle(cell).pointerEvents).toBe("none");
+        await userEvent.hover(cell);
+        await waitFor(() => {
+            expect(list.closest(".cm-listbox")).not.toHaveClass("cm-pointer-still");
+        });
+    });
+
     it("shows every name whole in a 240px panel, with the name as each cell's tooltip", async () => {
         await renderThemed(
             <div style={{ width: 240 }}>

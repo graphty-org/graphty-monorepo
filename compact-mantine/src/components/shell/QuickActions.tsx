@@ -43,7 +43,10 @@ export interface QuickAction {
     section?: string;
     /** Extra words the default filter matches. */
     keywords?: readonly string[];
-    /** Shown, but cannot be run or highlighted. */
+    /**
+     * Shown, but cannot be run. The arrow keys still reach it, so its `description` (why it
+     * cannot be run) is read; it is never the first highlight.
+     */
     disabled?: boolean;
     /**
      * A second, dimmed line under the name: why a disabled action cannot be run ("Holds
@@ -228,13 +231,14 @@ export function QuickActions({
         }
         return [...bySection.entries()];
     }, [actions, filter, search]);
-    const enabled = sections.flatMap(([, list]) => list).filter((a) => !a.disabled);
+    const listed = sections.flatMap(([, list]) => list);
+    const enabled = listed.filter((a) => !a.disabled);
 
     // The highlight belongs to the search it was made in, so a new search highlights its first
     // result again.
     const [marked, setMarked] = useState<{ search: string; value?: string }>({ search: "" });
     const current =
-        marked.search === search && enabled.some((a) => a.value === marked.value) ? marked.value : enabled[0]?.value;
+        marked.search === search && listed.some((a) => a.value === marked.value) ? marked.value : enabled[0]?.value;
     const setHighlight = (value: string): void => {
         setMarked({ search, value });
     };
@@ -246,17 +250,18 @@ export function QuickActions({
     const optionId = (value: string): string => `${id}-option-${value}`;
 
     const onKeyDown = (event: React.KeyboardEvent<HTMLInputElement>): void => {
-        const index = enabled.findIndex((a) => a.value === current);
+        // A disabled row is reached too, so the reason it cannot run is heard; Enter skips it.
+        const index = listed.findIndex((a) => a.value === current);
         if (event.key === "ArrowDown" || event.key === "ArrowUp") {
             event.preventDefault();
-            if (enabled.length === 0) {
+            if (listed.length === 0) {
                 return;
             }
             const step = event.key === "ArrowDown" ? 1 : -1;
-            const next = enabled[(index + step + enabled.length) % enabled.length];
+            const next = listed[(index + step + listed.length) % listed.length];
             setHighlight(next.value);
             document.getElementById(optionId(next.value))?.scrollIntoView?.({ block: "nearest" });
-        } else if (event.key === "Enter" && current !== undefined) {
+        } else if (event.key === "Enter" && current !== undefined && enabled.some((a) => a.value === current)) {
             event.preventDefault();
             onRun(current);
         } else if (event.key === "Escape" && onClose) {
@@ -354,13 +359,14 @@ export function QuickActions({
                                     action.description ? `${optionId(action.value)}-description` : undefined
                                 }
                                 title={truncate === "middle" ? action.label : undefined}
-                                data-two-line={action.description && descriptions === "below" ? "" : undefined}
+                                // A reason a row cannot run goes under its name whole, never cut at the line's end.
+                                data-two-line={
+                                    action.description && (descriptions === "below" || action.disabled) ? "" : undefined
+                                }
                                 className="cm-qa-row"
                                 data-highlighted={action.value === current || undefined}
                                 onMouseMove={() => {
-                                    if (!action.disabled) {
-                                        setHighlight(action.value);
-                                    }
+                                    setHighlight(action.value);
                                 }}
                                 onMouseDown={(event) => {
                                     event.preventDefault();
@@ -383,7 +389,10 @@ export function QuickActions({
                                 <span className="cm-qa-row-icon" aria-hidden="true">
                                     {action.icon}
                                 </span>
-                                <span className="cm-qa-row-text" data-descriptions={descriptions}>
+                                <span
+                                    className="cm-qa-row-text"
+                                    data-descriptions={action.disabled ? "below" : descriptions}
+                                >
                                     <span className="cm-qa-row-label" data-truncate={truncate} data-tone={action.tone}>
                                         {truncate === "middle" ? <MiddleCut label={action.label} /> : action.label}
                                     </span>

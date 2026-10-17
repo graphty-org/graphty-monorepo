@@ -202,12 +202,6 @@ export interface CompactColorInputProps {
      * @default false
      */
     hideLabel?: boolean;
-    /**
-     * The swatches the picker offers, as `#RRGGBB` or `#RRGGBBAA` strings, in place of the
-     * built-in set: the colors a document already uses, for example. An empty list offers none.
-     * @default the built-in swatch set
-     */
-    swatches?: readonly string[];
 }
 
 /**
@@ -242,7 +236,6 @@ export interface CompactColorInputProps {
  * @param props.width - The field's width
  * @param props.showReset - Whether to offer the reset button
  * @param props.hideLabel - Whether the label only names the controls and is not drawn
- * @param props.swatches - The swatches the picker offers in place of the built-in set
  * @returns The paint field, and its reset button when something has been set
  * @example
  * ```tsx
@@ -272,7 +265,6 @@ export function CompactColorInput({
     width = DEFAULT_WIDTH,
     showReset = true,
     hideLabel = false,
-    swatches = SWATCH_COLORS_HEXA,
 }: CompactColorInputProps): React.JSX.Element {
     const labels = useLabels();
     const labelId = useId();

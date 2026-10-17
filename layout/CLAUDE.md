@@ -226,6 +226,7 @@ Use `assert`, not `expect`, as everywhere else in the package.
 
 ## Testing Guidelines
 
+- One test project (Node.js)
 - Use `assert` instead of `expect` for test assertions
 - Tests of the layouts are in `test/layouts/`, by family (geometric, structural, force and Kamada-Kawai)
 - Build test graphs with `fromEdgeArrays` or the `@graphty/graph-samples/generators`

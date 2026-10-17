@@ -258,7 +258,8 @@ function useHead(session: GraphSession, rows: readonly PickRow[], side: Side): s
     if (rows.length === 1) {
         const [{ layer }] = rows;
         ({ matched } = session.styles.counts(layer.id));
-    } else if (union === null && rows.every((row) => row.cards.length === 0)) {
+    } else if (rows.some((row) => row.cards.length === 0)) {
+        // A layer with no card picks every element, so together they pick them all.
         matched = total;
     } else {
         matched = unionCount;
@@ -434,7 +435,9 @@ function chipWords(session: GraphSession, shown: Shown, rows: number): string {
     if (shown.shared) {
         return cardWords(session, shown.card);
     }
-    return `${cardName(shown.card)}: ${LAYER_TOKEN}, ${String(rows)} layers`;
+    const holding = shown.per.filter((each) => each !== undefined).length;
+    const layers = holding < rows ? `${String(holding)} of ${String(rows)} layers` : `${String(rows)} layers`;
+    return `${cardName(shown.card)}: ${LAYER_TOKEN}, ${layers}`;
 }
 
 /**
@@ -1254,6 +1257,7 @@ function TextCard({
                         <TextInput
                             size="xs"
                             aria-label={`${name}: text`}
+                            placeholder="Type the text to match"
                             value={card.text}
                             onChange={(event) => {
                                 onChange({ ...card, text: event.currentTarget.value });
@@ -1328,6 +1332,8 @@ function LayerCard({
     const { card } = shown;
     const name = cardName(card);
     const holding = shown.per.filter((each) => each !== undefined).length;
+    const layers =
+        holding < rows.length ? `${String(holding)} of ${String(rows.length)} layers` : `${String(holding)} layers`;
     // The rows come bottom first (paint order); the tree lists them top first, and so does this card.
     const topFirst = rows.map((row, at) => ({ row, card: shown.per[at] })).reverse();
     const words = topFirst.flatMap(({ card: each }) =>
@@ -1337,7 +1343,7 @@ function LayerCard({
     return (
         <div // NOSONAR(S6819): an ARIA group naming one card's controls; a fieldset draws its own border and legend
             role="group"
-            aria-label={`${name}, from each layer, ${String(holding)} layers`}
+            aria-label={`${name}, from each layer, ${layers}`}
             className="ws-card"
             data-card={shown.key}
             data-by-layer
@@ -1351,7 +1357,7 @@ function LayerCard({
             <UnstyledButton
                 className="ws-card-layer"
                 aria-expanded={open}
-                aria-label={`${name}: from each layer, ${String(holding)} layers. ${line}`}
+                aria-label={`${name}: from each layer, ${layers}. ${line}`}
                 onClick={() => {
                     setOpen(!open);
                 }}
@@ -1363,7 +1369,7 @@ function LayerCard({
                 </Text>
                 <Text size="xs" span c="dimmed">
                     {" "}
-                    {String(holding)} layers
+                    {layers}
                 </Text>
                 <Text size="xs" c="dimmed" truncate>
                     {line}

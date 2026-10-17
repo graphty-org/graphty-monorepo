@@ -478,6 +478,20 @@ describe("the combined Style panel", () => {
         assert.strictEqual(session.history.position, steps + 1, "both layers in one step");
     });
 
+    it("on a layer with a card and one with none: every node, and the card held by 1 of 2 layers", async () => {
+        const session = await openSample();
+        const leaf: RuleTree = { kind: "text", reads: "data.name", mode: "substring", text: "Mme" };
+        await layerOf(session, "Some", { match: "rule", where: leaf });
+        await layerOf(session, "All");
+        await clickRow("Some");
+        await clickRow("All", "Control");
+        const row = await whichRow();
+        await waitFor(() => {
+            assert.match(row.getAttribute("aria-label") ?? "", /^Which nodes, 2 layers, 77 of 77 nodes$/);
+        });
+        assert.include(row.textContent ?? "", "name: «Layer», 1 of 2 layers");
+    });
+
     it("a rule the cards cannot draw opens as 'A rule set elsewhere' and is unchanged on close", async () => {
         const session = await openSample();
         const selector: Selector = { match: "expression", where: "data.name == 'Myriel' || data.name == 'Napoleon'" };

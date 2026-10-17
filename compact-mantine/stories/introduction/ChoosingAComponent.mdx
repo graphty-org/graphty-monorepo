@@ -13,15 +13,15 @@ the sidebar is. Each group's Overview page says more.
 The containers a property panel is built from, and the row layout every other component agrees
 with. [Overview](?path=/docs/components-panels-and-rows-overview--docs)
 
-| If you have                                                                            | Use               | Not                                                                   |
-| -------------------------------------------------------------------------------------- | ----------------- | --------------------------------------------------------------------- |
-| A run of controls that needs a name and folds away                                     | `ControlSection`  | --                                                                    |
-| A group that must never fold, or sits in a padded container such as a pop-out          | `ControlGroup`    | `ControlSection`, whose header folds                                  |
-| A few rarely-opened settings under a section you already have                          | `ControlSubGroup` | a second `ControlSection`, which is louder                            |
-| One or two fields sharing a line                                                       | `FieldRow`        | a hand-built flex row, which will not line up with the rows around it |
-| A row you are laying out by hand that must end level with the others                   | `TrailingSlot`    | --                                                                    |
-| Two or three values that are one thing (a color and its opacity, a width and its unit) | `CompoundRow`     | two separate fields                                                   |
-| A resizable panel edge                                                                 | `ResizeHandle`    | --                                                                    |
+| If you have                                                                            | Use                                       | Not                                                                   |
+| -------------------------------------------------------------------------------------- | ----------------------------------------- | --------------------------------------------------------------------- |
+| A run of controls that needs a name and folds away                                     | `ControlSection`                          | --                                                                    |
+| A group that must never fold, or sits in a padded container such as a pop-out          | `ControlGroup`                            | `ControlSection`, whose header folds                                  |
+| A few rarely-opened settings under a section you already have                          | an `AdvancedButton` that opens a `Popout` | `ControlSubGroup`, which is deprecated                                |
+| One or two fields sharing a line                                                       | `FieldRow`                                | a hand-built flex row, which will not line up with the rows around it |
+| A row you are laying out by hand that must end level with the others                   | `TrailingSlot`                            | --                                                                    |
+| Two or three values that are one thing (a color and its opacity, a width and its unit) | `CompoundRow`                             | two separate fields                                                   |
+| A resizable panel edge                                                                 | `ResizeHandle`                            | --                                                                    |
 
 ## Inputs
 

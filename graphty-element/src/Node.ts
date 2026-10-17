@@ -1119,7 +1119,10 @@ export class Node {
     private showOverlay(kind: "halo" | "context", wanted: boolean): void {
         const existing = kind === "halo" ? this.halo : this.contextPoint;
 
-        if (!wanted) {
+        // A HALO OF OPACITY 0 IS NOT DRAWN AT ALL. Drawn invisible it still covered the node in
+        // the depth and stencil buffers, so an outline on a selected node (`node.outline`) was
+        // painted over the whole node instead of around it.
+        if (!wanted || (kind === "halo" && this.selectionStyle().opacity === 0)) {
             if (existing && !existing.isDisposed()) {
                 existing.setEnabled(false);
             }

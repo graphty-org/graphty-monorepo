@@ -92,8 +92,21 @@ const CameraBehaviorOpts = z
                 left: z.number().min(0).default(0),
             })
             .prefault({}),
+        /*
+         * What zoom-to-fit fits into view in 3D.
+         *
+         * "box" BY DEFAULT: every corner of the box around the nodes and labels, as seen from
+         * the front. "turning" fits the nodes and labels themselves at every angle the view turns
+         * to about the graph's vertical axis -- as `autoRotate` and a sideways drag turn it -- so
+         * a turning graph stays in the frame and is not drawn smaller to make room for the empty
+         * corners of its box. 2D always fits the box.
+         */
+        fitBounds: z.enum(["box", "turning"]).default("box"),
     })
     .prefault({});
+
+/** What zoom-to-fit fits into view in 3D: the nodes' box, or the nodes at every turn of the view. */
+export type FitBounds = "box" | "turning";
 
 /** Room framing leaves clear at each edge of the canvas, in CSS pixels. */
 export interface FitInsets {

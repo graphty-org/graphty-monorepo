@@ -4094,7 +4094,7 @@ export class Graph implements GraphContext {
             // labels are framed by zoom-to-fit, on a data load or a layout change.
             const box = nodeFramingBox(this.getNodes());
             if (box) {
-                this.camera.zoomToBoundingBox(box.min, box.max);
+                this.camera.zoomToBoundingBox(box.min, box.max, box.spots);
             }
         }
     }

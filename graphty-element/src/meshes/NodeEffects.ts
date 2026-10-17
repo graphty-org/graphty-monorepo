@@ -77,6 +77,9 @@ export class NodeEffects {
             blurHorizontalSize: 0.5,
             blurVerticalSize: 0.5,
         });
+        // A RING AROUND THE NODE, NOT A FILL: the layer's inner glow paints over the mesh itself,
+        // which on a node a few pixels across covers the node's own color entirely.
+        highlightLayer.innerGlow = false;
 
         // Store on scene metadata
         scene.metadata = scene.metadata ?? {};

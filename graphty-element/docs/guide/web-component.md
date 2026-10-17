@@ -99,7 +99,8 @@ element.selectionStyle = {
 ```
 
 Merged over what is already set, so naming one field leaves the others alone, and it takes effect
-on a selection that is already on screen.
+on a selection that is already on screen. An `opacity` of `0` draws no halo at all, for a page that
+marks the selected node its own way, such as with a `node.outline` style layer.
 
 ### Expanding a node's neighborhood on demand
 
@@ -159,6 +160,16 @@ is not saved in a project file. They are the same settings as `layoutBehavior.ca
 and `layoutBehavior.camera.fitInsets`.
 
 The canvas still draws everywhere, so a node turned into an inset is drawn and can be pointed at.
+
+A 3D graph is framed by default so the box around it fits, seen from the front. A turning graph
+never shows its box's empty corners, so it is drawn smaller than it needs to be. Set
+`layoutBehavior.camera.fitBounds` to `"turning"` to fit the nodes themselves at every angle the
+view turns to about the vertical axis: the graph is drawn as large as it can be and still stays in
+the frame however far it turns. 2D always fits the box.
+
+```javascript
+element.layoutBehavior = { camera: { fitBounds: "turning" } };
+```
 
 ### Overlapping labels
 

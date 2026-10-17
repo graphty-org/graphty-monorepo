@@ -9,7 +9,7 @@ import {
     Vector3,
 } from "@babylonjs/core";
 
-import type { FitInsets } from "../config/GraphBehavior";
+import type { FitBounds, FitInsets } from "../config/GraphBehavior";
 import { glideTowards } from "./CameraManager";
 import { PivotController } from "./PivotController";
 
@@ -59,6 +59,39 @@ export function framedArea(
     return { scale, width, height, shareX, shareY };
 }
 
+/** A point a fit must keep in view, and how far the thing drawn there reaches around it. */
+export interface FramingSpot {
+    readonly pos: Vector3;
+    readonly half: number;
+}
+
+/**
+ * How far from the center the camera must stand to keep every spot in view at every angle the
+ * view turns to about the vertical axis through the center, for `camera.fitBounds` "turning".
+ *
+ * A spot `r` from that axis and `dy` above the center, seen from a camera `d` away, is drawn
+ * highest when it has turned nearest the camera: it fits when `d >= dy / tan(halfFovY) + r`.
+ * Sideways it sits at `r sin(a)` and `r cos(a)` nearer, and the worst angle needs
+ * `d >= r * sqrt(1 + 1 / tan(halfFovX)^2)`. Spots near the axis, the top and bottom of most
+ * graphs, ask for much less than the corners of the box around them would.
+ * @param center - The center the view turns about.
+ * @param spots - What must stay in view.
+ * @param tanX - The tangent of half the horizontal field of view.
+ * @param tanY - The tangent of half the vertical field of view.
+ * @returns The distance.
+ */
+export function turningFitDistance(center: Vector3, spots: readonly FramingSpot[], tanX: number, tanY: number): number {
+    const sideways = Math.sqrt(1 + 1 / (tanX * tanX));
+    let distance = 0;
+    for (const { pos, half } of spots) {
+        const r = Math.hypot(pos.x - center.x, pos.z - center.z) + half;
+        const dy = Math.abs(pos.y - center.y) + half;
+        distance = Math.max(distance, dy / tanY + r, r * sideways);
+    }
+
+    return distance;
+}
+
 /**
  * Controls a 3D orbit camera with pivot-based rotation and distance-based zoom.
  * Provides trackball-style rotation and keyboard/touch controls.
@@ -70,6 +103,8 @@ export class OrbitCameraController {
     public config: OrbitConfig;
     /** Room framing leaves clear at each edge, in CSS pixels; see `camera.fitInsets`. */
     public fitInsets: FitInsets = NO_INSETS;
+    /** What a fit fits into view; see `camera.fitBounds`. */
+    public fitBounds: FitBounds = "box";
 
     private readonly pivotController: PivotController;
 
@@ -240,10 +275,12 @@ export class OrbitCameraController {
      * Positions the pivot at the center and adjusts camera distance.
      * @param min - The minimum corner of the bounding box
      * @param max - The maximum corner of the bounding box
+     * @param spots - What the box holds; with `fitBounds` "turning", what is fitted.
      */
-    public zoomToBoundingBox(min: Vector3, max: Vector3): void {
+    public zoomToBoundingBox(min: Vector3, max: Vector3, spots?: readonly FramingSpot[]): void {
         const center = min.add(max).scale(0.5);
         const size = max.subtract(min);
+        const turning = this.fitBounds === "turning" && spots !== undefined && spots.length > 0;
 
         this.#sceneRadius = size.length() / 2;
 
@@ -298,7 +335,11 @@ export class OrbitCameraController {
         // We need to find the minimum distance that fits all corners
         let maxRequiredDistance = 0;
 
-        for (const sx of [-1, 1]) {
+        if (turning) {
+            maxRequiredDistance = turningFitDistance(center, spots, Math.tan(halfFovX), Math.tan(halfFovY));
+        }
+
+        for (const sx of turning ? [] : [-1, 1]) {
             for (const sy of [-1, 1]) {
                 for (const sz of [-1, 1]) {
                     const x = sx * halfWidth;
@@ -321,7 +362,8 @@ export class OrbitCameraController {
         // Apply a reasonable padding factor
         // Since we already include labels in the bounding box, we only need
         // a small padding for visual comfort and edge arrows
-        const PADDING_PERCENT = 5; // 5% padding
+        // The turning fit is already met only at the worst angle, so it gets no more room.
+        const PADDING_PERCENT = turning ? 0 : 5;
         const targetDistance = maxRequiredDistance * (1 + PADDING_PERCENT / 100);
 
         // Only the floor applies: a fit that the configured ceiling cut short would put the

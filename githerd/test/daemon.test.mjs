@@ -149,7 +149,9 @@ function writeConfig(overrides = {}) {
  */
 function pageOf(messages, path) {
     const page = Number(/[?&]page=(\d+)/.exec(path)?.[1] ?? 1);
-    return messages.slice((page - 1) * 100, page * 100).map((message) => ({ commit: { message } }));
+    return messages
+        .slice((page - 1) * 100, page * 100)
+        .map((m) => (typeof m === "string" ? { commit: { message: m } } : m));
 }
 
 /**
@@ -1386,6 +1388,36 @@ describe("the poll loop", () => {
         expect(pages().filter((p) => p.message.includes("poll is failing"))).toEqual([]);
     });
 
+    it("waits out a reserve hold-back until the reset, and pages when the poll still fails after it", async () => {
+        const reset = Date.parse("2026-10-02T12:10:00Z");
+        const daemon = await start({
+            peers: {
+                ownerFacts: async () => {
+                    throw new GitHubError("rate", "read call held back: 48 core calls left, below 300", {
+                        retryAt: reset,
+                    });
+                },
+            },
+        });
+        const failing = () => pages().filter((p) => p.message.includes("poll is failing"));
+        for (const at of ["12:00", "12:03", "12:06", "12:09"]) {
+            clock = new Date(`2026-10-02T${at}:00Z`);
+            await poll(daemon);
+        }
+        expect(daemon.state.github.waitUntil).toBe("2026-10-02T12:10:00.000Z");
+        expect(daemon.state.ownerItems?.["poll-failing"]).toBeUndefined();
+        expect(failing()).toEqual([]);
+
+        // Past the reset the poll is still held back: that is a real failure, two in a row page.
+        clock = new Date("2026-10-02T12:12:00Z");
+        await poll(daemon);
+        expect(failing()).toEqual([]);
+        clock = new Date("2026-10-02T12:15:00Z");
+        await poll(daemon);
+        expect(failing()).toHaveLength(1);
+        expect(daemon.state.ownerItems["poll-failing"].question).toContain("held back");
+    });
+
     it("keeps its ETags in etags.json, so a restarted daemon asks conditionally", async () => {
         const isRuns = (/** @type {string[]} */ args) => args.some((a) => a.includes("/workflows/ci.yml/runs?"));
         gh = createFakeGh((call) =>
@@ -2186,6 +2218,38 @@ describe("the poll loop", () => {
         clock = new Date("2026-10-02T12:03:00Z");
         await poll(daemon);
         expect(daemon.state.prs["7"]).toMatchObject({ ownerRejected: true });
+    });
+
+    it("keeps the owner's rejects across a head that only merged the base branch in (#2639)", async () => {
+        writeConfig({
+            requiredChecks: ["All Checks Pass"],
+            ownerGate: { steps: ["^Check visual changes were accepted$"], rejectMarker: "visual-review-rejects" },
+        });
+        // The fix was committed at 09:00 and rejected at 09:30; the head (10:00) merges master in.
+        scene.prs = [gatedPr()];
+        scene.prCommits = [
+            { parents: [{}], commit: { message: "fix(x): a fix", committer: { date: "2026-10-02T09:00:00Z" } } },
+            { parents: [{}, {}], commit: { message: "Merge master", committer: { date: "2026-10-02T10:00:00Z" } } },
+        ];
+        scene.comments = [
+            { user: { login: "owner" }, body: "<!-- visual-review-rejects {} -->", created_at: "2026-10-02T09:30:00Z" },
+        ];
+        const daemon = await start();
+        await poll(daemon);
+        expect(daemon.state.prs["7"]).toMatchObject({ ownerRejected: true, codeChangedAt: "2026-10-02T09:00:00Z" });
+        expect(daemon.state.prs["7"].stuck).toContain("owner rejected images: fix needed");
+        expect(daemon.state.prs["7"].stuck).not.toContain("waiting on owner: visual review");
+        const asked = gh.calls.map((c) => c.args.at(-1)).filter((p) => p?.includes("/issues/7/comments?"));
+        expect(asked[0]).toContain("since=2026-10-02T09:00:00Z");
+
+        // A record saved before `codeChangedAt` reads the commit list once more on the same head.
+        delete daemon.state.prs["7"].codeChangedAt;
+        daemon.state.prs["7"].ownerRejected = false;
+        const before = gh.calls.filter((c) => c.args.at(-1)?.includes("/pulls/7/commits")).length;
+        clock = new Date("2026-10-02T12:03:00Z");
+        await poll(daemon);
+        expect(daemon.state.prs["7"]).toMatchObject({ ownerRejected: true, codeChangedAt: "2026-10-02T09:00:00Z" });
+        expect(gh.calls.filter((c) => c.args.at(-1)?.includes("/pulls/7/commits")).length).toBe(before + 1);
     });
 
     it("honors githerd:next and githerd:skip only when the owner applied them", async () => {

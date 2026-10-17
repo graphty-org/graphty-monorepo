@@ -547,6 +547,10 @@ const STYLES_API: Readonly<Record<string, Door>> = {
         [{ run: "no-such-run" }],
         [{ op: "style.patch", action: "highlight", spec: { run: "no-such-run" } }],
     ),
+    mark: calls(
+        [{ run: "no-such-run", set: { "node.color": "#ff0000" } }],
+        [{ op: "style.patch", action: "mark", spec: { run: "no-such-run", set: { "node.color": "#ff0000" } } }],
+    ),
     legend: READ,
     proposeEncoding: READ,
     settled: READ,
@@ -1165,6 +1169,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             nodes: READ,
             edges: READ,
             edgeVersion: RENDER,
+            nodeVersion: RENDER,
             nodeCache: RENDER,
             edgesByIndex: READ,
             isLoading: READ,

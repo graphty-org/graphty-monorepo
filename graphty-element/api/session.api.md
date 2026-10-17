@@ -1317,7 +1317,21 @@ export type GraphtyWarningCode =
 * draw it translucent, so the color is drawn opaque. `params.channel` is the channel and
 * `params.path` where in the layer the color sits. Today only `node.outline` cannot.
 */
-| "W_ALPHA_IGNORED";
+| "W_ALPHA_IGNORED"
+/**
+* A layout that places nodes from their data found no usable `data.position` (`{ x, y, z? }`
+* or `[x, y, z?]`) for some nodes, and put them at the origin or left them where they were.
+* Emitted as a `layout-warning` event. `params.missing` is how many nodes had none and
+* `params.total` how many the layout placed. Today only the `fixed` layout reports it.
+*/
+| "W_NO_POSITION"
+/**
+* A layout was given options it does not take, and ran without them. Emitted as a
+* `layout-warning` event by the layouts that do not refuse an unknown option with
+* `E_UNKNOWN_OPTION`: `ngraph`, `forceatlas2`, `spring` and `spring-electrical`.
+* `params.options` lists the names it ignored and `params.available` the names it takes.
+*/
+| "W_UNKNOWN_OPTION";
 
 // @public
 export interface HighlightSpec {
@@ -1729,6 +1743,18 @@ export interface MachineCalibration {
     readonly machine: string;
     readonly memorySpeed?: number;
     readonly rates: Readonly<CostRates>;
+}
+
+// @public
+export interface MarkSpec extends HighlightSpec {
+    readonly set: StaticStyle;
+}
+
+// @public
+export interface MarkSuggestion {
+    readonly as: "mark";
+    readonly channels: readonly Channel[];
+    readonly spec: MarkSpec;
 }
 
 // @public
@@ -3579,6 +3605,7 @@ export interface StylesApi {
     legend(): readonly LegendBlock[];
     legendOf(id: LayerId): readonly LegendBlock[];
     list(): readonly Layer[];
+    mark(spec: MarkSpec, options?: RunOptions): Run<readonly Layer[]>;
     move(id: LayerId, before: LayerId | null, options?: RunOptions): Run<void>;
     proposeEncoding(spec: EncodingSpec | ColumnEncodingSpec): EncodingProposal;
     remove(id: LayerId, options?: RunOptions): Run<void>;
@@ -3595,7 +3622,7 @@ export interface StylesApi {
 }
 
 // @public
-export type StyleSuggestion = EncodingSuggestion | HighlightSuggestion;
+export type StyleSuggestion = EncodingSuggestion | HighlightSuggestion | MarkSuggestion;
 
 // @public
 export type SuggestionOutcome = {

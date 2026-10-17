@@ -14,7 +14,7 @@
  * every node is written exactly once.
  */
 
-import { type Column, type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
+import { type Column, type GraphSnapshot, INVALID_INDEX, type ListColumn } from "@graphty/graph-format";
 
 /**
  * The role of the column a children CSR is built over.
@@ -282,7 +282,6 @@ export function childrenFromColumn(nodeCount: number, column: Column | null): Ch
     let dropped = 0;
     const references: number[] = [];
     if (column !== null) {
-        const rows = Math.min(column.length, nodeCount);
         const keep = (child: number, parent: number): void => {
             if (!Number.isInteger(parent) || parent === INVALID_INDEX || parent >= nodeCount || parent === child) {
                 dropped++;
@@ -292,31 +291,9 @@ export function childrenFromColumn(nodeCount: number, column: Column | null): Ch
             rowPtr[parent + 1]++;
             parentCount[child]++;
         };
-        if (column.dtype === "u32") {
-            const { data } = column;
-            for (let i = 0; i < rows; i++) {
-                if (column.isSet(i)) {
-                    keep(i, data[i]);
-                }
-            }
-        } else if (column.dtype === "list") {
-            for (let i = 0; i < rows; i++) {
-                if (!column.isSet(i)) {
-                    continue;
-                }
-                for (const item of column.sliceOf(i)) {
-                    if (typeof item === "number") {
-                        keep(i, item);
-                    } else {
-                        dropped++;
-                    }
-                }
-            }
-        } else {
-            throw new TypeError(
-                `a containment column must be u32 or a list of u32, found ${column.dtype} column "${column.meta.name}"`,
-            );
-        }
+        // keep() counts into `dropped` while it runs, so add the non-numeric items after the call
+        const nonNumeric = readContainment(column, Math.min(column.length, nodeCount), keep);
+        dropped += nonNumeric;
     }
     for (let u = 0; u < nodeCount; u++) {
         rowPtr[u + 1] += rowPtr[u];
@@ -328,6 +305,56 @@ export function childrenFromColumn(nodeCount: number, column: Column | null): Ch
         children[fill[references[k + 1]]++] = references[k];
     }
     return new ChildrenCsr(nodeCount, rowPtr, children, parentCount, dropped, column);
+}
+
+/**
+ * Hand every (child, parent) reference of the first `rows` rows of a containment column to `keep`,
+ * in ascending child order.
+ * @param column - a u32 `parent`-shaped column or a list-of-u32 `parents`-shaped column
+ * @param rows - how many rows to read
+ * @param keep - receives each reference
+ * @returns how many list items were dropped for not being a number
+ */
+function readContainment(column: Column, rows: number, keep: (child: number, parent: number) => void): number {
+    if (column.dtype === "u32") {
+        const { data } = column;
+        for (let i = 0; i < rows; i++) {
+            if (column.isSet(i)) {
+                keep(i, data[i]);
+            }
+        }
+        return 0;
+    }
+    if (column.dtype === "list") {
+        return readParentLists(column, rows, keep);
+    }
+    throw new TypeError(
+        `a containment column must be u32 or a list of u32, found ${column.dtype} column "${column.meta.name}"`,
+    );
+}
+
+/**
+ * Hand every numeric item of a `parents`-shaped list column to `keep`.
+ * @param column - the list column
+ * @param rows - how many rows to read
+ * @param keep - receives each reference
+ * @returns how many items were not numbers
+ */
+function readParentLists(column: ListColumn, rows: number, keep: (child: number, parent: number) => void): number {
+    let dropped = 0;
+    for (let i = 0; i < rows; i++) {
+        if (!column.isSet(i)) {
+            continue;
+        }
+        for (const item of column.sliceOf(i)) {
+            if (typeof item === "number") {
+                keep(i, item);
+            } else {
+                dropped++;
+            }
+        }
+    }
+    return dropped;
 }
 
 /**

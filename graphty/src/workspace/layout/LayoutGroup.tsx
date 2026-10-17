@@ -1,4 +1,4 @@
-import { StyleNumberInput } from "@graphty/compact-mantine";
+import { FieldRow, PanelField, PanelLabelsProvider, ResetButton } from "@graphty/compact-mantine";
 import { Select, Stack } from "@mantine/core";
 import type React from "react";
 
@@ -28,6 +28,10 @@ export function LayoutGroup(): React.JSX.Element | null {
     const fail = (): void => {
         store.set({ notice: { message: "The layout could not be changed" } });
     };
+    const setSeed = (seed: number | undefined): void => {
+        session.layout.set(id, { engine, options: { ...options, seed } }).catch(fail);
+    };
+    const seed = typeof options.seed === "number" ? options.seed : undefined;
 
     return (
         <Stack gap={8} aria-label="Layout" role="group">
@@ -46,16 +50,31 @@ export function LayoutGroup(): React.JSX.Element | null {
                 }}
             />
             {seedOption === undefined ? null : (
-                <StyleNumberInput
-                    label="Seed"
-                    value={typeof options.seed === "number" ? options.seed : undefined}
-                    defaultValue={typeof seedOption.default === "number" ? seedOption.default : 0}
-                    step={1}
-                    decimalScale={0}
-                    onChange={(seed) => {
-                        session.layout.set(id, { engine, options: { ...options, seed } }).catch(fail);
-                    }}
-                />
+                <PanelLabelsProvider showLabels>
+                    <FieldRow
+                        trailing={
+                            seed !== undefined && (
+                                <ResetButton
+                                    label="Seed"
+                                    onClick={() => {
+                                        setSeed(undefined);
+                                    }}
+                                />
+                            )
+                        }
+                    >
+                        <PanelField
+                            label="Seed"
+                            kind="number"
+                            value={seed ?? (typeof seedOption.default === "number" ? seedOption.default : 0)}
+                            step={1}
+                            decimalScale={0}
+                            onChange={(next) => {
+                                setSeed(Number(next));
+                            }}
+                        />
+                    </FieldRow>
+                </PanelLabelsProvider>
             )}
         </Stack>
     );

@@ -103,7 +103,7 @@ const USAGE = `usage: githerd <command>
                                            record a policy: a switch, or free text for every worker
   policy end <id>                          end a policy
   attach                                   attach to githerd's tmux server, one window per worker
-  pause | resume                           stop / restart every worker start and doorbell
+  pause | resume                           stop / restart every worker start, doorbell and message to sessions
   workers <n> | workers --stop             set the working sessions (0 keeps only the urgent slot);
                                            --stop ends every worker without charging an attempt
   keep <window> [--with-job]               hand a worker's window to you; the job continues in a
@@ -952,7 +952,10 @@ async function cmdStats(c) {
                 config: found.config,
                 stateDir: c.stateDir,
                 owner: await github.login(),
-                githerdClosed: githerdClosedIssues(await offlineState(c.stateDir)),
+                githerdClosed: githerdClosedIssues(
+                    await offlineState(c.stateDir),
+                    await readLedger(c.stateDir, { since: new Date(0) }),
+                ),
                 now: c.now(),
                 days,
             });

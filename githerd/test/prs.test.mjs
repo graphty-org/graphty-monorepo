@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { readAdvisory } from "../lib/advisory.mjs";
 import { normalizeConfig } from "../lib/config.mjs";
 import { captureFailures, countsAsBreaking, decideBreaking, touches, updatePrs, whyStuck } from "../lib/prs.mjs";
-import { askProblems, ownerWaitingPrs, prWork } from "../lib/queue.mjs";
+import { askProblems, ownerWaitingPrs, prWork, workedOn } from "../lib/queue.mjs";
 import { fixture } from "./helpers/fake-gh.mjs";
 
 const config = normalizeConfig(JSON.parse(readFileSync(new URL("../../githerd.config.json", import.meta.url), "utf8")));
@@ -501,6 +501,28 @@ describe("checks", () => {
         expect(stuck(rec)).toEqual(["owner rejected images: fix needed"]);
     });
 
+    it("a reject stands across a head that only merged the base branch in (#2639)", () => {
+        // The owner rejected the code committed at 12:00; the head (14:00) is a merge of master.
+        const block = 'Rejected.\n<!-- visual-review-rejects {"items":[]} -->';
+        const comments = [{ body: block, createdAt: "2026-10-02T13:00:00Z" }];
+        const n = failingGate();
+        n.headRefOid = "merge";
+        n.detail.failedSteps = ["Check visual changes were accepted"];
+        n.detail.commits = { messages: ["fix(x): a", "Merge master"], codeAt: "2026-10-02T12:00:00Z" };
+        n.detail.comments = comments;
+        const rec = polls([n])["704"];
+        expect(rec).toMatchObject({ ownerRejected: true, codeChangedAt: "2026-10-02T12:00:00Z" });
+        expect(stuck(rec)).toEqual(["owner rejected images: fix needed"]);
+        // Kept for the same head without a new commit list.
+        const again = failingGate();
+        again.headRefOid = "merge";
+        again.detail = { failedSteps: ["Check visual changes were accepted"], comments };
+        expect(polls([n], [again])["704"].ownerRejected).toBe(true);
+        // A new commit of the pull request's own after the reject clears it.
+        n.detail.commits = { messages: ["fix(x): b"], codeAt: "2026-10-02T14:00:00Z" };
+        expect(polls([n])["704"].ownerRejected).toBe(false);
+    });
+
     it("a failure whose run started before the master fix says so", () => {
         const n = withChecks(node(), [
             run("All Checks Pass", "FAILURE", { startedAt: "2026-10-02T12:00:00Z" }),
@@ -764,5 +786,41 @@ describe("a check the merge queue's conditions name", () => {
         expect(ownerWaitingPrs(state, new Date(NOW))).toEqual([
             { target: "pr:704", reason: expect.stringMatching(/^waiting on owner: visual review/) },
         ]);
+    });
+});
+
+describe("an open stacked pull request's closing keywords (issue 2470)", () => {
+    const stacked = (body, over = {}) =>
+        node({ baseRefName: "feat/style-import", title: "fix(graphty-element): import styles", body, ...over });
+    /**
+     * What works on issue 2252 after one poll of these nodes.
+     * @param {any[]} nodes the open pull requests
+     * @returns {string | null} the pull request, or null
+     */
+    const keeps = (nodes) => workedOn({ prs: updatePrs({}, nodes, GREEN, config, NOW) }, 2252);
+
+    it("keeps an issue its description fixes off the queue", () => {
+        expect(keeps([stacked("Fixes #2252")])).toBe("#704");
+        expect(keeps([stacked("resolved: graphty-org/graphty-monorepo#2252")])).toBe("#704");
+        expect(keeps([stacked("", { title: "fix: closes #2252" })])).toBe("#704");
+    });
+
+    it("does not count a reference that does not close it", () => {
+        expect(keeps([stacked("Refs #2252")])).toBeNull();
+        expect(keeps([stacked("Part of #2252")])).toBeNull();
+    });
+
+    it("ignores another repository's issue of that number", () => {
+        expect(keeps([stacked("Fixes other/repo#2252")])).toBeNull();
+    });
+
+    it("reads only GitHub's closing references on one based on master", () => {
+        expect(keeps([node({ body: "Fixes #2252", closingIssuesReferences: { nodes: [] } })])).toBeNull();
+        expect(keeps([node({ closingIssuesReferences: { nodes: [{ number: 2252 }] } })])).toBe("#704");
+    });
+
+    it("releases the issue once the pull request is no longer open", () => {
+        const saved = updatePrs({}, [stacked("Fixes #2252")], GREEN, config, NOW);
+        expect(workedOn({ prs: updatePrs(saved, [], GREEN, config, NOW) }, 2252)).toBeNull();
     });
 });

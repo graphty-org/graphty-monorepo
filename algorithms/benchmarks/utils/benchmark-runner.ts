@@ -59,6 +59,36 @@ export class CrossPlatformBenchmark {
         }
     }
 
+    /**
+     * Keep running the test until the warmup has lasted at least `minTimeMs`.
+     * @param elapsedTime - How long the warmup iterations took, in milliseconds
+     * @param minTimeMs - The minimum warmup time, in milliseconds
+     * @param testFn - The test to run
+     */
+    private async extendWarmup(
+        elapsedTime: number,
+        minTimeMs: number,
+        testFn: () => void | Promise<void>,
+    ): Promise<void> {
+        if (elapsedTime < minTimeMs) {
+            const remainingTime = minTimeMs - elapsedTime;
+            console.log(`  Extending warmup for ${remainingTime}ms...`);
+
+            const additionalStart = Date.now();
+            while (Date.now() - additionalStart < remainingTime) {
+                try {
+                    if (this.config.async) {
+                        await testFn();
+                    } else {
+                        testFn();
+                    }
+                } catch {
+                    // Continue warmup despite errors
+                }
+            }
+        }
+    }
+
     private async performWarmup(name: string, testFn: () => void | Promise<void>): Promise<void> {
         if (!this.config.warmup?.enabled) {
             return;
@@ -82,24 +112,7 @@ export class CrossPlatformBenchmark {
         }
 
         // Ensure minimum warmup time
-        const elapsedTime = Date.now() - startTime;
-        if (elapsedTime < minTimeMs) {
-            const remainingTime = minTimeMs - elapsedTime;
-            console.log(`  Extending warmup for ${remainingTime}ms...`);
-
-            const additionalStart = Date.now();
-            while (Date.now() - additionalStart < remainingTime) {
-                try {
-                    if (this.config.async) {
-                        await testFn();
-                    } else {
-                        testFn();
-                    }
-                } catch {
-                    // Continue warmup despite errors
-                }
-            }
-        }
+        await this.extendWarmup(Date.now() - startTime, minTimeMs, testFn);
 
         // Force garbage collection after warmup
         this.setupFunction();

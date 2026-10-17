@@ -1,6 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { beforeAll, describe, expect, it } from "vitest";
@@ -29,6 +28,7 @@ import { createIncidentActions } from "../lib/incident-actions.mjs";
 import { prWork, readyIssues } from "../lib/queue.mjs";
 import { git } from "../../visual-review/test/helpers.mjs";
 import { createFakeGh, fixture, httpOutput } from "./helpers/fake-gh.mjs";
+import { tempDir } from "./helpers/temp-dir.mjs";
 
 const REPO = "graphty-org/graphty-monorepo";
 const R = `repos/${REPO}/`;
@@ -269,7 +269,7 @@ describe("touchesPackage and readWorkspace", () => {
     });
 
     it("reads the packages and their transitive workspace dependencies", () => {
-        const root = mkdtempSync(join(tmpdir(), "flakes-ws-"));
+        const root = tempDir("flakes-ws-");
         writeFileSync(
             join(root, "pnpm-workspace.yaml"),
             'packages:\n    - "a"\n    - "b"\n    - "c"\n\ncatalog:\n    x: 1\n',
@@ -862,7 +862,7 @@ describe("only failures on the default branch's copy of the test count", () => {
     });
 
     it("gitBlobs reads a file's blob at a commit, fetching a commit the clone lacks, and null when it cannot", async () => {
-        const tmp = mkdtempSync(join(tmpdir(), "githerd-blobs-"));
+        const tmp = tempDir("githerd-blobs-");
         try {
             const remote = join(tmp, "remote.git");
             const [root, other] = [join(tmp, "root"), join(tmp, "other")];

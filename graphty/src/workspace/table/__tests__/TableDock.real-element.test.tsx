@@ -14,6 +14,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import userEvent from "@testing-library/user-event";
 import { assert, describe, it } from "vitest";
 
+import { storyWaitOptions } from "../../../stories/wait";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { Workspace } from "../../Workspace";
 
@@ -150,10 +151,14 @@ describe("the table dock", () => {
         const dialog = await screen.findByRole("dialog", { name: "Export" });
         await within(dialog).findByText(/^One row per edge/);
         // The file holds every edge: its first line is the header, then one line per edge.
+        // The preview is written once exportGraph resolves, which first waits for the element's
+        // whole operation queue (layout, styles) to drain: wait on the preview itself, with no
+        // deadline of its own, so the test's timeout is the only backstop (#3021).
         const preview = within(dialog).getByLabelText("Preview of the exported data");
         await waitFor(() => {
-            assert.include(preview.textContent, "n0");
-        });
+            assert.notEqual(preview.textContent, "Writing the preview...");
+        }, storyWaitOptions(1000));
+        assert.include(preview.textContent, "n0");
 
         // Shift+T again closes the dock.
         await userEvent.keyboard("{Escape}");

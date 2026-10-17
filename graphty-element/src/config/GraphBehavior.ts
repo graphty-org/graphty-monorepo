@@ -49,6 +49,22 @@ const LabelBehaviorOpts = z
     })
     .prefault({});
 
+const CameraBehaviorOpts = z
+    .strictObject({
+        /*
+         * Whether the selection becomes the camera's pivot.
+         *
+         * OFF BY DEFAULT, so the camera turns about the point it always has. On, selecting one node
+         * makes it the pivot, and selecting several makes the plain average of their positions the
+         * pivot: the 3D camera glides to look at it and orbits, spins and zooms about it, the 2D view
+         * glides to center it, and in VR or AR the reader's turns and scaling happen about it without
+         * moving the reader. The pivot follows the selected nodes while they move, and stays where it
+         * is when the selection is cleared.
+         */
+        pivotOnSelection: z.boolean().default(false),
+    })
+    .prefault({});
+
 /** The rendering settings: the fields `setRenderSettings` accepts. */
 export const RenderSettingsOpts = z.strictObject({
     /*
@@ -111,6 +127,7 @@ export const GraphBehaviorOpts = z.strictObject({
     node: NodeBehaviorOpts,
     labels: LabelBehaviorOpts,
     rendering: RenderingBehaviorOpts,
+    camera: CameraBehaviorOpts,
     fetchNodes: z.optional(z.instanceof(Function)),
     fetchEdges: z.optional(z.instanceof(Function)),
 });

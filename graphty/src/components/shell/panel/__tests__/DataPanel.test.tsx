@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { fireEvent, render, screen, waitFor, within } from "../../../../test/test-utils";
 import { ShellProvider } from "../../ShellContext";
@@ -24,6 +25,8 @@ function acceptingLoad() {
  *
  * Chromium empties the file list of any DataTransfer that did not come from a real user
  * drag, so the list the handler reads is attached to the event itself.
+ * A file dragged in from the desktop is the one gesture browser automation cannot make, so this
+ * drop stays a built event.
  * @param zone - the drop target.
  * @param file - the file dropped on it.
  */
@@ -40,6 +43,19 @@ function renderPanel(stateAxis: ShellStateAxis, onLoad = acceptingLoad()) {
             <DataPanel stateAxis={stateAxis} onLoad={onLoad} />
         </ShellProvider>,
     );
+}
+
+/**
+ * The label a reader clicks for a visually hidden input (a segmented control's radio, a switch).
+ * @param input - the input.
+ * @returns its first label.
+ */
+function labelOf(input: HTMLElement): HTMLElement {
+    const label = (input as HTMLInputElement).labels?.[0];
+    if (!label) {
+        throw new Error("the input has no label");
+    }
+    return label;
 }
 
 describe("DataPanel", () => {
@@ -137,7 +153,7 @@ describe("DataPanel", () => {
             );
         });
 
-        it("opens the drawer from the Show data table switch, which is the one path to it", () => {
+        it("opens the drawer from the Show data table switch, which is the one path to it", async () => {
             const onDataTableOpenChange = vi.fn();
 
             render(
@@ -155,7 +171,7 @@ describe("DataPanel", () => {
             expect(switchControl).not.toBeDisabled();
             expect(screen.getByTestId("data-table-switch-reason").getAttribute("title")).not.toContain("Coming");
 
-            fireEvent.click(switchControl);
+            await userEvent.click(labelOf(switchControl));
 
             expect(onDataTableOpenChange).toHaveBeenCalledWith(true);
         });
@@ -274,7 +290,7 @@ describe("DataPanel", () => {
         it("opens the re-homed Load data dialog from Open file", async () => {
             renderPanel("empty");
 
-            fireEvent.click(screen.getByRole("button", { name: "Open file" }));
+            await userEvent.click(screen.getByRole("button", { name: "Open file" }));
 
             expect(await screen.findByRole("dialog")).toBeInTheDocument();
         });
@@ -286,7 +302,7 @@ describe("DataPanel", () => {
         ])("opens the dialog from %s on its %s tab", async (button, tab) => {
             renderPanel("empty");
 
-            fireEvent.click(screen.getByRole("button", { name: button }));
+            await userEvent.click(screen.getByRole("button", { name: button }));
 
             const dialog = await screen.findByRole("dialog");
 
@@ -320,7 +336,7 @@ describe("DataPanel", () => {
             expect(within(dialog).getByText(/more\.json/)).toBeInTheDocument();
             expect(onLoad).not.toHaveBeenCalled();
 
-            fireEvent.click(within(dialog).getByRole("button", { name: "Replace" }));
+            await userEvent.click(within(dialog).getByRole("button", { name: "Replace" }));
 
             expect(onLoad).toHaveBeenCalledWith(
                 expect.objectContaining({ inputMethod: "file", format: "auto", replaceExisting: true }),
@@ -333,7 +349,7 @@ describe("DataPanel", () => {
             renderPanel("loaded", onLoad);
             dropFile(screen.getByTestId("data-drop-zone"), new File(["{}"], "more.json", { type: "application/json" }));
 
-            fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Cancel" }));
+            await userEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Cancel" }));
 
             await waitFor(() => {
                 expect(screen.queryByRole("dialog")).toBeNull();
@@ -369,12 +385,10 @@ describe("DataPanel", () => {
 
             renderPanel("empty", onLoad);
 
-            fireEvent.click(screen.getByRole("button", { name: "Open file" }));
-            fireEvent.click(await screen.findByText("URL"));
-            fireEvent.change(screen.getByLabelText("Data URL"), {
-                target: { value: "https://example.com/missing.json" },
-            });
-            fireEvent.click(screen.getByRole("button", { name: /^Load / }));
+            await userEvent.click(screen.getByRole("button", { name: "Open file" }));
+            await userEvent.click(await screen.findByText("URL"));
+            await userEvent.fill(screen.getByLabelText("Data URL"), "https://example.com/missing.json");
+            await userEvent.click(screen.getByRole("button", { name: /^Load / }));
 
             /* The panel passes `onLoad` straight through rather than wrapping it, so the
                rejection reaches the dialog: it stays open with the URL still in it. A

@@ -437,7 +437,7 @@ export function ColorPickerPanel({
             ) : (
                 <>
                     <div className="cm-color-picker-body">
-                        <div
+                        <div // NOSONAR(S6819): a two-axis saturation and value field; input type=range is one axis only
                             ref={fieldRef}
                             className="cm-color-saturation"
                             data-testid="color-picker-saturation"
@@ -567,7 +567,7 @@ export function ColorPickerPanel({
                     </div>
 
                     {swatches.length > 0 && (
-                        <div className="cm-color-swatches" role="group" aria-label={labels.swatches}>
+                        <fieldset className="cm-fieldset cm-color-swatches" aria-label={labels.swatches}>
                             {swatches.map((swatch, index) => (
                                 <button
                                     key={`${String(index)}-${swatch}`}
@@ -581,7 +581,7 @@ export function ColorPickerPanel({
                                     <Chit color={swatch} />
                                 </button>
                             ))}
-                        </div>
+                        </fieldset>
                     )}
                 </>
             )}

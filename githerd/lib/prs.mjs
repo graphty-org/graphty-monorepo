@@ -21,13 +21,16 @@
 import { execFileSync } from "node:child_process";
 
 import { advisoryFailure, advisoryWords, utcDay } from "./advisory.mjs";
+import { sessionName } from "./board.mjs";
 import { balanceRefusal, classify } from "./classify.mjs";
 import { failureKey, isSummaryJob } from "./lanes.mjs";
 import { staleRevert } from "./master-fix.mjs";
+import { closingRefs } from "./merged.mjs";
 
 /**
  * @typedef {import("./config.mjs").Config} Config
- * @typedef {{ messages: string[], truncated?: boolean }} CommitList
+ * @typedef {{ messages: string[], truncated?: boolean, codeAt?: string | null }} CommitList `codeAt`
+ *   the newest date of the pull request's own non-merge commits (daemon.mjs codeChangedAt)
  * @typedef {{ commits?: CommitList, files?: string[], failedSteps?: string[], gateAnnotations?: string[],
  *   comments?: { body: string, createdAt: string }[], underlying?: Underlying | null }} Detail
  * @typedef {{ for: string, failures: import("./classify.mjs").Failure[] }} Underlying the failed jobs
@@ -59,7 +62,8 @@ import { staleRevert } from "./master-fix.mjs";
  *   autoMerge: boolean, mergeable: string | null, mergeState?: string | null, conflictSightings: number,
  *   required: Record<string, CheckState>, failingChecks: string[], failingStartedAt: string | null,
  *   cancelledRuns: CancelledRun[], queueFailing?: string[],
- *   ownerGate: boolean, ownerSteps?: boolean, captureFailed: string[], ownerRejected: boolean, stackedOn: number | null,
+ *   ownerGate: boolean, ownerSteps?: boolean, captureFailed: string[], ownerRejected: boolean, codeChangedAt?: string | null,
+ *   stackedOn: number | null,
  *   underlying?: Underlying | null, inherited?: string[] | null, advisory?: string[],
  *   failureKeys?: string[] | null, shared?: string[] | null, outside?: string[] | null,
  *   lastActivityAt: string, mergeStatus?: MergeStatus | null, [key: string]: unknown,
@@ -367,6 +371,21 @@ export function updatePrs(saved, nodes, master, config, now = new Date().toISOSt
 }
 
 /**
+ * The issues an open pull request closes. GitHub's closing references cover only a pull request
+ * based on the default branch; for one stacked on another branch they are empty, so its title and
+ * description are read for closing keywords as GitHub would read them once it is based on master.
+ * @param {any} node the pullRequest node
+ * @param {string | undefined} branch the default branch
+ * @param {string | undefined} repo this repository, `owner/name`
+ * @returns {number[]} the issue numbers
+ */
+function referencesOf(node, branch, repo) {
+    const closing = (node.closingIssuesReferences?.nodes ?? []).map((/** @type {any} */ i) => i.number);
+    if (!branch || node.baseRefName === branch) return closing;
+    return [...new Set([...closing, ...closingRefs(`${node.title ?? ""}\n${node.body ?? ""}`, repo)])];
+}
+
+/**
  * Takes the advisory checks out of a pull request's failures (advisory.mjs): a failed check run of
  * a job in its warning period leaves `failingChecks`, and a failing summary check whose failed
  * jobs are all advisory counts as passed, so none makes the pull request broken, a job, an
@@ -435,6 +454,19 @@ function summaryKeys(required, underlying) {
 }
 
 /**
+ * When the pull request's own code last changed, from a new commit list or else the same head's
+ * record. A merge of the base branch is no new code: the owner's rejects of the code before it stand.
+ * @param {Detail} detail what the poll fetched
+ * @param {PrRecord | undefined} prev the saved record
+ * @param {boolean} sameHead whether `prev` is of this head
+ * @returns {string | null | undefined} the date; null when unknown, undefined when never read
+ */
+function codeChangedOf(detail, prev, sameHead) {
+    if (detail.commits) return detail.commits.codeAt ?? null;
+    return sameHead ? prev?.codeChangedAt : undefined;
+}
+
+/**
  * Folds one pull request's poll answer into its saved record.
  * @param {any} node a GraphQL pullRequest node, optionally with `detail` ({@link Detail})
  * @param {PrRecord | undefined} prev its record from the last poll
@@ -479,7 +511,7 @@ function foldPr(node, prev, config, now, master) {
         author: node.author?.login ?? null,
         title: node.title,
         createdAt: node.createdAt ?? null,
-        references: (node.closingIssuesReferences?.nodes ?? []).map((/** @type {any} */ i) => i.number),
+        references: referencesOf(node, master.branch, config.repo),
         labels: (node.labels?.nodes ?? []).map((/** @type {any} */ l) => l.name),
         headChangedAt: kept.headChangedAt,
         headCommittedAt: checks.committedAt,
@@ -502,6 +534,7 @@ function foldPr(node, prev, config, now, master) {
         ownerGate: captureFailed.length === 0 && ownerGateOf(config, checks, ownerSteps),
         ownerSteps,
         ownerRejected: kept.ownerRejected,
+        codeChangedAt: codeChangedOf(detail, prev, sameHead),
         stackedOn: null,
         lastActivityAt: node.updatedAt,
         underlying: detail.underlying ?? null,
@@ -525,7 +558,7 @@ function foldPr(node, prev, config, now, master) {
     }
     if (config.ownerGate?.rejectMarker && detail.comments) {
         const marker = new RegExp(String.raw`<!--\s*${escape(config.ownerGate.rejectMarker)}\b`);
-        const since = rec.headCommittedAt ?? rec.headChangedAt;
+        const since = rec.codeChangedAt ?? rec.headCommittedAt ?? rec.headChangedAt;
         rec.ownerRejected = detail.comments.some((c) => c.createdAt > since && marker.test(c.body));
     }
     return rec;
@@ -620,7 +653,8 @@ export function whyStuck(number, rec, ctx) {
     const reasons = [...pullRequestReasons(rec, ctx.master, ctx.config?.release?.commitPattern)];
 
     const claim = ctx.claims?.[`pr:${number}`];
-    if (claim) reasons.push(`claimed by ${claim.holderName ?? claim.holder}`);
+    if (claim)
+        reasons.push(`claimed by ${sessionName({ sessions: ctx.sessions }, claim.holder, claim.holderName ?? null)}`);
     for (const [id, s] of Object.entries(ctx.sessions ?? {})) {
         if (s.branch === rec.headRef) reasons.push(`worked by session ${s.name ?? id}`);
     }

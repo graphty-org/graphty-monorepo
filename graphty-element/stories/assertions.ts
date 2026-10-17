@@ -38,7 +38,7 @@ import type { Edge } from "../src/Edge";
 import type { Graph } from "../src/Graph";
 import type { Graphty } from "../src/graphty-element";
 import type { GraphSession } from "../src/session";
-import { isVisualCapture } from "./helpers";
+import { isUnderRunner, isVisualCapture } from "./helpers";
 
 /** How long a story may wait for its graph to arrive and its style stack to come to rest. */
 const SETTLE_BUDGET_MS = 15000;
@@ -266,7 +266,7 @@ function listed(offenders: readonly string[]): string {
 /**
  * Wait for something to become true, and fail with a sentence when it never does.
  * @param done - What is being waited for.
- * @param deadline - When to give up, as a timestamp.
+ * @param deadline - When to give up, as a timestamp; `Infinity` under a runner, which brings its own.
  * @param complaint - What to say when it never happened.
  */
 async function until(done: () => boolean, deadline: number, complaint: string): Promise<void> {
@@ -279,10 +279,15 @@ async function until(done: () => boolean, deadline: number, complaint: string): 
 /**
  * Give a promise a deadline, so a queue that never drains fails with a sentence.
  * @param work - The promise to wait on.
- * @param deadline - When to give up, as a timestamp.
+ * @param deadline - When to give up, as a timestamp; `Infinity` waits on the promise alone.
  * @param complaint - What to say when it never finished.
  */
 async function within(work: Promise<unknown>, deadline: number, complaint: string): Promise<void> {
+    if (!Number.isFinite(deadline)) {
+        await work;
+        return;
+    }
+
     let timer: ReturnType<typeof setTimeout> | undefined;
     const expired = new Promise<"expired">((resolve) => {
         timer = setTimeout(
@@ -517,7 +522,9 @@ function sagittaOf(points: readonly Vector3[]): number {
 export async function drawn(canvasElement: HTMLElement, story: string): Promise<Drawn> {
     const live = await renderedElement(canvasElement, `${story}: the story rendered no <graphty-element> at all`);
     const { graph, session } = live;
-    const deadline = Date.now() + SETTLE_BUDGET_MS;
+    // Under a runner (the Storybook test project, a visual capture) its own timeout is the only
+    // backstop: a wall-clock deadline here fails a stalled machine whose work still finishes.
+    const deadline = isUnderRunner() ? Infinity : Date.now() + SETTLE_BUDGET_MS;
 
     // Pre-stepping is for the visual capture's repeatable snapshot only. Anywhere else a pre-stepped
     // layout is already settled on the first frame, and the reader never sees it animate.
@@ -547,7 +554,7 @@ export async function drawn(canvasElement: HTMLElement, story: string): Promise<
     // the render loop hands the new paint over on its next tick. So ask the element when the frame
     // on screen is the finished one, rather than guessing how long that takes. It throws, naming
     // what was still moving, if the picture has not come to rest by the deadline.
-    await graph.waitForStableFrame({ timeoutMs: Math.max(1, deadline - Date.now()) });
+    await graph.waitForStableFrame(Number.isFinite(deadline) ? { timeoutMs: Math.max(1, deadline - Date.now()) } : {});
 
     // One read per SOURCE mesh, not per node: a thousand nodes instanced from three shapes cost
     // three digests.
@@ -1909,7 +1916,7 @@ export async function assertSelectionDrawn(scene: Drawn, id: string): Promise<vo
 
     // The halo is drawn by the render loop after the selection lands, so wait for the element to
     // say the frame on screen shows it.
-    await scene.graph.waitForStableFrame({ timeoutMs: SETTLE_BUDGET_MS });
+    await scene.graph.waitForStableFrame(isUnderRunner() ? {} : { timeoutMs: SETTLE_BUDGET_MS });
 
     const selected = [...scene.session.selection.nodes].map(String);
 

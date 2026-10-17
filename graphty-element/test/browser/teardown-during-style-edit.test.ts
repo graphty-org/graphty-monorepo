@@ -38,22 +38,16 @@ const LAYER: LayerSpec = {
     set: { "node.color": "crimson" },
 };
 
-/** How long a pending promise gets to settle before it counts as hung. */
-const SETTLE_MS = 2000;
-
 /**
- * Whether a promise settles in time, and how.
+ * How a promise settles. One that never settles is caught by the test's own timeout.
  * @param promise - The promise.
- * @returns "resolved", the rejection's name, or "pending" when it did not settle.
+ * @returns "resolved", or the rejection's name.
  */
 async function outcomeOf(promise: PromiseLike<unknown>): Promise<string> {
-    return Promise.race([
-        Promise.resolve(promise).then(
-            () => "resolved",
-            (error: unknown) => (error instanceof Error || error instanceof DOMException ? error.name : "rejected"),
-        ),
-        new Promise<string>((resolve) => setTimeout(() => resolve("pending"), SETTLE_MS)),
-    ]);
+    return Promise.resolve(promise).then(
+        () => "resolved",
+        (error: unknown) => (error instanceof Error || error instanceof DOMException ? error.name : "rejected"),
+    );
 }
 
 describe("tearing down around a style edit", () => {

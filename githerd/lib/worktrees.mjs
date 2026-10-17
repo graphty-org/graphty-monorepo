@@ -126,9 +126,11 @@ export async function git(cwd, args) {
  */
 export async function changedFiles(dir, base) {
     const opts = ["-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null"];
-    const diff = await git(dir, [...opts, "diff", "--name-only", `${base}...HEAD`]);
-    // Not `git()`: its trim would cut the first line's leading status column.
-    const status = await run("git", [...opts, "status", "--porcelain", "--untracked-files=all"], { cwd: dir });
+    const [diff, status] = await Promise.all([
+        git(dir, [...opts, "diff", "--name-only", `${base}...HEAD`]),
+        // Not `git()`: its trim would cut the first line's leading status column.
+        run("git", [...opts, "status", "--porcelain", "--untracked-files=all"], { cwd: dir }),
+    ]);
     if (status.code !== 0) throw new Error(`git status failed: ${status.stderr.trim()}`);
     const paths = new Set(diff ? diff.split("\n") : []);
     for (const line of status.stdout.split("\n").filter(Boolean)) {

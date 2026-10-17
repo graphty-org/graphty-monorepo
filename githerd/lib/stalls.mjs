@@ -17,9 +17,14 @@
  * (owners.mjs records the newest in `state.transcripts[<session>].limit`). Each limit that has not
  * reset yet raises one item, `usage-limit:<reset>`, at once, naming the reset time; it ends when
  * that time passes. While it is open no silent stall is raised: a limited session cannot answer.
+ * Usage can come back before the reset (the owner raised the limit): while an item is open, a probe
+ * (one minimal Claude call, `Platform.usageProbe`) runs once per status cadence, and when it
+ * succeeds the items end and each session whose limit had not reset is told to carry on, so none
+ * waits for the printed reset time (issue #2596).
  */
 
 import { endItem, raiseItem } from "./notify.mjs";
+import { tellSessions } from "./peers.mjs";
 import { resetAt } from "./start.mjs";
 
 const MINUTE = 60_000;
@@ -151,21 +156,24 @@ export function stallStep(state, { now, minutes, sessions, lines }) {
  * @returns {({kind: string} & Record<string, unknown>)[]} the ledger lines
  */
 export function usageLimitStep(state, now) {
+    const back = state.usageBackAt ?? "";
     const out = [];
     for (const item of Object.values(state.ownerItems ?? {})) {
         const i = /** @type {any} */ (item);
-        if (i.kind !== "usage-limit" || i.endedAt || Date.parse(i.resets) > now.getTime()) continue;
-        endItem(state, i.id, "cleared", now);
-        out.push({ kind: "usage-limit-reset", resets: i.resets });
+        if (i.kind !== "usage-limit" || i.clearedAt || Date.parse(i.resets) > now.getTime()) continue;
+        // An item the owner answered is cleared too, so the daemon can drop it (droppableItems).
+        if (endItem(state, i.id, "cleared", now)) out.push({ kind: "usage-limit-reset", resets: i.resets });
     }
     for (const scan of Object.values(state.transcripts ?? {})) {
         const limit = /** @type {any} */ (scan).limit;
-        if (!limit) continue;
-        // The API's reset time; else the one the message names, read as the limit screen's is.
-        const resets = limit.resets ?? resetAt(limit.text, new Date(limit.at))?.toISOString();
+        // A limit from before usage last came back is over, whatever its reset time says.
+        if (!limit || limit.at <= back) continue;
+        const resets = resetOf(limit);
         if (!resets || Date.parse(resets) <= now.getTime()) continue;
         const id = `usage-limit:${resets}`;
-        if (state.ownerItems?.[id]) continue;
+        const old = state.ownerItems?.[id];
+        // An item the owner answered stays until the reset; one that ended with usage back is a past limit.
+        if (old && !(old.endedBy === "cleared" || old.clearedAt)) continue;
         const name = /** @type {any} */ (scan).name ?? "a session";
         const question =
             `Claude's usage limit stopped the sessions: "${limit.text.replaceAll("\u00B7", "-")}" (seen in ${name} at ${short(limit.at)}). ` +
@@ -175,4 +183,55 @@ export function usageLimitStep(state, now) {
         out.push({ kind: "usage-limit-seen", session: name, resets });
     }
     return out;
+}
+
+/**
+ * When a transcript's usage limit resets: the API's reset time, else the one the message names,
+ * read as the limit screen's is.
+ * @param {{at: string, text: string, resets: string | null}} limit the limit
+ * @returns {string | undefined} the time, ISO
+ */
+const resetOf = (limit) => limit.resets ?? resetAt(limit.text, new Date(limit.at))?.toISOString();
+
+/** What a session hears when usage comes back before its limit reset. */
+const BACK_TEXT =
+    "githerd: Claude's usage limit is over, earlier than its reset time. Carry on with the work the limit " +
+    "stopped, and restart any background subagent or workflow that died with the limit error (HTTP 429).";
+
+/**
+ * While a usage limit has an open owner item, probes once per cadence whether usage works again;
+ * when it does, ends the items and tells each session whose limit had not reset to carry on.
+ * @param {any} state the daemon state, changed in place (`usageProbeAt`, `usageBackAt`, `ownerItems`)
+ * @param {{now: Date, minutes: number, sessions: import("./peers.mjs").PeerSession[],
+ *   transport: import("./peers.mjs").Transport, acting: boolean, probe: () => Promise<boolean>}} opts
+ *   the clock, the status cadence, the sessions githerd may message, the transport, whether the
+ *   `workers` write group acts, and the probe (true when a Claude call succeeds)
+ * @returns {Promise<({kind: string} & Record<string, unknown>)[]>} the ledger lines
+ */
+export async function usageBackStep(state, { now, minutes, sessions, transport, acting, probe }) {
+    const t = now.getTime();
+    const open = Object.values(state.ownerItems ?? {}).filter(
+        (/** @type {any} */ i) =>
+            i.kind === "usage-limit" && i.endedBy !== "cleared" && !i.clearedAt && Date.parse(i.resets) > t,
+    );
+    if (!open.length || t - Date.parse(state.usageProbeAt ?? "0") < minutes * MINUTE) return [];
+    state.usageProbeAt = now.toISOString();
+    if (!(await probe())) return [{ kind: "usage-probe", back: false }];
+    state.usageBackAt = now.toISOString();
+    for (const i of open) endItem(state, i.id, "cleared", now);
+    const limited = sessions.filter((s) => {
+        const limit = state.transcripts?.[s.sessionId]?.limit;
+        return limit && Date.parse(resetOf(limit) ?? "") > t;
+    });
+    const lines = [];
+    if (!acting && limited.length) {
+        lines.push({
+            kind: "would-do",
+            group: "workers",
+            op: `tell ${limited.length} session(s) the usage limit is over`,
+        });
+    }
+    const out = acting ? await tellSessions(limited, BACK_TEXT, transport) : { sent: [], failed: [] };
+    lines.push({ kind: "usage-back", resets: open.map((i) => i.resets), ...out });
+    return lines;
 }

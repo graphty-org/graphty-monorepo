@@ -57,12 +57,12 @@ export class DOTDataSource extends DataSource {
             dotImporter,
             headerless ? `digraph ${await this.getContent()}` : input,
             // Ids stay the strings DOT writes, `weight` stays an attribute (the element reads its
-            // weight from the record), and `pos` stays the text the file wrote. A body with no
-            // keyword takes each edge's direction from its own operator.
+            // weight from the record), and `pos` stays the text the file wrote beside the position
+            // read from it. A body with no keyword takes each edge's direction from its own operator.
             {
                 ids: "keep",
                 weightFrom: null,
-                positions: false,
+                keepPositionSource: true,
                 ...(headerless ? { mismatchedEdgeOperator: "operator" as const } : {}),
             },
             this.errorAggregator,
@@ -76,7 +76,7 @@ export class DOTDataSource extends DataSource {
             );
         }
 
-        const { nodes, edges } = toRecords(imported, columnsMapping(snapshot));
+        const { nodes, edges } = toRecords(imported, columnsMapping(snapshot, true));
 
         // An edge to a cluster needs the cluster as its endpoint; any other cluster only groups.
         const cluster = snapshot.nodes.get(CLUSTER_COLUMN);

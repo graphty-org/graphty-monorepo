@@ -544,13 +544,15 @@ function TextEntry({ ctx, kind, onWords, onFail }: Readonly<TextEntryProps>): Re
                 : writeIn(ctx, kind.style, { value: next });
         done.catch(onFail);
     };
-    // The text color and background vary by a value through their own channels.
+    // The text color, background and size vary by a value through their own channels.
     const vary = (key: keyof LabelStyle): VaryField | undefined => {
         let channel: Channel | undefined;
         if (key === "color") {
             channel = kind.color;
         } else if (key === "background") {
             channel = kind.background;
+        } else if (key === "sizePx") {
+            channel = kind.size;
         }
         const descriptor = channel === undefined ? undefined : descriptorOf(channel);
         if (channel === undefined || descriptor === undefined) {
@@ -592,7 +594,11 @@ function TextEntry({ ctx, kind, onWords, onFail }: Readonly<TextEntryProps>): Re
             inUse={words?.binding === undefined ? [] : [words.binding.by]}
             onFixed={() => {
                 setSourceOpen(false);
-                setTyping(true);
+                // The words box opens once the closing list has handed focus back to its trigger,
+                // so it takes the focus and keeps it.
+                requestAnimationFrame(() => {
+                    setTyping(true);
+                });
             }}
             onPick={(choice) => {
                 setSourceOpen(false);
@@ -603,48 +609,26 @@ function TextEntry({ ctx, kind, onWords, onFail }: Readonly<TextEntryProps>): Re
         </SourcePicker>
     );
 
-    let sourceControl: React.JSX.Element;
-    if (typed || typing) {
-        sourceControl = (
-            <>
-                <WordsInput
-                    label={`${where} text`}
-                    words={typed ? source : ""}
-                    autoFocus={typing}
-                    onDone={(next) => {
-                        setTyping(false);
-                        if (next !== undefined && next !== "" && next !== (typed ? source : "")) {
-                            onWords(kind, { value: next });
-                        }
-                    }}
-                />
-                {sourcePicker(
-                    <Tooltip label={`${kind.name} by attribute`}>
-                        <PopoutButton
-                            icon={<GLYPHS.link size={14} aria-hidden />}
-                            aria-label={`${kind.name} by attribute`}
-                            aria-haspopup="dialog"
-                            aria-expanded={sourceOpen}
-                        />
-                    </Tooltip>,
-                )}
-            </>
-        );
-    } else {
-        sourceControl = sourcePicker(
-            <Button
-                size="compact-xs"
-                variant="default"
-                c={words === undefined ? "dimmed" : undefined}
-                fullWidth
-                justify="flex-start"
-                aria-label={`${kind.name} source: ${source}`}
-                style={{ flex: 1, minWidth: 0 }}
-            >
-                {source}
-            </Button>,
-        );
-    }
+    // Typed words name their source "Fixed text" on line 1 and get a line of their own, on the
+    // field column, wide enough to show what is typed: beside the entry's buttons the box was
+    // about 30 px.
+    const fixed = typed || typing;
+    const sourceWord = fixed ? FIXED_TEXT : source;
+    const sourceControl = sourcePicker(
+        <Button
+            size="compact-xs"
+            variant="default"
+            c={words === undefined ? "dimmed" : undefined}
+            fullWidth
+            justify="flex-start"
+            aria-label={`${kind.name} source: ${sourceWord}`}
+            aria-haspopup="dialog"
+            aria-expanded={sourceOpen}
+            style={{ flex: 1, minWidth: 0 }}
+        >
+            {sourceWord}
+        </Button>,
+    );
 
     return (
         <Stack
@@ -715,6 +699,30 @@ function TextEntry({ ctx, kind, onWords, onFail }: Readonly<TextEntryProps>): Re
                     </Tooltip>
                 )}
             </Group>
+            {fixed ? (
+                <div className="ws-field" data-named="">
+                    <span className="ws-field-label">
+                        <span className="ws-field-name" aria-hidden>
+                            Text
+                        </span>
+                    </span>
+                    <div className="ws-field-control">
+                        <WordsInput
+                            label={`${where} text`}
+                            words={typed ? source : ""}
+                            autoFocus={typing}
+                            onDone={(next) => {
+                                setTyping(false);
+                                if (next !== undefined && next !== "" && next !== (typed ? source : "")) {
+                                    onWords(kind, { value: next });
+                                }
+                            }}
+                        />
+                    </div>
+                    <span className="ws-slot ws-vary" />
+                    <span className="ws-slot" />
+                </div>
+            ) : null}
             <UndrawnNote session={session} line={words} channel={kind.words} />
             {/* The look, the size and the position on the panel's field column, each with Clear. */}
             <StyleLine

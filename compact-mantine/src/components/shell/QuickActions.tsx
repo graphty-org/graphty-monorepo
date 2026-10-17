@@ -124,6 +124,11 @@ export interface QuickActionsProps {
      * always says.
      */
     emptyText?: string;
+    /**
+     * The action highlighted when the list opens, before anything is searched: the value in force,
+     * so Enter keeps it and the arrows start from it. Defaults to the first action that can run.
+     */
+    highlight?: string;
     /** Panel width. Default 529 (Figma's, the toolbar's width). */
     width?: number;
     /** Panel height. Default 354. */
@@ -177,6 +182,7 @@ function defaultFilter(action: QuickAction, query: string): boolean {
  * @param props.truncate - Cut a long name at the end or in the middle
  * @param props.descriptions - Each description under the name or at the end of its line
  * @param props.emptyText - What an empty list says before any search
+ * @param props.highlight - The action highlighted when the list opens
  * @param props.placeholder - Placeholder of the search field
  * @param props.width - Panel width
  * @param props.height - Panel height
@@ -198,6 +204,7 @@ export function QuickActions({
     truncate = "end",
     descriptions = "below",
     emptyText,
+    highlight,
     placeholder,
     width = 529,
     height = 354,
@@ -236,7 +243,7 @@ export function QuickActions({
 
     // The highlight belongs to the search it was made in, so a new search highlights its first
     // result again.
-    const [marked, setMarked] = useState<{ search: string; value?: string }>({ search: "" });
+    const [marked, setMarked] = useState<{ search: string; value?: string }>({ search: "", value: highlight });
     const current =
         marked.search === search && listed.some((a) => a.value === marked.value) ? marked.value : enabled[0]?.value;
     const setHighlight = (value: string): void => {

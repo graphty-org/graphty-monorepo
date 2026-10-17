@@ -59,16 +59,18 @@
     min-width: 0;
 }
 
-/* A text entry's kind (its glyph and word) in the label column, so its source starts on the field
-   column. It is the column wide, with the field label's 4px end padding; the negative margin takes
-   back the row's 4px gap. The column is measured from it at max-content (useLabelColumn), so its
-   word fits whole: a basis of the column less the gap cut "Label" to "La...". */
+/* A text entry's kind (its glyph and word) where the label column is, so its source starts on the
+   field column when the kind fits it. It is at least the column wide, with the field label's 4px
+   end padding; the negative margin takes back the row's 4px gap. It is not measured into the
+   column (useLabelColumn): with its glyph it is wider than a field's name, and widening the column
+   for it narrowed every field of the tab ("Icosphere" cut to "Icosph..."). So it takes its own
+   width, and its word is never cut. */
 .ws-text-kind {
     display: flex;
-    flex: 0 0 var(--ws-label, 80px);
+    flex: 0 0 auto;
+    min-width: var(--ws-label, 80px);
     align-items: center;
     gap: 4px;
-    min-width: 0;
     padding-inline-end: 4px;
     margin-inline-end: -4px;
     font-size: 11px;

@@ -4,6 +4,21 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-17 -- Decided by the team: a list that opens on the value in force, and an Escape a tooltip does not use up (compact-mantine)
+
+- `QuickActionsProps.highlight?: string` (additive): the action highlighted when the list opens,
+  before anything is searched, so Enter keeps the value in force and the arrows start from it.
+  Left out, the first action that can run is highlighted, as before. A search highlights its first
+  result again, as before. The graphty app's value picker passes the value the row already reads,
+  so a label read from `name` reopens on `name`, not on "Fixed text".
+- Escape in a pop-out on a control whose tooltip is open now closes the pop-out (the
+  `PopoutManager`'s Escape). Mantine's tooltip closes on Escape and stops the key on its trigger,
+  so the pop-out never saw it, and a reader pressing Escape on a field's Reset got nothing they could
+  see (the tooltip opened by focus is held back for a second) and left the pop-out open, so the next
+  Enter reset the field. An Escape a field uses (taking back what was typed) still keeps the
+  pop-out open. A fix of a defect, not a change of what the component is for: Escape closing the
+  innermost thing the reader opened is what the pop-out already promised.
+
 ## 2026-10-17 -- Decided by the team: a data table that sizes its columns, names its sort and its empty cells (compact-mantine)
 
 Additive, compact-mantine `DataTable`:

@@ -466,3 +466,146 @@ describe("label entries on the real element", () => {
         });
     });
 });
+
+describe("a label entry's size, keys, lists and widths", () => {
+    beforeAll(async () => {
+        await page.viewport(1366, 768);
+    });
+
+    /**
+     * Adds a node label read from `name` and waits for it.
+     * @param session - the element's session.
+     */
+    async function addNameLabel(session: GraphSession): Promise<void> {
+        await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+        await userEvent.click(within(textList()).getByRole("button", { name: "Add to node text" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: /^Label(?! at )/ }));
+        await userEvent.click(within(await findValuePicker()).getByRole("option", { name: "name" }));
+        await waitFor(() => {
+            assert.isDefined(writer(session, "node.label"));
+        });
+    }
+
+    /**
+     * Opens the node label's settings.
+     * @returns the pop-out.
+     */
+    async function openSettings(): Promise<HTMLElement> {
+        await userEvent.click(await within(textList()).findByRole("button", { name: "Node label settings" }));
+        return screen.findByRole("dialog", { name: "Label settings" });
+    }
+
+    it("Label settings has the text size beside 'Size in', and a size typed there is the size drawn", async () => {
+        const { session } = await openWithGraph();
+        await addNameLabel(session);
+        const settings = await openSettings();
+        const size = within(settings).getByLabelText<HTMLInputElement>(/^Size(,|$)/);
+        const unit = within(settings).getByRole("combobox", { name: /^Size in(,|$)/ });
+        assert.equal(
+            size.closest(".mantine-SimpleGrid-root"),
+            unit.closest(".mantine-SimpleGrid-root"),
+            "the size and its unit share a line",
+        );
+        assert.equal(size.value, "48", "an unset size reads the size drawn");
+        await choose("Size in", "Screen", settings);
+        await userEvent.tripleClick(size);
+        await userEvent.keyboard("14{Enter}");
+        await waitFor(() => {
+            assert.equal(labelStyle(session).sizePx, 14);
+            assert.equal(labelStyle(session).sizeUnit, "screen");
+        });
+    });
+
+    it("Escape in a settings field takes back the typing and keeps focus; Escape on a Reset closes the settings", async () => {
+        const { session } = await openWithGraph();
+        await addNameLabel(session);
+        const settings = await openSettings();
+        const lineHeight = within(settings).getByLabelText<HTMLInputElement>(/^Line height(,|$)/);
+        await userEvent.tripleClick(lineHeight);
+        await userEvent.keyboard("1.5{Enter}");
+        await waitFor(() => {
+            assert.equal(labelStyle(session).lineHeight, 1.5);
+        });
+        await userEvent.keyboard("2");
+        await userEvent.keyboard("{Escape}");
+        const field = within(settings).getByLabelText<HTMLInputElement>(/^Line height(,|$)/);
+        assert.equal(document.activeElement, field, "focus stays in the field");
+        assert.equal(field.value, "1.5", "the typing is taken back");
+        assert.isNotNull(screen.queryByRole("dialog", { name: "Label settings" }), "the settings stay open");
+
+        const reset = within(settings).getByRole("button", { name: "Reset Line height to default" });
+        reset.focus();
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("dialog", { name: "Label settings" }), "Escape closes the settings");
+        });
+        assert.equal(labelStyle(session).lineHeight, 1.5, "nothing is reset");
+    });
+
+    it("the source list reopened on a label read from name highlights name; Tab from its search closes it", async () => {
+        const { session } = await openWithGraph();
+        await addNameLabel(session);
+        await userEvent.click(within(textList()).getByRole("button", { name: "Label source: name" }));
+        const list = await findValuePicker();
+        assert.equal(
+            list.querySelector('[role="option"][aria-selected="true"]')?.textContent?.trim().startsWith("name"),
+            true,
+            "the value in force is highlighted",
+        );
+        await userEvent.keyboard("{Tab}");
+        await waitFor(() => {
+            assert.isNull(queryValuePicker(), "Tab closes the list");
+        });
+        assert.equal(
+            document.activeElement,
+            within(textList()).getByRole("button", { name: "Label source: name" }),
+            "focus is back on the source",
+        );
+    });
+
+    it("the Fixed text box shows what is typed, and adding a label narrows no other field", async () => {
+        const { session } = await openWithGraph();
+        await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+        await userEvent.click(
+            within(screen.getByTestId("style-tab")).getByRole("button", { name: "Add to node shape" }),
+        );
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Shape" }));
+        const shapeBox = async (): Promise<HTMLElement> =>
+            waitFor(() => {
+                const box = document.querySelector<HTMLElement>('[data-line="node.shape"] .ws-field-control');
+                assert.isNotNull(box);
+                return box;
+            });
+        const before = (await shapeBox()).getBoundingClientRect().width;
+
+        await userEvent.click(within(textList()).getByRole("button", { name: "Add to node text" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: /^Label(?! at )/ }));
+        await userEvent.click(within(await findValuePicker()).getByRole("option", { name: "Fixed text" }));
+        const field = await within(textList()).findByRole<HTMLInputElement>("textbox", { name: "Node label text" });
+        await userEvent.keyboard("Volunteer");
+        assert.isAtMost(field.scrollWidth, field.clientWidth, "the typed word is not cut");
+        await userEvent.keyboard("{Enter}");
+        await waitFor(() => {
+            assert.equal(writer(session, "node.label")?.set?.["node.label"], "Volunteer");
+        });
+        const typed = within(textList()).getByRole<HTMLInputElement>("textbox", { name: "Node label text" });
+        assert.isAtMost(typed.scrollWidth, typed.clientWidth, "the words are not cut once written");
+        assert.equal((await shapeBox()).getBoundingClientRect().width, before, "the Shape box keeps its width");
+    });
+
+    it("a label read from name switched to Fixed text opens its words box focused, and the typing is written", async () => {
+        const { session } = await openWithGraph();
+        await addNameLabel(session);
+        await userEvent.click(within(textList()).getByRole("button", { name: "Label source: name" }));
+        await userEvent.click(within(await findValuePicker()).getByRole("option", { name: "Fixed text" }));
+        const field = await within(textList()).findByRole<HTMLInputElement>("textbox", { name: "Node label text" });
+        await waitFor(() => {
+            assert.equal(document.activeElement, field, "focus is in the words box");
+        });
+        await userEvent.keyboard("Hello{Enter}");
+        await waitFor(() => {
+            assert.equal(writer(session, "node.label")?.set?.["node.label"], "Hello");
+        });
+        assert.isNotNull(within(textList()).getByRole("button", { name: "Label source: Fixed text" }));
+    });
+});

@@ -203,67 +203,83 @@ export function ValuePicker({
                   },
               ];
 
+    // The list opens on the value in force (the one this row reads), as a select opens on its value.
+    const inForce = inUse.find((path) => used.some((row) => row.value === path));
+
     return (
-        <QuickActions
-            role="group"
-            aria-label={title}
-            placeholder={FIND_ATTRIBUTE}
-            width={240}
-            height={320}
-            descriptions="end"
-            emptyText={entries.length === 0 ? emptyWords(target) : undefined}
-            actions={[
-                ...(fixedLabel === undefined ? [] : [{ value: FIXED, label: fixedLabel }]),
-                ...(byLayer === undefined
-                    ? []
-                    : [
-                          {
-                              value: LAYER,
-                              // Set off as the bulk field's source is, and named without the marks.
-                              label: LAYER_TOKEN,
-                              "aria-label": "Layer",
-                              tone: "component" as const,
-                              icon: <GLYPHS.layer size={14} aria-hidden />,
-                              description: `${String(byLayer.count)} layers`,
-                              keywords: ["layer", "selected layers", "each layer"],
-                              section: "Selected layers",
-                          },
-                      ]),
-                ...used,
-                ...fits,
-                ...fold,
-                ...refused,
-            ]}
-            filter={(action, query) => {
-                const searching = query.trim() !== "";
-                if (action.value === FOLD) {
-                    return !searching;
-                }
-                // Folded until opened; a search finds them anyway, each with its reason.
-                if (action.disabled === true && !searching && !unfolded) {
-                    return false;
-                }
-                return [action.label, ...(action.keywords ?? [])].some((words) => matchesWordStart(words, query));
-            }}
-            onRun={(key) => {
-                if (key === FIXED) {
-                    onFixed?.();
-                    return;
-                }
-                if (key === LAYER) {
-                    byLayer?.onPick();
-                    return;
-                }
-                if (key === FOLD) {
-                    setUnfolded(!unfolded);
-                    return;
-                }
-                const entry = entries.find((e) => e.key === key);
-                if (entry !== undefined) {
-                    onPick?.(entry.choice);
+        // Tab leaves the list: it closes, as a select's list does, and focus goes back to what
+        // opened it rather than on into the panel behind it.
+        <div
+            style={{ display: "contents" }}
+            onKeyDown={(event) => {
+                if (event.key === "Tab" && onClose !== undefined) {
+                    event.preventDefault();
+                    onClose();
                 }
             }}
-            onClose={onClose}
-        />
+        >
+            <QuickActions
+                role="group"
+                aria-label={title}
+                placeholder={FIND_ATTRIBUTE}
+                width={240}
+                height={320}
+                descriptions="end"
+                emptyText={entries.length === 0 ? emptyWords(target) : undefined}
+                highlight={inForce}
+                actions={[
+                    ...(fixedLabel === undefined ? [] : [{ value: FIXED, label: fixedLabel }]),
+                    ...(byLayer === undefined
+                        ? []
+                        : [
+                              {
+                                  value: LAYER,
+                                  // Set off as the bulk field's source is, and named without the marks.
+                                  label: LAYER_TOKEN,
+                                  "aria-label": "Layer",
+                                  tone: "component" as const,
+                                  icon: <GLYPHS.layer size={14} aria-hidden />,
+                                  description: `${String(byLayer.count)} layers`,
+                                  keywords: ["layer", "selected layers", "each layer"],
+                                  section: "Selected layers",
+                              },
+                          ]),
+                    ...used,
+                    ...fits,
+                    ...fold,
+                    ...refused,
+                ]}
+                filter={(action, query) => {
+                    const searching = query.trim() !== "";
+                    if (action.value === FOLD) {
+                        return !searching;
+                    }
+                    // Folded until opened; a search finds them anyway, each with its reason.
+                    if (action.disabled === true && !searching && !unfolded) {
+                        return false;
+                    }
+                    return [action.label, ...(action.keywords ?? [])].some((words) => matchesWordStart(words, query));
+                }}
+                onRun={(key) => {
+                    if (key === FIXED) {
+                        onFixed?.();
+                        return;
+                    }
+                    if (key === LAYER) {
+                        byLayer?.onPick();
+                        return;
+                    }
+                    if (key === FOLD) {
+                        setUnfolded(!unfolded);
+                        return;
+                    }
+                    const entry = entries.find((e) => e.key === key);
+                    if (entry !== undefined) {
+                        onPick?.(entry.choice);
+                    }
+                }}
+                onClose={onClose}
+            />
+        </div>
     );
 }

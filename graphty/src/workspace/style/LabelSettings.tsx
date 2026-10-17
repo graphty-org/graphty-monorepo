@@ -74,8 +74,8 @@ const BADGES = [
 
 /**
  * Every field the popover shows, in its groups (design 2.3): text color and background first,
- * then Type, Box, Letters, Placement, Motion and distance, Badge. The size and the position are on
- * the entry itself.
+ * then Type (with the text's size beside the unit it is in), Box, Letters, Placement, Motion and
+ * distance, Badge. The position is on the entry itself.
  */
 const LABEL_SETTINGS: readonly FieldGroup[] = [
     { fields: [color("color", "Text color"), color("background", "Background")] },
@@ -94,13 +94,15 @@ const LABEL_SETTINGS: readonly FieldGroup[] = [
                     ["right", "Right"],
                 ]),
             ],
+            // The size beside the unit it is measured in: a unit with no number beside it names nothing.
             [
-                number("lineHeight", "Line height", 0.1),
+                number("sizePx", "Size"),
                 choice("sizeUnit", "Size in", [
                     ["screen", "Screen"],
                     ["world", "Scene"],
                 ]),
             ],
+            number("lineHeight", "Line height", 0.1),
         ],
     },
     {

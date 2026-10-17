@@ -230,7 +230,7 @@ const css = `
     height: var(--switch-thumb-size);
     inset-inline-start: calc(var(--switch-height) / 4 - 1px);
     border-radius: 9999px;
-    background-color: var(--cm-text-onbrand);
+    background-color: var(--cm-text-onsolid);
     box-shadow: 0 0 0 1px var(--cm-control-knob-off-outline);
     transition: inset-inline-start var(--cm-duration-sm) var(--cm-ease-out);
 }
@@ -249,6 +249,8 @@ const css = `
     background-color: var(--cm-icon-disabled);
     box-shadow: none;
 }
+/* On the accent fill the knob takes the accent's label ink (dark on the graphty lime). */
+.cm-switch-input:is(:checked, [data-indeterminate]):not(:disabled) + * > .cm-switch-thumb { background-color: var(--cm-text-onbrand); }
 .cm-switch-input:disabled:is(:checked, [data-indeterminate]) + * > .cm-switch-thumb { box-shadow: none; }
 
 /* ---------------------------------------------------------------- SegmentedControl (5.2, 5.3) */
@@ -410,9 +412,9 @@ const css = `
 .cm-slider-bar { background-color: var(--cm-bg-brand); }
 .cm-slider .cm-slider-thumb {
     box-sizing: border-box;
-    border: 2px solid var(--cm-text-onbrand);
-    color: var(--cm-text-onbrand);
-    background-color: var(--cm-text-onbrand);
+    border: 2px solid var(--cm-text-onsolid);
+    color: var(--cm-text-onsolid);
+    background-color: var(--cm-text-onsolid);
     box-shadow: 0 0 0 1px var(--cm-control-knob-off-outline), inset 0 0 0 1px var(--cm-control-knob-off-outline), var(--cm-elevation-300);
     outline: 1px solid transparent;
     outline-offset: -2px;

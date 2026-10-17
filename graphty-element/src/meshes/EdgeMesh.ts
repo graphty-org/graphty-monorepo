@@ -268,18 +268,19 @@ void main() {
     /**
      * Whether a style's line is drawn as pattern elements (`PatternedLineMesh`) rather than as a
      * slot in a line batch: a patterned type on a straight line. A curve, and a dashed or dotted
-     * line through bends, is a joined line in a batch.
+     * line through bends or round a self-loop, is a joined line in a batch.
      * @param style - The resolved style.
+     * @param loop - Whether the edge is a self-loop, which is never a straight line.
      * @returns True for pattern elements.
      */
-    static drawsAsPattern(style: EdgeStyleConfig): boolean {
+    static drawsAsPattern(style: EdgeStyleConfig, loop = false): boolean {
         const lineType = style.line?.type ?? "solid";
         if (!PATTERNED_TYPES.has(lineType) || style.line?.bezier === true) {
             return false;
         }
 
-        const bends = parseBends(style.line?.bends) !== null;
-        return !(bends && (lineType === "dash" || lineType === "dot"));
+        const routed = loop || parseBends(style.line?.bends) !== null;
+        return !(routed && (lineType === "dash" || lineType === "dot"));
     }
 
     /**
@@ -303,6 +304,7 @@ void main() {
      * @param options - Edge mesh options including styleId, width, and color.
      * @param style - Full edge style configuration.
      * @param scene - Babylon.js scene.
+     * @param loop - Whether the edge is a self-loop (see {@link EdgeMesh.drawsAsPattern}).
      * @returns The batch to take a slot in, or null for a patterned line.
      */
     static lineBatch(
@@ -310,13 +312,14 @@ void main() {
         options: EdgeMeshOptions,
         style: EdgeStyleConfig,
         scene: Scene,
+        loop = false,
     ): EdgeLineBatch | null {
         const lineType = style.line?.type ?? "solid";
         const key = `edge-style-${options.styleId}`;
         const staticLine = (): Mesh => this.createStaticLine(options, style, scene, cache);
         const curve = style.line?.bezier === true;
 
-        if (this.drawsAsPattern(style)) {
+        if (this.drawsAsPattern(style, loop)) {
             return null;
         }
 

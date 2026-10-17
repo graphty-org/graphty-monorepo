@@ -1,4 +1,4 @@
-The study runs on build (none frozen yet) served from (none frozen yet)
+The study runs on build 58556989e8 served from /home/apowers/Projects/graphty-monorepo/.study-builds/tier3-r1-58556989e8
 
 Frozen on 2026-10-17 for the tier 3 rounds.
 
@@ -257,6 +257,9 @@ is re-piloted on the new frozen build. Remove before adding; words at rest never
 
 ## Change log
 
+- 2026-10-17 (round 1 build frozen): the study build is 58556989e8, served from
+  `/home/apowers/Projects/graphty-monorepo/.study-builds/tier3-r1-58556989e8`. No build was frozen
+  before it.
 - 2026-10-17 (second review by the researcher, the user advocate and the red team; frozen): bar 1
   writes out what 80% means at 4 and 6 sessions, and T47 and T48 hold only when most successes went
   by the folder or several route (one layer at a time no longer counts: it is the bulk edit not

@@ -4,6 +4,22 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-17 -- Decided by the team: wheel zoom toward the pointer, and a palette for more than eight groups
+
+Additive, found by the tier 3 dry run (`tier3/dry-run-r1-1.md`):
+
+- A camera option in graphty-element that zooms the wheel toward the point under the pointer, so
+  the node under it stays under it. Its default keeps today's behavior (zoom toward the view's
+  center); the graphty app turns it on. Other consumers choose. The engineer names it after the
+  camera options beside it.
+- When a categorical binding has more groups than its palette has colors, the app picks a palette
+  from the element's catalog that covers the count. If the catalog has none above eight, the
+  element's catalog gains one (a new entry; existing palettes and the extension of an existing
+  palette are unchanged). Reason: extending "Eight distinct colors" to ten clusters drew three
+  near-identical oranges.
+
+No change to any existing behavior or default.
+
 ## 2026-10-16 -- Decided by the team: a has-value rule and value counts for any readable value
 
 Additive API in graphty-element (`./session`), for the Style panel's condition cards:

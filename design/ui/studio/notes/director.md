@@ -5,22 +5,26 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-10-17 (tier 3 criteria frozen after the second review). Summarized from 42 KB
+Last updated: 2026-10-17 (tier 3 dry run before round 1 triaged). Summarized from 42 KB
 on 2026-10-17; the full earlier text is in this file's git history.
 
 ## Top of mind
 
-- (2026-10-17) TIER 3 CRITERIA FROZEN ("Frozen on 2026-10-17 for the tier 3 rounds" in
-  `tier3/criteria.md`; the build line stays first and still reads "none frozen yet": the preflight
-  freezes the build and names it there). Tasks, key and roster changed with it (change logs in each).
-- (2026-10-17) BLOCKERS FOUND ON THE CURRENT BUILD (6ddcb6c7c, app 0.8.68), for the preflight:
-  (1) T50 cannot be done: opening `lesmis-poster.graphty.json` lists its layer as the raw row id
-  `layer-1_2` (the key says "Poster") and selecting it shows an EMPTY Style tab; the project's
-  Edge tab "Add a condition" opens nothing (the project carries no tie columns). Severity 4 until
-  shown otherwise; owner of the fix is the element's project load or the fixture -- read the element
-  first. (2) Focus after adding: a new text card focuses its "contains" menu, a new Color line
-  focuses "Pick Node color" (typing writes nothing), a new Shape line ignores typing. Bar 6's new
-  typed check fails on all three today; that is the bar working.
+- (2026-10-17) DRY RUN r1-1 TRIAGED (`tier3/dry-run-r1-1.md`): the pilots on build 58556989e8
+  found about 490 problems; 21 fix groups go to the engineers, round 1 waits for a new frozen
+  build and a re-pilot of every task. Two severity 4: the number card hands a "from" above "to"
+  to the element on a keystroke and the inspector dies; an opened project's layer is its raw row
+  key with nothing joined (T50 blocked on every route).
+- (2026-10-17) Most repeated (a) defects, one cause each: focus after adding a Color line (every
+  styling task); status regions mounted already filled (every keyboard walk); focus falling to the
+  page (Escape in a field, end of the Tab cycle); Undo enabled right after opening a sample;
+  "A rule set elsewhere" for a hand-picked set; "Row name"; "Search values" on a column list.
+- (2026-10-17) Most repeated (b), for round 1 to read first: what names a node (ids everywhere,
+  no hover name); where the color of everything lives (Graph Style tab); what Enter in find takes;
+  "at least" on a number card; keyboard on the canvas (an element capability not built).
+- (2026-10-17) Criteria frozen; build 58556989e8 frozen for round 1 and piloted. The two
+  blockers found before the freeze (T50's raw row key, focus after adding) were confirmed by the
+  dry run and are in its fix groups; bar 6's typed check fails on them until fixed.
 - (2026-10-17) Bar 1 for T47 and T48 counts only the folder or several route: one layer at a time
   is the bulk edit not found, so it no longer holds the bar. Watch whether T47 B (10 clusters) is
   then the round's hardest bar; that is the study's real question, not a reason to loosen it.
@@ -80,6 +84,15 @@ on 2026-10-17; the full earlier text is in this file's git history.
 
 ## Decisions and reasons
 
+- **2026-10-17, dry run r1-1 triage.** Team calls, reversible: the base layer Everything is not
+  narrowed (a condition on it removed every other node from the drawing in four pilots; a reader
+  who wants fewer makes a layer); Escape in a style field keeps focus in the field everywhere (the
+  2026-10-13 "leaves the field" rule left focus on the page); arrow cursor over buttons stays
+  (compact-mantine sets it on purpose); wheel zoom toward the pointer as an additive element option
+  the app turns on; a palette that covers the group count instead of extending eight colors
+  (both recorded in `owner-decisions.md`). Classed (b) and left in: node names, hover names,
+  canvas keyboard walk, Enter in find, "at least", where Escape cancels, the Layer token, a
+  card's count read as the total, where a new layer lands beside a run's folder.
 - **2026-10-17, second review of the tier 3 criteria, then frozen.** Taken (researcher, user
   advocate, red team):
     - T47 and T48 hold bar 1 only on the folder or several route; T48 gets `Route: folder | several |
@@ -147,6 +160,12 @@ one by one | cover` (`score.mjs` ROUTE_TASKS). Reason: both core bulk tasks coul
 
 ## Tried: worked / did not work
 
+- 2026-10-17 -- Worked: triaging the dry run by mechanism, not by report. About 490 lines from 30
+  pilots collapsed into 21 fix groups because the same few causes surfaced in every task (one
+  focus rule, one live-region pattern, one Escape handler). Grepping the strings first
+  ("A rule set elsewhere" in `style/cards.ts`, "Row name" in five files) named the owning file
+  before writing a unit. Did not work: three pilots could not write their report.md (the harness
+  refused a subagent's Write); their findings survived only in the returned text.
 - 2026-10-17 -- Ran `bars.mjs --tier 3 --scheme dark` on build 6ddcb6c7c with the new walk. Worked:
   every new screen of the own-file and folder walks (color and size bound to data, their popovers,
   the "Color from each layer" dialog, adding a shape) reached with no MISS; the planted typing case
@@ -175,6 +194,10 @@ one by one | cover` (`score.mjs` ROUTE_TASKS). Reason: both core bulk tasks coul
 
 ## Thinking
 
+- **2026-10-17, dry run:** pilots that walk every task by keyboard find the same few defects
+  thirty times. The cost of a defect to the study is its spread, not its severity: one focus rule
+  broke every styling task's success path. Rank fix groups by how many tasks they touch, and pilot
+  the keyboard path before the detours next time.
 - **2026-10-17, criteria review:** each reviewer found a place where a bar could hold while the
   thing under study was never used (route bar, bar 4 on keys, an unwalked popover). The pattern
   from tier 2 repeats one level up: a bar measures a proxy, and the proxy drifts from the act. For
@@ -194,7 +217,7 @@ one by one | cover` (`score.mjs` ROUTE_TASKS). Reason: both core bulk tasks coul
 
 ## Sources
 
-- Tier 3 study: `tier3/{criteria,tasks,answers,roster}.md`; tools `tool/{real,bars,score,wording}.mjs`,
+- Tier 3 study: `tier3/{criteria,tasks,answers,roster}.md`; dry run `tier3/dry-run-r1-1.md`; tools `tool/{real,bars,score,wording}.mjs`,
   `tool/bars-limits.json`; pilots `tier3/pilot-materials/`, `tier3/build/{walk-p1..p3,pilot-bulk*}/`.
 - Tier 3 reviews (2026-10-17): `notes/{researcher,user,redteam}.md` (commits 05f4ee91a, 863ebb9a8,
   de16901f7); my walk of the proposed screens in the worktree's `tmp/director-freeze/explore*`.

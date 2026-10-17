@@ -16,6 +16,33 @@ served at `/?next`.
 
 ## Top of mind
 
+- (2026-10-17, tier 3 first-use criteria review) Read criteria, tasks, answers, roster, README and
+  the scoring code. Bars that pass without a good product: score.mjs bar 1 `holds: !judged || ...`
+  (T37, T42, T44 at 2 sessions always hold, and T42 is the only number-card task); bar 4 drops
+  sessions that never styled and counts any look change; T47 passes through Everything with no
+  bulk edit; T50 A is guessable from the names (all three start "Mlle"); bar 8 limits re-recorded
+  on the round 1 build pass by construction and sit above the 50/40 word budgets (72, 71);
+  T49 passes if the red was never drawn. wording.mjs COMMON holds open, opened, ready-made, new,
+  show, number, keep, look, more -- control and start-screen words the check can never flag. Sam
+  never opens a file or adds a card to a folder. Tool wiring checked: tier3.test.mjs, score and
+  wording self-tests pass; criteria's first line is the reserved build line; all nine persona
+  files exist; T49's follow-up parses generically.
+
+- (2026-10-16, V7 + bulk + cards review, before build) Facts found: a "both" row is two element
+  layers that today SHARE one selector (WhichElements writes the same selector to every part;
+  rows.ts says "sharing the selector"); edges for a Both layer come from the node rule ("between",
+  or "touching" via `edges: "incident"`). V7 gives each tab its own picker, so the parts' selectors
+  diverge -- and the between/touching capability disappears unless it becomes an edge card.
+  `rules/conditions.ts` is shared with Data > Filters: cards must replace both or there are two
+  condition editors. Today's modes Top N, Named, Set, Selected, Hovered, Expression and "other"
+  each need a card or a read-only card, or opening an existing layer loses its rule. Positions:
+  folder has no picker of its own (bulk picker = its layers' pickers); common cards editable,
+  differing cards read <<Layer>> and are read-only; Add a card adds to every layer; never rename
+  layers from a bulk picker edit; bulk turn-on of edges defaults to "between this layer's nodes".
+  Not expressible by AND cards: OR across fields, exclude, neighbors of, edges by endpoints
+  combined with edge fields. Watch in the study: "edges inside each community", "X or Y", a card
+  added on a folder read as a folder filter.
+
 - (2026-10-16, bulk iteration 7 frozen) Frozen as `tier3-bulk7-457aa9f0f2`, served by servherd
   design-studio-tier3 at https://dev.ato.ms:9373/?next. Bulk field whose layers differ now draws
   BoundValue (SpreadValues deleted): strip in the pill, <<Layer>> in the component purple where the
@@ -359,6 +386,8 @@ served at `/?next`.
 
 ## Sources
 
+- `design/ui/studio/tier3/{criteria,tasks,answers,roster,README}.md`, `tool/score.mjs` (bar 1
+  `judged`, `firstStyledOf`), `tool/wording.mjs` (COMMON), `tool/bars-limits.json` (2026-10-17)
 - `design/ui/studio/tier3/decide/*.md` (eight role answers), the source lines named in the
   2026-10-12 decision entry (2026-10-12)
 - `design/ui/studio/tier2/rounds/round-4/decisions.md`, `insights.md` (closed, 2026-10-11)

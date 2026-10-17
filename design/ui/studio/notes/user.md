@@ -12,6 +12,32 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Top of mind
 
+- (2026-10-17, first-use styling study review) Reviewed tier3 criteria, tasks, answers, roster,
+  README. Biggest gap: no task colors each category its own color (the commonest first styling
+  act, and the one where "twelve oranges for twelve conferences" lies); asked for T51 in T42's
+  slots. Also: T47 A "twice as big as now" cannot be read on screen when Size sits behind "+";
+  T45 B "black" ties look like the dark gray default (false done, ungradeable); T41 "has no phone
+  number" echoes "Has no value" (say "is missing"); B prompts say "your sources / your story /
+  your sports page" to non-reporters; T48 "as they did before" is ambiguous; Tom (opens only what
+  others send) is on core T47 B and T48 B against the roster's own rule; "10,000" with a comma is
+  an unwalked detour. Watch: whether T51's colors are distinct and its key names every value.
+
+- (2026-10-16, combined V7 + cards + bulk review) The owner chose V7 (Node | Edge tabs, a
+  collapsible picker of typed condition cards at the top of each tab) over the studio's V5; I
+  accept it and drop my 2026-10-12 "groups, never tabs". My asks: a new or empty layer opens with
+  its picker open on "Add a condition" (a state rule, not a first-run aid); Close is not Cancel,
+  so every card edit is one undo step and the row's count is live; a card that leaves 0 says so;
+  the tab follows the kind (stay on the current tab when the next layer styles it); the Edge
+  tab of a node-picked layer offers "Touching / Between the picked nodes" as its first card;
+  "From selection" makes a fixed Named card (live Selected and Hovered are not subset picks);
+  a selector the cards cannot draw shows a read-only Expression card, never nothing. Bulk picker:
+  cards every layer holds alike are shown and edited for all; cards that differ show as one card
+  with the purple <<Layer>> token, which opens the same per-layer rows (one row per layer, its
+  chips and count, click to open that layer); Add a condition adds to every layer; values of a
+  differing card are not written in bulk (ten groups picking community 3 is never meant). Watch
+  in the study: does anyone open the collapsed picker unprompted; does anyone think Close undid
+  their edit; does anyone hunt edges on the Node tab.
+
 - (2026-10-16, bulk iteration 7 frozen) Frozen as `tier3-bulk7-457aa9f0f2`, served by servherd
   design-studio-tier3 at https://dev.ato.ms:9373/?next. Bulk field whose layers differ now draws
   BoundValue (SpreadValues deleted): strip in the pill, <<Layer>> in the component purple where the

@@ -15,6 +15,22 @@ save and reopen.
 
 ## Top of mind
 
+- (2026-10-16, combined V7 picker + bulk review, before build) Proposed: one card per field (the
+  field list marks fields in use, picking one focuses its card); a card with nothing chosen is
+  dashed, narrows nothing, is never written and goes away when the picker closes; Escape collapses
+  the INLINE picker and keeps the edits (Esc ladder, undo is the recovery; one undo step per
+  open-close, labeled "Which nodes"), a change from today's Escape-restores popover; the Which row is
+  the only tab stop at rest (chips are pointer shortcuts, like the bulk pill); remove = x or Delete,
+  focus to the next card, else the previous, else "+ Add condition". Bulk: same tabs and cards,
+  a card per field reads its shared value or Mixed (purple Layer token, the same parity as bulk
+  fields); a Mixed checklist is tri-state; typing or ticking writes that one value to every layer;
+  adding a card ANDs it into every layer; a receipt names layers left matching nothing. Edge tab's
+  pick is now independent of the node pick: today's shared selector and "touching" become a
+  visible "Both ends in this layer's nodes" card. Element gaps (additive): presence leaf, an ends
+  leaf over a node rule (both/either/source/target) and ends same/differ on a field, per-card
+  counts in one pass. Watch: does an algorithm folder's added card break re-run realignment;
+  does anyone press Escape expecting to cancel.
+
 - (2026-10-16, bulk iteration 7 frozen) Frozen as `tier3-bulk7-457aa9f0f2`, served by servherd
   design-studio-tier3 at https://dev.ato.ms:9373/?next. Bulk field whose layers differ now draws
   BoundValue (SpreadValues deleted): strip in the pill, <<Layer>> in the component purple where the

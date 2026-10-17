@@ -9,6 +9,16 @@ Last updated: 2026-10-16 (combined Style panel spec decided).
 
 ## Top of mind
 
+- (2026-10-17, review of the first-use styling study drafts) The drafts answer first use well
+  (every session starts empty) but under-measure the owner's combined bulk-plus-picker focus: T48
+  (the only task where bulk and picking meet) sits at 4 sessions and is not core, asks no count, so
+  "chip count read as total" cannot be observed; T47 passes by the Everything layer, so the core
+  bulk task can rise without anyone selecting the folder. My own watch items from 2026-10-16
+  (picker opened unprompted, Escape expected to cancel, edges sought on the Node tab, chip count)
+  had no row in "Measures reported". Question 2 claimed bar 1 on T42, which runs at 2. The dry-run
+  cap of 4 passes contradicts the owner's "until clean" rule (2026-10-08): a fourth pass that
+  finds something stops the round. Size: 56 is right; move T37's 2 to T48, not more tasks.
+
 - (2026-10-16, combined Style panel spec) DECIDED in `tier3/design.md`, section "2026-10-16 --
   The combined Style panel". Tabs "Node"/"Edge" (owner's words beat IA's plural); Paints control
   deleted; each row part writes its own selector (already true in the element, so not breaking --

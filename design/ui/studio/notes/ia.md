@@ -7,6 +7,15 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
 
 ## Top of mind
 
+- (2026-10-16, combined V7 + bulk review, before build) Structure I am holding: the Node/Edge tab
+  switch replaces "Paints: Nodes/Edges/Both" (one home for on/off); each tab owns its own pick, so
+  a row's node and edge parts get independent selectors -- today `WhichElements` writes ONE
+  selector to both parts and derives edges by "between/touching", so that becomes an "Ends" card
+  on the Edge tab. In bulk, a card is keyed by its field exactly as a bulk field is keyed by its
+  channel: same value everywhere shows the card, different values show the card with the
+  <<Layer>> token; a card added in bulk is added to every layer. Escape keeps (as BindingPopover),
+  one word "Done". Watch in the study: does a first-time reader find edges under a node-first
+  tab, and does anyone read the collapsed chips as the whole pick?
 - (2026-10-16, bulk iteration 7 frozen) Frozen as `tier3-bulk7-457aa9f0f2`, served by servherd
   design-studio-tier3 at https://dev.ato.ms:9373/?next. Bulk field whose layers differ now draws
   BoundValue (SpreadValues deleted): strip in the pill, <<Layer>> in the component purple where the

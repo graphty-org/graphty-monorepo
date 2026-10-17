@@ -881,5 +881,7 @@
             "groups": 0
         }
     },
-    "allowedDrops": {}
+    "allowedDrops": {
+        "json-vis-synth/borderStyle": "reference corrected: vis-network's text shape (node 4) draws no border, so its border style is no longer judged; 68 of 69 pass where 69 of 70 did, the same one failing node (20)"
+    }
 }

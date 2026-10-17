@@ -215,14 +215,17 @@ export const CustomSource = sourceStory({
 });
 
 /** A source that needs a login, given none and remembering none: refused before any request. */
-export const MissingCredential = sourceStory({
-    recordings: peopleRecordings,
-    load: (element, options) =>
-        element.session.data.import(
-            { source: "people-private", config: { team: "core" } },
-            { ...options, endpoint: PEOPLE },
-        ),
-});
+export const MissingCredential: StoryObj<SourceArgs> = {
+    ...sourceStory({
+        recordings: peopleRecordings,
+        load: (element, options) =>
+            element.session.data.import(
+                { source: "people-private", config: { team: "core" } },
+                { ...options, endpoint: PEOPLE },
+            ),
+    }),
+    parameters: { paintCheck: { exempt: "the load is refused before any request, so it draws no graph on purpose" } },
+};
 
 /**
  * A saved project reopened: its rows draw at once from the file, and its load waits, fetching

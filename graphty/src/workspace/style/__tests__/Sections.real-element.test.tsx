@@ -21,6 +21,7 @@ import { findValuePicker, render, screen, waitFor, within } from "../../../test/
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { SECTIONS } from "../words";
+import { showKind } from "./kindTab";
 
 /** A hang guard for the element coming up, not a pass/fail timing. */
 const TIMEOUT_MS = 90_000;
@@ -206,6 +207,7 @@ describe("the Style tab's sections", () => {
         await session.styles.addRow({ name: "Both", target: "both", selector: { match: "everything" } });
         await session.styles.settled();
         await openStyle("Both");
+        await showKind(kind);
         const where = `${kind} ${title}`;
         await userEvent.click(
             within(section(kind, id)).getByRole("button", { name: `Add to ${kind} ${title.toLowerCase()}` }),
@@ -295,6 +297,7 @@ describe("the Style tab's sections", () => {
     it("starts an added arrowhead at what an undirected graph draws there: none", async () => {
         const { session } = await openScene();
         await openStyle("Everything");
+        await showKind("edge");
         // On an undirected graph the section says what arrowheads follow.
         assert.include(within(section("edge", "ends")).getByTestId("edge-ends-note").textContent, "first-listed node");
         await userEvent.click(within(section("edge", "ends")).getByRole("button", { name: "Add to edge arrowheads" }));
@@ -307,6 +310,7 @@ describe("the Style tab's sections", () => {
     it("starts an added pattern count at 10 marks, not the floor of 2 that reads as no line", async () => {
         const { session } = await openScene();
         await openStyle("Everything");
+        await showKind("edge");
         await userEvent.click(within(section("edge", "line")).getByRole("button", { name: "Add to edge line" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Pattern count" }));
         await waitFor(() => {
@@ -317,6 +321,7 @@ describe("the Style tab's sections", () => {
     it("an end label on an undirected graph's edges says why it is not drawn", async () => {
         const { session } = await openScene();
         await openStyle("Everything");
+        await showKind("edge");
         await userEvent.click(within(section("edge", "text")).getByRole("button", { name: "Add to edge text" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Label at target end" }));
         await userEvent.click(within(await findValuePicker()).getByRole("option", { name: "Fixed text" }));
@@ -413,6 +418,7 @@ describe("the Style tab's sections", () => {
         const { session } = await openScene();
         const tab = await openStyle("Everything");
         assert.isNotNull(section("node", "fill").querySelector('.ws-row[data-line="node.color"]'));
+        await showKind("edge");
         assert.isNotNull(section("edge", "line").querySelector('.ws-row[data-line="edge.color"]'));
         assert.isNotNull(tab);
         await session.styles.settled();

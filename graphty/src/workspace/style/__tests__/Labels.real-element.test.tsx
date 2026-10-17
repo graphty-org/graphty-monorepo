@@ -17,6 +17,7 @@ import { page, userEvent } from "vitest/browser";
 import { findValuePicker, queryValuePicker, render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
+import { showKind } from "./kindTab";
 
 /** A hang guard for the element coming up and painting, not a pass/fail timing. */
 const TIMEOUT_MS = 60_000;
@@ -371,6 +372,7 @@ describe("label entries on the real element", () => {
     it("an edge label of fixed text writes only its words, adds no Size line, and its kind reads whole", async () => {
         const { session } = await openWithGraph();
         await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+        await showKind("edge");
         await userEvent.click(within(edgeTextList()).getByRole("button", { name: "Add to edge text" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Label(?! at )/ }));
         await userEvent.click(within(await findValuePicker()).getByRole("option", { name: "Fixed text" }));

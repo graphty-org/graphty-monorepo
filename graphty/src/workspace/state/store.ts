@@ -56,6 +56,11 @@ export interface WorkspaceState {
     readonly inspected: Inspected | null;
     /** The tab last chosen per inspected kind. */
     readonly tabs: Readonly<Record<string, "style" | "values">>;
+    /**
+     * The Style tab's Node or Edge tab, one for the whole panel: kept while the next row styles
+     * that kind, else the kind the row styles (combined Style panel, 2026-10-16).
+     */
+    readonly styleSide: "node" | "edge";
     readonly leftWidth: number;
     readonly rightWidth: number;
     readonly dockHeight: number;
@@ -138,6 +143,7 @@ const INITIAL: WorkspaceState = {
     renamingRow: null,
     inspected: null,
     tabs: {},
+    styleSide: "node",
     leftWidth: PANEL_MIN,
     rightWidth: PANEL_MIN,
     dockHeight: 240,

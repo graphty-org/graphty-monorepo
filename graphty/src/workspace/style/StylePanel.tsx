@@ -4,13 +4,15 @@ import { ComboInput, CompactColorInput, FieldRow } from "@graphty/compact-mantin
 import { channelsFor, toColorValue } from "@graphty/graphty-element/catalog";
 import { DEFAULT_SELECTION_STYLE, type LayerId } from "@graphty/graphty-element/schema";
 import type { GraphSession, Layer } from "@graphty/graphty-element/session";
-import { Box, Group, Stack, Text } from "@mantine/core";
+import { Box, Button, Checkbox, Group, Stack, Tabs, Text } from "@mantine/core";
 import React, { useEffect, useId, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import { findTreeRow, isHidden, isLocked, rowLayers as treeRowLayers } from "../graph-place/rows";
 import { edgeName } from "../inspector/words";
+import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
+import { isBlankRow, writeKind } from "./cards";
 import { GroupDetail } from "./Groups";
 import { LabelSection } from "./LabelSection";
 import type { RowContext } from "./PropertyRow";
@@ -31,7 +33,7 @@ import { Section } from "./Section";
 import { useFocusLine } from "./useFocusLine";
 import { useLabelColumn } from "./useLabelColumn";
 import { useStyleVersion } from "./useStyleVersion";
-import { WhichElements } from "./WhichElements";
+import { WhichPicker } from "./WhichPicker";
 import { SECTIONS } from "./words";
 
 /**
@@ -99,9 +101,8 @@ interface StylePanelProps {
 }
 
 /**
- * The Style tab (the owner's style panel design, 2026-10-13): for a tree row, Which elements; then
- * a Nodes group and an Edges group, each only when the row paints that kind, each with its fixed
- * sections. A section lists only the properties the layer sets, and its "+" adds the rest; nothing
+ * The Style tab (the owner's style panel design, 2026-10-13, in tabs since 2026-10-16): a Node tab
+ * and an Edge tab, a tree row's with its Which picker, each with its fixed sections. A section lists only the properties the layer sets, and its "+" adds the rest; nothing
  * the layer does not set is drawn as a value. Generated from graphty-element's channel descriptors
  * (`channelsFor`), never typed.
  * @param props - Component props
@@ -141,6 +142,46 @@ export function StylePanel({ layers, rowId }: Readonly<StylePanelProps>): React.
 }
 
 /**
+ * A tree row's kinds: on when it has a part of that kind; turned on or off with the element's
+ * `writeRow` target, which gives a new edge part the node part's pick (so it paints the edges
+ * between the picked nodes: the Ends card); its picker is Which nodes or Which edges.
+ * @param session - the element's session.
+ * @param store - the workspace store, for the notice when a change is refused.
+ * @param rowId - the tree row.
+ * @returns the control.
+ */
+function rowKinds(session: GraphSession, store: WorkspaceStore, rowId: string): KindControl {
+    const parts = session.styles.parts(rowId);
+    const has = (side: Target): boolean => (side === "node" ? parts?.node : parts?.edge) !== undefined;
+    return {
+        state: (side) => ({ on: has(side) ? 1 : 0, of: 1 }),
+        toggle: async (side, on) => {
+            try {
+                await session.transaction(`${on ? "Style" : "Stop styling"} ${KIND_WORDS[side].many}`, (tx) =>
+                    writeKind(session, tx, rowId, side, on),
+                );
+                const name = findTreeRow(session.styles.tree(), rowId)?.row.name ?? "The layer";
+                store.set({
+                    announcement: `${name} ${on ? "now styles" : "no longer styles"} ${KIND_WORDS[side].many}`,
+                });
+            } catch (error) {
+                const why = error instanceof Error ? ` ${error.message}` : "";
+                store.set({ notice: { message: `Could not change what the layer styles.${why}`, error: true } });
+            }
+        },
+        pick: (side, justOn) => (
+            <WhichPicker
+                key={side}
+                session={session}
+                rows={[rowId]}
+                side={side}
+                autoOpen={justOn || isBlankRow(session, rowId)}
+            />
+        ),
+    };
+}
+
+/**
  * A style tree row's panel: a line while it is locked or hidden, and its Style tab, disabled while
  * it or a folder holding it is locked. The inspector's header names the row and carries its menu.
  * @param props - Component props
@@ -149,6 +190,7 @@ export function StylePanel({ layers, rowId }: Readonly<StylePanelProps>): React.
  * @returns The panel
  */
 function TreeRowPanel({ session, rowId }: Readonly<{ session: GraphSession; rowId: string }>): React.JSX.Element {
+    const { store } = useWorkspace();
     const found = findTreeRow(session.styles.tree(), rowId);
     if (found === undefined) {
         return <StateLine>This row is gone</StateLine>;
@@ -169,7 +211,7 @@ function TreeRowPanel({ session, rowId }: Readonly<{ session: GraphSession; rowI
                     session={session}
                     row={row}
                     below={rowId}
-                    head={row.length > 0 ? <WhichElements session={session} layer={rowId} /> : undefined}
+                    kinds={row.length > 0 ? rowKinds(session, store, rowId) : undefined}
                 />
             </LockedGroup>
         </>
@@ -309,8 +351,41 @@ export function StateLine({
 }
 
 /**
- * One row's Style tab: a group per kind the row paints, Nodes then Edges, each heading sticking to
- * the top of the panel while it scrolls (tier3 design, decisions 1.3 and 1.4).
+ * How a row's Node and Edge tabs turn a kind on and off and pick its elements: a tree row's, or
+ * several rows' together.
+ */
+export interface KindControl {
+    /** How many of the rows style the kind, of how many. */
+    readonly state: (side: Target) => { readonly on: number; readonly of: number };
+    /** Turns the kind on or off on every row, as one undo step. */
+    readonly toggle: (side: Target, on: boolean) => Promise<void>;
+    /** The kind's picker: Which nodes or Which edges, open on arrival when `justOn` and it has no cards. */
+    readonly pick: (side: Target, justOn: boolean) => React.ReactNode;
+}
+
+/** A kind's tab label and its noun. */
+const KIND_WORDS: Readonly<Record<Target, { tab: string; many: string; title: string }>> = {
+    node: { tab: "Node", many: "nodes", title: "Nodes" },
+    edge: { tab: "Edge", many: "edges", title: "Edges" },
+};
+
+/**
+ * How many properties a kind's layers set, for the other kind's line: "2 styles".
+ * @param layers - the kind's layers.
+ * @returns the words.
+ */
+function stylesWords(layers: readonly Layer[]): string {
+    const channels = new Set(
+        layers.flatMap((layer) => [...Object.keys(layer.set ?? {}), ...Object.keys(layer.encode ?? {})]),
+    );
+    return channels.size === 1 ? "1 style" : `${String(channels.size)} styles`;
+}
+
+/**
+ * One row's Style tab (V7, the owner's choice of 2026-10-16): Node and Edge tabs; each tab names the
+ * other kind in one line, then the kind's switch and its Which picker (a tree row), then its
+ * sections. One tab state for the panel: kept while the next row styles that kind, else the kind
+ * the row styles, Node on a tie.
  * @param props - Component props
  * @param props.session - the element's session
  * @param props.row - the row's layers
@@ -318,7 +393,7 @@ export function StateLine({
  *   it has a layer on
  * @param props.fresh - the layer the row's first edit adds; left out, the row adds none
  * @param props.below - the tree row whose beneath "+" starts a property from
- * @param props.head - what the tab shows above the groups (a layer's Which elements)
+ * @param props.kinds - the kinds' switches and pickers, for tree rows
  * @param props.many - for several rows edited together, per kind: what they share and how a
  *   write reaches each
  * @param props.panel - which row the tab shows, when its layers can come and go under it (the
@@ -331,7 +406,7 @@ export function RowStyle({
     sides: offered = ["node", "edge"],
     fresh,
     below,
-    head,
+    kinds,
     many,
     panel,
 }: Readonly<{
@@ -340,13 +415,28 @@ export function RowStyle({
     sides?: readonly Target[];
     fresh?: NewLayer;
     below?: string;
-    head?: React.ReactNode;
+    kinds?: KindControl;
     many?: (side: Target) => Pick<RowContext, "many" | "beneath">;
     panel?: string;
 }>): React.JSX.Element {
+    const { store } = useWorkspace();
+    const stored = useWorkspaceState((state) => state.styleSide);
     const scope = useFocusLine<HTMLDivElement>(panel ?? below ?? row.join(" "));
     useLabelColumn(scope);
     const sides = offered.filter((t) => fresh !== undefined || rowLayers(session, row, t).length > 0);
+    const tabs: readonly Target[] = kinds === undefined ? sides : ["node", "edge"];
+    const styled = (side: Target): boolean => (kinds === undefined ? sides.includes(side) : kinds.state(side).on > 0);
+    const [tab, setTab] = useState<Target>(() =>
+        styled(stored) || !tabs.some(styled) ? stored : (tabs.find(styled) ?? "node"),
+    );
+    const [justOn, setJustOn] = useState<Target | null>(null);
+    useEffect(() => {
+        if (tab !== stored) {
+            store.set({ styleSide: tab });
+        }
+        // Only when the tab moves here: another panel's tab is that panel's.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [tab]);
     // Beneath the row, over its own elements: its tree row, else its lowest layer's, else (a row
     // not written yet) the stack as it is.
     const lowest = session.styles.list().find((layer) => row.includes(layer.id));
@@ -354,36 +444,223 @@ export function RowStyle({
     const beneath = beneathOf(session, treeRow);
     const paintedOver = treeRow === undefined || many !== undefined ? undefined : paintedOverOf(session, treeRow, row);
     const colors = documentColors(session);
+    const sectionsOf = (side: Target): React.JSX.Element => {
+        const ctx: RowContext = {
+            session,
+            row,
+            side,
+            layers: rowLayers(session, row, side),
+            fresh,
+            beneath,
+            paintedOver,
+            documentColors: colors,
+            ...many?.(side),
+        };
+        return (
+            <section className="ws-style-group" data-group={side}>
+                {SECTIONS[side].map((spec) =>
+                    spec.id === "text" ? (
+                        <LabelSection key={spec.id} ctx={ctx} />
+                    ) : (
+                        <Section key={spec.id} ctx={ctx} spec={spec} />
+                    ),
+                )}
+            </section>
+        );
+    };
+    if (tabs.length < 2) {
+        return (
+            <Stack ref={scope} gap={0} data-testid="style-tab" className="ws-style-panel">
+                {sides.map((side) => (
+                    <React.Fragment key={side}>{sectionsOf(side)}</React.Fragment>
+                ))}
+            </Stack>
+        );
+    }
+    const show = (side: Target): void => {
+        setTab(side);
+    };
+    const turn = async (side: Target, on: boolean): Promise<void> => {
+        if (kinds === undefined) {
+            return;
+        }
+        await kinds.toggle(side, on);
+        setJustOn(on ? side : null);
+        setTab(side);
+    };
     return (
         <Stack ref={scope} gap={0} data-testid="style-tab" className="ws-style-panel">
-            {head === undefined ? null : <div className="ws-style-panel-which">{head}</div>}
-            {sides.map((side) => {
-                const ctx: RowContext = {
-                    session,
-                    row,
-                    side,
-                    layers: rowLayers(session, row, side),
-                    fresh,
-                    beneath,
-                    paintedOver,
-                    documentColors: colors,
-                    ...many?.(side),
-                };
-                const title = side === "node" ? "Nodes" : "Edges";
-                return (
-                    <section key={side} className="ws-style-group" data-group={side} aria-label={title}>
-                        <h3 className="ws-style-group-title">{title}</h3>
-                        {SECTIONS[side].map((spec) =>
-                            spec.id === "text" ? (
-                                <LabelSection key={spec.id} ctx={ctx} />
-                            ) : (
-                                <Section key={spec.id} ctx={ctx} spec={spec} />
-                            ),
-                        )}
-                    </section>
-                );
-            })}
+            <Tabs
+                value={tab}
+                onChange={(value) => {
+                    if (value === "node" || value === "edge") {
+                        show(value);
+                    }
+                }}
+                keepMounted={false}
+                className="ws-style-tabs"
+            >
+                <Tabs.List aria-label="Style for">
+                    {tabs.map((side) => (
+                        <Tabs.Tab
+                            key={side}
+                            value={side}
+                            rightSection={
+                                styled(side) ? undefined : (
+                                    <Text span size="xs" c="var(--cm-text-secondary)">
+                                        off
+                                    </Text>
+                                )
+                            }
+                        >
+                            {KIND_WORDS[side].tab}
+                        </Tabs.Tab>
+                    ))}
+                </Tabs.List>
+                {tabs.map((side) => {
+                    const other: Target = side === "node" ? "edge" : "node";
+                    return (
+                        <Tabs.Panel key={side} value={side}>
+                            <OtherLine
+                                session={session}
+                                row={row}
+                                side={other}
+                                kinds={kinds}
+                                styled={styled(other)}
+                                onEdit={() => {
+                                    show(other);
+                                }}
+                                onTurnOn={() => turn(other, true)}
+                            />
+                            {kinds !== undefined && (
+                                <KindSwitch
+                                    side={side}
+                                    state={kinds.state(side)}
+                                    only={styled(side) && !styled(other)}
+                                    onTurn={(on) => turn(side, on)}
+                                />
+                            )}
+                            {styled(side) && (
+                                <>
+                                    {kinds?.pick(side, justOn === side)}
+                                    {rowLayers(session, row, side).length > 0 || fresh !== undefined
+                                        ? sectionsOf(side)
+                                        : null}
+                                </>
+                            )}
+                        </Tabs.Panel>
+                    );
+                })}
+            </Tabs>
         </Stack>
+    );
+}
+
+/**
+ * The other kind in one line, so the whole layer reads from either tab: "Edges: 2 styles" with
+ * Edit, or "Edges: not styled" with Style edges. One Tab stop.
+ * @param props - Component props
+ * @param props.session - the element's session
+ * @param props.row - the row
+ * @param props.side - nodes or edges
+ * @param props.kinds - the kinds' switches, when the rows have them
+ * @param props.styled - whether the kind is styled
+ * @param props.onEdit - goes to the kind's tab
+ * @param props.onTurnOn - turns the kind on
+ * @returns The line
+ */
+function OtherLine({
+    session,
+    row,
+    side,
+    kinds,
+    styled,
+    onEdit,
+    onTurnOn,
+}: Readonly<{
+    session: GraphSession;
+    row: readonly LayerId[];
+    side: Target;
+    kinds: KindControl | undefined;
+    styled: boolean;
+    onEdit: () => void;
+    onTurnOn: () => Promise<void>;
+}>): React.JSX.Element {
+    const words = KIND_WORDS[side];
+    const state = kinds?.state(side);
+    let what = "not styled";
+    if (styled) {
+        what =
+            state !== undefined && state.of > 1
+                ? `on in ${String(state.on)} of ${String(state.of)} layers`
+                : stylesWords(rowLayers(session, row, side));
+    }
+    return (
+        <Group gap={6} wrap="nowrap" className="ws-other-line" data-other={side}>
+            <Text size="xs" c="dimmed" style={{ flex: 1, minWidth: 0 }} truncate>
+                {words.title}: {what}
+            </Text>
+            {styled ? (
+                <Button size="compact-xs" variant="subtle" aria-label={`Edit ${words.many}`} onClick={onEdit}>
+                    Edit
+                </Button>
+            ) : (
+                kinds !== undefined && (
+                    <Button
+                        size="compact-xs"
+                        variant="subtle"
+                        onClick={() => {
+                            void onTurnOn();
+                        }}
+                    >
+                        Style {words.many}
+                    </Button>
+                )
+            )}
+        </Group>
+    );
+}
+
+/**
+ * A kind's switch: "Style edges", or on several layers "Style edges, on in 3 of 10 layers", mixed
+ * when some do. A layer keeps at least one kind.
+ * @param props - Component props
+ * @param props.side - nodes or edges
+ * @param props.state - how many rows style the kind, of how many
+ * @param props.only - whether it is the row's only kind
+ * @param props.onTurn - turns the kind on or off
+ * @returns The switch
+ */
+function KindSwitch({
+    side,
+    state,
+    only,
+    onTurn,
+}: Readonly<{
+    side: Target;
+    state: { readonly on: number; readonly of: number };
+    only: boolean;
+    onTurn: (on: boolean) => Promise<void>;
+}>): React.JSX.Element {
+    const words = KIND_WORDS[side];
+    const label =
+        state.of > 1
+            ? `Style ${words.many}, on in ${String(state.on)} of ${String(state.of)} layers`
+            : `Style ${words.many}`;
+    const all = state.on === state.of;
+    return (
+        <Checkbox
+            size="xs"
+            className="ws-kind-switch"
+            label={label}
+            checked={state.on > 0 && all}
+            indeterminate={state.on > 0 && !all}
+            disabled={only && all && state.of === 1}
+            description={only && all && state.of === 1 ? "A layer styles nodes, edges or both" : undefined}
+            onChange={() => {
+                void onTurn(!all);
+            }}
+        />
     );
 }
 

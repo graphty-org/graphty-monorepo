@@ -1,27 +1,8 @@
-/* The Style tab (StylePanel): Nodes and Edges, each a heading over its sections, one line per
-   property the layer sets. */
+/* The Style tab (StylePanel): a Node tab and an Edge tab, each with the other kind's line, the
+   kind's switch and Which picker (a tree row), then its sections, one line per property the layer
+   sets. */
 
-/* Nodes and Edges stick to the top of the panel: "Visibility" is in both groups, and the heading
-   says which. */
-.ws-style-group-title {
-    position: sticky;
-    top: 0;
-    z-index: 2;
-    margin: 0;
-    padding: 8px 8px 4px var(--ws-gutter);
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--cm-text);
-    background: var(--mantine-color-body);
-}
-
-.ws-style-panel-which {
-    padding: 8px 8px 0 var(--ws-gutter);
-}
-
-/* One gutter for the tab: Which elements, the section titles and every field start 16px in, as
+/* One gutter for the tab: the tabs, the Which picker, the section titles and every field start 16px in, as
    the sections' own content does (Figma's panel). */
 .ws-style-panel {
     --ws-gutter: 16px;
@@ -134,27 +115,6 @@
     grid-row: 1;
 }
 
-/* The rule at rest is a button: it says so with a pencil and a hover fill. */
-.ws-which-sentence {
-    display: flex;
-    gap: 4px;
-    align-items: flex-start;
-    width: 100%;
-    padding: 2px 4px;
-    margin-inline: -4px;
-    border-radius: var(--mantine-radius-sm);
-}
-
-.ws-which-sentence:hover {
-    background: var(--mantine-color-default-hover);
-}
-
-.ws-which-sentence > svg {
-    flex: none;
-    margin-top: 2px;
-    color: var(--mantine-color-dimmed);
-}
-
 /* A varied field's second line: category chits and "+N", a ramp's ends or a number's From / To,
    then its notes ("Logarithmic scale"), under the value pill. */
 .ws-varied-line {
@@ -213,4 +173,95 @@
     color: var(--cm-text);
     font-size: 11px;
     line-height: 16px;
+}
+
+/* The Node and Edge tabs, the other kind's line and the kind's switch, on the tab's gutter. */
+.ws-style-tabs > [role="tablist"] {
+    padding: 8px 8px 4px var(--ws-gutter);
+}
+
+.ws-other-line,
+.ws-kind-switch {
+    padding: 2px 8px 2px var(--ws-gutter);
+}
+
+/* A kind's Which picker: the collapsed row, or the open cards. */
+.ws-which {
+    padding: 4px 8px 4px var(--ws-gutter);
+}
+
+/* The collapsed row: a disclosure button, its head on one line and its chips under it. */
+.ws-which-row {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 100%;
+    padding: 4px;
+    margin-inline: -4px;
+    border-radius: var(--mantine-radius-sm);
+}
+
+.ws-which-row:hover {
+    background: var(--mantine-color-default-hover);
+}
+
+.ws-which-head > svg {
+    flex: none;
+    color: var(--cm-icon-secondary, var(--mantine-color-dimmed));
+}
+
+.ws-which-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+/* A card's chip: its words and its own count, 11 px on the secondary fill; an unfinished card's
+   chip is dashed, and the "add a condition" chip is a warning. */
+.ws-chip {
+    padding: 0 6px;
+    font-size: 11px;
+    line-height: 18px;
+    color: var(--cm-text);
+    background: var(--cm-bg-secondary);
+    border-radius: 4px;
+    box-shadow: inset 0 0 0 1px var(--cm-border-translucent-strong);
+}
+
+.ws-chip[data-todo] {
+    background: transparent;
+    box-shadow: none;
+    outline: 1px dashed var(--cm-border-translucent-strong);
+    outline-offset: -1px;
+}
+
+.ws-chip[data-warn] {
+    box-shadow:
+        inset 0 0 0 1px var(--cm-bg-warning),
+        inset 4px 0 0 var(--cm-bg-warning);
+    padding-inline-start: 10px;
+}
+
+/* One condition card: its header (name, count, x), its Match select and its editor. */
+.ws-card {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 6px;
+    border-radius: var(--mantine-radius-sm);
+    box-shadow: inset 0 0 0 1px var(--cm-border-translucent-strong);
+}
+
+.ws-card-layer,
+.ws-card-layer-line {
+    display: block;
+    width: 100%;
+    padding: 2px 4px;
+    border-radius: var(--mantine-radius-sm);
+    text-align: start;
+}
+
+.ws-card-layer:hover,
+.ws-card-layer-line:hover {
+    background: var(--mantine-color-default-hover);
 }

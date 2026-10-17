@@ -1,7 +1,6 @@
 /**
- * Search and selection as ways into a layer's rule, on the REAL graphty-element: a layer's find
- * field offers what it finds as a live rule or a fixed list, and "New layer from selection" makes
- * a layer of what is selected, keeping the rule the selection came from when it came from one.
+ * Selection as a way into a layer's rule, on the REAL graphty-element: "New layer from selection"
+ * makes a layer of what is selected, keeping the rule the selection came from when it came from one.
  * Every assertion reads what the element reports: the layer's selector and how many it matches.
  */
 
@@ -92,49 +91,9 @@ async function newLayerFromSelection(hex: string): Promise<void> {
     await userEvent.type(field, `${hex}{Enter}`);
 }
 
-describe("search and selection as ways into a rule", () => {
+describe("selection as a way into a rule", () => {
     beforeAll(async () => {
         await page.viewport(1366, 768);
-    });
-
-    it("typing bob in a layer's find field offers 'name contains bob' as a live rule, and picking it paints those 3", async () => {
-        const { session, store } = await openWithGraph();
-        const layer = await session.styles.add({
-            name: "People",
-            target: "node",
-            selector: { match: "everything" },
-            set: { "node.color": "#ff0000" },
-        });
-        store.set({ inspected: { kind: "layer-row", id: layer.id } });
-        const style = await screen.findByRole("tab", { name: "Style" }, { timeout: TIMEOUT_MS });
-        if (style.getAttribute("aria-selected") !== "true") {
-            await userEvent.click(style);
-        }
-
-        // The find field is in the Which elements editor, which the rule's sentence opens.
-        await userEvent.click(
-            await screen.findByRole("button", { name: /^Which elements: / }, { timeout: TIMEOUT_MS }),
-        );
-        const field = await screen.findByRole("combobox", { name: "Find elements" }, { timeout: TIMEOUT_MS });
-        await userEvent.click(field);
-        await userEvent.keyboard("bob");
-        const live = await screen.findByRole("option", { name: "name contains bob, 3 nodes" });
-        assert.isNotNull(
-            screen.queryByRole("option", { name: "These 3 nodes, name contains bob" }),
-            "the fixed list is offered too",
-        );
-        await userEvent.click(live);
-
-        await waitFor(() => {
-            const now = session.styles.get(layer.id);
-            assert.strictEqual(now?.selector.match, "rule");
-            assert.strictEqual(session.styles.counts(layer.id).matched, 3);
-        });
-        // A live rule follows the data: a new Bob joins the layer.
-        await session.data.addNodes([{ id: "f", name: "Bobo", age: 1, position: { x: 30, y: 0, z: 0 } }]);
-        await waitFor(() => {
-            assert.strictEqual(session.styles.counts(layer.id).matched, 4);
-        });
     });
 
     it("Shift-clicking two nodes and choosing New layer from selection makes a layer of those 2", async () => {

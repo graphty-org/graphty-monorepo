@@ -1,10 +1,9 @@
 /**
  * One name per value, rules in words, on the REAL graphty-element and Les Miserables with Degree,
- * Louvain, Edge betweenness and a route run, driven by real clicks and keys: no Which elements
- * line prints a raw expression and the route's editor opens on conditions; each run's value has
- * one name in the Style tab, the Values tab and the key; changing a layer's kind by the keyboard
- * keeps focus on the kind control and says so; a draft counts what its rule matches before any
- * value is set; Louvain's Values tab names its groups as the key does, in the key's order.
+ * Louvain, Edge betweenness and a route run, driven by real clicks and keys: no Which row prints
+ * a raw expression and the route's opens on a yes-or-no card; each run's value has one name in the
+ * Style tab, the Values tab and the key; turning a kind on by the keyboard keeps focus on its
+ * switch and says so; a new layer counts what its cards match before any value is set; Louvain's Values tab names its groups as the key does, in the key's order.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -92,15 +91,15 @@ async function openRow(name: string, tab: "Style" | "Values"): Promise<HTMLEleme
 }
 
 /**
- * The Which elements line at rest of the open Style tab.
- * @returns the line's button.
+ * The Which nodes (or edges) row at rest of the open Style tab.
+ * @returns the row's button.
  */
 async function whichLine(): Promise<HTMLElement> {
-    return screen.findByRole("button", { name: /^Which elements: / }, { timeout: TIMEOUT_MS });
+    return screen.findByRole("button", { name: /^Which (nodes|edges), / }, { timeout: TIMEOUT_MS });
 }
 
 describe("one name per value, rules in words", () => {
-    it("no Which elements line is a raw expression, and the route's editor opens on conditions", async () => {
+    it("no Which row is a raw expression, and the route's opens on a yes-or-no card", async () => {
         const { rows } = await openScene();
         for (const row of [rows.degree, rows.louvain, rows.bridges, rows.route]) {
             await openRow(row, "Style");
@@ -109,14 +108,13 @@ describe("one name per value, rules in words", () => {
         }
         await openRow(rows.route, "Style");
         const line = await whichLine();
-        assert.equal(line.textContent, "Nodes and edges on the route");
+        assert.include(line.textContent, "On the route: yes");
         await userEvent.click(line);
-        const rule = await screen.findByRole<HTMLInputElement>("combobox", { name: "Rule" });
-        assert.equal(rule.value, "Where a value");
-        const condition = within(screen.getByRole("group", { name: "Condition 1" }));
-        assert.equal(condition.getByRole<HTMLInputElement>("combobox", { name: "Attribute" }).value, "On the route");
-        // Nothing in the condition is cut at the inspector's width: each field shows its whole value.
-        for (const field of screen.getByRole("group", { name: "Condition 1" }).querySelectorAll("input")) {
+        const card = await screen.findByRole("group", { name: /^On the route(,|$)/ });
+        const match = within(card).getByRole<HTMLInputElement>("combobox", { name: "On the route: match" });
+        assert.equal(match.value, "Yes");
+        // Nothing in the card is cut at the inspector's width: each field shows its whole value.
+        for (const field of card.querySelectorAll("input:not([type=hidden])")) {
             assert.isAtMost(field.scrollWidth, field.clientWidth, field.getAttribute("aria-label") ?? "");
         }
     });
@@ -138,29 +136,28 @@ describe("one name per value, rules in words", () => {
         assert.notMatch(key.textContent ?? "", /\b(Connections|Bridge edges|Communities)\b/, "the key names the runs");
     });
 
-    it("changing Connections from Nodes to Edges by ArrowRight keeps focus on the kind, says so, keeps the name", async () => {
+    it("Style edges by the keyboard on Degree keeps focus on the switch, says so, keeps the name", async () => {
         const { session, store, rows } = await openScene();
         await openRow(rows.degree, "Style");
-        await userEvent.click(await whichLine());
-        const kinds = screen.getByRole("radiogroup", { name: "Paints" });
-        const nodes = within(kinds).getByRole<HTMLInputElement>("radio", { name: "Nodes" });
-        assert.isTrue(nodes.checked);
-        nodes.focus();
-        await userEvent.keyboard("{ArrowRight}");
+        const kinds = await screen.findByRole("tablist", { name: "Style for" });
+        await userEvent.click(within(kinds).getByRole("tab", { name: /^Edge/ }));
+        const edges = await screen.findByRole<HTMLInputElement>("checkbox", { name: "Style edges" });
+        assert.isFalse(edges.checked);
+        edges.focus();
+        await userEvent.keyboard(" ");
         await waitFor(() => {
-            assert.equal(store.get().announcement, `${rows.degree} now paints edges`);
+            assert.equal(store.get().announcement, `${rows.degree} now styles edges`);
         });
         await waitFor(() => {
             const active = document.activeElement as HTMLInputElement | null;
-            assert.isNotNull(active?.closest("[data-which-kind]"), "focus is on the kind control");
+            assert.strictEqual(active, screen.getByRole("checkbox", { name: "Style edges" }), "focus stays on it");
             assert.isTrue(active?.checked);
-            assert.equal(active?.value, "edge");
         });
         const names = session.styles.tree().map((row) => row.name);
         assert.include(names, rows.degree, "the row keeps its name");
     });
 
-    it("a new layer finding 'Mme' counts 6 nodes before any value is set", async () => {
+    it("a new layer with a name card on 'Mme' counts 6 nodes before any value is set", async () => {
         const { session } = await openScene();
         await userEvent.click(
             await screen.findByRole("button", { name: "Add a layer or a folder" }, { timeout: TIMEOUT_MS }),
@@ -168,19 +165,22 @@ describe("one name per value, rules in words", () => {
         await userEvent.click(await screen.findByRole("menuitem", { name: "Layer" }));
         await screen.findByRole("textbox", { name: "Row name" });
         await userEvent.keyboard("{Escape}");
-        await userEvent.click(await screen.findByRole("button", { name: /^Which elements: / }));
-        const kinds = await screen.findByRole("radiogroup", { name: "Paints" });
-        const nodes = within(kinds).getByRole<HTMLInputElement>("radio", { name: "Nodes" });
-        await userEvent.click(document.querySelector<HTMLElement>(`label[for="${nodes.id}"]`) ?? nodes);
-        await userEvent.click(screen.getByRole("combobox", { name: "Find elements" }));
-        await userEvent.keyboard("Mme");
-        await userEvent.click(await screen.findByRole("option", { name: "name contains Mme, 6 nodes" }));
-        const made = session.styles.list().find((layer) => layer.name === "Layer 1" && layer.target === "node");
-        assert.isDefined(made);
+        // A new layer opens its picker on arrival.
+        const region = await screen.findByRole("group", { name: "Which nodes" }, { timeout: TIMEOUT_MS });
+        await userEvent.click(within(region).getByRole("button", { name: "Add a condition" }));
+        await userEvent.click(await screen.findByRole("option", { name: "name" }));
+        const card = await within(region).findByRole("group", { name: /^name(,|$)/ });
+        await userEvent.type(within(card).getByRole("textbox", { name: "name: text" }), "Mme");
         await waitFor(() => {
-            assert.equal(session.styles.counts(made.id).matched, 6);
+            const node = session.styles
+                .list()
+                .find(
+                    (layer) => layer.target === "node" && layer.selector.match === "rule" && layer.source.by === "user",
+                );
+            assert.isDefined(node);
+            assert.equal(session.styles.counts(node?.id ?? "").matched, 6);
+            assert.isEmpty(Object.keys(node?.set ?? {}), "no value is set");
         });
-        assert.isEmpty(Object.keys(made.set ?? {}), "no value is set");
     });
 
     it("Louvain's Values tab lists Group 1 to Group 6 as the key does", async () => {

@@ -57,7 +57,7 @@ const FOLD = "fold";
  */
 function emptyWords(target: Target): string {
     return target === "edge"
-        ? "The edges carry no values. To paint by a node value, make this layer Both in Which elements."
+        ? "The edges carry no values. To paint by a node value, turn on Style nodes in the Node tab."
         : "The nodes carry no values yet. Load data or run an analysis.";
 }
 

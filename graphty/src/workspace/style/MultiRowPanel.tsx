@@ -6,6 +6,7 @@ import React, { useState } from "react";
 import { count, findTreeRow, type FoundRow } from "../graph-place/rows";
 import { useWorkspace } from "../state/WorkspaceContext";
 import type { LayerSequence, LayerValues } from "./BulkBinding";
+import { writeKind } from "./cards";
 import type { BeneathValue, BulkReceipt, ManyRows, RowContext } from "./PropertyRow";
 import {
     beneathOf,
@@ -17,8 +18,9 @@ import {
     type Target,
     without,
 } from "./row";
-import { RowStyle, StateLine } from "./StylePanel";
+import { type KindControl, RowStyle, StateLine } from "./StylePanel";
 import { useStyleVersion } from "./useStyleVersion";
+import { WhichPicker } from "./WhichPicker";
 import { channelWord } from "./words";
 
 /** One value or binding written to a channel, or each layer its own values (Vary by Layer). */
@@ -395,7 +397,7 @@ function scopeWords(tree: readonly StyleRow[], picked: readonly FoundRow[], reac
  * @returns The panel
  */
 export function MultiRowPanel({ ids }: Readonly<{ ids: readonly string[] }>): React.JSX.Element | null {
-    const { session, element } = useWorkspace();
+    const { session, element, store } = useWorkspace();
     useStyleVersion(session, element);
     const [last, setLast] = useState<LastWrite | null>(null);
     if (session === null) {
@@ -414,6 +416,44 @@ export function MultiRowPanel({ ids }: Readonly<{ ids: readonly string[] }>): Re
     );
     const layerIds = open.flatMap((row) => treeLayers(session, row.row.id));
     const bulk: Bulk = { locked, last, setLast };
+    // Layer rows only: a folder has no pick of its own.
+    const layerRows = open.filter((row) => row.row.kind !== "folder").map((row) => row.row.id);
+    const has = (id: string, side: Target): boolean => {
+        const parts = session.styles.parts(id);
+        return (side === "node" ? parts?.node : parts?.edge) !== undefined;
+    };
+    const kinds: KindControl = {
+        state: (side) => ({ on: layerRows.filter((id) => has(id, side)).length, of: layerRows.length }),
+        toggle: async (side, on) => {
+            const changed = await session.transaction(
+                `${on ? "styling" : "not styling"} ${side === "node" ? "nodes" : "edges"} on ${count(layerRows.length, "layer")}`,
+                async (tx) => {
+                    let n = 0;
+                    for (const id of layerRows) {
+                        if (await writeKind(session, tx, id, side, on)) {
+                            n++;
+                        }
+                    }
+                    return n;
+                },
+            );
+            const kind = side === "node" ? "nodes" : "edges";
+            store.set({
+                announcement: on
+                    ? `${count(changed, "layer")} now style ${kind}`
+                    : `${count(changed, "layer")} no longer style ${kind}`,
+            });
+        },
+        pick: (side, justOn) => (
+            <WhichPicker
+                key={side}
+                session={session}
+                rows={layerRows.filter((id) => has(id, side))}
+                side={side}
+                autoOpen={justOn}
+            />
+        ),
+    };
     return (
         <Stack gap={0}>
             <StateLine id="ws-bulk-scope">{scopeWords(tree, picked, reach)}</StateLine>
@@ -423,6 +463,7 @@ export function MultiRowPanel({ ids }: Readonly<{ ids: readonly string[] }>): Re
                     session={session}
                     row={layerIds}
                     sides={sides}
+                    kinds={layerRows.length > 0 ? kinds : undefined}
                     many={(side) => manyOf(session, open, side, bulk)}
                 />
             )}

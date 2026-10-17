@@ -139,7 +139,12 @@ describe("folders, several rows and the draft on the real element", () => {
         await screen.findByText("3 layers: 1 locked and skipped.");
 
         const tab = await screen.findByTestId("style-tab");
-        assert.isNull(within(tab).queryByRole("heading", { name: "Edges" }), "Ring is left out, so no Edges group");
+        const kinds = within(tab).getByRole("tablist", { name: "Style for" });
+        assert.include(
+            within(kinds).getByRole("tab", { name: /^Edge/ }).textContent ?? "",
+            "off",
+            "Ring is left out, so no layer styles edges",
+        );
         const size = await waitFor(() => {
             const found = tab.querySelector<HTMLElement>('.ws-row[data-line="node.size"]');
             assert.isNotNull(found);
@@ -191,7 +196,7 @@ describe("folders, several rows and the draft on the real element", () => {
         assert.isUndefined(written(session, degree, "node.glow"));
     });
 
-    it("Layer from + paints nodes and edges, shows both groups, and its first value goes on the layer it made", async () => {
+    it("Layer from + paints nodes and edges, styles both kinds, and its first value goes on the layer it made", async () => {
         const { session } = await openProject();
         const before = session.styles.list().length;
         await userEvent.click(screen.getByRole("button", { name: "Add a layer or a folder" }));
@@ -199,8 +204,15 @@ describe("folders, several rows and the draft on the real element", () => {
         await screen.findByRole("textbox", { name: "Row name" });
         await userEvent.keyboard("{Escape}");
         const tab = await screen.findByTestId("style-tab");
-        assert.isNotNull(within(tab).getByRole("heading", { name: "Nodes" }));
-        assert.isNotNull(within(tab).getByRole("heading", { name: "Edges" }));
+        const kinds = within(tab).getByRole("tablist", { name: "Style for" });
+        for (const tabName of ["Node", "Edge"]) {
+            assert.notInclude(
+                within(kinds).getByRole("tab", { name: new RegExp(`^${tabName}`) }).textContent ?? "",
+                "off",
+            );
+        }
+        // A new layer opens its picker on arrival.
+        await within(tab).findByRole("group", { name: "Which nodes" });
         assert.equal(session.styles.list().length, before + 2, "one row, a node part and an edge part");
 
         await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));

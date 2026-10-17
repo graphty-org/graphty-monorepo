@@ -1,10 +1,9 @@
 /**
- * Condition rows: value, comparison and operand, the one rule editor Data > Filters and a layer's
- * Which elements share (tier3 design, section 3.1). A condition is the app's editing state; the
+ * Condition rows: value, comparison and operand, the rule editor of Data > Filters. A condition is the app's editing state; the
  * rule it makes is a graphty-element `RuleTree` leaf, and every count is the element's.
  */
 
-import { ActionIcon, Autocomplete, NumberInput, Select, Stack, TextInput, Tooltip } from "@mantine/core";
+import { ActionIcon, Autocomplete, NumberInput, Select, TextInput, Tooltip } from "@mantine/core";
 import React from "react";
 
 import { GLYPHS } from "../glyphs";
@@ -157,39 +156,5 @@ export function ConditionRow(props: ConditionRowProps): React.JSX.Element {
                 </Tooltip>
             )}
         </div>
-    );
-}
-
-/** The props of a list of conditions joined by "and". */
-interface RuleRowsProps extends Omit<ConditionRowProps, "condition" | "onChange" | "onRemove" | "labelled"> {
-    readonly conditions: readonly Condition[];
-    readonly onChange: (next: readonly Condition[]) => void;
-}
-
-/**
- * Conditions joined by "and", each with its minus; the section title's "+" adds one.
- * @param props - Component props
- * @returns the rows.
- */
-export function RuleRows(props: RuleRowsProps): React.JSX.Element {
-    const { conditions, onChange, ...row } = props;
-    return (
-        <Stack gap={4}>
-            {conditions.map((condition, i) => (
-                <div key={String(i)} role="group" aria-label={`Condition ${String(i + 1)}`}>
-                    <ConditionRow
-                        {...row}
-                        labelled={false}
-                        condition={condition}
-                        onChange={(next) => {
-                            onChange(conditions.map((c, j) => (j === i ? next : c)));
-                        }}
-                        onRemove={() => {
-                            onChange(conditions.filter((_c, j) => j !== i));
-                        }}
-                    />
-                </div>
-            ))}
-        </Stack>
     );
 }

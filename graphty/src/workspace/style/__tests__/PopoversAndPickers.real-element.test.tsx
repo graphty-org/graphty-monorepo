@@ -210,7 +210,7 @@ describe("the binding popover's rows and readings", () => {
         assert.equal(line.getAttribute("y1"), line.getAttribute("y2"), "a level stroke: a minus");
     });
 
-    it("the vary picker and the rule editor name Degree's and Louvain's values the same", async () => {
+    it("the vary picker and the Which picker name Degree's and Louvain's values the same", async () => {
         await page.viewport(1440, 900);
         const { session, store } = await openSample("Les Miserables", 77);
         await session.runs.start("degree");
@@ -259,25 +259,19 @@ describe("the binding popover's rows and readings", () => {
         });
         await userEvent.keyboard("{Escape}");
 
-        // The rule editor's Attribute list.
-        await userEvent.click(await screen.findByRole("button", { name: /^Which elements: / }));
-        await userEvent.click(await screen.findByRole("combobox", { name: "Rule" }));
-        await userEvent.click(await screen.findByRole("option", { name: "Where a value" }));
-        await userEvent.click(screen.getByRole("button", { name: "Add condition" }));
-        const attribute = within(screen.getByRole("group", { name: "Condition 1" })).getByRole("combobox", {
-            name: "Attribute",
-        });
-        await userEvent.click(attribute);
+        // The Which picker's add menu.
+        await userEvent.click(await screen.findByRole("button", { name: /^Which nodes, / }));
+        await userEvent.click(await screen.findByRole("button", { name: "Add a condition" }));
         const listbox = await screen.findByRole("listbox");
         const ruled = optionNames(listbox);
         for (const name of picked.filter((n) => !/^\d+ values?$|^Fixed /.test(n))) {
-            assert.include(ruled, name, `the rule editor names ${name} as the picker does`);
+            assert.include(ruled, name, `the add menu names ${name} as the picker does`);
         }
         // Rules still offer the rank, named the same way everywhere.
         assert.include(ruled, "Degree rank (1 = highest)");
         await userEvent.keyboard("Louvain");
         await waitFor(() => {
-            assert.include(optionNames(listbox), "Louvain", "typing Louvain finds it in the rule editor too");
+            assert.include(optionNames(listbox), "Louvain", "typing Louvain finds it in the add menu too");
         });
     });
 });

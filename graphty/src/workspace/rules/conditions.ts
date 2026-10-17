@@ -1,14 +1,13 @@
 /**
  * Conditions: what a condition row reads, how it compares, and the graphty-element rule leaf it
- * makes. Shared by Data > Filters and a layer's Which elements (tier3 design, section 3.1).
+ * makes, for Data > Filters.
  */
 
-import type { ReadableValue, RuleTree } from "@graphty/graphty-element/session";
+import type { RuleTree } from "@graphty/graphty-element/session";
 
 /**
  * What a condition can read, as much of it as a condition row needs: a data column
- * (graphty-element's `AttributeDescriptor` is one) or an entry of `session.data.readableValues()`
- * (the node id, a column, a run's field) read into this shape by {@link readableFields}.
+ * (graphty-element's `AttributeDescriptor` is one).
  */
 export interface Field {
     /** The path a rule reads: `id`, `data.<name>`, `results.<run>.<field>`. */
@@ -22,33 +21,6 @@ export interface Field {
     readonly type?: string;
     /** Values to offer while typing one. */
     readonly sampleValues?: readonly unknown[];
-}
-
-/**
- * The fields a rule can read, from graphty-element's one list of readable values, each data
- * column keeping its sample values.
- * @param readable - `session.data.readableValues()`.
- * @param attributes - `session.data.attributes()`, for the sample values.
- * @param nameOf - each value's name and heading, when the caller names them; else its plainName.
- * @returns the fields, in the element's order.
- */
-export function readableFields(
-    readable: readonly ReadableValue[],
-    attributes: readonly Field[],
-    nameOf?: (value: ReadableValue) => { readonly name: string; readonly group: string },
-): Field[] {
-    // ponytail: a node value read at an edge's end (`value.end`) is left out until the picker
-    // words it ("the source's name"); listed bare it would read as the edge's own column.
-    return readable
-        .filter((value) => value.end === undefined)
-        .map((value) => ({
-            path: value.path,
-            kind: value.on,
-            plainName: nameOf?.(value).name ?? value.plainName,
-            group: nameOf?.(value).group,
-            type: value.kind === "number" || value.kind === "yes-no" ? value.kind : "string",
-            sampleValues: attributes.find((a) => a.path === value.path && a.kind === value.on)?.sampleValues ?? [],
-        }));
 }
 
 /** How a condition compares its value. */
@@ -78,7 +50,7 @@ export interface Condition {
 export const BLANK_CONDITION: Condition = { reads: "", compare: "at-least", low: "", high: "", text: "" };
 
 /** The value an element id is read as. */
-export const ID_READS = "node:id";
+const ID_READS = "node:id";
 
 const COMPARE_WORDS: Readonly<Record<Compare, string>> = {
     is: "is",
@@ -110,32 +82,6 @@ export function compareWords(compare: Compare): string {
  */
 export const isNumber = (attribute: Field | undefined): boolean =>
     attribute?.type === "number" || attribute?.type === "integer";
-
-/** The comparisons a layer's rule offers on numbers, on text, and on the element id. */
-const NUMBER_COMPARES: readonly Compare[] = ["at-least", "at-most", "between", "is", "is-not", "has-value"];
-const TEXT_COMPARES: readonly Compare[] = [
-    "is",
-    "is-not",
-    "one-of",
-    "contains",
-    "starts-with",
-    "ends-with",
-    "pattern",
-    "has-value",
-];
-const ID_COMPARES: readonly Compare[] = ["is", "is-not", "contains", "starts-with", "ends-with", "pattern"];
-
-/**
- * Every comparison a layer's rule offers for what a condition reads.
- * @param attribute - the attribute, or undefined for the element id.
- * @returns the comparisons.
- */
-export function allCompares(attribute: Field | undefined): readonly Compare[] {
-    if (attribute === undefined || attribute.path === "id") {
-        return ID_COMPARES;
-    }
-    return isNumber(attribute) ? NUMBER_COMPARES : TEXT_COMPARES;
-}
 
 /**
  * The comparisons a filter step offers: a range on numbers, a list of values on categories.

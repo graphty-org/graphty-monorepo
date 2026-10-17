@@ -17,6 +17,7 @@ import { page, userEvent } from "vitest/browser";
 import { act, findValuePicker, render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
+import { showKind } from "./kindTab";
 
 /** A hang guard for the element coming up, not a pass/fail timing. */
 const TIMEOUT_MS = 90_000;
@@ -164,7 +165,7 @@ describe("the Style tab's fields on the real element", () => {
         assert.isNotNull(within(visibility).getByRole("button", { name: "Remove node show" }));
     });
 
-    it("an edges-only layer shows no Nodes heading", async () => {
+    it("an edges-only layer opens on its Edge tab, its Node tab off", async () => {
         await page.viewport(1440, 900);
         const session = await openProject();
         await session.styles.add({
@@ -174,8 +175,11 @@ describe("the Style tab's fields on the real element", () => {
             set: { "edge.width": 3 },
         });
         const tab = await openRow("Edge betweenness");
-        assert.isNotNull(within(tab).getByRole("heading", { name: "Edges" }));
-        assert.isNull(within(tab).queryByRole("heading", { name: "Nodes" }));
+        const kinds = within(tab).getByRole("tablist", { name: "Style for" });
+        assert.strictEqual(within(kinds).getByRole("tab", { name: /^Edge/ }).getAttribute("aria-selected"), "true");
+        assert.include(within(kinds).getByRole("tab", { name: /^Node/ }).textContent ?? "", "off");
+        assert.isNotNull(tab.querySelector('[data-group="edge"]'));
+        assert.isNull(tab.querySelector('[data-group="node"]'));
     });
 
     it("the route layer's height at 1440 x 900 and 900 x 700 is recorded", async ({ annotate }) => {
@@ -189,8 +193,8 @@ describe("the Style tab's fields on the real element", () => {
             encode: { "node.label": { by: "data.name" } },
         });
         const tab = await openRow("Route N1 to N4");
-        assert.isNotNull(within(tab).getByRole("heading", { name: "Nodes" }));
-        assert.isNotNull(within(tab).getByRole("heading", { name: "Edges" }));
+        assert.isNotNull(within(tab).getByRole("tablist", { name: "Style for" }));
+        assert.isNotNull(tab.querySelector('[data-group="node"]'));
 
         /**
          * The panel's scroll box: the nearest ancestor of the tab that scrolls.
@@ -315,6 +319,7 @@ const ADDED_FROM: Readonly<Record<string, readonly [string, string, string]>> = 
  */
 async function rowOf(field: string): Promise<HTMLElement> {
     const [plus, item, channel] = ADDED_FROM[field];
+    await showKind(field.startsWith("Edge") ? "edge" : "node");
     const selector = `.ws-row[data-line="${channel}"]`;
     if (styleTab().querySelector(selector) === null) {
         await userEvent.click(within(styleTab()).getByRole("button", { name: plus }));
@@ -451,8 +456,8 @@ describe("the Style tab's rows on the real element", () => {
         );
         const chip = styleTab().querySelector<HTMLElement>(".cm-var-chit");
         assert.include(chip?.style.background ?? "", "linear-gradient", "the chip shows the ramp");
-        // PageRank paints only nodes: no Edges group.
-        assert.isNull(within(styleTab()).queryByRole("heading", { name: "Edges" }));
+        // PageRank paints only nodes: no Edge tab.
+        assert.isNull(within(styleTab()).queryByRole("tablist", { name: "Style for" }));
 
         await userEvent.click(await varyGlyph("Node size"));
         const list = await findValuePicker();

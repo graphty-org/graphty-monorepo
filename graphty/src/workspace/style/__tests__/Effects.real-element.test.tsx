@@ -20,6 +20,7 @@ import { createRegistry } from "../../commands/registry";
 import { createWorkspaceStore } from "../../state/store";
 import { makeWorkspaceValue, WorkspaceContext } from "../../state/WorkspaceContext";
 import { StylePanel } from "../StylePanel";
+import { showKind } from "./kindTab";
 
 /** A hang guard for the element coming up and painting, not a pass/fail timing. */
 const TIMEOUT_MS = 60_000;
@@ -171,6 +172,7 @@ describe("effects and arrow ends on the real element", () => {
     it("Target end added from Arrowheads and set to None writes none", async () => {
         const { session, element } = await mountElement();
         const [, edgeLayer] = await renderRow(session, element);
+        await showKind("edge");
         const ends = screen.getByRole("group", { name: "Edge arrowheads" });
         await userEvent.click(within(ends).getByRole("button", { name: "Add to edge arrowheads" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Target end" }));

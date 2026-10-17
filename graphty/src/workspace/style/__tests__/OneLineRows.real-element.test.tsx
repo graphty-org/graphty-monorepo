@@ -17,6 +17,7 @@ import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { findTreeRow } from "../../graph-place/rows";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
+import { showKind } from "./kindTab";
 
 /** A hang guard for the element coming up, not a pass/fail timing. */
 const TIMEOUT_MS = 90_000;
@@ -138,8 +139,8 @@ describe("one line per property", () => {
         assert.lengthOf(names, 1, `every name starts at one x: ${names.join(", ")}`);
         const panel = tab.getBoundingClientRect().left;
         assert.equal(names[0] - Math.round(panel), 16, "the names sit on the 16 px gutter");
-        const which = within(tab).getByTestId("which-elements").getBoundingClientRect().left;
-        assert.equal(Math.round(which - panel), 16, "Which elements sits on the same gutter");
+        const which = within(tab).getByTestId("which-picker").querySelector(".ws-which-head")?.getBoundingClientRect();
+        assert.equal(Math.round((which?.left ?? 0) - panel), 16, "the Which picker sits on the same gutter");
         // One line each: no field is taller than its control's line.
         for (const line of tab.querySelectorAll<HTMLElement>(".ws-row > .ws-field")) {
             assert.isAtMost(line.getBoundingClientRect().height, 30, `${String(line.dataset.line)} is one line`);
@@ -211,10 +212,11 @@ describe("one line per property", () => {
         await user.click(within(tree).getByRole("treeitem", { name: new RegExp(`^${escape(rows.route)}, `) }));
         await user.keyboard("{/Control}");
         const tab = await screen.findByTestId("style-tab");
+        await within(tab).findByRole("button", { name: "Add to node effects" });
+        await showKind("edge");
         await waitFor(() => {
             assert.isNotNull(tab.querySelector('[data-group="edge"]'), "an Edges section");
         });
-        within(tab).getByRole("button", { name: "Add to node effects" });
         assert.isAbove(within(tab).getAllByText("Text").length, 0, "a Text section");
     });
 });

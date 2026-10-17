@@ -2,7 +2,7 @@
  * The Style tab's property rows on the REAL graphty-element, driven by real input: a row keeps its
  * width when it is focused and typed into (reserved vary and minus columns); a color shows its
  * whole hex; the vary glyph is drawn at rest on every row that can vary and "=" opens it; every
- * layer shows Which elements; one minus per row (no reset "x"); a locked layer's controls stay in
+ * layer shows its Which picker; one minus per row (no reset "x"); a locked layer's controls stay in
  * the Tab order, each aria-disabled with the reason; no two controls of a both-kinds layer share a
  * name; Undo after a removal names it.
  */
@@ -20,6 +20,7 @@ import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { historyTip } from "../../frame/historyWords";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
+import { showKind } from "./kindTab";
 
 /** A hang guard for the element coming up, not a pass/fail timing. */
 const TIMEOUT_MS = 90_000;
@@ -183,6 +184,7 @@ describe("the Style tab's property rows", () => {
         await userEvent.keyboard("{Escape}");
 
         tab = await openStyle(runs["shortest-path"]);
+        await showKind("edge");
         atRest(tab, "Edge width by attribute");
         atRest(tab, "Edge color by attribute");
     });
@@ -191,6 +193,7 @@ describe("the Style tab's property rows", () => {
         await openScene();
         const tab = await openStyle("Everything");
         field(tab, "node.color");
+        await showKind("edge");
         field(tab, "edge.color");
         field(tab, "edge.width");
         assert.isNull(tab.querySelector('.ws-row[data-line="edge.arrowHead"]'), "no head is set");
@@ -230,11 +233,11 @@ describe("the Style tab's property rows", () => {
         await within(tab).findByText("Logarithmic scale", {}, { timeout: TIMEOUT_MS });
     });
 
-    it("shows Which elements on every layer, run or not, and draws no reset 'x' in the fields", async () => {
+    it("shows the Which picker on every layer, run or not, and draws no reset 'x' in the fields", async () => {
         const { runs } = await openScene();
         for (const name of ["Everything", runs.degree, runs.louvain, runs["edge-betweenness"], runs["shortest-path"]]) {
             const tab = await openStyle(name);
-            await within(tab).findByTestId("which-elements");
+            await within(tab).findByTestId("which-picker");
             if (name === runs.degree) {
                 // A varied value says which property it is before what it reads.
                 await within(tab).findByRole("button", { name: /^Node (color|size): \w/ });
@@ -250,6 +253,7 @@ describe("the Style tab's property rows", () => {
     it("shows the route's whole edge hex beside its width, and no two of its controls share a name", async () => {
         const { runs } = await openScene();
         const tab = await openStyle(runs["shortest-path"]);
+        await showKind("edge");
         const hex = field(tab, "edge.color").querySelector<HTMLInputElement>('input[aria-label^="Edge color"]');
         assert.isNotNull(hex);
         if (hex !== null) {
@@ -283,7 +287,7 @@ describe("the Style tab's property rows", () => {
         await screen.findByText("This layer is locked");
         const before = JSON.stringify(session.styles.list());
 
-        await userEvent.click(within(tab).getByTestId("which-elements"));
+        await userEvent.click(within(tab).getByTestId("which-picker"));
         let reached: HTMLElement | null = null;
         for (let i = 0; i < 4 && reached === null; i++) {
             await userEvent.keyboard("{Tab}");

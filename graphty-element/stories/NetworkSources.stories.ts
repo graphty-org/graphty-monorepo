@@ -150,8 +150,8 @@ function sourceStory(story: SourceStory): StoryObj<SourceArgs> {
                 await story.load(element, options);
                 facts.textContent = (story.facts ?? loadFacts)(element);
             } catch (error) {
-                const { code, details } = error as GraphtyError;
-                facts.textContent = `${code} ${JSON.stringify(details)}`;
+                const { code, details } = error as Partial<GraphtyError>;
+                facts.textContent = code === undefined ? String(error) : `${code} ${JSON.stringify(details)}`;
             }
 
             await element.waitForStableFrame();

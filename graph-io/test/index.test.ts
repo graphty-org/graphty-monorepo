@@ -276,6 +276,8 @@ const VALUE_EXPORTS = [
     // network sources (experimental)
     "SOURCE_ISSUE",
     "credentials",
+    "storableCredential",
+    "fromStorableCredential",
     "defineSource",
     "registerSource",
     "listSources",

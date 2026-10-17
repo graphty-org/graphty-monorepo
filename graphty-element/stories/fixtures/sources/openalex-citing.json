@@ -1,14 +1,115 @@
 [
     {
-        "url": "https://api.openalex.org/works?filter=cites:W2112090702&per-page=200&cursor=*",
+        "method": "GET",
+        "url": "https://api.openalex.org/works?filter=openalex%3AW2112090702&per-page=50&select=id%2Cdisplay_name%2Cpublication_year%2Ccited_by_count%2Cupdated_date%2Creferenced_works",
+        "status": 200,
         "headers": {
-            "content-type": "application/json"
+            "content-type": "application/json",
+            "x-ratelimit-remaining": "969",
+            "x-ratelimit-reset": "17959"
         },
         "body": {
             "meta": {
+                "notice": "No API key, so this request shares one free daily budget ($0.10) with everyone on your network's IP address. Get a free key with its own $1/day at https://openalex.org/settings/api and add api_key=YOUR_KEY to your requests. An AI agent can get one for its user in one call: POST https://api.openalex.org/api-keys with {\"email\": \"<your user's email>\"}; we email them a link, and the key works once they click it. Docs for agents: https://help.openalex.org/llms.txt",
+                "count": 1,
+                "db_response_time_ms": 8,
+                "page": 1,
+                "per_page": 50,
+                "groups_count": null,
+                "x_query": {
+                    "oql": "get works where openalex id is W2112090702",
+                    "x_new_oql": "get works where openalex id is W2112090702",
+                    "oqo": {
+                        "get_rows": "works",
+                        "filter_rows": [
+                            {
+                                "column_id": "ids.openalex",
+                                "value": "W2112090702"
+                            }
+                        ]
+                    },
+                    "url": "/works?filter=ids.openalex:W2112090702&per_page=50"
+                },
+                "cost_usd": 0.0001
+            },
+            "results": [
+                {
+                    "id": "https://openalex.org/W2112090702",
+                    "display_name": "Collective dynamics of \u2018small-world\u2019 networks",
+                    "publication_year": 1998,
+                    "cited_by_count": 42968,
+                    "updated_date": "2026-10-17T09:40:24.721904",
+                    "referenced_works": [
+                        "https://openalex.org/W111157985",
+                        "https://openalex.org/W201336350",
+                        "https://openalex.org/W584762224",
+                        "https://openalex.org/W653349970",
+                        "https://openalex.org/W950821216",
+                        "https://openalex.org/W1481272997",
+                        "https://openalex.org/W1500530370",
+                        "https://openalex.org/W1573579329",
+                        "https://openalex.org/W1971224531",
+                        "https://openalex.org/W1977647222",
+                        "https://openalex.org/W1979723177",
+                        "https://openalex.org/W1994697081",
+                        "https://openalex.org/W2005685693",
+                        "https://openalex.org/W2014661756",
+                        "https://openalex.org/W2017444605",
+                        "https://openalex.org/W2020173888",
+                        "https://openalex.org/W2025490132",
+                        "https://openalex.org/W2026552514",
+                        "https://openalex.org/W2034743991",
+                        "https://openalex.org/W2061901927",
+                        "https://openalex.org/W2062663664",
+                        "https://openalex.org/W2075744492",
+                        "https://openalex.org/W2079948225",
+                        "https://openalex.org/W2088678566",
+                        "https://openalex.org/W2093114344",
+                        "https://openalex.org/W2134831808",
+                        "https://openalex.org/W2327049868",
+                        "https://openalex.org/W2905110430",
+                        "https://openalex.org/W3049667020",
+                        "https://openalex.org/W4229876211",
+                        "https://openalex.org/W4243845907"
+                    ]
+                }
+            ],
+            "group_by": []
+        }
+    },
+    {
+        "method": "GET",
+        "url": "https://api.openalex.org/works?filter=cites%3AW2112090702&per-page=200&select=id%2Cdisplay_name%2Cpublication_year%2Ccited_by_count%2Cupdated_date%2Creferenced_works&cursor=*",
+        "status": 200,
+        "headers": {
+            "content-type": "application/json",
+            "x-ratelimit-remaining": "968",
+            "x-ratelimit-reset": "17958"
+        },
+        "body": {
+            "meta": {
+                "notice": "No API key, so this request shares one free daily budget ($0.10) with everyone on your network's IP address. Get a free key with its own $1/day at https://openalex.org/settings/api and add api_key=YOUR_KEY to your requests. An AI agent can get one for its user in one call: POST https://api.openalex.org/api-keys with {\"email\": \"<your user's email>\"}; we email them a link, and the key works once they click it. Docs for agents: https://help.openalex.org/llms.txt",
                 "count": 42911,
+                "db_response_time_ms": 51,
+                "page": null,
                 "per_page": 200,
-                "next_cursor": null
+                "next_cursor": null,
+                "groups_count": null,
+                "x_query": {
+                    "oql": "get works where it cites (W2112090702)",
+                    "x_new_oql": "get works citing (W2112090702)",
+                    "oqo": {
+                        "get_rows": "works",
+                        "filter_rows": [
+                            {
+                                "column_id": "referenced_works",
+                                "value": "W2112090702"
+                            }
+                        ]
+                    },
+                    "url": "/works?filter=referenced_works:W2112090702&per_page=200&cursor=%2A"
+                },
+                "cost_usd": 0.0001
             },
             "results": [
                 {
@@ -37,32 +138,6 @@
                         "https://openalex.org/W3150652636",
                         "https://openalex.org/W4236428370",
                         "https://openalex.org/W4248853173"
-                    ],
-                    "authorships": [
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5038976962",
-                                "display_name": "Albert-Ĺaszló Barabási"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I107639228",
-                                    "display_name": "University of Notre Dame"
-                                }
-                            ]
-                        },
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5012905268",
-                                "display_name": "Réka Albert"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I107639228",
-                                    "display_name": "University of Notre Dame"
-                                }
-                            ]
-                        }
                     ]
                 },
                 {
@@ -121,32 +196,6 @@
                         "https://openalex.org/W2170297639",
                         "https://openalex.org/W2999729612",
                         "https://openalex.org/W4301221590"
-                    ],
-                    "authorships": [
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5008135470",
-                                "display_name": "Peter Langfelder"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I161318765",
-                                    "display_name": "University of California, Los Angeles"
-                                }
-                            ]
-                        },
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5000192581",
-                                "display_name": "Steve Horvath"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I161318765",
-                                    "display_name": "University of California, Los Angeles"
-                                }
-                            ]
-                        }
                     ]
                 },
                 {
@@ -250,39 +299,6 @@
                         "https://openalex.org/W6636583832",
                         "https://openalex.org/W6703967216",
                         "https://openalex.org/W6991038133"
-                    ],
-                    "authorships": [
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5101670626",
-                                "display_name": "Riccardo Poli"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I110002522",
-                                    "display_name": "University of Essex"
-                                }
-                            ]
-                        },
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5102905570",
-                                "display_name": "James Kennedy"
-                            },
-                            "institutions": []
-                        },
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5078630420",
-                                "display_name": "Tim Blackwell"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I55521800",
-                                    "display_name": "Goldsmiths University of London"
-                                }
-                            ]
-                        }
                     ]
                 },
                 {
@@ -471,32 +487,6 @@
                         "https://openalex.org/W4243997607",
                         "https://openalex.org/W4244651065",
                         "https://openalex.org/W4312512934"
-                    ],
-                    "authorships": [
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5012905268",
-                                "display_name": "Réka Albert"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I107639228",
-                                    "display_name": "University of Notre Dame"
-                                }
-                            ]
-                        },
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5038976962",
-                                "display_name": "Albert-Ĺaszló Barabási"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I107639228",
-                                    "display_name": "University of Notre Dame"
-                                }
-                            ]
-                        }
                     ]
                 },
                 {
@@ -974,24 +964,6 @@
                         "https://openalex.org/W4302515067",
                         "https://openalex.org/W4312512934",
                         "https://openalex.org/W4388299012"
-                    ],
-                    "authorships": [
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5067142016",
-                                "display_name": "Mark E. J. Newman"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I1308548392",
-                                    "display_name": "Santa Fe Institute"
-                                },
-                                {
-                                    "id": "https://openalex.org/I27837315",
-                                    "display_name": "University of Michigan"
-                                }
-                            ]
-                        }
                     ]
                 },
                 {
@@ -1033,48 +1005,6 @@
                         "https://openalex.org/W2997134027",
                         "https://openalex.org/W3101413764",
                         "https://openalex.org/W4245443116"
-                    ],
-                    "authorships": [
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5017906200",
-                                "display_name": "Michelle Girvan"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I1308548392",
-                                    "display_name": "Santa Fe Institute"
-                                },
-                                {
-                                    "id": "https://openalex.org/I205783295",
-                                    "display_name": "Cornell University"
-                                },
-                                {
-                                    "id": "https://openalex.org/I27837315",
-                                    "display_name": "University of Michigan"
-                                }
-                            ]
-                        },
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5067142016",
-                                "display_name": "Mark E. J. Newman"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I1308548392",
-                                    "display_name": "Santa Fe Institute"
-                                },
-                                {
-                                    "id": "https://openalex.org/I205783295",
-                                    "display_name": "Cornell University"
-                                },
-                                {
-                                    "id": "https://openalex.org/I27837315",
-                                    "display_name": "University of Michigan"
-                                }
-                            ]
-                        }
                     ]
                 },
                 {
@@ -1143,40 +1073,6 @@
                         "https://openalex.org/W4253662244",
                         "https://openalex.org/W4285719527",
                         "https://openalex.org/W4372046852"
-                    ],
-                    "authorships": [
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5067142016",
-                                "display_name": "Mark E. J. Newman"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I1308548392",
-                                    "display_name": "Santa Fe Institute"
-                                },
-                                {
-                                    "id": "https://openalex.org/I27837315",
-                                    "display_name": "University of Michigan"
-                                }
-                            ]
-                        },
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5017906200",
-                                "display_name": "Michelle Girvan"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I1308548392",
-                                    "display_name": "Santa Fe Institute"
-                                },
-                                {
-                                    "id": "https://openalex.org/I205783295",
-                                    "display_name": "Cornell University"
-                                }
-                            ]
-                        }
                     ]
                 },
                 {
@@ -1219,24 +1115,6 @@
                         "https://openalex.org/W2572321817",
                         "https://openalex.org/W3101413764",
                         "https://openalex.org/W4251670979"
-                    ],
-                    "authorships": [
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5067142016",
-                                "display_name": "Mark E. J. Newman"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I204250578",
-                                    "display_name": "University of California, Irvine"
-                                },
-                                {
-                                    "id": "https://openalex.org/I27837315",
-                                    "display_name": "University of Michigan"
-                                }
-                            ]
-                        }
                     ]
                 },
                 {
@@ -1410,40 +1288,6 @@
                         "https://openalex.org/W3210268394",
                         "https://openalex.org/W4210958102",
                         "https://openalex.org/W4213214460"
-                    ],
-                    "authorships": [
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5041538919",
-                                "display_name": "Edward Thomas Bullmore"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I241749",
-                                    "display_name": "University of Cambridge"
-                                },
-                                {
-                                    "id": "https://openalex.org/I4210156194",
-                                    "display_name": "Addenbrooke's Hospital"
-                                }
-                            ]
-                        },
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5002202464",
-                                "display_name": "Olaf Sporns"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I4210119109",
-                                    "display_name": "Indiana University Bloomington"
-                                },
-                                {
-                                    "id": "https://openalex.org/I592451",
-                                    "display_name": "Indiana University"
-                                }
-                            ]
-                        }
                     ]
                 },
                 {
@@ -1459,34 +1303,6 @@
                         "https://openalex.org/W2113630591",
                         "https://openalex.org/W2152245018",
                         "https://openalex.org/W2159675211"
-                    ],
-                    "authorships": [
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5055156518",
-                                "display_name": "Mathieu Bastian"
-                            },
-                            "institutions": []
-                        },
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5014490283",
-                                "display_name": "Sébastien Heymann"
-                            },
-                            "institutions": []
-                        },
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5072544873",
-                                "display_name": "Mathieu Jacomy"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I190752583",
-                                    "display_name": "ParisTech"
-                                }
-                            ]
-                        }
                     ]
                 },
                 {
@@ -1566,52 +1382,6 @@
                         "https://openalex.org/W2168396492",
                         "https://openalex.org/W2168719834",
                         "https://openalex.org/W2171707538"
-                    ],
-                    "authorships": [
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5060560199",
-                                "display_name": "Mikail Rubinov"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I1292875679",
-                                    "display_name": "Commonwealth Scientific and Industrial Research Organisation"
-                                },
-                                {
-                                    "id": "https://openalex.org/I16667517",
-                                    "display_name": "Black Dog Institute"
-                                },
-                                {
-                                    "id": "https://openalex.org/I217937681",
-                                    "display_name": "QIMR Berghofer Medical Research Institute"
-                                },
-                                {
-                                    "id": "https://openalex.org/I31746571",
-                                    "display_name": "UNSW Sydney"
-                                },
-                                {
-                                    "id": "https://openalex.org/I4210128581",
-                                    "display_name": "Information and Communication Technologies Centre"
-                                }
-                            ]
-                        },
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5002202464",
-                                "display_name": "Olaf Sporns"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I4210119109",
-                                    "display_name": "Indiana University Bloomington"
-                                },
-                                {
-                                    "id": "https://openalex.org/I592451",
-                                    "display_name": "Indiana University"
-                                }
-                            ]
-                        }
                     ]
                 },
                 {
@@ -2141,20 +1911,6 @@
                         "https://openalex.org/W6717622092",
                         "https://openalex.org/W6828358706",
                         "https://openalex.org/W7062030810"
-                    ],
-                    "authorships": [
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5053938061",
-                                "display_name": "Santo Fortunato"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I134940468",
-                                    "display_name": "Institute for Scientific Interchange"
-                                }
-                            ]
-                        }
                     ]
                 },
                 {
@@ -2726,84 +2482,6 @@
                         "https://openalex.org/W3122602071",
                         "https://openalex.org/W3145128584",
                         "https://openalex.org/W4285719527"
-                    ],
-                    "authorships": [
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5083819212",
-                                "display_name": "Stefano Boccaletti"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I4210149433",
-                                    "display_name": "Institute for Complex Systems"
-                                }
-                            ]
-                        },
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5027706684",
-                                "display_name": "Vito Latora"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I39063666",
-                                    "display_name": "University of Catania"
-                                },
-                                {
-                                    "id": "https://openalex.org/I4210116497",
-                                    "display_name": "Istituto Nazionale di Fisica Nucleare, Sezione di Catania"
-                                }
-                            ]
-                        },
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5084793824",
-                                "display_name": "Yamir Moreno"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I255234318",
-                                    "display_name": "Universidad de Zaragoza"
-                                },
-                                {
-                                    "id": "https://openalex.org/I4388446408",
-                                    "display_name": "Instituto de Biocomputación y Física de Sistemas Complejos"
-                                }
-                            ]
-                        },
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5038624724",
-                                "display_name": "Mario Chávez"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I1294671590",
-                                    "display_name": "Centre National de la Recherche Scientifique"
-                                },
-                                {
-                                    "id": "https://openalex.org/I4210120493",
-                                    "display_name": "Laboratoire de Neurosciences Cognitives"
-                                },
-                                {
-                                    "id": "https://openalex.org/I4210152724",
-                                    "display_name": "Institut du Cerveau"
-                                }
-                            ]
-                        },
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5055506356",
-                                "display_name": "Dong‐Uk Hwang"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I4210149433",
-                                    "display_name": "Institute for Complex Systems"
-                                }
-                            ]
-                        }
                     ]
                 },
                 {
@@ -2922,44 +2600,6 @@
                         "https://openalex.org/W4245591796",
                         "https://openalex.org/W4247157417",
                         "https://openalex.org/W4247555059"
-                    ],
-                    "authorships": [
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5046949407",
-                                "display_name": "Reza Olfati‐Saber"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I107672454",
-                                    "display_name": "Dartmouth College"
-                                }
-                            ]
-                        },
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5110265707",
-                                "display_name": "J.A. Fax"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I2948394018",
-                                    "display_name": "Northrop Grumman (United States)"
-                                }
-                            ]
-                        },
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5068600217",
-                                "display_name": "Richard M. Murray"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I122411786",
-                                    "display_name": "California Institute of Technology"
-                                }
-                            ]
-                        }
                     ]
                 },
                 {
@@ -3065,20 +2705,6 @@
                         "https://openalex.org/W4254962106",
                         "https://openalex.org/W4299993032",
                         "https://openalex.org/W4300059230"
-                    ],
-                    "authorships": [
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5029418921",
-                                "display_name": "Steven H. Strogatz"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I205783295",
-                                    "display_name": "Cornell University"
-                                }
-                            ]
-                        }
                     ]
                 },
                 {
@@ -3198,32 +2824,6 @@
                         "https://openalex.org/W3103071483",
                         "https://openalex.org/W4210901545",
                         "https://openalex.org/W4241088457"
-                    ],
-                    "authorships": [
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5038976962",
-                                "display_name": "Albert-Ĺaszló Barabási"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I107639228",
-                                    "display_name": "University of Notre Dame"
-                                }
-                            ]
-                        },
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5088333030",
-                                "display_name": "Zoltán N. Oltvai"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I111979921",
-                                    "display_name": "Northwestern University"
-                                }
-                            ]
-                        }
                     ]
                 },
                 {
@@ -3252,44 +2852,6 @@
                         "https://openalex.org/W2997134027",
                         "https://openalex.org/W4214495506",
                         "https://openalex.org/W4251593012"
-                    ],
-                    "authorships": [
-                        {
-                            "author": {
-                                "id": null,
-                                "display_name": "Réka Albert"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I107639228",
-                                    "display_name": "University of Notre Dame"
-                                }
-                            ]
-                        },
-                        {
-                            "author": {
-                                "id": null,
-                                "display_name": "Hawoong Jeong"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I107639228",
-                                    "display_name": "University of Notre Dame"
-                                }
-                            ]
-                        },
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5038976962",
-                                "display_name": "Albert-Ĺaszló Barabási"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I107639228",
-                                    "display_name": "University of Notre Dame"
-                                }
-                            ]
-                        }
                     ]
                 },
                 {
@@ -3341,44 +2903,6 @@
                         "https://openalex.org/W3145128584",
                         "https://openalex.org/W4210727445",
                         "https://openalex.org/W4293232152"
-                    ],
-                    "authorships": [
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5014647140",
-                                "display_name": "Aaron J. Clauset"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I169521973",
-                                    "display_name": "University of New Mexico"
-                                }
-                            ]
-                        },
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5067142016",
-                                "display_name": "Mark E. J. Newman"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I27837315",
-                                    "display_name": "University of Michigan"
-                                }
-                            ]
-                        },
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5008033989",
-                                "display_name": "Cristopher Moore"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I169521973",
-                                    "display_name": "University of New Mexico"
-                                }
-                            ]
-                        }
                     ]
                 },
                 {
@@ -3413,80 +2937,6 @@
                         "https://openalex.org/W2334311856",
                         "https://openalex.org/W2475390253",
                         "https://openalex.org/W2905110430"
-                    ],
-                    "authorships": [
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5024451873",
-                                "display_name": "Ron Milo"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I53964585",
-                                    "display_name": "Weizmann Institute of Science"
-                                }
-                            ]
-                        },
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5063176243",
-                                "display_name": "Shai S. Shen-Orr"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I53964585",
-                                    "display_name": "Weizmann Institute of Science"
-                                }
-                            ]
-                        },
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5042875880",
-                                "display_name": "Shalev Itzkovitz"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I53964585",
-                                    "display_name": "Weizmann Institute of Science"
-                                }
-                            ]
-                        },
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5021790559",
-                                "display_name": "Nadav Kashtan"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I53964585",
-                                    "display_name": "Weizmann Institute of Science"
-                                }
-                            ]
-                        },
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5110051540",
-                                "display_name": "Dmitri B. Chklovskii"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I2750212522",
-                                    "display_name": "Cold Spring Harbor Laboratory"
-                                }
-                            ]
-                        },
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5010209966",
-                                "display_name": "Uri S. Alon"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I53964585",
-                                    "display_name": "Weizmann Institute of Science"
-                                }
-                            ]
-                        }
                     ]
                 },
                 {
@@ -3533,56 +2983,6 @@
                         "https://openalex.org/W2169090121",
                         "https://openalex.org/W4285719527",
                         "https://openalex.org/W6647975832"
-                    ],
-                    "authorships": [
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5061923992",
-                                "display_name": "Haewoon Kwak"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I157485424",
-                                    "display_name": "Korea Advanced Institute of Science and Technology"
-                                }
-                            ]
-                        },
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5100698914",
-                                "display_name": "Changhyun Lee"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I157485424",
-                                    "display_name": "Korea Advanced Institute of Science and Technology"
-                                }
-                            ]
-                        },
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5032601178",
-                                "display_name": "Hosung Park"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I157485424",
-                                    "display_name": "Korea Advanced Institute of Science and Technology"
-                                }
-                            ]
-                        },
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5101849355",
-                                "display_name": "Sue B. Moon"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I157485424",
-                                    "display_name": "Korea Advanced Institute of Science and Technology"
-                                }
-                            ]
-                        }
                     ]
                 },
                 {
@@ -3638,52 +3038,6 @@
                         "https://openalex.org/W2167869241",
                         "https://openalex.org/W3103071483",
                         "https://openalex.org/W4255738047"
-                    ],
-                    "authorships": [
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5010789029",
-                                "display_name": "Gary D. Bader"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I1291836623",
-                                    "display_name": "Mount Sinai Hospital"
-                                },
-                                {
-                                    "id": "https://openalex.org/I1334819555",
-                                    "display_name": "Memorial Sloan Kettering Cancer Center"
-                                },
-                                {
-                                    "id": "https://openalex.org/I185261750",
-                                    "display_name": "University of Toronto"
-                                },
-                                {
-                                    "id": "https://openalex.org/I210557978",
-                                    "display_name": "Lunenfeld-Tanenbaum Research Institute"
-                                }
-                            ]
-                        },
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5084007105",
-                                "display_name": "Christopher W.V. Hogue"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I1291836623",
-                                    "display_name": "Mount Sinai Hospital"
-                                },
-                                {
-                                    "id": "https://openalex.org/I185261750",
-                                    "display_name": "University of Toronto"
-                                },
-                                {
-                                    "id": "https://openalex.org/I210557978",
-                                    "display_name": "Lunenfeld-Tanenbaum Research Institute"
-                                }
-                            ]
-                        }
                     ]
                 },
                 {
@@ -3715,32 +3069,6 @@
                         "https://openalex.org/W4210798277",
                         "https://openalex.org/W4240855764",
                         "https://openalex.org/W4285719527"
-                    ],
-                    "authorships": [
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5016146759",
-                                "display_name": "Romualdo Pastor‐Satorras"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I9617848",
-                                    "display_name": "Universitat Politècnica de Catalunya"
-                                }
-                            ]
-                        },
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5046546654",
-                                "display_name": "Alessandro Vespignani"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I12323705",
-                                    "display_name": "The Abdus Salam International Centre for Theoretical Physics (ICTP)"
-                                }
-                            ]
-                        }
                     ]
                 },
                 {
@@ -3855,20 +3183,6 @@
                         "https://openalex.org/W4293208775",
                         "https://openalex.org/W4300841285",
                         "https://openalex.org/W4302086766"
-                    ],
-                    "authorships": [
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5071371826",
-                                "display_name": "Ronald S. Burt"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I40347166",
-                                    "display_name": "University of Chicago"
-                                }
-                            ]
-                        }
                     ]
                 },
                 {
@@ -3910,60 +3224,6 @@
                         "https://openalex.org/W2753765968",
                         "https://openalex.org/W2964646613",
                         "https://openalex.org/W4255212053"
-                    ],
-                    "authorships": [
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5035349918",
-                                "display_name": "Gergely Palla"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I7597260",
-                                    "display_name": "Hungarian Academy of Sciences"
-                                }
-                            ]
-                        },
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5013747794",
-                                "display_name": "Imre Derényi"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I106118109",
-                                    "display_name": "Eötvös Loránd University"
-                                }
-                            ]
-                        },
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5000251403",
-                                "display_name": "Illés J. Farkas"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I7597260",
-                                    "display_name": "Hungarian Academy of Sciences"
-                                }
-                            ]
-                        },
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5066728847",
-                                "display_name": "Tamás Vicsek"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I106118109",
-                                    "display_name": "Eötvös Loránd University"
-                                },
-                                {
-                                    "id": "https://openalex.org/I7597260",
-                                    "display_name": "Hungarian Academy of Sciences"
-                                }
-                            ]
-                        }
                     ]
                 },
                 {
@@ -3992,44 +3252,6 @@
                         "https://openalex.org/W2905110430",
                         "https://openalex.org/W3103071483",
                         "https://openalex.org/W3147429590"
-                    ],
-                    "authorships": [
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5027706684",
-                                "display_name": "Vito Latora"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I102197404",
-                                    "display_name": "Université Paris-Sud"
-                                },
-                                {
-                                    "id": "https://openalex.org/I39063666",
-                                    "display_name": "University of Catania"
-                                },
-                                {
-                                    "id": "https://openalex.org/I4210097733",
-                                    "display_name": "Laboratoire de Physique Théorique et Modèles Statistiques"
-                                }
-                            ]
-                        },
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5048136336",
-                                "display_name": "Massimo Marchiori B"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I149461666",
-                                    "display_name": "Ca' Foscari University of Venice"
-                                },
-                                {
-                                    "id": "https://openalex.org/I63966007",
-                                    "display_name": "Massachusetts Institute of Technology"
-                                }
-                            ]
-                        }
                     ]
                 },
                 {
@@ -4179,56 +3401,6 @@
                         "https://openalex.org/W4240438002",
                         "https://openalex.org/W4240710608",
                         "https://openalex.org/W4243498268"
-                    ],
-                    "authorships": [
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5038976962",
-                                "display_name": "Albert-Ĺaszló Barabási"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I12912129",
-                                    "display_name": "Northeastern University"
-                                }
-                            ]
-                        },
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5082878434",
-                                "display_name": "Natali Gulbahce"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I12912129",
-                                    "display_name": "Northeastern University"
-                                },
-                                {
-                                    "id": "https://openalex.org/I180670191",
-                                    "display_name": "University of California, San Francisco"
-                                },
-                                {
-                                    "id": "https://openalex.org/I4210117453",
-                                    "display_name": "Dana-Farber Cancer Institute"
-                                }
-                            ]
-                        },
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5028396638",
-                                "display_name": "Joseph Loscalzo"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I1283280774",
-                                    "display_name": "Brigham and Women's Hospital"
-                                },
-                                {
-                                    "id": "https://openalex.org/I136199984",
-                                    "display_name": "Harvard University"
-                                }
-                            ]
-                        }
                     ]
                 },
                 {
@@ -4295,36 +3467,6 @@
                         "https://openalex.org/W3125332736",
                         "https://openalex.org/W3125554979",
                         "https://openalex.org/W4235408193"
-                    ],
-                    "authorships": [
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5010495671",
-                                "display_name": "Nicholas A. Christakis"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I1297058315",
-                                    "display_name": "Mount Auburn Hospital"
-                                },
-                                {
-                                    "id": "https://openalex.org/I136199984",
-                                    "display_name": "Harvard University"
-                                }
-                            ]
-                        },
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5082330712",
-                                "display_name": "James H. Fowler"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I36258959",
-                                    "display_name": "University of California San Diego"
-                                }
-                            ]
-                        }
                     ]
                 },
                 {
@@ -4369,24 +3511,6 @@
                         "https://openalex.org/W2905110430",
                         "https://openalex.org/W3103071483",
                         "https://openalex.org/W4214502461"
-                    ],
-                    "authorships": [
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5067142016",
-                                "display_name": "Mark E. J. Newman"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I1308548392",
-                                    "display_name": "Santa Fe Institute"
-                                },
-                                {
-                                    "id": "https://openalex.org/I27837315",
-                                    "display_name": "University of Michigan"
-                                }
-                            ]
-                        }
                     ]
                 },
                 {
@@ -4420,68 +3544,6 @@
                         "https://openalex.org/W2997134027",
                         "https://openalex.org/W4241743907",
                         "https://openalex.org/W4294216483"
-                    ],
-                    "authorships": [
-                        {
-                            "author": {
-                                "id": null,
-                                "display_name": "H. Jeong"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I107639228",
-                                    "display_name": "University of Notre Dame"
-                                }
-                            ]
-                        },
-                        {
-                            "author": {
-                                "id": null,
-                                "display_name": "B. Tombor"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I111979921",
-                                    "display_name": "Northwestern University"
-                                }
-                            ]
-                        },
-                        {
-                            "author": {
-                                "id": null,
-                                "display_name": "R. Albert"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I107639228",
-                                    "display_name": "University of Notre Dame"
-                                }
-                            ]
-                        },
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5088333030",
-                                "display_name": "Zoltán N. Oltvai"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I111979921",
-                                    "display_name": "Northwestern University"
-                                }
-                            ]
-                        },
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5038976962",
-                                "display_name": "Albert-Ĺaszló Barabási"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I107639228",
-                                    "display_name": "University of Notre Dame"
-                                }
-                            ]
-                        }
                     ]
                 },
                 {
@@ -4565,43 +3627,10 @@
                         "https://openalex.org/W2169428430",
                         "https://openalex.org/W2169787465",
                         "https://openalex.org/W2171630967"
-                    ],
-                    "authorships": [
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5075106534",
-                                "display_name": "Susan Whitfield"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I144112489",
-                                    "display_name": "McGovern Institute for Brain Research"
-                                },
-                                {
-                                    "id": "https://openalex.org/I63966007",
-                                    "display_name": "Massachusetts Institute of Technology"
-                                }
-                            ]
-                        },
-                        {
-                            "author": {
-                                "id": "https://openalex.org/A5028329886",
-                                "display_name": "Alfonso Nieto-Castañón"
-                            },
-                            "institutions": [
-                                {
-                                    "id": "https://openalex.org/I144112489",
-                                    "display_name": "McGovern Institute for Brain Research"
-                                },
-                                {
-                                    "id": "https://openalex.org/I63966007",
-                                    "display_name": "Massachusetts Institute of Technology"
-                                }
-                            ]
-                        }
                     ]
                 }
-            ]
+            ],
+            "group_by": []
         }
     }
 ]

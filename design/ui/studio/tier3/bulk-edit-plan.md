@@ -256,7 +256,7 @@ College football screenshot, so the 140 to 184 px budgets in two proposals do no
 
 ### The Layer source in the field
 
-- Visible name: the word Layer in guillemets (written in source as "«Layer»"), in the
+- Visible name: the word Layer in guillemets (written in source as "\u00ABLayer\u00BB"), in the
   slot where "Louvain" goes. Capitalized, as in the Vary list.
 - Style: `--cm-text-component` (purple: #8638e5 light, #d1a8ff dark; 5.19:1 or better in every
   state on both themes, measured by `tmp/visual-bulk7/contrast.py`), weight 600, upright. The

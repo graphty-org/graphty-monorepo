@@ -588,6 +588,26 @@ function lineParams(get: Get, directed: boolean, approximate: Approximate): Map<
     if (typeof lineStyle === "string" && lineStyle !== "solid" && pajekDots(lineStyle, approximate)) {
         out.set("p", "Dots");
     }
+    lineLabelParams(get, out, approximate);
+    const target = get("targetArrow");
+    if (target !== null && target !== (directed ? "triangle" : "none")) {
+        approximate("targetArrow", target);
+    }
+    const source = get("sourceArrow");
+    if (source !== null && source !== "none") {
+        approximate("sourceArrow", source);
+    }
+    return out;
+}
+
+/**
+ * A line's label parameters: its text `l` (a line break or a double quote written as Pajek can hold it, noted), its
+ * color `lc`, size `fos` and font `font`.
+ * @param get - the line's values
+ * @param out - the parameters, changed in place
+ * @param approximate - records approximations
+ */
+function lineLabelParams(get: Get, out: Map<string, Written>, approximate: Approximate): void {
     const label = get("label");
     if (typeof label === "string" && label !== "") {
         const text = pajekLabelText(label);
@@ -608,15 +628,6 @@ function lineParams(get: Get, directed: boolean, approximate: Approximate): Map<
     if (typeof font === "string" && font !== "") {
         out.set("font", font);
     }
-    const target = get("targetArrow");
-    if (target !== null && target !== (directed ? "triangle" : "none")) {
-        approximate("targetArrow", target);
-    }
-    const source = get("sourceArrow");
-    if (source !== null && source !== "none") {
-        approximate("sourceArrow", source);
-    }
-    return out;
 }
 
 /**

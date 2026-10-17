@@ -1799,7 +1799,7 @@ const COLOR_KEYS: ReadonlySet<string> = new Set(["ic", "bc", "lc", "c"]);
  */
 function colorTriple(tokens: readonly string[], at: number): string | null {
     const parts = tokens.slice(at, at + 3);
-    const fraction = (t: string): boolean => /^(?:0|1)?(?:\.\d+)?$/.test(t) && t !== "" && Number(t) <= 1;
+    const fraction = (t: string): boolean => /^[01]?(?:\.\d+)?$/.test(t) && t !== "" && Number(t) <= 1;
     return parts.length === 3 && parts.every(fraction) ? `RGB(${parts.join(",")})` : null;
 }
 

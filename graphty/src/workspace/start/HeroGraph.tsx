@@ -267,7 +267,7 @@ export function HeroGraph({
     onSession?: (session: GraphSession) => void;
 }>): React.JSX.Element {
     const ref = useRef<GraphtyElement>(null);
-    const cardRef = useRef<HTMLDivElement>(null);
+    const cardRef = useRef<HTMLDialogElement>(null);
     const [defined, setDefined] = useState(() => customElements.get("graphty-element") !== undefined);
     const [session, setSession] = useState<GraphSession | null>(null);
     const [shown, setShown] = useState<Shown>({ communities: true, pick: null, flat: false });
@@ -410,26 +410,7 @@ export function HeroGraph({
         }
         let frame = 0;
         const place = (): void => {
-            const at = element.nodeScreenPosition(card.id);
-            const box = cardRef.current;
-            const hero = element.closest<HTMLElement>(".ws-land-hero");
-            if (at !== undefined && box !== null && hero !== null) {
-                const area = element.getBoundingClientRect();
-                const outer = hero.getBoundingClientRect();
-                const demo = hero.querySelector(".ws-land-demo")?.getBoundingClientRect();
-                const x0 = area.left - outer.left + at.x;
-                const y0 = area.top - outer.top + at.y;
-                const { offsetWidth: w, offsetHeight: h } = box;
-                let x = x0 + at.radius + 14;
-                if (x + w > hero.clientWidth - 12) {
-                    x = x0 - at.radius - 14 - w;
-                }
-                const top = demo === undefined ? 12 : demo.bottom - outer.top + 10;
-                const bottom = area.bottom - outer.top - 12;
-                box.style.left = `${String(Math.round(x))}px`;
-                box.style.top = `${String(Math.round(Math.max(top, Math.min(bottom - h, y0 - h / 2))))}px`;
-                box.style.visibility = at.visible ? "visible" : "hidden";
-            }
+            placeCard(element, cardRef.current, card.id);
             frame = requestAnimationFrame(place);
         };
         place();
@@ -466,30 +447,14 @@ export function HeroGraph({
                 pickRun.current = null;
             }
             if (next === "key") {
-                // Sized by the measure, and nothing else: the communities keep their colors.
-                const run = session.runs.start("betweenness", {}, { style: false });
-                pickRun.current = run.id;
-                const result = await finished(run);
-                if (result !== null) {
-                    await session.styles.encode({ run: run.id, channel: "node.size", range: [1, 4] });
-                    const top = result.summary().top[0];
-                    setSaid((before) => ({
-                        ...before,
-                        keyPlayer: top === undefined ? undefined : nameOf(session, top.id),
-                    }));
+                const found = await showKeyPlayers(session, pickRun);
+                if (found !== null) {
+                    setSaid((before) => ({ ...before, keyPlayer: found.name }));
                 }
             } else if (next === "path") {
-                const [from, to] = sample.path;
-                const run = session.runs.start("shortest-path", { source: from, target: to });
-                pickRun.current = run.id;
-                const result = await finished(run);
-                if (result !== null) {
-                    const { hops } = result.graph;
-                    const steps = typeof hops === "number" ? hops : 0;
-                    setSaid((before) => ({
-                        ...before,
-                        path: { from: nameOf(session, from), to: nameOf(session, to), steps },
-                    }));
+                const path = await showPath(session, sample.path, pickRun);
+                if (path !== null) {
+                    setSaid((before) => ({ ...before, path }));
                 }
             }
         },
@@ -506,22 +471,8 @@ export function HeroGraph({
         setSaid((before) => ({ ...before, flipped: true }));
     }, [session, shown.flat]);
 
-    const lines: string[] = [];
-    if (shown.communities && said.communities !== undefined) {
-        lines.push(`Colored by community: ${String(said.communities)} groups, each more linked inside than out.`);
-    }
-    if (shown.pick === "key" && said.keyPlayer !== undefined) {
-        lines.push(`Sized by how often a node links the others. ${said.keyPlayer} is the biggest.`);
-    }
-    if (shown.pick === "path" && said.path !== undefined) {
-        lines.push(`The shortest route from ${said.path.from} to ${said.path.to}: ${String(said.path.steps)} steps.`);
-    }
-    if (said.flipped === true) {
-        lines.push(shown.flat ? "Flat in 2D. The same graph, the same analyses." : "Back in 3D. Drag to turn it.");
-    }
-
+    const lines = saidLines(shown, said);
     const ready = session !== null;
-    const more = card === null ? 0 : card.links - card.linked.length;
     return (
         <>
             <div className="ws-land-live">
@@ -591,39 +542,159 @@ export function HeroGraph({
                 ) : null}
             </div>
             {card === null || session === null ? null : (
-                <div className="ws-land-info" ref={cardRef} role="dialog" aria-label="Node details">
-                    <UnstyledButton
-                        className="ws-land-info-x"
-                        aria-label="Close"
-                        onClick={() => {
-                            session.selection.clear();
-                        }}
-                    >
-                        <X aria-hidden />
-                    </UnstyledButton>
-                    <b>{card.name}</b>
-                    <p>
-                        <span className="ws-land-info-k">{card.links}</span>{" "}
-                        {card.links === 1 ? "connection" : "connections"}
-                    </p>
-                    {card.community === undefined ? null : (
-                        <p>
-                            {card.community.color === undefined ? null : (
-                                <span className="ws-land-info-dot" style={{ background: card.community.color }} />
-                            )}
-                            Community {card.community.rank} of {card.community.of}
-                        </p>
-                    )}
-                    {card.linked.length === 0 ? null : (
-                        <p>
-                            Linked to {card.linked.join(", ")}
-                            {more > 0 ? ` and ${String(more)} more` : ""}
-                        </p>
-                    )}
-                </div>
+                <NodeCard
+                    card={card}
+                    boxRef={cardRef}
+                    onClose={() => {
+                        session.selection.clear();
+                    }}
+                />
             )}
             <p className="ws-land-hint">Drag to turn it. Click a node for details.</p>
         </>
+    );
+}
+
+/**
+ * The caption under the buttons: one line for each analysis on show, and for a flip of view.
+ * @param shown - What the buttons have on
+ * @param said - What the runs found
+ * @returns The lines
+ */
+function saidLines(shown: Shown, said: Said): string[] {
+    const lines: string[] = [];
+    if (shown.communities && said.communities !== undefined) {
+        lines.push(`Colored by community: ${String(said.communities)} groups, each more linked inside than out.`);
+    }
+    if (shown.pick === "key" && said.keyPlayer !== undefined) {
+        lines.push(`Sized by how often a node links the others. ${said.keyPlayer} is the biggest.`);
+    }
+    if (shown.pick === "path" && said.path !== undefined) {
+        lines.push(`The shortest route from ${said.path.from} to ${said.path.to}: ${String(said.path.steps)} steps.`);
+    }
+    if (said.flipped === true) {
+        lines.push(shown.flat ? "Flat in 2D. The same graph, the same analyses." : "Back in 3D. Drag to turn it.");
+    }
+    return lines;
+}
+
+/**
+ * Size the nodes by betweenness, and nothing else: the communities keep their colors.
+ * @param session - The graph's session
+ * @param pickRun - Where the run's id is kept, so the other button can take it away
+ * @returns The biggest node's name, or null when the run did not finish
+ */
+async function showKeyPlayers(
+    session: GraphSession,
+    pickRun: React.RefObject<string | null>,
+): Promise<{ name: string | undefined } | null> {
+    const run = session.runs.start("betweenness", {}, { style: false });
+    pickRun.current = run.id;
+    const result = await finished(run);
+    if (result === null) {
+        return null;
+    }
+    await session.styles.encode({ run: run.id, channel: "node.size", range: [1, 4] });
+    const top = result.summary().top[0];
+    return { name: top === undefined ? undefined : nameOf(session, top.id) };
+}
+
+/**
+ * Run the shortest path between the sample's two nodes.
+ * @param session - The graph's session
+ * @param ends - The path's two ends
+ * @param pickRun - Where the run's id is kept, so the other button can take it away
+ * @returns The ends' names and the steps between them, or null when the run did not finish
+ */
+async function showPath(
+    session: GraphSession,
+    ends: HeroSample["path"],
+    pickRun: React.RefObject<string | null>,
+): Promise<NonNullable<Said["path"]> | null> {
+    const [from, to] = ends;
+    const run = session.runs.start("shortest-path", { source: from, target: to });
+    pickRun.current = run.id;
+    const result = await finished(run);
+    if (result === null) {
+        return null;
+    }
+    const { hops } = result.graph;
+    const steps = typeof hops === "number" ? hops : 0;
+    return { from: nameOf(session, from), to: nameOf(session, to), steps };
+}
+
+/**
+ * Put the card beside its node: to the right, or to the left when the right has no room, kept
+ * between the buttons and the bottom of the graph, and hidden while the node is out of sight.
+ * @param element - The graph
+ * @param box - The card
+ * @param id - The node
+ */
+function placeCard(element: GraphtyElement, box: HTMLElement | null, id: NodeId): void {
+    const at = element.nodeScreenPosition(id);
+    const hero = element.closest<HTMLElement>(".ws-land-hero");
+    if (at === undefined || box === null || hero === null) {
+        return;
+    }
+    const area = element.getBoundingClientRect();
+    const outer = hero.getBoundingClientRect();
+    const demo = hero.querySelector(".ws-land-demo")?.getBoundingClientRect();
+    const x0 = area.left - outer.left + at.x;
+    const y0 = area.top - outer.top + at.y;
+    const { offsetWidth: w, offsetHeight: h } = box;
+    let x = x0 + at.radius + 14;
+    if (x + w > hero.clientWidth - 12) {
+        x = x0 - at.radius - 14 - w;
+    }
+    const top = demo === undefined ? 12 : demo.bottom - outer.top + 10;
+    const bottom = area.bottom - outer.top - 12;
+    box.style.left = `${String(Math.round(x))}px`;
+    box.style.top = `${String(Math.round(Math.max(top, Math.min(bottom - h, y0 - h / 2))))}px`;
+    box.style.visibility = at.visible ? "visible" : "hidden";
+}
+
+/**
+ * A clicked node's card: its name, how connected it is, its community and who it links to.
+ * @param props - Component props
+ * @param props.card - The node's facts
+ * @param props.boxRef - The card's box, which follows the node
+ * @param props.onClose - Closes the card
+ * @returns The card
+ */
+function NodeCard({
+    card,
+    boxRef,
+    onClose,
+}: Readonly<{
+    card: CardFacts;
+    boxRef: React.RefObject<HTMLDialogElement | null>;
+    onClose: () => void;
+}>): React.JSX.Element {
+    const more = card.links - card.linked.length;
+    return (
+        <dialog open className="ws-land-info" ref={boxRef} aria-label="Node details">
+            <UnstyledButton className="ws-land-info-x" aria-label="Close" onClick={onClose}>
+                <X aria-hidden />
+            </UnstyledButton>
+            <b>{card.name}</b>
+            <p>
+                <span className="ws-land-info-k">{card.links}</span> {card.links === 1 ? "connection" : "connections"}
+            </p>
+            {card.community === undefined ? null : (
+                <p>
+                    {card.community.color === undefined ? null : (
+                        <span className="ws-land-info-dot" style={{ background: card.community.color }} />
+                    )}
+                    Community {card.community.rank} of {card.community.of}
+                </p>
+            )}
+            {card.linked.length === 0 ? null : (
+                <p>
+                    Linked to {card.linked.join(", ")}
+                    {more > 0 ? ` and ${String(more)} more` : ""}
+                </p>
+            )}
+        </dialog>
     );
 }
 

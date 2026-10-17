@@ -173,19 +173,13 @@ function assertIdList(ids: unknown, field: string): void {
 }
 
 /**
- * Check a selector is a selector, without touching the session.
- *
- * Separate from compiling it so the shape is refused at the call that offered it, which is what
- * lets a form show the mistake where it was typed.
- * @param selector - The selector to check.
- * @throws A `GraphtyError` with code `E_BAD_SELECTOR`, or `E_SELECTOR_EMPTY` for an empty one.
+ * Refuse a value that is not even an object with a "match", such as a legacy selector string.
+ * @param given - The value offered as a selector.
  */
-function assertSelector(selector: Selector): void {
-    // Read through `unknown` because the refusals below are about a value the type system was
+function assertSelectorObject(given: unknown): void {
+    // Read through `unknown` because these refusals are about a value the type system was
     // told is a Selector and that arrived as something else -- a legacy selector string, most of
     // all, which is the shape every layer in the element carries today.
-    const given: unknown = selector;
-
     if (typeof given === "string") {
         const advice =
             given === ""
@@ -201,6 +195,18 @@ function assertSelector(selector: Selector): void {
     if (typeof given !== "object" || given === null || !("match" in given)) {
         throw badShape(`A selector is an object with a "match" of ${SELECTOR_KINDS.join(", ")}.`, { selector: given });
     }
+}
+
+/**
+ * Check a selector is a selector, without touching the session.
+ *
+ * Separate from compiling it so the shape is refused at the call that offered it, which is what
+ * lets a form show the mistake where it was typed.
+ * @param selector - The selector to check.
+ * @throws A `GraphtyError` with code `E_BAD_SELECTOR`, or `E_SELECTOR_EMPTY` for an empty one.
+ */
+function assertSelector(selector: Selector): void {
+    assertSelectorObject(selector);
 
     // Kept as a plain string beside the switch so the refusal below can name a kind the union
     // does not contain, which is exactly the case this check exists for.
@@ -210,25 +216,11 @@ function assertSelector(selector: Selector): void {
         case "everything":
             return;
         case "expression":
-            if (typeof selector.where !== "string") {
-                throw badShape('An "expression" selector needs a where.', { where: selector.where });
-            }
-
-            if (selector.where.trim() === "") {
-                throw emptySelector("where", { where: selector.where });
-            }
+            assertExpressionSelector(selector);
 
             return;
         case "has":
-            if (typeof selector.path !== "string") {
-                throw badShape('A "has" selector needs a path, such as "results.louvain.group".', {
-                    path: selector.path,
-                });
-            }
-
-            if (selector.path.trim() === "") {
-                throw emptySelector("path", { path: selector.path });
-            }
+            assertHasSelector(selector);
 
             return;
         case "ids":
@@ -237,51 +229,105 @@ function assertSelector(selector: Selector): void {
 
             return;
         case "top":
-            if (typeof selector.path !== "string" || !selector.path.startsWith(RESULT_PATH_PREFIX)) {
-                throw badShape(
-                    'A "top" selector ranks a run\'s field, so its path is "results.<run>.<field>", such as "results.degree.value".',
-                    { path: selector.path },
-                );
-            }
-
-            if (!Number.isInteger(selector.n) || selector.n < 0) {
-                throw badShape('A "top" selector\'s n is a whole number of elements.', { n: selector.n });
-            }
+            assertTopSelector(selector);
 
             return;
         case "member":
-            try {
-                parseScope(selector.of);
-            } catch (error) {
-                if (!isGraphtyError(error)) {
-                    throw error;
-                }
-
-                throw badShape(`A "member" selector names a scope: ${error.message}`, {
-                    of: selector.of,
-                    reason: error.details,
-                });
-            }
+            assertMemberSelector(selector);
 
             return;
         case "hover":
-            if (selector.reach !== undefined && selector.reach !== "node" && selector.reach !== "neighbors") {
-                throw badShape('A "hover" selector\'s reach is "node" or "neighbors".', { reach: selector.reach });
-            }
-
-            if (selector.invert !== undefined && typeof selector.invert !== "boolean") {
-                throw badShape('A "hover" selector\'s invert is true or false.', { invert: selector.invert });
-            }
-
-            if (selector.orSelected !== undefined && typeof selector.orSelected !== "boolean") {
-                throw badShape('A "hover" selector\'s orSelected is true or false.', {
-                    orSelected: selector.orSelected,
-                });
-            }
+            assertHoverSelector(selector);
 
             return;
         default:
             throw badShape(`"${String(kind)}" is not a selector kind.`, { match: kind, kinds: SELECTOR_KINDS });
+    }
+}
+
+/**
+ * Check an "expression" selector's fields.
+ * @param selector - The selector.
+ */
+function assertExpressionSelector(selector: Extract<Selector, { match: "expression" }>): void {
+    if (typeof selector.where !== "string") {
+        throw badShape('An "expression" selector needs a where.', { where: selector.where });
+    }
+
+    if (selector.where.trim() === "") {
+        throw emptySelector("where", { where: selector.where });
+    }
+}
+
+/**
+ * Check a "has" selector's fields.
+ * @param selector - The selector.
+ */
+function assertHasSelector(selector: Extract<Selector, { match: "has" }>): void {
+    if (typeof selector.path !== "string") {
+        throw badShape('A "has" selector needs a path, such as "results.louvain.group".', {
+            path: selector.path,
+        });
+    }
+
+    if (selector.path.trim() === "") {
+        throw emptySelector("path", { path: selector.path });
+    }
+}
+
+/**
+ * Check a "top" selector's fields.
+ * @param selector - The selector.
+ */
+function assertTopSelector(selector: Extract<Selector, { match: "top" }>): void {
+    if (typeof selector.path !== "string" || !selector.path.startsWith(RESULT_PATH_PREFIX)) {
+        throw badShape(
+            'A "top" selector ranks a run\'s field, so its path is "results.<run>.<field>", such as "results.degree.value".',
+            { path: selector.path },
+        );
+    }
+
+    if (!Number.isInteger(selector.n) || selector.n < 0) {
+        throw badShape('A "top" selector\'s n is a whole number of elements.', { n: selector.n });
+    }
+}
+
+/**
+ * Check a "member" selector's fields.
+ * @param selector - The selector.
+ */
+function assertMemberSelector(selector: Extract<Selector, { match: "member" }>): void {
+    try {
+        parseScope(selector.of);
+    } catch (error) {
+        if (!isGraphtyError(error)) {
+            throw error;
+        }
+
+        throw badShape(`A "member" selector names a scope: ${error.message}`, {
+            of: selector.of,
+            reason: error.details,
+        });
+    }
+}
+
+/**
+ * Check a "hover" selector's fields.
+ * @param selector - The selector.
+ */
+function assertHoverSelector(selector: Extract<Selector, { match: "hover" }>): void {
+    if (selector.reach !== undefined && selector.reach !== "node" && selector.reach !== "neighbors") {
+        throw badShape('A "hover" selector\'s reach is "node" or "neighbors".', { reach: selector.reach });
+    }
+
+    if (selector.invert !== undefined && typeof selector.invert !== "boolean") {
+        throw badShape('A "hover" selector\'s invert is true or false.', { invert: selector.invert });
+    }
+
+    if (selector.orSelected !== undefined && typeof selector.orSelected !== "boolean") {
+        throw badShape('A "hover" selector\'s orSelected is true or false.', {
+            orSelected: selector.orSelected,
+        });
     }
 }
 

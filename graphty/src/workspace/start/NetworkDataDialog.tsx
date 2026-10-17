@@ -69,11 +69,7 @@ export function NetworkDataDialog({
                                 </UnstyledButton>
                             ))}
                         </div>
-                        {said === null ? null : (
-                            <p className="ws-land-net-note" role="status">
-                                {said}
-                            </p>
-                        )}
+                        {said === null ? null : <output className="ws-land-net-note">{said}</output>}
                         <form
                             className="ws-land-net-addr"
                             onSubmit={(event) => {

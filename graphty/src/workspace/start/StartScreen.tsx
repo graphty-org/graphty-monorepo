@@ -56,9 +56,10 @@ function GitHubMark(): React.JSX.Element {
  */
 function Lockup({ className }: Readonly<{ className: string }>): React.JSX.Element {
     return (
-        <span className={className} role="img" aria-label="graphty">
-            <img className="ws-land-logo-light" src={lockupOnLight} alt="" />
-            <img className="ws-land-logo-dark" src={lockupOnDark} alt="" />
+        // Both carry the name: CSS shows one at a time, and a hidden image is not read out.
+        <span className={className}>
+            <img className="ws-land-logo-light" src={lockupOnLight} alt="graphty" />
+            <img className="ws-land-logo-dark" src={lockupOnDark} alt="graphty" />
         </span>
     );
 }

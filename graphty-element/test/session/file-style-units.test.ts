@@ -14,6 +14,7 @@
 import { assert, describe, it, vi } from "vitest";
 
 import { createGraphSession, type GraphSession, type NodeId } from "../../session";
+import { dispatcherOf } from "../../src/session/GraphSession";
 
 /** A Cytoscape.js document: nodes 40 across with a border 2 wide and labels 20 high, edges 2 wide, nodes 400 apart. */
 const DOC = JSON.stringify({
@@ -365,6 +366,59 @@ describe("a Pajek file's lengths are drawn in one unit", () => {
         const session = await loadedPajek(pair(""), { toolDefaults: false });
         // positions are float32
         assert.approximately(spacing(session), 400, 1e-3);
+        session.dispose();
+    });
+});
+
+describe("a sigma.js (graphology) file's labels are canvas px over positions fitted to the canvas", () => {
+    // Nodes 10 across (size 5 is a radius) in a 90 x 90 box. sigma 4 fits the box 540 px tall in an
+    // 800 x 600 canvas (600 less its 30 px stagePadding at each end): 6 px a unit, so a 12 px label
+    // is 2 units tall, a fifth of a node.
+    const doc = JSON.stringify({
+        options: { type: "undirected", multi: false, allowSelfLoops: true },
+        nodes: [
+            { key: "a", attributes: { x: 0, y: 0, size: 5, label: "a" } },
+            { key: "b", attributes: { x: 90, y: 0, size: 5, label: "b" } },
+            { key: "c", attributes: { x: 0, y: 90, size: 5, label: "c" } },
+        ],
+        edges: [],
+    });
+
+    /**
+     * Load the document into a session drawing on a canvas of the given size.
+     * @param viewport - The canvas, or null for a session with none.
+     * @returns The session, settled.
+     */
+    async function loadedSigma(viewport: { width: number; height: number } | null): Promise<GraphSession> {
+        const session = createGraphSession();
+        dispatcherOf(session).services.viewport = () => viewport;
+        await session.data.import({ type: "json", config: { data: doc } }, { styles: "file", layout: "recommended" });
+        await vi.waitFor(() => {
+            assert.lengthOf(session.history.pending, 0);
+        });
+        return session;
+    }
+
+    it("draws a 12 px label as sigma does on the element's canvas, beside nodes in proportion to their spacing", async () => {
+        const session = await loadedSigma({ width: 800, height: 600 });
+        const node = number(session, { node: "a" }, "node.size") * 1.5;
+        assert.approximately(letters(fontSize(session, { node: "a" })) / node, 2 / 10, 1e-6);
+        assert.approximately(spacing(session) / node, 90 / 10, 1e-4);
+        session.dispose();
+    });
+
+    it("draws the label smaller against the graph on a larger canvas, as sigma does", async () => {
+        // 1200 x 900: the box is 840 px tall, 840 / 90 px a unit
+        const session = await loadedSigma({ width: 1200, height: 900 });
+        const node = number(session, { node: "a" }, "node.size") * 1.5;
+        assert.approximately(letters(fontSize(session, { node: "a" })) / node, 12 / (840 / 90) / 10, 1e-6);
+        session.dispose();
+    });
+
+    it("keeps the label in the unit of the node sizes without a canvas to fit to", async () => {
+        const session = await loadedSigma(null);
+        const node = number(session, { node: "a" }, "node.size") * 1.5;
+        assert.approximately(letters(fontSize(session, { node: "a" })) / node, 12 / 10, 1e-6);
         session.dispose();
     });
 });

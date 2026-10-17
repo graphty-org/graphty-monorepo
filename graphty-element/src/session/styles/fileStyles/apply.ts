@@ -42,6 +42,12 @@ export interface FileStylesRead {
      * positions are in another known unit (Graphviz input inches: 72); absent when they share it.
      */
     readonly positionPxPerUnit?: number;
+    /**
+     * Set when the stored positions have no fixed length and the program that draws the file fits
+     * them into its canvas, `padding` px in from each side, drawing label sizes in the canvas's px
+     * (sigma.js): the padding and the width and height of the positions' bounding box, in their unit.
+     */
+    readonly positionFit?: { readonly padding: number; readonly width: number; readonly height: number };
 }
 
 /** What a data source gives a load about the styles of what it read. */
@@ -209,6 +215,7 @@ async function applyRead(
         options,
         base: baseValues(ctx.state.styles),
         dataPath: dataPaths(read.path),
+        labelPxPerUnit: labelPxPerUnit(read.positionFit, ctx.services.viewport?.() ?? null),
     });
     const notes = [...translation.notes];
 
@@ -296,6 +303,33 @@ async function applyRead(
     }
 
     return { layers, notes, sceneScale };
+}
+
+/**
+ * How many canvas px one unit of the file's positions is when they are fitted to the canvas the
+ * element draws on, as sigma.js fits them: the canvas's smaller side less `padding` px at each end,
+ * stretched by the canvas's aspect along its longer side, holds the bounding box at its own
+ * proportions (sigma 4.0.1 draws a 90 x 90 box 540 px tall and a 712 x 485 one 720 px wide in an
+ * 800 x 600 canvas). The file's label sizes are px of that canvas.
+ * @param fit - The positions' fit, when they have no fixed length.
+ * @param viewport - The canvas's size in CSS px, or null without one.
+ * @returns The px per unit, or undefined when the positions keep their own length or there is no
+ *     canvas to fit them to.
+ */
+export function labelPxPerUnit(
+    fit: FileStylesRead["positionFit"],
+    viewport: { readonly width: number; readonly height: number } | null,
+): number | undefined {
+    if (fit === undefined || viewport === null) {
+        return undefined;
+    }
+
+    const short = Math.min(viewport.width, viewport.height);
+    const inside = (short - 2 * fit.padding) / short;
+    const across = [(inside * viewport.width) / fit.width, (inside * viewport.height) / fit.height].filter(
+        (k) => Number.isFinite(k) && k > 0,
+    );
+    return across.length === 0 ? undefined : Math.min(...across);
 }
 
 /**

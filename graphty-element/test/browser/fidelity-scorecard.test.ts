@@ -42,6 +42,7 @@ const EPSILON = 1e-9;
  * - graphml-synthetic-edges, json-cyjs-synth-edges, gexf-qvge-mine-airing, gml-synthetic-coverage:
  *   parallel edges (fanned only where the style asks for a curve) and dashed lines along routes.
  * - cx-ddram: labels of 1 to 96 pt in one file, each drawn in proportion.
+ * - json-sigma-lesmis, json-graphology-synth: sigma.js label px over positions fitted to the canvas.
  */
 const DRAWN = [
     "gml-yed-pmodel",
@@ -72,6 +73,8 @@ const DRAWN = [
     "gexf-qvge-mine-airing",
     "gml-synthetic-coverage",
     "cx-ddram",
+    "json-sigma-lesmis",
+    "json-graphology-synth",
 ];
 
 interface Floors {

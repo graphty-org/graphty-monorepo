@@ -64,7 +64,7 @@
         "@types/node": "^20.19.9",
         "@vitest/coverage-v8": "catalog:",
         "eslint": "^9.29.0",
-        "playwright": "1.57.0",
+        "playwright": "catalog:",
         "typescript": "^5.9.3",
         "vitest": "catalog:"
     }

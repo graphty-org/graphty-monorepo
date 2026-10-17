@@ -37,6 +37,7 @@ const EPSILON = 1e-9;
  * - and every other corpus file whose story settles in under 0.7 s under SwiftShader: yEd GML and
  *   GraphML drawings, Cytoscape 2.x and 3.x XGMML, NDEx CX and CX2, Cytoscape.js SBGN, vis-network
  *   groups and Pajek arcs.
+ * - cx-ddram: labels of 1 to 96 pt in one file, each drawn in proportion.
  */
 const DRAWN = [
     "gml-yed-pmodel",
@@ -58,6 +59,7 @@ const DRAWN = [
     "pajek-football",
     "cx2-synthetic-lethal",
     "gml-dunnart-autobahn",
+    "cx-ddram",
 ];
 
 interface Floors {

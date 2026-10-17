@@ -15,6 +15,7 @@ import {
     readdirSync,
     readFileSync,
     rmSync,
+    truncateSync,
     writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -81,6 +82,14 @@ describe("the test matrix", () => {
         assert.equal(include.length, 17);
     });
 
+    // A shard's nx target can depend on builds (cytoscape-extensions:coverage dependsOn ^build), and
+    // running them would rewrite another package's dist while the shards beside it read it (#2858).
+    it("never lets a shard's nx command rebuild what the Build step built", () => {
+        const nx = SHARDS.filter((s) => /\bnx run\b/.test(s["test-command"]));
+        assert.ok(nx.length > 0);
+        for (const s of nx) assert.match(s["test-command"], /--exclude-task-dependencies\b/, s.shard);
+    });
+
     it("puts only the affected members into a group's job", () => {
         const include = plan(["graph-io"]);
         assert.equal(include.length, 1);
@@ -143,6 +152,23 @@ describe("the pre-push gate matches CI", () => {
                 );
             }
         }
+    });
+
+    it("never writes core dumps, and passes Formatting with one in the tree (#2617)", () => {
+        const prepush = code(tool("prepush.sh"));
+        const limit = prepush.indexOf("\nulimit -c 0\n");
+        assert.ok(limit > 0 && limit < prepush.indexOf("prepush-source-checks.sh"), "ulimit -c 0 before every step");
+        // prettier reads the root .gitignore; a sparse 3 GiB dump costs no disk.
+        const dir = mkdtempSync(join(TMP, "core-dump-"));
+        writeFileSync(join(dir, ".gitignore"), readFileSync(new URL("../.gitignore", import.meta.url)));
+        writeFileSync(join(dir, "ok.js"), "export const a = 1;\n");
+        for (const name of ["core", "core.2406307"]) {
+            writeFileSync(join(dir, name), "");
+            truncateSync(join(dir, name), 3 * 1024 ** 3);
+        }
+        const prettier = new URL("../node_modules/.bin/prettier", import.meta.url).pathname;
+        const run = spawnSync(prettier, ["--check", "."], { cwd: dir, encoding: "utf8" });
+        assert.equal(run.status, 0, run.stdout + run.stderr);
     });
 
     it("tests through tools/prepush-tests.mjs only, on CI's affected set", () => {
@@ -610,7 +636,9 @@ exec ${realGit} "$@"
             .map((l) => l.trim())
             .filter((l) => l && !l.startsWith("#!"));
         assert.equal(commands[0], 'GATE_DIR="$(cd "$(dirname "$0")/.." && pwd)"');
-        assert.equal(commands[1], '"$GATE_DIR/tools/lfs-pre-push.sh" "$@" || exit 1');
+        // git's ref lines are read once: the LFS upload gets them, and the remote sha is kept.
+        assert.equal(commands[1], "PUSH_REFS=$(cat)");
+        assert.equal(commands[2], `printf '%s\\n' "$PUSH_REFS" | "$GATE_DIR/tools/lfs-pre-push.sh" "$@" || exit 1`);
     });
 });
 

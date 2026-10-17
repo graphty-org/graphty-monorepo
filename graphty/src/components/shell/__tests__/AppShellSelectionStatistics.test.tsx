@@ -8,10 +8,11 @@
 // Registers the real element, which the shell's other boards never do.
 import "@graphty/graphty-element";
 
-import { assert, describe, it } from "vitest";
+import { assert, beforeAll, describe, it } from "vitest";
+import { page, userEvent } from "vitest/browser";
 
 import { CAT_SOCIAL_NETWORK } from "../../../data/sampleGraphs";
-import { fireEvent, render, waitFor } from "../../../test/test-utils";
+import { render, waitFor } from "../../../test/test-utils";
 import { AppShell } from "../AppShell";
 
 /** How long a real load, its degree pass and its repaint are given. */
@@ -38,6 +39,12 @@ function rowValue(container: HTMLElement, name: string): string | undefined {
     return undefined;
 }
 
+// The shell's design frame. At the runner's default 414 px frame the 1440 px shell overflows and its
+// controls overlap, so a real click lands on whatever is drawn on top.
+beforeAll(async () => {
+    await page.viewport(1440, 900);
+});
+
 describe("AppShell multi-selection statistics", () => {
     it("draws the element's selection-vs-graph means for three selected nodes", async () => {
         const { container } = render(<AppShell initialShellWidth={1440} measureViewport={false} persist={false} />);
@@ -50,7 +57,7 @@ describe("AppShell multi-selection statistics", () => {
 
         const { session } = element;
 
-        fireEvent.click(container.querySelector('[data-sample-row="cat-social-network"]') as HTMLElement);
+        await userEvent.click(container.querySelector('[data-sample-row="cat-social-network"]') as HTMLElement);
         await waitFor(
             () => {
                 assert.equal(session.data.statistics().nodeCount, CAT_SOCIAL_NETWORK.nodes.length);

@@ -11,13 +11,20 @@
 import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
-import userEvent from "@testing-library/user-event";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
+import { commands, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { clearRecent } from "../recent";
+
+declare module "vitest/browser" {
+    interface BrowserCommands {
+        /** Answers the next file picker with this file (graphty/vitest.config.ts). */
+        chooseNextFile: (name: string, mimeType: string, text: string) => Promise<void>;
+    }
+}
 
 /** A hang guard for the element coming up and a sample loading, not a pass/fail timing. */
 const TIMEOUT_MS = 60_000;
@@ -290,13 +297,11 @@ describe("T14: save and reopen, on the real element", () => {
             assert.isNotNull(within(recent).getByText(/ - Locate\.\.\.$/));
 
             // Locate... asks for the file: the reader picks the download.
-            const picked = new File([downloads[0].blob], "Florentine.graphty.json");
-            vi.spyOn(HTMLInputElement.prototype, "click").mockImplementation(function (this: HTMLInputElement) {
-                const transfer = new DataTransfer();
-                transfer.items.add(picked);
-                this.files = transfer.files;
-                this.dispatchEvent(new Event("change"));
-            });
+            await commands.chooseNextFile(
+                "Florentine.graphty.json",
+                "application/json",
+                await downloads[0].blob.text(),
+            );
             await userEvent.click(recent);
             const reopened = await elementSession(session);
             await waitFor(

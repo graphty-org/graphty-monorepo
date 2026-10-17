@@ -107,6 +107,61 @@ export function adoptNodeRecord(node: Node, record: AdHocData<string | number>):
     writeRecord(node, record);
 }
 
+/** Reads whether a paint rebuilds a node's mesh; see {@link nodeRebuildsFor}. */
+let rebuildsFor: (node: Node, paint: NodePaint) => boolean;
+
+/**
+ * Whether {@link Node.applySessionPaint} with this paint would dispose the node's mesh and build
+ * a new one, rather than only write to the mesh it has. A repaint of many nodes asks first, so it
+ * can hand every mesh about to go to the bulk teardown before any of them is disposed (#2749).
+ * @param node - The node.
+ * @param paint - The paint it is about to be handed.
+ * @returns Whether the mesh is rebuilt.
+ */
+export function nodeRebuildsFor(node: Node, paint: NodePaint): boolean {
+    return rebuildsFor(node, paint);
+}
+
+/**
+ * Dispose what a node's rebuild replaces -- its mesh, the label parented to it and its drag
+ * handler -- ahead of the rebuild. A repaint of many nodes disposes every one of them first, inside
+ * the bulk teardown, and only then builds the new meshes: built in between, the new meshes would
+ * fill the scene lists the teardown emptied, and each later dispose would search them (#2749).
+ * The rebuild then finds the mesh disposed and builds a new one, as it does after a 2D/3D switch.
+ * @param node - A node {@link nodeRebuildsFor} said is rebuilt.
+ */
+export function releaseNodeMesh(node: Node): void {
+    node.dragHandler?.dispose();
+    node.dragHandler = undefined;
+    node.label?.dispose();
+    node.label = undefined;
+    if (!node.mesh.isDisposed()) {
+        node.mesh.dispose();
+    }
+}
+
+/** Collects the nodes whose size or shape changed while {@link collectResizedNodes} runs. */
+let resizedSink: Set<Node> | null = null;
+
+/**
+ * Run a repaint and collect the nodes whose size or shape it changed, instead of each of them
+ * walking every edge in the graph to find its own. The caller then finds their edges in one walk
+ * (#2749).
+ * @param work - The repaint.
+ * @returns The nodes whose geometry changed.
+ */
+export function collectResizedNodes(work: () => void): Set<Node> {
+    const resized = new Set<Node>();
+    resizedSink = resized;
+    try {
+        work();
+    } finally {
+        resizedSink = null;
+    }
+
+    return resized;
+}
+
 /**
  * Node shapes whose outline is a circle from every direction.
  *
@@ -133,6 +188,7 @@ export class Node {
         writeRecord = (node, record) => {
             node.#record = frozenRecord(record);
         };
+        rebuildsFor = (node, paint) => !node.disposed && !node.keepsMeshFor(paint.meshKey, paint.style, paint.color);
     }
 
     /**
@@ -239,6 +295,11 @@ export class Node {
     private drawnRadiusMesh: AbstractMesh | null = null;
     private drawnRadiusScale = 0;
     private drawnRadiusValue = 0;
+
+    /** What {@link Node.drawnHalfExtents} last measured, and the mesh and scaling it measured. */
+    private halfExtentsMesh: AbstractMesh | null = null;
+    private readonly halfExtentsScale = { x: 0, y: 0, z: 0 };
+    private readonly halfExtentsValue = { x: 0, y: 0, z: 0 };
 
     /**
      * What the visibility mask says about this node, as the renderer is currently drawing it.
@@ -625,6 +686,44 @@ export class Node {
     }
 
     /**
+     * Whether a paint keeps the mesh this node has: the same source mesh, or a style deep-equal to
+     * the one the mesh was built from, and a mesh that is still alive. See `paintFrom`.
+     * @param meshKey - Which source mesh the paint draws from.
+     * @param o - The resolved style.
+     * @param color - The per-instance colour.
+     * @returns Whether the mesh stays.
+     */
+    private keepsMeshFor(meshKey: string, o: NodeStyleConfig, color: Rgba | null): boolean {
+        const sameGeometry =
+            meshKey === this.meshKey || (isEqual(o, this.drawnStyle) && isEqual(color, this.drawnColor));
+        return sameGeometry && !this.mesh.isDisposed();
+    }
+
+    /**
+     * Tell the layout and this node's edges that its size or shape changed. See `paintFrom`.
+     */
+    private geometryChanged(): void {
+        // A layout that keeps nodes apart by their drawn size (`nodeGap`) has to look again;
+        // the frame loop steps it while it is not settled.
+        const engine = this.context.getLayoutManager().layoutEngine;
+        if (engine instanceof NGraphEngine) {
+            engine.wakeForResize();
+        }
+
+        if (resizedSink) {
+            // A repaint of many nodes finds all their edges in one walk afterwards.
+            resizedSink.add(this);
+            return;
+        }
+
+        for (const edge of this.context.getDataManager().edges.values()) {
+            if (edge.srcNode === this || edge.dstNode === this) {
+                edge.invalidatePositionCache();
+            }
+        }
+    }
+
+    /**
      * Build the mesh, the label and the effects one resolved style asks for.
      *
      * The one place a node's appearance is applied, whichever stack resolved it. It is keyed on
@@ -658,10 +757,7 @@ export class Node {
         // deep-equal to the one the current mesh was built from means the same geometry, the same
         // colour and the same content by construction, so the key is adopted and nothing is
         // touched.
-        const sameGeometry =
-            meshKey === this.meshKey || (isEqual(o, this.drawnStyle) && isEqual(color, this.drawnColor));
-
-        if (sameGeometry && !this.mesh.isDisposed()) {
+        if (this.keepsMeshFor(meshKey, o, color)) {
             this.meshKey = meshKey;
             this.drawnStyle = o;
             this.drawnColor = color;
@@ -744,19 +840,7 @@ export class Node {
         // that changes every node's shape ever hitches, the answer is a per-node edge index, not
         // removing the guard.
         if (this.size !== oldSize || this.shapeType !== oldShapeType) {
-            // A layout that keeps nodes apart by their drawn size (`nodeGap`) has to look again;
-            // the frame loop steps it while it is not settled.
-            const engine = this.context.getLayoutManager().layoutEngine;
-            if (engine instanceof NGraphEngine) {
-                engine.wakeForResize();
-            }
-
-            const dataManager = this.context.getDataManager();
-            for (const edge of dataManager.edges.values()) {
-                if (edge.srcNode === this || edge.dstNode === this) {
-                    edge.invalidatePositionCache();
-                }
-            }
+            this.geometryChanged();
         }
 
         this.mesh = NodeMesh.create(
@@ -1111,6 +1195,45 @@ export class Node {
         // A mesh whose bounds have not been computed yet answers zero. Falling back to the
         // style's own size keeps the answer roughly right until the mesh is measured.
         return this.drawnRadiusValue > 0 ? this.drawnRadiusValue : Math.max(this.size, MIN_OVERLAY_SIZE) / 2;
+    }
+
+    /**
+     * How far the node's drawn surface reaches from its centre along each axis: its bounding
+     * box's half-size, in the units its position is laid out in (the node's own space, not the
+     * world, for the reason {@link Node.drawnRadius} gives).
+     *
+     * One number per axis because one radius is wrong for most shapes: a box reaches 1.41 times
+     * its half-width at a corner, and a tall cylinder is far narrower than it is tall. Read by
+     * `ngraph`'s `nodeGap` and by edge self-loops. Measured once per mesh and scaling.
+     * @returns The half-extents; the style's own size on every axis when the mesh has no bounds yet.
+     */
+    get drawnHalfExtents(): Readonly<{ x: number; y: number; z: number }> {
+        const own = this.mesh.scaling;
+        const seen = this.halfExtentsScale;
+        const value = this.halfExtentsValue;
+        if (
+            this.halfExtentsMesh !== this.mesh ||
+            seen.x !== own.x ||
+            seen.y !== own.y ||
+            seen.z !== own.z ||
+            value.x <= 0
+        ) {
+            const extent = this.mesh.isDisposed() ? null : this.mesh.getBoundingInfo().boundingBox.extendSize;
+            this.halfExtentsMesh = this.mesh;
+            seen.x = own.x;
+            seen.y = own.y;
+            seen.z = own.z;
+            value.x = extent ? extent.x * Math.abs(own.x) : 0;
+            value.y = extent ? extent.y * Math.abs(own.y) : 0;
+            value.z = extent ? extent.z * Math.abs(own.z) : 0;
+        }
+
+        if (value.x > 0 || value.y > 0 || value.z > 0) {
+            return value;
+        }
+
+        const fallback = this.drawnRadius;
+        return { x: fallback, y: fallback, z: fallback };
     }
 
     /**

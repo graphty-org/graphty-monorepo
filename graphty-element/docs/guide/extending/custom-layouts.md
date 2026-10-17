@@ -293,6 +293,7 @@ until it resolves.
 | `dataPositions()` | Where each node's own `position` field puts it, scaled by the element's `positionScale`; NaN where a node has none.                                   |
 | `signal`          | Aborted when the answer is no longer wanted: the graph changed, the layout was replaced, or the element was disposed.                                 |
 | `report(p)`       | Tell the consumer how far you have got: `{ fraction, message? }`, emitted as the element's `layout-progress` event.                                   |
+| `warn(w)`         | Tell the consumer the data kept you from placing nodes as asked: `{ code, params }`, emitted as the element's `layout-warning` event.                 |
 
 Read a mask with `maskTest(mask, row)`. Import it, and the `GraphSnapshot`, `NodeMask` and `EdgeMask`
 types, from `@graphty/graphty-element/extend`, not from `@graphty/graph-format`: they are the

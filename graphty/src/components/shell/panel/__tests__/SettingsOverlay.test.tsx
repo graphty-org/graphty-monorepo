@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
-import { fireEvent, render, screen } from "../../../../test/test-utils";
+import { render, screen } from "../../../../test/test-utils";
 import type { AiProviderSettingsProps } from "../../../ai/AiProviderSettings";
 import { SHELL_KEY_BINDINGS } from "../../bindings";
 import { OVERLAY_INSET } from "../../constants";
@@ -31,6 +32,19 @@ function emptyKeyStore(): AiProviderSettingsProps {
         onEnablePersistence: vi.fn(),
         onDisablePersistence: vi.fn(),
     };
+}
+
+/**
+ * The label a reader clicks for a visually hidden input (a segmented control's radio, a switch).
+ * @param input - the input.
+ * @returns its first label.
+ */
+function labelOf(input: HTMLElement): HTMLElement {
+    const label = (input as HTMLInputElement).labels?.[0];
+    if (!label) {
+        throw new Error("the input has no label");
+    }
+    return label;
 }
 
 describe("SettingsOverlay", () => {
@@ -116,7 +130,7 @@ describe("SettingsOverlay", () => {
             expect(close).toHaveAccessibleName("Close");
         });
 
-        it("closes", () => {
+        it("closes", async () => {
             const onClose = vi.fn();
 
             render(
@@ -129,7 +143,7 @@ describe("SettingsOverlay", () => {
                 />,
             );
 
-            fireEvent.click(screen.getByTestId("settings-close"));
+            await userEvent.click(screen.getByTestId("settings-close"));
 
             expect(onClose).toHaveBeenCalledTimes(1);
         });
@@ -177,6 +191,38 @@ describe("SettingsOverlay", () => {
             expect(screen.getByRole("tab", { name: "Appearance" })).toHaveAttribute("aria-selected", "true");
         });
 
+        it("walks the sections with the Up and Down arrows, Home and End", async () => {
+            render(
+                <SettingsOverlay
+                    opened
+                    onClose={vi.fn()}
+                    aiProviders={emptyKeyStore()}
+                    accelerationPolicy="auto"
+                    onAccelerationPolicyChange={vi.fn()}
+                />,
+            );
+
+            const appearance = screen.getByRole("tab", { name: "Appearance" });
+
+            await userEvent.click(appearance);
+            await userEvent.keyboard("{ArrowDown}");
+
+            const defaults = screen.getByRole("tab", { name: "Defaults" });
+            expect(defaults).toHaveFocus();
+            expect(defaults).toHaveAttribute("aria-selected", "true");
+            expect(defaults.matches(":focus-visible")).toBe(true);
+            expect(screen.getByRole("tabpanel", { name: "Defaults" })).toBeInTheDocument();
+
+            await userEvent.keyboard("{ArrowUp}");
+            expect(appearance).toHaveFocus();
+            expect(screen.getByRole("tabpanel", { name: "Appearance" })).toBeInTheDocument();
+
+            await userEvent.keyboard("{End}");
+            expect(screen.getByRole("tab", { name: "Extensions" })).toHaveFocus();
+            await userEvent.keyboard("{Home}");
+            expect(appearance).toHaveFocus();
+        });
+
         it("keeps the fuller name of a shortened row in its title", () => {
             render(
                 <SettingsOverlay
@@ -191,7 +237,7 @@ describe("SettingsOverlay", () => {
             expect(screen.getByRole("tab", { name: "AI providers" })).toHaveAttribute("title", "AI providers and keys");
         });
 
-        it("moves between panes", () => {
+        it("moves between panes", async () => {
             render(
                 <SettingsOverlay
                     opened
@@ -202,7 +248,7 @@ describe("SettingsOverlay", () => {
                 />,
             );
 
-            fireEvent.click(screen.getByRole("tab", { name: "Keyboard shortcuts" }));
+            await userEvent.click(screen.getByRole("tab", { name: "Keyboard shortcuts" }));
 
             expect(screen.getByRole("tabpanel", { name: "Keyboard shortcuts" })).toBeInTheDocument();
         });
@@ -241,7 +287,7 @@ describe("SettingsOverlay", () => {
             expect(screen.getByRole("tabpanel", { name: "AI providers" })).toBeInTheDocument();
         });
 
-        it("still lets the user go somewhere else once they are there", () => {
+        it("still lets the user go somewhere else once they are there", async () => {
             render(
                 <SettingsOverlay
                     opened
@@ -253,7 +299,7 @@ describe("SettingsOverlay", () => {
                 />,
             );
 
-            fireEvent.click(screen.getByRole("tab", { name: "Appearance" }));
+            await userEvent.click(screen.getByRole("tab", { name: "Appearance" }));
 
             expect(screen.getByRole("tabpanel", { name: "Appearance" })).toBeInTheDocument();
         });
@@ -274,7 +320,7 @@ describe("SettingsOverlay", () => {
     });
 
     describe("AI providers", () => {
-        it("draws the provider list rather than a Coming tag", () => {
+        it("draws the provider list rather than a Coming tag", async () => {
             render(
                 <SettingsOverlay
                     opened
@@ -285,13 +331,13 @@ describe("SettingsOverlay", () => {
                 />,
             );
 
-            fireEvent.click(screen.getByRole("tab", { name: "AI providers" }));
+            await userEvent.click(screen.getByRole("tab", { name: "AI providers" }));
 
             expect(screen.getByTestId("ai-provider-list")).toBeInTheDocument();
             expect(screen.queryByTestId("coming-tag")).not.toBeInTheDocument();
         });
 
-        it("opens a key field a user can actually type into", () => {
+        it("opens a key field a user can actually type into", async () => {
             render(
                 <SettingsOverlay
                     opened
@@ -302,12 +348,12 @@ describe("SettingsOverlay", () => {
                 />,
             );
 
-            fireEvent.click(screen.getByRole("tab", { name: "AI providers" }));
+            await userEvent.click(screen.getByRole("tab", { name: "AI providers" }));
 
             expect(screen.getByTestId("ai-key-input-anthropic")).toBeInTheDocument();
         });
 
-        it("keeps the pane's teaching sentence behind the heading's info circle", () => {
+        it("keeps the pane's teaching sentence behind the heading's info circle", async () => {
             render(
                 <SettingsOverlay
                     opened
@@ -318,7 +364,7 @@ describe("SettingsOverlay", () => {
                 />,
             );
 
-            fireEvent.click(screen.getByRole("tab", { name: "AI providers" }));
+            await userEvent.click(screen.getByRole("tab", { name: "AI providers" }));
 
             expect(screen.getByTestId("settings-pane-info")).toHaveAttribute(
                 "title",
@@ -328,7 +374,7 @@ describe("SettingsOverlay", () => {
     });
 
     describe("the three panes that are still stubs", () => {
-        it.each(["Defaults", "Data management", "Extensions"])("tags %s", (label) => {
+        it.each(["Defaults", "Data management", "Extensions"])("tags %s", async (label) => {
             render(
                 <SettingsOverlay
                     opened
@@ -339,7 +385,7 @@ describe("SettingsOverlay", () => {
                 />,
             );
 
-            fireEvent.click(screen.getByRole("tab", { name: label }));
+            await userEvent.click(screen.getByRole("tab", { name: label }));
 
             expect(screen.getByTestId("coming-tag")).toBeInTheDocument();
         });
@@ -354,7 +400,7 @@ describe("SettingsOverlay", () => {
          * Opens Settings on the Performance pane, which is on screen when this returns.
          * @param props - anything a board needs to differ from the defaults, spread over them.
          */
-        function openPerformance(props: Partial<SettingsOverlayProps> = {}): void {
+        async function openPerformance(props: Partial<SettingsOverlayProps> = {}): Promise<void> {
             render(
                 <SettingsOverlay
                     opened
@@ -365,11 +411,11 @@ describe("SettingsOverlay", () => {
                     {...props}
                 />,
             );
-            fireEvent.click(screen.getByRole("tab", { name: "Performance" }));
+            await userEvent.click(screen.getByRole("tab", { name: "Performance" }));
         }
 
-        it("draws the acceleration control above the label controls", () => {
-            openPerformance();
+        it("draws the acceleration control above the label controls", async () => {
+            await openPerformance();
 
             expect(screen.getByTestId("settings-acceleration")).toBeInTheDocument();
 
@@ -387,8 +433,8 @@ describe("SettingsOverlay", () => {
         /* A segmented control is a radiogroup, and a radiogroup with no name is announced as
            three unexplained words. compact-mantine's SegmentedControl takes its name and
            description from the Input.Wrapper around it. */
-        it("names the acceleration control and carries its explanation", () => {
-            openPerformance();
+        it("names the acceleration control and carries its explanation", async () => {
+            await openPerformance();
 
             expect(
                 screen.getByRole("radiogroup", {
@@ -398,80 +444,80 @@ describe("SettingsOverlay", () => {
             ).toBeInTheDocument();
         });
 
-        it("shows the policy it is handed", () => {
-            openPerformance({ accelerationPolicy: "off" });
+        it("shows the policy it is handed", async () => {
+            await openPerformance({ accelerationPolicy: "off" });
 
             expect(screen.getByRole("radio", { name: "Off" })).toBeChecked();
         });
 
-        it("reports a change and writes nothing itself", () => {
+        it("reports a change and writes nothing itself", async () => {
             const onChange = vi.fn();
 
-            openPerformance({ onAccelerationPolicyChange: onChange });
+            await openPerformance({ onAccelerationPolicyChange: onChange });
 
-            fireEvent.click(screen.getByRole("radio", { name: "Required" }));
+            await userEvent.click(labelOf(screen.getByRole("radio", { name: "Required" })));
 
             expect(onChange).toHaveBeenCalledTimes(1);
             expect(onChange).toHaveBeenCalledWith("required");
             expect(window.localStorage.getItem(ACCELERATION_SETTINGS_STORAGE_KEY)).toBeNull();
         });
 
-        it("says the change applies at once, because it does", () => {
-            openPerformance();
+        it("says the change applies at once, because it does", async () => {
+            await openPerformance();
 
             expect(screen.getByText("Applies at once.")).toBeInTheDocument();
         });
 
-        it("draws the label controls rather than a Coming tag", () => {
-            openPerformance();
+        it("draws the label controls rather than a Coming tag", async () => {
+            await openPerformance();
 
             expect(screen.getByTestId("settings-labels")).toBeInTheDocument();
             expect(screen.queryByTestId("coming-tag")).not.toBeInTheDocument();
         });
 
-        it("starts with labels on, which is what a reader who has chosen nothing gets", () => {
-            openPerformance();
+        it("starts with labels on, which is what a reader who has chosen nothing gets", async () => {
+            await openPerformance();
 
             expect(screen.getByRole("switch", { name: /Label the most connected nodes/ })).toBeChecked();
         });
 
-        it("says when the change takes effect, because it is not the moment of the click", () => {
-            openPerformance();
+        it("says when the change takes effect, because it is not the moment of the click", async () => {
+            await openPerformance();
 
             expect(screen.getByText("Applies the next time a graph loads.")).toBeInTheDocument();
         });
 
-        it("turns the label layer off, and remembers it", () => {
-            openPerformance();
+        it("turns the label layer off, and remembers it", async () => {
+            await openPerformance();
 
-            fireEvent.click(screen.getByRole("switch", { name: /Label the most connected nodes/ }));
+            await userEvent.click(screen.getByRole("switch", { name: /Label the most connected nodes/ }));
 
             expect(screen.getByRole("switch", { name: /Label the most connected nodes/ })).not.toBeChecked();
             expect(readPersistedLabelSettings().topDegreeLabelsOn).toBe(false);
         });
 
-        it("turns it back on, and remembers that too", () => {
+        it("turns it back on, and remembers that too", async () => {
             writePersistedLabelSettings({ topDegreeLabelsOn: false, labelCount: null });
-            openPerformance();
+            await openPerformance();
 
             const control = screen.getByRole("switch", { name: /Label the most connected nodes/ });
             expect(control).not.toBeChecked();
 
-            fireEvent.click(control);
+            await userEvent.click(control);
 
             expect(readPersistedLabelSettings().topDegreeLabelsOn).toBe(true);
         });
 
-        it("opens on what the reader last chose rather than on the default", () => {
+        it("opens on what the reader last chose rather than on the default", async () => {
             writePersistedLabelSettings({ topDegreeLabelsOn: false, labelCount: 7 });
-            openPerformance();
+            await openPerformance();
 
             expect(screen.getByRole("switch", { name: /Label the most connected nodes/ })).not.toBeChecked();
             expect(screen.getByLabelText("How many labels")).toHaveValue("7");
         });
 
-        it("leaves the budget empty when the reader has not named one, and says what empty means", () => {
-            openPerformance();
+        it("leaves the budget empty when the reader has not named one, and says what empty means", async () => {
+            await openPerformance();
 
             const budget = screen.getByLabelText("How many labels");
 
@@ -479,55 +525,55 @@ describe("SettingsOverlay", () => {
             expect(budget).toHaveAttribute("placeholder", "Automatic");
         });
 
-        it("takes a budget the reader types, and remembers it", () => {
-            openPerformance();
+        it("takes a budget the reader types, and remembers it", async () => {
+            await openPerformance();
 
-            fireEvent.change(screen.getByLabelText("How many labels"), { target: { value: "12" } });
+            await userEvent.fill(screen.getByLabelText("How many labels"), "12");
 
             expect(readPersistedLabelSettings().labelCount).toBe(12);
         });
 
-        it("reads an emptied budget as automatic rather than as zero", () => {
+        it("reads an emptied budget as automatic rather than as zero", async () => {
             writePersistedLabelSettings({ topDegreeLabelsOn: true, labelCount: 12 });
-            openPerformance();
+            await openPerformance();
 
-            fireEvent.change(screen.getByLabelText("How many labels"), { target: { value: "" } });
+            await userEvent.fill(screen.getByLabelText("How many labels"), "");
 
             expect(readPersistedLabelSettings().labelCount).toBeNull();
         });
 
-        it("disables the budget while labels are off, so it cannot promise what it cannot do", () => {
+        it("disables the budget while labels are off, so it cannot promise what it cannot do", async () => {
             writePersistedLabelSettings({ topDegreeLabelsOn: false, labelCount: null });
-            openPerformance();
+            await openPerformance();
 
             expect(screen.getByLabelText("How many labels")).toBeDisabled();
         });
 
-        it("keeps the budget usable while labels are on", () => {
-            openPerformance();
+        it("keeps the budget usable while labels are on", async () => {
+            await openPerformance();
 
             expect(screen.getByLabelText("How many labels")).toBeEnabled();
         });
 
-        it("writes a complete record, so one field cannot be lost by writing the other", () => {
-            openPerformance();
+        it("writes a complete record, so one field cannot be lost by writing the other", async () => {
+            await openPerformance();
 
-            fireEvent.change(screen.getByLabelText("How many labels"), { target: { value: "9" } });
-            fireEvent.click(screen.getByRole("switch", { name: /Label the most connected nodes/ }));
+            await userEvent.fill(screen.getByLabelText("How many labels"), "9");
+            await userEvent.click(screen.getByRole("switch", { name: /Label the most connected nodes/ }));
 
             expect(readPersistedLabelSettings()).toEqual({ topDegreeLabelsOn: false, labelCount: 9 });
         });
 
-        it("survives a store that cannot be written", () => {
+        it("survives a store that cannot be written", async () => {
             vi.spyOn(window.localStorage, "setItem").mockImplementation(() => {
                 throw new Error("quota");
             });
 
-            openPerformance();
+            await openPerformance();
 
-            expect(() => {
-                fireEvent.click(screen.getByRole("switch", { name: /Label the most connected nodes/ }));
-            }).not.toThrow();
+            await expect(
+                userEvent.click(screen.getByRole("switch", { name: /Label the most connected nodes/ })),
+            ).resolves.toBeUndefined();
             expect(screen.getByRole("switch", { name: /Label the most connected nodes/ })).not.toBeChecked();
 
             vi.restoreAllMocks();
@@ -535,7 +581,7 @@ describe("SettingsOverlay", () => {
     });
 
     describe("Keyboard shortcuts", () => {
-        it("renders the whole table, unshipped rows included", () => {
+        it("renders the whole table, unshipped rows included", async () => {
             render(
                 <SettingsOverlay
                     opened
@@ -546,13 +592,13 @@ describe("SettingsOverlay", () => {
                 />,
             );
 
-            fireEvent.click(screen.getByRole("tab", { name: "Keyboard shortcuts" }));
+            await userEvent.click(screen.getByRole("tab", { name: "Keyboard shortcuts" }));
 
             const rows = screen.getAllByRole("row");
             expect(rows).toHaveLength(SHELL_KEY_BINDINGS.length);
         });
 
-        it("tags an unshipped row and gives it no key chip", () => {
+        it("tags an unshipped row and gives it no key chip", async () => {
             render(
                 <SettingsOverlay
                     opened
@@ -563,7 +609,7 @@ describe("SettingsOverlay", () => {
                 />,
             );
 
-            fireEvent.click(screen.getByRole("tab", { name: "Keyboard shortcuts" }));
+            await userEvent.click(screen.getByRole("tab", { name: "Keyboard shortcuts" }));
 
             const unshipped = SHELL_KEY_BINDINGS.filter((binding) => !binding.shipped);
 

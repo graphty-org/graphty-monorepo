@@ -125,6 +125,8 @@
         "Styles/Edge::TwoDAllArrows",
         "Styles/Edge::TwoDAllLines",
         "Styles/Edge::TwoDLineAngles",
+        "Styles/Edge::TwoDCurvatureWidth",
+        "Styles/Edge::ThreeDCurvatureWidth",
         "Styles/Edge::Width",
         "Styles/Graph::BackgroundColor",
         "Styles/Graph::Default",

@@ -7,7 +7,7 @@
 import cytoscape, { type Collection, type Core, type ElementDefinition, type LayoutOptions } from "cytoscape";
 
 import type { Backend } from "../src/index.js";
-import { elementsOf, GENERATE, NO_GPU, type Outcome, SIZES } from "./demo.js";
+import { datasetOptions, elementsOf, GENERATE, NO_GPU, type Outcome, SIZES } from "./demo.js";
 import { paintPaths, type Paths, plainReason, runAlgorithm } from "./run.js";
 
 const SEED = 42;
@@ -396,7 +396,7 @@ export const EXAMPLES: Partial<Record<string, Example>> = {
     kCoreDecomposition: {
         graph: 'Zachary\'s karate club (cy.graphtyDataset("karate"))',
         load: async (cy) => {
-            await cy.graphtyDataset("karate");
+            await cy.graphtyDataset("karate", datasetOptions());
         },
         place: kamadaKawai,
     },

@@ -25,7 +25,7 @@ import { Mesh, type Scene, type Vector3, VertexData } from "@babylonjs/core";
 import type { ArrowCap } from "./ArrowCapBatch";
 import { FilledArrowRenderer } from "./FilledArrowRenderer";
 import { MaterialHelper } from "./MaterialHelper";
-import { PatternedLineMesh } from "./PatternedLineMesh";
+import { PatternedLineMesh, type PatternedLineOptions } from "./PatternedLineMesh";
 
 // ==========================================
 // PATTERN TYPE DEFINITIONS
@@ -109,6 +109,24 @@ export const PATTERN_DEFINITIONS: Record<PatternType, PatternDefinition> = {
 // ==========================================
 
 /**
+ * The height of a continuous zigzag at one of its four corner phases.
+ * @param phase - The corner, 0 to 3: baseline, peak, baseline, valley.
+ * @param amplitude - The peak height.
+ * @returns The height at that corner.
+ */
+function zigzagZ(phase: number, amplitude: number): number {
+    if (phase === 1) {
+        return amplitude; // Peak
+    }
+
+    if (phase === 3) {
+        return -amplitude; // Valley
+    }
+
+    return 0; // Baseline (phases 0 and 2)
+}
+
+/**
  * Static utility class for creating mesh-based pattern geometries for line visualization
  */
 // eslint-disable-next-line @typescript-eslint/no-extraneous-class
@@ -119,33 +137,26 @@ export class PatternedLineRenderer {
      * @param pattern - The pattern type to render
      * @param start - Starting point of the line (already adjusted)
      * @param end - Ending point of the line (already adjusted)
-     * @param width - Line width
-     * @param color - Line color
-     * @param opacity - Line opacity (0-1)
      * @param scene - Babylon.js scene
-     * @param is2DMode - Optional flag to apply 2D materials instead of 3D shader (default false)
-     * @param patternCount - Explicit element count from `line.patternCount`; omit to follow the spacing rule
+     * @param options - Width, color, opacity, 2D mode (2D materials instead of the 3D shader, default
+     *   false) and pattern count (omit to follow the spacing rule)
      * @returns A PatternedLineMesh instance
      */
     static create(
         pattern: PatternType,
         start: Vector3,
         end: Vector3,
-        width: number,
-        color: string,
-        opacity: number,
         scene: Scene,
-        is2DMode?: boolean,
-        patternCount?: number,
+        options: PatternedLineOptions,
     ): PatternedLineMesh {
         // For connected patterns (zigzag, sinewave), use zero-spacing discrete meshes
         // This is more efficient than creating one large mesh
         const patternDef = PATTERN_DEFINITIONS[pattern];
         if (patternDef.connected) {
-            return this.createContinuousMesh(pattern, start, end, width, color, opacity, scene, is2DMode, patternCount);
+            return this.createContinuousMesh(pattern, start, end, scene, options);
         }
 
-        return new PatternedLineMesh(pattern, start, end, width, color, opacity, scene, is2DMode, patternCount);
+        return new PatternedLineMesh(pattern, start, end, scene, options);
     }
 
     /**
@@ -155,28 +166,20 @@ export class PatternedLineRenderer {
      * @param pattern - The pattern type to render
      * @param start - Starting point of the line
      * @param end - Ending point of the line
-     * @param width - Line width
-     * @param color - Line color
-     * @param opacity - Line opacity (0-1)
      * @param scene - Babylon.js scene
-     * @param is2DMode - Whether to use 2D mode rendering
-     * @param patternCount - Explicit element count from `line.patternCount`; omit to follow the spacing rule
+     * @param options - Width, color, opacity, 2D mode and pattern count
      * @returns A PatternedLineMesh instance
      */
     static createContinuousMesh(
         pattern: PatternType,
         start: Vector3,
         end: Vector3,
-        width: number,
-        color: string,
-        opacity: number,
         scene: Scene,
-        is2DMode?: boolean,
-        patternCount?: number,
+        options: PatternedLineOptions,
     ): PatternedLineMesh {
         // Use PatternedLineMesh approach (multiple small meshes) with zero spacing
         // This is more efficient than creating one large mesh with many vertices
-        return new PatternedLineMesh(pattern, start, end, width, color, opacity, scene, is2DMode, patternCount);
+        return new PatternedLineMesh(pattern, start, end, scene, options);
     }
 
     /**
@@ -608,19 +611,8 @@ export class PatternedLineRenderer {
                 const currPhase = i % 4;
 
                 // Get Z values for previous and current phase
-                let prevZ = 0;
-                if (prevPhase === 1) {
-                    prevZ = amplitude;
-                } else if (prevPhase === 3) {
-                    prevZ = -amplitude;
-                }
-
-                let currZ = 0;
-                if (currPhase === 1) {
-                    currZ = amplitude;
-                } else if (currPhase === 3) {
-                    currZ = -amplitude;
-                }
+                const prevZ = zigzagZ(prevPhase, amplitude);
+                const currZ = zigzagZ(currPhase, amplitude);
 
                 // Interpolate to find Z at exact lineLength
                 const t = (lineLength - prevX) / (x - prevX);
@@ -630,15 +622,7 @@ export class PatternedLineRenderer {
                 break;
             }
 
-            const phase = i % 4;
-            let z = 0; // Baseline (phases 0 and 2)
-            if (phase === 1) {
-                z = amplitude; // Peak
-            } else if (phase === 3) {
-                z = -amplitude; // Valley
-            }
-
-            points.push([x, 0, z]);
+            points.push([x, 0, zigzagZ(i % 4, amplitude)]);
         }
 
         // Create quad strip with thickness

@@ -193,6 +193,20 @@ describe("the mouse", () => {
             assert.isTrue(element.isPinned("c"), "a node the pointer placed is pinned");
         });
 
+        it("a wheel turn on two axes reaches input:wheel once", async () => {
+            const element = await mounted(viewMode);
+            let wheels = 0;
+            element.addEventListener("input:wheel", () => {
+                wheels++;
+            });
+
+            // A trackpad turn: Babylon raises one POINTERWHEEL per changed axis (issue #2937)
+            await wheel(element, EMPTY, 100, 10);
+            await applied(element);
+
+            assert.strictEqual(wheels, 1, "one wheel turn is one input:wheel");
+        });
+
         it("pointing at a node reports the hover", async () => {
             const element = await mounted(viewMode);
             const hovered: unknown[] = [];
@@ -266,8 +280,15 @@ async function settled(element: Graphty, updates: () => number): Promise<void> {
  * @param key - The key, as userEvent names it.
  * @param name - The camera whose input reads the key: "orbit" (3D) or "2d".
  * @param count - How many frames to hold it for.
+ * @param onHeldFrame - Called after each update the key is held for.
  */
-async function hold(element: Graphty, key: string, name: "orbit" | "2d", count: number): Promise<void> {
+async function hold(
+    element: Graphty,
+    key: string,
+    name: "orbit" | "2d",
+    count: number,
+    onHeldFrame: () => void = () => undefined,
+): Promise<void> {
     const { canvas } = element.graph;
     const input = (element.graph.camera as unknown as { inputs: Map<string, { update(): void }> }).inputs.get(name);
     assert.isDefined(input);
@@ -280,7 +301,12 @@ async function hold(element: Graphty, key: string, name: "orbit" | "2d", count: 
     input.update = (): void => {
         all++;
         update();
-        if (held && ++heldFrames === count) {
+        if (!held) {
+            return;
+        }
+
+        onHeldFrame();
+        if (++heldFrames === count) {
             releaseFrames = renderManager.holdFrames();
         }
     };
@@ -374,6 +400,24 @@ describe("the keyboard", () => {
         assert.closeTo(perFrame, 0.02, 0.0004, `radians per frame held, about ${axis}`);
     });
 
+    // Steady from the first frame held to the last: an arrow turned slowly at first and sped up
+    // while the velocity it pushed built up, then coasted on after the key was let go.
+    it("a held arrow key turns the 3D camera by the same angle every frame", async () => {
+        const element = await mounted("3d");
+        await element.setCameraState({ pivotRotation: { x: 0, y: 0, z: 0 } });
+        await click(element, EMPTY);
+        const yaw = (): number => element.getCameraState().pivotRotation?.y ?? Number.NaN;
+        const angles = [yaw()];
+
+        await hold(element, "ArrowRight", "orbit", 20, () => angles.push(yaw()));
+
+        for (let i = 1; i < angles.length; i++) {
+            assert.closeTo(angles[i] - angles[i - 1], 0.02, 1e-6, `radians turned in held frame ${String(i)}`);
+        }
+
+        assert.closeTo(yaw() - angles[0], 20 * 0.02, 1e-6, "nothing coasted on after the key was let go");
+    });
+
     // The 2D view's + and - keys zoom by zoomFactorPerFrame (0.02 in log space) per frame held,
     // not by the many times that a velocity accumulated every frame reaches.
     it.each([
@@ -462,6 +506,92 @@ describe("touch", () => {
     });
 });
 
+describe("the input:* events", () => {
+    /** Every `input:*` event the element sends, with the type of each field `src/events.ts` declares. */
+    const DECLARED: Record<string, Record<string, "number" | "string" | "boolean">> = {
+        "input:pointer-down": { x: "number", y: "number" },
+        "input:pointer-move": { x: "number", y: "number" },
+        "input:pointer-up": { x: "number", y: "number" },
+        "input:wheel": { deltaX: "number", deltaY: "number", deltaZ: "number", deltaMode: "number" },
+        "input:key-down": {
+            key: "string",
+            code: "string",
+            ctrlKey: "boolean",
+            shiftKey: "boolean",
+            altKey: "boolean",
+            metaKey: "boolean",
+        },
+        "input:key-up": {
+            key: "string",
+            code: "string",
+            ctrlKey: "boolean",
+            shiftKey: "boolean",
+            altKey: "boolean",
+            metaKey: "boolean",
+        },
+        "input:touch-start": {},
+        "input:touch-move": {},
+        "input:touch-end": {},
+        "input:undo": {},
+        "input:redo": {},
+        "input:select-all": {},
+    };
+
+    it("carry each field as the plain value their declared types promise (issue #2976)", async () => {
+        const element = await mounted("2d");
+        const seen = new Map<string, Record<string, unknown>[]>();
+        for (const name of Object.keys(DECLARED)) {
+            const listener = (event: Event): void => {
+                const list = seen.get(name) ?? [];
+                list.push((event as CustomEvent<Record<string, unknown>>).detail);
+                seen.set(name, list);
+            };
+            element.addEventListener(name, listener);
+            cleanups.push(() => {
+                element.removeEventListener(name, listener);
+            });
+        }
+
+        await hover(element, EMPTY);
+        await click(element, EMPTY);
+        await wheel(element, EMPTY, 100, 10);
+        await userEvent.keyboard("q");
+        await userEvent.keyboard("{Control>}z{/Control}");
+        await userEvent.keyboard("{Control>}y{/Control}");
+        await userEvent.keyboard("{Control>}a{/Control}");
+        await touchDrag(element, EMPTY, { x: EMPTY.x + 20, y: EMPTY.y - 20 }, 2);
+        await applied(element);
+
+        for (const [name, fields] of Object.entries(DECLARED)) {
+            const details = seen.get(name) ?? [];
+            assert.isNotEmpty(details, `${name} was sent`);
+            for (const detail of details) {
+                for (const [field, type] of Object.entries(fields)) {
+                    assert.strictEqual(typeof detail[field], type, `${name} ${field} is a ${type}`);
+                }
+            }
+        }
+
+        const wheels = seen.get("input:wheel") ?? [];
+        assert.strictEqual(wheels[0]?.deltaY, 100, "input:wheel deltaY is the turn's");
+        const keys = (seen.get("input:key-down") ?? []).map((detail) => detail.key);
+        assert.include(keys, "q", "input:key-down key is the key pressed");
+        for (const name of ["input:touch-start", "input:touch-move"]) {
+            for (const detail of seen.get(name) ?? []) {
+                for (const touch of detail.array as Record<string, unknown>[]) {
+                    assert.strictEqual(typeof touch.x, "number", `${name} touch x is a number`);
+                    assert.strictEqual(typeof touch.y, "number", `${name} touch y is a number`);
+                }
+            }
+        }
+        for (const detail of seen.get("input:touch-end") ?? []) {
+            for (const touch of detail.array as Record<string, unknown>[]) {
+                assert.strictEqual(typeof touch.value, "number", "input:touch-end holds each touch id");
+            }
+        }
+    });
+});
+
 describe("a high-DPI screen", () => {
     it.each(["2d", "3d"] as const)(
         "at a device pixel ratio of 2, in %s, a click lands on the node drawn under it and a drag follows the pointer",
@@ -484,4 +614,118 @@ describe("a high-DPI screen", () => {
             });
         },
     );
+});
+
+/**
+ * The plain average of nodes' positions.
+ * @param element - The element.
+ * @param ids - The nodes.
+ * @returns The mean position.
+ */
+function meanOf(element: Graphty, ids: readonly string[]): { x: number; y: number; z: number } {
+    const sum = { x: 0, y: 0, z: 0 };
+    for (const id of ids) {
+        const position = element.getNode(id)?.getPosition();
+        assert.isDefined(position, `node ${id} exists`);
+        sum.x += position.x / ids.length;
+        sum.y += position.y / ids.length;
+        sum.z += position.z / ids.length;
+    }
+
+    return sum;
+}
+
+// Issues #2293 and #2294: with `camera.pivotOnSelection` on, the selection is what the camera turns
+// about -- one node, or the mean of several.
+describe("the selection as the camera's pivot", () => {
+    it("is off by default: a click on a node leaves the camera where it is", async () => {
+        const element = await mounted("3d");
+        const before = element.getCameraState().target;
+
+        await click(element, at(element, "c"));
+        await applied(element);
+
+        assert.strictEqual(element.getSelectedNode()?.id, "c");
+        assert.deepStrictEqual(element.getCameraState().target, before, "the pivot did not move");
+    });
+
+    it("a clicked node becomes the 3D pivot, and orbiting keeps it at the same spot on screen", async () => {
+        const element = await mounted("3d");
+        element.layoutBehavior = { camera: { pivotOnSelection: true } };
+
+        await click(element, at(element, "c"));
+        // The picture is not final until the camera has arrived, so a stable frame is the arrival
+        await applied(element);
+
+        const { target } = element.getCameraState();
+        const c = meanOf(element, ["c"]);
+        assert.isDefined(target);
+        assert.closeTo(target.x, c.x, 0.01, "the pivot is on the node");
+        assert.closeTo(target.y, c.y, 0.01, "the pivot is on the node");
+        assert.closeTo(target.z, c.z, 0.01, "the pivot is on the node");
+
+        const before = at(element, "c");
+        const unturned = camera(element);
+        await drag(element, EMPTY, { x: EMPTY.x + 120, y: EMPTY.y - 40 });
+        await applied(element);
+
+        assert.notStrictEqual(camera(element), unturned, "the camera turned");
+        const after = at(element, "c");
+        assert.closeTo(after.x, before.x, 1, "the node stayed put across");
+        assert.closeTo(after.y, before.y, 1, "the node stayed put down");
+    });
+
+    it("shift-clicking several nodes makes their mean position the 3D pivot", async () => {
+        const element = await mounted("3d");
+        element.layoutBehavior = { camera: { pivotOnSelection: true } };
+        // Far enough out that every node stays on screen wherever the pivot goes
+        await element.setCameraState({ cameraDistance: 40 });
+        await applied(element);
+
+        await click(element, at(element, "a"));
+        await applied(element);
+        assert.deepStrictEqual(element.session.selection.nodes.map(String), ["a"], "the click selected a");
+        await click(element, at(element, "b"), { shift: true });
+        await applied(element);
+        assert.deepStrictEqual(element.session.selection.nodes.map(String), ["a", "b"], "the shift-click added b");
+        await applied(element);
+        await click(element, at(element, "c"), { shift: true });
+        await applied(element);
+
+        const selected = element.session.selection.nodes.map(String);
+        assert.sameMembers(selected, ["a", "b", "c"], "shift-clicks added to the selection");
+        const mean = meanOf(element, ["a", "b", "c"]);
+        const { target } = element.getCameraState();
+        assert.isDefined(target);
+        assert.closeTo(target.x, mean.x, 0.01, "the pivot is the mean");
+        assert.closeTo(target.y, mean.y, 0.01, "the pivot is the mean");
+        assert.closeTo(target.z, mean.z, 0.01, "the pivot is the mean");
+
+        // A shift-click on a selected node takes it out, and the pivot follows.
+        await click(element, at(element, "c"), { shift: true });
+        await applied(element);
+        const pair = meanOf(element, ["a", "b"]);
+        const moved = element.getCameraState().target;
+        assert.isDefined(moved);
+        assert.closeTo(moved.x, pair.x, 0.01, "the pivot is the mean of the two left");
+        assert.closeTo(moved.y, pair.y, 0.01, "the pivot is the mean of the two left");
+        assert.closeTo(moved.z, pair.z, 0.01, "the pivot is the mean of the two left");
+    });
+
+    it("a clicked node becomes the 2D view's center", async () => {
+        const element = await mounted("2d");
+        element.layoutBehavior = { camera: { pivotOnSelection: true } };
+
+        await click(element, at(element, "a"));
+        await applied(element);
+
+        const { pan } = element.getCameraState();
+        const a = meanOf(element, ["a"]);
+        assert.isDefined(pan);
+        assert.closeTo(pan.x, a.x, 0.01, "the view is centered on the node");
+        assert.closeTo(pan.y, a.y, 0.01, "the view is centered on the node");
+        const drawn = at(element, "a");
+        assert.closeTo(drawn.x, WIDTH / 2, 1, "the node is drawn at the middle");
+        assert.closeTo(drawn.y, HEIGHT / 2, 1, "the node is drawn at the middle");
+    });
 });

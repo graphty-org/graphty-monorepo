@@ -1,7 +1,7 @@
 /**
  * What control the style inspector draws for each channel a layer can paint.
  *
- * A layer paints CHANNELS, and the set of them is closed: thirty-five names, each accepting one
+ * A layer paints CHANNELS, and the set of them is closed: thirty-six names, each accepting one
  * kind of value. Everything about a channel's row that the element knows -- its short name, its
  * group, the control kind, the bounds, the accepted values, the value drawn when no layer sets
  * it and why it cannot be set -- is read from graphty-element's `CHANNEL_DESCRIPTORS`, published
@@ -19,6 +19,7 @@ import {
     ARROW_TYPE_OPTIONS,
     LINE_TYPE_OPTIONS,
     NODE_SHAPE_OPTIONS,
+    NODE_SIZE_MODE_OPTIONS,
     type StyleOption,
 } from "../constants/style-options";
 
@@ -95,6 +96,7 @@ interface ChannelUi {
 const CHANNEL_UI: Readonly<Record<Channel, ChannelUi>> = {
     "node.color": {},
     "node.size": { step: 0.1 },
+    "node.sizeMode": { options: NODE_SIZE_MODE_OPTIONS },
     "node.shape": { options: NODE_SHAPE_OPTIONS },
     "node.label": {},
     "node.labelStyle": {},

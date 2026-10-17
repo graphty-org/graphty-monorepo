@@ -186,50 +186,107 @@ export function randomGeometricGraph(options: RandomGeometricOptions): SampleGra
     const pairs = (n * (n - 1)) / 2;
     const out = new EdgeBuffer(Math.ceil(Math.min(pairs, pairs * volume * 1.1, 1 << 24) + 16));
 
-    // the distinct neighbouring cell coordinates of cell k on one axis
-    const around = Array.from({ length: g }, (_, k) => {
-        const list = periodic ? [(k + g - 1) % g, k, (k + 1) % g] : [k - 1, k, k + 1].filter((c) => c >= 0 && c < g);
-        return [...new Set(list)];
-    });
-    let found = new Uint32Array(16);
+    const search: RggSearch = { axes, grid, periodic, r2, around: neighbourCells(g, periodic), found: new IndexList() };
     for (let u = 0; u < n; u++) {
-        let count = 0;
-        const zCells = dimension === 3 ? around[grid.cell[2][u]] : [0];
-        for (const cx of around[grid.cell[0][u]]) {
-            for (const cy of around[grid.cell[1][u]]) {
-                for (const cz of zCells) {
-                    const c = dimension === 3 ? (cx * g + cy) * g + cz : cx * g + cy;
-                    for (let t = grid.start[c]; t < grid.start[c + 1]; t++) {
-                        const v = grid.items[t];
-                        if (v <= u) {
-                            continue;
-                        }
-                        let d2 = 0;
-                        for (const axis of axes) {
-                            let d = Math.abs(axis[u] - axis[v]);
-                            if (periodic && d > 0.5) {
-                                d = 1 - d;
-                            }
-                            d2 += d * d;
-                        }
-                        if (d2 <= r2) {
-                            if (count === found.length) {
-                                const grown = new Uint32Array(count * 2);
-                                grown.set(found);
-                                found = grown;
-                            }
-                            found[count++] = v;
-                        }
-                    }
-                }
-            }
-        }
-        const row = found.subarray(0, count).sort();
-        for (const v of row) {
+        for (const v of rggRow(search, u)) {
             out.push(u, v);
         }
     }
     return applyWeights(toGraph(n, out, false, positionColumns(axes)), options);
+}
+
+/** A growable list of node indices. */
+class IndexList {
+    data = new Uint32Array(16);
+    count = 0;
+
+    /**
+     * Append one index, doubling the storage when it is full.
+     * @param v - the index
+     */
+    push(v: number): void {
+        if (this.count === this.data.length) {
+            const grown = new Uint32Array(this.count * 2);
+            grown.set(this.data);
+            this.data = grown;
+        }
+        this.data[this.count++] = v;
+    }
+}
+
+/** The state of the random geometric graph's neighbour search. */
+interface RggSearch {
+    readonly axes: Float64Array[];
+    readonly grid: CellGrid;
+    readonly periodic: boolean;
+    /** The squared radius. */
+    readonly r2: number;
+    /** around[k]: the distinct neighbouring cell coordinates of cell k on one axis. */
+    readonly around: number[][];
+    /** Receives one row's neighbours. */
+    readonly found: IndexList;
+}
+
+/**
+ * The distinct neighbouring cell coordinates of every cell coordinate on one axis.
+ * @param g - cells per axis
+ * @param periodic - whether the axis wraps around
+ * @returns around[k] for k in [0, g)
+ */
+function neighbourCells(g: number, periodic: boolean): number[][] {
+    return Array.from({ length: g }, (_, k) => {
+        const list = periodic ? [(k + g - 1) % g, k, (k + 1) % g] : [k - 1, k, k + 1].filter((c) => c >= 0 && c < g);
+        return [...new Set(list)];
+    });
+}
+
+/**
+ * Row u of the random geometric graph: every v > u within the radius, ascending.
+ * @param search - the search state
+ * @param u - the row
+ * @returns the neighbours, a view of `search.found` valid until the next row
+ */
+function rggRow(search: RggSearch, u: number): Uint32Array {
+    const { grid, around, found } = search;
+    const { g, cell } = grid;
+    const is3d = cell.length === 3;
+    found.count = 0;
+    const zCells = is3d ? around[cell[2][u]] : [0];
+    for (const cx of around[cell[0][u]]) {
+        for (const cy of around[cell[1][u]]) {
+            for (const cz of zCells) {
+                rggCell(search, u, is3d ? (cx * g + cy) * g + cz : cx * g + cy);
+            }
+        }
+    }
+    return found.data.subarray(0, found.count).sort();
+}
+
+/**
+ * Append to `search.found` every point v > u of cell c within the radius of u.
+ * @param search - the search state
+ * @param u - the row
+ * @param c - the flat cell index
+ */
+function rggCell(search: RggSearch, u: number, c: number): void {
+    const { axes, grid, periodic, r2, found } = search;
+    for (let t = grid.start[c]; t < grid.start[c + 1]; t++) {
+        const v = grid.items[t];
+        if (v <= u) {
+            continue;
+        }
+        let d2 = 0;
+        for (const axis of axes) {
+            let d = Math.abs(axis[u] - axis[v]);
+            if (periodic && d > 0.5) {
+                d = 1 - d;
+            }
+            d2 += d * d;
+        }
+        if (d2 <= r2) {
+            found.push(v);
+        }
+    }
 }
 
 /** Options of {@link waxmanGraph}. */
@@ -439,100 +496,212 @@ function nearestNeighbours(axes: Float64Array[], k: number): Uint32Array<ArrayBu
     const lo = axes.map((axis) => axis.reduce((a, b) => Math.min(a, b), Infinity));
     const hi = axes.map((axis) => axis.reduce((a, b) => Math.max(a, b), -Infinity));
     const g = cellsPerAxis(Math.max(1, n / k), dimension);
-    const grid = buildGrid(axes, g, lo, hi);
-    const bestD = new Float64Array(k);
-    const bestI = new Uint32Array(k);
-    // the absolute rounding slack of a cell assignment
-    const slack = 1e-12 * Math.max(1, ...lo.map(Math.abs), ...hi.map(Math.abs));
-    const cell = new Array<number>(dimension).fill(0);
-    const offset = new Array<number>(dimension).fill(0);
+    const search: KnnSearch = {
+        axes,
+        grid: buildGrid(axes, g, lo, hi),
+        best: new NearestList(k),
+        // the absolute rounding slack of a cell assignment
+        slack: 1e-12 * Math.max(1, ...lo.map(Math.abs), ...hi.map(Math.abs)),
+        cell: new Array<number>(dimension).fill(0),
+        offset: new Array<number>(dimension).fill(0),
+    };
     for (let u = 0; u < n; u++) {
-        let count = 0;
-        const consider = (v: number): void => {
+        searchNearest(search, u);
+        const row = result.subarray(u * k, (u + 1) * k);
+        row.set(search.best.index);
+        row.sort();
+    }
+    return result;
+}
+
+/** The k best (squared distance, index) pairs seen so far, ascending by distance, then by index. */
+class NearestList {
+    readonly d2: Float64Array;
+    readonly index: Uint32Array;
+    count = 0;
+
+    /**
+     * An empty list.
+     * @param k - the pairs to keep, >= 1
+     */
+    constructor(readonly k: number) {
+        this.d2 = new Float64Array(k);
+        this.index = new Uint32Array(k);
+    }
+
+    /**
+     * Insert (d2, v) into the sorted list when it beats the worst pair kept.
+     * @param d2 - the squared distance
+     * @param v - the index
+     */
+    consider(d2: number, v: number): void {
+        const { k, d2: bestD, index: bestI } = this;
+        if (this.count === k && (d2 > bestD[k - 1] || (d2 === bestD[k - 1] && v > bestI[k - 1]))) {
+            return;
+        }
+        let j = this.count < k ? this.count++ : k - 1;
+        while (j > 0 && (bestD[j - 1] > d2 || (bestD[j - 1] === d2 && bestI[j - 1] > v))) {
+            bestD[j] = bestD[j - 1];
+            bestI[j] = bestI[j - 1];
+            j--;
+        }
+        bestD[j] = d2;
+        bestI[j] = v;
+    }
+}
+
+/** The state of the k-nearest-neighbour ring search, reused across rows. */
+interface KnnSearch {
+    readonly axes: Float64Array[];
+    readonly grid: CellGrid;
+    /** The current row's nearest points. */
+    readonly best: NearestList;
+    /** The absolute rounding slack of a cell assignment. */
+    readonly slack: number;
+    /** The current row's cell on every axis. */
+    readonly cell: number[];
+    /** The ring cell being visited, relative to `cell`, on every axis. */
+    readonly offset: number[];
+}
+
+/**
+ * Fill `search.best` with the k nearest points to u by searching rings of cells of growing
+ * Chebyshev radius r around u's cell until the block covers the grid or no point outside it can
+ * still tie or beat the k-th best.
+ * @param search - the search state
+ * @param u - the point
+ */
+function searchNearest(search: KnnSearch, u: number): void {
+    const { grid, cell } = search;
+    for (let a = 0; a < cell.length; a++) {
+        cell[a] = grid.cell[a][u];
+    }
+    search.best.count = 0;
+    for (let r = 0; ; r++) {
+        scanRing(search, u, r);
+        if (blockCoversGrid(cell, r, grid.g) || ringSettles(search, u, r)) {
+            return;
+        }
+    }
+}
+
+/**
+ * Whether the block of cells within Chebyshev radius r of `cell` covers the whole grid.
+ * @param cell - the centre cell on every axis
+ * @param r - the radius in cells
+ * @param g - cells per axis
+ * @returns true when every axis is covered
+ */
+function blockCoversGrid(cell: readonly number[], r: number, g: number): boolean {
+    return cell.every((k) => k - r <= 0 && k + r >= g - 1);
+}
+
+/**
+ * Offer every point but u in the cells at Chebyshev distance exactly r from u's cell.
+ * ponytail: ring r scans the whole (2r + 1)^dimension block and skips its inside, O(r^dimension)
+ * per ring; walk only the shell if large k or very uneven clusters make that measurable
+ * @param search - the search state
+ * @param u - the point
+ * @param r - the ring radius in cells
+ */
+function scanRing(search: KnnSearch, u: number, r: number): void {
+    const { cell, offset, grid } = search;
+    offset.fill(-r);
+    do {
+        const c = ringCell(cell, offset, grid.g, r);
+        if (c >= 0) {
+            scanCell(search, u, c);
+        }
+    } while (nextOffset(offset, r));
+}
+
+/**
+ * Offer every point but u in cell c.
+ * @param search - the search state
+ * @param u - the point
+ * @param c - the flat cell index
+ */
+function scanCell(search: KnnSearch, u: number, c: number): void {
+    const { axes, grid, best } = search;
+    for (let t = grid.start[c]; t < grid.start[c + 1]; t++) {
+        const v = grid.items[t];
+        if (v !== u) {
             let d2 = 0;
             for (const axis of axes) {
                 const d = Math.abs(axis[u] - axis[v]);
                 d2 += d * d;
             }
-            // insert (d2, v) into the sorted best list when it beats the worst kept
-            if (count === k && (d2 > bestD[k - 1] || (d2 === bestD[k - 1] && v > bestI[k - 1]))) {
-                return;
-            }
-            let j = count < k ? count++ : k - 1;
-            while (j > 0 && (bestD[j - 1] > d2 || (bestD[j - 1] === d2 && bestI[j - 1] > v))) {
-                bestD[j] = bestD[j - 1];
-                bestI[j] = bestI[j - 1];
-                j--;
-            }
-            bestD[j] = d2;
-            bestI[j] = v;
-        };
-        for (let a = 0; a < dimension; a++) {
-            cell[a] = grid.cell[a][u];
+            best.consider(d2, v);
         }
-        // ponytail: ring r scans the whole (2r + 1)^dimension block and skips its inside, O(r^dimension)
-        // per ring; walk only the shell if large k or very uneven clusters make that measurable
-        for (let r = 0; ; r++) {
-            let covered = true;
-            for (let a = 0; a < dimension; a++) {
-                offset[a] = -r;
-                if (cell[a] - r > 0 || cell[a] + r < g - 1) {
-                    covered = false;
-                }
-            }
-            for (;;) {
-                let chebyshev = 0;
-                let inside = true;
-                let c = 0;
-                for (let a = 0; a < dimension; a++) {
-                    const k2 = cell[a] + offset[a];
-                    if (k2 < 0 || k2 >= g) {
-                        inside = false;
-                    }
-                    chebyshev = Math.max(chebyshev, Math.abs(offset[a]));
-                    c = c * g + k2;
-                }
-                if (inside && chebyshev === r) {
-                    for (let t = grid.start[c]; t < grid.start[c + 1]; t++) {
-                        const v = grid.items[t];
-                        if (v !== u) {
-                            consider(v);
-                        }
-                    }
-                }
-                let a = dimension - 1;
-                while (a >= 0 && offset[a] === r) {
-                    offset[a] = -r;
-                    a--;
-                }
-                if (a < 0) {
-                    break;
-                }
-                offset[a]++;
-            }
-            if (covered) {
-                break;
-            }
-            if (count === k) {
-                // every point outside the searched block is at least `gap` away
-                let gap = Infinity;
-                for (let a = 0; a < dimension; a++) {
-                    const p = axes[a][u] - grid.lo[a];
-                    gap = Math.min(gap, p - (cell[a] - r) * grid.side[a], (cell[a] + r + 1) * grid.side[a] - p);
-                }
-                // the margins cover the rounding of the cell assignment and of the squared distances, so
-                // a point outside the block can never tie or beat the k-th best
-                gap -= slack;
-                if (gap > 0 && bestD[k - 1] < gap * gap * (1 - 1e-9)) {
-                    break;
-                }
-            }
-        }
-        const row = result.subarray(u * k, (u + 1) * k);
-        row.set(bestI);
-        row.sort();
     }
-    return result;
+}
+
+/**
+ * The flat index of the cell at `offset` from `cell`, or -1 when it lies outside the grid or
+ * inside the ring (Chebyshev distance below r).
+ * @param cell - the centre cell on every axis
+ * @param offset - the offset on every axis
+ * @param g - cells per axis
+ * @param r - the ring radius
+ * @returns the flat cell index, or -1
+ */
+function ringCell(cell: readonly number[], offset: readonly number[], g: number, r: number): number {
+    let chebyshev = 0;
+    let inside = true;
+    let c = 0;
+    for (let a = 0; a < cell.length; a++) {
+        const k = cell[a] + offset[a];
+        if (k < 0 || k >= g) {
+            inside = false;
+        }
+        chebyshev = Math.max(chebyshev, Math.abs(offset[a]));
+        c = c * g + k;
+    }
+    return inside && chebyshev === r ? c : -1;
+}
+
+/**
+ * Step `offset` to the next cell of the (2r + 1)^dimension block, last axis fastest.
+ * @param offset - the offset on every axis, each in [-r, r]
+ * @param r - the ring radius
+ * @returns false (with every axis back at -r) after the last cell
+ */
+function nextOffset(offset: number[], r: number): boolean {
+    let a = offset.length - 1;
+    while (a >= 0 && offset[a] === r) {
+        offset[a] = -r;
+        a--;
+    }
+    if (a < 0) {
+        return false;
+    }
+    offset[a]++;
+    return true;
+}
+
+/**
+ * Whether the search can stop after ring r: k points are kept and every point outside the searched
+ * block is farther than the k-th best.
+ * @param search - the search state
+ * @param u - the point
+ * @param r - the ring radius just searched
+ * @returns true when no unsearched point can tie or beat the k-th best
+ */
+function ringSettles(search: KnnSearch, u: number, r: number): boolean {
+    const { axes, grid, best, cell, slack } = search;
+    if (best.count !== best.k) {
+        return false;
+    }
+    // every point outside the searched block is at least `gap` away
+    let gap = Infinity;
+    for (let a = 0; a < cell.length; a++) {
+        const p = axes[a][u] - grid.lo[a];
+        gap = Math.min(gap, p - (cell[a] - r) * grid.side[a], (cell[a] + r + 1) * grid.side[a] - p);
+    }
+    // the margins cover the rounding of the cell assignment and of the squared distances, so
+    // a point outside the block can never tie or beat the k-th best
+    gap -= slack;
+    return gap > 0 && best.d2[best.k - 1] < gap * gap * (1 - 1e-9);
 }
 
 /**

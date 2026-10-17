@@ -160,6 +160,31 @@ export function resolve(state, { key }, now) {
 }
 
 /**
+ * The resolved escalations nothing reads any more (issue #2552), by key, which the daemon drops from
+ * the state once their whole record is in the ledger (an `escalation-dropped` line). Raising a key
+ * again, the board, the queue, the release jobs and the issue upkeep only look at open escalations.
+ * A resolved one is still read while its owner item (`escalation:<key>`) has not been ended as
+ * cleared (the daemon's escalationItems ends it from the resolved record) and while a job on it has
+ * not finished (a release fix's report reads its run, done.mjs).
+ * @param {any} state the daemon state
+ * @returns {string[]} the keys to drop
+ */
+export function droppableEscalations(state) {
+    const working = new Set(
+        Object.values(state.jobs ?? {})
+            .filter((/** @type {any} */ j) => !["done", "cancelled"].includes(j.state))
+            .map((/** @type {any} */ j) => j.target),
+    );
+    return Object.entries(state.escalations ?? {})
+        .filter(([key, /** @type {any} */ e]) => {
+            if (!e.resolvedAt || working.has(key)) return false;
+            const item = state.ownerItems?.[`escalation:${key}`];
+            return !item || item.endedBy === "cleared" || Boolean(item.clearedAt);
+        })
+        .map(([key]) => key);
+}
+
+/**
  * Clears every open derived escalation (one with `clearWhen`) whose condition no longer holds.
  * @param {any} state the daemon state
  * @param {(escalation: any) => boolean} stillHolds whether the condition behind it is still true
@@ -300,6 +325,8 @@ const VERIFY_POLLS = 2;
  * @property {{until: string, reason: string} | null} [expect] the open githerd_expect window
  * @property {{at: string, heard: boolean} | null} [statusAsk] githerd's last status question to the
  *   owner session holding the job (asks.mjs statusStep)
+ * @property {{at: string, evidence: string} | null} [statusSeen] when githerd last counted the holder's
+ *   own activity as the answer instead of asking (asks.mjs `progress`)
  * @property {{at: string, text: string} | null} [status] the holder's last one-line status
  */
 
@@ -398,6 +425,7 @@ export function move(job, to, now, opts = {}) {
         job.holder = null;
         // The status question and its answer belong to the holder that let go.
         job.statusAsk = null;
+        job.statusSeen = null;
         job.status = null;
     }
     // A githerd_expect window belongs to one stretch of work: any move out of working and

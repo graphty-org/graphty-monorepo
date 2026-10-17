@@ -389,7 +389,7 @@ Algorithm.register(MyAlgorithm);
 - Store temporary files (screenshots, debug scripts) in `./tmp`
 - Don't create `__screenshots__` directories under `./test` unless intended for commit. Vitest's browser-mode failure screenshots used to land there; `vitest.config.ts` now sends them to `tmp/vitest-screenshots` instead, so a failing run leaves `test/` alone
 - Tests wait on conditions and assert on counted work; the `local/no-test-timing` lint rule enforces it.
-- A new public method is classified in `test/cost-coverage/method-classes.ts`; a mutating one needs a counted-work test (`assertScalesLinearly` in `test/helpers/cost.ts`) registered in `test/cost-coverage/counted-work.ts`, or `test/cost-coverage/cost-coverage.test.ts` fails
+- A new public method is classified in `test/cost-coverage/method-classes.ts`; a mutating one needs a counted-work test (`assertScalesLinearly` in `test/helpers/cost.ts`) registered in a sibling `<name>.counted-work.ts` module next to the test (the format is in `test/cost-coverage/counted-work.ts`), or `test/cost-coverage/cost-coverage.test.ts` fails. A method not yet covered has a file in `test/cost-coverage/not-yet-covered/`; the pull request that covers it deletes that file. To add a method to a test whose module another open pull request is also editing, add a second module (`<name>.<topic>.counted-work.ts`) naming the same test instead
 
 ## A story is a test, and a capability must never lose its last door quietly
 

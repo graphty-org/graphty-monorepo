@@ -1,3 +1,24 @@
+## 3.28.5 (2026-10-17)
+
+### 🩹 Fixes
+
+- **graphty-element:** draw labels with the arrow caps, after node outlines ([2cfe015e4](https://github.com/graphty-org/graphty-monorepo/commit/2cfe015e4))
+- **graphty-element:** draw arrowheads over node outlines ([138551424](https://github.com/graphty-org/graphty-monorepo/commit/138551424))
+- **graphty-element:** draw a 2D curve at the straight edge's line width ([ba38a2eb7](https://github.com/graphty-org/graphty-monorepo/commit/ba38a2eb7))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.57
+- Updated graph-samples to 0.1.35
+- Updated graph-format to 1.4.3
+- Updated algorithms to 3.4.10
+- Updated graph-io to 0.3.42
+- Updated layout to 2.5.6
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.28.4 (2026-10-16)
 
 ### 🩹 Fixes

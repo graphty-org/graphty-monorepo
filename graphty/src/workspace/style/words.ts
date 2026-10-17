@@ -333,6 +333,7 @@ const PALETTE_WORDS: Readonly<Record<(typeof KNOWN_PALETTE_IDS)[number], string>
     "tol-muted": "Nine soft colors",
     pastel: "Eight pale colors",
     carbon: "Five strong colors",
+    kelly: "Nineteen contrasting colors",
     "purple-green": "Purple to green",
     "blue-orange": "Blue to orange",
     "red-blue": "Red to blue",

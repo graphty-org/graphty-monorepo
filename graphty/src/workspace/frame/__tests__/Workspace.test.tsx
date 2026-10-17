@@ -256,6 +256,13 @@ describe("the workspace frame", () => {
         assert.isNotEmpty(within(sheet).getAllByText("Delete"));
         // A stub's key is not listed until its command is built.
         assert.isNull(within(sheet).queryByText("Later tool"));
+        // The drawing's own keys, from graphty-element's catalog: zooming by key in 3D and 2D.
+        const zoom3d = within(sheet).getByText("Zoom in, 3D").closest(".ws-shortcut-row");
+        assert.deepEqual(
+            [...(zoom3d?.querySelectorAll("kbd") ?? [])].map((key) => key.textContent),
+            ["W", "=", "+"],
+        );
+        assert.isNotNull(within(sheet).getByText("Zoom out, 2D"));
     });
 
     it("shows the keyboard shortcuts in a centered dialog, one group at a time, scrolling only up and down", async () => {

@@ -3,8 +3,8 @@
  * matched against a key press.
  *
  * Rules (tier1-design.md sections 2.3 and 2.12):
- * - graphty-element owns W A S D Q E, the arrows, = and - on a focused canvas, so no app key uses
- *   them unmodified, and no app key uses an arrow without Mod or Alt (Shift+Arrow walks nodes).
+ * - graphty-element owns its camera keys on a focused canvas (`CANVAS_KEY_DESCRIPTORS`: W A S D
+ *   Q E, the arrows, = + - _), so no app key uses them unmodified, and no app key uses an arrow without Mod or Alt (Shift+Arrow walks nodes).
  * - A character key with no Mod and no Alt is a single-key shortcut, which the reader can switch
  *   off (WCAG 2.1.4).
  * - While the reader types in a field, only Mod keys fire, and never the field's own editing keys
@@ -12,6 +12,8 @@
  *   own; a field with none (focus just put there, or its edit committed) hands them to the app,
  *   as Figma does, so Undo right after a Clear undoes the Clear.
  */
+
+import { CANVAS_KEY_DESCRIPTORS } from "@graphty/graphty-element/catalog";
 
 /** A key string split into its parts. */
 interface KeyCombo {
@@ -22,8 +24,8 @@ interface KeyCombo {
     readonly key: string;
 }
 
-/** Keys the element owns on a focused canvas when pressed with no modifier. */
-const ELEMENT_KEYS = new Set(["w", "a", "s", "d", "q", "e", "=", "-"]);
+/** Keys the element owns on a focused canvas when pressed with no modifier: its camera keys. */
+const ELEMENT_KEYS = new Set(CANVAS_KEY_DESCRIPTORS.flatMap((entry) => entry.keys).filter((key) => key.length === 1));
 const ARROWS = new Set(["arrowup", "arrowdown", "arrowleft", "arrowright"]);
 
 /**

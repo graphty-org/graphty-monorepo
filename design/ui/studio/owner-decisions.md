@@ -4,6 +4,49 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-17 -- Decided by the team: the names and shapes of the zoom, key and palette additions
+
+Additive, in graphty-element, built on the 2026-10-17 decision below:
+
+- **`zoomToPointer`** on the element (attribute `zoom-to-pointer`), beside `autoFrame`, with
+  `Graph.getZoomToPointer` / `setZoomToPointer`. Off by default (the wheel zooms toward the view's
+  center, as before). On, the 2D view zooms about the point under the pointer exactly; the 3D view
+  slides the point the camera turns about so a point on the plane through it stays put. A
+  preference of the view: no undo step, not saved in a project. The graphty app turns it on.
+- **`CANVAS_KEY_DESCRIPTORS`** in `./catalog` (types `CanvasKeyDescriptor`, `CanvasKeyAction`,
+  `CanvasKeyView`): every key the focused canvas answers, what it does and in which view, with a
+  `plainName`. The camera's input controllers read it, so the list and the keys cannot drift; the
+  app's shortcuts dialog lists it and its own check of keys the element owns reads it instead of a
+  copied set. "=" and "+" now zoom the 3D view as they zoom the 2D one (a new key on the canvas,
+  nothing taken away), and "+" and "_" are answered with the Shift that types them.
+- **The `kelly` palette** (`KELLY_COLORS` in `./schema`, "Nineteen Contrasting Colors"): Kelly's
+  colors of maximum contrast without white, black and medium gray. `KNOWN_PALETTE_IDS` gains
+  `"kelly"`, as it gains every built-in palette; a consumer that keeps an exhaustive record over
+  that tuple (the app's palette words do) adds one entry. The element **never picks it on its
+  own**: a binding that names no palette draws exactly what it drew before (the smallest other
+  categorical palette that fits, else eight colors and "other"). Letting the element pick it
+  for 10 to 19 groups would change what those bindings draw, so it is listed for the owner below.
+- **`RunStyle.groupPalettes`**: with `groups: "layers"`, the palettes a partition's group layers
+  may be colored from, in order of preference; the first with a color for every group the run
+  finds, else the first continued past its end. Absent, the colors are the ones the run's single
+  layer would have painted, as before. The app passes the catalog's group palettes in catalog
+  order, so eight groups or fewer keep "Eight distinct colors" and ten clusters get ten distinct
+  colors.
+
+Not breaking: two optional settings, one catalog table, one palette that is offered and never
+chosen by default, and one optional run style field.
+
+## 2026-10-17 -- For the owner: should a binding that names no palette pick Kelly's for 10 to 19 groups?
+
+Today a categorical binding with no palette named and more groups than nine draws eight colors and
+folds the rest into the "other" gray (with `overflow: "extend"`, eight colors and then samples of
+a ramp, which made near-identical oranges). Kelly's nineteen colors would give every group its own
+color up to nineteen. It is not done because it changes what an existing binding draws (a changed
+default, so a breaking change); the run path above reaches the same result without it. If yes, it
+is one line: drop `"kelly"` from `OFFERED_NOT_CHOSEN` in
+`graphty-element/src/session/styles/palettes.ts`, and the column-encoding guide's "fourteen
+departments" example changes with it.
+
 ## 2026-10-17 -- Decided by the team: wheel zoom toward the pointer, and a palette for more than eight groups
 
 Additive, found by the tier 3 dry run (`tier3/dry-run-r1-1.md`):

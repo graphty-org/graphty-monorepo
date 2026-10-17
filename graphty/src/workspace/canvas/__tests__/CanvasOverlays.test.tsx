@@ -391,24 +391,48 @@ describe("the legend card", () => {
         assert.deepEqual(store.get().viewInsets, {});
     });
 
-    for (const hides of [true, false]) {
-        it(`frames the graph again ${hides ? "when the card lands on a node" : "never while the card hides no node"}`, async () => {
-            const zoomToFit = vi.fn();
-            const element = {
-                autoFrame: true,
-                isFrameStable: true,
-                addEventListener: vi.fn(),
-                removeEventListener: vi.fn(),
-                nodesInRect: vi.fn(() => (hides ? ["n1"] : [])),
-                zoomToFit,
-            } as unknown as GraphtyElement;
-            const store = renderOver(standIn(facts).session, {}, [], element);
-            await vi.waitFor(() => {
-                assert.notDeepEqual(store.get().viewInsets, {});
-            });
-            assert.equal(zoomToFit.mock.calls.length, hides ? 1 : 0);
+    it("keeps its inset while a page hides the canvas, so the drawing is where it was when it comes back", async () => {
+        const store = renderOver(standIn(facts).session);
+        const card = screen.getByRole("region", { name: "Legend" });
+        await vi.waitFor(() => {
+            assert.notDeepEqual(store.get().viewInsets, {});
         });
-    }
+        const reserved = store.get().viewInsets;
+        const canvas = card.parentElement;
+        if (canvas === null) {
+            throw new Error("the card has no canvas");
+        }
+        const seen = new Promise<void>((resolve) => {
+            const observer = new ResizeObserver(() => {
+                observer.disconnect();
+                resolve();
+            });
+            observer.observe(canvas);
+        });
+        canvas.style.display = "none";
+        await seen;
+        // The card's own observer fired on the same resize; its report has run by the next frame.
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+        assert.deepEqual(store.get().viewInsets, reserved);
+    });
+
+    it("never moves the drawing, even when the card lands on a node", async () => {
+        const zoomToFit = vi.fn();
+        const element = {
+            autoFrame: true,
+            cameraPlaced: false,
+            isFrameStable: true,
+            addEventListener: vi.fn(),
+            removeEventListener: vi.fn(),
+            nodesInRect: vi.fn(() => ["n1"]),
+            zoomToFit,
+        } as unknown as GraphtyElement;
+        const store = renderOver(standIn(facts).session, {}, [], element);
+        await vi.waitFor(() => {
+            assert.notDeepEqual(store.get().viewInsets, {});
+        });
+        assert.equal(zoomToFit.mock.calls.length, 0);
+    });
 
     it("is hidden when the reader switched the legend off", () => {
         renderOver(standIn(facts).session, { legendShown: false });

@@ -7,6 +7,7 @@ import React, { useEffect, useId, useRef, useState } from "react";
 import { GLYPHS } from "../glyphs";
 import { isPanelEscape } from "../keys/keys";
 import { OptionsForm } from "../options/OptionsForm";
+import { groupPalettes } from "../style/row";
 import { PATH_ALGORITHM, PathForm } from "./PathForm";
 import {
     costLine,
@@ -253,12 +254,15 @@ export function AnalyzePopover({
                     // The layers it adds go by the algorithm's name as the reader picked it ("Closeness");
                     // a grouping run's groups each become a layer in a folder of that name, named
                     // "Group 1" for the largest (the reader renames them in the tree); a re-run's
-                    // new group takes the next number no layer in the folder has.
+                    // new group takes the next number no layer in the folder has. More groups than
+                    // eight take the first group palette with a color for each, never an eight-color
+                    // palette continued into near-identical oranges.
                     const run = session.runs.start(picked.key, paramsFor(session, picked, values), {
                         style: {
                             name: wordsFor(picked).name,
                             groups: "layers",
                             groupName: groupLayerName,
+                            groupPalettes: groupPalettes(session).map((palette) => palette.id),
                         },
                         restoreLayer: runPlan(session, picked.key, wordsFor(picked).name).restoreLayer,
                     });

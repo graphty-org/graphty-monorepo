@@ -1,4 +1,5 @@
 import { ModalFooter, PageList } from "@graphty/compact-mantine";
+import { CANVAS_KEY_DESCRIPTORS } from "@graphty/graphty-element/catalog";
 import { Button, Kbd, Modal, Stack, Text, Title } from "@mantine/core";
 import React, { useState } from "react";
 
@@ -32,8 +33,31 @@ function AboutDialog(): React.JSX.Element {
     );
 }
 
+/** How a canvas key is printed on its key cap. */
+const KEY_CAPS: Readonly<Record<string, string>> = {
+    arrowup: "Up",
+    arrowdown: "Down",
+    arrowleft: "Left",
+    arrowright: "Right",
+};
+
+/** The group the drawing's own keys are listed under: they work while the drawing has focus. */
+const CANVAS_GROUP = "Drawing";
+
 /**
- * Keyboard shortcuts: every built command that has a key, in a centered two-column dialog like
+ * The keys graphty-element answers on the focused drawing, from its catalog: one row per action
+ * and view, such as "Zoom in, 3D: W = +".
+ * @returns The rows.
+ */
+function canvasRows(): { label: string; keys: string[] }[] {
+    return CANVAS_KEY_DESCRIPTORS.map((entry) => ({
+        label: `${entry.plainName}, ${entry.view.toUpperCase()}`,
+        keys: entry.keys.map((key) => KEY_CAPS[key] ?? key.toUpperCase()),
+    }));
+}
+
+/**
+ * Keyboard shortcuts: every built command that has a key, and the drawing's own keys, in a centered two-column dialog like
  * Settings -- "All" plus one entry per command group on the left, that group's rows on the right.
  * @returns The dialog, open while the workspace dialog is "shortcuts"
  */
@@ -53,6 +77,7 @@ function ShortcutsDialog(): React.JSX.Element {
             groups.set(command.group, rows);
         }
     }
+    groups.set(CANVAS_GROUP, canvasRows());
     const shown = current === "all" ? [...groups] : [...groups].filter(([group]) => group === current);
     const title = current === "all" ? "All" : current;
     return (

@@ -112,7 +112,7 @@ export function BulkBinding({
     const { channel } = descriptor;
     const heldFor = (pick: DataChoice | "layer"): Held | null => {
         if (pick === "layer") {
-            return { kind: "layers", binding: layersBinding(session, descriptor, prefill) };
+            return { kind: "layers", binding: layersBinding(session, descriptor, prefill, layers.length) };
         }
         const proposal = propose(session, pick, channel);
         return proposal.ok ? { kind: "data", binding: proposal.binding } : null;

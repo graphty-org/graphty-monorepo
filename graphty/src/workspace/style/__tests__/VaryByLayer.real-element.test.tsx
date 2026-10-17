@@ -343,13 +343,19 @@ describe("vary by layer", () => {
         });
         await close(panel);
 
-        const palette = session.catalog.palettes().filter((p) => p.kind === "categorical" && p.colors.length > 2)[0];
+        // Twelve layers take the first group palette with twelve colors, never one of eight extended
+        // past its end (which drew near-identical oranges).
+        const palette = session.catalog
+            .palettes()
+            .find((p) => p.kind === "categorical" && p.colors.length >= groups.length);
+        if (palette === undefined) {
+            throw new Error("the catalog has no palette of twelve colors");
+        }
         await waitFor(() => {
             const colors = written(session, groups, "node.color");
-            const shown = Math.min(groups.length, palette.colors.length);
             assert.deepEqual(
-                colors.slice(0, shown),
-                palette.colors.slice(0, shown).map((c) => c.slice(0, 7).toUpperCase()),
+                colors,
+                palette.colors.slice(0, groups.length).map((c) => c.slice(0, 7).toUpperCase()),
                 "the palette's colors, top layer first",
             );
             assert.strictEqual(new Set(colors).size, groups.length, "every layer its own color");

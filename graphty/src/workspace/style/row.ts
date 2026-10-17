@@ -892,15 +892,19 @@ function shapesApartFirst(descriptor: ChannelDescriptor): string[] {
 }
 
 /**
- * The binding Vary by Layer starts from: the first group palette with every layer its own color
- * for a color, the shapes kept apart first for a shape, the app's range for a number.
+ * The binding Vary by Layer starts from: the first group palette with a color for each layer, every
+ * layer its own color, for a color, the shapes kept apart first for a shape, the app's range for a number.
  * @param session - the element's session.
  * @param descriptor - the property.
+ * @param count - how many layers it varies across.
  * @returns the binding.
  */
-function startingBinding(session: GraphSession, descriptor: ChannelDescriptor): LayerBinding {
+function startingBinding(session: GraphSession, descriptor: ChannelDescriptor, count: number): LayerBinding {
     const isColor = descriptor.accepts === "color";
-    const palette = isColor ? groupPalettes(session)[0]?.id : undefined;
+    // The first group palette with a color for every layer, so ten layers never draw three
+    // near-identical colors past an eight-color palette's end; the first when none has room.
+    const palettes = groupPalettes(session);
+    const palette = isColor ? (palettes.find((p) => p.colors.length >= count) ?? palettes[0])?.id : undefined;
     const { range } = appRange(descriptor.channel);
     return {
         ...(palette === undefined ? {} : { palette }),
@@ -916,14 +920,16 @@ function startingBinding(session: GraphSession, descriptor: ChannelDescriptor): 
  * @param session - the element's session.
  * @param descriptor - the property.
  * @param prefill - each layer's value now; none to start from the palette.
+ * @param count - how many layers it varies across; by default, how many the prefill names.
  * @returns the binding.
  */
 export function layersBinding(
     session: GraphSession,
     descriptor: ChannelDescriptor,
     prefill?: readonly { readonly id: LayerId; readonly value: ChannelValue }[],
+    count = prefill?.length ?? 0,
 ): LayerBinding {
-    const binding = startingBinding(session, descriptor);
+    const binding = startingBinding(session, descriptor, count);
     if (prefill === undefined) {
         return binding;
     }

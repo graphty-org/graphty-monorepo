@@ -132,7 +132,7 @@ const CARD_GAP = 12;
  * Reports the card's box to the element as a view inset, on mount, on every resize of the card
  * or the canvas, and clears it when the card goes: on the left of a tall card, above a wide one,
  * whichever costs the canvas the smaller share. Above, the toolbar's height is kept at the bottom.
- * A new inset moves nothing drawn; only when the card now hides a node is the graph framed again.
+ * A new inset moves nothing drawn; the next fit (zoom to fit, a new layout) keeps the graph clear of it.
  * @returns The ref to put on the card.
  */
 function useReservedMargin(): React.RefObject<HTMLElement | null> {
@@ -145,6 +145,11 @@ function useReservedMargin(): React.RefObject<HTMLElement | null> {
             return undefined;
         }
         const report = (): void => {
+            // A canvas hidden behind a page (no box at all) measures nothing: insets read off it are not the
+            // card's, and handed to the element they moved the drawing once the canvas came back.
+            if (canvas.getClientRects().length === 0) {
+                return;
+            }
             const left = card.offsetLeft + card.offsetWidth + CARD_GAP;
             const top = card.offsetTop + card.offsetHeight + CARD_GAP;
             const byLeft = left / Math.max(1, canvas.clientWidth) <= top / Math.max(1, canvas.clientHeight);
@@ -154,20 +159,10 @@ function useReservedMargin(): React.RefObject<HTMLElement | null> {
             const next = byLeft ? { left } : { top, bottom };
             const now = store.get().viewInsets;
             if (now.left !== next.left || now.top !== next.top || now.bottom !== next.bottom) {
+                // The drawing never moves for the card: a card that grows over a node (a Color line
+                // added) or a canvas that comes back from a page (a cancelled file page) left the
+                // reader's view re-framed with nothing asked. The insets only shape the next fit.
                 store.set({ viewInsets: next });
-                // The drawing stays put unless the card now hides a node; then it is framed clear of
-                // the card, unless the reader placed the camera (a zoom in the middle of restyling
-                // was taken away each time the card grew). The fit lands on the next frame, after
-                // the new insets reach the element.
-                const box = {
-                    x: card.offsetLeft,
-                    y: card.offsetTop,
-                    width: card.offsetWidth,
-                    height: card.offsetHeight,
-                };
-                if (element?.autoFrame === true && !element.cameraPlaced && element.nodesInRect(box).length > 0) {
-                    element.zoomToFit();
-                }
             }
         };
         // A card that comes up with the graph (a project opening) waits for the element's own

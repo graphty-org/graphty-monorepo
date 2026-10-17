@@ -102,6 +102,7 @@ import type {
     SessionDataConfig,
     SessionGraphStore,
     SessionRecordSource,
+    ValueCounts,
 } from "./types";
 import { valueLabelsAt } from "./valueLabels";
 
@@ -173,6 +174,14 @@ interface PageSources {
      * @returns the ids
      */
     runIds(): readonly RunId[];
+    /**
+     * What one element carries for a value path, through the source rules and bindings read.
+     * @param kind - Nodes or edges.
+     * @param index - The element's dense index.
+     * @param path - The value path.
+     * @returns The value, or undefined for none.
+     */
+    valueAt(kind: "node" | "edge", index: number, path: Path): unknown;
 }
 
 /** One neighbor while its list is built: its row, and its name once a name sort read it. */
@@ -1565,6 +1574,35 @@ export class SessionData implements SessionDataApi {
             .map(([value, n]) => Object.freeze({ value, count: n }));
         const listed = values.reduce((sum, each) => sum + each.count, 0);
         return Object.freeze({ kind: "categorical", values: Object.freeze(values), otherCount: present - listed });
+    }
+
+    /**
+     * How many elements carry each value of a readable path.
+     * @param path - the value path, or `"id"`
+     * @param options - which kind to count
+     * @returns the counts, most elements first
+     */
+    valueCounts(path: Path, options: { readonly kind?: "node" | "edge" } = {}): ValueCounts {
+        const snapshot = this.current();
+        const kind =
+            options.kind ??
+            (this.readableValues().find((value) => value.path === path)?.on === "edge" ? "edge" : "node");
+        const total = kind === "node" ? snapshot.nodeCount : snapshot.edgeCount;
+        // Map keeps first-seen order, and the sort below is stable, so a tie keeps it too.
+        const counts = new Map<string | number | boolean, number>();
+        let missing = 0;
+        for (let index = 0; index < total; index++) {
+            const value =
+                path === "id" && kind === "node" ? snapshot.ids.idOf(index) : this.pages.valueAt(kind, index, path);
+            if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+                counts.set(value, (counts.get(value) ?? 0) + 1);
+            } else {
+                missing++;
+            }
+        }
+
+        const values = [...counts].sort((a, b) => b[1] - a[1]).map(([value, count]) => Object.freeze({ value, count }));
+        return Object.freeze({ values: Object.freeze(values), missing, total });
     }
 
     /**

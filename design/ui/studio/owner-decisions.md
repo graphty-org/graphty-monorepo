@@ -18,6 +18,14 @@ readonly { value: Scalar; count: number }[]; missing: number; total: number }`, 
   `data.histogram` takes data columns only, so a category card on a run's groups had no counted
   list; counting in the app is forbidden.
 
+Built (2026-10-16): `session.data.valueCounts`, with its result type `ValueCounts`, `@since
+3.31.0`. Not built yet: the `present` leaf. The cards write "has a value" in the spelling the
+element already uses for it (a `text` leaf with an empty `regex`, which `selectorRule` and the
+expression reader produce for `has` and `!= null`), so a reader sees no difference; a new leaf
+kind has to be taught to the rule parser, the filter compiler, the set signature, the dependency
+walk and the offer walk, which is more than this build needs. It stays decided and waits for a
+build that needs it.
+
 Also decided by the team, no API change: each style row's node part and edge part keep their own
 selector (they already do; the app stops writing one selector to both), and "edges between /
 touching the picked nodes" is the edge part's rule holding the node conditions with the `clipped`

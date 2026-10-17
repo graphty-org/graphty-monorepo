@@ -697,6 +697,21 @@ export interface GraphStatistics {
 }
 
 /**
+ * How many elements carry each value of one readable path: what `session.data.valueCounts(path)`
+ * returns. Unlike {@link ColumnHistogram} it reads any path `data.readableValues()` lists -- a data
+ * column, a run's field, a node value read at an edge's end -- and it never bins or truncates.
+ * @since 3.31.0
+ */
+export interface ValueCounts {
+    /** Every value carried, most elements first; a tie keeps the order the values were first seen in. */
+    readonly values: readonly { readonly value: string | number | boolean; readonly count: number }[];
+    /** How many elements of the kind carry no value for the path. */
+    readonly missing: number;
+    /** How many elements of the kind there are: the values' counts plus `missing`. */
+    readonly total: number;
+}
+
+/**
  * How one data column's values are distributed: what `session.data.histogram(column)` returns.
  *
  * A column that measures amounts (`measurement: "quantitative"`) is binned like a run's field,
@@ -1097,6 +1112,23 @@ export interface SessionDataApi {
      *     no record carries, and `E_OPTION_RANGE` for a bin count outside 1 to 100.
      */
     histogram(column: ColumnRef, options?: HistogramOptions): ColumnHistogram;
+    /**
+     * How many elements carry each value of a readable path, for a checklist of values with their
+     * counts: a data column, a run's field (`results.<run>.group`) or a node value read at an
+     * edge's end, as `data.readableValues()` lists them. Walks the elements on every call.
+     *
+     * ```ts
+     * const groups = session.data.valueCounts("results.louvain.group");
+     * groups.values[0]; // { value: 3, count: 14 }, the largest group
+     * groups.missing; // nodes with no group
+     * ```
+     * @param path - The value path, or `"id"` for the node id.
+     * @param options - `kind`: nodes or edges; by default the kind `readableValues()` lists the path
+     *     on, nodes first.
+     * @returns The counts, most elements first.
+     * @since 3.31.0
+     */
+    valueCounts(path: Path, options?: { readonly kind?: "node" | "edge" }): ValueCounts;
     /**
      * The graph's shape. Walked once per snapshot and cached.
      * @returns the statistics

@@ -360,3 +360,44 @@ describe("session.find over every readable value", () => {
         );
     });
 });
+
+describe("session.data.valueCounts()", () => {
+    it("counts a run's groups, a data column and an end's value, most first, with the gaps", async () => {
+        const session = await lesMisAfterRuns();
+        const values = session.data.readableValues();
+        const nodes = session.data.statistics().nodeCount;
+
+        const group = session.data.valueCounts(entry(values, ".group").path);
+        assert.strictEqual(group.total, nodes);
+        assert.strictEqual(group.missing, 0);
+        assert.strictEqual(
+            group.values.reduce((sum, each) => sum + each.count, 0),
+            nodes,
+        );
+        const counts = group.values.map((each) => each.count);
+        assert.deepEqual(
+            counts,
+            [...counts].sort((a, b) => b - a),
+            "largest group first",
+        );
+
+        const name = session.data.valueCounts("data.name");
+        assert.strictEqual(name.values.length, nodes, "each name once");
+        assert.strictEqual(name.values[0].count, 1);
+
+        const ids = session.data.valueCounts("id");
+        assert.strictEqual(ids.values.length, nodes);
+
+        const edges = session.data.statistics().edgeCount;
+        const source = session.data.valueCounts("graphty.source.data.name", { kind: "edge" });
+        assert.strictEqual(source.total, edges);
+        assert.strictEqual(source.missing, 0);
+    });
+
+    it("says how many carry no value", async () => {
+        const session = createGraphSession();
+        await session.data.addNodes([{ id: "a", kind: "x" }, { id: "b", kind: "x" }, { id: "c" }]);
+        const kind = session.data.valueCounts("data.kind");
+        assert.deepEqual(kind, { values: [{ value: "x", count: 2 }], missing: 1, total: 3 });
+    });
+});

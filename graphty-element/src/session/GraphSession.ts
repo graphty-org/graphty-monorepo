@@ -2168,8 +2168,14 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             // Read through calls: the runs are built below.
             run: (id: RunId) => runs.get(id),
             runIds: () => runs.list().map((run) => run.id),
+            // And the value source, below that: the one rules and bindings read.
+            valueAt: (kind, index, path) => {
+                values ??= valueSourceOf(records, snapshot, fieldKinds, () => elements);
+                return kind === "node" ? values.nodeValue(index, path) : values.edgeValue(index, path);
+            },
         },
     );
+    let values: FilterValueSource | undefined;
     // A session that holds a store of its own kind writes it through its own ingest; the element
     // hands its data manager's in instead.
     if (store.store instanceof GraphStore) {

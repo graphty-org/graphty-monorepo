@@ -110,5 +110,6 @@ export type {
     TableMappingRead,
     TransactionOptions,
     TransactionScope,
+    ValueCounts,
 } from "./types";
 export { COMPONENT_SIZE_CAP } from "./types";

@@ -3557,6 +3557,9 @@ export interface SessionDataApi {
     undirected(snapshot?: GraphSnapshot): DerivedGraph;
     updateEdges(rows: readonly RowUpdate<EdgeId>[]): Promise<void>;
     updateNodes(rows: readonly RowUpdate<NodeId_2>[]): Promise<void>;
+    valueCounts(path: Path, options?: {
+        readonly kind?: "node" | "edge";
+    }): ValueCounts;
     valueLabels(path: Path): ReadonlyMap<string, string>;
 }
 
@@ -4284,6 +4287,16 @@ export interface ValueCategory {
     readonly hidden: boolean;
     readonly name?: string;
     readonly value: unknown;
+}
+
+// @public
+export interface ValueCounts {
+    readonly missing: number;
+    readonly total: number;
+    readonly values: readonly {
+        readonly value: string | number | boolean;
+        readonly count: number;
+    }[];
 }
 
 // @public

@@ -150,6 +150,7 @@ export type {
     TableMappingRead,
     TransactionOptions,
     TransactionScope,
+    ValueCounts,
 } from "./src/session";
 export { createGraphSession } from "./src/session";
 

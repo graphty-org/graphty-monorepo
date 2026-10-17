@@ -332,3 +332,61 @@ export function isStorableCredential(credential: Credential): boolean {
         (secret?.kind === "bearer" && typeof secret.token === "string")
     );
 }
+
+/**
+ * The plain parts of a credential that can be remembered. Experimental.
+ * @category Network sources
+ */
+export type StorableCredential =
+    | { readonly kind: "basic"; readonly username: string; readonly password: string }
+    | { readonly kind: "bearer"; readonly token: string }
+    | {
+          readonly kind: "api-key";
+          readonly header: string | null;
+          readonly query: string | null;
+          readonly value: string;
+      };
+
+/**
+ * The parts of a credential a credential store saves (graphty-element's `CredentialStore` is the
+ * one caller), or null when it cannot be saved: a token function, an AWS provider or a custom
+ * credential. The result HOLDS THE SECRET: never log it, and keep it only where you would keep the
+ * password itself. `fromStorableCredential` makes the credential again. Experimental.
+ * @param credential - a credential made by the `credentials` factories
+ * @returns the parts, or null
+ * @category Network sources
+ */
+export function storableCredential(credential: Credential): StorableCredential | null {
+    const secret = secretOf(credential);
+    switch (secret?.kind) {
+        case "basic":
+            return { kind: "basic", username: secret.username, password: secret.password };
+        case "api-key":
+            return { kind: "api-key", header: secret.header, query: secret.query, value: secret.value };
+        case "bearer":
+            return typeof secret.token === "string" ? { kind: "bearer", token: secret.token } : null;
+        default:
+            return null;
+    }
+}
+
+/**
+ * The credential `storableCredential` took apart, bound to the origins given. Experimental.
+ * @param parts - what `storableCredential` returned
+ * @param bind - the origins it may be sent to
+ * @returns the credential
+ * @category Network sources
+ */
+export function fromStorableCredential(parts: StorableCredential, bind?: CredentialBind): Credential {
+    switch (parts.kind) {
+        case "basic":
+            return credentials.basic(parts.username, parts.password, bind);
+        case "bearer":
+            return credentials.bearer(parts.token, bind);
+        default:
+            return new SourceCredential(
+                { kind: "api-key", header: parts.header, query: parts.query, value: parts.value },
+                bind,
+            );
+    }
+}

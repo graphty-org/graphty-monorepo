@@ -115,7 +115,14 @@ export {
     type SourceIssueCode,
     type SourceIssueParams,
 } from "./sources/codes.js";
-export { type AwsSigV4Options, type CredentialBind, credentials } from "./sources/credentials.js";
+export {
+    type AwsSigV4Options,
+    type CredentialBind,
+    credentials,
+    fromStorableCredential,
+    type StorableCredential,
+    storableCredential,
+} from "./sources/credentials.js";
 export { defineSource } from "./sources/define.js";
 export {
     CYPHER_SOURCE_ID,

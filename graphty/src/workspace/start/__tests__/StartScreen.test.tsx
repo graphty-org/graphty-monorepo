@@ -23,8 +23,8 @@ const OWNER_WORDS =
  * Renders the workspace with no project open.
  * @returns the store.
  */
-function renderStart() {
-    const store = createWorkspaceStore();
+function renderStart(initial?: Parameters<typeof createWorkspaceStore>[0]) {
+    const store = createWorkspaceStore(initial);
     render(<Workspace store={store} />);
     return store;
 }
@@ -79,18 +79,16 @@ describe("the start screen", () => {
         assert.isFalse(collected.checkVisibility());
         await userEvent.click(within(card).getByText("What is collected"));
         assert.isTrue(collected.checkVisibility());
-        assert.equal(screen.getByRole("button", { name: "Local only" }).textContent, "Local only");
         assert.equal(initSentry.mock.calls.length, 0);
     });
 
-    it("turns usage data on with Share usage data, and the chip says so", async () => {
+    it("turns usage data on with Share usage data, and says so", async () => {
         renderStart();
 
         await userEvent.click(screen.getByRole("button", { name: "Share usage data" }));
 
         assert.isNull(screen.queryByRole("complementary", { name: "Usage data" }));
         assert.isNotNull(screen.getByText(/Thank you\. Usage data is on, with content masked\./));
-        assert.isNotNull(screen.getByRole("button", { name: "Usage data on, content masked" }));
         assert.equal(initSentry.mock.calls.length, 1);
     });
 
@@ -161,10 +159,13 @@ describe("the start screen", () => {
         assert.isNull(within(dialog).queryByText(/Memgraph/));
         assert.isNotNull(within(dialog).getByText(/on the way/));
         const open = within(dialog).getByRole("button", { name: "Open" });
-        assert.isTrue(open.hasAttribute("disabled"));
+        // Open with no address asks for one, and opens nothing.
+        await userEvent.click(open);
+        assert.isNotNull(within(dialog).getByText("Paste the web address of a graph file first."));
+        assert.isNull(store.get().project);
 
         await userEvent.type(
-            within(dialog).getByRole("textbox", { name: "Open from a link" }),
+            within(dialog).getByRole("textbox", { name: "Web address of a graph file" }),
             "https://example.com/data/trade%20routes.graphml",
         );
         await userEvent.click(open);
@@ -227,10 +228,9 @@ describe("Settings", () => {
         assert.isNotNull(within(dialog).getByRole("heading", { name: "General" }));
     });
 
-    it("turns usage data on and off from Privacy, and the chip follows", async () => {
-        renderStart();
+    it("turns usage data on and off from Privacy", async () => {
+        renderStart({ dialog: "settings:privacy" });
 
-        await userEvent.click(screen.getByRole("button", { name: "Local only" }));
         const dialog = await screen.findByRole("dialog", { name: "Settings" });
         assert.isNotNull(within(dialog).getByText(new RegExp(OWNER_WORDS.slice(0, 40))));
 
@@ -239,7 +239,6 @@ describe("Settings", () => {
         assert.isNotNull(
             within(dialog).getByText("Usage data: sent with content masked, only while Share usage data is on."),
         );
-        assert.isNotNull(screen.getByRole("button", { name: "Usage data on, content masked" }));
 
         await userEvent.click(within(dialog).getByRole("switch", { name: "Share usage data" }));
         assert.equal(stopSentry.mock.calls.length, 1);

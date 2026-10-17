@@ -34,7 +34,7 @@ if (!rootElement) {
 
 ReactDOM.createRoot(rootElement).render(
     <React.StrictMode>
-        <MantineProvider theme={theme} defaultColorScheme="dark">
+        <MantineProvider theme={theme} defaultColorScheme="auto">
             {/* One tooltip group around the whole shell, so a tooltip opened within 300 ms of
                 another opens at once (Figma's warm hand-off); the timing is the theme's. */}
             <Tooltip.Group>

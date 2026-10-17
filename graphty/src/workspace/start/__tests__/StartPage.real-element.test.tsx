@@ -12,7 +12,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { afterEach, assert, beforeAll, beforeEach, describe, it, vi } from "vitest";
 import { commands, page, userEvent } from "vitest/browser";
 
-import { render, screen, waitFor } from "../../../test/test-utils";
+import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { forgetUsageAnswer } from "../../privacy/usageData";
 import { clearRecent, rememberRecent } from "../../project/recent";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
@@ -109,7 +109,8 @@ describe("the start page's graph", () => {
         assert.isTrue(faded(session, "Valjean"));
         assert.equal(session.selection.size, 0, "pointing at a node selects nothing");
 
-        await userEvent.unhover(element);
+        // Off the graph, onto the headline over the page's left side.
+        await userEvent.hover(screen.getByRole("heading", { level: 1 }));
         await waitFor(() => {
             assert.isNull(session.selection.hovered);
         });
@@ -117,11 +118,8 @@ describe("the start page's graph", () => {
         assert.isFalse(faded(session, "Valjean"));
     });
 
-    it("shows a clicked node's card with its connections and community", async () => {
+    it("shows a clicked node's card with its connections, community and links", async () => {
         const { element, session } = await startPage();
-        await waitFor(() => {
-            assert.isDefined(session.runs.get("degree")?.result);
-        });
         const at = element.nodeScreenPosition("Valjean");
         assert.isTrue(at?.visible, "Valjean is on screen");
 
@@ -130,12 +128,18 @@ describe("the start page's graph", () => {
         await element.waitForStableFrame();
 
         assert.deepEqual([...session.selection.nodes].map(String), ["Valjean"]);
-        const label = element.labelOf("Valjean");
-        assert.isTrue(label?.drawn);
-        const lines = label?.text.split("\n") ?? [];
-        assert.equal(lines[0], "Valjean");
-        assert.equal(lines[1], "Connections: 36");
-        assert.match(lines[2] ?? "", /^Community \d+ of \d+$/);
+        const card = await screen.findByRole("dialog", { name: "Node details" });
+        assert.isNotNull(within(card).getByText("Valjean"));
+        assert.match(card.textContent ?? "", /36 connections/);
+        assert.match(card.textContent ?? "", /Community \d+ of \d+/);
+        assert.match(card.textContent ?? "", /Linked to .+ and 32 more/);
+        // The rest of the graph stays faded while the card is open.
+        assert.isTrue(faded(session, "Napoleon"));
+
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("dialog", { name: "Node details" }));
+        });
     });
 
     it("runs Key players and Shortest path through the element, one at a time", async () => {

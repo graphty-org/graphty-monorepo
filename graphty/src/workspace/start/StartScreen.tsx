@@ -2,33 +2,21 @@ import "./start.css";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { Anchor, Button, Paper, Stack, Text, UnstyledButton, useComputedColorScheme } from "@mantine/core";
-import {
-    ArrowRight,
-    Code,
-    Database,
-    Folder,
-    LayoutGrid,
-    Lock,
-    Plus,
-    Settings,
-    Upload,
-    Workflow,
-    Zap,
-} from "lucide-react";
+import { ArrowRight, Code, Database, Folder, LayoutGrid, Lock, Plus, Sun, Upload, Zap } from "lucide-react";
 import React, { useCallback, useEffect, useState } from "react";
 
 import { START_SAMPLES } from "../../data/sampleManifest";
 import { CommandButton } from "../frame/CommandButton";
-import { PrivacyChip } from "../privacy/PrivacyChip";
 import { UsageDataCard } from "../privacy/UsageDataCard";
 import { locateRecent, openRecent } from "../project/actions";
 import { type RecentProject, useRecentProjects } from "../project/recent";
 import { RecentProjects } from "../project/RecentProjects";
-import { whenWords } from "../project/words";
+import { agoWords } from "../project/words";
 import { useCommand, useWorkspace } from "../state/WorkspaceContext";
 import lockupOnDark from "./brand/graphty-lockup-color-on-dark.svg";
 import lockupOnLight from "./brand/graphty-lockup-color-on-light.svg";
 import { HeroGraph, type HeroSample } from "./HeroGraph";
+import { Groups } from "./icons";
 import { NetworkDataDialog } from "./NetworkDataDialog";
 import { openFile, openSample, openUrl } from "./open";
 
@@ -76,6 +64,46 @@ function Lockup({ className }: Readonly<{ className: string }>): React.JSX.Eleme
 }
 
 /**
+ * When a project was saved, and its file where the browser keeps one: "football.graphty -- Oct 9".
+ * @param entry - The project.
+ * @param when - When, in words.
+ * @returns The line.
+ */
+function savedWhere(entry: RecentProject, when: string): string {
+    return entry.handle === undefined ? when : `${when} -- ${entry.handle.name}`;
+}
+
+/**
+ * Time words as they read after "Saved": "yesterday", but still "Oct 9".
+ * @param when - The words.
+ * @returns The words in a sentence.
+ */
+function inSentence(when: string): string {
+    return when === "Yesterday" || when === "Just now" ? when.toLowerCase() : when;
+}
+
+/**
+ * An address for a stored picture, released when the picture changes or the tile goes.
+ * @param blob - The picture, or undefined.
+ * @returns Its address, or undefined.
+ */
+function usePicture(blob: Blob | undefined): string | undefined {
+    const [url, setUrl] = useState<string | undefined>(undefined);
+    useEffect(() => {
+        if (blob === undefined) {
+            setUrl(undefined);
+            return undefined;
+        }
+        const next = URL.createObjectURL(blob);
+        setUrl(next);
+        return () => {
+            URL.revokeObjectURL(next);
+        };
+    }, [blob]);
+    return url;
+}
+
+/**
  * One recent project on the returning card: a click reopens it, or asks for the file where the
  * browser keeps no handle.
  * @param props - Component props
@@ -84,6 +112,7 @@ function Lockup({ className }: Readonly<{ className: string }>): React.JSX.Eleme
  */
 function RecentTile({ entry }: Readonly<{ entry: RecentProject }>): React.JSX.Element {
     const workspace = useWorkspace();
+    const picture = usePicture(entry.thumbnail);
     return (
         <UnstyledButton
             className="ws-land-recent"
@@ -92,12 +121,17 @@ function RecentTile({ entry }: Readonly<{ entry: RecentProject }>): React.JSX.El
                 void (entry.handle === undefined ? locateRecent(workspace, entry) : openRecent(workspace, entry));
             }}
         >
-            <Text span size="sm" fw={500} truncate="end">
-                {entry.name}
-            </Text>
-            <Text span size="xs" c="dimmed" truncate="end">
-                {whenWords(entry.at)}
-            </Text>
+            {picture === undefined ? (
+                <span className="ws-land-recent-pic" aria-hidden />
+            ) : (
+                <img className="ws-land-recent-pic" src={picture} alt="" />
+            )}
+            <span className="ws-land-recent-body">
+                <b>{entry.name}</b>
+                <small>
+                    {entry.handle === undefined ? agoWords(entry.at) : `${entry.handle.name} -- ${agoWords(entry.at)}`}
+                </small>
+            </span>
         </UnstyledButton>
     );
 }
@@ -118,7 +152,7 @@ function FactBar({ session }: Readonly<{ session: GraphSession | null }>): React
                 MIT licensed <span>on GitHub</span>
             </a>
             <span className="ws-land-it">
-                <Workflow aria-hidden />
+                <Groups />
                 {algorithms === undefined ? null : <b>{algorithms}</b>} algorithms
             </span>
             <span className="ws-land-it">
@@ -263,12 +297,11 @@ export function StartScreen(): React.JSX.Element {
                     <GitHubMark />
                     GitHub
                 </Anchor>
-                <PrivacyChip />
-                <CommandButton id="settings.open" icon={<Settings size={16} aria-hidden />} />
+                <CommandButton id="settings.open" icon={<Sun size={16} aria-hidden />} />
             </header>
 
             <section className="ws-land-hero" aria-label="Start a project, over a live graph you can turn and explore">
-                <HeroGraph sample={HERO} background={CANVAS[scheme]} onSession={onSession} />
+                <HeroGraph sample={HERO} background={CANVAS[scheme]} scheme={scheme} onSession={onSession} />
                 <div className="ws-land-over">
                     <Lockup className="ws-land-lockup" />
                     {returning && latest !== undefined ? (
@@ -286,7 +319,9 @@ export function StartScreen(): React.JSX.Element {
                                 >
                                     <span className="ws-land-xl-label">
                                         <span>Resume {latest.name}</span>
-                                        <span className="ws-land-xl-sub">Saved {whenWords(latest.at)}</span>
+                                        <span className="ws-land-xl-sub">
+                                            Saved {savedWhere(latest, inSentence(agoWords(latest.at)))}
+                                        </span>
                                     </span>
                                 </Button>
                                 {recent.length > 1 ? (
@@ -354,11 +389,12 @@ export function StartScreen(): React.JSX.Element {
                         </>
                     )}
                 </div>
-                <div className="ws-land-usage">
-                    <UsageDataCard />
-                </div>
                 <FactBar session={session} />
             </section>
+
+            <div className="ws-land-usage">
+                <UsageDataCard />
+            </div>
 
             {returning ? (
                 <section className="ws-land-band" id="ws-land-projects" aria-label="Your projects">
@@ -397,6 +433,7 @@ export function StartScreen(): React.JSX.Element {
 
             <NetworkDataDialog
                 opened={network}
+                scheme={scheme}
                 onClose={() => {
                     setNetwork(false);
                 }}

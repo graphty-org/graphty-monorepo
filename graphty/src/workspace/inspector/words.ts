@@ -49,6 +49,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.glowStrength": "Glow",
     "node.wireframe": "Wireframe",
     "node.flat": "Flat",
+    "node.unlit": "Unlit",
     "node.marker": "Marker",
     "edge.color": "Color",
     "edge.width": "Width",

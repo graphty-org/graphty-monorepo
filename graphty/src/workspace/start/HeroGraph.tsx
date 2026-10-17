@@ -1,11 +1,12 @@
 import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
-import type { GraphSession, LayerSpec, Run, RunResult } from "@graphty/graphty-element/session";
-import { Button, Group, Paper, Text } from "@mantine/core";
-import { Network, Route, Square, Users } from "lucide-react";
+import { defaultEdgeStyle } from "@graphty/graphty-element/schema";
+import type { GraphSession, LayerSpec, NodeId, Run, RunResult } from "@graphty/graphty-element/session";
+import { UnstyledButton } from "@mantine/core";
+import { Pause, Play, Route, Square, X } from "lucide-react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
 import { loadGraphtyElement } from "../../elementLoader";
-import { addSelectedCard } from "../canvas/selectedCard";
+import { Groups, Star } from "./icons";
 
 /** The graph the start page draws: a sample, and the two characters its shortest path joins. */
 export interface HeroSample {
@@ -20,24 +21,86 @@ export interface HeroSample {
 /** The layout seed, so the start page draws the same picture on every visit. */
 const HERO_SEED = 7;
 
+/** How fast the graph turns, in radians per second: a slow, steady drift. */
+const TURN_SPEED = 0.15;
+
+/** The page's colors the graph is drawn in, per color scheme (start.css holds the same tokens). */
+const LOOK = {
+    light: { ring: "#97c800", edge: "#2a3045", hot: "#14161f", surface: "#ffffff", text: "#14161f" },
+    dark: { ring: "#c4f23a", edge: "#9aa3b8", hot: "#f2f3f7", surface: "#1a1c24", text: "#f2f3f7" },
+} as const;
+
+/** The edge width graphty-element draws when no layer sets one. */
+const EDGE_WIDTH = defaultEdgeStyle.line?.width ?? 1;
+
 /**
- * This page's hover look: what the pointed-at node is not linked to fades. A presentation choice
- * of the start page, drawn by graphty-element from these two style layers.
+ * This page's look, drawn by graphty-element from style layers: flat dots and plain lines, and
+ * while a node is pointed at (or, with none pointed at, clicked) a ring on it, its links drawn
+ * darker and everything it is not linked to faded. Presentation choices of the start page.
+ * @param scheme - The page's color scheme.
+ * @returns The layers, bottom first.
  */
-const DIM_LAYERS: readonly LayerSpec[] = [
-    {
-        name: "Fade what the pointed-at node is not linked to",
-        target: "node",
-        selector: { match: "hover", reach: "neighbors", invert: true },
-        set: { "node.opacity": 0.25 },
-    },
-    {
-        name: "Fade the links the pointed-at node does not have",
-        target: "edge",
-        selector: { match: "hover", invert: true },
-        set: { "edge.opacity": 0.15, "edge.arrowHeadOpacity": 0.15 },
-    },
-];
+function lookLayers(scheme: "light" | "dark"): LayerSpec[] {
+    const look = LOOK[scheme];
+    return [
+        {
+            name: "Flat dots",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.unlit": true, "node.shape": "sphere", "node.size": 1.6 },
+        },
+        {
+            name: "Plain lines",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.color": look.edge, "edge.opacity": 0.45, "edge.arrowHead": "none" },
+        },
+        {
+            name: "Fade what the focused node is not linked to",
+            target: "node",
+            selector: { match: "hover", reach: "neighbors", invert: true, orSelected: true },
+            set: { "node.opacity": 0.3 },
+        },
+        {
+            name: "Fade the links the focused node does not have",
+            target: "edge",
+            selector: { match: "hover", invert: true, orSelected: true },
+            set: { "edge.opacity": 0.15 },
+        },
+        {
+            name: "Draw the focused node's links darker",
+            target: "edge",
+            selector: { match: "hover", orSelected: true },
+            set: { "edge.color": look.hot, "edge.opacity": 1, "edge.width": EDGE_WIDTH * 1.25 },
+        },
+        {
+            name: "Ring the focused node",
+            target: "node",
+            selector: { match: "hover", orSelected: true },
+            set: { "node.outline": look.ring },
+        },
+        {
+            name: "Name the pointed-at node",
+            target: "node",
+            selector: { match: "hover" },
+            set: {
+                "node.labelStyle": {
+                    enabled: true,
+                    font: "Outfit",
+                    weight: 500,
+                    sizeMode: "screen",
+                    sizePx: 14,
+                    color: look.text,
+                    background: look.surface,
+                    padding: 4,
+                    cornerRadius: 4,
+                    location: "top",
+                },
+            },
+            encode: { "node.label": { template: ["{data.id}"] } },
+        },
+    ];
+}
 
 /** Which analysis the second and third buttons show; at most one at a time. */
 type Pick = "key" | "path" | null;
@@ -82,31 +145,106 @@ async function finished(run: Run): Promise<RunResult | null> {
 }
 
 /**
+ * Whether the reader asked for less motion.
+ * @returns True when the system says so.
+ */
+function prefersStill(): boolean {
+    return globalThis.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+}
+
+/**
+ * The room the graph is framed clear of: the words and the launcher on the left, the graph
+ * buttons above, the hint below. Nothing on a narrow screen, where the words sit above the graph.
+ * @param hero - The hero section.
+ * @returns The insets, in CSS pixels.
+ */
+function insetsFor(hero: HTMLElement): { top: number; right: number; bottom: number; left: number } {
+    const box = hero.getBoundingClientRect();
+    const over = hero.querySelector(".ws-land-over")?.getBoundingClientRect();
+    const demo = hero.querySelector(".ws-land-demo")?.getBoundingClientRect();
+    if (over === undefined || demo === undefined || globalThis.innerWidth <= 820) {
+        return { top: 0, right: 0, bottom: 0, left: 0 };
+    }
+    return {
+        // A little under the launcher: the canvas fades out under the words, so the graph may
+        // reach into the fade.
+        left: Math.max(0, over.right - box.left - 72),
+        top: Math.max(0, demo.bottom - box.top + 8),
+        right: 24,
+        bottom: 36,
+    };
+}
+
+/** What the node card says, read from the element when the node is clicked. */
+interface CardFacts {
+    id: NodeId;
+    name: string;
+    links: number;
+    linked: string[];
+    community?: { rank: number; of: number };
+}
+
+/**
+ * What the card says about a node.
+ * @param session - The session.
+ * @param id - The node.
+ * @param communities - Whether the communities are shown.
+ * @returns The facts.
+ */
+function cardFacts(session: GraphSession, id: NodeId, communities: boolean): CardFacts {
+    const page = session.data.neighbors(id, { limit: 4 });
+    const facts: CardFacts = {
+        id,
+        name: nameOf(session, id),
+        links: page.total,
+        linked: page.records.map((row) => row.name),
+    };
+    const louvain = communities ? session.runs.get("louvain")?.result : undefined;
+    const group = louvain?.node(id)?.group;
+    const groups = louvain?.summary().groups;
+    const rank = groups?.find((each) => each.group === group)?.rank;
+    if (groups !== undefined && rank !== undefined) {
+        facts.community = { rank, of: groups.length };
+    }
+    return facts;
+}
+
+/**
  * The live graph behind the start page: one graphty-element, loaded after the page's words and
- * buttons have painted, drawing a sample. Pointing at a node fades what it is not
- * linked to; clicking it shows its card; the buttons run the element's algorithms on it.
+ * buttons have painted, drawing a sample and turning slowly. Pointing at a node fades what it is
+ * not linked to; clicking it shows its card; the buttons run the element's algorithms on it.
  * @param props - Component props
  * @param props.sample - What to draw
  * @param props.background - The page's canvas color, which the graph is drawn over
+ * @param props.scheme - The page's color scheme
  * @param props.onSession - Called with the session once the graph is up, for the page's counts
  * @returns The graph and its buttons
  */
 export function HeroGraph({
     sample,
     background,
+    scheme,
     onSession,
 }: Readonly<{
     sample: HeroSample;
     background: string;
+    scheme: "light" | "dark";
     onSession?: (session: GraphSession) => void;
 }>): React.JSX.Element {
     const ref = useRef<GraphtyElement>(null);
+    const cardRef = useRef<HTMLDivElement>(null);
     const [defined, setDefined] = useState(() => customElements.get("graphty-element") !== undefined);
     const [session, setSession] = useState<GraphSession | null>(null);
     const [shown, setShown] = useState<Shown>({ communities: true, pick: null, flat: false });
     const [said, setSaid] = useState<Said>({});
+    const [turning, setTurning] = useState(() => !prefersStill());
+    const [card, setCard] = useState<CardFacts | null>(null);
     // The run Key players or Shortest path started, so the other button can take it away.
     const pickRun = useRef<string | null>(null);
+    // The look layers' ids, so a change of scheme repaints them.
+    const lookIds = useRef<string[]>([]);
+    const schemeRef = useRef(scheme);
+    schemeRef.current = scheme;
 
     useEffect(() => {
         let live = true;
@@ -123,8 +261,31 @@ export function HeroGraph({
         };
     }, []);
 
-    // Once the tag has upgraded: the look (card, hover fade), a seeded layout, the data, and the
-    // two runs the card and the Communities button read.
+    // The turning, and the room the graph is framed clear of, follow the page.
+    useEffect(() => {
+        const element = ref.current;
+        if (!defined || element === null) {
+            return undefined;
+        }
+        const hero = element.closest<HTMLElement>(".ws-land-hero");
+        element.autoRotate = turning ? TURN_SPEED : 0;
+        const frame = (): void => {
+            if (hero !== null) {
+                element.fitInsets = insetsFor(hero);
+            }
+        };
+        frame();
+        const observer = new ResizeObserver(frame);
+        if (hero !== null) {
+            observer.observe(hero);
+        }
+        return () => {
+            observer.disconnect();
+        };
+    }, [defined, turning]);
+
+    // Once the tag has upgraded: the look, a seeded layout, the data, and the run the
+    // Communities button reads.
     useEffect(() => {
         const element = ref.current;
         const next: GraphSession | undefined = element?.session;
@@ -137,10 +298,12 @@ export function HeroGraph({
         element.addEventListener("graphty-graph-frame-stable", onFrame, { once: true });
         let live = true;
         void (async () => {
-            await addSelectedCard(next);
-            for (const layer of DIM_LAYERS) {
-                await next.styles.add(layer);
+            const ids: string[] = [];
+            // The scheme in force now; a later change is applied by the effect below.
+            for (const layer of lookLayers(schemeRef.current)) {
+                ids.push((await next.styles.add(layer)).id);
             }
+            lookIds.current = ids;
             await next.layout.set("force", { options: { seed: HERO_SEED } });
             await next.data.import({ config: { url: sample.url }, name: sample.name });
             performance.mark("graphty:hero-data-loaded");
@@ -149,7 +312,6 @@ export function HeroGraph({
             }
             setSession(next);
             onSession?.(next);
-            void finished(next.runs.start("degree", {}, { style: false }));
             const communities = await finished(next.runs.start("louvain"));
             if (live && communities !== null) {
                 setSaid((before) => ({ ...before, communities: communities.summary().groups?.length }));
@@ -162,6 +324,82 @@ export function HeroGraph({
             element.removeEventListener("graphty-graph-frame-stable", onFrame);
         };
     }, [defined, sample, onSession]);
+
+    // A change of scheme repaints the look in the page's other colors.
+    useEffect(() => {
+        if (session === null || lookIds.current.length === 0) {
+            return;
+        }
+        const layers = lookLayers(scheme);
+        lookIds.current.forEach((id, index) => {
+            void session.styles.update(id, layers[index]);
+        });
+    }, [session, scheme]);
+
+    // The card: the clicked node's facts, kept beside it while the graph turns.
+    useEffect(() => {
+        const element = ref.current;
+        if (session === null || element === null) {
+            return undefined;
+        }
+        const read = (): void => {
+            const { nodes } = session.selection;
+            setCard(nodes.length === 1 ? cardFacts(session, nodes[0], shown.communities) : null);
+        };
+        read();
+        return session.on("selection:changed", read);
+    }, [session, shown.communities]);
+
+    // Escape closes the card.
+    useEffect(() => {
+        if (card === null || session === null) {
+            return undefined;
+        }
+        const close = (event: KeyboardEvent): void => {
+            if (event.key === "Escape") {
+                session.selection.clear();
+            }
+        };
+        globalThis.addEventListener("keydown", close);
+        return () => {
+            globalThis.removeEventListener("keydown", close);
+        };
+    }, [card, session]);
+
+    useEffect(() => {
+        const element = ref.current;
+        if (card === null || element === null) {
+            return undefined;
+        }
+        let frame = 0;
+        const place = (): void => {
+            const at = element.nodeScreenPosition(card.id);
+            const box = cardRef.current;
+            const hero = element.closest<HTMLElement>(".ws-land-hero");
+            if (at !== undefined && box !== null && hero !== null) {
+                const area = element.getBoundingClientRect();
+                const outer = hero.getBoundingClientRect();
+                const demo = hero.querySelector(".ws-land-demo")?.getBoundingClientRect();
+                const x0 = area.left - outer.left + at.x;
+                const y0 = area.top - outer.top + at.y;
+                const { offsetWidth: w, offsetHeight: h } = box;
+                let x = x0 + at.radius + 14;
+                if (x + w > hero.clientWidth - 12) {
+                    x = x0 - at.radius - 14 - w;
+                }
+                const top = demo === undefined ? 12 : demo.bottom - outer.top + 10;
+                const bottom = area.bottom - outer.top - 12;
+                box.style.left = `${String(Math.round(x))}px`;
+                box.style.top = `${String(Math.round(Math.max(top, Math.min(bottom - h, y0 - h / 2))))}px`;
+                box.style.visibility = at.visible ? "visible" : "hidden";
+            }
+            frame = requestAnimationFrame(place);
+        };
+        place();
+        return () => {
+            cancelAnimationFrame(frame);
+        };
+    }, [card]);
 
     const toggleCommunities = useCallback(async () => {
         if (session === null) {
@@ -246,6 +484,7 @@ export function HeroGraph({
     }
 
     const ready = session !== null;
+    const more = card === null ? 0 : card.links - card.linked.length;
     return (
         <>
             <div className="ws-land-live">
@@ -253,62 +492,95 @@ export function HeroGraph({
                     <graphty-element
                         ref={ref}
                         data-start-page=""
-                        aria-label="A network drawn as a 3D graph. Drag to turn it; point at a node to see its neighbors, click it for details."
+                        aria-label="A network drawn as a 3D graph. Drag or use the arrow keys to turn it; point at a node to see its neighbors, click it for details."
                         background={{ backgroundType: "color", color: background }}
                         style={{ display: "block", width: "100%", height: "100%" }}
                     />
                 ) : null}
             </div>
             <div className="ws-land-demo">
-                <Paper className="ws-land-chips" role="toolbar" aria-label="Analyze the graph" withBorder>
-                    <Group gap={4} wrap="nowrap">
-                        <Chip
-                            pressed={shown.communities}
-                            disabled={!ready}
-                            icon={<Users size={14} aria-hidden />}
-                            onClick={() => void toggleCommunities()}
-                        >
-                            Communities
-                        </Chip>
-                        <Chip
-                            pressed={shown.pick === "key"}
-                            disabled={!ready}
-                            icon={<Network size={14} aria-hidden />}
-                            onClick={() => void togglePick("key")}
-                        >
-                            Key players
-                        </Chip>
-                        <Chip
-                            pressed={shown.pick === "path"}
-                            disabled={!ready}
-                            icon={<Route size={14} aria-hidden />}
-                            onClick={() => void togglePick("path")}
-                        >
-                            Shortest path
-                        </Chip>
-                        <Chip
-                            pressed={shown.flat}
-                            disabled={!ready}
-                            icon={<Square size={14} aria-hidden />}
-                            onClick={() => void toggleFlat()}
-                        >
-                            2D
-                        </Chip>
-                    </Group>
-                </Paper>
+                <div className="ws-land-chips" role="toolbar" aria-label="Analyze the graph">
+                    <Chip
+                        pressed={shown.communities}
+                        disabled={!ready}
+                        icon={<Groups />}
+                        onClick={() => void toggleCommunities()}
+                    >
+                        Communities
+                    </Chip>
+                    <Chip
+                        pressed={shown.pick === "key"}
+                        disabled={!ready}
+                        icon={<Star />}
+                        onClick={() => void togglePick("key")}
+                    >
+                        Key players
+                    </Chip>
+                    <Chip
+                        pressed={shown.pick === "path"}
+                        disabled={!ready}
+                        icon={<Route aria-hidden />}
+                        onClick={() => void togglePick("path")}
+                    >
+                        Shortest path
+                    </Chip>
+                    <Chip
+                        pressed={shown.flat}
+                        disabled={!ready}
+                        icon={<Square aria-hidden />}
+                        onClick={() => void toggleFlat()}
+                    >
+                        2D
+                    </Chip>
+                    <UnstyledButton
+                        className="ws-land-chip"
+                        aria-label={turning ? "Pause the turning" : "Turn the graph"}
+                        aria-pressed={!turning}
+                        onClick={() => {
+                            setTurning((before) => !before);
+                        }}
+                    >
+                        {turning ? <Pause aria-hidden /> : <Play aria-hidden />}
+                    </UnstyledButton>
+                </div>
                 {lines.length > 0 ? (
-                    <Paper className="ws-land-said" withBorder aria-live="polite">
+                    <div className="ws-land-said" aria-live="polite">
                         {lines.map((line) => (
-                            <Text key={line} size="xs">
-                                {line}
-                            </Text>
+                            <p key={line}>{line}</p>
                         ))}
-                    </Paper>
+                    </div>
                 ) : null}
             </div>
-            <Text size="xs" className="ws-land-hint">
-                Drag to turn it. Click a node for details.
-            </Text>
+            {card === null || session === null ? null : (
+                <div className="ws-land-info" ref={cardRef} role="dialog" aria-label="Node details">
+                    <UnstyledButton
+                        className="ws-land-info-x"
+                        aria-label="Close"
+                        onClick={() => {
+                            session.selection.clear();
+                        }}
+                    >
+                        <X aria-hidden />
+                    </UnstyledButton>
+                    <b>{card.name}</b>
+                    <p>
+                        <span className="ws-land-info-k">{card.links}</span>{" "}
+                        {card.links === 1 ? "connection" : "connections"}
+                    </p>
+                    {card.community === undefined ? null : (
+                        <p>
+                            Community {card.community.rank} of {card.community.of}
+                        </p>
+                    )}
+                    {card.linked.length === 0 ? null : (
+                        <p>
+                            Linked to {card.linked.join(", ")}
+                            {more > 0 ? ` and ${String(more)} more` : ""}
+                        </p>
+                    )}
+                </div>
+            )}
+            <p className="ws-land-hint">Drag to turn it. Click a node for details.</p>
         </>
     );
 }
@@ -337,17 +609,14 @@ function Chip({
     children: React.ReactNode;
 }>): React.JSX.Element {
     return (
-        <Button
-            variant="subtle"
-            size="compact-sm"
+        <UnstyledButton
             className="ws-land-chip"
-            data-pressed={pressed || undefined}
             aria-pressed={pressed}
-            disabled={disabled}
-            leftSection={icon}
-            onClick={onClick}
+            aria-disabled={disabled || undefined}
+            onClick={disabled ? undefined : onClick}
         >
+            {icon}
             {children}
-        </Button>
+        </UnstyledButton>
     );
 }

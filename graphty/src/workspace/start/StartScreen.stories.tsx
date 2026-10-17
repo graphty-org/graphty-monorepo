@@ -88,6 +88,12 @@ export const ReturningReader: Story = {
         await rememberRecent({ id: "key", name: "Key players, ranked", nodes: 77, at: now - day });
         await rememberRecent({ id: "karate", name: "Karate club split", nodes: 34, at: now - 8 * day });
         await rememberRecent({ id: "florentine", name: "Florentine marriages", nodes: 15, at: now - 15 * day });
+        // The page words save times from today ("2 hours ago", "Yesterday"), so the story's today is fixed.
+        const realNow = Date.now;
+        Date.now = () => now;
+        return () => {
+            Date.now = realNow;
+        };
     },
 };
 

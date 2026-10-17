@@ -247,16 +247,26 @@ const LIVE_RULE =
     "first (the workflow run on its branch, scripts replayed). Shared code another branch needs: open its pull request, and merge the " +
     "fix branch (or master once it lands) into the blocked branch now instead of waiting.";
 
+/**
+ * How to wait without spending model turns. A turn that comes more than five minutes after the last
+ * one finds the prompt cache expired and re-reads the whole context, so a sleep or until loop, or a
+ * check repeated turn after turn, pays for the whole context at every check.
+ */
+export const WAIT_RULE =
+    "Never wait in a model turn: no sleep or until loop, and no re-checking a push, a test run or CI turn after turn. Each turn more than five minutes after the last re-reads this whole conversation, because its prompt cache has expired. " +
+    "Start a long step as one background command (run_in_background) and end your turn: its exit notice wakes you. Declare a wait with githerd_wait and end your turn: githerd rings you when it settles. " +
+    'One long wait costs one re-read; many short ones cost one each. If a background command must loop, loop inside it on a PID (while kill -0 $PID) or a push\'s line in tmp/push-log.jsonl, never on pgrep -f "<text>", which matches the loop itself. Stop your own background shells before you hand back.';
+
 /** The rules every worker follows (design 7.1 step 6, 7.3 and 10.1). */
 export const RULES = Object.freeze([
     "Decide reversible questions yourself and record why in your findings. Ask the owner only through githerd_ask_owner, and only for what only the owner can do: a one-way door, a visual approval, money, a credential, a login, a change to the machine, a new permission rule.",
     "Never write ACTION NEEDED. Skills that ask the user a question are answered by you.",
     "When someone asks you a question, answer it without acting on it. A message about another job gets: this is the worker for <your job>.",
     'Judge overlap when you claim, against the githerd_next snapshot: independent; join (your target becomes part of the other job); or wait. Claim wait when your job cannot go on until another job or issue lands first (you need its change, or it rewrites what you would change): githerd_claim overlap {decision: "wait", with: "#736", reason} names the issue (or with: a job id). githerd blocks your job until that one ends, makes the issue\'s job if none exists, and rings you then. Do not claim independent and sit idle, and do not do the work of an issue someone else already owns (an open job or claim) inside yours.',
-    "Push only through githerd_push. Wait for checks, a lane, a release, another job or a background task only through githerd_wait, then end your turn; githerd rings you when it changes.",
+    "Push only through githerd_push, then end your turn instead of watching the push. Wait for checks, a lane, a release, another job or a background task only through githerd_wait, then end your turn; githerd rings you when it changes.",
     "Do the job's work in a background subagent or workflow, and keep the main conversation free to answer githerd's messages. A session that claimed this job itself is asked for its status every few minutes: answer with githerd_expect, or the job goes back to the queue when the next question is due.",
     "Before a step that runs longer than 20 minutes with no output, call githerd_expect with minutes set to its length.",
-    'Wait on a background task by its PID (while kill -0 $PID) or its own exit notice, and on a push by its line in tmp/push-log.jsonl; never with pgrep -f "<text>", which matches the waiting loop itself. Stop your own background shells before you hand back.',
+    WAIT_RULE,
     "Read issue and pull request comments and reviews through githerd_read; gh refuses them.",
     "Ask for a re-run of a failed CI job through githerd_rerun, never gh run rerun. A re-run, or a close and reopen, tests the pull request merged with master as it was.",
     UPDATE_RULE,

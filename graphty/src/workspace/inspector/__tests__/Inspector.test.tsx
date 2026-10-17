@@ -321,6 +321,10 @@ describe("the inspector", () => {
         assert.include(origin.textContent, "From the file");
         const kind = screen.getByRole("group", { name: "Kind" });
         const word = within(kind).getByText("Amount");
+        // A tooltip opens only when the pointer moves onto its trigger, and the pointer is where
+        // an earlier test left it -- in a full run that can be this very spot, so a hover there
+        // is no move. Move it off first, as a reader's pointer comes from elsewhere.
+        await userEvent.unhover(word);
         await userEvent.hover(word);
         // By its text, then its tooltip: in a full run the role query alone missed a tooltip that
         // was already in the page with this text (testing-library judged it inaccessible).

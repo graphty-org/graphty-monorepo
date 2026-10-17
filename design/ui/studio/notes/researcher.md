@@ -10,6 +10,15 @@ made and evidence comes in.
 
 ## Top of mind
 
+- (2026-10-17, first-use styling study prep) The study tool is still wired to tier 2: real.mjs
+  reads tasks, answers ("Facts no briefing may hold"), roster histories, the frozen-build line and
+  setups only from `tier2/` and `rounds/tier-2/setups/`; the gate and `--start` check tier 2's
+  criteria build; bars.mjs measures tier 2 screens. A tier 3 round as is would brief tier 2 prompts
+  or refuse every session (the round 5 void again). Make the tier a parameter and plant-test it
+  before any pilot. First-time sessions have no history, but `--brief` refuses a persona with no
+  roster section: give each a Files line and a "first time" line, or teach `--brief` empty starts.
+  Two copies of design-studio.js differ (main checkout and studio worktree): launch the one meant.
+
 - (2026-10-16, bulk iteration 7 frozen) Frozen as `tier3-bulk7-457aa9f0f2`, served by servherd
   design-studio-tier3 at https://dev.ato.ms:9373/?next. Bulk field whose layers differ now draws
   BoundValue (SpreadValues deleted): strip in the pill, <<Layer>> in the component purple where the

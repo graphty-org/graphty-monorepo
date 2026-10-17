@@ -389,26 +389,26 @@ Tool values are elements drawn with the writing program's default.
 | json/sigma-website-wikipedia.json.gz | ok | 2085 | 0 | 1 | 1 | 0 | - | - | 0 | 16680 | 0 |  |
 | json/vis-WorldCup2014.json.gz | ok | 736 | 9228 | 4 | 3 | 9645 | 90% | 0% | 716 | 22136 | 0 | W_STYLE_RAMP_ROUNDED |
 | json/vis-dot-to-graph-softmaint.json | ok | 213 | 269 | 4 | 3 | 0 | - | - | 0 | 3004 | 0 |  |
-| pajek/SamTseng_CATAR__Pajek_format.net | ok | 3 | 8 | 3 | 3 | 11 | 55% | 0% | 0 | 41 | 0 |  |
-| pajek/fidelity/1crn.net | ok | 327 | 337 | 7 | 1 | 339 | 65% | 0% | 0 | 2993 | 0 | W_STYLE_BAD_VALUE |
-| pajek/fidelity/c.net | ok | 65 | 125 | 3 | 2 | 0 | - | - | 0 | 755 | 0 |  |
-| pajek/fidelity/football.net | ok | 35 | 118 | 2 | 3 | 69 | 0% | 0% | 0 | 730 | 0 |  |
-| pajek/fidelity/kdorola.net | ok | 127 | 152 | 3 | 3 | 51 | 2% | 0% | 0 | 1114 | 0 |  |
-| pajek/fidelity/lin-rel4.net | ok | 234 | 604 | 3 | 2 | 273 | 0% | 0% | 0 | 3740 | 0 | W_STYLE_BAD_VALUE |
-| pajek/fidelity/synth-lines.net | ok | 40 | 111 | 3 | 4 | 92 | 24% | 0% | 0 | 522 | 0 | W_STYLE_BAD_VALUE |
-| pajek/fidelity/synth-vertices.net | ok | 81 | 112 | 2 | 1 | 244 | 100% | 0% | 0 | 743 | 0 | W_STYLE_BAD_VALUE, W_STYLE_UNKNOWN_VALUE |
-| pajek/generated/b98-trailing-zero.net | ok | 12 | 26 | 3 | 4 | 21 | 81% | 0% | 0 | 136 | 0 |  |
-| pajek/generated/color-forms.net | ok | 8 | 5 | 3 | 3 | 11 | 100% | 0% | 0 | 45 | 0 | W_STYLE_BAD_VALUE |
-| pajek/generated/colors-mix.net | ok | 80 | 80 | 4 | 4 | 283 | 29% | 0% | 0 | 432 | 0 | W_STYLE_BAD_VALUE, W_STYLE_UNKNOWN_VALUE |
-| pajek/generated/graphty-written.net | ok | 6 | 7 | 2 | 3 | 23 | 96% | 0% | 0 | 20 | 0 | W_STYLE_UNKNOWN_VALUE |
-| pajek/generated/nan-values.net | ok | 4 | 16 | 3 | 2 | 0 | - | - | 0 | 96 | 0 |  |
-| pajek/generated/proto-color-names.net | ok | 3 | 2 | 3 | 3 | 2 | 100% | 0% | 0 | 16 | 0 | W_STYLE_BAD_VALUE, W_STYLE_UNKNOWN_VALUE |
-| pajek/generated/shapes-and-lines.net | ok | 6 | 7 | 2 | 3 | 19 | 100% | 0% | 0 | 42 | 0 | W_STYLE_UNKNOWN_VALUE |
-| pajek/generated/tamper-block-truncated.net | ok | 6 | 7 | 3 | 3 | 15 | 100% | 0% | 0 | 44 | 0 | W_STYLE_BLOCK_IGNORED, W_STYLE_UNKNOWN_VALUE |
-| pajek/generated/tamper-native-edited.net | ok | 6 | 7 | 3 | 3 | 23 | 96% | 0% | 0 | 20 | 0 | W_STYLE_UNKNOWN_VALUE |
-| pajek/generated/tamper-node-added.net | ok | 7 | 7 | 3 | 3 | 15 | 100% | 0% | 0 | 48 | 0 | W_STYLE_BLOCK_IGNORED, W_STYLE_UNKNOWN_VALUE |
-| pajek/graphstream_gs-core__B.net | ok | 111 | 193 | 5 | 3 | 62 | 0% | 0% | 0 | 1187 | 0 | W_STYLE_BAD_VALUE |
-| pajek/kjhealy_kjhnet__iliad_killedby.net | ok | 311 | 292 | 4 | 2 | 75 | 76% | 76% | 0 | 2704 | 0 |  |
+| pajek/SamTseng_CATAR__Pajek_format.net | ok | 3 | 8 | 3 | 3 | 11 | 55% | 0% | 0 | 58 | 0 |  |
+| pajek/fidelity/1crn.net | ok | 327 | 337 | 7 | 2 | 339 | 65% | 0% | 0 | 4652 | 0 |  |
+| pajek/fidelity/c.net | ok | 65 | 125 | 3 | 2 | 0 | - | - | 0 | 1074 | 0 |  |
+| pajek/fidelity/football.net | ok | 35 | 118 | 2 | 3 | 69 | 0% | 0% | 0 | 940 | 0 |  |
+| pajek/fidelity/kdorola.net | ok | 127 | 152 | 3 | 3 | 51 | 2% | 0% | 0 | 2024 | 0 |  |
+| pajek/fidelity/lin-rel4.net | ok | 234 | 604 | 3 | 2 | 280 | 0% | 0% | 0 | 5528 | 0 | W_STYLE_BAD_VALUE |
+| pajek/fidelity/synth-lines.net | ok | 40 | 111 | 3 | 4 | 92 | 24% | 0% | 0 | 744 | 0 | W_STYLE_BAD_VALUE |
+| pajek/fidelity/synth-vertices.net | ok | 81 | 112 | 2 | 1 | 258 | 100% | 0% | 0 | 1071 | 0 | W_STYLE_BAD_VALUE, W_STYLE_UNKNOWN_VALUE |
+| pajek/generated/b98-trailing-zero.net | ok | 12 | 26 | 3 | 4 | 21 | 81% | 0% | 0 | 202 | 0 |  |
+| pajek/generated/color-forms.net | ok | 8 | 5 | 3 | 3 | 11 | 100% | 0% | 0 | 93 | 0 | W_STYLE_BAD_VALUE |
+| pajek/generated/colors-mix.net | ok | 80 | 80 | 4 | 4 | 283 | 29% | 0% | 0 | 814 | 0 | W_STYLE_BAD_VALUE, W_STYLE_UNKNOWN_VALUE |
+| pajek/generated/graphty-written.net | ok | 6 | 7 | 2 | 3 | 30 | 80% | 0% | 0 | 20 | 0 | W_STYLE_UNKNOWN_VALUE |
+| pajek/generated/nan-values.net | ok | 4 | 16 | 3 | 2 | 0 | - | - | 0 | 124 | 0 |  |
+| pajek/generated/proto-color-names.net | ok | 3 | 2 | 3 | 3 | 2 | 100% | 0% | 0 | 35 | 0 | W_STYLE_BAD_VALUE, W_STYLE_UNKNOWN_VALUE |
+| pajek/generated/shapes-and-lines.net | ok | 6 | 7 | 2 | 3 | 19 | 100% | 0% | 0 | 61 | 0 | W_STYLE_UNKNOWN_VALUE |
+| pajek/generated/tamper-block-truncated.net | ok | 6 | 7 | 3 | 3 | 15 | 100% | 0% | 0 | 65 | 0 | W_STYLE_BLOCK_IGNORED, W_STYLE_UNKNOWN_VALUE |
+| pajek/generated/tamper-native-edited.net | ok | 6 | 7 | 3 | 3 | 30 | 80% | 0% | 0 | 20 | 0 | W_STYLE_UNKNOWN_VALUE |
+| pajek/generated/tamper-node-added.net | ok | 7 | 7 | 3 | 3 | 15 | 100% | 0% | 0 | 75 | 0 | W_STYLE_BLOCK_IGNORED, W_STYLE_UNKNOWN_VALUE |
+| pajek/graphstream_gs-core__B.net | ok | 111 | 193 | 5 | 3 | 62 | 0% | 0% | 0 | 1699 | 0 | W_STYLE_BAD_VALUE |
+| pajek/kjhealy_kjhnet__iliad_killedby.net | ok | 311 | 292 | 4 | 2 | 75 | 76% | 76% | 0 | 4551 | 0 |  |
 | roles/by-group-0 | ok | 0 | 0 | 0 | 0 | 0 | - | - | 0 | 0 | 0 |  |
 | roles/by-group-1 | ok | 1 | 0 | 1 | 0 | 0 | - | - | 0 | 0 | 0 |  |
 | roles/by-group-300 | ok | 300 | 600 | 3 | 3 | 1642 | 7% | 7% | 0 | 0 | 0 |  |

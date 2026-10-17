@@ -439,15 +439,26 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
             {
                 tool: "pajek",
                 version: "Pajek 6.02",
-                units: "relative",
+                // PostScript points, the unit of Pajek's EPS and SVG export (formats/pajek/styles.ts)
+                units: "px",
                 roundedCornerRadius: cornerCap("pajek"),
                 node: {
                     shape: v("ellipse", `${PAJEK} p. 85`),
                     opacity: v(1, `${PAJEK} p. 87`),
                     borderColor: v("#000000", `${PAJEK}, vertex parameter bc (default Black)`),
-                    borderWidth: v(0.2, `${PAJEK}, vertex parameter bw (default 1, against the default vertex size 5)`),
+                    borderWidth: v(1, `${PAJEK}, vertex parameter bw (default 1 point)`),
+                    // The manual names these settings (pp. 84-88, Export Options: Interior Color, Font Size, Label
+                    // Position, Size of Vertices) but not their values; each is ASSUMED, the value the reference
+                    // scene (test/fidelity/references/pajek_file.py) uses, until confirmed in Pajek itself.
+                    width: v(5, `${PAJEK} p. 89, s_size (assumed: Pajek's normal vertex size, 5 points)`),
+                    height: v(5, `${PAJEK} p. 89, s_size (assumed: Pajek's normal vertex size, 5 points)`),
+                    fill: v("#ffff00", `${PAJEK} pp. 84-88, Interior Color (assumed: Yellow, Pajek's vertex color)`),
+                    labelColor: v("#000000", `${PAJEK} pp. 84-88, Label Color (assumed: Black)`),
+                    labelSize: v(10, `${PAJEK} pp. 84-88, Font Size (assumed: 10 points)`),
+                    labelPosition: v("right", `${PAJEK} pp. 84-88, Label Position (assumed: radius > 0 at angle 0)`),
                 },
                 edge: {
+                    width: v(1, `${PAJEK} p. 91, line parameter w (assumed: 1 point)`),
                     color: v("#000000", `${PAJEK} p. 90`),
                     lineStyle: v("solid", `${PAJEK} p. 90`),
                     opacity: v(1, `${PAJEK} p. 87`),

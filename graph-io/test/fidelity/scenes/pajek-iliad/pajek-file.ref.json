@@ -6,7 +6,7 @@
   "version": "Python 3.12.3",
   "command": "python3 pajek_file.py <file>",
   "sourceSha256": "36bb5fe5d3700e3dca01ed40a4b3c10a1415bb5965bc20d4143e1e7d203f0d7c",
-  "generatedAt": "2026-10-14T18:23:55.950Z"
+  "generatedAt": "2026-10-17T15:57:06.325Z"
  },
  "canCarry": {
   "position": "yes",
@@ -14808,10 +14808,6 @@
   {
    "property": "position",
    "reason": "the file stores no coordinates; Pajek lays it out when it draws"
-  },
-  {
-   "property": "fontSize",
-   "reason": "the file sets no label font size; Pajek's default is a viewer setting"
   },
   {
    "property": "labelPosition",

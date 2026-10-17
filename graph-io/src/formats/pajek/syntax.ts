@@ -471,7 +471,7 @@ export function isIntervalToken(token: string): boolean {
 }
 
 /**
- * Parse a Pajek time interval token into spells: `[1-5,7-*]` is `[[1, 5], [7, Infinity]]`, a
+ * Parse a Pajek time interval token into spells: `[1-5,7-*]` (or `[1-5/7-*]`) is `[[1, 5], [7, Infinity]]`, a
  * single time point `[3]` is `[[3, 3]]`, `*` at either end is the corresponding infinity, blanks
  * around the parts are ignored and an empty `[]` is no spell at all.
  * @param token - a token isIntervalToken() accepted
@@ -484,7 +484,9 @@ export function parseIntervals(token: string): [number, number][] {
         return [];
     }
     const spells: [number, number][] = [];
-    for (const part of body.split(",")) {
+    // the manual separates intervals with ","; Pajek's own course data writes "/" too (lin-rel4.net:
+    // `[141-383/669-670]`), which no other part of the token uses
+    for (const part of body.split(/[,/]/)) {
         spells.push(parseSpell(token, part));
     }
     return spells;

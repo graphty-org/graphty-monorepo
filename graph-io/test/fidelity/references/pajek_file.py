@@ -7,8 +7,12 @@ every key a line omits with its own defaults once any line sets it, so it is not
 Colors: dvips names from the vendored dvipsnam.def (converted from CMYK the way dvips does),
 RGBrrggbb, and GrayNN (NN percent gray). Pajek knows more names than dvips (LightCyan, LightOrange,
 ...) whose RGB is not published; a node or line using one has no color here and the scene lists it as
-a gap. Coordinates are the file's (0..1) times UNIT, as stored; Pajek's base vertex size is a viewer
-setting, so a node is BASE times its x_fact / y_fact (and s_size) and size is judged only as a ratio.
+a gap. Coordinates are the file's (0..1) times UNIT, as stored: Pajek's EPS export draws the [0,1] square as
+[0,500] points ("Pajek to EPS", http://mrvar.fdv.uni-lj.si/pajek/DrawEPS.htm). Lengths are those points: a node is
+BASE times its x_fact / y_fact (and s_size), bw, w and fos as written.
+
+Pajek's defaults the manual names but does not state (Export Options: Size of Vertices, Interior Color, Font Size) are
+ASSUMED here, as in graph-io's Pajek tool defaults: BASE 5 points, fill Yellow, font size 10. Confirm them in Pajek.
 """
 
 import re
@@ -19,6 +23,8 @@ from refcommon import dvips_colors, emit, node, provenance, python_version
 
 UNIT = 500.0
 BASE = 5.0
+DEFAULT_FILL = "#ffff00"  # assumed: Yellow
+DEFAULT_FONT_SIZE = 10.0  # assumed
 SHAPES = {"ellipse", "box", "diamond", "triangle", "cross", "empty", "man", "woman"}
 VERTEX_KEYS = {"x_fact": 1, "y_fact": 1, "s_size": 1, "phi": 1, "r": 1, "q": 1, "ic": 1, "bc": 1, "bw": 1, "lc": 1, "la": 1,
                "lr": 1, "lphi": 1, "fos": 1, "font": 1, "w": 1}
@@ -46,6 +52,9 @@ class Colors:
         m = re.fullmatch(r"RGB([0-9A-Fa-f]{6})", name)
         if m:
             return "#" + m.group(1).lower()
+        m = re.fullmatch(r"RGB\(([0-9.]+),([0-9.]+),([0-9.]+)\)", name)
+        if m and all(0 <= float(c) <= 1 for c in m.groups()):
+            return "#" + "".join(f"{round(255 * float(c)):02x}" for c in m.groups())
         m = re.fullmatch(r"Gray(\d{1,3})", name)
         if m:
             v = round(255 * (1 - int(m.group(1)) / 100))
@@ -54,11 +63,18 @@ class Colors:
         return None
 
 
+COLOR_KEYS = {"ic", "bc", "lc", "c"}
+
+
 def keyed(tokens, keys):
     out, i = {}, 0
     while i < len(tokens):
         k = tokens[i]
-        if k in keys and i + 1 < len(tokens):
+        triple = tokens[i + 1:i + 4]
+        if k in COLOR_KEYS and len(triple) == 3 and all(num(t) is not None and 0 <= num(t) <= 1 for t in triple):
+            out[k] = "RGB(" + ",".join(triple) + ")"  # a color written as three fractions, `c 0.7 0.7 0.7`
+            i += 4
+        elif k in keys and i + 1 < len(tokens):
             out[k] = tokens[i + 1].strip('"')
             i += 2
         else:
@@ -91,11 +107,11 @@ def scene(path):
             placed = placed or bool(coords)
             size = float(k.get("s_size", 1))
             w, h = BASE * size * float(k.get("x_fact", 1)), BASE * size * float(k.get("y_fact", 1))
-            fill, border = colors(k.get("ic")), colors(k.get("bc", "Black"))
+            fill, border = (colors(k["ic"]) if "ic" in k else DEFAULT_FILL), colors(k.get("bc", "Black"))
             pos[vid] = (x * UNIT, y * UNIT)
             lab = None
             if label:
-                lab = {"text": label, "fontSize": float(k.get("fos", 10)), "color": colors(k.get("lc", "Black")) or "#000000",
+                lab = {"text": label, "fontSize": float(k.get("fos", DEFAULT_FONT_SIZE)), "color": colors(k.get("lc", "Black")) or "#000000",
                        "position": "other" if "lr" in k or "la" in k or "lphi" in k else "right", "visible": True}
             nodes.append(node(vid, x * UNIT, y * UNIT, w, h, {"box": "rect"}.get(shape, shape), fill, 1.0 if fill else 0.0,
                               border, float(k.get("bw", 1)), "solid", lab, len(nodes)))
@@ -121,8 +137,6 @@ def scene(path):
     if colors.unknown:
         gaps.append({"property": "fill", "reason": "Pajek color names with no published RGB (not in dvipsnam.def): "
                      + ", ".join(sorted(colors.unknown)) + "; those nodes have no fill here"})
-    if not any("fos" in line for line in open(path, encoding="utf-8", errors="replace")):
-        gaps.append({"property": "fontSize", "reason": "the file sets no label font size; Pajek's default is a viewer setting"})
     gaps.append({"property": "labelPosition", "reason": "Pajek places labels by its own radius and angle defaults, which are viewer settings"})
     return {"provenance": provenance("pajek-file", "pajek_file.py (Python standard library) with dvipsnam.def", python_version(),
                                      "python3 pajek_file.py <file>", path),

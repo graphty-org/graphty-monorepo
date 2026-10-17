@@ -167,6 +167,8 @@ const CASES: readonly Case[] = [
         format: "pajek",
         expect: { 2: [0.483, -0.1014, 0], 311: [0.8302, -0.5256, 0] },
         units: "file",
+        // Pajek draws the [0,1] square as 500 points
+        pxPerUnit: 500,
         yAxis: "down",
         dims: 2,
         placed: 332,
@@ -178,6 +180,8 @@ const CASES: readonly Case[] = [
         format: "pajek",
         expect: { 1: [0.8464, -0.8341, -(0.1164 - 0.5)], 2: [0.7463, -0.3394, -(0.8077 - 0.5)] },
         units: "file",
+        // Pajek draws the [0,1] square as 500 points
+        pxPerUnit: 500,
         yAxis: "down",
         dims: 3,
     },

@@ -13,7 +13,7 @@
 
 import { assert, describe, it, vi } from "vitest";
 
-import { createGraphSession, type GraphSession } from "../../session";
+import { createGraphSession, type GraphSession, type NodeId } from "../../session";
 
 /** A Cytoscape.js document: nodes 40 across with a border 2 wide and labels 20 high, edges 2 wide, nodes 400 apart. */
 const DOC = JSON.stringify({
@@ -51,7 +51,7 @@ const FILE = { node: 40, border: 2, edge: 2, font: 20, ab: 400 } as const;
  * @param channel - The channel.
  * @returns The value.
  */
-function drawn(session: GraphSession, target: { node: string } | { edge: string }, channel: string): unknown {
+function drawn(session: GraphSession, target: { node: NodeId } | { edge: string }, channel: string): unknown {
     return (session.styles.explain(target).merged as Record<string, unknown>)[channel];
 }
 
@@ -62,7 +62,7 @@ function drawn(session: GraphSession, target: { node: string } | { edge: string 
  * @param channel - The channel.
  * @returns The number.
  */
-function number(session: GraphSession, target: { node: string } | { edge: string }, channel: string): number {
+function number(session: GraphSession, target: { node: NodeId } | { edge: string }, channel: string): number {
     const value = drawn(session, target, channel);
     assert.isNumber(value, `${channel} of ${JSON.stringify(target)}`);
     return value as number;
@@ -74,7 +74,7 @@ function number(session: GraphSession, target: { node: string } | { edge: string
  * @param target - The element.
  * @returns The size.
  */
-function fontSize(session: GraphSession, target: { node: string } | { edge: string }): number {
+function fontSize(session: GraphSession, target: { node: NodeId } | { edge: string }): number {
     const kind = "node" in target ? "node" : "edge";
     const style = drawn(session, target, `${kind}.labelStyle`) as { sizePx?: unknown } | undefined;
     assert.isNumber(style?.sizePx, `label size of ${JSON.stringify(target)}`);
@@ -263,6 +263,80 @@ describe("a DOT file's lengths are drawn in one unit", () => {
             'graph G { graph [bb="0,0,324,36"]; node [shape=circle, width=0.5, fixedsize=true]; a [pos="18,18"]; b [pos="306,18"]; a -- b; }',
         );
         assert.approximately(spacingOverSize(session), 288 / 36, 1e-4);
+        session.dispose();
+    });
+});
+
+/**
+ * Load a Pajek document with its styles, letting the element choose the layout.
+ * @param text - The document.
+ * @param styleOptions - The style options of the load.
+ * @returns The session, settled.
+ */
+async function loadedPajek(
+    text: string,
+    styleOptions?: { readonly lengths?: "median" | "file"; readonly toolDefaults?: boolean },
+): Promise<GraphSession> {
+    const session = createGraphSession();
+    await session.data.import(
+        { type: "pajek", config: { data: text } },
+        { styles: "file", layout: "recommended", ...(styleOptions === undefined ? {} : { styleOptions }) },
+    );
+    await vi.waitFor(() => {
+        assert.lengthOf(session.history.pending, 0);
+    });
+    return session;
+}
+
+/**
+ * How far apart nodes a and b are drawn, in scene units.
+ * @param session - The session, laid out by the fixed layout.
+ * @returns The distance.
+ */
+function spacing(session: GraphSession): number {
+    assert.strictEqual(session.layout.id, "fixed");
+    const scale = session.layout.options.scale ?? 1;
+    assert.isNumber(scale);
+    const snapshot = session.snapshot();
+    const a = { x: 0, y: 0, z: 0 };
+    const b = { x: 0, y: 0, z: 0 };
+    const [first, second] = session.data.nodes().map((n) => n.id);
+    session.positions.read(snapshot.ids.requireIndex(first), a);
+    session.positions.read(snapshot.ids.requireIndex(second), b);
+    return Math.hypot(b.x - a.x, b.y - a.y) * (scale as number);
+}
+
+describe("a Pajek file's lengths are drawn in one unit", () => {
+    // Pajek draws the [0,1] square as 500 points, and a vertex 5 points times x_fact: 0.8 apart is 400 points.
+    const pair = (params: string): string =>
+        `*Vertices 2\n1 "a" 0.1 0.5 0.5 ${params}\n2 "b" 0.9 0.5 0.5 ${params}\n*Edges\n1 2\n`;
+
+    it("draws vertices of Pajek's normal size 80 vertex widths apart", async () => {
+        const session = await loadedPajek(pair(""));
+        const node = number(session, { node: session.data.nodes()[0].id }, "node.size") * 1.5;
+        assert.approximately(spacing(session) / node, 400 / 5, 1e-4);
+        session.dispose();
+    });
+
+    it("draws vertices of x_fact 4 a quarter as many widths apart", async () => {
+        const session = await loadedPajek(pair("x_fact 4 y_fact 4"));
+        const node = number(session, { node: session.data.nodes()[0].id }, "node.size") * 1.5;
+        assert.approximately(spacing(session) / node, 400 / 20, 1e-4);
+        session.dispose();
+    });
+
+    it('draws the coordinates in points with lengths: "file", as the vertex sizes are', async () => {
+        const session = await loadedPajek(pair(""), { lengths: "file" });
+        assert.strictEqual(number(session, { node: session.data.nodes()[0].id }, "node.size"), 5);
+        // positions are float32
+        assert.approximately(spacing(session), 400, 1e-3);
+        session.dispose();
+    });
+
+    it("draws the coordinates in points when the file sizes nothing and no defaults apply", async () => {
+        const session = await loadedPajek(pair(""), { toolDefaults: false });
+        // positions are float32
+        assert.approximately(spacing(session), 400, 1e-3);
         session.dispose();
     });
 });

@@ -280,8 +280,13 @@ async function applyRead(
             });
     }
 
-    // The stored positions take the styles' unit, so they are drawn at the file's proportions.
-    const sceneScale = translation.sceneScale === null ? null : translation.sceneScale * (read.positionPxPerUnit ?? 1);
+    // The stored positions take the styles' unit, so they are drawn at the file's proportions. Where
+    // the lengths are kept as the file has them (it sizes nothing, or the load keeps file lengths),
+    // they are drawn in that unit too; a file graphty wrote holds positions in graphty's own units.
+    const graphtyWrote = read.extracted.styles.source.tool === "graphty";
+    const keptScale = graphtyWrote ? null : (read.positionPxPerUnit ?? null);
+    const sceneScale =
+        translation.sceneScale === null ? keptScale : translation.sceneScale * (read.positionPxPerUnit ?? 1);
     // The file's annotations, drawn at the scale of its stored positions so they stay beside the
     // nodes they annotate. ponytail: a merging load keeps the graph's earlier annotations only.
     const { annotations } = readAnnotations(read.snapshot);

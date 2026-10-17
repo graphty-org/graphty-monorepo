@@ -37,6 +37,8 @@ const EPSILON = 1e-9;
  * - and every other corpus file whose story settles in under 0.7 s under SwiftShader: yEd GML and
  *   GraphML drawings, Cytoscape 2.x and 3.x XGMML, NDEx CX and CX2, Cytoscape.js SBGN, vis-network
  *   groups and Pajek arcs.
+ * - pajek-c, pajek-graphstream-b, pajek-synth-vertices, pajek-synth-lines: Pajek's sizes, line widths
+ *   and label sizes against the spacing of its 0..1 coordinates.
  */
 const DRAWN = [
     "gml-yed-pmodel",
@@ -56,6 +58,10 @@ const DRAWN = [
     "xgmml-pathguide-allpathwaysdb",
     "json-cyjs-sbgn-sciluna",
     "pajek-football",
+    "pajek-c",
+    "pajek-graphstream-b",
+    "pajek-synth-vertices",
+    "pajek-synth-lines",
     "cx2-synthetic-lethal",
     "gml-dunnart-autobahn",
 ];

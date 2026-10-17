@@ -2,6 +2,8 @@
  * Adding a newer copy of a loaded file on the REAL graphty-element: the Add page says how many of
  * the file's edges the graph already holds (the element's `repeated.seen`) and offers to replace
  * the graph's source with the file, beside Load, and Load's description carries that warning. A file with no repeated edge shows neither.
+ * When every edge in the file repeats, Load would only double them, so Replace is the primary
+ * button and takes the focus; when some edges are new, Load stays the primary.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -76,12 +78,31 @@ describe("Add a file whose edges the graph already holds", () => {
         assert.equal(loadDescription(), document.getElementById("dp-load-reason")?.textContent ?? "");
         await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
 
+        // One edge repeats and one is new: Replace is offered, Load stays the primary.
+        act(() => {
+            openDataPage(store, {
+                intent: "add",
+                files: [new File(["source,target\nAva,Ben\nZed,Yan\n"], "some.csv")],
+            });
+        });
+        await screen.findByTestId("repeats", {}, { timeout: TIMEOUT_MS });
+        assert.equal(screen.getByRole("button", { name: "Replace friends.csv" }).dataset.variant, "default");
+        assert.equal(screen.getByRole("button", { name: "Load" }).dataset.variant, "filled");
+        await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
         act(() => {
             openDataPage(store, { intent: "add", files: [new File([FRIENDS_V2], "friends-v2.csv")] });
         });
         const line = await screen.findByTestId("repeats", {}, { timeout: TIMEOUT_MS });
         assert.equal(line.textContent, repeatsWords(41, "friends"));
         assert.include(loadDescription(), repeatsWords(41, "friends"), "Load's description carries the warning");
+        // Every edge repeats: Replace is the primary, and a ready file's focus goes to it.
+        const replace = screen.getByRole("button", { name: "Replace friends.csv" });
+        assert.equal(replace.dataset.variant, "filled");
+        assert.equal(screen.getByRole("button", { name: "Load" }).dataset.variant, "default");
+        await waitFor(() => {
+            assert.strictEqual(document.activeElement, replace);
+        });
         await userEvent.click(screen.getByRole("button", { name: "Replace friends.csv" }));
 
         await screen.findByRole("heading", { name: "Replace: friends-v2.csv" });

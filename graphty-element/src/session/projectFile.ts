@@ -734,6 +734,20 @@ function documentOf(value: Record<string, unknown>): Record<string, unknown> {
 }
 
 /**
+ * What kind of graphty document a text is, as `open` would read it.
+ * @param text - The file's text.
+ * @returns `"project"` for a saved project, `"document"` for another graphty document, or null
+ *     when the text is not a graphty document (a data file, or nothing `open` reads).
+ */
+export function documentKind(text: string): "project" | "document" | null {
+    try {
+        return readDocument(text).members.has("graphty-session") ? "project" : "document";
+    } catch {
+        return null;
+    }
+}
+
+/**
  * Parse a file and sort its members.
  * @param text - The file's text.
  * @returns The document.

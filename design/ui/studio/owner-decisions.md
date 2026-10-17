@@ -4,6 +4,22 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-17 -- Decided by the team: a draft says when its source is a graphty document, and a right-click keeps the selection
+
+Additive, graphty-element `./session`: `LoadDraft.graphtyDocument?: "project" | "document"`. Set
+when the source handed to `data.prepare` is a graphty document rather than data -- `"project"` for
+a saved project, `"document"` for another graphty document -- the same values `project.open`
+reports in `opened`. Absent for a data file. Such a source reads as two tables with no rows, and
+`report` and `load` still refuse it with `E_EMPTY_LOAD` as before; the new property lets a host
+open it with `project.open` instead of telling the reader the file holds no data. The graphty app's
+Data page opens a project chosen or dropped there, as Open project or file... does.
+
+Behavior of the drawing, no API change: a right-click (the secondary button) on a node or an edge
+that is already selected keeps the whole selection, and a right-click on empty canvas no longer
+clears it. A right-click on anything not selected selects it, as a left click does. A right-click is
+how a reader asks for a menu about what is selected, so it must not change what it asks about. The
+`node-click`, `canvas:element-click` and `canvas:empty-click` events are published as before.
+
 ## 2026-10-17 -- Decided by the team: a data column that holds the node ids says so
 
 Additive, graphty-element `./session` (and `AttributeDescriptor` in `./catalog`):

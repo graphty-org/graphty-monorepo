@@ -36,6 +36,7 @@ import { missingNodes, NO_NODE_ROW, noNodeRow } from "../data-place/words";
 import { focusIsLost } from "../frame/focus";
 import { GLYPHS } from "../glyphs";
 import { valueWord } from "../inspector/words";
+import { openProjectFile } from "../project/actions";
 import { useAnnounceChange } from "../state/useAnnounceChange";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import {
@@ -158,7 +159,7 @@ function DataPageView({ onRestart }: { readonly onRestart: () => void }): React.
     useAnnounceChange(page.reading && page.source !== null ? `Reading ${sourceName(page.source)}` : null);
     const fileInput = useRef<HTMLInputElement>(null);
     // The door that opened the page (New from data... on the start screen) goes with the start
-    // screen; focus goes to the page's first ask, "choose a file...", or its first control.
+    // screen; focus goes to the page's first ask, "Choose a file...", or its first control.
     const pageRef = useRef<HTMLElement>(null);
     useEffect(() => {
         if (focusIsLost()) {
@@ -197,6 +198,21 @@ function DataPageView({ onRestart }: { readonly onRestart: () => void }): React.
         replace: `Replace: ${page.source === null ? (was?.name ?? "") : sourceName(page.source)}`,
     };
     const title = titles[request.intent];
+
+    // A saved project (or another graphty document) chosen or dropped here is no data to load:
+    // the element says what it is, and it opens the way Open project or file... opens it.
+    const documentFile =
+        page.draft?.graphtyDocument !== undefined && page.source?.kind === "files" && page.source.files.length === 1
+            ? page.source.files[0]
+            : undefined;
+    const openedDocument = useRef<File | null>(null);
+    useEffect(() => {
+        if (documentFile !== undefined && openedDocument.current !== documentFile) {
+            openedDocument.current = documentFile;
+            store.set({ page: "panels" });
+            void openProjectFile(workspace, documentFile);
+        }
+    }, [documentFile, store, workspace]);
 
     const cancel = useCallback((): void => {
         store.set(request.intent === "new" ? { project: null, page: "panels" } : { page: "panels" });
@@ -331,7 +347,8 @@ function DataPageView({ onRestart }: { readonly onRestart: () => void }): React.
     );
 
     // An addition whose edges repeat the graph's says so, and offers the source menu's Replace
-    // with this file beside Load, when the graph's one source can be replaced.
+    // with this file beside Load, when the graph's one source can be replaced. When every edge
+    // in the file repeats, Load would only double the graph's edges, so Replace is the primary.
     const repeats = request.intent === "add" ? (page.report?.repeated.seen ?? 0) : 0;
     const sources = repeats > 0 && session !== null ? session.data.sources() : [];
     const file = page.source?.kind === "files" && page.source.files.length === 1 ? page.source.files[0] : undefined;
@@ -339,6 +356,7 @@ function DataPageView({ onRestart }: { readonly onRestart: () => void }): React.
         file !== undefined && canReplace(sources)
             ? {
                   label: `Replace ${sources[0].name ?? "the data"}`,
+                  primary: repeats >= (page.report?.counts.edgeRecords ?? Infinity),
                   run: () => {
                       replaceSource(store, sources[0], file);
                   },
@@ -726,13 +744,20 @@ function MainView({
 }: PartProps & { joins: Joins; onChooseFiles: () => void }): React.JSX.Element {
     const { draft, source } = page;
     if (source === null) {
+        // The whole page takes a drop; this area says so at the size of the space it fills.
         return (
-            <Text size="xs" c="dimmed" p="md">
-                Drop a file here, or{" "}
-                <Anchor component="button" size="xs" onClick={onChooseFiles}>
-                    choose a file...
-                </Anchor>
-            </Text>
+            <div className="dp-drop">
+                <Stack align="center" gap="xs" className="dp-drop-area">
+                    <GLYPHS.upload size={28} aria-hidden />
+                    <Text fw={600}>Drop a file here</Text>
+                    <Text size="xs" c="dimmed">
+                        The file is read here and never uploaded.
+                    </Text>
+                    <Button size="sm" variant="default" onClick={onChooseFiles}>
+                        Choose a file...
+                    </Button>
+                </Stack>
+            </div>
         );
     }
     if (page.reading) {
@@ -1363,7 +1388,8 @@ function loadBlocked(page: LoadDraftState): string | null {
  * @param props - Component props
  * @param props.page - The page state
  * @param props.action - The load button's word: "Replace" on a replace, matching the title
- * @param props.replace - Replaces the graph's source with this file instead, or null
+ * @param props.replace - Replaces the graph's source with this file instead, or null; when it is
+ *   the primary, it takes Load's filled look and the focus a ready file gets
  * @param props.repeats - Whether the repeated-ties line shows
  * @param props.onCancel - Returns to where the reader came from
  * @param props.onLoad - Loads
@@ -1380,12 +1406,14 @@ function Footer({
     action: "Load" | "Replace";
     /** Whether the repeated-ties line shows, so Load's description carries it beside any blocked reason. */
     repeats: boolean;
-    replace: { readonly label: string; readonly run: () => void } | null;
+    replace: { readonly label: string; readonly primary: boolean; readonly run: () => void } | null;
     onCancel: () => void;
     onLoad: () => void;
 }): React.JSX.Element {
     const blocked = loadBlocked(page);
     const loadButton = useRef<HTMLButtonElement>(null);
+    const replaceButton = useRef<HTMLButtonElement>(null);
+    const replacePrimary = replace?.primary === true;
     // A clean file opens with every check green and focus on Load, so a clean drop is one Enter.
     // Decided once per draft, on its first report: a table the reader edits back to ready does
     // not pull focus from the control the reader is on.
@@ -1399,9 +1427,9 @@ function Footer({
         }
         decided.current = draft;
         if (ready) {
-            loadButton.current?.focus();
+            (replacePrimary ? replaceButton : loadButton).current?.focus();
         }
-    }, [ready, draft, counted]);
+    }, [ready, draft, counted, replacePrimary]);
     const direction =
         (Object.keys(DIRECTIONS) as (keyof typeof DIRECTIONS)[]).find(
             (key) => DIRECTIONS[key] === page.choices.directed,
@@ -1436,12 +1464,18 @@ function Footer({
                     Cancel
                 </Button>
                 {replace === null ? null : (
-                    <Button variant="default" size="sm" onClick={replace.run}>
+                    <Button
+                        ref={replaceButton}
+                        variant={replace.primary ? "filled" : "default"}
+                        size="sm"
+                        onClick={replace.run}
+                    >
                         {replace.label}
                     </Button>
                 )}
                 <Button
                     ref={loadButton}
+                    variant={replacePrimary ? "default" : "filled"}
                     size="sm"
                     data-disabled={blocked === null ? undefined : true}
                     aria-disabled={blocked === null ? undefined : true}

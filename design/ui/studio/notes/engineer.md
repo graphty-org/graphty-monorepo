@@ -17,6 +17,18 @@ Summarized again 2026-10-17 (25.6 KB). The long entries for names and words, foc
 order, the number card, spoken messages, focus after adding, the color box and drawing and camera
 are in git: `git show afc2ee150:design/ui/studio/notes/engineer.md`.
 
+1. (2026-10-17, page and selection, graphty + graphty-element) The workspace behaves like an
+   application. `.ws-app` is `user-select: none` (text boxes and editable text stay selectable,
+   `frame.css`), and Mod+A outside a text box is `preventDefault`ed in `useCommandKeys` (the
+   browser's select-all also swept the text boxes and left their text highlighted on every panel).
+   A right-click on a selected node or edge keeps the selection and one on empty canvas clears
+   nothing (element: `NodeBehavior.handleClick`, `Graph.setupBackgroundClickHandler`; events
+   unchanged). New additive `LoadDraft.graphtyDocument` ("project" | "document"); the Data page
+   opens such a file through `openProjectFile` and closes. The page's empty state is a full drop
+   area with "Choose a file..." (a Button). When every edge in an added file repeats, Replace is the
+   filled button and takes the ready focus. Tests: element `secondary-click-keeps-selection`,
+   `load-draft-graphty-document`; app Workspace, Repeats, DataPage real-element. Walks
+   `design/ui/studio/tmp/r1-dry1-page-and-selection/walk1..3`.
 1. (2026-10-17, undo, graphty) A graph opened as a new project starts its history: the app calls
    `session.history.clear()` once the open lands (sample: `Workspace.tsx` after `opening.load`;
    Data page load with intent "new"; a fresh non-project document in `openInSession`; a project
@@ -122,6 +134,14 @@ are in git: `git show afc2ee150:design/ui/studio/notes/engineer.md`.
 
 ## Decisions and reasons
 
+- (2026-10-17) **A right-click never changes the selection it asks about.** On something
+  selected it keeps the whole selection; on empty canvas it clears nothing; on anything else it
+  selects that, as a click does. Fixed in the element, where the click selects, so every host gets
+  it; the app's menu already selected only what was not selected. Evidence: pilot T48A, 15 selected
+  became 1.
+- (2026-10-17) **The element says what a file is; the app never sniffs.** A project file chosen on
+  the Data page read as an empty data file. The draft now carries `graphtyDocument`, and the app
+  hands the file to the one intake verb (`openProjectFile`).
 - (2026-10-17) **Opening is not a change.** A new graph's history starts after it is read, so
   one Undo too many never unloads the graph; the app clears history (the element's public
   `history.clear()`), the element's own project-file open already did. Evidence: pilots T39A,
@@ -229,6 +249,15 @@ are in git: `git show afc2ee150:design/ui/studio/notes/engineer.md`.
 
 ## Tried: worked / did not work
 
+- (2026-10-17) DID NOT WORK: swapping my files to HEAD for a "fails without" run when the test
+  waited behind 13 others for a slot: the files sat at HEAD for minutes in the shared worktree
+  (another agent rebuilt `graphty/dist` meanwhile), and `pkill` is not permitted. Copy back at
+  once by hand; prove "fails without" by the assertion's logic or a run that starts at once.
+- (2026-10-17) Found: `user-select: none` alone does not stop Control+A from highlighting text
+  boxes' contents, which then stay highlighted across panels; preventing the browser's
+  select-all outside a text box does.
+- (2026-10-17) Found: DataPage real-element role picks fail with `pointer-events: none` on the
+  list -- the uncommitted compact-mantine `cm-pointer-still` rule; not this change.
 - (2026-10-17) WORKED: naming an unlabeled batch from `HistoryStep.ops` through the same
   WORDS map, skipping codes whose words need params (`PARAM_WORDS`). Considered and left: giving
   the element's import batches the import's fact (`session/data.ts`, `draft.ts`), which changes a

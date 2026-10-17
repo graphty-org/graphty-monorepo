@@ -9,7 +9,7 @@
  * - a file refused: Open project or file..., beside the reason that stays;
  * - Escape from a dialog opened from the drawing: the drawing again;
  * - a Recent projects row removed: the row now in its place, or Open project or file...;
- * - New from data... (the start screen goes): the Data page's first ask, "choose a file...";
+ * - New from data... (the start screen goes): the Data page's first ask, "Choose a file...";
  *   Load (the Data page goes): the open place's rail button;
  * - the table closed, or a notice closed from inside it: the drawing.
  */
@@ -259,7 +259,7 @@ describe("focus after the control holding it goes away, on the real element", ()
             const { unmount } = render(<Workspace store={createWorkspaceStore()} />);
             screen.getByRole("button", { name: /^New from data\.\.\./ }).focus();
             await userEvent.keyboard("{Enter}");
-            const ask = await screen.findByRole("button", { name: "choose a file..." }, { timeout: TIMEOUT_MS });
+            const ask = await screen.findByRole("button", { name: "Choose a file..." }, { timeout: TIMEOUT_MS });
             await waitFor(() => {
                 assert.strictEqual(document.activeElement, ask);
             });

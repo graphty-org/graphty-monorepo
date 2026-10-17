@@ -14,12 +14,14 @@ import { DataSource, type DeclaredDirection } from "../data/DataSource";
 import { readEndpoint, resolveEndpoints } from "../data/endpoints";
 import type { DataLoadingError } from "../data/ErrorAggregator";
 import type { LoadReport } from "../data/report";
+import { readSource as sourceBytes } from "../data/source-bytes";
 import { GraphtyError } from "../errors";
 import { describeRows } from "./attributes";
 import { resolveColumn } from "./columns";
 import type { BatchCommand } from "./commands";
 import type { DataImportCommand, HeldRows, ImportSource } from "./commands/data";
 import { isStorableId, unreadableSource, untilAborted } from "./project/ingest";
+import { documentKind } from "./projectFile";
 import type {
     ColumnRole,
     DraftColumn,
@@ -70,6 +72,8 @@ interface ReadSource {
     readonly declaredDirection: DeclaredDirection | null;
     readonly errors: readonly DataLoadingError[];
     readonly errorLimit: number;
+    /** The kind of graphty document the source is, when it is one rather than data. */
+    readonly graphtyDocument?: "project" | "document";
 }
 
 /**
@@ -264,12 +268,33 @@ export async function readSource(
         throw unreadable;
     }
 
+    // A source that read as no rows at all may be a graphty document -- a saved project, style
+    // or notes -- which `project.open` opens and which holds no rows a data reader finds.
+    const graphtyDocument = nodes.length + edges.length === 0 ? await graphtyDocumentOf(config) : null;
     return {
         source,
         tables: [heldTable("nodes", named, true, nodes, null), heldTable("edges", named, true, edges, null)],
         declaredDirection: reader.declaredDirection,
         ...errorsOf(reader),
+        ...(graphtyDocument === null ? {} : { graphtyDocument }),
     };
+}
+
+/**
+ * Whether a source's bytes are a graphty document, as `project.open` reads one.
+ * @param config - The source's options: inline `data`, a `file` or a `url`.
+ * @returns The document's kind, or null for anything else, or a source that cannot be read again.
+ */
+async function graphtyDocumentOf(config: Readonly<Record<string, unknown>>): Promise<"project" | "document" | null> {
+    try {
+        const input = await sourceBytes(config);
+        if (input === null) {
+            return null;
+        }
+        return documentKind(typeof input === "string" ? input : new TextDecoder().decode(input));
+    } catch {
+        return null;
+    }
 }
 
 /**
@@ -382,6 +407,7 @@ export class Draft implements LoadDraft {
     readonly type: string;
     readonly tables: readonly DraftTable[];
     readonly mapping: LoadMappingRead;
+    readonly graphtyDocument?: "project" | "document";
 
     private read: ReadSource | null;
     private readonly host: DraftHost;
@@ -395,6 +421,9 @@ export class Draft implements LoadDraft {
         this.read = read;
         this.host = host;
         this.type = read.source.type ?? "";
+        if (read.graphtyDocument !== undefined) {
+            this.graphtyDocument = read.graphtyDocument;
+        }
         this.tables = Object.freeze(read.tables.map((held) => Object.freeze(held.table)));
         const config = host.config();
         const options = read.source.config ?? {};

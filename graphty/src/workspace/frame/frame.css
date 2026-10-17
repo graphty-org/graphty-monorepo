@@ -8,6 +8,16 @@
     overflow: hidden;
     background: var(--cm-bg);
     color: var(--cm-text);
+    /* The workspace is an application, not a page: its labels, values and panels are not text to
+       select, so Control+A or a stray drag highlights nothing. What the reader types stays
+       selectable. */
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.ws-app :is(input, textarea, [contenteditable]:not([contenteditable="false"])) {
+    -webkit-user-select: text;
+    user-select: text;
 }
 
 .ws-header {

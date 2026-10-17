@@ -163,6 +163,37 @@ describe("the workspace frame on the real element", () => {
         TIMEOUT_MS,
     );
 
+    it("highlights no page text with Control+A on the canvas, and keeps what the reader types selectable", async () => {
+        await page.viewport(1366, 768);
+        const session = await openWorkspace();
+        await session.data.addNodes([{ id: "a" }, { id: "b" }]);
+        const element = document.querySelector("graphty-element");
+        assert.isNotNull(element);
+        // A real click on empty canvas focuses the drawing, as a reader's does.
+        await realInput.click(element, { position: { x: 10, y: 10 } });
+
+        // Registered after the workspace's own key listener, so it sees the press as the browser will.
+        let browserSelectsAll: boolean | null = null;
+        const onKey = (event: KeyboardEvent): void => {
+            if (event.key.toLowerCase() === "a") {
+                browserSelectsAll = !event.defaultPrevented;
+            }
+        };
+        globalThis.addEventListener("keydown", onKey);
+        await realInput.keyboard("{Control>}a{/Control}");
+        globalThis.removeEventListener("keydown", onKey);
+
+        assert.strictEqual(
+            browserSelectsAll,
+            false,
+            "the page's select-all does not run: it would sweep the text boxes too",
+        );
+        assert.strictEqual(window.getSelection()?.toString().trim(), "", "no label, value or panel text is selected");
+        const box = document.querySelector(".ws-app input:not([type=hidden]):not([type=file])");
+        assert.isNotNull(box, "the workspace has a text box");
+        assert.equal(getComputedStyle(box).userSelect, "text", "a text box still selects its text");
+    });
+
     it("opens the shortcuts sheet with ? while a closed Select's list is mounted on the page", async () => {
         // The inspector has room at the design's width.
         await page.viewport(1366, 768);

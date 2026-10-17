@@ -642,10 +642,15 @@ export class NodeDragHandler {
         // Shift adds the node to the selection, as Shift on an edge does (Graph.ts); a plain click
         // replaces it. XR's select() has no pointer event, so it always replaces.
         const selectionManager = context.getSelectionManager?.();
-        if (this.clickState?.pointerEvent?.shiftKey === true) {
-            selectionManager?.add(this.node);
-        } else {
-            selectionManager?.select(this.node);
+        // A right-click is a request for a menu about the selection, so on a node already in it
+        // the selection stays whole; on any other node it selects that node, as a click does.
+        const secondary = this.clickState?.pointerEvent?.button === 2;
+        if (!(secondary && selectionManager?.isSelected(this.node) === true)) {
+            if (this.clickState?.pointerEvent?.shiftKey === true) {
+                selectionManager?.add(this.node);
+            } else {
+                selectionManager?.select(this.node);
+            }
         }
 
         // A click does NOT pin. `pinOnDrag` means what it says: a node is fixed because the user

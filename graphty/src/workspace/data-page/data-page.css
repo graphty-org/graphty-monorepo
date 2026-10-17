@@ -104,3 +104,17 @@
 .dp-missing-words {
     font-weight: 450;
 }
+
+/* Nothing read yet: the table's whole area is the drop area (the whole page takes a drop). */
+.dp-drop {
+    box-sizing: border-box;
+    height: 100%;
+    padding: 16px;
+}
+
+.dp-drop-area {
+    height: 100%;
+    justify-content: center;
+    border: 2px dashed var(--cm-border);
+    border-radius: 8px;
+}

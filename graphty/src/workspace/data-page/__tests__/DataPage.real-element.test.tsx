@@ -13,6 +13,7 @@ import { act } from "react";
 import { assert, describe, it } from "vitest";
 import { page } from "vitest/browser";
 
+import POSTER from "../../../../../design/ui/studio/tool/files/lesmis-poster.graphty.json?raw";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createRegistry } from "../../commands/registry";
 import { INSPECTOR_TITLE_ID } from "../../frame/focus";
@@ -348,6 +349,21 @@ describe("the Data page on the real element", () => {
             },
             { timeout: TIMEOUT_MS },
         );
+    });
+
+    it("opens a saved project chosen on the page as a project, not as data with no rows", async () => {
+        const { store } = await openFromEmptyApp();
+        await chooseFiles(new File([POSTER], "lesmis-poster.graphty.json"));
+
+        await waitFor(
+            () => {
+                assert.strictEqual(store.get().page, "panels");
+                assert.match(store.get().notice?.message ?? "", /^Opened /);
+                assert.strictEqual(document.querySelector("graphty-element")?.session.data.statistics().nodeCount, 77);
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        assert.isNull(screen.queryByText(/holds no nodes or edges/));
     });
 
     it("T5: refuses a file that does not parse, naming the format it was read as", async () => {

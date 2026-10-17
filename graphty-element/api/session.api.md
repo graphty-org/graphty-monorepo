@@ -1848,6 +1848,7 @@ export interface LoadChoices extends ImportOptions {
 // @public
 export interface LoadDraft {
     dispose(): void;
+    readonly graphtyDocument?: "project" | "document";
     load(choices?: LoadChoices): Promise<void>;
     readonly mapping: LoadMappingRead;
     missing(choices?: LoadChoices): Readonly<Record<string, readonly ColumnRole[]>>;

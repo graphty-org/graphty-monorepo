@@ -1227,6 +1227,13 @@ export interface LoadDraft {
     readonly type: string;
     /** Its tables. */
     readonly tables: readonly DraftTable[];
+    /**
+     * Set when the source is a graphty document rather than data: `"project"` for a saved project,
+     * `"document"` for another graphty document (a saved style or notes), the values
+     * `project.open` reports in `opened`. Its tables hold no rows, so `report` and `load` refuse
+     * it with `E_EMPTY_LOAD`; `project.open` is what opens it. Absent for a data file.
+     */
+    readonly graphtyDocument?: "project" | "document";
     /** The element's own reading: every table, with every role it found written out. */
     readonly mapping: LoadMappingRead;
     /**

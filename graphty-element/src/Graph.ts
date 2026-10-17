@@ -3676,7 +3676,9 @@ export class Graph implements GraphContext {
 
                 if (duration < CLICK_MAX_DURATION_MS && distance < CLICK_MAX_MOVEMENT_PX) {
                     // A click on a node is the node's own handler's. On an edge it selects the
-                    // edge (Shift adds it); on empty canvas it clears the selection.
+                    // edge (Shift adds it); on empty canvas it clears the selection. A right-click
+                    // asks for a menu about the selection, so it keeps a selection that holds its
+                    // edge, and on empty canvas it clears nothing.
                     const x = this.scene.pointerX;
                     const y = this.scene.pointerY;
                     if (pickNodeId(this.scene, x, y) !== undefined) {
@@ -3684,13 +3686,18 @@ export class Graph implements GraphContext {
                     }
 
                     const edgeId = this.pickEdgeId(x, y);
+                    const secondary = (pointerInfo.event as { button?: number }).button === 2;
                     if (edgeId !== undefined) {
-                        const add = (pointerInfo.event as { shiftKey?: boolean }).shiftKey === true;
-                        this.session.selection.applyNow({ edges: [edgeId] }, add ? "add" : "replace", "user");
+                        if (!(secondary && this.session.selection.edges.includes(edgeId))) {
+                            const add = (pointerInfo.event as { shiftKey?: boolean }).shiftKey === true;
+                            this.session.selection.applyNow({ edges: [edgeId] }, add ? "add" : "replace", "user");
+                        }
                     } else {
-                        this.selectionManager.deselect();
-                        if (this.session.selection.edges.length > 0) {
-                            this.session.selection.clear();
+                        if (!secondary) {
+                            this.selectionManager.deselect();
+                            if (this.session.selection.edges.length > 0) {
+                                this.session.selection.clear();
+                            }
                         }
                         this.session.emptyClick({ x, y });
                     }

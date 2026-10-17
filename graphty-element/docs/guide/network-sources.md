@@ -128,7 +128,9 @@ offer to replace it. The full list is `SOURCE_ISSUE` in `@graphty/graphty-elemen
 A load is one undoable step. Undo and redo replay the rows that were read; they never fetch again.
 
 A capped load (`limits: { maxNodes: 500, onLimit: "stop" }`) records where it stopped;
-`session.data.more()` loads the next page into the graph. `session.data.loads()` lists every load
+`session.data.more()` loads the next page into the graph. The cap is checked after each page the
+service returns, so a load can end one page past it: one OpenAlex page of 200 works, with the
+works they cite as nodes, is about 11,000 nodes. A graph database applies the cap in its query. `session.data.loads()` lists every load
 with its source, parameters, endpoint and whether more is available, never a secret.
 
 `mode: "merge"` adds to the graph instead of replacing it. A node already there keeps its

@@ -26,6 +26,7 @@ import {
     type SourceLoadOptions,
 } from "../index.ts";
 import ndexRecordings from "./fixtures/sources/ndex-wp5483.json";
+import neo4jExpandRecordings from "./fixtures/sources/neo4j-expand.json";
 import neo4jRecordings from "./fixtures/sources/neo4j-movies.json";
 import openalexRecordings from "./fixtures/sources/openalex-citing.json";
 import peopleRecordings from "./fixtures/sources/people.json";
@@ -197,6 +198,50 @@ export const Neo4jMovies = sourceStory({
                 credential: credentials.basic("movies", "movies"),
             },
         ),
+});
+
+/**
+ * Expanding a node from the database it came from: Keanu Reeves alone from the Neo4j demo, then
+ * two expansions of three neighbors each, the second continuing where the first stopped. The
+ * orange marks a node with more neighbors still to fetch: the story's own layer on the neutral
+ * `_source.expansion` fact, since the element styles nothing.
+ */
+export const Neo4jExpand = sourceStory({
+    recordings: neo4jExpandRecordings,
+    load: async (element, options) => {
+        const { session } = element;
+        const credential = credentials.basic("movies", "movies");
+        await session.styles.add({
+            name: "More to fetch",
+            target: "node",
+            selector: { match: "expression", where: "data._source.expansion == 'partial'" },
+            set: { "node.color": "#e8590c" },
+        });
+        await session.data.import(
+            {
+                source: "neo4j",
+                config: {
+                    query: "MATCH (p:Person {name: $name}) RETURN p",
+                    parameters: { name: "Keanu Reeves" },
+                    database: "movies",
+                },
+            },
+            { ...options, endpoint: "https://demo.neo4jlabs.com:7473", credential },
+        );
+        const [seed] = session.data.nodes();
+        const more = { limit: 3, credential, ...(options.fetch === undefined ? {} : { fetch: options.fetch }) };
+        await session.data.expand([seed.id], more);
+        await session.data.expand([seed.id], more);
+    },
+    facts: (element) => {
+        const { data } = element.session;
+        const [seed] = data.nodes();
+        return [
+            `nodes ${String(data.nodes().length)}, edges ${String(data.edges().length)}`,
+            `seed: expansion ${String(seed["_source.expansion"])}, degree ${String(seed["_source.degree"])}, ` +
+                `not loaded yet ${String(seed["_source.hidden"])}`,
+        ].join("\n");
+    },
 });
 
 /** The works citing Watts and Strogatz's small-world paper, from OpenAlex through the REST mapping. */

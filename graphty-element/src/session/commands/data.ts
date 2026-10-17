@@ -171,6 +171,8 @@ export interface HeldRows {
     readonly target?: string;
     /** The record key weights are read from, with no `value` fallback; null reads none; configured when absent. */
     readonly weight?: string | null;
+    /** What a row naming a pair the graph already holds does; `data.knownFields.repeatedEdges` when absent. */
+    readonly repeated?: DuplicatePolicy;
 }
 
 /** `data.expand`: what a double-click on `seed` fetched, captured so redo does not fetch again. */

@@ -211,6 +211,7 @@
         "XR::Default",
         "Network sources::NdexWp5483",
         "Network sources::Neo4jMovies",
+        "Network sources::Neo4jExpand",
         "Network sources::OpenAlexCiting",
         "Network sources::CustomSource",
         "Network sources::MissingCredential",

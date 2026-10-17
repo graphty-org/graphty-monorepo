@@ -5,7 +5,7 @@
  * brought, and a node loaded from a file is refused.
  */
 
-import { credentials, replayFetch } from "@graphty/graph-io";
+import { credentials, listSources, registerSource, replayFetch } from "@graphty/graph-io";
 import { afterEach, assert, describe, it } from "vitest";
 
 import { createGraphSession } from "../../../session";
@@ -13,7 +13,12 @@ import type { GraphtyError } from "../../../src/errors/GraphtyError";
 import { dispatcherOf } from "../../../src/session/GraphSession";
 import { sourceFactsOf } from "../../../src/session/sources/ids";
 import type { GraphSession } from "../../../src/session/types";
-import { loadRecordedSeed, PEOPLE_RECORDINGS } from "../../../stories/fixtures/expand/source";
+import {
+    loadRecordedSeed,
+    PEOPLE_RECORDINGS,
+    PEOPLE_SOURCE_ID,
+    recordedPeopleSource,
+} from "../../../stories/fixtures/expand/source";
 
 const sessions: GraphSession[] = [];
 
@@ -81,6 +86,22 @@ describe("session.data.expand from a network source", () => {
         assert.lengthOf(session.data.loads()[0]?.expansions ?? [], 1);
     });
 
+    it("expands a node that session.data.import loaded from the source", async () => {
+        const session = createGraphSession();
+        sessions.push(session);
+        if (!listSources().some((info) => info.id === PEOPLE_SOURCE_ID)) {
+            registerSource(recordedPeopleSource());
+        }
+
+        await session.data.import({ source: PEOPLE_SOURCE_ID, config: {} });
+        const [key] = session.data.loads().map((load) => load.key);
+        assert.deepEqual(facts(session, "valjean").loads, [key]);
+
+        await session.data.expand(["valjean"]);
+        assert.isAbove(session.data.nodes().length, 1);
+        assert.include(facts(session, "valjean").loads as string[], `${key}/x1`);
+    });
+
     it("continues a partial node from its cursor, then calls it complete", async () => {
         const session = await seeded();
         await session.data.expand(["valjean"]);
@@ -116,12 +137,13 @@ describe("session.data.expand from a network source", () => {
     it("undo takes the expansion back and redo replays it without fetching", async () => {
         const session = await seeded("context");
         const fetch = replayFetch(PEOPLE_RECORDINGS);
+        const before = facts(session, "valjean");
         await session.data.expand(["valjean"], { fetch: fetch as unknown as typeof globalThis.fetch });
         assert.lengthOf(fetch.calls, 1);
 
         await session.undo();
         assert.strictEqual(session.data.store.getSnapshot().nodeCount, 1);
-        assert.strictEqual(facts(session, "valjean").expansion, "none");
+        assert.deepEqual(facts(session, "valjean"), before, "the seed's facts are as they were");
 
         await session.redo();
         assert.strictEqual(session.data.store.getSnapshot().nodeCount, 5);

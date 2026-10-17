@@ -267,6 +267,7 @@ describe("a saved project with source loads", () => {
             const fetch = peopleFetch();
             await session.project.open(text);
             assert.strictEqual(session.data.nodes().length, 8, "the rows render offline");
+            const edges = session.data.edges().length;
             const pending = session.data.pendingSourceLoads();
             assert.strictEqual(pending.length, 1);
             assert.deepEqual(pending[0], {
@@ -283,7 +284,23 @@ describe("a saved project with source loads", () => {
             assert.strictEqual(fetch.calls.length, 1);
             assert.deepEqual(session.data.pendingSourceLoads(), []);
             assert.strictEqual(session.data.nodes().length, 8);
+            assert.strictEqual(session.data.edges().length, edges, "a rerun adds no second copy of an edge");
+            assert.deepEqual(session.data.nodes()[0]["_source.loads"], [session.data.loads()[0].key]);
             assert.strictEqual(session.data.loads().length, 1, "the load keeps its record and key");
+        });
+    });
+
+    it("forgets the load records when the graph is cleared", async () => {
+        await withSession(async (session) => {
+            await session.data.import(
+                { source: "people-load", config: { team: "core" } },
+                { endpoint: ENDPOINT, fetch: peopleFetch() },
+            );
+            assert.strictEqual(session.data.loads().length, 1);
+            await session.data.clear();
+            assert.deepEqual(session.data.loads(), []);
+            const { text } = await session.project.save();
+            assert.notInclude(text, '"people-load"');
         });
     });
 

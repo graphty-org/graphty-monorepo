@@ -526,6 +526,10 @@ export class SessionData implements SessionDataApi {
     async clear(): Promise<void> {
         this.requireLive("clear");
         await this.writes.dispatch({ kind: "clear" });
+        // Nothing a source load brought is left, so neither is its record: a saved project must
+        // not offer to fetch it again. Like a replacing file load, undo does not bring it back.
+        this.ledger.clear();
+        this.pendingLoads.clear();
     }
 
     /**

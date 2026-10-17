@@ -1154,6 +1154,7 @@ export class Ingest<K extends KnownEdge> {
             ...(typeof source === "string" ? { source } : {}),
             ...(typeof target === "string" ? { target } : {}),
             ...(held?.weight === undefined ? {} : { weight: held.weight }),
+            ...(held?.repeated === undefined ? {} : { repeated: held.repeated }),
         };
         const nodeIdPath = held?.idPath;
 

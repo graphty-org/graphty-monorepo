@@ -29,6 +29,7 @@ import type { DataImportSourceCommand } from "../commands/source-load";
 import { resolve } from "./credentialLookup";
 import { toGraphtyError } from "./errors";
 import type { SourceHost } from "./host";
+import { SOURCE_ATTR } from "./ids";
 import type { PendingSourceLoad, SourceInput, SourceLoadOptions, SourceLoadRecord } from "./types";
 
 /** How many refused rows a source read keeps before it stops counting. */
@@ -174,12 +175,33 @@ async function readRows(
 /**
  * Dispatch the rows as one undoable step.
  * @param host - the session pieces
+ * @param key - the key of the load the rows belong to
  * @param input - the source and its params
  * @param read - the rows
  * @param options - the load choices
  * @returns settles once they are drawn
  */
-function dispatchRows(host: SourceHost, input: SourceInput, read: Read, options: SourceLoadOptions): Promise<unknown> {
+function dispatchRows(
+    host: SourceHost,
+    key: string,
+    input: SourceInput,
+    read: Read,
+    options: SourceLoadOptions,
+): Promise<unknown> {
+    // Every row names the load that brought it, so expand, collapse and refresh can find its source.
+    // ponytail: a merge that keeps or replaces an existing row's `_source.loads` does not union the
+    // keys; union them here if a row two loads bring must answer to both.
+    const stamp = (row: Record<string, unknown>): Record<string, unknown> => ({ ...row, [SOURCE_ATTR.loads]: [key] });
+    const merge = options.mode === "merge";
+    const held: HeldRows = {
+        ...read.held,
+        nodes: read.held.nodes.map(stamp),
+        edges: read.held.edges.map(stamp),
+        // A merge re-reads edges the graph may already hold (a next page, a rerun of a saved load):
+        // one per pair, as an expansion does. ponytail: also folds a real parallel edge the source
+        // returns again; match on the source's edge id instead if parallel edges matter.
+        ...(merge ? { repeated: "first" as const } : {}),
+    };
     const command: DataImportSourceCommand = {
         op: "data.import-source",
         source: {
@@ -188,7 +210,7 @@ function dispatchRows(host: SourceHost, input: SourceInput, read: Read, options:
             ...(input.name === undefined ? {} : { name: input.name }),
         },
         mode: options.mode ?? "replace",
-        held: read.held,
+        held,
         ...(options.layout === undefined ? {} : { layout: options.layout }),
         ...(options.existing === undefined ? {} : { existing: options.existing }),
         ...(options.unmatched === undefined ? {} : { unmatched: options.unmatched }),
@@ -215,7 +237,6 @@ export async function importSource(
     // back as it was when the step fails.
     const before = host.ledger.toMember();
     const pendingBefore = [...host.pending];
-    const done = dispatchRows(host, input, read, options);
     if ((options.mode ?? "replace") === "replace") {
         host.ledger.clear();
         host.pending.clear();
@@ -235,7 +256,7 @@ export async function importSource(
         credential: access.credential ?? null,
     });
     try {
-        await done;
+        await dispatchRows(host, record.key, input, read, options);
     } catch (error) {
         host.ledger.fromMember(before);
         host.pending.clear();
@@ -305,7 +326,10 @@ export async function more(host: SourceHost, options: SourceLoadOptions): Promis
         endpoint: options.endpoint ?? record.endpoint ?? undefined,
     });
     const read = await readRows(record.source, record.config, access, { ...options, cursor: record.next });
-    await dispatchRows(host, { source: record.source, config: record.config }, read, { ...options, mode: "merge" });
+    await dispatchRows(host, record.key, { source: record.source, config: record.config }, read, {
+        ...options,
+        mode: "merge",
+    });
     host.ledger.refreshLoad(record.key, {
         pages: 1,
         next: read.info?.next ?? null,
@@ -414,7 +438,7 @@ export async function runPendingSourceLoad(host: SourceHost, id: string, options
         ...(saved.limits === undefined ? {} : { limits: saved.limits }),
         ...readOnly,
     });
-    await dispatchRows(host, { source: record.source, config }, read, {
+    await dispatchRows(host, record.key, { source: record.source, config }, read, {
         ...readOnly,
         mode: "merge",
         existing: "update",

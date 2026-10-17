@@ -14,7 +14,6 @@ import {
     replayFetch,
 } from "@graphty/graph-io";
 
-import type { SessionData } from "../../../src/session/data";
 import type { GraphSession } from "../../../src/session/types";
 import people from "./people.json";
 
@@ -82,10 +81,8 @@ export function recordedPeopleSource(transport: "recorded" | "context" = "record
 }
 
 /**
- * Stand in for a load from the recorded source: register it (once), record the load in the
- * session's ledger, and add the seed node carrying that load's key. Until
- * `session.data.import({ source })` records loads itself, this is how a story or a test gets a
- * node a source brought.
+ * Load the recorded source's seed node through `session.data.import({ source })`, as a consumer
+ * would, registering the source once. The seed carries that load's key in `_source.loads`.
  * @param session - the session
  * @param transport - which variant of the source the load names
  * @param seed - more attributes for the seed node, such as its `position`
@@ -101,14 +98,15 @@ export async function loadRecordedSeed(
         registerSource(source);
     }
 
-    const load = (session.data as unknown as SessionData).ledger.addLoad({
-        source: source.id,
-        version: 1,
-        config: {},
-        endpoint: PEOPLE_ENDPOINT,
-    });
-    await session.data.addNodes([
-        { ...PEOPLE_SEED, ...seed, "_source.loads": [load.key], "_source.expansion": "none" },
-    ]);
+    await session.data.import({ source: source.id, config: {} }, { mode: "merge" });
+    if (Object.keys(seed).length > 0) {
+        await session.data.updateNodes([{ id: PEOPLE_SEED.id, values: seed }]);
+    }
+
+    const load = session.data.loads().at(-1);
+    if (load === undefined) {
+        throw new Error("the recorded source's load left no record");
+    }
+
     return load.key;
 }

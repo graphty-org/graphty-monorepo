@@ -3879,7 +3879,7 @@
     },
     "pajek/fidelity/1crn.net": {
         "nodes": ["ic", "id", "label", "position", "x", "x_fact", "y", "y_fact", "z"],
-        "edges": ["0.700", "c", "directed", "source", "target", "weight"]
+        "edges": ["c", "directed", "source", "target", "weight"]
     },
     "pajek/fidelity/c.net": {
         "nodes": ["bw", "fos", "id", "label", "position", "shape", "x", "x_fact", "y", "y_fact"],
@@ -3975,7 +3975,6 @@
             "label",
             "lc",
             "lphi",
-            "lr",
             "position",
             "shape",
             "x",
@@ -4057,7 +4056,6 @@
             "label",
             "lc",
             "lphi",
-            "lr",
             "position",
             "shape",
             "x",
@@ -4094,7 +4092,6 @@
             "label",
             "lc",
             "lphi",
-            "lr",
             "position",
             "shape",
             "x",
@@ -4131,7 +4128,6 @@
             "label",
             "lc",
             "lphi",
-            "lr",
             "position",
             "shape",
             "x",

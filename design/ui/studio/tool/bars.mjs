@@ -804,12 +804,15 @@ const WALKS3 = [
                 do: steps(
                     "--click Add a condition",
                     "--click role=option:phone",
-                    "--click phone: match",
+                    "--click role=combobox:phone",
                     "--click role=option:Has no value",
                 ),
                 screen: "a has-no-value card",
             },
-            { do: steps("--click phone: match", "--key Escape", "--expect Done"), focus: "Escape from a card's menu" },
+            {
+                do: steps("--click role=combobox:phone", "--key Escape", "--expect Done"),
+                focus: "Escape from a card's menu",
+            },
             {
                 do: steps("--click Done"),
                 focus: "Done after four cards",

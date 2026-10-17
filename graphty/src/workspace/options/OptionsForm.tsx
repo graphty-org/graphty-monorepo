@@ -290,8 +290,10 @@ function NumberOption({ option, value, label, empty, onChange }: Readonly<Contro
     return (
         <StyleNumberInput
             label={label}
-            // The default is no change of the reader's: no reset to draw.
-            value={num(value) === num(option.default) ? undefined : num(value)}
+            // The value in force, the default included: an option always has one, so the box never
+            // says "not set" beside it. At the default there is nothing to reset: no Reset is drawn.
+            value={num(value) ?? num(option.default)}
+            showReset={num(value) !== undefined && num(value) !== num(option.default)}
             defaultValue={num(option.default) ?? 0}
             // A default of no value (a sample size left to every node) is an empty box
             // that says what empty means, never a 0 the run would not use.

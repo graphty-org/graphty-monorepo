@@ -5,6 +5,7 @@ import React, { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { SecondaryToolbar, Toolbar, ToolButton, ToolGroup, type ToolItem } from "../../../src";
+import { TipLabel } from "../../../src/components/shell/ToolButton";
 import { compactThemeWithoutTooltips } from "../theme-without-tooltips";
 import { renderShell } from "./render";
 
@@ -200,5 +201,16 @@ describe("SecondaryToolbar", () => {
         expect(more).toHaveAttribute("data-dropdown");
         expect(more.querySelector(".cm-secondary-item-chevron [data-glyph='chevronDown']")).not.toBeNull();
         expect(screen.getByRole("button", { name: "Lasso" }).querySelector(".cm-secondary-item-chevron")).toBeNull();
+    });
+});
+
+describe("TipLabel", () => {
+    it("puts a space between the name and its key, so the tooltip reads as two words", () => {
+        renderShell(
+            <span data-testid="tip">
+                <TipLabel label="Table" shortcut="Shift+T" />
+            </span>,
+        );
+        expect(screen.getByTestId("tip").textContent).toBe("Table Shift+T");
     });
 });

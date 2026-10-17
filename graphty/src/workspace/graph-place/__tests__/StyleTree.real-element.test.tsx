@@ -109,7 +109,7 @@ describe("the style tree on the real element", () => {
 
         await userEvent.click(screen.getByRole("button", { name: "Add a layer or a folder" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Folder" }));
-        const field = await screen.findByRole("textbox", { name: "Row name" });
+        const field = await screen.findByRole("textbox", { name: "Folder name" });
         await waitFor(() => {
             assert.equal(document.activeElement, field, "the new folder's name is ready to type");
         });
@@ -225,7 +225,7 @@ describe("the style tree on the real element", () => {
 
         await userEvent.click(plus);
         await userEvent.click(await screen.findByRole("menuitem", { name: "Layer" }));
-        const field = await screen.findByRole("textbox", { name: "Row name" });
+        const field = await screen.findByRole("textbox", { name: "Layer name" });
         await waitFor(() => {
             assert.equal(document.activeElement, field, "the name is ready to type");
         });
@@ -243,7 +243,7 @@ describe("the style tree on the real element", () => {
         // Escape leaves the name as it was and keeps the layer.
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
-            assert.isNull(screen.queryByRole("textbox", { name: "Row name" }));
+            assert.isNull(screen.queryByRole("textbox", { name: "Layer name" }));
         });
         const item = await within(tree()).findByRole("treeitem", { name: /^Layer 1, node and edge layer, / });
         assert.isNotNull(item);

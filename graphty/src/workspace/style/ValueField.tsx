@@ -3,7 +3,7 @@ import type { ChannelDescriptor } from "@graphty/graphty-element/catalog";
 import { Text, TextInput } from "@mantine/core";
 import React from "react";
 
-import { channelWord, enumWords, GLYPH_TABLES, hexOf, isPercent, TWO_WORDS, valueFieldKind } from "./words";
+import { channelWord, colorName, enumWords, GLYPH_TABLES, hexOf, isPercent, TWO_WORDS, valueFieldKind } from "./words";
 
 /**
  * A select's choices: a glyph per choice where graphty-element's catalog draws one.
@@ -88,10 +88,13 @@ export function ValueField({
     const kind = valueFieldKind(descriptor);
     if (kind === "color") {
         const hex = hexOf(value) ?? undefined;
+        const inForce = hex ?? hexOf(shown);
         return (
             <CompactColorInput
                 variant={compact ? "chip" : "field"}
                 aria-label={label}
+                // A row's chip is named by the color it paints, in words, never "not set, #009E73".
+                valueText={compact && !mixed && inForce !== null ? colorName(inForce) : undefined}
                 width={compact ? undefined : "100%"}
                 color={mixed ? undefined : hex}
                 defaultColor={hexOf(shown) ?? "#999999"}

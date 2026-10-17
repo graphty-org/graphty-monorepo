@@ -329,7 +329,8 @@ export function StyleNumberInput(props: Readonly<StyleNumberInputProps>): React.
                         size={PANEL_GRID.TRAIL}
                         c={PANEL_INK.CHROME}
                         data-testid="style-number-input-reset"
-                        disabled={disabled}
+                        // A value equal to the default has nothing to reset to: Reset is off.
+                        disabled={disabled || committed === defaultValue}
                         aria-label={labels.resetToDefault(label)}
                         onClick={handleReset}
                     >

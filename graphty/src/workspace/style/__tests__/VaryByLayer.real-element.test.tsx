@@ -126,7 +126,7 @@ async function line(channel: string): Promise<HTMLElement> {
 async function varyByLayer(row: HTMLElement): Promise<HTMLElement> {
     await userEvent.hover(row);
     await userEvent.click(within(row).getByRole("button", { name: / by attribute$/ }));
-    await screen.findByRole("dialog", { name: "Vary by" });
+    await screen.findByRole("dialog", { name: / by attribute$/ });
     await userEvent.click(await screen.findByRole("option", { name: /^Layer/ }));
     const popover = await screen.findByRole("dialog", { name: / from each layer$/ });
     // The source line sets Layer off as the field does: the marks drawn, the word spoken.

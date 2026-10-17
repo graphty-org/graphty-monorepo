@@ -36,7 +36,7 @@ describe("the canvas toolbar", () => {
         const names = within(toolbar)
             .getAllByRole("button")
             .map((button) => button.getAttribute("aria-label"));
-        assert.deepEqual(names, ["Analyze", "Layout", "View", "Legend", "Table", "Filters", "Quick actions"]);
+        assert.deepEqual(names, ["Analyze", "Layout", "View, 3D", "Legend", "Table", "Filters", "Quick actions"]);
     });
 
     it("draws Layout as a network chart and Quick actions as a search", () => {
@@ -53,7 +53,7 @@ describe("the canvas toolbar", () => {
     it("disables everything but Quick actions with nothing drawn, saying why", () => {
         render(<Workspace initialState={OPEN} />);
 
-        for (const name of ["Analyze", "Layout", "View"]) {
+        for (const name of ["Analyze", "Layout", "View, 3D"]) {
             const button = screen.getByRole("button", { name });
             assert.equal(button.getAttribute("aria-disabled"), "true", name);
             assert.equal(button.getAttribute("aria-description"), "Nothing is drawn", name);
@@ -74,7 +74,7 @@ describe("the canvas toolbar", () => {
         assert.equal(table.getAttribute("aria-pressed"), "false");
         assert.equal(table.getAttribute("aria-description"), "The graph is still loading");
 
-        const menu = await screen.findByRole("menu", { name: "View" });
+        const menu = await screen.findByRole("menu", { name: /^View/ });
         assert.notInclude(menu.textContent, "Legend");
         assert.notInclude(menu.textContent, "Table");
     });

@@ -158,16 +158,18 @@ function descriptorOf(target: Layer["target"], channel: Channel): ChannelDescrip
  * @param target - nodes or edges.
  * @param paints - what each channel paints it.
  * @param key - the group.
+ * @param except - the property the row's own field says, left out.
  * @returns the words.
  */
 function lookWords(
     target: Layer["target"],
     paints: ReadonlyMap<Channel, ReadonlyMap<string, unknown>>,
     key: string,
+    except: Channel,
 ): string {
     return [...paints]
         .flatMap(([channel, values]) => {
-            const descriptor = descriptorOf(target, channel);
+            const descriptor = channel === except ? undefined : descriptorOf(target, channel);
             const paint = values.get(key);
             return descriptor === undefined || paint === undefined
                 ? []
@@ -752,11 +754,12 @@ function GroupRows({
                                     {" in Other"}
                                 </Text>
                             ) : null}
-                            {/* What a screen reader hears after the name: size and every property. */}
+                            {/* What a screen reader hears after the name: size and every other property
+                                (the row's own field already says this list's property). */}
                             <span style={VISUALLY_HIDDEN}>
-                                {`, ${countOf(row.group.count, target)}${
-                                    paints.size === 0 ? "" : `, ${lookWords(target, paints, row.key)}`
-                                }`}
+                                {`, ${[countOf(row.group.count, target), lookWords(target, paints, row.key, channel)]
+                                    .filter((part) => part !== "")
+                                    .join(", ")}`}
                             </span>
                         </Text>
                     )}

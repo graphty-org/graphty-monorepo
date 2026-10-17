@@ -229,7 +229,8 @@ const css = `
 }
 /* The tooltip's shortcut, 12px after the label (spec 8.3). */
 .cm-tip-shortcut {
-    margin-inline-start: 12px;
+    /* 8px after the space before it: about 12px from the name. */
+    margin-inline-start: 8px;
     color: var(--cm-text-menu-secondary);
 }
 
@@ -749,6 +750,9 @@ const css = `
     color: var(--cm-text-secondary);
 }
 .cm-qa-row[aria-disabled="true"] .cm-qa-row-description { color: var(--cm-text-disabled); }
+/* Why a row cannot run is read whole: it wraps, and the row grows to hold it. */
+.cm-qa-row[aria-disabled="true"][data-two-line] { height: auto; min-height: 44px; padding-block: 6px; }
+.cm-qa-row[aria-disabled="true"] .cm-qa-row-description { white-space: normal; overflow: visible; }
 /* A description at the end of the name's line: the row stays one line, the name gives way first. */
 .cm-qa-row-text[data-descriptions="end"] { flex-direction: row; align-items: baseline; gap: 8px; }
 .cm-qa-row-text[data-descriptions="end"] .cm-qa-row-label { flex: 1; }

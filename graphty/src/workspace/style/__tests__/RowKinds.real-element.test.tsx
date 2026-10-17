@@ -142,7 +142,7 @@ describe("folders, several rows and the draft on the real element", () => {
         const kinds = within(tab).getByRole("tablist", { name: "Style for" });
         assert.include(
             within(kinds).getByRole("tab", { name: /^Edge/ }).textContent ?? "",
-            "off",
+            "not styled",
             "Ring is left out, so no layer styles edges",
         );
         const size = await waitFor(() => {
@@ -201,14 +201,14 @@ describe("folders, several rows and the draft on the real element", () => {
         const before = session.styles.list().length;
         await userEvent.click(screen.getByRole("button", { name: "Add a layer or a folder" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Layer" }));
-        await screen.findByRole("textbox", { name: "Row name" });
+        await screen.findByRole("textbox", { name: "Layer name" });
         await userEvent.keyboard("{Escape}");
         const tab = await screen.findByTestId("style-tab");
         const kinds = within(tab).getByRole("tablist", { name: "Style for" });
         for (const tabName of ["Node", "Edge"]) {
             assert.notInclude(
                 within(kinds).getByRole("tab", { name: new RegExp(`^${tabName}`) }).textContent ?? "",
-                "off",
+                "not styled",
             );
         }
         // A new layer opens its picker on arrival.

@@ -234,6 +234,23 @@ describe("chip-only color", () => {
     });
 });
 
+describe("chip with the color in words", () => {
+    it("is named by the caller's words for the color, never its state and hex", async () => {
+        await renderThemed(
+            <PopoutManager>
+                <CompactColorInput
+                    aria-label="kind agency"
+                    variant="chip"
+                    defaultColor="#009E73"
+                    showOpacity={false}
+                    valueText="teal"
+                />
+            </PopoutManager>,
+        );
+        await expect.element(page.getByRole("button", { name: "kind agency color, teal" })).toBeInTheDocument();
+    });
+});
+
 describe("color label", () => {
     it("is the same size as every other field's label", async () => {
         await renderThemed(

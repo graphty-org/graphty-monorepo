@@ -555,6 +555,19 @@ describe("StyleNumberInput", () => {
         });
     });
 
+    describe("reset at the default", () => {
+        it("is off while the value set is the default, named by its label and value alone", () => {
+            renderInput(<StyleNumberInput label="Resolution" defaultValue={1} value={1} />);
+            expect(screen.getByRole("spinbutton", { name: "Resolution" })).toHaveDisplayValue("1");
+            expect(screen.getByTestId("style-number-input-reset")).toBeDisabled();
+        });
+
+        it("is on once the value differs from the default", () => {
+            renderInput(<StyleNumberInput label="Resolution" defaultValue={1} value={2} />);
+            expect(screen.getByTestId("style-number-input-reset")).not.toBeDisabled();
+        });
+    });
+
     describe("disabled", () => {
         it("refuses the number box and its reset together", () => {
             render(

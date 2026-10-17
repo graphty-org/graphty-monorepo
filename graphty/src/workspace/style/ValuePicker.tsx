@@ -1,15 +1,13 @@
 import { type QuickAction, QuickActions } from "@graphty/compact-mantine";
-import type { ReadableValue } from "@graphty/graphty-element/catalog";
 import type { Channel } from "@graphty/graphty-element/schema";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import React, { useState } from "react";
 
 import { GLYPHS } from "../glyphs";
-import { formatNumber } from "../inspector/words";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { type DataChoice, propose, type Target } from "./row";
 import { useStyleVersion } from "./useStyleVersion";
-import { LAYER_TOKEN, matchesWordStart, readableName, refusalWords } from "./words";
+import { FIND_ATTRIBUTE, LAYER_TOKEN, matchesWordStart, readableName, refusalWords, valueFact } from "./words";
 
 /** Props for ValuePicker. */
 interface ValuePickerProps {
@@ -76,25 +74,6 @@ interface Entry {
 }
 
 /**
- * One fact about a value, from the element's list (never its values): the range of a number, the
- * count of groups, else how many elements have a value.
- * @param value - the element's entry.
- * @returns the fact, or undefined when there is nothing to say.
- */
-function factOf(value: ReadableValue): string | undefined {
-    if (value.range !== undefined) {
-        return `${formatNumber(value.range.min)} to ${formatNumber(value.range.max)}`;
-    }
-    if (value.valueCount !== undefined) {
-        return value.valueCount === 1 ? "1 value" : `${formatNumber(value.valueCount)} values`;
-    }
-    if (value.completeness < 1) {
-        return `${String(Math.floor(value.completeness * 100))}% have a value`;
-    }
-    return undefined;
-}
-
-/**
  * Everything the picker offers, in the element's order (`data.readableValues`): the data's
  * columns, then each finished run's fields under the run's name, named as the rule editor names
  * them (`readableName`). The node id is left out: it drives no property. Without `ranks`, a run's
@@ -136,7 +115,7 @@ function entriesOf(session: GraphSession, target: Target, inUse: readonly string
             section: group,
             choice,
             icon: <Glyph size={14} aria-hidden />,
-            fact: factOf(value),
+            fact: valueFact(value),
             technicalName: value.technicalName,
             inUse: value.usedBy?.some((use) => use.kind === "layer") === true || inUse.includes(value.path),
         });
@@ -206,6 +185,7 @@ export function ValuePicker({
             (entry.inUse ? used : fits).push({ ...row, section: entry.inUse ? "In use" : entry.section });
         }
     }
+    const foldedCount = refused.length === 1 ? "1 value" : `${String(refused.length)} values`;
     const fold: QuickAction[] =
         refused.length === 0 || channel === undefined
             ? []
@@ -214,7 +194,10 @@ export function ValuePicker({
                       value: FOLD,
                       // Under the "Does not fit" heading the count says the rest, and fits the
                       // 240 px list beside "Show why" (the property's name cut it short).
-                      label: refused.length === 1 ? "1 value" : `${String(refused.length)} values`,
+                      label: foldedCount,
+                      // A list option cannot carry aria-expanded, so its name says whether the
+                      // values it folds are shown.
+                      "aria-label": `${foldedCount}, ${unfolded ? "shown" : "hidden"}`,
                       description: unfolded ? "Hide them" : "Show why",
                       section: "Does not fit",
                   },
@@ -224,7 +207,7 @@ export function ValuePicker({
         <QuickActions
             role="group"
             aria-label={title}
-            placeholder="Find a value"
+            placeholder={FIND_ATTRIBUTE}
             width={240}
             height={320}
             descriptions="end"

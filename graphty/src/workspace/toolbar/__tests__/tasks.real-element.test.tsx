@@ -279,13 +279,14 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
     it("names the view mode on the View tool and offers 2D, 3D and VR or AR from its menu", async () => {
         const session = await openKarate();
         const toolbar = screen.getByRole("toolbar", { name: "Canvas tools" });
-        const view = within(toolbar).getByRole("button", { name: "View" });
+        // Named with the mode it shows (WCAG 2.5.3).
+        const view = within(toolbar).getByRole("button", { name: "View, 3D" });
         assert.equal(view.textContent, "3D");
         // No XR buttons on the canvas: the menu is the one way in.
         assert.isNull(document.querySelector("graphty-element .xr-button-container, .xr-button-container"));
 
         await userEvent.click(view);
-        const menu = await screen.findByRole("menu", { name: "View" });
+        const menu = await screen.findByRole("menu", { name: /^View/ });
         const twoD = within(menu).getByRole("menuitemradio", { name: /^2D/ });
         const threeD = within(menu).getByRole("menuitemradio", { name: /^3D/ });
         assert.equal(threeD.getAttribute("aria-checked"), "true");
@@ -311,7 +312,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
             assert.equal(view.textContent, "2D");
         });
         await userEvent.click(view);
-        const flat = await screen.findByRole("menu", { name: "View" });
+        const flat = await screen.findByRole("menu", { name: /^View/ });
         // One row says why the camera views are gone, instead of four disabled ones.
         assert.isNull(within(flat).queryByRole("menuitem", { name: /^Front/ }));
         assert.include(within(flat).getByRole("menuitem", { name: /^Camera views/ }).textContent, "Only in 3D");
@@ -329,11 +330,11 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         // still moving them after the queue empties: wait for the drawing to stop.
         await element.waitForStableFrame();
         const view = within(screen.getByRole("toolbar", { name: "Canvas tools" })).getByRole("button", {
-            name: "View",
+            name: /^View, /,
         });
         const frameRow = async (): Promise<HTMLElement> => {
             await userEvent.click(view);
-            const menu = await screen.findByRole("menu", { name: "View" });
+            const menu = await screen.findByRole("menu", { name: /^View/ });
             return within(menu).getByRole("menuitem", { name: /^Frame selection/ });
         };
 

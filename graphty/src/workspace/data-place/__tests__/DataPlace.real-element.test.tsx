@@ -162,7 +162,7 @@ describe("the Data place on the real element", () => {
             assert.equal(row.getAttribute("aria-selected"), "true", "the open attribute's row stays selected");
         });
         // A click on the quiet fill text is a click on the row.
-        await userEvent.click(within(tree("Attributes")).getByText("25%"));
+        await userEvent.click(within(tree("Attributes")).getByText("25% filled"));
         assert.deepEqual(store.get().inspected, { kind: "attribute", id: "data.born" });
 
         const menu = await menuOf(within(tree("Sources")).getByRole("treeitem", { name: "les-miserables.gml" }));

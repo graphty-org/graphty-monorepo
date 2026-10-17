@@ -177,7 +177,7 @@ describe("the Style tab's fields on the real element", () => {
         const tab = await openRow("Edge betweenness");
         const kinds = within(tab).getByRole("tablist", { name: "Style for" });
         assert.strictEqual(within(kinds).getByRole("tab", { name: /^Edge/ }).getAttribute("aria-selected"), "true");
-        assert.include(within(kinds).getByRole("tab", { name: /^Node/ }).textContent ?? "", "off");
+        assert.include(within(kinds).getByRole("tab", { name: /^Node/ }).textContent ?? "", "not styled");
         assert.isNotNull(tab.querySelector('[data-group="edge"]'));
         assert.isNull(tab.querySelector('[data-group="node"]'));
     });
@@ -428,7 +428,7 @@ describe("the Style tab's rows on the real element", () => {
         });
         await userEvent.click(await varyGlyph("Node size"));
         const sizes = await findValuePicker();
-        await userEvent.click(within(sizes).getByRole("option", { name: /^\d+ values?$/ }));
+        await userEvent.click(within(sizes).getByRole("option", { name: /^\d+ values?, (hidden|shown)$/ }));
         const dept = await within(sizes).findByRole("option", { name: "dept" });
         assert.equal(dept.getAttribute("aria-disabled"), "true");
         assert.equal(

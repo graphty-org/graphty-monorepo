@@ -157,7 +157,9 @@ export function directionWords(statistics: GraphStatistics): string {
  * @returns the sentence, or null.
  */
 export function arrowheadNote(directedness: GraphStatistics["directedness"]): string | null {
-    const follows = "arrowheads point from each edge's first-listed node to its second, the file's order";
+    // An arrowhead on an edge with no direction shows the file's order, not a direction.
+    const follows =
+        "an arrowhead shows only the file's order: it points from each edge's first-listed node to its second";
     switch (directedness) {
         case "undirected":
             return `Edges have no direction, so ${follows}.`;
@@ -325,9 +327,10 @@ type Named<T> = T extends string ? (string extends T ? never : T) : never;
  * here; a measurement outside its names (the union is open) shows no tag rather than a code.
  */
 const MEASUREMENT_WORDS: Readonly<Record<Named<Measurement>, string>> = {
-    categorical: "Groups",
-    ordinal: "Ordered",
-    quantitative: "Amount",
+    // The words the Data place's Attributes list uses (data-place/words.ts `typeOf`): one word per kind.
+    categorical: "Category",
+    ordinal: "Ordered category",
+    quantitative: "Number",
     time: "Time",
 };
 
@@ -344,7 +347,7 @@ export function measurementWord(measurement: Measurement): string | undefined {
 
 /** What each kind's word means, as a sentence for its tooltip. */
 const MEASUREMENT_GLOSS: Readonly<Record<Named<Measurement>, string>> = {
-    categorical: "Each value names a group, such as a department. Groups have no order.",
+    categorical: "Each value names a group, such as a department. The values have no order.",
     ordinal: "The values have an order, such as small, medium, large, but the steps between them are not equal.",
     quantitative: "Each value is a quantity, such as a count or a distance, so values can be compared and averaged.",
     time: "Each value is a date or a time.",

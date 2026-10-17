@@ -394,7 +394,8 @@ export function StyleSelect({
                         size={PANEL_GRID.TRAIL}
                         c={PANEL_INK.CHROME}
                         data-testid="style-select-reset"
-                        disabled={disabled}
+                        // A choice equal to the default has nothing to reset to: Reset is off.
+                        disabled={disabled || selected === defaultValue}
                         aria-label={labels.resetToDefault(label)}
                         onClick={handleReset}
                     >

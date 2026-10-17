@@ -225,7 +225,7 @@ describe("the combined Style panel", () => {
         const list = await screen.findByRole("tablist", { name: "Style for" }, { timeout: TIMEOUT_MS });
         const node = within(list).getByRole("tab", { name: "Node" });
         const edge = within(list).getByRole("tab", { name: /^Edge/ });
-        assert.include(edge.textContent ?? "", "off", "a kind that is off says so");
+        assert.include(edge.textContent ?? "", "not styled", "a kind that is off says so");
         assert.strictEqual(node.getAttribute("aria-selected"), "true");
         const before = JSON.stringify(session.styles.get(layer.id));
         const steps = session.history.position;
@@ -275,7 +275,7 @@ describe("the combined Style panel", () => {
         // Highest 5 of all nodes: a threshold leaf.
         await userEvent.click(await whichRow());
         const open = await screen.findByRole("group", { name: new RegExp(`^${degree?.name ?? ""}(,|$)`) });
-        await userEvent.click(within(open).getByRole("combobox", { name: `${degree?.name ?? ""}: match` }));
+        await userEvent.click(within(open).getByRole("combobox", { name: degree?.name ?? "" }));
         await userEvent.click(await screen.findByRole("option", { name: "Highest" }));
         assert.isNotNull(within(open).getByText("of all nodes"));
         await waitFor(() => {
@@ -486,7 +486,7 @@ describe("the combined Style panel", () => {
         const row = await whichRow("edges");
         assert.match(
             row.getAttribute("aria-label") ?? "",
-            /^Which edges, \d+ layers$/,
+            /^Which edges, \d+ layers, Ends/,
             "no 'of 254 edges' without a number",
         );
         assert.include(row.textContent ?? "", "Ends: both in this layer's nodes");
@@ -501,7 +501,10 @@ describe("the combined Style panel", () => {
         await clickRow("All", "Control");
         const row = await whichRow();
         await waitFor(() => {
-            assert.match(row.getAttribute("aria-label") ?? "", /^Which nodes, 2 layers, 77 of 77 nodes$/);
+            assert.match(
+                row.getAttribute("aria-label") ?? "",
+                /^Which nodes, 2 layers, 77 of 77 nodes, name: «Layer», 1 of 2 layers$/,
+            );
         });
         assert.include(row.textContent ?? "", "name: «Layer», 1 of 2 layers");
     });

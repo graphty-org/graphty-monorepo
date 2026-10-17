@@ -1047,9 +1047,16 @@ const FOCUSED =
 // when it has one, as a screen reader speaks it: Chromium keeps a range's number as a 32-bit
 // float, so the bare value of aria-valuenow="0.85" comes back as 0.8500000238418579.
 function axSays(n) {
+    const off = (p) => p.value.value === false || p.value.value === "false";
+    // A screen reader says "collapsed" for expanded=false; every other false state goes unsaid.
     const states = (n.properties || [])
-        .filter((p) => SR_STATES.has(p.name) && p.value.value !== false && p.value.value !== "false")
-        .map((p) => (p.value.value === true || p.value.value === "true" ? p.name : `${p.name}=${p.value.value}`));
+        .filter((p) => SR_STATES.has(p.name) && (!off(p) || p.name === "expanded"))
+        .map((p) => {
+            if (p.name === "expanded" && off(p)) {
+                return "collapsed";
+            }
+            return p.value.value === true || p.value.value === "true" ? p.name : `${p.name}=${p.value.value}`;
+        });
     const valuetext = (n.properties || []).find((p) => p.name === "valuetext")?.value.value;
     const value = valuetext || n.value?.value;
     return [

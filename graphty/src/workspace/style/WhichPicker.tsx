@@ -42,7 +42,7 @@ import {
     type TextMode,
 } from "./cards";
 import { keystrokeTarget } from "./useFocusLine";
-import { LAYER_TOKEN, valueName } from "./words";
+import { FIND_ATTRIBUTE, LAYER_TOKEN, valueName } from "./words";
 
 /** One tree row a picker writes: its part of this kind and, on the Node tab, its edge part. */
 interface PickRow {
@@ -385,16 +385,16 @@ function WhichRow({
     const stats = session.data.statistics();
     const total = side === "node" ? stats.nodeCount : stats.edgeCount;
     const head = useHead(session, rows, side);
-    const descId = useId();
     const words = shown.map((each) => chipWords(session, each, rows.length));
+    const empty = `All ${many(total, side)}: add a condition to narrow`;
     return (
         <UnstyledButton
             ref={buttonRef}
             className="ws-which-row"
             aria-expanded={false}
             aria-controls={regionId}
-            aria-label={`Which ${NOUN[side].many}, ${head}`}
-            aria-describedby={descId}
+            // The rule is in the name, so it is heard while the cards are folded: "Which nodes, 10 of 24, kind: agency, company".
+            aria-label={[`Which ${NOUN[side].many}`, head, ...(shown.length === 0 ? [empty] : words)].join(", ")}
             onClick={(event) => {
                 const chip = (event.target as Element).closest<HTMLElement>("[data-chip]");
                 onOpen(chip?.dataset.chip);
@@ -409,10 +409,10 @@ function WhichRow({
                     {head}
                 </Text>
             </Group>
-            <span className="ws-which-chips" id={descId}>
+            <span className="ws-which-chips">
                 {shown.length === 0 ? (
                     <span className="ws-chip" data-warn>
-                        All {many(total, side)}: add a condition to narrow
+                        {empty}
                     </span>
                 ) : (
                     shown.map((each, at) => (
@@ -818,8 +818,8 @@ function AddCondition({
                     onChange={(event) => {
                         setSearch(event.currentTarget.value);
                     }}
-                    placeholder="Search values"
-                    aria-label="Search values"
+                    placeholder={FIND_ATTRIBUTE}
+                    aria-label={FIND_ATTRIBUTE}
                     onKeyDown={(event) => {
                         // Escape closes the list only, not the picker it opened from.
                         if (event.key === "Escape") {
@@ -843,9 +843,20 @@ function AddCondition({
                                             key={key}
                                             value={key}
                                             aria-label={inUse ? `${field.name}, has a card` : field.name}
+                                            // The fact is its description, as in the Vary by list.
+                                            aria-description={field.fact}
                                         >
-                                            {field.name}
-                                            {inUse ? " (has a card)" : ""}
+                                            <Group gap={8} wrap="nowrap" justify="space-between">
+                                                <span>
+                                                    {field.name}
+                                                    {inUse ? " (has a card)" : ""}
+                                                </span>
+                                                {field.fact !== undefined && (
+                                                    <Text size="xs" c="dimmed" span>
+                                                        {field.fact}
+                                                    </Text>
+                                                )}
+                                            </Group>
                                         </Combobox.Option>
                                     );
                                 })}
@@ -1014,7 +1025,8 @@ function MatchSelect({
     return (
         <Select
             size="xs"
-            aria-label={`${name}: match`}
+            // Named by the card's header, the words on screen; the select says its own value.
+            aria-label={name}
             allowDeselect={false}
             data={[...data]}
             value={value}
@@ -1415,7 +1427,11 @@ function TextCard({
 }: Readonly<{ session: GraphSession; card: Extract<Card, { type: "text" }>; onChange: OnCard }>): React.JSX.Element {
     const { name } = card.field;
     const isName = card.field.kind === "name";
-    const modes = (Object.keys(TEXT_WORDS) as TextMode[]).map((mode) => ({ value: mode, label: TEXT_WORDS[mode] }));
+    // The menu is in sentence case like every other Match menu; a chip keeps the words lower case.
+    const modes = (Object.keys(TEXT_WORDS) as TextMode[]).map((mode) => ({
+        value: mode,
+        label: TEXT_WORDS[mode].charAt(0).toUpperCase() + TEXT_WORDS[mode].slice(1),
+    }));
     const data = [
         ...modes,
         ...(isName ? [] : PRESENCE),

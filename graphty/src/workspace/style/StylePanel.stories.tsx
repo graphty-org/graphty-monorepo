@@ -352,7 +352,7 @@ export const BulkVaryByLayer: Story = sceneStory(async () => {
 export const NewLayer: Story = sceneStory(async () => {
     await userEvent.click(page().getByRole("button", { name: "Add a layer or a folder" }));
     await userEvent.click(await page().findByRole("menuitem", { name: "Layer" }));
-    await page().findByRole("textbox", { name: "Row name" });
+    await page().findByRole("textbox", { name: "Layer name" });
     await page().findByTestId("style-tab");
 });
 
@@ -369,7 +369,7 @@ export const VaryBy: Story = sceneStory(async () => {
         throw new Error("no Node size field");
     }
     await userEvent.click(await within(box).findByRole("button", { name: "Node size by attribute" }));
-    await page().findByRole("combobox", { name: "Find a value" });
+    await page().findByRole("combobox", { name: "Find an attribute" });
 });
 
 /** Degree's color ramp. */
@@ -544,7 +544,7 @@ export const FootballConference: Story = {
         const before = new Set(session.styles.list().map((l) => l.id));
         await userEvent.click(page().getByRole("button", { name: "Add a layer or a folder" }));
         await userEvent.click(await page().findByRole("menuitem", { name: "Layer" }));
-        await page().findByRole("textbox", { name: "Row name" });
+        await page().findByRole("textbox", { name: "Layer name" });
         await userEvent.keyboard("{Control>}a{/Control}Conference{Enter}");
         const tab: HTMLElement = await page().findByTestId("style-tab");
         await userEvent.click(within(tab).getByRole("button", { name: "Add to node fill" }));

@@ -394,6 +394,26 @@ describe("StyleSelect", () => {
         });
     });
 
+    describe("reset at the default", () => {
+        it("is off while the choice set is the default, and on once it differs", () => {
+            const { rerender } = renderSelect(
+                <StyleSelect label="Select" defaultValue="option1" value="option1" options={options} />,
+            );
+            expect(screen.getByTestId("style-select-reset")).toBeDisabled();
+            rerender(
+                <MantineProvider theme={compactTheme}>
+                    <StyleSelect label="Select" defaultValue="option1" value="option2" options={options} />
+                </MantineProvider>,
+            );
+            expect(screen.getByTestId("style-select-reset")).not.toBeDisabled();
+        });
+
+        it("a choice set to the default is named without 'not set'", () => {
+            renderSelect(<StyleSelect label="No value" defaultValue="option1" value="option1" options={options} />);
+            expect(screen.getByRole("combobox", { name: "No value" })).toBeInTheDocument();
+        });
+    });
+
     describe("disabled", () => {
         it("refuses the dropdown and its reset together", () => {
             render(

@@ -348,7 +348,7 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
             </div>
             {selecting && (
                 <Group className="ws-style-tree-selecting" gap={4} wrap="nowrap" px={8} justify="space-between">
-                    <Text size="xs">Tap rows to select them</Text>
+                    <Text size="xs">Check the layers to select them</Text>
                     <Button
                         size="compact-xs"
                         variant="subtle"
@@ -380,7 +380,12 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
                 }}
                 rowMenu={rowMenu}
                 onRowKeyDown={onRowKeyDown}
-                renameLabel="Row name"
+                // Named for what is being renamed: a layer's name, or a folder's.
+                renameLabel={
+                    renamingRow !== null && findTreeRow(tree, renamingRow)?.row.kind === "folder"
+                        ? "Folder name"
+                        : "Layer name"
+                }
                 renaming={renamingRow}
                 onRenamingChange={(id) => {
                     store.set({ renamingRow: id });

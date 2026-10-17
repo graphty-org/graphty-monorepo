@@ -360,7 +360,7 @@ describe("the style tree's rows, menu and Graph settings door on the real elemen
         await openScene();
         await userEvent.click(screen.getByRole("button", { name: "Add a layer or a folder" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Folder" }));
-        const field = await screen.findByRole("textbox", { name: "Row name" });
+        const field = await screen.findByRole("textbox", { name: "Folder name" });
         await waitFor(() => {
             assert.equal(document.activeElement, field);
         });

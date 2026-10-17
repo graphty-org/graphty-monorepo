@@ -25,6 +25,7 @@ import {
 } from "@graphty/graphty-element/session";
 
 import { wordsFor } from "../analyze/words";
+import { formatNumber } from "../inspector/words";
 import { runName } from "../runWords";
 
 /** Where a label sits, as the element names it. */
@@ -225,12 +226,12 @@ export function takesBinding(descriptor: ChannelDescriptor): boolean {
 }
 
 /**
- * The bind icon's tooltip, which is also its accessible name.
+ * The bind icon's tooltip, its accessible name and the title of the list it opens: one name.
  * @param descriptor - the channel.
- * @returns "Color by attribute", "Size by attribute", ...
+ * @returns "Node color by attribute", "Edge width by attribute", ...
  */
 export function bindLabel(descriptor: ChannelDescriptor): string {
-    return `${channelWord(descriptor.channel)} by attribute`;
+    return `${fieldName(descriptor.channel)} by attribute`;
 }
 
 /**
@@ -760,4 +761,26 @@ export const LAYER_TOKEN = "\u00ABLayer\u00BB";
  */
 export function bindingTitle(channel: ChannelDescriptor["channel"], source?: string): string {
     return source === undefined ? `${channelWord(channel)} from each layer` : `${channelWord(channel)} by ${source}`;
+}
+
+/** The search box of every list of attributes: the Vary by picker, the label picker and Add a condition. */
+export const FIND_ATTRIBUTE = "Find an attribute";
+
+/**
+ * One fact about a value, from the element's list (never its values): the range of a number, the
+ * count of groups, else how many elements have a value.
+ * @param value - the element's entry.
+ * @returns the fact, or undefined when there is nothing to say.
+ */
+export function valueFact(value: ReadableValue): string | undefined {
+    if (value.range !== undefined) {
+        return `${formatNumber(value.range.min)} to ${formatNumber(value.range.max)}`;
+    }
+    if (value.valueCount !== undefined) {
+        return value.valueCount === 1 ? "1 value" : `${formatNumber(value.valueCount)} values`;
+    }
+    if (value.completeness < 1) {
+        return `${String(Math.floor(value.completeness * 100))}% have a value`;
+    }
+    return undefined;
 }

@@ -26,6 +26,8 @@ interface CommandToolProps {
     icon: React.ReactNode;
     /** Whether the thing it switches is on (the Legend, the Table). */
     selected?: boolean;
+    /** Words joined to the command's name after a comma: what the button shows, when it shows words (View's "3D"). */
+    shows?: string;
 }
 
 /**
@@ -34,7 +36,7 @@ interface CommandToolProps {
  * Forwards its ref so a popover or menu can anchor to it.
  */
 const CommandTool = forwardRef<HTMLButtonElement, CommandToolProps>(function CommandTool(
-    { command: commandId, icon, selected, ...anchor },
+    { command: commandId, icon, selected, shows, ...anchor },
     ref,
 ) {
     const door = useCommand(commandId);
@@ -47,7 +49,8 @@ const CommandTool = forwardRef<HTMLButtonElement, CommandToolProps>(function Com
         <ToolButton
             {...anchor}
             ref={ref}
-            label={command.label}
+            // A button that shows words carries them in its name (WCAG 2.5.3): "View, 3D".
+            label={shows === undefined ? command.label : `${command.label}, ${shows}`}
             icon={icon}
             shortcut={key === undefined ? undefined : formatKey(key)}
             selected={selected}
@@ -207,13 +210,21 @@ function ViewMenuRows({ session }: Readonly<{ session: GraphSession | null }>): 
  * @returns The face
  */
 function ViewFace({ session }: Readonly<{ session: GraphSession | null }>): React.JSX.Element {
-    const mode = immersiveMode(session) ?? session?.layout.dimension ?? "3d";
     return (
         <span className="ws-view-face">
-            {MODE_WORDS[mode]}
+            {MODE_WORDS[viewMode(session)]}
             <GLYPHS.expand size={10} />
         </span>
     );
+}
+
+/**
+ * The mode the canvas is in: VR or AR while immersive, else 2D or 3D.
+ * @param session - The element's session, or null
+ * @returns The mode
+ */
+function viewMode(session: GraphSession | null): keyof typeof MODE_WORDS {
+    return immersiveMode(session) ?? session?.layout.dimension ?? "3d";
 }
 
 /**
@@ -330,7 +341,12 @@ export function WorkspaceToolbar(): React.JSX.Element {
             </Popover>
             <Menu {...popoverProps("view")}>
                 <Menu.Target>
-                    <CommandTool ref={anchor("view")} command="view.open" icon={<ViewFace session={session} />} />
+                    <CommandTool
+                        ref={anchor("view")}
+                        command="view.open"
+                        icon={<ViewFace session={session} />}
+                        shows={MODE_WORDS[viewMode(session)]}
+                    />
                 </Menu.Target>
                 <Menu.Dropdown aria-label="View">
                     <ViewMenuRows session={session} />

@@ -172,6 +172,12 @@ export interface CompactColorInputProps {
      */
     "aria-label"?: string;
     /**
+     * In the chip form, the words a screen reader hears for the color in force, in place of its
+     * state and hex ("teal"): for a row where the color is the value itself, such as a group's
+     * color in a palette, so the reader hears a name rather than "not set, #009E73".
+     */
+    valueText?: string;
+    /**
      * Whether to offer an opacity box beside the color.
      * @default true
      */
@@ -291,6 +297,7 @@ function useChosen<T>(
  * @param props.showReset - Whether to offer the reset button
  * @param props."aria-label" - The field's name when nothing draws it, which names its controls
  * @param props.variant - The whole paint field, or the swatch alone as a chip
+ * @param props.valueText - In the chip form, the color's spoken words in place of its state and hex
  * @returns The paint field, and its reset button when something has been set
  * @example
  * ```tsx
@@ -323,6 +330,7 @@ export function CompactColorInput({
     showReset = true,
     "aria-label": ariaLabel,
     variant = "field",
+    valueText,
 }: CompactColorInputProps): React.JSX.Element {
     const labels = useLabels();
     // What names the controls: the drawn label, else the undrawn name.
@@ -490,7 +498,20 @@ export function CompactColorInput({
 
     if (variant === "chip") {
         // The chip: the swatch alone, a 24px target (WCAG 2.2, 2.5.8), named with its state and color.
-        const chipName = `${name === undefined ? labels.colorSwatch : labels.colorValue(name)}, ${hexState}`;
+        const chipNoun = name === undefined ? labels.colorSwatch : labels.colorValue(name);
+        const chipName = `${chipNoun}, ${hexState}`;
+        /**
+         * The chip's name: the caller's words for the color, else its state and hex.
+         * @param stated - the name with the state
+         * @param words - the caller's words, if any
+         * @returns the name
+         */
+        const chipLabel = (stated: string, words: string | undefined): string => {
+            if (words !== undefined && !showsMixed) {
+                return `${chipNoun}, ${words}`;
+            }
+            return isColorDefault ? stated : `${stated}, ${displayColor.toUpperCase()}`;
+        };
         // Nothing chosen, with words for it: an empty chip, since no color is in force here.
         const emptyChip = !showsMixed && isColorDefault && emptyText !== undefined;
         return (
@@ -505,7 +526,7 @@ export function CompactColorInput({
                             data-mixed={showsMixed || undefined}
                             data-empty={emptyChip || undefined}
                             disabled={disabled}
-                            aria-label={isColorDefault ? chipName : `${chipName}, ${displayColor.toUpperCase()}`}
+                            aria-label={chipLabel(chipName, valueText)}
                             aria-describedby={annotation.describedBy}
                         >
                             {showsMixed && <UiGlyph name="dash" size={PANEL_GRID.CHEVRON} />}

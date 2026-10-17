@@ -305,7 +305,7 @@ describe("the inspector", () => {
         const origin = await screen.findByRole("group", { name: "Origin" });
         assert.include(origin.textContent, "From the file");
         const kind = screen.getByRole("group", { name: "Kind" });
-        const word = within(kind).getByText("Amount");
+        const word = within(kind).getByText("Number");
         await userEvent.hover(word);
         // By its text, then its tooltip: in a full run the role query alone missed a tooltip that
         // was already in the page with this text (testing-library judged it inaccessible).

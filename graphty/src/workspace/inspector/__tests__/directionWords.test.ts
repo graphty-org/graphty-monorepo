@@ -26,6 +26,9 @@ describe("directionWords", () => {
         assert.strictEqual(directionWords(statistics), "Undirected");
         const note = directionNote(statistics);
         assert.include(note, "first-listed node");
+        // No direction, so an arrowhead is never said to point the edge's way: it shows the file's order.
+        assert.notMatch(note, /no direction, so arrowheads point/);
+        assert.include(note, "shows only the file's order");
         assert.include(note, "From the file.");
         assert.notInclude(note, "directed 0");
     });

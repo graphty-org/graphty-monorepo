@@ -321,6 +321,7 @@ export function AnalyzePopover({
         const words = wordsFor(descriptor);
         const reason = unavailable(session, descriptor);
         const i = index++;
+        const start = showStart && wearsStartHere(descriptor, groups, filter);
         return (
             <UnstyledButton
                 component="div"
@@ -330,7 +331,9 @@ export function AnalyzePopover({
                 aria-selected={i === active}
                 className="ws-analyze-entry"
                 aria-disabled={reason !== null}
-                aria-description={reason ?? undefined}
+                // Name, mark and description as separate parts, not run together from the text.
+                aria-label={start ? `${words.name}, Start here` : words.name}
+                aria-description={reason ?? words.answers}
                 onClick={() => {
                     open(descriptor);
                 }}
@@ -344,7 +347,7 @@ export function AnalyzePopover({
                             <Text size="sm" c={reason === null ? undefined : "dimmed"}>
                                 {words.name}
                             </Text>
-                            {showStart && wearsStartHere(descriptor, groups, filter) ? (
+                            {start ? (
                                 <Badge size="xs" variant="light">
                                     Start here
                                 </Badge>

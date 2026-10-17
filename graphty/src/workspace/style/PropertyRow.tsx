@@ -55,9 +55,6 @@ import {
 /** The width of a field's pop-outs (the vary list, a binding, a row's settings): 240 px at every window size. */
 const POPOUT_WIDTH = 240;
 
-/** The vary list's heading, for every property: it lists data values and, on several layers, "Layer". */
-const VARY_TITLE = "Vary by";
-
 /** The first choice of a vary list that keeps the field's own value. */
 const FIXED_LABELS: Partial<Record<Channel, string>> = { "node.size": "Fixed size", "node.tooltip": "Fixed text" };
 
@@ -801,7 +798,8 @@ function VaryButton({
                 <Tooltip label={label}>
                     <PopoutButton
                         icon={<GLYPHS.link size={14} aria-hidden />}
-                        aria-label={`${fieldName(channel)} by attribute`}
+                        // One name for the button, its tooltip and the pop-out it opens.
+                        aria-label={label}
                         aria-haspopup="dialog"
                         aria-expanded={open}
                     />
@@ -811,10 +809,10 @@ function VaryButton({
                 width={POPOUT_WIDTH}
                 placement="left"
                 alignment="start"
-                header={{ variant: "title", title: VARY_TITLE }}
+                header={{ variant: "title", title: label }}
             >
                 <ValuePicker
-                    title={VARY_TITLE}
+                    title={label}
                     target={ctx.side}
                     channel={channel}
                     fixedLabel={FIXED_LABELS[channel]}

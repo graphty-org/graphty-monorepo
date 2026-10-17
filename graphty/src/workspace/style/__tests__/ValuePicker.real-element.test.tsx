@@ -126,10 +126,12 @@ describe("the value picker on the real element", () => {
 
         const refused = refusedForSize(session);
         assert.isAbove(refused, 0, "the fixture has columns size cannot take");
-        const fold = within(picker).getByRole("option", { name: new RegExp(`^${String(refused)} values?$`) });
+        const fold = within(picker).getByRole("option", { name: new RegExp(`^${String(refused)} values?, hidden$`) });
         assert.isNull(within(picker).queryByRole("option", { name: "dept" }), "dept is folded");
         await userEvent.click(fold);
         const dept = await within(picker).findByRole("option", { name: "dept" });
+        // The fold says its state in its name: a list option carries no aria-expanded.
+        within(picker).getByRole("option", { name: new RegExp(`^${String(refused)} values?, shown$`) });
         assert.equal(dept.getAttribute("aria-disabled"), "true");
         assert.equal(
             document.getElementById(dept.getAttribute("aria-describedby") ?? "")?.textContent,
@@ -172,11 +174,11 @@ describe("the value picker on the real element", () => {
         const button = await screen.findByRole("button", { name: "Node size by attribute" }, { timeout: TIMEOUT_MS });
         await userEvent.click(button);
         const picker = await findValuePicker();
-        assert.equal(picker.getAttribute("aria-label"), "Vary by", "named by its pop-out's title");
+        assert.equal(picker.getAttribute("aria-label"), "Node size by attribute", "named by its pop-out's title");
         const dialog = picker.closest("[role=dialog]");
         assert.equal(
             document.getElementById(dialog?.getAttribute("aria-labelledby") ?? "")?.textContent,
-            "Vary by",
+            "Node size by attribute",
             "the dialog's name is its title",
         );
 
@@ -217,7 +219,7 @@ describe("the value picker on the real element", () => {
 
         const picker = await openBySize();
         await within(picker).findByRole("option", {
-            name: new RegExp(`^${String(refusedForSize(session))} values?$`),
+            name: new RegExp(`^${String(refusedForSize(session))} values?, (hidden|shown)$`),
         });
         assert.isAtLeast(within(picker).getAllByRole("option").length, 150, "the columns that fit are listed");
         for (const [name, spy] of reads) {

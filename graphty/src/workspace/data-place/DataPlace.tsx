@@ -117,7 +117,7 @@ function attributeItem(row: AttributeRow): TreeNodeData {
             </Tooltip>
         ),
         // The fill is already in the description, so it stays out of the row's count.
-        ...(row.fill === null ? {} : { actions: <Quiet>{row.fill}</Quiet> }),
+        ...(row.fill === null ? {} : { actions: <Quiet>{`${row.fill} filled`}</Quiet> }),
     };
 }
 

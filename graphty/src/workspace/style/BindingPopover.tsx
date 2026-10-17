@@ -1063,20 +1063,23 @@ export function Range({
     return (
         <Group grow gap={8} role="group" aria-label="Range">
             {["Paints from", "Paints to"].map((label, index) => (
-                <ComboInput
-                    key={label}
-                    label={label}
-                    numeric
-                    variant="outlined"
-                    options={[]}
-                    placeholder="Not set"
-                    value={draft[index]}
-                    min={descriptor.min}
-                    max={descriptor.max}
-                    onChange={(value) => {
-                        set(index === 0 ? 0 : 1, value);
-                    }}
-                />
+                // A visible label over each box, as the ramp's "Values from" and "Values to" have.
+                <label key={label} style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+                    <span className="cm-field-label">{label}</span>
+                    <ComboInput
+                        label={label}
+                        numeric
+                        variant="outlined"
+                        options={[]}
+                        placeholder="Not set"
+                        value={draft[index]}
+                        min={descriptor.min}
+                        max={descriptor.max}
+                        onChange={(value) => {
+                            set(index === 0 ? 0 : 1, value);
+                        }}
+                    />
+                </label>
             ))}
         </Group>
     );
@@ -1124,7 +1127,8 @@ function NoValue({
         <Stack gap={4}>
             <StyleSelect
                 label="No value"
-                value={given === null ? undefined : "value"}
+                // Always a choice in force: "Leave as is" is a choice, not a missing one.
+                value={given === null ? "skip" : "value"}
                 defaultValue="skip"
                 options={[
                     { value: "skip", label: "Leave as is" },

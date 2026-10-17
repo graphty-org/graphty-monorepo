@@ -507,8 +507,9 @@ export function RowStyle({
                             value={side}
                             rightSection={
                                 styled(side) ? undefined : (
+                                    // The words the kind's own line uses: the layer styles none of this kind.
                                     <Text span size="xs" c="var(--cm-text-secondary)">
-                                        off
+                                        not styled
                                     </Text>
                                 )
                             }

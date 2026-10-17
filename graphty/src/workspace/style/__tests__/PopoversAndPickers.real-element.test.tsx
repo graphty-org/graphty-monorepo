@@ -236,7 +236,7 @@ describe("the binding popover's rows and readings", () => {
         await userEvent.hover(field);
         await userEvent.click(await within(field).findByRole("button", { name: "Node size by attribute" }));
         const picker = await findValuePicker();
-        const fold = within(picker).queryByRole("option", { name: /^\d+ values?$/ });
+        const fold = within(picker).queryByRole("option", { name: /^\d+ values?, (hidden|shown)$/ });
         if (fold !== null) {
             await userEvent.click(fold);
         }
@@ -264,7 +264,7 @@ describe("the binding popover's rows and readings", () => {
         await userEvent.click(await screen.findByRole("button", { name: "Add a condition" }));
         const listbox = await screen.findByRole("listbox");
         const ruled = optionNames(listbox);
-        for (const name of picked.filter((n) => !/^\d+ values?$|^Fixed /.test(n))) {
+        for (const name of picked.filter((n) => !/^\d+ values?, (hidden|shown)$|^Fixed /.test(n))) {
             assert.include(ruled, name, `the add menu names ${name} as the picker does`);
         }
         // Rules still offer the rank, named the same way everywhere.

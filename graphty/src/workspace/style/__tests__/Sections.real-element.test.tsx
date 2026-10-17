@@ -381,10 +381,13 @@ describe("the Style tab's sections", () => {
         // The palette the element filled in, named as the field's value and marked as not set.
         assert.notEqual((palette as HTMLInputElement).value, "", "the palette in use is shown");
         assert.match(palette.getAttribute("aria-label") ?? "", /^Palette, not set, /);
-        const chips = within(dialog).getAllByRole("button", { name: / color, not set/ });
+        const chips = within(dialog).getAllByTestId("compact-color-input-chip");
         assert.isAbove(chips.length, 0);
         for (const chip of chips) {
-            assert.match(chip.getAttribute("aria-label") ?? "", /#[0-9A-F]{6}/i, "each chip names the color it paints");
+            // Each chip names the color it paints in words, never "not set" beside it or a raw hex.
+            const name = chip.getAttribute("aria-label") ?? "";
+            assert.match(name, / color, [a-z ]+$/, "each chip names the color it paints");
+            assert.notMatch(name, /not set|#[0-9A-F]{6}/i);
         }
     });
 

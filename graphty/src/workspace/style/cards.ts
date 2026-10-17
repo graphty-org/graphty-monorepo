@@ -16,7 +16,7 @@ import {
     selectorRule,
 } from "@graphty/graphty-element/session";
 
-import { readableName, valueName } from "./words";
+import { readableName, valueFact, valueName } from "./words";
 
 /** What a layer's rule picks, as graphty-element's layer holds it. */
 export type Selector = Layer["selector"];
@@ -35,6 +35,8 @@ export interface CardField {
     readonly name: string;
     readonly group: FieldGroup;
     readonly range?: { readonly min: number; readonly max: number };
+    /** One fact that tells it from its neighbors in a list ("1 to 36", "6 values"), as the Vary by list says it. */
+    readonly fact?: string;
 }
 
 /** How a text or a name card compares. */
@@ -127,8 +129,16 @@ function fieldOf(session: GraphSession, value: ReadableValue): CardField {
         name: readableName(session, value).name,
         group: groups[value.from],
         ...(value.range === undefined ? {} : { range: value.range }),
+        ...withFact(valueFact(value)),
     };
 }
+
+/**
+ * A fact as an optional field.
+ * @param fact - the fact, or undefined.
+ * @returns `{ fact }`, or nothing.
+ */
+const withFact = (fact: string | undefined): { fact?: string } => (fact === undefined ? {} : { fact });
 
 /**
  * A field's card key: one card per field.

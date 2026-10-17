@@ -19,7 +19,7 @@ graphty is a React application that wraps `<graphty-element>` with a full-featur
 ```
 graphty/
 ├── src/
-│   ├── App.tsx               # Main application component (routes ?demo; otherwise the shell)
+│   ├── App.tsx               # Main application component (?demo gallery, ?legacy old shell, else the workspace)
 │   ├── main.tsx              # Entry point
 │   ├── theme.ts              # Mantine theme configuration
 │   ├── components/
@@ -40,10 +40,11 @@ graphty/
 └── index.html
 ```
 
-`src/workspace/` is the tier 1 shell, reachable at `?next` until the Switch-over
-(design/ui/tier1-real-app/plan.md): `Workspace.tsx`, `frame/`, `state/`, `commands/registry.ts`,
+`src/workspace/` is the tier 1 shell and the app's default surface (design/ui/tier1-real-app/plan.md):
+`Workspace.tsx`, `frame/`, `state/`, `commands/registry.ts`,
 `keys/`, and one directory per later package. Each package registers its commands in its own
-`commands.ts`, which `registrations.ts` collects.
+`commands.ts`, which `registrations.ts` collects. The superseded app shell in `src/components/shell/`
+stays reachable at `?legacy` (`?next` also opens the workspace, for old links) until issue #3056 deletes it.
 
 ## Essential Commands
 

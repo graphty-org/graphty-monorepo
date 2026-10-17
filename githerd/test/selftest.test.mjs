@@ -1,6 +1,5 @@
 import { execFile, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import { fileURLToPath } from "node:url";
@@ -24,6 +23,7 @@ import {
     serveResponder,
     writeProbe,
 } from "../lib/selftest.mjs";
+import { tempDir } from "./helpers/temp-dir.mjs";
 
 const GUARD = fileURLToPath(new URL("../bin/githerd-guard.mjs", import.meta.url));
 const MODEL = "claude-opus-5-5";
@@ -46,7 +46,7 @@ const USAGE = [
 
 let dir;
 beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "githerd-selftest-"));
+    dir = tempDir("githerd-selftest-");
 });
 afterEach(() => {
     rmSync(dir, { recursive: true, force: true });

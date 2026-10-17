@@ -199,6 +199,49 @@ export interface LogStorageOptions {
 }
 
 /**
+ * Whether a log has the level a filter asks for, or any level when it asks for none.
+ * @param log - The log entry
+ * @param level - The level to match, case-insensitively
+ * @returns True when the log passes
+ */
+function levelMatches(log: LogEntry, level: string | undefined): boolean {
+    return !level || log.level.toUpperCase() === level.toUpperCase();
+}
+
+/**
+ * Whether a log passes a filter's level and since conditions.
+ * @param log - The log entry
+ * @param filter - Filter options
+ * @returns True when the log passes
+ */
+function logMatches(log: LogEntry, filter: LogFilter): boolean {
+    if (!levelMatches(log, filter.level)) {
+        return false;
+    }
+    // Written as "not at or before" rather than "after", so a time that does not parse still passes
+    if (filter.since && new Date(log.time) <= new Date(filter.since)) {
+        return false;
+    }
+    return true;
+}
+
+/**
+ * The case-insensitive pattern a search tests messages with.
+ * @param query - The search text, or a regular expression when `regex` is set
+ * @param regex - Whether the query is a regular expression
+ * @returns The pattern, or undefined when the query is not a valid regular expression
+ */
+function searchPattern(query: string, regex: boolean): RegExp | undefined {
+    let pattern: RegExp;
+    try {
+        pattern = regex ? new RegExp(query, "i") : new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+    } catch {
+        return undefined;
+    }
+    return pattern;
+}
+
+/**
  * Shared log storage with session metadata support.
  *
  * Provides methods for storing, querying, and managing logs across
@@ -328,17 +371,9 @@ export class LogStorage {
             }
 
             for (const log of sessionData.logs) {
-                // Filter by level
-                if (filter.level && log.level.toUpperCase() !== filter.level.toUpperCase()) {
-                    continue;
+                if (logMatches(log, filter)) {
+                    results.push({ ...log, sessionId });
                 }
-
-                // Filter by since
-                if (filter.since && new Date(log.time) <= new Date(filter.since)) {
-                    continue;
-                }
-
-                results.push({ ...log, sessionId });
             }
         }
 
@@ -414,9 +449,10 @@ export class LogStorage {
             const toDelete: string[] = [];
 
             for (const [sessionId, sessionData] of this.sessions) {
-                if (filter.sessionId && sessionId === filter.sessionId) {
-                    toDelete.push(sessionId);
-                } else if (filter.projectMarker && sessionData.metadata.projectMarker === filter.projectMarker) {
+                if (
+                    (filter.sessionId && sessionId === filter.sessionId) ||
+                    (filter.projectMarker && sessionData.metadata.projectMarker === filter.projectMarker)
+                ) {
                     toDelete.push(sessionId);
                 }
             }
@@ -526,11 +562,8 @@ export class LogStorage {
     search(options: SearchOptions): LogEntryWithSession[] {
         const { query, regex = false, projectMarker, level, limit = 100 } = options;
 
-        // Build the search pattern
-        let pattern: RegExp;
-        try {
-            pattern = regex ? new RegExp(query, "i") : new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
-        } catch {
+        const pattern = searchPattern(query, regex);
+        if (pattern === undefined) {
             // Invalid regex, return empty results
             return [];
         }
@@ -544,18 +577,15 @@ export class LogStorage {
             }
 
             for (const log of sessionData.logs) {
-                // Filter by level
-                if (level && log.level.toUpperCase() !== level.toUpperCase()) {
+                // Filter by level, then test the message against the pattern
+                if (!levelMatches(log, level) || !pattern.test(log.message)) {
                     continue;
                 }
 
-                // Test message against pattern
-                if (pattern.test(log.message)) {
-                    results.push({ ...log, sessionId });
+                results.push({ ...log, sessionId });
 
-                    if (results.length >= limit) {
-                        return results;
-                    }
+                if (results.length >= limit) {
+                    return results;
                 }
             }
         }

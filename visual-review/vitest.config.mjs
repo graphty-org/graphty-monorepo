@@ -13,10 +13,13 @@ export default defineConfig({
         testTimeout: 60_000,
         hookTimeout: 60_000,
         // expect.poll looks again every 10 ms, not 50: most of the page tests' waits are polls, and
-        // each one that is already true on its second look no longer costs 50 ms.
-        expect: { poll: { interval: 10 } },
-        // No test runs git with the developer's own config (signing, hooks) or a hook's GIT_DIR.
-        setupFiles: ["test/isolate-git.setup.mjs"],
+        // each one that is already true on its second look no longer costs 50 ms. Its limit is the
+        // test's, not vitest's 1 s: a slow but correct run waits longer instead of failing early.
+        expect: { poll: { interval: 10, timeout: 60_000 } },
+        // No test runs git with the developer's own config (signing, hooks) or a hook's GIT_DIR,
+        // none reaches the network, and the temporary directories a test file made (tempDir,
+        // helpers.mjs) go when it finishes.
+        setupFiles: ["test/isolate-git.setup.mjs", "test/no-network.setup.mjs"],
         // The repository every test's makeRepo copies.
         globalSetup: ["test/repo-template.setup.mjs", "../tools/test-slots.mjs"],
         // At most this run's share of the cores (tools/test-slots.mjs).

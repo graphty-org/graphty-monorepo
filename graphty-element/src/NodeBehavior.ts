@@ -627,13 +627,16 @@ export class NodeDragHandler {
     }
 
     /**
-     * Handle a click on this node - select it and emit node-click event.
+     * Handle a click on this node - select it (shift-click adds it to the selection, or takes it
+     * out) and emit node-click event.
      */
     private handleClick(): void {
         // Get the selection manager from the graph context
         const context = this.getContext();
         const selectionManager = context.getSelectionManager?.();
-        if (selectionManager) {
+        if (selectionManager && this.clickState?.pointerEvent?.shiftKey === true) {
+            selectionManager.toggle(this.node);
+        } else if (selectionManager) {
             selectionManager.select(this.node);
         }
 
@@ -723,6 +726,16 @@ export class NodeDragHandler {
      */
     get sceneObservers(): Observer<PointerInfoPre>[] {
         return [this.pointerObserver, this.hoverObserver].filter((observer) => observer !== null);
+    }
+
+    /**
+     * Forget the scene pointer observers without searching the scene for them: a bulk teardown has
+     * already taken them out of the scene's list, so `dispose` has nothing left to remove (issue
+     * #2732).
+     */
+    forgetSceneObservers(): void {
+        this.pointerObserver = null;
+        this.hoverObserver = null;
     }
 
     /**

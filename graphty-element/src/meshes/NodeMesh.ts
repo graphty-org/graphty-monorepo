@@ -255,7 +255,31 @@ export class NodeMesh {
         // of size 0 used to draw larger than a node of size 0.01. Flooring here keeps size 0 the
         // smallest visible node for every shape creator, built-in or registered (#117).
         const size = Math.max(createOptions.shape.size ?? options.size, MIN_NODE_SIZE);
-        return creator(size, scene);
+        const mesh = creator(size, scene);
+        if (createOptions.shape.sizeMode === "diameter") {
+            NodeMesh.scaleToExtent(mesh, size);
+        }
+
+        return mesh;
+    }
+
+    /**
+     * Rescales a freshly built mesh so its largest width, height or depth is `extent`: what
+     * `sizeMode: "diameter"` means. Each creator builds at its own proportions (a polyhedron at
+     * `size` reaches 1.41 x size from centre to tip, an icosphere is 1.5 x size across), so this
+     * runs on every shape, built-in or registered, after it is built. A sphere and a box of size 1
+     * are already 1 across, so they are left as they were.
+     * @param mesh - The mesh a shape creator returned
+     * @param extent - The largest width, height or depth it should be drawn at, in scene units
+     */
+    private static scaleToExtent(mesh: Mesh, extent: number): void {
+        mesh.computeWorldMatrix(true);
+        const { minimumWorld: min, maximumWorld: max } = mesh.getBoundingInfo().boundingBox;
+        const drawn = Math.max(max.x - min.x, max.y - min.y, max.z - min.z);
+        if (drawn > 0) {
+            mesh.scaling.scaleInPlace(extent / drawn);
+            mesh.bakeCurrentTransformIntoVertices();
+        }
     }
 
     /**

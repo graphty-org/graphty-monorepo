@@ -148,7 +148,8 @@ sim.dispose();
 ## Seeds
 
 The simulations are deterministic: the same graph, options, seed and start positions give the same drawing, step for
-step. Without a `seed`, the `NaN` rows are drawn from a random seed and every run starts differently.
+step, in every browser and in Node (the layouts use only arithmetic that JavaScript defines to the last bit). Without a
+`seed`, the `NaN` rows are drawn from a random seed and every run starts differently.
 
 <!-- doc-check -->
 

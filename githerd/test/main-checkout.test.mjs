@@ -1,12 +1,12 @@
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { git, isolateGit } from "../../visual-review/test/helpers.mjs";
 import { updateMainCheckout } from "../lib/main-checkout.mjs";
+import { tempDir } from "./helpers/temp-dir.mjs";
 
 /** @type {string} */
 let tmp;
@@ -44,7 +44,7 @@ let ahead;
 
 beforeEach(() => {
     isolateGit();
-    tmp = mkdtempSync(join(tmpdir(), "githerd-main-"));
+    tmp = tempDir("githerd-main-");
     const remote = join(tmp, "remote.git");
     root = join(tmp, "root");
     other = join(tmp, "other");

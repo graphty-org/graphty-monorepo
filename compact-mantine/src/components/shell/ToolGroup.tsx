@@ -97,7 +97,7 @@ export function ToolGroup({
     };
 
     return (
-        <div className="cm-tool-group" role="group" aria-label={face.label}>
+        <fieldset className="cm-fieldset cm-tool-group" aria-label={face.label}>
             <ToolButton
                 ref={faceRef}
                 label={face.label}
@@ -154,6 +154,6 @@ export function ToolGroup({
                     ))}
                 </Menu.Dropdown>
             </Menu>
-        </div>
+        </fieldset>
     );
 }

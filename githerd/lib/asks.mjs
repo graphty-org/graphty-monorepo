@@ -305,9 +305,11 @@ function filerOnly(state, job, to) {
  * @param {string} reason its one-line reason from the queue order
  * @param {string} cli the githerd command line a session without githerd's tools runs
  * @param {boolean} [filed] the one session invited filed the job's issue
+ * @param {string[]} [pressure] the saturated shared resources: only sessions actively working no
+ *   job are invited then, each told it may take one (`oneJobText`)
  * @returns {string} the message
  */
-function inviteText(job, reason, cli, filed = false) {
+function inviteText(job, reason, cli, filed = false, pressure = undefined) {
     // A verdict job names the exact failure key githerd_verdict takes.
     const key = job.facts?.scope === "verdict" ? ` githerd_verdict takes its key exactly: ${job.target}.` : "";
     // The filer of an issue hears it first (queue.mjs filerFirst): its fix may already exist.
@@ -315,8 +317,9 @@ function inviteText(job, reason, cli, filed = false) {
         ? ` This session filed ${job.target}, so it is offered here first: if you already have its fix (committed, ` +
           `in the push queue or in a pull request), claim ${job.id} so no other session starts a second one.`
         : "";
+    const one = pressure?.length ? " " + oneJobText(pressure) : "";
     return (
-        `githerd has work queued (${job.id}, ${reason}).${mine} If you're free, call githerd_next and claim a job; ` +
+        `githerd has work queued (${job.id}, ${reason}).${mine}${one} If you're free, call githerd_next and claim a job; ` +
         `otherwise ignore this.${key} Without githerd's tools, or when they fail: \`${cli} next\` and ` +
         `\`${cli} claim <job> ...\` from your shell.\n` +
         "New to githerd? Its onboarding message explains it, as does githerd/README.md; githerd_offers with pause " +
@@ -526,6 +529,47 @@ const NOT_COUNTED =
     "Jobs that are only waiting to push, for CI, for the owner's review or to merge do not count toward your capacity";
 
 /**
+ * How many jobs a session holds that it is actively working: working, starting, or waiting on its
+ * own local task, less those only waiting to push, for CI, for the owner's review or to merge
+ * (`jobWaits` in waits.mjs). Blocked, parked, verifying and other waiting jobs (githerd watches
+ * those for it) never count.
+ * @param {any} state the daemon state
+ * @param {string} session the session id
+ * @returns {number} the count
+ */
+function activeCount(state, session) {
+    const waits = jobWaits(state);
+    return Object.values(state.jobs ?? {}).filter(
+        (j) =>
+            j.holder?.session === session &&
+            !waits.has(j.id) &&
+            (ACTIVE.has(j.state) || (j.state === "waiting" && j.waitingFor?.local)),
+    ).length;
+}
+
+/**
+ * Whether back-pressure holds new work back from a session (pressure.mjs): a shared resource is
+ * saturated and the session already holds a job it is actively working (`activeCount`). A session
+ * with none is idle, waiting for work, and is offered one job whatever the pressure (the owner's
+ * rule of 2026-10-13).
+ * @param {any} state the daemon state
+ * @param {string} session the session id
+ * @returns {boolean} new work is held back from it
+ */
+const heldBack = (state, session) => Boolean(state.pressure?.length) && activeCount(state, session) > 0;
+
+/**
+ * The sentence telling an idle session (`heldBack` false) under pressure that it may take one job.
+ * @param {string[] | undefined} pressure the constraints holding new work back
+ * @returns {string} the sentence, empty without pressure
+ */
+const oneJobText = (pressure) =>
+    pressure?.length
+        ? `The shared resources are saturated (${pressure.join("; ")}), but this session is actively working no ` +
+          "job, so it may take one job now; githerd offers more once they have room."
+        : "";
+
+/**
  * Why a session may take no more jobs now, or null: it holds `workers.maxActive` jobs it is
  * actively working (working, starting, or waiting on its own local task other than its push).
  * Blocked, parked, verifying and other waiting jobs do not count, nor does a job only waiting to
@@ -537,13 +581,7 @@ const NOT_COUNTED =
  */
 export function atActiveCap(state, session, config) {
     const max = config?.workers?.maxActive ?? DEFAULT_MAX_ACTIVE;
-    const waits = jobWaits(state);
-    const active = Object.values(state.jobs ?? {}).filter(
-        (j) =>
-            j.holder?.session === session &&
-            !waits.has(j.id) &&
-            (ACTIVE.has(j.state) || (j.state === "waiting" && j.waitingFor?.local)),
-    ).length;
+    const active = activeCount(state, session);
     return active >= max ? `you hold ${active} active jobs; finish or report one first. ${NOT_COUNTED}.` : null;
 }
 
@@ -596,7 +634,7 @@ function dueInvites(state, queue, live, { config, now }) {
             ({ job }) => !jobInUse(state, state.jobs[job], { config, now, session: s.sessionId }),
         );
         const { free, at } = inviteRoom(state, s, able.length, now);
-        if (!free || atActiveCap(state, s.sessionId, config)) continue;
+        if (!free || atActiveCap(state, s.sessionId, config) || heldBack(state, s.sessionId)) continue;
         for (const { job: id } of able) {
             const job = state.jobs[id];
             const heard = job.invited?.[s.sessionId] ?? job.invitedAt;
@@ -611,7 +649,8 @@ function dueInvites(state, queue, live, { config, now }) {
  * decisions of 2026-10-05): every pass, each queued job no worker slot took is announced to every
  * session at its prompt (`AT_PROMPT`) or whose last capacity answer leaves room (`room`) and
  * that has not heard it since its room last rose (`inviteRoom`); never one at `workers.maxActive`
- * (`atActiveCap`). So a session that heard a job and
+ * (`atActiveCap`), nor, while a shared resource is saturated, one actively working a job
+ * (`heldBack`; an idle one hears that it may take one job). So a session that heard a job and
  * did not take it hears it again only after reporting more room: a capacity answer above what its
  * last one left, or reaching its prompt after reporting none. Who heard which job is kept on the job, `job.invited` =
  * `{[session]: at}` (a job's older `invitedAt` counts as heard by every session). githerd's own
@@ -631,8 +670,9 @@ function dueInvites(state, queue, live, { config, now }) {
 export async function inviteStep(state, { now, acting, sessions, transport, offered, config, cli = DEFAULT_CLI }) {
     const lines = [];
     const queue = offered.filter(({ job }) => state.jobs?.[job]?.state === "queued");
-    // A saturated shared resource holds every invitation to new work back (pressure.mjs).
-    if (!queue.length || state.pressure?.length) return lines;
+    // A saturated shared resource holds invitations back only from sessions with active work
+    // (`heldBack`, in dueInvites).
+    if (!queue.length) return lines;
     // A session that paused offers (setOffersPaused) hears none until it resumes.
     const live = sessions().filter((s) => !state.offersPaused?.[s.name]);
     state.inviteRooms ??= {};
@@ -652,7 +692,7 @@ export async function inviteStep(state, { now, acting, sessions, transport, offe
             const op = `invite ${names.length} idle session(s) to take ${id}`;
             lines.push({ kind: "would-do", group: "workers", op, job: id });
         }
-        const text = inviteText(job, reason, cli, filerOnly(state, job, to));
+        const text = inviteText(job, reason, cli, filerOnly(state, job, to), state.pressure);
         const out = acting ? await tellSessions(to, text, transport) : { sent: [], failed: [] };
         state.invited = { at, count: acting ? out.sent.length : names.length, acting };
         lines.push({ kind: "sessions-invited", job: id, sessions: names, ...out });
@@ -698,15 +738,18 @@ function waitersLine(state, job) {
 
 /**
  * The status question's word on taking more jobs: while a shared resource is saturated
- * (`state.pressure`, pressure.mjs), take none; otherwise as many as the session can work in
- * parallel, its capacity answer setting the number. No fixed per-session allowance is named:
- * `workers.maxActive` is only a runaway guard.
+ * (`state.pressure`, pressure.mjs), take none if the session actively works a job, and one if it
+ * works none (`heldBack`); otherwise as many as the session can work in parallel, its capacity
+ * answer setting the number. No fixed per-session allowance is named: `workers.maxActive` is only
+ * a runaway guard.
  * @param {string[] | undefined} pressure the constraints holding new work back
+ * @param {boolean} idle the session actively works no job (`activeCount`)
  * @returns {string} the sentences
  */
-function roomText(pressure) {
+function roomText(pressure, idle) {
     const answer =
         "Answer with capacity set, in those githerd_expect calls, to how many more jobs this session can take now";
+    if (pressure?.length && idle) return `${oneJobText(pressure)} ${answer}. `;
     if (pressure?.length)
         return (
             `The shared resources are saturated (${pressure.join("; ")}): take no new job now; githerd invites you ` +
@@ -736,7 +779,7 @@ function statusText(state, jobs, minutes, cli) {
         "Answer by calling githerd_expect once per listed job, with job set to its id, reason set to one line on " +
         `where it stands (without githerd's tools, or when they fail: \`${cli} status-answer <job> --capacity <n> ` +
         '"<status>"` from your shell). ' +
-        roomText(state.pressure) +
+        roomText(state.pressure, !activeCount(state, jobs[0].holder?.session)) +
         `${NOT_COUNTED}: count only jobs you are actively ` +
         "working when you answer capacity. " +
         `A listed job still unanswered when githerd asks again in ${minutes} minutes goes back to the queue. ` +
@@ -1091,7 +1134,9 @@ function githerdWatches(job) {
  * `minutes` from a job's claim, one message per session through Claude Code's session messaging,
  * listing every job of that session that is due. The session answers with `githerd_expect` once
  * per job, which records `job.status`. A job whose listed question the session heard and left
- * unanswered until the next one is due goes back to the queue; jobs it answered are kept. Nothing
+ * unanswered until the next one is due goes back to the queue; jobs it answered are kept. A job whose
+ * session shows its own activity since the cadence started (`progress`: a githerd tool call, a push,
+ * a push-queue ticket, a growing transcript) is not asked: the activity is the answer. Nothing
  * else here ends a claim, and elapsed time alone never does. A job githerd itself is watching for
  * (blocked, parked, or waiting on something but a local task) is not asked about, and any question
  * it had pending is dropped, so it is never released for silence. A session githerd may not
@@ -1137,8 +1182,8 @@ export async function statusStep(
 }
 
 /**
- * Whether session `s` is due the capacity question (`askCapacity`): it is not paused, no shared
- * resource is saturated, it holds no job the status question asks about (that question asks its
+ * Whether session `s` is due the capacity question (`askCapacity`): it is not paused, back-pressure
+ * does not hold new work back from it (`heldBack`), it holds no job the status question asks about (that question asks its
  * capacity already), its last capacity answer is missing, gone stale (`staleSince`) or used up
  * (`room`), a queued job is one it could claim (`jobInUse`), and neither its last answer nor the
  * last capacity question came within `minutes`.
@@ -1149,7 +1194,7 @@ export async function statusStep(
  */
 function capacityDue(state, s, { now, minutes, config }) {
     const id = s.sessionId;
-    if (state.offersPaused?.[s.name] || state.pressure?.length) return false;
+    if (state.offersPaused?.[s.name] || heldBack(state, id)) return false;
     const jobs = Object.values(state.jobs ?? {});
     if (jobs.some((j) => j.holder?.session === id && ASKED.has(j.state) && !githerdWatches(j))) return false;
     const said = state.capacity?.[id];
@@ -1189,11 +1234,12 @@ async function askCapacity(state, { now, acting, sessions, transport, minutes, c
             lines.push({ kind: "would-do", group: "workers", op: `ask ${s.name} for its capacity` });
             continue;
         }
+        const one = oneJobText(state.pressure);
         const text =
             "githerd: jobs are queued, and githerd has no current word on how many this session can take. " +
             "Answer by calling githerd_expect with no job, capacity set to how many more jobs this session can " +
             `take now and reason one line (without githerd's tools: \`${cli} capacity <n> "<reason>"\` from your ` +
-            `shell). ${NOT_COUNTED}. githerd asks again in ${minutes} minutes while jobs stay queued.`;
+            `shell). ${NOT_COUNTED}.${one ? " " + one : ""} githerd asks again in ${minutes} minutes while jobs stay queued.`;
         lines.push({ kind: "capacity-asked", session: s.name, ...(await tellSessions([s], text, transport)) });
     }
 }
@@ -1323,6 +1369,14 @@ function dueJobs(state, now, minutes, lines) {
         const ask = job.statusAsk;
         // A cadence, how often to ask: never a deadline on the work.
         if (now.getTime() - askedSince(job) < minutes * MINUTE) continue;
+        const seen = progress(state, job);
+        if (seen) {
+            // The session's own activity answers the question, so it is not woken to say so.
+            job.statusAsk = null;
+            job.statusSeen = { at: now.toISOString(), evidence: seen };
+            lines.push({ kind: "status-seen", job: job.id, session, evidence: seen });
+            continue;
+        }
         const answered = job.status?.at >= ask?.at;
         if (ask?.heard && !answered) {
             const reason = `no answer to the status question of ${ask.at}`;
@@ -1341,7 +1395,36 @@ function dueJobs(state, now, minutes, lines) {
  * @param {any} job the job
  * @returns {number} the time, in ms
  */
-const askedSince = (job) => Date.parse(job.statusAsk?.at ?? job.claim?.at ?? job.stateSince);
+const askedSince = (job) =>
+    Math.max(
+        Date.parse(job.statusSeen?.at ?? "") || 0,
+        Date.parse(job.statusAsk?.at ?? job.claim?.at ?? job.stateSince),
+    );
+
+/**
+ * What shows the session holding `job` at work since the status question's cadence last started
+ * (its last question or last counted activity, else the claim) and since its last answer, or null:
+ * a githerd tool call (`state.sessions[<id>].calledAt`), a push it made (`state.prActivity`), a push
+ * of its in the push queue now (`state.pushTickets`), or its transcript or a subagent's growing
+ * (`state.transcripts[<id>].grewAt`). Any of them counts as the answer (design 8.2), so a working
+ * session is not woken, at the cost of rewriting its whole context, only to say it is working. The
+ * answer itself is no evidence: its tool call has the answer's own time.
+ * @param {any} state the daemon state
+ * @param {any} job the held job
+ * @returns {string | null} the evidence
+ */
+function progress(state, job) {
+    const id = job.holder.session;
+    const since = new Date(askedSince(job)).toISOString();
+    const after = (/** @type {string | undefined} */ at) =>
+        Boolean(at) && /** @type {string} */ (at) > since && /** @type {string} */ (at) > (job.status?.at ?? "");
+    if (after(state.sessions?.[id]?.calledAt)) return "called a githerd tool";
+    if ((state.pushTickets ?? []).some((/** @type {{session: string | null}} */ t) => t.session === id))
+        return "has a push in the push queue";
+    const pushed = Object.values(state.prActivity ?? {}).some((/** @type {any} */ a) => after(a.pushed?.[id]));
+    if (pushed) return "pushed";
+    return after(state.transcripts?.[id]?.grewAt) ? "its transcript grew" : null;
+}
 
 /**
  * Sends one session the status question for its due jobs and the broken pull requests it owns (a

@@ -1,7 +1,7 @@
-import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
-import { render, screen, TOOLTIP_FIND_OPTIONS, waitFor } from "../../../../test/test-utils";
+import { render, screen, TOOLTIP_FIND_OPTIONS, untilPasses } from "../../../../test/test-utils";
 import { ACTIVITIES_REQUIRING_DATA } from "../../constants";
 import { ActivityRail } from "../ActivityRail";
 
@@ -200,7 +200,8 @@ describe("ActivityRail", () => {
                 />,
             );
 
-            await user.click(item("Explore. Load data first"));
+            // force: a reader can still press a disabled activity, and it must do nothing
+            await user.click(item("Explore. Load data first"), { force: true });
 
             expect(onActivityClick).not.toHaveBeenCalled();
         });
@@ -386,7 +387,8 @@ describe("ActivityRail", () => {
             const menu = await screen.findByRole("menu", { name: "Help and keyboard shortcuts" });
 
             expect(rail()).not.toContainElement(menu);
-            await waitFor(() => {
+            // floating-ui places the menu on a later frame: wait on the placement, not a deadline (#2754).
+            await untilPasses(() => {
                 const help = item("Help and keyboard shortcuts").getBoundingClientRect();
                 const box = menu.getBoundingClientRect();
 

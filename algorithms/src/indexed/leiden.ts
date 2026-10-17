@@ -1,4 +1,4 @@
-import { type F64, type GraphSnapshot, renumberPartition, type U32 } from "@graphty/graph-format";
+import { detExp, type F64, type GraphSnapshot, renumberPartition, type U32 } from "@graphty/graph-format";
 
 import { withCode } from "../errors.js";
 import { mulberry32 } from "../utils/math-utilities.js";
@@ -272,7 +272,7 @@ function refine(level: Level, comm: U32, rand: () => number, resolution: number,
         if (kept === 0) {
             continue;
         }
-        const weight = (r: number): number => Math.exp(((gainOf(r) - maxGain) * 2) / m2 / THETA);
+        const weight = (r: number): number => detExp(((gainOf(r) - maxGain) * 2) / m2 / THETA);
         let total = 0;
         for (let j = 0; j < kept; j++) {
             total += weight(touched[j]);
@@ -363,6 +363,28 @@ function pass(
 }
 
 /**
+ * The snapshot's edge weights as f64 (the exact ones when it keeps them, 1 for an unweighted
+ * snapshot), checked to be finite and non-negative.
+ * @param s - The snapshot
+ * @returns One weight per edge
+ * @throws RangeError for a negative, NaN or infinite weight
+ */
+function checkedEdgeWeights(s: GraphSnapshot): F64 {
+    const given = exactEdgeWeights(s) ?? s.edgeList().weights;
+    const edgeW = given === null ? new Float64Array(s.edgeCount).fill(1) : Float64Array.from(given);
+    for (let e = 0; e < edgeW.length; e++) {
+        const w = edgeW[e];
+        if (!(w >= 0) || w === Infinity) {
+            throw withCode(
+                new RangeError(`edge ${e} has weight ${w}; Leiden needs finite, non-negative weights`),
+                "E_BAD_WEIGHT",
+            );
+        }
+    }
+    return edgeW;
+}
+
+/**
  * Leiden community detection (Traag, Waltman and van Eck, Sci. Rep. 9:5233, 2019) over an
  * undirected snapshot: fast local moving, refinement into well-connected sub-communities, and
  * aggregation by `contract()` once per level. Whole passes repeat from the previous answer, keeping
@@ -399,18 +421,7 @@ export function leiden(s: GraphSnapshot, options: LeidenOptions = {}): LeidenRes
         throw withCode(new RangeError(`randomSeed must be a finite integer, got ${randomSeed}`), "E_BAD_OPTION");
     }
     const n = s.nodeCount;
-    const given = exactEdgeWeights(s) ?? s.edgeList().weights;
-    const edgeW = given === null ? new Float64Array(s.edgeCount).fill(1) : Float64Array.from(given);
-    for (let e = 0; e < edgeW.length; e++) {
-        const w = edgeW[e];
-        if (!(w >= 0) || w === Infinity) {
-            throw withCode(
-                new RangeError(`edge ${e} has weight ${w}; Leiden needs finite, non-negative weights`),
-                "E_BAD_WEIGHT",
-            );
-        }
-    }
-    const base = levelOf(s, edgeW);
+    const base = levelOf(s, checkedEdgeWeights(s));
     let m2 = 0;
     for (let u = 0; u < n; u++) {
         m2 += base.deg[u];

@@ -56,7 +56,7 @@
  * (`statusStep` in asks.mjs).
  */
 
-import { byOwner, move, newJob, TERMINAL } from "./board.mjs";
+import { byOwner, move, newJob, sessionName, TERMINAL } from "./board.mjs";
 import { orderPosition } from "./owner.mjs";
 import {
     issueRule,
@@ -67,6 +67,7 @@ import {
     NEXT,
     notWorkLabel,
     ownerLabel,
+    prOf,
     prWork,
     readyIssues,
     SKIP,
@@ -187,7 +188,7 @@ function lapseOwnerClaims(state, gone, now, out) {
         const session = job.holder?.session;
         if (job.holder?.startedBy !== "owner" || job.kept || !session || TERMINAL.includes(job.state)) continue;
         if (!gone(session)) continue;
-        releaseOwnerJob(job, `claim lapsed: session ${session} ended`, now);
+        releaseOwnerJob(job, `claim lapsed: session ${sessionName(state, session)} ended`, now);
         out.lapsed.push({ job: job.id, session });
     }
 }
@@ -413,7 +414,8 @@ function cancelEndedPrJobs(state, cancel) {
         const rec = state.prs?.[String(job.pr)];
         if (!rec) cancel(job, `#${job.pr} closed or merged`);
         // A holder that pushed made it green, or is waiting on its CI: the done check settles that.
-        else if (!prWork(String(job.pr), rec, state) && !(job.holder && job.pushedHead)) {
+        // A holder that made it a draft is reworking it (REWORK_RULE in job-text.mjs, issue 2727).
+        else if (!prWork(String(job.pr), rec, state) && !(job.holder && (job.pushedHead || rec.draft))) {
             cancel(job, `#${job.pr} no longer needs a worker`);
         }
     }
@@ -722,13 +724,14 @@ function issueJobs(state, config, now, add, cancel) {
     const priorities = config.labels?.priorities ?? [];
     // As many queued issue jobs as the sessions githerd may invite have room for (`issueDemand`),
     // all made in this pass, so an issue every session passes on does not leave the others
-    // without work; a critical one never waits behind a lower one.
+    // without work; a critical one, or one the owner ordered, never waits for room.
     const room = issueDemand(state, config);
     const tried = new Set();
     for (;;) {
         const candidates = issueCandidates(state, config, now, deferred);
         const top = candidates[0];
-        if (!top || tried.has(top.number) || (queued >= room && priorities[top.priority] !== CRITICAL)) return;
+        const urgent = top && (priorities[top.priority] === CRITICAL || top.order !== null);
+        if (!top || tried.has(top.number) || (queued >= room && !urgent)) return;
         tried.add(top.number);
         addIssueJob(state, config, now, add, top, candidates);
         queued += 1;
@@ -836,7 +839,8 @@ function issueCandidates(state, config, now, deferred) {
         .ranked.map((r) => ({ ...r, order: orderPosition(state, r.number) }))
         .filter((r) => {
             const old = state.jobs[`issue-${r.number}`];
-            const free = (!old || old.facts?.withdrawn) && !deferred[r.number] && !bundled.has(r.number);
+            const free =
+                (!old || old.facts?.withdrawn || fixGone(state, old)) && !deferred[r.number] && !bundled.has(r.number);
             // A master-guard issue whose lane is red now is the open incident's, not an issue job.
             const title = String(state.issues.byNumber[r.number]?.text ?? "").split("\n")[0];
             return free && r.offered && !guardIssue(state, title)?.live;
@@ -844,6 +848,22 @@ function issueCandidates(state, config, now, deferred) {
     // An open order comes before the ranked list (design 5.4); the sort is stable otherwise.
     candidates.sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity));
     return candidates;
+}
+
+/**
+ * Whether a done issue job's fix is gone (issue #2644): the pull request it named is no longer open
+ * while its issue still is. Closed unmerged, the issue needs a new job; merged without closing it,
+ * the new job verifies the merge first (`masterRefs`). A job still holding a session, a kept window
+ * or a worktree waits until tidyEndedJobs ends them. A done job with no pull request (a split's
+ * parent, a not-needed proposal) keeps the issue.
+ * @param {any} state the daemon state
+ * @param {any} job the issue's finished job
+ * @returns {boolean} whether the issue is free again
+ */
+function fixGone(state, job) {
+    const pr = job.pr ?? job.report?.pr;
+    if (job.state !== "done" || pr == null || job.holder || job.kept || job.worktree) return false;
+    return !state.prs?.[String(pr)];
 }
 
 /** Labels that keep an issue out of a bundle: it must not merge, or needs a person's eyes. */
@@ -936,4 +956,115 @@ function promoteJobs(state, now, add, cancel) {
         if (job.facts?.scope === "promote" && !listed.has(job.facts.check))
             cancel(job, `${job.facts.check} is no longer an advisory check on master`);
     }
+}
+
+/** The states of a finished job: one in either is never worked again (a failed job keeps its owner item). */
+const FINISHED = new Set(["done", "cancelled"]);
+
+/**
+ * What becomes of each finished job (`done` or `cancelled`) at this pass (issue #2366). A finished
+ * job stays whole while something still works with it: a holder, a kept window or a worktree not
+ * yet removed (tidyEndedJobs), a session being ended for it, the usage stop's canary, a start task
+ * (`busy`), or a job that has not finished waiting on it. Otherwise, while a rule that makes jobs or
+ * counts claims reads it (`remakeReads`), it becomes a tombstone (`tombstoneOf`). Otherwise it is
+ * dropped. Each rule ends on an event (a pull request or issue leaves the state, a capacity answer
+ * is replaced, an entry leaves its list), never after a time.
+ * @param {any} state the daemon state
+ * @param {(id: string) => boolean} [busy] whether a start task runs for the job
+ * @returns {{tombstone: string[], drop: string[]}} the jobs to make tombstones of, and to drop
+ */
+export function finishedJobsToPrune(state, busy = () => false) {
+    const jobs = Object.values(state.jobs ?? {});
+    const waitedOn = new Set(jobs.filter((j) => !FINISHED.has(j.state)).map((j) => j.waitingFor?.job));
+    const retiring = new Set((state.retiring ?? []).map((/** @type {any} */ r) => r.job));
+    const ctx = {
+        held: new Set(Object.values(state.capacity ?? {}).flatMap((/** @type {any} */ c) => c.held ?? [])),
+        ordered: new Set((state.orders ?? []).flatMap((/** @type {any} */ o) => o.issues ?? []).map(String)),
+        advisory: new Set((state.advisory?.entries ?? []).map((/** @type {any} */ e) => e.id)),
+        incidents: new Set(
+            Object.values(state.incidents ?? {})
+                .filter((/** @type {any} */ i) => i.status === "open")
+                .map((/** @type {any} */ i) => i.id),
+        ),
+    };
+    /** @type {{tombstone: string[], drop: string[]}} */
+    const out = { tombstone: [], drop: [] };
+    for (const j of jobs) {
+        if (!FINISHED.has(j.state)) continue;
+        const whole = j.holder || j.kept || j.worktree || waitedOn.has(j.id) || retiring.has(j.id) || busy(j.id);
+        if (whole || state.apiStop?.canary === j.id) continue;
+        if (!remakeReads(state, j, ctx)) out.drop.push(j.id);
+        else if (!j.tombstone) out.tombstone.push(j.id);
+    }
+    return out;
+}
+
+/**
+ * Whether a rule still reads finished job `j` (issue #2366), each until the event that ends it:
+ * - its pull request is open (`state.prs`): the review jobs of a pull request a job made, a review
+ *   of the same patch not made twice, self-review and disown checks (sessions, claim), the merge
+ *   gate's facts (`madeBy`: kind, acknowledged revision, a passed review's verdict and patch id);
+ * - its claim counts against its session's capacity answer (claimed or ended since the answer, or
+ *   listed as held in it), until the session answers again or ends;
+ * - `issue-<n>`: while issue n is in the state or an order lists it, a finished job keeps the issue
+ *   from a new job (`issueCandidates`, unless withdrawn or its fix is gone: `fixGone`) and an order's issue counts as having one;
+ * - `issue-reland-<n>`: while the revert of n is recorded, the re-land is not made again;
+ * - a promotion, while its check is still advisory; a release queue job, while its release pull
+ *   request is in `state.releaseQueue`; a shared failure's job, while the key is shared; a verdict
+ *   job, while its incident is open (githerd_verdict reads its key from it).
+ * @param {any} state the daemon state
+ * @param {any} j the finished job
+ * @param {{held: Set<string>, ordered: Set<string>, advisory: Set<string>, incidents: Set<string>}} ctx
+ *   the capacity answers' held jobs, the ordered issues, the advisory checks and the open incidents
+ * @returns {boolean} whether a rule reads it
+ */
+function remakeReads(state, j, ctx) {
+    const pr = prOf(j) ?? j.report?.pr;
+    if (pr != null && state.prs?.[String(pr)]) return true;
+    const said = j.claim ? state.capacity?.[j.claim.session] : null;
+    if (ctx.held.has(j.id) || (said && (j.claim.at >= said.at || j.stateSince >= said.at))) return true;
+    const issue = /^issue-(\d+)$/.exec(j.id)?.[1];
+    if (issue && (state.issues?.byNumber?.[issue] || ctx.ordered.has(issue))) return true;
+    const reland = /^issue-reland-(\d+)$/.exec(j.id)?.[1];
+    if (reland && state.incidentActions?.reverts?.[reland] !== undefined) return true;
+    const f = j.facts ?? {};
+    if (f.scope === "promote") return ctx.advisory.has(f.check);
+    if (f.scope === "queue") return Boolean(state.releaseQueue?.[String(f.release)]);
+    if (f.scope === "shared") return Boolean(state.sharedFailures?.[f.key]?.shared);
+    if (f.scope === "verdict") return ctx.incidents.has(f.incident);
+    return false;
+}
+
+/** The facts a tombstone keeps: those `remakeReads`'s rules and their readers look at. */
+const TOMBSTONE_FACTS = ["scope", "key", "check", "release", "incident", "pr", "patchId", "withdrawn"];
+
+/**
+ * The tombstone of finished job `j` (issue #2366): what the rules of `remakeReads` read, with
+ * `tombstone: true`. The whole record is in the ledger (a `job-dropped` line), where githerd why
+ * reads it.
+ * @param {any} j the finished job
+ * @returns {any} the tombstone
+ */
+export function tombstoneOf(j) {
+    const facts = Object.fromEntries(
+        TOMBSTONE_FACTS.filter((k) => j.facts?.[k] !== undefined).map((k) => [k, j.facts[k]]),
+    );
+    const verdict = j.report?.result?.verdict;
+    return {
+        id: j.id,
+        kind: j.kind,
+        target: j.target,
+        state: j.state,
+        stateSince: j.stateSince,
+        tombstone: true,
+        ...(j.pr == null ? {} : { pr: j.pr }),
+        ...(j.acknowledgedRevision ? { acknowledgedRevision: j.acknowledgedRevision } : {}),
+        // A split's children: proposals.mjs proposeSplitParents closes the parent once they close.
+        ...(j.children?.length ? { children: j.children } : {}),
+        facts,
+        sessions: j.sessions ?? [],
+        claim: j.claim ? { session: j.claim.session, at: j.claim.at } : null,
+        report: j.report ? { pr: j.report.pr ?? null, ...(verdict ? { result: { verdict } } : {}) } : null,
+        news: [],
+    };
 }

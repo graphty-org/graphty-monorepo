@@ -1,8 +1,8 @@
 import {
     AbstractMesh,
     Color3,
+    Constants,
     DynamicTexture,
-    Engine,
     Mesh,
     MeshBuilder,
     Scene,
@@ -25,6 +25,17 @@ const depthFadeFrames = new FrameRoster();
 
 /** The Babylon rendering group a label drawn on top uses: after nodes and edges (group 0). */
 const ON_TOP_RENDERING_GROUP = 1;
+
+/**
+ * Whether a label's canvas is uploaded with premultiplied alpha.
+ *
+ * DARK CORNERS OTHERWISE (#3158). Uploaded straight, a pixel the panel only partly covers keeps
+ * its full color while the transparent pixels around it are black, and the GPU's filtering and
+ * mipmaps average the two: the panel's antialiased curves came out as dark ticks on a light
+ * border. Straight edges lie on whole texels and have no such pixels. Premultiplied, a transparent
+ * pixel contributes nothing to the average.
+ */
+const PREMULTIPLIED = true;
 
 /** The line height a label is drawn at when its style names none. */
 const DEFAULT_LINE_HEIGHT = 1.2;
@@ -164,6 +175,8 @@ export class RichTextLabel {
      */
     private heightInLines = 1;
     private totalBorderWidth = 0;
+    /** The room around the panel its drop shadow is drawn in, on every side; zero without one. */
+    private shadowMargin = 0;
     private pointerInfo: PointerInfo | null = null;
     private _progressValue = 0;
     private readonly id: string;
@@ -228,6 +241,11 @@ export class RichTextLabel {
             textShadowBlur: 4,
             textShadowOffsetX: 2,
             textShadowOffsetY: 2,
+            panelShadow: false,
+            panelShadowColor: "rgba(0, 0, 0, 0.3)",
+            panelShadowBlur: 16,
+            panelShadowOffsetX: 0,
+            panelShadowOffsetY: 6,
             textOutline: false,
             textOutlineColor: "black",
             textOutlineWidth: 2,
@@ -443,6 +461,20 @@ export class RichTextLabel {
                 this.contentArea.x += extraWidth / 2;
             }
         }
+
+        // ROOM FOR THE SHADOW, THE SAME ON EVERY SIDE, so the panel stays centered on the plane and
+        // the shadow is not cut off at the canvas edge. The plane grows with it, in proportion, so
+        // the letters keep their size.
+        const { panelShadowBlur: blur, panelShadowOffsetX: dx, panelShadowOffsetY: dy } = this.options;
+        this.shadowMargin = this.options.panelShadow ? Math.max(0, blur) + Math.max(Math.abs(dx), Math.abs(dy)) : 0;
+        if (this.shadowMargin > 0) {
+            const panelHeight = this.actualDimensions.height;
+            this.actualDimensions.width += this.shadowMargin * 2;
+            this.actualDimensions.height += this.shadowMargin * 2;
+            this.contentArea.x += this.shadowMargin;
+            this.contentArea.y += this.shadowMargin;
+            this.heightInLines *= this.actualDimensions.height / panelHeight;
+        }
     }
 
     private _calculatePointerDimensions(): void {
@@ -546,12 +578,15 @@ export class RichTextLabel {
         this.renderer.drawText(ctx, this.parsedContent, textArea);
 
         ctx.restore();
-        this.texture.update();
+        this.texture.update(undefined, PREMULTIPLIED);
     }
 
     private _drawBackgroundWithBorders(ctx: CanvasRenderingContext2D): void {
-        const { width } = this.actualDimensions;
-        const { height } = this.actualDimensions;
+        this._drawPanelShadow(ctx);
+
+        const m = this.shadowMargin;
+        const width = this.actualDimensions.width - m * 2;
+        const height = this.actualDimensions.height - m * 2;
         const radius = this.options.cornerRadius;
 
         if (this.options.borders.length > 0) {
@@ -567,8 +602,8 @@ export class RichTextLabel {
                 ctx.save();
                 ctx.fillStyle = border.color ?? "rgba(255, 255, 255, 0.8)";
 
-                const x = currentOffset;
-                const y = currentOffset;
+                const x = m + currentOffset;
+                const y = m + currentOffset;
                 const w = width - currentOffset * 2;
                 const h = height - currentOffset * 2;
                 const r = Math.max(0, radius - currentOffset);
@@ -594,8 +629,8 @@ export class RichTextLabel {
 
                     this._createRoundedRectPath(
                         ctx,
-                        innerOffset,
-                        innerOffset,
+                        m + innerOffset,
+                        m + innerOffset,
                         width - innerOffset * 2,
                         height - innerOffset * 2,
                         innerRadius,
@@ -628,6 +663,8 @@ export class RichTextLabel {
     }
 
     private _drawBackgroundWithPointer(ctx: CanvasRenderingContext2D): void {
+        this._drawPanelShadow(ctx);
+
         const radius = this.options.cornerRadius;
 
         if (this.options.borders.length > 0 && this.pointerInfo) {
@@ -721,6 +758,75 @@ export class RichTextLabel {
         if (this.options._progressBar) {
             this._drawProgressBar(ctx);
         }
+    }
+
+    /**
+     * Draw the panel's drop shadow, and only the shadow: the panel's outline is filled far off the
+     * canvas and its shadow thrown back onto it, so a see-through panel does not show a filled
+     * shape through itself.
+     * @param ctx - The label's canvas, already scaled to label units.
+     */
+    private _drawPanelShadow(ctx: CanvasRenderingContext2D): void {
+        if (this.shadowMargin === 0) {
+            return;
+        }
+
+        // Shadow blur and offset are in canvas pixels; the transform does not scale them.
+        const { a: sx, d: sy } = ctx.getTransform();
+        const away = this.actualDimensions.width * 2;
+
+        ctx.save();
+        ctx.shadowColor = this.options.panelShadowColor;
+        ctx.shadowBlur = this.options.panelShadowBlur * Math.min(sx, sy);
+        ctx.shadowOffsetX = (this.options.panelShadowOffsetX + away) * sx;
+        ctx.shadowOffsetY = this.options.panelShadowOffsetY * sy;
+        ctx.fillStyle = "black";
+        this._tracePanelOutline(ctx, -away);
+        ctx.fill();
+        ctx.restore();
+    }
+
+    /**
+     * Trace the outside edge of the panel -- its outermost border, or the panel itself when it has
+     * none -- as the current path.
+     * @param ctx - The label's canvas.
+     * @param dx - How far to the right to trace it.
+     */
+    private _tracePanelOutline(ctx: CanvasRenderingContext2D, dx: number): void {
+        const border = this.totalBorderWidth;
+        const radius = this.options.cornerRadius;
+        if (this.options.pointer && this.pointerInfo) {
+            ctx.beginPath();
+            this.pointerRenderer.createSpeechBubblePath(
+                ctx,
+                {
+                    x: this.contentArea.x - border + dx,
+                    y: this.contentArea.y - border,
+                    width: this.contentArea.width + border * 2,
+                    height: this.contentArea.height + border * 2,
+                },
+                radius,
+                {
+                    width: this.pointerInfo.width,
+                    height: this.pointerInfo.height,
+                    offset: this.pointerInfo.offset,
+                    direction: this.pointerInfo.direction as PointerDirection,
+                    curved: this.pointerInfo.curve,
+                },
+            );
+            ctx.closePath();
+            return;
+        }
+
+        const m = this.shadowMargin;
+        if (this.options.borders.length > 0) {
+            const { width, height } = this.actualDimensions;
+            this._createRoundedRectPath(ctx, m + dx, m, width - m * 2, height - m * 2, radius);
+            return;
+        }
+
+        const { x, y, width, height } = this.contentArea;
+        this._createRoundedRectPath(ctx, x + dx, y, width, height, radius);
     }
 
     private _fillBackground(ctx: CanvasRenderingContext2D): void {
@@ -874,7 +980,7 @@ export class RichTextLabel {
         ctx.fillRect(progressBarX, progressBarY, progressBarWidth * this._progressValue, progressBarHeight);
 
         ctx.restore();
-        this.texture.update();
+        this.texture.update(undefined, PREMULTIPLIED);
     }
 
     private _createRoundedRectPath(
@@ -892,16 +998,15 @@ export class RichTextLabel {
         // asks for 999 to mean "a pill", and every one of them was drawn as a square.
         const radius = Math.max(0, Math.min(wanted, width / 2, height / 2));
 
+        // CIRCULAR ARCS, NOT QUADRATICS. A quadratic corner bulges towards the corner, and two of
+        // them a border's width apart are not parallel: the ring between them was thicker along
+        // the diagonal than along the edges (#3158).
         ctx.beginPath();
         ctx.moveTo(x + radius, y);
-        ctx.lineTo(x + width - radius, y);
-        ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
-        ctx.lineTo(x + width, y + height - radius);
-        ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
-        ctx.lineTo(x + radius, y + height);
-        ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
-        ctx.lineTo(x, y + radius);
-        ctx.quadraticCurveTo(x, y, x + radius, y);
+        ctx.arcTo(x + width, y, x + width, y + height, radius);
+        ctx.arcTo(x + width, y + height, x, y + height, radius);
+        ctx.arcTo(x, y + height, x, y, radius);
+        ctx.arcTo(x, y, x + width, y, radius);
         ctx.closePath();
     }
 
@@ -929,7 +1034,10 @@ export class RichTextLabel {
 
             material.backFaceCulling = false;
             material.useAlphaFromDiffuseTexture = true;
-            material.alphaMode = Engine.ALPHA_COMBINE;
+            // The texture holds premultiplied color (see PREMULTIPLIED), so it is blended as
+            // COLOR = SRC + (1 - SRC_ALPHA) * DEST. ALPHA_PREMULTIPLIED would multiply by alpha a
+            // second time in the shader.
+            material.alphaMode = Constants.ALPHA_SRC_DSTONEMINUSSRCALPHA;
         });
     }
 
@@ -1104,7 +1212,12 @@ export class RichTextLabel {
                 fadeFactor = 1 - (distance - this.options.depthFadeNear) / fadeRange;
             }
 
+            // Premultiplied color fades with its alpha: the texture's level scales the color,
+            // the material's alpha the coverage.
             this.material.alpha = fadeFactor;
+            if (this.material.diffuseTexture) {
+                this.material.diffuseTexture.level = fadeFactor;
+            }
         });
     }
 
@@ -1259,8 +1372,9 @@ export class RichTextLabel {
         }
 
         // The same arithmetic RichTextRenderer.drawText lays the widest line out with.
-        const areaX = this.contentArea.x + this.options.marginLeft;
-        const areaWidth = this.contentArea.width - this.options.marginLeft - this.options.marginRight;
+        const pad = this.options.backgroundPadding;
+        const areaX = this.contentArea.x + this.options.marginLeft + pad;
+        const areaWidth = this.contentArea.width - this.options.marginLeft - this.options.marginRight - pad * 2;
         let x = areaX + (areaWidth - this.textSize.width) / 2;
         if (this.options.textAlign === "left") {
             x = areaX;
@@ -1268,7 +1382,7 @@ export class RichTextLabel {
             x = areaX + areaWidth - this.textSize.width;
         }
 
-        const y = this.contentArea.y + this.options.marginTop;
+        const y = this.contentArea.y + this.options.marginTop + pad;
 
         return {
             left: x / width,

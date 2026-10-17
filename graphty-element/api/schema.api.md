@@ -249,6 +249,11 @@ export const EdgeStyle: z.ZodObject<{
             textShadowOffsetX: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             textShadowOffsetY: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             backgroundPadding: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+            panelShadow: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+            panelShadowColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+            panelShadowBlur: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+            panelShadowOffsetX: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+            panelShadowOffsetY: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             backgroundGradient: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
             backgroundGradientType: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
                 linear: "linear";
@@ -412,6 +417,11 @@ export const EdgeStyle: z.ZodObject<{
             textShadowOffsetX: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             textShadowOffsetY: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             backgroundPadding: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+            panelShadow: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+            panelShadowColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+            panelShadowBlur: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+            panelShadowOffsetX: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+            panelShadowOffsetY: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             backgroundGradient: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
             backgroundGradientType: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
                 linear: "linear";
@@ -574,6 +584,11 @@ export const EdgeStyle: z.ZodObject<{
         textShadowOffsetX: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         textShadowOffsetY: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         backgroundPadding: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        panelShadow: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+        panelShadowColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+        panelShadowBlur: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        panelShadowOffsetX: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        panelShadowOffsetY: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         backgroundGradient: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         backgroundGradientType: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
             linear: "linear";
@@ -741,6 +756,11 @@ export interface LabelStyle {
     outlineWidth?: number;
     overflowSuffix?: string;
     padding?: number;
+    panelShadow?: boolean;
+    panelShadowBlur?: number;
+    panelShadowColor?: string;
+    panelShadowOffsetX?: number;
+    panelShadowOffsetY?: number;
     pointer?: boolean;
     pointerCurve?: boolean;
     pointerDirection?: LabelPointerDirection;
@@ -994,6 +1014,11 @@ export const NodeStyle: z.ZodObject<{
         textShadowOffsetX: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         textShadowOffsetY: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         backgroundPadding: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        panelShadow: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+        panelShadowColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+        panelShadowBlur: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        panelShadowOffsetX: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        panelShadowOffsetY: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         backgroundGradient: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         backgroundGradientType: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
             linear: "linear";
@@ -1136,6 +1161,11 @@ export const NodeStyle: z.ZodObject<{
         textShadowOffsetX: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         textShadowOffsetY: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         backgroundPadding: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        panelShadow: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+        panelShadowColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+        panelShadowBlur: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        panelShadowOffsetX: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        panelShadowOffsetY: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         backgroundGradient: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         backgroundGradientType: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
             linear: "linear";
@@ -1358,6 +1388,11 @@ export const RichTextStyle: z.ZodObject<{
     textShadowOffsetX: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
     textShadowOffsetY: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
     backgroundPadding: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+    panelShadow: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+    panelShadowColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+    panelShadowBlur: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+    panelShadowOffsetX: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+    panelShadowOffsetY: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
     backgroundGradient: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
     backgroundGradientType: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
         linear: "linear";

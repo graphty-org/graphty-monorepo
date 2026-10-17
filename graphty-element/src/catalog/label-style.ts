@@ -150,6 +150,20 @@ export interface LabelStyle {
     /** How far the shadow is thrown downwards. */
     shadowOffsetY?: number;
 
+    /**
+     * Whether the panel casts a drop shadow. The label grows by the shadow's blur and offset, so
+     * the shadow is never cut off; the panel stays where it was.
+     */
+    panelShadow?: boolean;
+    /** The color of the panel's shadow. */
+    panelShadowColor?: string;
+    /** How far the panel's shadow is blurred, on the label's own canvas. */
+    panelShadowBlur?: number;
+    /** How far the panel's shadow is thrown to the right. */
+    panelShadowOffsetX?: number;
+    /** How far the panel's shadow is thrown downwards. */
+    panelShadowOffsetY?: number;
+
     /** How the label moves. */
     animation?: LabelAnimation;
     /** How fast it moves, as a multiple of the animation's own speed. */
@@ -229,6 +243,11 @@ export const LABEL_STYLE_FIELDS: readonly (keyof LabelStyle)[] = Object.keys({
     shadowBlur: 0,
     shadowOffsetX: 0,
     shadowOffsetY: 0,
+    panelShadow: 0,
+    panelShadowColor: 0,
+    panelShadowBlur: 0,
+    panelShadowOffsetX: 0,
+    panelShadowOffsetY: 0,
     animation: 0,
     animationSpeed: 0,
     depthFade: 0,

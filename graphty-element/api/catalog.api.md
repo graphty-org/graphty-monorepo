@@ -1018,6 +1018,11 @@ export interface LabelStyle {
     outlineWidth?: number;
     overflowSuffix?: string;
     padding?: number;
+    panelShadow?: boolean;
+    panelShadowBlur?: number;
+    panelShadowColor?: string;
+    panelShadowOffsetX?: number;
+    panelShadowOffsetY?: number;
     pointer?: boolean;
     pointerCurve?: boolean;
     pointerDirection?: LabelPointerDirection;

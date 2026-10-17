@@ -13,6 +13,7 @@ import { STYLE_ISSUE } from "../../styles/codes.js";
 import {
     type CytoscapeMapping,
     type CytoscapeStyle,
+    dropMismatchedKeys,
     emptyCytoscapeStyle,
     sharedColumnFallback,
     typedKey,
@@ -118,6 +119,7 @@ function sessionTargetStyles(
     const table = target === "node" ? snapshot.nodes : snapshot.edges;
     const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
     sharedColumnFallback(style[target], (column) => table.has(column));
+    dropMismatchedKeys(style[target], (column) => table.get(column)?.meta.origin?.type ?? null, notes, target);
     for (const m of style[target].mappings.values()) {
         if (!table.has(m.column)) {
             notes.add(STYLE_ISSUE.MAPPING_COLUMN_MISSING, target, m.column, { sample: m.kind });

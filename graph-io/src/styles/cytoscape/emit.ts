@@ -806,7 +806,11 @@ function cytoscapeMapping(
         return {
             kind: "discrete",
             column,
-            type: typeOf(m.table.map(([k]) => k)),
+            type: keyType(
+                e,
+                m.by,
+                m.table.map(([k]) => k),
+            ),
             table: m.table.map(([k, v]) => [k, write(v)]),
         };
     }
@@ -886,7 +890,16 @@ function passthroughMapping(
         }
     }
     const table = Array.from(seen);
-    return { kind: "discrete", column, type: typeOf(table.map(([k]) => k)), table };
+    return {
+        kind: "discrete",
+        column,
+        type: keyType(
+            e,
+            by,
+            table.map(([k]) => k),
+        ),
+        table,
+    };
 }
 
 /**
@@ -919,6 +932,28 @@ function cx2Points(m: Extract<Mapping, { kind: "continuous" }>, approx: () => vo
  */
 function isScalar(v: unknown): v is Scalar {
     return typeof v === "string" || typeof v === "boolean" || (typeof v === "number" && Number.isFinite(v));
+}
+
+/**
+ * The type a discrete mapping's keys are written with: `double` over a column the exporter writes as Double
+ * (Cytoscape compares an Integer key with a Double cell and finds no match), else the keys' own type.
+ * @param e - the target's emission
+ * @param by - the column the mapping reads
+ * @param keys - the keys
+ * @returns the type
+ */
+function keyType(e: TargetEmit, by: ColumnRef, keys: readonly unknown[]): string {
+    const type = typeOf(keys);
+    if (type !== "integer") {
+        return type;
+    }
+    if (!("data" in by)) {
+        // a column the exporter adds holds numbers as Double
+        return "double";
+    }
+    const meta = (e.target === "node" ? e.snapshot.nodes : e.snapshot.edges).get(by.data)?.meta;
+    const floating = (meta?.dtype === "f32" || meta?.dtype === "f64") && meta.origin?.type !== "long";
+    return floating ? "double" : type;
 }
 
 /**

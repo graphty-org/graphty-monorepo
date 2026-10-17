@@ -41,6 +41,7 @@ const EPSILON = 1e-9;
  *   and label sizes against the spacing of its 0..1 coordinates.
  * - graphml-synthetic-edges, json-cyjs-synth-edges, gexf-qvge-mine-airing, gml-synthetic-coverage:
  *   parallel edges (fanned only where the style asks for a curve) and dashed lines along routes.
+ * - cx-ddram: labels of 1 to 96 pt in one file, each drawn in proportion.
  */
 const DRAWN = [
     "gml-yed-pmodel",
@@ -70,6 +71,7 @@ const DRAWN = [
     "json-cyjs-synth-edges",
     "gexf-qvge-mine-airing",
     "gml-synthetic-coverage",
+    "cx-ddram",
 ];
 
 interface Floors {

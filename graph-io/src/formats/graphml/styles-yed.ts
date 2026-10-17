@@ -335,8 +335,9 @@ function readColor(raw: unknown, property: string, opacity: string | null, put: 
  * @param node - whether they are node labels (which have a position)
  * @param put - receives the values
  * @param at - the sites
+ * @param geometry - a node label's node `y:Geometry`, which places the label inside or outside the node
  */
-function readLabels(labels: readonly unknown[], node: boolean, put: PutValue, at: SiteOf): void {
+function readLabels(labels: readonly unknown[], node: boolean, put: PutValue, at: SiteOf, geometry?: unknown): void {
     let label: unknown = undefined;
     let text = "";
     let extra = 0;
@@ -359,7 +360,7 @@ function readLabels(labels: readonly unknown[], node: boolean, put: PutValue, at
         noteAt(at("label"), STYLE_ISSUE.EXTRA_LABELS, `${String(extra + 1)} labels`);
     }
     put("label", canonText(text, at("label")));
-    readLabelLook(label, node, put, at);
+    readLabelLook(label, node, put, at, geometry);
 }
 
 /**
@@ -368,8 +369,9 @@ function readLabels(labels: readonly unknown[], node: boolean, put: PutValue, at
  * @param node - whether it is a node label
  * @param put - receives the values
  * @param at - the sites
+ * @param geometry - a node label's node `y:Geometry`
  */
-function readLabelLook(label: unknown, node: boolean, put: PutValue, at: SiteOf): void {
+function readLabelLook(label: unknown, node: boolean, put: PutValue, at: SiteOf, geometry?: unknown): void {
     readColor(treeAttr(label, "textColor"), "labelColor", null, put, at);
     put("labelSize", canonNumber(treeAttr(label, "fontSize"), at("labelSize")));
     put("labelFont", canonText(treeAttr(label, "fontFamily"), at("labelFont")));
@@ -383,15 +385,53 @@ function readLabelLook(label: unknown, node: boolean, put: PutValue, at: SiteOf)
             put("labelItalic", known[1]);
         }
     }
-    const position = node ? treeAttr(label, "modelPosition") : undefined;
-    if (position !== undefined) {
-        const known = YED_POSITIONS.get(position.trim().toLowerCase());
-        if (known === undefined) {
-            noteAt(at("labelPosition"), STYLE_ISSUE.UNKNOWN_VALUE, position.slice(0, MAX_STYLE_VALUE_LENGTH));
-        }
-        put("labelPosition", known ?? null);
+    if (node) {
+        put("labelPosition", nodeLabelPosition(label, geometry, at));
     }
 }
+
+/**
+ * Where yEd draws a node label: from the label's box, which every model yEd writes stores relative to the node's
+ * top-left corner (a label overlapping the node is inside it, one entirely beside it outside on that side), else
+ * from its model: every `internal` position is inside the node, the other models' positions outside it.
+ * @param label - the label element
+ * @param geometry - the node's `y:Geometry`
+ * @param at - the sites
+ * @returns the position, or null
+ */
+function nodeLabelPosition(label: unknown, geometry: unknown, at: SiteOf): string | null {
+    const num = (o: unknown, k: string): number => Number(treeAttr(o, k) ?? Number.NaN);
+    const [x, y, w, h] = ["x", "y", "width", "height"].map((k) => num(label, k));
+    const [nw, nh] = [num(geometry, "width"), num(geometry, "height")];
+    if ([x, y, w, h, nw, nh].every(Number.isFinite)) {
+        const side = (lo: number, size: number, extent: number): -1 | 0 | 1 => {
+            if (lo + size <= 0) {
+                return -1;
+            }
+            return lo >= extent ? 1 : 0;
+        };
+        return BOX_POSITIONS[side(y, h, nh) + 1][side(x, w, nw) + 1];
+    }
+    const position = treeAttr(label, "modelPosition");
+    if (position === undefined) {
+        return null;
+    }
+    if (treeAttr(label, "modelName") === "internal") {
+        return "center";
+    }
+    const known = YED_POSITIONS.get(position.trim().toLowerCase());
+    if (known === undefined) {
+        noteAt(at("labelPosition"), STYLE_ISSUE.UNKNOWN_VALUE, position.slice(0, MAX_STYLE_VALUE_LENGTH));
+    }
+    return known ?? null;
+}
+
+/** A label's position by the side of the node it lies on: rows above, level, below; columns left, level, right. */
+const BOX_POSITIONS: readonly (readonly string[])[] = [
+    ["top-left", "top", "top-right"],
+    ["left", "center", "right"],
+    ["bottom-left", "bottom", "bottom-right"],
+];
 
 /**
  * The shape of a node realizer: its `y:Shape` where it has one, a GenericNode's configuration, or the realizer
@@ -465,7 +505,7 @@ function readNode(real: Realizer, put: PutValue, at: SiteOf): void {
     put("width", canonNumber(treeAttr(geometry, "width"), at("width")));
     put("height", canonNumber(treeAttr(geometry, "height"), at("height")));
     put("shape", realizerShape(real, at));
-    readLabels(treeChildren(r, "NodeLabel"), true, put, at);
+    readLabels(treeChildren(r, "NodeLabel"), true, put, at, geometry);
 }
 
 /**
@@ -697,17 +737,17 @@ export const YED_ARROWS: ReadonlyMap<string, string> = new Map([
     ["crow", "crows_foot_many"],
 ]);
 
-/** yEd's label positions in the internal model, by neutral position. */
+/** yEd's label positions by neutral position: the center in the internal model, the rest in the eight-position one. */
 const YED_MODEL_POSITIONS: ReadonlyMap<string, string> = new Map([
     ["center", "c"],
-    ["top", "t"],
-    ["bottom", "b"],
-    ["left", "l"],
-    ["right", "r"],
-    ["top-left", "tl"],
-    ["top-right", "tr"],
-    ["bottom-left", "bl"],
-    ["bottom-right", "br"],
+    ["top", "n"],
+    ["bottom", "s"],
+    ["left", "w"],
+    ["right", "e"],
+    ["top-left", "nw"],
+    ["top-right", "ne"],
+    ["bottom-left", "sw"],
+    ["bottom-right", "se"],
 ]);
 
 /**
@@ -812,7 +852,8 @@ function labelTree(get: GetValue, node: boolean, approximate: Approximate): Tree
         if (written === undefined) {
             approximate("labelPosition", position);
         }
-        label["@_modelName"] = "internal";
+        // the center inside the node (yEd's internal model), the other positions outside it (its eight-position one)
+        label["@_modelName"] = written === undefined || written === "c" ? "internal" : "eight_pos";
         label["@_modelPosition"] = written ?? "c";
     }
     label["#text"] = text;

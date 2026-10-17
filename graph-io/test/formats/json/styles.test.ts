@@ -197,7 +197,7 @@ describe("JSON styles: reading", () => {
                 { id: "a", group: "g1" },
                 { id: "b", group: "g2" },
                 { id: "c", color: { background: "#00ff00" } },
-                { id: "d" },
+                { id: "d", shape: "box" },
             ],
             edges: [
                 { from: "a", to: "b" },
@@ -211,9 +211,12 @@ describe("JSON styles: reading", () => {
         expect(values(r, "node", "fill")).toEqual(["#ff0000", "#97c2fc", "#00ff00", "#97c2fc"]);
         // a text color's border is vis-network's darker shade of it
         expect(values(r, "node", "borderColor")).toEqual(["#cc0000", "#2b7ce9", "#2b7ce9", "#2b7ce9"]);
-        // vis-network draws `size` as a radius
+        // vis-network draws `size` as a radius; the box, which vis-network sizes by its label, still takes the
+        // declared default until nodes sized by their label are read (#3167)
         expect(values(r, "node", "width")).toEqual([20, 20, 20, 20]);
-        expect(values(r, "node", "shape")).toEqual(["ellipse", "ellipse", "ellipse", "ellipse"]);
+        expect(values(r, "node", "shape")).toEqual(["ellipse", "ellipse", "ellipse", "round-rectangle"]);
+        // vis-network draws a label below a dot and inside a box
+        expect(values(r, "node", "labelPosition")).toEqual(["bottom", "bottom", "bottom", "center"]);
         // an edge without a color of its own takes its source node's border (its target's under inherit "to")
         expect(values(r, "edge", "color")).toEqual(["#cc0000", "#0000ff", "#2b7ce9"]);
         expect(values(r, "edge", "width")).toEqual([2, 2, 2]);

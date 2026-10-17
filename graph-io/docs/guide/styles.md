@@ -285,14 +285,14 @@ none.
 
 ### `yfiles3`
 
-|           |                                                                                                                                                  |
-| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Read from | yFiles for HTML (API docs retrieved 2026-10-11)                                                                                                  |
-| Lengths   | pixels                                                                                                                                           |
-| Nodes     | `fill` `#ffffff`, `borderColor` `#000000`, `borderWidth` `1`, `shape` `rectangle`, `labelColor` `#000000`, `labelFont` `Arial`, `labelSize` `12` |
-| Edges     | `color` `#000000`, `width` `1`, `sourceArrow` `none`, `targetArrow` `none`, `labelColor` `#000000`, `labelFont` `Arial`, `labelSize` `12`        |
-| Graph     | none                                                                                                                                             |
-| Rules     | none                                                                                                                                             |
+|           |                                                                                                                                                                            |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Read from | yFiles for HTML (API docs retrieved 2026-10-11)                                                                                                                            |
+| Lengths   | pixels                                                                                                                                                                     |
+| Nodes     | `fill` `#ffffff`, `borderColor` `#000000`, `borderWidth` `1`, `shape` `rectangle`, `labelColor` `#000000`, `labelFont` `Arial`, `labelSize` `12`, `labelPosition` `center` |
+| Edges     | `color` `#000000`, `width` `1`, `sourceArrow` `none`, `targetArrow` `none`, `labelColor` `#000000`, `labelFont` `Arial`, `labelSize` `12`                                  |
+| Graph     | none                                                                                                                                                                       |
+| Rules     | none                                                                                                                                                                       |
 
 ### `gephi`
 

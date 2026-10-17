@@ -179,6 +179,11 @@ interface ChannelPlan {
     readonly identity: boolean;
     /** Whether a value is drawn as the nearest one rather than exactly. */
     readonly nearest?: (value: StyleValue) => boolean;
+    /**
+     * True when `convert` is not in proportion to the value: a continuous mapping is then drawn
+     * between its converted points, not as each element's own value converted.
+     */
+    readonly curved?: boolean;
 }
 
 /** A layer being built, with what it paints. */
@@ -473,6 +478,18 @@ function channelPlans(
         convert: (value) => (typeof value === "number" ? round(value * factor) : null),
         identity: factor === 1,
     });
+    // Each size converted on its own: a label's letters are not in proportion to its `sizePx` (see LABEL).
+    const labelSize = (channel: Channel): ChannelPlan => {
+        const px = factors.label;
+        return px === null
+            ? id(channel)
+            : {
+                  channel,
+                  convert: (value) => (typeof value === "number" ? round(px(value)) : null),
+                  identity: false,
+                  curved: true,
+              };
+    };
     if (kind === "node") {
         const shapeTable = new Map(Object.entries(shapes));
         return new Map<string, readonly ChannelPlan[]>([
@@ -501,7 +518,7 @@ function channelPlans(
                 ],
             ],
             ["labelColor", [label("labelColor")]],
-            ["labelSize", [length("node.labelSize", factors.label)]],
+            ["labelSize", [labelSize("node.labelSize")]],
             // A label's wrap width is drawn in the scene's units, a node size's in its own.
             ["labelWrapWidth", [length("node.labelWrapWidth", factors.node * SCENE_PER_UNIT.node)]],
             ["labelFont", [label("labelFont")]],
@@ -526,7 +543,7 @@ function channelPlans(
         ["targetLabel", [id("edge.arrowHeadText")]],
         ["sourceLabel", [id("edge.arrowTailText")]],
         ["labelColor", [label("labelColor")]],
-        ["labelSize", [length("edge.labelSize", factors.label)]],
+        ["labelSize", [labelSize("edge.labelSize")]],
         ["labelFont", [label("labelFont")]],
         ["labelWeight", [label("labelWeight")]],
         ["labelItalic", [label("labelItalic")]],
@@ -701,17 +718,18 @@ interface LengthFactors {
     /** Edge widths. */
     readonly edge: number;
     /**
-     * Label sizes, of nodes and of edges: exact at the file's median label size (a label's letters
-     * are not in proportion to its `sizePx`, see LABEL), and one factor, so a mapped size is drawn
-     * as the mapping's points interpolate.
+     * The `sizePx` that draws a label of a file size as tall as the file draws it beside its nodes,
+     * of nodes and of edges; null when sizes are kept. Not one factor: a label's letters are not in
+     * proportion to its `sizePx` (see LABEL), so each size, and each point of a mapping, is
+     * converted on its own.
      */
-    readonly label: number;
+    readonly label: ((size: number) => number) | null;
     /** The scene units one file unit is drawn as; null when lengths are kept as the file has them. */
     readonly scene: number | null;
 }
 
 /** The factors that keep every length as the file has it. */
-const KEPT: LengthFactors = { node: 1, edge: 1, label: 1, scene: null };
+const KEPT: LengthFactors = { node: 1, edge: 1, label: null, scene: null };
 
 /**
  * What the file's lengths are multiplied by: ONE scale for every length (issue #2322), chosen so
@@ -754,11 +772,10 @@ function lengthFactors(input: TranslateInput): LengthFactors {
         return KEPT;
     }
 
-    const labelMedian = median([...resolved("node", "labelSize"), ...resolved("edge", "labelSize")]) ?? 1;
     return {
         node: scene / SCENE_PER_UNIT.node,
         edge: scene / SCENE_PER_UNIT.edge,
-        label: labelSizePx(scene * labelMedian) / labelMedian,
+        label: (size) => labelSizePx(scene * size),
         scene,
     };
 }
@@ -1653,6 +1670,42 @@ class KindTranslation {
     }
 
     /**
+     * What a channel draws for one rule's values: each value converted, except that a curved
+     * conversion of a continuous mapping is drawn between its converted points.
+     * @param rule - The rule.
+     * @param property - The property.
+     * @param plan - The channel and how values become its values.
+     * @param truth - The rule's values by element.
+     * @param source - The styles the rule belongs to.
+     * @returns The drawn values by element.
+     */
+    #drawnOf(
+        rule: StyleRule,
+        property: string,
+        plan: ChannelPlan,
+        truth: readonly (StyleValue | null)[],
+        source: ExtractedStyles,
+    ): readonly unknown[] {
+        const mapping = rule.map?.[property as StyleProperty];
+        if (plan.curved !== true || mapping?.kind !== "continuous") {
+            return truth.map((value) => (value === null ? null : plan.convert(value)));
+        }
+
+        const convert = (value: StyleValue): StyleValue => {
+            const converted = plan.convert(value);
+            return typeof converted === "number" ? converted : value;
+        };
+        const points = mapping.points.map((point) => ({
+            ...point,
+            below: convert(point.below),
+            value: convert(point.value),
+            above: convert(point.above),
+        }));
+        const { set: _set, ...rest } = rule;
+        return this.#evaluate({ ...rest, map: { [property]: { ...mapping, points } } }, property, source);
+    }
+
+    /**
      * Emit one property of one rule on one channel.
      * @param rule - The rule.
      * @param bucket - Its place in rule order.
@@ -1662,7 +1715,7 @@ class KindTranslation {
      */
     #emit(rule: StyleRule, bucket: number, property: string, plan: ChannelPlan, source: ExtractedStyles): void {
         const truth = this.#evaluate(rule, property, source);
-        const drawn = truth.map((value) => (value === null ? null : plan.convert(value)));
+        const drawn = this.#drawnOf(rule, property, plan, truth, source);
         this.#noteConversion(property, plan, truth, drawn);
         if (!drawn.some((value) => value !== null)) {
             // A rule that gives no value and selects nothing in this graph says nothing; one that selects

@@ -466,6 +466,30 @@ function readEdgeStyle(refs: References, data: unknown, put: PutValue, at: SiteO
     }
 }
 
+/** yFiles' compass positions, as the neutral position of a label outside the node. */
+const EXTERIOR_POSITIONS: ReadonlyMap<string, string> = new Map([
+    ["north", "top"],
+    ["south", "bottom"],
+    ["east", "right"],
+    ["west", "left"],
+    ["northeast", "top-right"],
+    ["northwest", "top-left"],
+    ["southeast", "bottom-right"],
+    ["southwest", "bottom-left"],
+]);
+
+/**
+ * Where yFiles draws a node label: outside the node for an `ExteriorLabelModelParameter` (by its `Position`),
+ * else inside it (the interior and ratio-anchored models, and the default InteriorLabelModel center).
+ * @param label - the `y:Label` element
+ * @returns the position
+ */
+function labelPositionOf(label: unknown): string {
+    const parameter = treeChild(treeChild(label, "Label.LayoutParameter"), "ExteriorLabelModelParameter");
+    const position = treeAttr(parameter, "Position")?.toLowerCase();
+    return (position === undefined ? undefined : EXTERIOR_POSITIONS.get(position)) ?? "center";
+}
+
 /**
  * Reads an element's labels: the first one with text; further ones are noted for the element.
  * @param refs - the references
@@ -496,6 +520,9 @@ function readLabels(refs: References, data: unknown, put: PutValue, at: SiteOf):
         noteAt(at("label"), STYLE_ISSUE.EXTRA_LABELS, `${String(extra + 1)} labels`);
     }
     put("label", canonText(text, at("label")));
+    if (at("label").target === "node") {
+        put("labelPosition", labelPositionOf(label));
+    }
     const ls = refs.deref(treeAttr(label, "Style") ?? treeChild(label, "Label.Style"));
     if (ls === null || ls === NULL || typeof ls !== "object" || !ls.tag.endsWith("LabelStyle")) {
         return;

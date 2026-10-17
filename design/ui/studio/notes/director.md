@@ -147,6 +147,14 @@ one by one | cover` (`score.mjs` ROUTE_TASKS). Reason: both core bulk tasks coul
 
 ## Tried: worked / did not work
 
+- 2026-10-17 -- Ran `bars.mjs --tier 3 --scheme dark` on build 6ddcb6c7c with the new walk. Worked:
+  every new screen of the own-file and folder walks (color and size bound to data, their popovers,
+  the "Color from each layer" dialog, adding a shape) reached with no MISS; the planted typing case
+  was caught. Expected MISS: "a colleague's layer selected" (the T50 blocker). Did not work at
+  first: the text card's recovery pressed Escape, which closes the picker and drops the unfinished
+  card, so the rest of the first-use walk was lost; fixed to click into the field, and the text and
+  color recoveries were walked by hand after. The Edge tab card move is walked only by hand so far.
+
 - 2026-10-17 -- Worked: walking the reviewers' proposed screens myself with `real.mjs` before
   writing them into the walk. It found the T50 blocker (raw row id, empty Style tab) and confirmed
   all three focus defects in minutes, and caught that `--expect Box` passes while the shape grid is

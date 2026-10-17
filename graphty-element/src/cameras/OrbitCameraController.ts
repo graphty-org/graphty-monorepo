@@ -1,5 +1,15 @@
-import { Camera, Color4, Scalar, Scene, type TransformNode, UniversalCamera, Vector3 } from "@babylonjs/core";
+import {
+    type AbstractEngine,
+    Camera,
+    Color4,
+    Scalar,
+    Scene,
+    type TransformNode,
+    UniversalCamera,
+    Vector3,
+} from "@babylonjs/core";
 
+import type { FitInsets } from "../config/GraphBehavior";
 import { glideTowards } from "./CameraManager";
 import { PivotController } from "./PivotController";
 
@@ -24,6 +34,31 @@ export interface OrbitConfig {
  */
 const DEFAULT_FAR_PLANE = 10000;
 
+/** No room kept clear: framing uses the whole canvas. */
+const NO_INSETS: FitInsets = Object.freeze({ top: 0, right: 0, bottom: 0, left: 0 });
+
+/** The least share of the canvas framing keeps, whatever the insets ask, so a fit stays finite. */
+const MIN_FRAMED_SHARE = 0.1;
+
+/**
+ * The render pixels per CSS pixel, and the share of each axis the insets leave to frame into.
+ * @param engine - The engine.
+ * @param insets - The insets, in CSS pixels.
+ * @returns The scale, the render size, and the framed width and height shares.
+ */
+export function framedArea(
+    engine: AbstractEngine,
+    insets: FitInsets,
+): { scale: number; width: number; height: number; shareX: number; shareY: number } {
+    const width = engine.getRenderWidth();
+    const height = engine.getRenderHeight();
+    const cssWidth = engine.getRenderingCanvas()?.clientWidth ?? 0;
+    const scale = cssWidth > 0 ? width / cssWidth : 1;
+    const shareX = Math.max(MIN_FRAMED_SHARE, 1 - ((insets.left + insets.right) * scale) / Math.max(width, 1));
+    const shareY = Math.max(MIN_FRAMED_SHARE, 1 - ((insets.top + insets.bottom) * scale) / Math.max(height, 1));
+    return { scale, width, height, shareX, shareY };
+}
+
 /**
  * Controls a 3D orbit camera with pivot-based rotation and distance-based zoom.
  * Provides trackball-style rotation and keyboard/touch controls.
@@ -33,6 +68,8 @@ export class OrbitCameraController {
     public camera: UniversalCamera;
     public cameraDistance: number;
     public config: OrbitConfig;
+    /** Room framing leaves clear at each edge, in CSS pixels; see `camera.fitInsets`. */
+    public fitInsets: FitInsets = NO_INSETS;
 
     private readonly pivotController: PivotController;
 
@@ -85,6 +122,15 @@ export class OrbitCameraController {
         // Match XR rotation convention: drag right = rotate right (positive yaw)
         // Pitch follows "drag up = graph moves up" convention (not inverted)
         this.pivotController.rotate(dx * this.config.trackballRotationSpeed, dy * this.config.trackballRotationSpeed);
+        this.updateCameraPosition();
+    }
+
+    /**
+     * Turn the scene about its vertical axis on its own, for `camera.autoRotate`.
+     * @param radians - The angle.
+     */
+    public autoTurn(radians: number): void {
+        this.pivotController.rotate(radians, 0);
         this.updateCameraPosition();
     }
 
@@ -152,8 +198,11 @@ export class OrbitCameraController {
         // Parent the camera to the pivot for proper transformation
         this.camera.parent = this.pivot;
 
-        // Set local position relative to pivot
-        this.camera.position.set(0, 0, -this.cameraDistance);
+        // Set local position relative to pivot, moved sideways by the fit insets: looking
+        // straight ahead from beside the pivot puts the pivot off the canvas center, at the
+        // center of the area the insets leave, at every distance and every turn.
+        const { x, y } = this.insetShift();
+        this.camera.position.set(x, y, -this.cameraDistance);
 
         // Reset camera rotation - when parented, the camera inherits the pivot's rotation
         this.camera.rotation.set(0, 0, 0);
@@ -162,6 +211,28 @@ export class OrbitCameraController {
         // far plane has to follow the graph. A layout that settles tens of thousands of units
         // across would otherwise be clipped away by Babylon's default 10000.
         this.camera.maxZ = Math.max(DEFAULT_FAR_PLANE, this.cameraDistance + this.#sceneRadius * 2);
+    }
+
+    /**
+     * How far beside the pivot the camera stands, in the pivot's own units, so the pivot is drawn
+     * at the center of the area the fit insets leave rather than at the canvas center.
+     * @returns The sideways and upward offsets; both 0 with no insets.
+     */
+    private insetShift(): { x: number; y: number } {
+        const { left, right, top, bottom } = this.fitInsets;
+        if (left === right && top === bottom) {
+            return { x: 0, y: 0 };
+        }
+
+        const engine = this.scene.getEngine();
+        const { scale, height } = framedArea(engine, this.fitInsets);
+        const fov = this.camera.fov || 0.8;
+        // World units per render pixel at the pivot's depth.
+        const perPixel = (2 * this.cameraDistance * Math.tan(fov / 2)) / Math.max(height, 1);
+        return {
+            x: -((left - right) / 2) * scale * perPixel,
+            y: ((top - bottom) / 2) * scale * perPixel,
+        };
     }
 
     /**
@@ -196,9 +267,11 @@ export class OrbitCameraController {
             verticalFov = 2 * Math.atan(Math.tan(this.camera.fov / 2) / aspectRatio);
         }
 
-        // Calculate horizontal FOV from vertical FOV and aspect ratio
-        const halfFovY = verticalFov / 2;
-        const halfFovX = Math.atan(Math.tan(halfFovY) * aspectRatio);
+        // Calculate horizontal FOV from vertical FOV and aspect ratio, each narrowed to the share
+        // of the canvas the fit insets leave.
+        const { shareX, shareY } = framedArea(engine, this.fitInsets);
+        const halfFovY = Math.atan(Math.tan(verticalFov / 2) * shareY);
+        const halfFovX = Math.atan(Math.tan(verticalFov / 2) * aspectRatio * shareX);
 
         // For 3D scenes, we need to account for perspective projection.
         // Objects at different Z depths will project differently on screen.

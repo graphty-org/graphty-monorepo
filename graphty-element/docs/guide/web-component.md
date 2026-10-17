@@ -37,6 +37,8 @@ All configuration is done through HTML attributes or their corresponding JavaScr
 | `startingCameraDistance` | `starting-camera-distance` | `number`                                                            | unset       | How far the camera starts out; unset frames the graph to fit, set turns automatic framing off                                                                          |
 | `autoFrame`              | `auto-frame`               | `boolean`                                                           | `true`      | Frame the graph after each load and layout change; `auto-frame="false"` leaves the camera alone. A view preference, not saved in a project                             |
 | `labelDeclutter`         | `label-declutter`          | `boolean`                                                           | `false`     | Hide a node label that would overlap another until the reader zooms in; a view preference, not saved in a project                                                      |
+| `autoRotate`             | `auto-rotate`              | `number`                                                            | `0`         | Turn the 3D view on its own, in radians per second; a view preference, not saved in a project                                                                          |
+| `fitInsets`              | property only              | `{ top, right, bottom, left }`                                      | all `0`     | Room in CSS pixels that framing the graph keeps clear at each edge; a view preference, not saved in a project                                                          |
 | `renderOnDemand`         | `render-on-demand`         | `boolean`                                                           | `false`     | Draw a frame only when the picture can have changed, so a still graph costs nothing per frame; a view preference, not saved in a project                               |
 | `dataSource`             | `data-source`              | `string`                                                            | `undefined` | Data source type                                                                                                                                                       |
 | `dataSourceConfig`       | `data-source-config`       | `object`                                                            | `{}`        | Data source configuration                                                                                                                                              |
@@ -136,6 +138,27 @@ element.layoutBehavior = {
 
 `preSteps` is what makes a screenshot of a physics layout the same picture twice. `minDelta` at
 its default of `0` leaves the engine to decide when it has finished.
+
+### Turning the graph, and leaving room for your own panels
+
+`autoRotate` turns the 3D view on its own, in radians per second (0, the
+default, never turns). It waits while the reader drags, pinches, holds a camera key or drags a
+node, and the 2D view never turns. `fitInsets` keeps room clear, in CSS
+pixels, at each edge of the canvas when the element frames the graph -- for a page that draws its
+own panels over part of the canvas. The graph is fitted and centered in what is left, in 2D and
+3D, and the 3D view keeps that center while it turns:
+
+```javascript
+const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+element.autoRotate = still ? 0 : 0.15; // a slow drift
+element.fitInsets = { left: 480, top: 64 }; // a panel on the left, a toolbar on top
+```
+
+Both are preferences of the view, like `labelDeclutter`: setting them records no undo step and
+is not saved in a project file. They are the same settings as `layoutBehavior.camera.autoRotate`
+and `layoutBehavior.camera.fitInsets`.
+
+The canvas still draws everywhere, so a node turned into an inset is drawn and can be pointed at.
 
 ### Overlapping labels
 

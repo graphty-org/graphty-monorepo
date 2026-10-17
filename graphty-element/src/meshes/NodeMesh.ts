@@ -343,8 +343,11 @@ export class NodeMesh {
             }
         }
 
+        // `node.unlit` draws a 3D node the way 2D draws every node: its own colour, no light.
+        const unlit = is2D || createOptions.effect?.unlit === true;
+
         if (gradientTexture) {
-            if (is2D) {
+            if (unlit) {
                 mat.disableLighting = true;
                 mat.emissiveTexture = gradientTexture;
                 mat.diffuseTexture = gradientTexture;
@@ -352,7 +355,7 @@ export class NodeMesh {
                 mat.diffuseTexture = gradientTexture;
             }
         } else if (color3) {
-            if (is2D) {
+            if (unlit) {
                 mat.disableLighting = true;
                 mat.emissiveColor = color3;
             } else {

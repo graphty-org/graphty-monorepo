@@ -3,6 +3,18 @@ import Hammer from "hammerjs";
 
 import { OrbitCameraController, OrbitConfig } from "./OrbitCameraController";
 
+/** The keys that move the 3D camera. */
+const CAMERA_KEYS: ReadonlySet<string> = new Set([
+    "arrowleft",
+    "arrowright",
+    "arrowup",
+    "arrowdown",
+    "w",
+    "s",
+    "a",
+    "d",
+]);
+
 /**
  * Handles user input for the orbit camera controller.
  * Processes mouse, touch, and keyboard input for camera manipulation.
@@ -15,6 +27,11 @@ export class OrbitInputController {
     private lastY = 0;
     private isMultiTouch = false;
     private keysDown: Record<string, boolean> = {};
+    /**
+     * Keys pressed since the last frame. A tap shorter than a frame -- down and up between two
+     * frames -- still turns or zooms by one frame's step, rather than by nothing.
+     */
+    private keysTapped: Record<string, boolean> = {};
     private readonly config: OrbitConfig;
     private hammer: HammerManager | null = null;
     private enabled = false;
@@ -48,6 +65,9 @@ export class OrbitInputController {
 
     private readonly keyDownHandler = (evt: KeyboardEvent): void => {
         this.keysDown[evt.key.toLowerCase()] = true;
+        if (!evt.repeat) {
+            this.keysTapped[evt.key.toLowerCase()] = true;
+        }
     };
 
     private readonly keyUpHandler = (evt: KeyboardEvent): void => {
@@ -97,6 +117,21 @@ export class OrbitInputController {
             this.controller.spin(rotationDelta);
             lastRotation = ev.rotation;
         });
+    }
+
+    /**
+     * Whether the reader is moving the camera -- a drag, a pinch, a held arrow, W, S, A or D --
+     * or input is switched off, as it is while a node is dragged. `camera.autoRotate` waits.
+     * @returns True while it is.
+     */
+    public get busy(): boolean {
+        const keys = this.keysDown;
+        return (
+            !this.enabled ||
+            this.isPointerDown ||
+            this.isMultiTouch ||
+            Object.entries(keys).some(([key, down]) => down && CAMERA_KEYS.has(key))
+        );
     }
 
     /**
@@ -155,33 +190,35 @@ export class OrbitInputController {
             return;
         }
 
-        const keys = this.keysDown;
+        const tapped = this.keysTapped;
+        this.keysTapped = {};
+        const down = (key: string): boolean => this.keysDown[key] || tapped[key] || false;
         const cam = this.controller;
         // A held arrow turns by exactly keyboardRotationSpeed radians every frame, from the first
         // frame to the last, as A and D spin by keyboardYawSpeed: no velocity, so nothing builds
         // up while it is held and nothing coasts on after it is let go.
         const turn = this.config.keyboardRotationSpeed / this.config.trackballRotationSpeed;
-        const yaw = (keys.arrowleft ? 1 : 0) - (keys.arrowright ? 1 : 0);
-        const pitch = (keys.arrowup ? 1 : 0) - (keys.arrowdown ? 1 : 0);
+        const yaw = (down("arrowleft") ? 1 : 0) - (down("arrowright") ? 1 : 0);
+        const pitch = (down("arrowup") ? 1 : 0) - (down("arrowdown") ? 1 : 0);
 
         if (yaw !== 0 || pitch !== 0) {
             cam.rotate(-yaw * turn, -pitch * turn);
         }
 
         // W and S are exact inverses, so a press of one undoes the same press of the other
-        if (keys.w) {
+        if (down("w")) {
             cam.zoomBy(1 - this.config.keyboardZoomSpeed);
         }
 
-        if (keys.s) {
+        if (down("s")) {
             cam.zoomBy(1 / (1 - this.config.keyboardZoomSpeed));
         }
 
-        if (keys.a) {
+        if (down("a")) {
             cam.spin(this.config.keyboardYawSpeed);
         }
 
-        if (keys.d) {
+        if (down("d")) {
             cam.spin(-this.config.keyboardYawSpeed);
         }
 

@@ -126,6 +126,29 @@ describe('a { match: "hover" } style layer', () => {
         harness.session.dispose();
     });
 
+    it("with orSelected, follows a lone selected node while nothing is hovered", async () => {
+        const harness = line();
+        const layer = await harness.session.styles.add({
+            ...DIM_NODES,
+            selector: { match: "hover", reach: "neighbors", invert: true, orSelected: true },
+        });
+
+        await paints(harness, layer.id, []);
+        await harness.session.selection.apply({ ids: ["b"] });
+        await paints(harness, layer.id, ["d"]);
+
+        // The pointer wins while it is on a node, and the selection is back when it leaves.
+        harness.session.selection.hover("d");
+        await paints(harness, layer.id, ["a", "b", "e"]);
+        harness.session.selection.hover(null);
+        await paints(harness, layer.id, ["d"]);
+
+        // Two selected nodes are no one node to follow.
+        await harness.session.selection.apply({ ids: ["b", "d"] });
+        await paints(harness, layer.id, []);
+        harness.session.dispose();
+    });
+
     it("refuses a reach it does not know", async () => {
         const harness = line();
         let code: string | null = null;

@@ -155,6 +155,8 @@ export const NodeStyle = z.strictObject({
                 .optional(),
             wireframe: z.boolean().optional(),
             flatShaded: z.boolean().optional(),
+            // Drawn in the node's own colour with no light or shade, as 2D draws every node.
+            unlit: z.boolean().optional(),
         })
         .optional(),
     label: RichTextStyle.prefault({ location: "top", textColor: "#000000" }).optional(),

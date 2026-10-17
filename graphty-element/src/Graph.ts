@@ -526,7 +526,9 @@ export class Graph implements GraphContext {
      * @returns True when a frame that changes nothing may be skipped.
      */
     private readonly pictureIsFinal = (): boolean =>
-        this.updateManager.frameIsStable && (this.xrSessionManager?.getActiveMode() ?? null) === null;
+        this.updateManager.frameIsStable &&
+        !this.updateManager.autoTurning &&
+        (this.xrSessionManager?.getActiveMode() ?? null) === null;
     /** How many `batchOperations` callbacks are open. */
     private openBatches = 0;
     private readonly selectionManager: SelectionManager;
@@ -1820,11 +1822,17 @@ export class Graph implements GraphContext {
             layout: { ...view.layout, ...this.session.config.layoutBehavior, ...project },
         });
 
+        const insetsBefore = JSON.stringify(this.styles.config.behavior.camera.fitInsets);
         this.writeViewSettings((settings) => {
             settings.behavior = view;
         });
         // A label declutter switched on or off changes the picture without moving anything.
         this.renderManager.requestFrame();
+
+        // New fit insets frame the graph again inside what they leave.
+        if (JSON.stringify(this.styles.config.behavior.camera.fitInsets) !== insetsBefore) {
+            this.zoomToFit();
+        }
 
         // ON-DEMAND EXPANSION IS SWITCHED ON HERE, and it is the only place it can be. The two
         // fetchers are declared in the behaviour schema, so a consumer sets them the same way

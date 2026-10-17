@@ -58,6 +58,7 @@ import { z as z_2 } from 'zod';
 export interface GraphtyElementJSXProps {
     "acceleration-min-nodes"?: string;
     "auto-frame"?: boolean;
+    "auto-rotate"?: string;
     "data-source"?: string;
     "data-source-config"?: string;
     "edge-data"?: string;
@@ -202,6 +203,7 @@ export interface GraphtyElementJSXProps {
     accelerationMinNodes?: Graphty["accelerationMinNodes"];
     algorithmsOnLoad?: Graphty["algorithmsOnLoad"];
     autoFrame?: Graphty["autoFrame"];
+    autoRotate?: Graphty["autoRotate"];
     background?: Graphty["background"];
     dataSource?: Graphty["dataSource"];
     dataSourceConfig?: Graphty["dataSourceConfig"];
@@ -212,6 +214,7 @@ export interface GraphtyElementJSXProps {
     edgeSrcIdPath?: Graphty["edgeSrcIdPath"];
     edgeWeightPath?: Graphty["edgeWeightPath"];
     enableDetailedProfiling?: Graphty["enableDetailedProfiling"];
+    fitInsets?: Graphty["fitInsets"];
     historyKeys?: Graphty["historyKeys"];
     labelDeclutter?: Graphty["labelDeclutter"];
     layout?: Graphty["layout"];

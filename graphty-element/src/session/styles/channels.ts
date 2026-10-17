@@ -267,6 +267,7 @@ export interface ChannelValues {
     "node.glowStrength": number;
     "node.wireframe": boolean;
     "node.flat": boolean;
+    "node.unlit": boolean;
     "node.marker": never;
     "edge.color": ColorValue;
     "edge.width": number;
@@ -710,6 +711,21 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "until a node is drawn large. A shape already drawn with flat faces " +
             "(box, the polyhedra, icosphere, goldberg, geodesic) looks the same either way, and in " +
             "2D nodes are drawn unlit, so it changes nothing there.",
+    },
+    "node.unlit": {
+        channel: "node.unlit",
+        target: "node",
+        plainName: "Node Unlit",
+        shortName: "Unlit",
+        group: "effects",
+        default: false,
+        accepts: "boolean",
+        stylePath: "effect.unlit",
+        renderable: true,
+        caveat:
+            "An unlit node is drawn in its own color everywhere, with no light and no shade, so a " +
+            "sphere reads as a flat dot. In 2D every node is drawn unlit already, so it changes " +
+            "nothing there.",
     },
     "node.marker": {
         channel: "node.marker",

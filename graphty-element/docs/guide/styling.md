@@ -110,6 +110,10 @@ await session.styles.add({
 });
 ```
 
+`orSelected: true` keeps the look on the node the reader clicked: while no node is under the
+pointer, a lone selected node stands in for the hovered one. With several nodes selected, or none,
+the layer paints nothing until the pointer is over a node again.
+
 The element tells the session which node the pointer is over as it moves, and the layer repaints
 with no undo step: pointing is view state. `session.selection.hovered` reads the node (or `null`),
 and `session.selection.hover(id)` sets it, for a page that draws its own pointer or a test. Pointing
@@ -198,22 +202,23 @@ the layer is reported unbound rather than painting anything.
 
 A channel is one visual property with one name. These are all of them:
 
-| Node channel        | Takes                                                              |
-| ------------------- | ------------------------------------------------------------------ |
-| `node.color`        | any CSS colour                                                     |
-| `node.size`         | 0 or more, in scene units; what it measures is `node.sizeMode`'s   |
-| `node.sizeMode`     | `scale` (the default) or `diameter`                                |
-| `node.shape`        | `sphere`, `box`, `cylinder`, `icosphere`, ...                      |
-| `node.label`        | the words to draw                                                  |
-| `node.labelStyle`   | `{font, sizePx, weight, color, background, outline, padding, ...}` |
-| `node.tooltip`      | the words to show on hover                                         |
-| `node.tooltipStyle` | as `node.labelStyle`, for the tooltip                              |
-| `node.opacity`      | 0 to 1                                                             |
-| `node.outline`      | a colour                                                           |
-| `node.glow`         | a colour                                                           |
-| `node.glowStrength` | 0 or more, scaling `node.glow`; 0 or on its own it draws no glow   |
-| `node.wireframe`    | true or false                                                      |
-| `node.flat`         | true or false: one normal per face, so a sphere looks faceted (3D) |
+| Node channel        | Takes                                                                   |
+| ------------------- | ----------------------------------------------------------------------- |
+| `node.color`        | any CSS colour                                                          |
+| `node.size`         | 0 or more, in scene units; what it measures is `node.sizeMode`'s        |
+| `node.sizeMode`     | `scale` (the default) or `diameter`                                     |
+| `node.shape`        | `sphere`, `box`, `cylinder`, `icosphere`, ...                           |
+| `node.label`        | the words to draw                                                       |
+| `node.labelStyle`   | `{font, sizePx, weight, color, background, outline, padding, ...}`      |
+| `node.tooltip`      | the words to show on hover                                              |
+| `node.tooltipStyle` | as `node.labelStyle`, for the tooltip                                   |
+| `node.opacity`      | 0 to 1                                                                  |
+| `node.outline`      | a colour                                                                |
+| `node.glow`         | a colour                                                                |
+| `node.glowStrength` | 0 or more, scaling `node.glow`; 0 or on its own it draws no glow        |
+| `node.wireframe`    | true or false                                                           |
+| `node.flat`         | true or false: one normal per face, so a sphere looks faceted (3D)      |
+| `node.unlit`        | true or false: drawn in its own color with no light, as a flat dot (3D) |
 
 | Edge channel              | Takes                                                                      |
 | ------------------------- | -------------------------------------------------------------------------- |

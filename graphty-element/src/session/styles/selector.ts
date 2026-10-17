@@ -95,7 +95,12 @@ export type Selector =
      * What the reader is pointing at: the hovered node, or it and its neighbors; inverted, the
      * rest of the graph while a node is hovered. See the public `Selector` for the reading.
      */
-    | { readonly match: "hover"; readonly reach?: "node" | "neighbors"; readonly invert?: boolean };
+    | {
+          readonly match: "hover";
+          readonly reach?: "node" | "neighbors";
+          readonly invert?: boolean;
+          readonly orSelected?: boolean;
+      };
 
 /** The path list every selector that reads no column shares. */
 const EMPTY_PATHS: readonly Path[] = Object.freeze([]);
@@ -268,6 +273,12 @@ function assertSelector(selector: Selector): void {
                 throw badShape('A "hover" selector\'s invert is true or false.', { invert: selector.invert });
             }
 
+            if (selector.orSelected !== undefined && typeof selector.orSelected !== "boolean") {
+                throw badShape('A "hover" selector\'s orSelected is true or false.', {
+                    orSelected: selector.orSelected,
+                });
+            }
+
             return;
         default:
             throw badShape(`"${String(kind)}" is not a selector kind.`, { match: kind, kinds: SELECTOR_KINDS });
@@ -356,7 +367,7 @@ export function compileSelector(selector: Selector, target: SelectorTarget, sour
             };
         }
         case "hover": {
-            const { hover } = source;
+            const hover = selector.orSelected === true ? source.focus : source.hover;
             if (hover === undefined) {
                 throw new GraphtyError({
                     code: "E_UNSUPPORTED",

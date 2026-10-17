@@ -1,6 +1,7 @@
 // CameraManager.ts
 import { Camera, Scene, Vector3 } from "@babylonjs/core";
 
+import type { FitInsets } from "../config/GraphBehavior";
 import type { XRPivotCameraController } from "./XRPivotCameraController";
 
 /** The share of the way to its target a gliding pivot covers each frame: most of it in 20 frames. */
@@ -40,12 +41,18 @@ export interface CameraController {
      * controller glides its pivot there.
      */
     followPoint?(point: Vector3): boolean;
+    /** Room framing leaves clear at each edge, in CSS pixels; see `camera.fitInsets`. */
+    fitInsets?: FitInsets;
+    /** Turn the view on its own by an angle, for `camera.autoRotate`; a camera that never turns has none. */
+    autoTurn?(radians: number): void;
 }
 
 interface InputHandler {
     enable(): void;
     disable(): void;
     update(): void;
+    /** Whether the reader is moving the camera, or the input is switched off for a node drag. */
+    readonly busy?: boolean;
 }
 
 export type CameraKey = "orbit" | "2d" | "xr";
@@ -147,6 +154,31 @@ export class CameraManager {
         }
 
         return this.activeCameraController?.followPoint?.(point) ?? false;
+    }
+
+    /**
+     * Hand every camera the room framing leaves clear at each edge.
+     * @param insets - The insets, in CSS pixels.
+     */
+    public setFitInsets(insets: FitInsets): void {
+        for (const controller of this.controllers.values()) {
+            controller.fitInsets = insets;
+        }
+    }
+
+    /**
+     * Turn the active camera on its own by an angle, unless the reader is moving it.
+     * @param radians - The angle.
+     * @returns Whether it turned, so the next frame has to be drawn.
+     */
+    public autoTurn(radians: number): boolean {
+        const controller = this.activeCameraController;
+        if (radians <= 0 || controller?.autoTurn === undefined || this.activeInputHandler?.busy === true) {
+            return false;
+        }
+
+        controller.autoTurn(radians);
+        return true;
     }
 
     /**

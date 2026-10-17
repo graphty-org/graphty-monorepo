@@ -2463,6 +2463,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         onChange: (delta) => {
             notifier.notify({ kind: "selection" });
             publish(watchers, "selection:changed", delta);
+            // A hover layer that falls back to the selection follows it too.
+            repaintHover();
         },
         onMaskVersion: advanceTick,
         // The pointer moved to another node, or off every node: repaint what a hover layer paints.
@@ -2526,6 +2528,13 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         const id = selection?.hovered ?? null;
         return id === null ? undefined : nodeIndex(id);
     });
+    // The hovered node, else the one selected node: what an `orSelected` hover layer follows.
+    const focusSource = createHoverSource(snapshot, () => {
+        const hovered = selection?.hovered ?? null;
+        const selected = selection?.nodes ?? [];
+        const id = hovered ?? (selected.length === 1 ? selected[0] : null);
+        return id === null ? undefined : nodeIndex(id);
+    });
     const styles = createStylesApi({
         dispatcher,
         elements: {
@@ -2534,6 +2543,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             edgeIndex,
             scope: (spec: Scope) => layerScopes.live(spec),
             hover: hoverSource,
+            focus: focusSource,
         },
         admitScope: (spec: unknown) => scope.admit(spec),
         base: elementBaseLayers(),

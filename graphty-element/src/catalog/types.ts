@@ -504,6 +504,7 @@ export type Channel =
     | "node.glowStrength"
     | "node.wireframe"
     | "node.flat"
+    | "node.unlit"
     | "node.marker"
     | "edge.color"
     | "edge.width"
@@ -677,7 +678,9 @@ export type Selector =
      * `invert: true`, everything else -- but only while a node is hovered, so the layer paints
      * nothing at rest. Edges: the edges that touch the hovered node, for either reach. View
      * state: the layer follows the pointer with no undo step. `session.selection.hovered` says
-     * which node it is.
+     * which node it is. With `orSelected: true`, while no node is hovered a lone selected node
+     * stands in for the hovered one, so a look that follows the pointer stays on the node the
+     * reader clicked; several selected nodes, or none, and the layer paints as at rest.
      *
      * ```ts
      * // Fade what the pointed-at node is not linked to.
@@ -685,7 +688,7 @@ export type Selector =
      *     selector: { match: "hover", reach: "neighbors", invert: true }, set: { "node.opacity": 0.25 } });
      * ```
      */
-    | { match: "hover"; reach?: "node" | "neighbors"; invert?: boolean };
+    | { match: "hover"; reach?: "node" | "neighbors"; invert?: boolean; orSelected?: boolean };
 
 /** Who put a layer in the stack. Every layer names its source. */
 export type LayerSource =

@@ -171,6 +171,12 @@ export interface SelectorSource {
      * @returns The hovered node's neighborhood now, or null while no node is hovered.
      */
     readonly hover?: () => LiveHover | null;
+    /**
+     * What `{match:"hover", orSelected: true}` tests: the hovered node's neighborhood, else a
+     * lone selected node's. Absent, such a selector is refused.
+     * @returns The neighborhood now, or null.
+     */
+    readonly focus?: () => LiveHover | null;
 }
 
 /** The node under the pointer and what touches it, by dense index, as `{match:"hover"}` reads it. */

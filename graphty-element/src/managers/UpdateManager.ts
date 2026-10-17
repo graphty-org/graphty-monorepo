@@ -215,6 +215,14 @@ export class UpdateManager implements Manager {
     private needsZoomToFit = false;
     /** Whether this pass moved the camera towards the selection; see `followSelection`. */
     private followingSelection = false;
+    /**
+     * Whether `camera.autoRotate` turned the camera on the last pass. It keeps a graph drawn on
+     * demand drawing, and nothing else: the picture is finished when the layout and the styles
+     * are, however the camera moves, so `graph-frame-stable` is not held back by it.
+     */
+    autoTurning = false;
+    /** The longest frame the auto-rotation turns for, so a tab coming back does not jump. */
+    private static readonly MAX_TURN_MS = 100;
     private hasZoomedToFit = false;
 
     /**
@@ -1186,6 +1194,12 @@ export class UpdateManager implements Manager {
         });
 
         this.followSelection();
+
+        const { camera } = this.graphContext.getStyles().config.behavior;
+        this.camera.setFitInsets(camera.fitInsets);
+        this.autoTurning = this.camera.autoTurn(
+            (camera.autoRotate * Math.min(frameMs, UpdateManager.MAX_TURN_MS)) / 1000,
+        );
 
         // Always update camera
         this.camera.update();

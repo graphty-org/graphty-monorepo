@@ -13,7 +13,26 @@ Summarized 2026-10-17 from 158 KB. The full earlier notes (every dated entry fro
 
 ## Top of mind
 
-1. (2026-10-17, drawing and camera, commits ceeea1028 element, 6b160deb5 app) Built and checked
+1. (2026-10-17, color box, compact-mantine) Built and checked with real.mjs on a fresh build
+   (`design/ui/studio/tmp/r1-dry1-color-box/walk1`, `walk2`):
+    - Escape in every color text box reverts AND keeps focus, value selected
+      (`revertOnEscape` in `components/color/escape.ts`; `flushSync(revert)` before `select()`, or
+      the controlled redraw drops the selection and the next key appends). The old
+      "outside a pop-out it blurs" rule and `isLeavingWithoutCommit` are gone.
+    - A refused entry draws a `role="alert"` message under the field (`.cm-paint` now wraps;
+      `.cm-paint-message` takes a full line), tied to the hex box by `aria-describedby`. Enter keeps
+      the words (`aria-invalid`); leaving reverts and says what it kept. Labels `colorRefused`,
+      `colorRefusedKept` (team decision in `owner-decisions.md`).
+    - One parser for every color box: `components/color/typed-color.ts` (hex or CSS name) feeds
+      the paint field, the picker's Hex value box and a gradient stop's hex box.
+    - Picker swatches: Mantine `Tooltip` with the accessible name; `aria-pressed` + outline on the
+      swatch equal to the value in force.
+    - Open: in the app's style row the "Color" label centers on the taller field while a message
+      shows (the row's alignment, not the field's). Swatch names are the strings the app passes
+      (hex); naming them in words would need a names list from the caller.
+    - Pre-existing, not mine: `tests/figma/tree.browser.test.tsx` "toggles: 24px targets" fails
+      on this branch (x 184, expected 188); nothing in the tree changed in this work.
+2. (2026-10-17, drawing and camera, commits ceeea1028 element, 6b160deb5 app) Built and checked
    on a fresh build with real.mjs (`design/ui/studio/tmp/r1-dry1-drawing-and-camera/`):
     - Removing a channel repaints: `nodePaintOf` (StylePainter) gave `color: null` for "no layer
       paints a color" and `Node.applyInstanceColor` skipped the write, so the instance kept the
@@ -45,40 +64,45 @@ Summarized 2026-10-17 from 158 KB. The full earlier notes (every dated entry fro
       unit's) but nothing moved, with or without a selection. Do not guess a mechanism.
     - NOT built: a data-column binding (not a run, not Vary by Layer) with more groups than its
       palette still gets the element's default; the reader picks Kelly in the palette select.
-2. (2026-10-17) Opened projects lost their rows: anything keyed by a layer id that a document
+3. (2026-10-17) Opened projects lost their rows: anything keyed by a layer id that a document
    carries must be remapped on apply (`documentRowKeys`, commit 619ce32be).
-3. (2026-10-17) Combined Style panel (V7 tabs, condition cards, several layers) is built; files
+4. (2026-10-17) Combined Style panel (V7 tabs, condition cards, several layers) is built; files
    `style/cards.ts`, `style/WhichPicker.tsx`, `RowStyle` in `StylePanel.tsx`. A controlled text
    field never round-trips through the element; one undo step per open is
    `TransactionOptions.after`. Not built: number card histogram for a run field, "lowest N",
    dashed chips at rest.
-4. One BoundValue for one layer and for several layers (owner decision 2026-10-16); Layer is a
+5. One BoundValue for one layer and for several layers (owner decision 2026-10-16); Layer is a
    temporary value, a data field is copied as is. Vary by Layer uses the same group list as a
    data value (`GroupRows`, `styles.layerGroups`).
-5. Shared worktree: other agents commit beside me. Stage only my files; build commits from HEAD
+6. Shared worktree: other agents commit beside me. Stage only my files; build commits from HEAD
    plus my hunks when a file is shared; re-check `git diff` on a shared file right before
    committing. Never `git stash` (not even `list`) in this repo's agents.
-6. Prove a test fails without the change: copy the fixed file aside, `git show HEAD:<file>` over
+7. Prove a test fails without the change: copy the fixed file aside, `git show HEAD:<file>` over
    it, run the test, copy back. Check a "passes without the fix" test before trusting it (the
    histogram test passed on HEAD at 8 bins because 16/8 happened to be whole).
-7. graphty tests read compact-mantine from its `dist` and graphty-element from source; rebuild
+8. graphty tests read compact-mantine from its `dist` and graphty-element from source; rebuild
    the app (`pnpm exec nx run graphty:build`, Sentry vars unset) before a real.mjs walk; a
    session serves the dist it started on, so end and start again after a rebuild.
-8. API changes: additive ones go in `owner-decisions.md` under "decided by the team" with the
+9. API changes: additive ones go in `owner-decisions.md` under "decided by the team" with the
    name and shape; a changed default or a renamed or removed member goes "for the owner". A new
    Graph or element member needs `doors.ts` and `test/cost-coverage/method-classes.ts` lines,
    `npm run api:report` after a build, and `jsx.ts` regenerated by the build.
-9. Element facts worth citing: layers paint one kind (a row is two parts); selectors everything,
-   expression, has, ids, top, member, rule, state; a user layer that sets nothing is refused
-   (`E_BAD_LAYER`); Top N takes a tie group whole; `data.histogram` takes data columns only, a
-   run field uses `run.result.histogram`.
-10. Study tool: `real.mjs --start <dir> empty|setup:<file>` through its own browser slot;
+10. Element facts worth citing: layers paint one kind (a row is two parts); selectors everything,
+    expression, has, ids, top, member, rule, state; a user layer that sets nothing is refused
+    (`E_BAD_LAYER`); Top N takes a tie group whole; `data.histogram` takes data columns only, a
+    run field uses `run.result.histogram`.
+11. Study tool: `real.mjs --start <dir> empty|setup:<file>` through its own browser slot;
     `--click "role=<role>:<name>"` for shared names; step N lands in screenshot N+1; `--end`
     always. Compare screenshots with PIL `ImageChops.difference(...).getbbox()` on the canvas
     crop (`(300,120,1195,835)` at 1440 x 900) before calling a drawing unchanged.
 
 ## Decisions and reasons
 
+- (2026-10-17) **Escape never drops focus to the page.** A text box reverts and stays focused,
+  inside a pop-out or not; only an untouched box inside a pop-out lets Escape close the pop-out.
+  Evidence: three pilots ended Escape on the page body and lost their place.
+- (2026-10-17) **A refusal says what the box takes, on screen and to a screen reader**, and a blur
+  that throws an entry away says so; a red edge alone told readers nothing.
 - (2026-10-17) **The element never moves the camera for the app's overlays; the app never
   frames on its own.** A key card growing or a page closing is not a reader asking. Insets only
   shape the next fit.
@@ -127,6 +151,10 @@ Summarized 2026-10-17 from 158 KB. The full earlier notes (every dated entry fro
 
 ## Tried: worked / did not work
 
+- (2026-10-17) DID NOT WORK: `setDraft(x); input.select()` in one handler: React redraws the
+  controlled value after the select and the caret lands at the end. WORKED: `flushSync`.
+- (2026-10-17) WORKED: proving five new userEvent tests fail on HEAD by copying the old sources
+  over the changed ones (`git show HEAD:<file>`), running, and copying back.
 - (2026-10-17) WORKED: reproducing each acceptance item with real.mjs on the fresh build and
   pixel-diffing the canvas before and after a step; it showed the Cancel case had a residual
   6 px slide after the reframe was gone. DID NOT WORK: `engine.resize()` before the 3D inset

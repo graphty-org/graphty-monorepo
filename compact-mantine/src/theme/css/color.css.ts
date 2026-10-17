@@ -78,9 +78,12 @@ const css = `
    a state (Figma fills it gray; a gray fill beside outlined selects read as disabled). */
 .cm-paint {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 8px;
+    gap: 4px 8px;
 }
+/* Why an entry was refused, on a line of its own under the field. */
+.cm-paint-message { flex-basis: 100%; }
 .cm-paint-field {
     position: relative;
     display: flex;
@@ -384,6 +387,8 @@ const css = `
     background: none;
     cursor: default;
 }
+/* The swatch equal to the color in force. */
+.cm-color-swatch-button[aria-pressed="true"] { outline: 1px solid currentColor; outline-offset: 2px; }
 
 /* 7.4 Color sliders (Mantine HueSlider / AlphaSlider): a 180 x 24 slot, the role=slider element
    156 wide in its middle so the pointer maps onto the thumb's center, the 172 x 16 track half a

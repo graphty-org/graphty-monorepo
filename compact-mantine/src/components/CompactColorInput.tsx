@@ -6,13 +6,14 @@ import { PANEL_GRID } from "../constants/panel";
 import { useLabels } from "../i18n";
 import { UiGlyph } from "../icons";
 import type { ChangeHandler } from "../types/events";
-import { normalizeHexa, opacityToAlphaHex, parseAlphaFromHexa } from "../utils/color-utils";
+import { opacityToAlphaHex, parseAlphaFromHexa } from "../utils/color-utils";
 import { useControlAnnotation } from "../utils/control-annotation";
 import { useDevWarning } from "../utils/dev-warning";
 import { Chit } from "./color/Chit";
 import { ColorPickerPanel } from "./color/ColorPickerPanel";
-import { isLeavingWithoutCommit, leaveWithoutCommit } from "./color/escape";
+import { revertOnEscape } from "./color/escape";
 import { OpacityInput } from "./color/OpacityInput";
+import { typedColor } from "./color/typed-color";
 import { Popout } from "./popout";
 
 // Figma's paint field (design/figma-spec.md 7.2): ONE 24-tall field holding the 14px chit (a
@@ -256,39 +257,6 @@ function useChosen<T>(
 }
 
 /**
- * The color typed into the hex box, as `#RRGGBB`: three or six hex digits, with or without "#",
- * or any color the browser's CSS knows by name ("blue", "rebeccapurple"); undefined for words
- * that name no opaque color.
- * @param typed - what was typed
- * @returns the color, upper case, or undefined
- */
-function typedColor(typed: string): string | undefined {
-    const text = typed.trim();
-    const digits = text.replace("#", "");
-    if (/^[0-9a-f]{3}$|^[0-9a-f]{6}$/i.test(digits)) {
-        return normalizeHexa(digits)?.slice(0, HEXA_ALPHA_START).toUpperCase();
-    }
-    // A host without CSS.supports (a DOM emulation) reads names as no color rather than throwing.
-    if (
-        text === "" ||
-        typeof CSS === "undefined" ||
-        typeof CSS.supports !== "function" ||
-        !CSS.supports("color", text)
-    ) {
-        return undefined;
-    }
-    // The browser spells a parsed opaque color as "#rrggbb" when a canvas reads it back.
-    const context = document.createElement("canvas").getContext("2d");
-    if (context === null) {
-        return undefined;
-    }
-    context.fillStyle = "#000000";
-    context.fillStyle = text;
-    const read = context.fillStyle;
-    return /^#[0-9a-f]{6}$/i.test(read) ? read.toUpperCase() : undefined;
-}
-
-/**
  * A color in one paint field: the chit, the hex value and the opacity.
  *
  * Pressing the chit opens the color picker in a pop-out (one at a time, docked to the start
@@ -402,8 +370,10 @@ export function CompactColorInput({
         hexState = labels.fieldSet;
     }
     const [hexDraft, setHexDraft] = useState(shownHex);
-    // What was typed names no color: the box says so until the next edit.
-    const [unknown, setUnknown] = useState(false);
+    // Why the last entry was refused, drawn under the field until the next edit. `held` is true
+    // while the box still holds the refused words (after Enter), false once it went back (a blur).
+    const [refusal, setRefusal] = useState<{ message: string; held: boolean } | undefined>(undefined);
+    const refusalId = useId();
 
     useEffect(() => {
         setHexDraft(shownHex);
@@ -446,27 +416,37 @@ export function CompactColorInput({
     };
 
     /**
-     * Commit what was typed into the hex box: six (or three) hex digits or a color's name,
-     * otherwise redraw it (or, on Enter, keep the words and mark them).
+     * Commit what was typed into the hex box: six (or three) hex digits or a color's name.
+     * Words that name no color are refused with a message saying what the box takes: Enter keeps
+     * them, marked, to be corrected; leaving the box redraws its value and says so.
      * @param event - the blur or Enter that ended the edit
-     * @param keepUnknown - keep words that name no color, marked, rather than redraw the box
+     * @param keepRefused - keep words that name no color in the box rather than redraw it
      */
-    const commitHex = (event: React.SyntheticEvent, keepUnknown = false): void => {
-        const candidate = typedColor(hexDraft);
+    const commitHex = (event: React.SyntheticEvent, keepRefused = false): void => {
+        const typed = hexDraft.trim();
+        const candidate = typedColor(typed);
 
         // Under empty words, typing the default color is a choice of its own, not "no change".
         const changed = candidate !== displayColor.toUpperCase() || shownHex === "";
         if (candidate !== undefined && changed) {
-            setUnknown(false);
+            setRefusal(undefined);
             setChosenColor(candidate, event);
             onChange?.(candidate, chosenOpacity, event);
             onChangeEnd?.(candidate, chosenOpacity, event);
-        } else if (candidate === undefined && keepUnknown && hexDraft.trim() !== "") {
-            // Enter on words that name no color keeps them, marked, so the reader sees why
-            // nothing changed.
-            setUnknown(true);
+        } else if (candidate === undefined && typed !== "" && hexDraft !== shownHex) {
+            setRefusal(
+                keepRefused
+                    ? { message: labels.colorRefused(typed), held: true }
+                    : {
+                          message: labels.colorRefusedKept(typed, shownHex === "" ? (emptyWords ?? "") : shownHex),
+                          held: false,
+                      },
+            );
+            if (!keepRefused) {
+                setHexDraft(shownHex);
+            }
         } else {
-            setUnknown(false);
+            setRefusal(undefined);
             setHexDraft(shownHex);
         }
     };
@@ -591,14 +571,17 @@ export function CompactColorInput({
                     data-testid="compact-color-input-hex"
                     data-is-default={isColorDefault ? "true" : "false"}
                     aria-label={`${hexName}, ${hexState}`}
-                    aria-describedby={annotation.describedBy}
-                    aria-invalid={unknown || undefined}
-                    title={unknown ? labels.notAColor(hexDraft.trim()) : undefined}
+                    aria-describedby={
+                        [annotation.describedBy, refusal === undefined ? undefined : refusalId]
+                            .filter((id) => id !== undefined)
+                            .join(" ") || undefined
+                    }
+                    aria-invalid={refusal?.held === true || undefined}
                     disabled={disabled}
                     value={hexDraft}
                     placeholder={emptyWords}
                     onChange={(event) => {
-                        setUnknown(false);
+                        setRefusal(undefined);
                         setHexDraft(event.currentTarget.value);
                     }}
                     onFocus={(event) => {
@@ -606,17 +589,15 @@ export function CompactColorInput({
                         onFocus?.(event);
                     }}
                     onBlur={(event) => {
-                        if (!isLeavingWithoutCommit(event)) {
-                            commitHex(event);
-                        }
+                        commitHex(event);
                         onBlur?.(event);
                     }}
                     onKeyDown={(event) => {
                         if (event.key === "Enter") {
                             commitHex(event, true);
                         } else if (event.key === "Escape") {
-                            setUnknown(false);
-                            leaveWithoutCommit(
+                            setRefusal(undefined);
+                            revertOnEscape(
                                 event,
                                 () => {
                                     setHexDraft(shownHex);
@@ -659,6 +640,18 @@ export function CompactColorInput({
                         <UiGlyph name="reset" size={PANEL_GRID.CHEVRON} />
                     </ActionIcon>
                 </Tooltip>
+            )}
+
+            {/* An alert, so the reason is spoken when it appears, also after Tab has moved on. */}
+            {refusal !== undefined && (
+                <div
+                    id={refusalId}
+                    role="alert"
+                    className="cm-field-error cm-paint-message"
+                    data-testid="compact-color-input-message"
+                >
+                    {refusal.message}
+                </div>
             )}
 
             {annotation.description !== undefined && (

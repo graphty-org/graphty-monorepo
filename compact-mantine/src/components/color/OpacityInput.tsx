@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 
 import { useNumberFormatter, useNumberParser } from "../../i18n";
 import { shieldDragSelection } from "../chrome/dragSelectionShield";
-import { isLeavingWithoutCommit, leaveWithoutCommit } from "./escape";
+import { revertOnEscape } from "./escape";
 
 /** The opacity range, in percent. */
 const MIN = 0;
@@ -102,7 +102,7 @@ export function OpacityInput({
             return;
         }
         if (event.key === "Escape") {
-            leaveWithoutCommit(
+            revertOnEscape(
                 event,
                 () => {
                     setDraft(format.format(value));
@@ -188,9 +188,7 @@ export function OpacityInput({
                     onFocus?.(event);
                 }}
                 onBlur={(event) => {
-                    if (!isLeavingWithoutCommit(event)) {
-                        commitDraft(event);
-                    }
+                    commitDraft(event);
                     onBlur?.(event);
                 }}
                 onKeyDown={handleKeyDown}

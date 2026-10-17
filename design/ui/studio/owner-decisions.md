@@ -4,6 +4,25 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-17 -- Decided by the team: a color box says why it refused an entry (compact-mantine)
+
+Additive, in compact-mantine's labels (`CompactMantineLabels`, which a consumer overrides in part):
+
+- **`colorRefused(typed)`**: drawn under `CompactColorInput`, and the hex box's accessible
+  description, after Enter on words that name no color: `"dark green" is not a color. Type a color
+name or a hex code such as 2E8B57.`
+- **`colorRefusedKept(typed, kept)`**: drawn and announced (an alert) when the reader leaves the
+  hex box holding such words; the box goes back to `kept`. `notAColor` is kept for consumers
+  that override it but the field no longer draws it (it was a hover title only).
+
+Behavior, not API: Escape in every color text box (the paint field's hex and opacity boxes, the
+picker's value box, a gradient stop's boxes) takes back what was typed and keeps focus in the box,
+with the value selected. This replaces the 2026-10-13 rule that Escape outside a pop-out leaves the
+field, which left focus on the page itself. Inside a pop-out with nothing typed, Escape still
+closes the pop-out. The picker's value box and a gradient stop's hex box take the same entries as
+the paint field's hex box (hex digits or a CSS color name), and the picker's swatches show their
+name on hover and mark the one equal to the color in force (`aria-pressed`).
+
 ## 2026-10-17 -- Decided by the team: the names and shapes of the zoom, key and palette additions
 
 Additive, in graphty-element, built on the 2026-10-17 decision below:

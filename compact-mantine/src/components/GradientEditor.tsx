@@ -8,11 +8,12 @@ import { useLabels, useNumberFormatter, useNumberParser } from "../i18n";
 import { UiGlyph } from "../icons";
 import type { ColorStop } from "../types";
 import { createColorStop, createDefaultGradientStops } from "../utils/color-stops";
-import { mixHex, normalizeHexa } from "../utils/color-utils";
+import { mixHex } from "../utils/color-utils";
 import { shieldDragSelection } from "./chrome/dragSelectionShield";
 import { Chit } from "./color/Chit";
 import { ColorPickerPanel } from "./color/ColorPickerPanel";
-import { isLeavingWithoutCommit, leaveWithoutCommit } from "./color/escape";
+import { revertOnEscape } from "./color/escape";
+import { typedColor } from "./color/typed-color";
 
 // Figma's gradient editor (design/figma-spec.md 7.5, measured on
 // popovers-and-menus/color-picker-gradient-existing): a direction row, 24px square stop handles
@@ -158,15 +159,13 @@ export function UnitField({
                 event.currentTarget.select();
             }}
             onBlur={(event) => {
-                if (!isLeavingWithoutCommit(event)) {
-                    commitDraft(event);
-                }
+                commitDraft(event);
             }}
             onKeyDown={(event) => {
                 if (event.key === "Enter") {
                     commitDraft(event);
                 } else if (event.key === "Escape") {
-                    leaveWithoutCommit(
+                    revertOnEscape(
                         event,
                         () => {
                             setDraft(format(value));
@@ -208,8 +207,7 @@ function StopHexField({ color, onCommit, ariaLabel }: StopHexFieldProps): React.
     }, [shown]);
 
     const commit = (event: React.SyntheticEvent): void => {
-        const digits = draft.trim().replace("#", "");
-        const candidate = digits.length === 3 || digits.length === 6 ? normalizeHexa(digits)?.slice(0, 7) : undefined;
+        const candidate = typedColor(draft);
         if (candidate === undefined || candidate === `#${shown}`) {
             setDraft(shown);
             return;
@@ -233,15 +231,13 @@ function StopHexField({ color, onCommit, ariaLabel }: StopHexFieldProps): React.
                 event.currentTarget.select();
             }}
             onBlur={(event) => {
-                if (!isLeavingWithoutCommit(event)) {
-                    commit(event);
-                }
+                commit(event);
             }}
             onKeyDown={(event) => {
                 if (event.key === "Enter") {
                     commit(event);
                 } else if (event.key === "Escape") {
-                    leaveWithoutCommit(
+                    revertOnEscape(
                         event,
                         () => {
                             setDraft(shown);

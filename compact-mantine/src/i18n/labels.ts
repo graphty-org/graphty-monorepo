@@ -204,6 +204,21 @@ export interface CompactMantineLabels {
      */
     notAColor: (typed: string) => string;
     /**
+     * Message drawn under CompactColorInput, and read as the hex box's description, after Enter
+     * on words that name no color: what the box takes instead.
+     * @param typed - What was typed
+     * @returns The words
+     */
+    colorRefused: (typed: string) => string;
+    /**
+     * Message drawn under CompactColorInput, and announced, when the reader leaves the hex box
+     * holding words that name no color: the box went back to what it held.
+     * @param typed - What was typed
+     * @param kept - What the box holds again: a hex code, or the words shown when nothing is set
+     * @returns The words
+     */
+    colorRefusedKept: (typed: string, kept: string) => string;
+    /**
      * Accessible name of the number box holding the color's opacity
      * percentage, when the control has a label: "Fill opacity".
      * @param label - The control's own label, as drawn above it
@@ -428,6 +443,10 @@ export const defaultLabels: Required<CompactMantineLabels> = {
     pickColor: (label: string): string => `Pick ${withColorNoun(label)}`,
     colorValue: (label: string): string => withColorNoun(label),
     notAColor: (typed: string): string => `${typed} is not a color`,
+    colorRefused: (typed: string): string =>
+        `"${typed}" is not a color. Type a color name or a hex code such as 2E8B57.`,
+    colorRefusedKept: (typed: string, kept: string): string =>
+        `"${typed}" is not a color, so this stays ${kept}. Type a color name or a hex code such as 2E8B57.`,
     colorOpacity: (label: string): string => `${label} opacity`,
     opacity: "Opacity",
     colorPanelTitle: "Color",

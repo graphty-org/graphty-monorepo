@@ -480,7 +480,7 @@ describe("CompactColorInput", () => {
             // A valid color, so only Escape can stop it being committed.
             await user.type(hex, "123456{Escape}");
             expect(hex).toHaveValue("FF0000");
-            expect(hex).not.toHaveFocus();
+            expect(hex).toHaveFocus();
             expect(onColorChange).not.toHaveBeenCalled();
 
             await user.clear(hex);

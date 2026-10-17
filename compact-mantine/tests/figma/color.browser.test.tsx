@@ -759,7 +759,7 @@ describe.skipIf(!(await figmaAvailable()))("color package against Figma", () => 
             await userEvent.click(hexBox);
             await userEvent.keyboard("{Control>}a{/Control}123456{Escape}");
             expect(hexBox).toHaveValue("3373E5");
-            expect(document.activeElement).not.toBe(hexBox);
+            expect(document.activeElement).toBe(hexBox);
             const opacity = part(container, ".cm-paint-opacity .cm-paint-input");
             await userEvent.click(opacity);
             await userEvent.keyboard("{Control>}a{/Control}12{Escape}");

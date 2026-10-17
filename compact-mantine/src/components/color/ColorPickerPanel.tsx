@@ -7,6 +7,7 @@ import {
     parseColor,
     SegmentedControl,
     Select,
+    Tooltip,
 } from "@mantine/core";
 import { clampUseMovePosition, useMove } from "@mantine/hooks";
 import React, { type ReactNode, useEffect, useRef, useState } from "react";
@@ -14,8 +15,9 @@ import React, { type ReactNode, useEffect, useRef, useState } from "react";
 import { UiGlyph } from "../../icons";
 import { normalizeHexa, opacityToAlphaHex } from "../../utils/color-utils";
 import { Chit } from "./Chit";
-import { isLeavingWithoutCommit, leaveWithoutCommit } from "./escape";
+import { revertOnEscape } from "./escape";
 import { OpacityInput } from "./OpacityInput";
+import { typedColor } from "./typed-color";
 
 /** Mantine's color model: hue 0-360, saturation and value 0-100, alpha 0-1. */
 interface Hsva {
@@ -164,12 +166,9 @@ function formatValue(hsva: Hsva, format: ColorPickerFormat): string {
  */
 function parseValue(text: string, format: ColorPickerFormat, alpha: number): Hsva | undefined {
     if (format === "hex") {
-        const digits = text.trim().replace("#", "");
-        if (digits.length !== 3 && digits.length !== 6) {
-            return undefined;
-        }
-        const hexa = normalizeHexa(digits);
-        return hexa === undefined ? undefined : { ...parseColor(hexa.slice(0, 7)), a: alpha };
+        // The same entries as the paint field's hex box: hex digits or a color's name.
+        const color = typedColor(text);
+        return color === undefined ? undefined : { ...parseColor(color), a: alpha };
     }
     const n = text
         .split(/[\s,]+/)
@@ -394,6 +393,15 @@ export function ColorPickerPanel({
     };
 
     const opaque = toHexa(hsva).slice(0, 7);
+    /**
+     * Whether a swatch is the color in force (its opacity too, when the picker offers one).
+     * @param swatch - a hex or hexa color
+     * @returns true for the swatch equal to the value
+     */
+    const isCurrent = (swatch: string): boolean => {
+        const length = withAlpha ? 9 : 7;
+        return normalizeHexa(swatch)?.slice(0, length).toUpperCase() === toHexa(hsva).slice(0, length);
+    };
     const percent = Math.round(hsva.a * 100);
     const showGradient = gradient !== undefined && paintType === "gradient";
 
@@ -538,17 +546,15 @@ export function ColorPickerPanel({
                                     onFocus={(event) => {
                                         event.currentTarget.select();
                                     }}
-                                    onBlur={(event) => {
-                                        if (!isLeavingWithoutCommit(event)) {
-                                            commitDraft();
-                                        }
+                                    onBlur={() => {
+                                        commitDraft();
                                     }}
                                     onKeyDown={(event) => {
                                         if (event.key === "Enter") {
                                             commitDraft();
                                         } else if (event.key === "Escape") {
                                             const shownValue = formatValue(hsvaRef.current, format);
-                                            leaveWithoutCommit(
+                                            revertOnEscape(
                                                 event,
                                                 () => {
                                                     setDraft(shownValue);
@@ -576,17 +582,19 @@ export function ColorPickerPanel({
                     {swatches.length > 0 && (
                         <div className="cm-color-swatches" role="group" aria-label={labels.swatches}>
                             {swatches.map((swatch, index) => (
-                                <button
-                                    key={`${String(index)}-${swatch}`}
-                                    type="button"
-                                    className="cm-color-swatch-button cm-focus-double"
-                                    aria-label={swatch}
-                                    onClick={() => {
-                                        emitExact(swatch);
-                                    }}
-                                >
-                                    <Chit color={swatch} />
-                                </button>
+                                <Tooltip key={`${String(index)}-${swatch}`} label={swatch}>
+                                    <button
+                                        type="button"
+                                        className="cm-color-swatch-button cm-focus-double"
+                                        aria-label={swatch}
+                                        aria-pressed={isCurrent(swatch)}
+                                        onClick={() => {
+                                            emitExact(swatch);
+                                        }}
+                                    >
+                                        <Chit color={swatch} />
+                                    </button>
+                                </Tooltip>
                             ))}
                         </div>
                     )}

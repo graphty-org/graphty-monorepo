@@ -187,3 +187,107 @@ describe("a Mixed color field", () => {
         await expect.element(hex).not.toHaveAttribute("aria-invalid");
     });
 });
+
+describe("CompactColorInput refusals and Escape", () => {
+    it("Escape takes back what was typed and keeps focus in the hex box", async () => {
+        const chosen: (string | undefined)[] = [];
+        renderField(
+            <CompactColorInput
+                label="Node"
+                defaultColor="#2E8B57"
+                showOpacity={false}
+                onChangeEnd={(color) => {
+                    chosen.push(color);
+                }}
+            />,
+        );
+        const hex = page.getByTestId("compact-color-input-hex");
+        await userEvent.click(hex);
+        await userEvent.keyboard("{Control>}a{/Control}123456{Escape}");
+        await expect.element(hex).toHaveValue("2E8B57");
+        expect(document.activeElement).toBe(hex.element());
+        expect(chosen).toEqual([]);
+        // The value is selected again, so what is typed next replaces it.
+        await userEvent.keyboard("FF0000{Enter}");
+        expect(chosen).toEqual(["#FF0000"]);
+    });
+
+    it("says on screen and in the hex box's description why Enter refused the words", async () => {
+        renderField(<CompactColorInput label="Node" defaultColor="#2E8B57" showOpacity={false} />);
+        const hex = page.getByTestId("compact-color-input-hex");
+        await userEvent.click(hex);
+        await userEvent.keyboard("{Control>}a{/Control}dark green{Enter}");
+        const message = page.getByRole("alert");
+        await expect.element(message).toHaveTextContent('"dark green" is not a color');
+        await expect.element(message).toHaveTextContent("a color name or a hex code such as 2E8B57");
+        await expect.element(hex).toHaveAttribute("aria-invalid", "true");
+        await expect.element(hex).toHaveAccessibleDescription(/"dark green" is not a color/);
+
+        await userEvent.keyboard("{Control>}a{/Control}seagreen{Enter}");
+        await expect.element(page.getByRole("alert")).not.toBeInTheDocument();
+        await expect.element(hex).toHaveValue("2E8B57");
+    });
+
+    it("leaving with words that name no color goes back to the value and says so", async () => {
+        const chosen: (string | undefined)[] = [];
+        renderField(
+            <CompactColorInput
+                label="Node"
+                defaultColor="#2E8B57"
+                showOpacity={false}
+                onChangeEnd={(color) => {
+                    chosen.push(color);
+                }}
+            />,
+        );
+        const hex = page.getByTestId("compact-color-input-hex");
+        await userEvent.click(hex);
+        await userEvent.keyboard("{Control>}a{/Control}orang");
+        await userEvent.tab();
+        await expect.element(hex).toHaveValue("2E8B57");
+        await expect.element(page.getByRole("alert")).toHaveTextContent('"orang" is not a color, so this stays 2E8B57');
+        await expect.element(hex).not.toHaveAttribute("aria-invalid");
+        expect(chosen).toEqual([]);
+    });
+});
+
+describe("CompactColorInput picker", () => {
+    it("takes a color name in the picker's value box, as the hex box does", async () => {
+        let picked: string | undefined;
+        renderField(
+            <CompactColorInput
+                label="Node"
+                defaultColor="#2E8B57"
+                showOpacity={false}
+                onChangeEnd={(color) => {
+                    picked = color;
+                }}
+            />,
+        );
+        await userEvent.click(page.getByRole("button", { name: "Pick Node color", exact: true }));
+        const value = page.getByRole("textbox", { name: "Color value", exact: true });
+        await expect.poll(() => document.activeElement === value.element()).toBe(true);
+        await userEvent.keyboard("blue{Enter}");
+        await expect.poll(() => picked).toBe("#0000FF");
+        await expect.element(value).toHaveValue("0000FF");
+    });
+
+    it("names each swatch on hover and marks the one in force", async () => {
+        renderField(
+            <CompactColorInput
+                label="Node"
+                color="#61D095"
+                defaultColor="#2E8B57"
+                showOpacity={false}
+                swatches={["#5B8FF9", "#61D095"]}
+            />,
+        );
+        await userEvent.click(page.getByRole("button", { name: "Pick Node color", exact: true }));
+        const current = page.getByRole("button", { name: "#61D095", exact: true });
+        const other = page.getByRole("button", { name: "#5B8FF9", exact: true });
+        await expect.element(current).toHaveAttribute("aria-pressed", "true");
+        await expect.element(other).toHaveAttribute("aria-pressed", "false");
+        await userEvent.hover(other);
+        await expect.element(page.getByRole("tooltip")).toHaveTextContent("#5B8FF9");
+    });
+});

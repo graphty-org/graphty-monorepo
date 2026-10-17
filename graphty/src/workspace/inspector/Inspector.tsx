@@ -5,14 +5,22 @@ import React, { useEffect, useState } from "react";
 
 import { wordsFor } from "../analyze/words";
 import { useAttributeActions } from "../data-place/attributeActions";
-import { SourceGlyph } from "../data-place/DataPlace";
+import { SourceGlyph, TypeGlyphIcon } from "../data-place/DataPlace";
 import { FilterStepEditor } from "../data-place/Filters";
 import { stepEditorName } from "../data-place/filterSteps";
 import { AttributeMenuItems } from "../data-place/MenuItems";
 import { useSourceActions } from "../data-place/sourceActions";
 import { SourceValues } from "../data-place/SourceValues";
 import { useVisibilityVersion } from "../data-place/useVisibilityVersion";
-import { loadIndexOf, loadName, type SourceKind, sourceRowOf, sourcesWords } from "../data-place/words";
+import {
+    loadIndexOf,
+    loadName,
+    type SourceKind,
+    sourceRowOf,
+    sourcesWords,
+    type TypeGlyph,
+    typeOf,
+} from "../data-place/words";
 import { INSPECTOR_TITLE_ID } from "../frame/focus";
 import { Sections } from "../frame/menus";
 import { GLYPHS, KIND_GLYPHS } from "../glyphs";
@@ -54,6 +62,8 @@ interface Header {
     readonly from?: { readonly words: string; readonly open?: () => void };
     /** For a Sources row, the row's kind, so the header draws the row's own icon. */
     readonly source?: SourceKind;
+    /** For an attribute, its Attributes row's type, so the header draws the row's own icon. */
+    readonly glyph?: TypeGlyph;
 }
 
 /** What the header's provenance links open. */
@@ -247,7 +257,8 @@ export function Inspector(): React.JSX.Element {
                 <Stack gap={0} px="md" py={6}>
                     <Group gap={6} wrap="nowrap">
                         {treeRow !== undefined && <KindGlyph session={session} row={treeRow.row} />}
-                        {treeRow === undefined && header.source === undefined && (
+                        {header.glyph !== undefined && <TypeGlyphIcon glyph={header.glyph} />}
+                        {treeRow === undefined && header.source === undefined && header.glyph === undefined && (
                             // A long name never squeezes the glyph.
                             <KindIcon size={14} aria-hidden style={{ flexShrink: 0 }} />
                         )}
@@ -474,7 +485,13 @@ function headerOf(session: GraphSession, resolved: Resolved, run: Run | undefine
         default: {
             const column = session.data.attributes().find((candidate) => candidate.path === resolved.path);
             const made = column?.runId === undefined ? undefined : session.runs.get(column.runId);
-            return { name: column?.plainName ?? resolved.path, from: made === undefined ? undefined : from(made) };
+            return {
+                name: column?.plainName ?? resolved.path,
+                from: made === undefined ? undefined : from(made),
+                ...(column === undefined
+                    ? {}
+                    : { glyph: column.origin === "result" ? "result" : typeOf(column.measurement, column.type).glyph }),
+            };
         }
     }
 }

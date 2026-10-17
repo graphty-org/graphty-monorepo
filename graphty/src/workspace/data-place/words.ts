@@ -23,7 +23,7 @@ export interface SourceRow {
 }
 
 /** What an Attributes row's glyph shows: what the column measures, or the run that made it. */
-export type TypeGlyph = "category" | "number" | "ordinal" | "time" | "unknown" | "result";
+export type TypeGlyph = "category" | "number" | "ordinal" | "time" | "yes-no" | "unknown" | "result";
 
 /** One Attributes row. */
 export interface AttributeRow {
@@ -289,13 +289,20 @@ export function sourcesWords(sources: readonly LoadedSource[]): string | undefin
     return `From ${String(files.length)} ${noun}`;
 }
 
+/** A yes-or-no column's kind, in the Data place and the attribute inspector. */
+export const YES_NO_WORD = "Yes or no";
+
 /**
- * The glyph and its word for what a column measures. An absent measurement is a column with no
- * values.
+ * The glyph and its word for what a column holds: a yes-or-no column (graphty-element types it
+ * `boolean`), else what it measures. An absent measurement is a column with no values.
  * @param measurement - `AttributeDescriptor.measurement`.
+ * @param type - `AttributeDescriptor.type`.
  * @returns the glyph and its word.
  */
-export function typeOf(measurement: string | undefined): { glyph: TypeGlyph; typeWord: string } {
+export function typeOf(measurement: string | undefined, type?: string): { glyph: TypeGlyph; typeWord: string } {
+    if (type === "boolean") {
+        return { glyph: "yes-no", typeWord: YES_NO_WORD };
+    }
     switch (measurement) {
         case "categorical":
             return { glyph: "category", typeWord: "Category" };
@@ -347,7 +354,7 @@ export function attributeRows(
             const run = isResult(a) && a.runId !== undefined ? runLabel(a.runId) : undefined;
             const type = isResult(a)
                 ? { glyph: "result" as const, typeWord: run === undefined ? "Result of a run" : `Result of ${run}` }
-                : typeOf(a.measurement);
+                : typeOf(a.measurement, a.type);
             const fill = fillOf(a.completeness);
             return {
                 id: `${a.kind}:${a.name}`,

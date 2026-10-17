@@ -5,6 +5,7 @@ import React, { useState } from "react";
 
 import { weightName } from "../analyze/words";
 import { useVisibilityVersion } from "../data-place/useVisibilityVersion";
+import { YES_NO_WORD } from "../data-place/words";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { DistributionRows } from "./Distribution";
 import { settingsNotInEffect } from "./settingsInEffect";
@@ -202,7 +203,13 @@ export function AttributeValues({ path }: Readonly<{ path: string }>): React.JSX
     if (column === undefined) {
         return null;
     }
-    const measurement = column.measurement === undefined ? undefined : measurementWord(column.measurement);
+    // A yes-or-no column is named as one; graphty-element measures it as categories too.
+    const yesNo = column.type === "boolean";
+    let measurement = column.measurement === undefined ? undefined : measurementWord(column.measurement);
+    if (yesNo) {
+        measurement = YES_NO_WORD;
+    }
+    const gloss = yesNo ? "Each value is yes or no." : measurementGloss(column.measurement);
     return (
         <ControlSection label="Summary" collapsible={false} headingLevel={3}>
             <DataRow stat name="Table" value={column.kind === "node" ? "Nodes" : "Edges"} />
@@ -213,7 +220,7 @@ export function AttributeValues({ path }: Readonly<{ path: string }>): React.JSX
                     stat
                     name="Kind"
                     value={
-                        <Tooltip label={measurementGloss(column.measurement)} multiline w={220}>
+                        <Tooltip label={gloss} multiline w={220}>
                             <span
                                 tabIndex={0} // NOSONAR(S6845): focusable so a keyboard reader can open the tooltip that explains the measurement
                             >

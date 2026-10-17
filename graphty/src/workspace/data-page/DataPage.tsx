@@ -35,6 +35,7 @@ import { meaningGloss, weightName } from "../analyze/words";
 import { missingNodes, NO_NODE_ROW, noNodeRow } from "../data-place/words";
 import { focusIsLost } from "../frame/focus";
 import { GLYPHS } from "../glyphs";
+import { valueWord } from "../inspector/words";
 import { useAnnounceChange } from "../state/useAnnounceChange";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import {
@@ -1090,10 +1091,12 @@ function SampleGrid({ page, table }: PartProps & { table: DraftTable }): React.J
         [endColumns],
     );
     const columns = useMemo<DataTableColumn<DraftRow>[]>(() => {
+        // A yes-or-no reads Yes or No, as it does everywhere else once loaded.
+        const types = new Map(table.columns.map((column) => [column.name, column.type]));
         const cell = (row: DraftRow, name: string): string | null => {
             const value = row.values[name];
             return typeof value === "string" || typeof value === "number" || typeof value === "boolean"
-                ? String(value)
+                ? valueWord(value, types.get(name))
                 : null;
         };
         return [

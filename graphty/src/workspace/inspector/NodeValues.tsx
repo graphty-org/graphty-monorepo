@@ -33,6 +33,7 @@ import {
     NEIGHBOR_FILTER_WORDS,
     neighborhoodWords,
     valueText,
+    valueWord,
 } from "./words";
 
 /** How many of a node's attributes show before "N more attributes". */
@@ -516,14 +517,17 @@ export function EdgeValues({ id }: Readonly<{ id: string }>): React.JSX.Element 
  * One attribute of a selection in a few words: its mean, or its commonest value and how many.
  * A commonest value held by one element says nothing about the selection, so it is left out.
  * @param attribute - the selection's statistics for the attribute.
+ * @param type - the column's type (graphty-element's), so a yes-or-no reads Yes or No.
  * @returns the words, or undefined when there is nothing to say.
  */
-function attributeSummary(attribute: SelectionAttributeStatistics): string | undefined {
+function attributeSummary(attribute: SelectionAttributeStatistics, type: string | undefined): string | undefined {
     if (attribute.mean !== undefined) {
         return `mean ${formatNumber(attribute.mean)}`;
     }
     const top = attribute.distribution?.[0];
-    return top === undefined || top.count <= 1 ? undefined : `${top.value} (${formatNumber(top.count)})`;
+    return top === undefined || top.count <= 1
+        ? undefined
+        : `${valueWord(top.value, type)} (${formatNumber(top.count)})`;
 }
 
 /** How many selected edges the list names before "N more edges". */
@@ -594,7 +598,10 @@ export function SeveralValues({ version }: Readonly<{ version: number }>): React
                     <DataRow stat name="Edges joining these nodes" value={statistics.inducedEdges} />
                 )}
                 {statistics.attributes.map((attribute) => {
-                    const value = attributeSummary(attribute);
+                    const value = attributeSummary(
+                        attribute,
+                        session.data.attributes().find((column) => column.path === attribute.path)?.type,
+                    );
                     return value === undefined ? null : (
                         <DataRow key={attribute.path} stat name={attribute.plainName} value={value} />
                     );

@@ -286,13 +286,43 @@ export function routeWords(nodes: number, edges: number): string {
 }
 
 /**
- * A value from the data, as text: numbers formatted, everything else as given.
+ * A yes-or-no value as every place writes it: "Yes" or "No", the data table's own words.
+ * @param value - the value.
+ * @returns the word.
+ */
+export function yesNoWord(value: boolean): string {
+    return value ? "Yes" : "No";
+}
+
+/**
+ * One value of a column in words: a yes-or-no value as Yes or No, anything else as it is. Where
+ * graphty-element hands the value over as text (a selection's commonest value, a rule's value),
+ * the column's type -- graphty-element's `AttributeDescriptor.type` -- says it is a yes-or-no.
+ * @param value - the value.
+ * @param type - the column's type, when the value may be a yes-or-no written as text.
+ * @returns the words.
+ */
+export function valueWord(value: string | number | boolean, type?: string): string {
+    if (typeof value === "boolean") {
+        return yesNoWord(value);
+    }
+    if (type === "boolean" && (value === "true" || value === "false")) {
+        return yesNoWord(value === "true");
+    }
+    return String(value);
+}
+
+/**
+ * A value from the data, as text: numbers formatted, a yes-or-no as Yes or No, everything else as given.
  * @param value - the value.
  * @returns the text.
  */
 export function valueText(value: unknown): string {
     if (typeof value === "number") {
         return formatNumber(value);
+    }
+    if (typeof value === "boolean") {
+        return yesNoWord(value);
     }
     if (typeof value === "string") {
         return value;

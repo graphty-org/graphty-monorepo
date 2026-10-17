@@ -9,6 +9,8 @@ import type { FilterStep, HistoryCode, NodeId, RuleTree } from "@graphty/graphty
 export interface Namer {
     readonly attribute: (path: string) => string;
     readonly node: (id: NodeId) => string;
+    /** One value of a path in words (a yes-or-no as Yes or No); absent writes it as it is. */
+    readonly value?: (path: string, value: string) => string;
 }
 
 /**
@@ -30,7 +32,9 @@ export function ruleWords(rule: RuleTree, names: Namer): string {
             return rule.max === undefined ? `${name} has a value` : `${name} is at most ${String(rule.max)}`;
         }
         case "categories":
-            return `${names.attribute(rule.attribute)} is ${rule.values.join(" or ")}`;
+            return `${names.attribute(rule.attribute)} is ${rule.values
+                .map((value) => names.value?.(rule.attribute, value) ?? value)
+                .join(" or ")}`;
         case "member":
             return rule.of === "largest-component" ? "in the largest component" : "in a set";
         case "neighborhood": {

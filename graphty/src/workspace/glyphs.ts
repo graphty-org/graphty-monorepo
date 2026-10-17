@@ -76,6 +76,7 @@ import {
     Sun,
     Table,
     Tag,
+    ToggleRight,
     Trash2,
     TriangleAlert,
     Undo2,
@@ -130,6 +131,8 @@ export const GLYPHS = {
     category: CaseSensitive,
     ordinal: ListOrdered,
     time: Calendar,
+    // A column of yes-or-no values.
+    yesNo: ToggleRight,
     unknown: CircleHelp,
     file: FileText,
     // Tools and commands.

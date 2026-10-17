@@ -17,7 +17,28 @@ Summarized again 2026-10-17 (25.6 KB). The long entries for names and words, foc
 order, the number card, spoken messages, focus after adding, the color box and drawing and camera
 are in git: `git show afc2ee150:design/ui/studio/notes/engineer.md`.
 
-1. (2026-10-17, find box; commits 4736d4836 element, 81b72a941 compact-mantine, 660c58f96 app,
+1. (2026-10-17, yes and no, graphty) A yes-or-no column reads one way everywhere. graphty-element
+   types it `AttributeDescriptor.type === "boolean"` (measurement stays "categorical"); the app
+   reads that fact, never the values. One helper set in `inspector/words.ts`: `yesNoWord`,
+   `valueWord(value, type?)` (a boolean, or "true"/"false" text of a boolean column, as Yes/No:
+   selection statistics and rule values come over as text), and `valueText` (node values).
+   Used by the node inspector, the selection summary, Find's hit and value rows, the load preview
+   (`DraftColumn.type`) and filter-step words (`Namer.value`). Data place and the attribute
+   inspector: `typeOf(measurement, type)` gives glyph `yes-no` (`GLYPHS.yesNo` = ToggleRight),
+   "Yes or no"; the attribute header now draws its row's type glyph. Filter step on a boolean
+   column: a Select of Yes/No (values "true"/"false", starts at Yes, as the style card does),
+   rule `categories ["true"]`, which the element's `inCategories` matches on `String(value)`.
+   Test `data-place/__tests__/YesNo.real-element.test.tsx`; walk on a fresh build
+   `design/ui/studio/tmp/r1-dry1-yes-and-no/walk1` (preview Yes/No, icon, "trained is Yes" 24 to
+   15, inspector Yes, "Yes (15)", Find "trained: Yes").
+    - Open: Find matches a boolean by its raw text, so typing "yes" finds nothing while every
+      row says Yes. The words are the app's, the matching the element's: needs an element answer
+      (match a boolean on words the consumer supplies?) before the app can do anything.
+    - Seen, not mine: graphty `DataPage.real-element.test.tsx` 7 fail at a select pick with
+      `pointer-events: none` -- the uncommitted compact-mantine `cm-pointer-still` rule in
+      StyleSelect/inputs.css (a list opened under an unmoved pointer); userEvent clicks without
+      moving first. Commit 660c58f96 took my three FindBox lines before `valueWord` existed.
+2. (2026-10-17, find box; commits 4736d4836 element, 81b72a941 compact-mantine, 660c58f96 app,
    ef95e565f placement fix) Checked on a fresh build (`design/ui/studio/tmp/r1-dry1-find-box/`
    walk1 Les Mis, walk2 sources.graphml, walk3 lesmis-poster; test
    `graph-place/__tests__/FindBox.real-element.test.tsx`, element `test/session/rule-check.test.ts`):
@@ -36,46 +57,51 @@ are in git: `git show afc2ee150:design/ui/studio/notes/engineer.md`.
       clear button clears on Escape. Mod+F on `find.focus`, which also selects the box's text.
     - For the owner: a bare name reading a run's field (breaking), and comparisons by default.
     - Not mine: ConditionCards "Style edges, on in 0 of" fails on another agent's KindSwitch label.
-2. (2026-10-17, earlier today, details in git as above) Names and words (`FIND_ATTRIBUTE`,
+3. (2026-10-17, earlier today, details in git as above) Names and words (`FIND_ATTRIBUTE`,
    `valueFact`, `bindLabel`); focus never falls to the page (`installFocusGuard`, F6 panels);
    number card drafts (`NumberCard`, never hands the element a range it refuses); one status line
    in `Workspace.tsx` (`store.set({ announcement })`, `useAnnounceChange`); `keystrokeTarget` for
    focus after an add; color box Escape and refusals; drawing and camera (null color repaint, no
    card framing, `held` + `tapped` keys, `zoomToPointer`).
-3. (2026-10-17) Opened projects lost their rows: anything keyed by a layer id that a document
+4. (2026-10-17) Opened projects lost their rows: anything keyed by a layer id that a document
    carries must be remapped on apply (`documentRowKeys`, commit 619ce32be).
-4. (2026-10-17) Combined Style panel (V7 tabs, condition cards, several layers) is built; files
+5. (2026-10-17) Combined Style panel (V7 tabs, condition cards, several layers) is built; files
    `style/cards.ts`, `style/WhichPicker.tsx`, `RowStyle` in `StylePanel.tsx`. A controlled text
    field never round-trips through the element; one undo step per open is
    `TransactionOptions.after`. Not built: number card histogram for a run field, "lowest N",
    dashed chips at rest.
-5. One BoundValue for one layer and for several layers (owner decision 2026-10-16); Layer is a
+6. One BoundValue for one layer and for several layers (owner decision 2026-10-16); Layer is a
    temporary value, a data field is copied as is. Vary by Layer uses the same group list as a
    data value (`GroupRows`, `styles.layerGroups`).
-6. Shared worktree: other agents commit beside me. Stage only my files. For a shared file, build
+7. Shared worktree: other agents commit beside me. Stage only my files. For a shared file, build
    the blob from `git show HEAD:<file>` plus my edits by exact string replacement, never
    `hunks.py` when another agent's hunk sits above mine (see Tried); read `git diff --cached`
    before every commit. Never `git stash` (not even `list`) in this repo's agents.
-7. Prove a test fails without the change: copy the fixed file aside, `git show HEAD:<file>` over
+8. Prove a test fails without the change: copy the fixed file aside, `git show HEAD:<file>` over
    it, run the test, copy back. Check a "passes without the fix" test before trusting it (the
    histogram test passed on HEAD at 8 bins because 16/8 happened to be whole).
-8. graphty tests read compact-mantine from its `dist` and graphty-element from source; rebuild
+9. graphty tests read compact-mantine from its `dist` and graphty-element from source; rebuild
    the app (`pnpm exec nx run graphty:build`, Sentry vars unset) before a real.mjs walk; a
    session serves the dist it started on, so end and start again after a rebuild.
-9. API changes: additive ones go in `owner-decisions.md` under "decided by the team" with the
-   name and shape; a changed default or a renamed or removed member goes "for the owner". A new
-   Graph or element member needs `doors.ts` and `test/cost-coverage/method-classes.ts` lines,
-   `npm run api:report` after a build, and `jsx.ts` regenerated by the build.
-10. Element facts worth citing: layers paint one kind (a row is two parts); selectors everything,
+10. API changes: additive ones go in `owner-decisions.md` under "decided by the team" with the
+    name and shape; a changed default or a renamed or removed member goes "for the owner". A new
+    Graph or element member needs `doors.ts` and `test/cost-coverage/method-classes.ts` lines,
+    `npm run api:report` after a build, and `jsx.ts` regenerated by the build.
+11. Element facts worth citing: layers paint one kind (a row is two parts); selectors everything,
     expression, has, ids, top, member, rule, state; a user layer that sets nothing is refused
     (`E_BAD_LAYER`); Top N takes a tie group whole; `data.histogram` takes data columns only, a
     run field uses `run.result.histogram`.
-11. Study tool: `real.mjs --start <dir> empty|setup:<file>` through its own browser slot;
+12. Study tool: `real.mjs --start <dir> empty|setup:<file>` through its own browser slot;
     `--click "role=<role>:<name>"` for shared names; step N lands in screenshot N+1; `--end`
     always. Compare screenshots with PIL `ImageChops.difference(...).getbbox()` on the canvas
     crop (`(300,120,1195,835)` at 1440 x 900) before calling a drawing unchanged.
 
 ## Decisions and reasons
+
+- (2026-10-17) **A yes-or-no column is known by the element's `type`, never by its values.** The
+  app maps only a boolean, or "true"/"false" text of a column the element types `boolean`, to
+  Yes/No. The data table already said Yes/No (compact-mantine `labels.yes`); every other place
+  now matches it. The filter step keeps the element's spelling ("true") in the rule and shows Yes.
 
 - (2026-10-17) **A rule over a column nothing answers is refused with words, never "Nothing
   matches".** The element reports it (`checkRule`) with what it may have meant; the app words it.

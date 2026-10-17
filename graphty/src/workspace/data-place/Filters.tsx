@@ -249,8 +249,11 @@ const BLANK: Fields = { keep: "attribute", condition: BLANK_CONDITION };
 function fieldsOf(step: FilterStep | undefined, attributes: readonly AttributeDescriptor[], filled: string): Fields {
     const rule = step?.rule;
     if (rule === undefined) {
-        const compare = filterCompares(attributeOf(filled, attributes))[0];
-        return { ...BLANK, condition: { ...BLANK_CONDITION, reads: filled, compare } };
+        const attribute = attributeOf(filled, attributes);
+        const compare = filterCompares(attribute)[0];
+        // A yes-or-no starts at Yes, as a style card on one does.
+        const text = attribute?.type === "boolean" ? "true" : "";
+        return { ...BLANK, condition: { ...BLANK_CONDITION, reads: filled, compare, text } };
     }
     if (rule.kind === "member") {
         return { ...BLANK, keep: "largest" };

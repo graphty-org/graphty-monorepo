@@ -29,6 +29,7 @@ const TYPE_GLYPHS: Record<TypeGlyph, React.ReactNode> = {
     number: <GLYPHS.number size={14} aria-hidden />,
     ordinal: <GLYPHS.ordinal size={14} aria-hidden />,
     time: <GLYPHS.time size={14} aria-hidden />,
+    "yes-no": <GLYPHS.yesNo size={14} aria-hidden />,
     unknown: <GLYPHS.unknown size={14} aria-hidden />,
     result: <GLYPHS.measure size={14} aria-hidden />,
 };
@@ -80,6 +81,16 @@ function Quiet({ children }: Readonly<{ children: React.ReactNode }>): React.JSX
 export function SourceGlyph({ kind }: Readonly<{ kind: SourceKind }>): React.JSX.Element {
     const { icon: Icon, color } = SOURCE_GLYPHS[kind];
     return <Icon size={14} color={color} aria-hidden />;
+}
+
+/**
+ * An Attributes row's type icon, which the attribute inspector's header draws too.
+ * @param props - Component props
+ * @param props.glyph - The row's type glyph
+ * @returns The icon
+ */
+export function TypeGlyphIcon({ glyph }: Readonly<{ glyph: TypeGlyph }>): React.JSX.Element {
+    return <>{TYPE_GLYPHS[glyph]}</>;
 }
 
 /**

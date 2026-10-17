@@ -7,6 +7,7 @@ import { ActionIcon, Autocomplete, NumberInput, Select, TextInput, Tooltip } fro
 import React from "react";
 
 import { GLYPHS } from "../glyphs";
+import { yesNoWord } from "../inspector/words";
 import {
     attributeOf,
     BLANK_CONDITION,
@@ -79,6 +80,26 @@ export function ConditionRow(props: ConditionRowProps): React.JSX.Element {
                 )}
             </>
         );
+    } else if (
+        attribute?.type === "boolean" &&
+        (condition.compare === "is" || condition.compare === "is-not" || condition.compare === "one-of")
+    ) {
+        // A yes-or-no column offers its two values in the words every place writes them; the
+        // rule holds them as graphty-element's rules read a yes-or-no, "true" and "false".
+        operand = (
+            <Select
+                {...name(operandName)}
+                data={[
+                    { value: "true", label: yesNoWord(true) },
+                    { value: "false", label: yesNoWord(false) },
+                ]}
+                value={condition.text === "true" || condition.text === "false" ? condition.text : null}
+                allowDeselect={false}
+                onChange={(value) => {
+                    set({ text: value ?? "" });
+                }}
+            />
+        );
     } else if (condition.compare === "is" || condition.compare === "is-not" || condition.compare === "one-of") {
         operand = (
             <Autocomplete
@@ -114,7 +135,9 @@ export function ConditionRow(props: ConditionRowProps): React.JSX.Element {
                 onChange={(value) => {
                     const next = attributeOf(value ?? "", attributes);
                     const first = value === null ? "at-least" : (compares(next)[0] ?? "is");
-                    onChange({ ...BLANK_CONDITION, reads: value ?? "", compare: first });
+                    // A yes-or-no starts at Yes, as a style card on one does.
+                    const text = next?.type === "boolean" ? "true" : "";
+                    onChange({ ...BLANK_CONDITION, reads: value ?? "", compare: first, text });
                 }}
             />
             {offered.length > 1 && (

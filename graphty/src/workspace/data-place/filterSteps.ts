@@ -5,6 +5,7 @@
 
 import type { CodedFact, FilterStep, GraphSession, HistoryCode } from "@graphty/graphty-element/session";
 
+import { valueWord } from "../inspector/words";
 import type { WorkspaceStore } from "../state/store";
 import { type Namer, ruleWords, stepChangeWords } from "./filterWords";
 
@@ -24,6 +25,7 @@ function namerOf(session: GraphSession): Namer {
         attribute: (path) => attributes.find((a) => a.path === path)?.plainName ?? path.replace(/^data\./, ""),
         // A node is named by its id until graphty-element publishes its name (#895).
         node: String,
+        value: (path, value) => valueWord(value, attributes.find((a) => a.path === path)?.type),
     };
 }
 

@@ -6,7 +6,8 @@
 --click Load
 --click Everything
 --click role=tab:Style
---click Add label line
+--click Add to node text
+--click role=menuitem:Label
 --click role=option:id
 --click Show all labels
 --key Escape

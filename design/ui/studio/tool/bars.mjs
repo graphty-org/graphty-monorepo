@@ -281,7 +281,11 @@ async function inner() {
     await step(p, "Style tab with a label line", async () => {
         await p.getByRole("treeitem").filter({ hasText: "Everything" }).first().click();
         await p.getByRole("tab", { name: "Style" }).first().click();
-        await btn("Add label line").click();
+        await btn("Add to node text").click();
+        await p
+            .getByRole("menuitem", { name: /^Label/ })
+            .first()
+            .click();
         await p.getByRole("option", { name: "name", exact: true }).first().click();
     });
     await step(p, "find box with results open", async () => {

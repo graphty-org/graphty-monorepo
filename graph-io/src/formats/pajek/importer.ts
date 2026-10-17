@@ -68,7 +68,7 @@ import {
     type ImportInput,
     type ImportReport,
 } from "../../types.js";
-import { pajekStyles } from "./styles.js";
+import { PAJEK_POINTS_PER_UNIT, pajekStyles } from "./styles.js";
 import {
     decodeCharacterReferences,
     isCommentOrBlank,
@@ -313,8 +313,16 @@ function positionDecl(sourceDims: number): ColumnDecl {
         role: "position",
         origin: { format: "pajek", id: "coordinates" },
         // Pajek draws y downward (USAir97.net has Deadhorse, Alaska at y 0.10 and Miami at 0.53),
-        // centers depth on 0.5, and NetworkX writes "0.0 0.0" for a node with no position
-        extra: { sourceDims, units: "file", yAxis: "down", zOrigin: 0.5, zeroUnplaced: true },
+        // centers depth on 0.5, and NetworkX writes "0.0 0.0" for a node with no position; one unit
+        // is 500 of the points the styles' lengths are in (PAJEK_POINTS_PER_UNIT)
+        extra: {
+            sourceDims,
+            units: "file",
+            pxPerUnit: PAJEK_POINTS_PER_UNIT,
+            yAxis: "down",
+            zOrigin: 0.5,
+            zeroUnplaced: true,
+        },
     };
 }
 

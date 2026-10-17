@@ -136,10 +136,20 @@ What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-
 ## Styles
 
 With `styles: true`, graph-io reads the vertex shape keyword and the `ic` (fill), `bc` (border
-color), `bw` (border width), `x_fact` and `y_fact` (size), `lc` (label color) and `fos` (label
-size) parameters, and on arcs and edges `c` (color), `w` (width) and `p` (`Solid`, `Dots`). Colors
-are Pajek's color names. Sizes are Pajek's relative factors, so `units.length` is `"relative"`.
-Pajek's defaults are added: ellipses, and black solid lines with an arrow on arcs.
+color), `bw` (border width), `s_size`, `x_fact` and `y_fact` (size), `lc` (label color), `fos`
+(label size), `font` (label font) and `lr` and `lphi` (label position, the nearest of the nine
+sides) parameters, and on arcs and edges `c` (color), `w` (width), `p` (`Solid`, `Dots`), `l`
+(label), `lc`, `fos` and `font`. Colors are Pajek's color names, and three fractions `r g b`.
+
+Lengths are PostScript points, as Pajek's EPS and SVG export draws them, so `units.length` is
+`"px"`: a vertex is 5 points times its `s_size`, `x_fact` and `y_fact`, and `bw`, `w` and `fos` are
+points as written. Pajek draws the coordinates' [0,1] square as 500 points, so the positions carry
+`pxPerUnit: 500` and a drawing keeps Pajek's proportions between the spacing and the sizes.
+
+Pajek's defaults are added: yellow ellipses 5 points across with a black border 1 point wide and
+black labels of 10 points to the right, and black solid lines 1 point wide with an arrow on arcs.
+The manual names the vertex size, fill, label size and label position settings without their
+values, so those four are assumed.
 
 A save with styles writes the same parameters. A color is written as the nearest Pajek color name,
 and a line style other than solid or dotted as the nearer of the two (`W_STYLE_APPROXIMATED`). The

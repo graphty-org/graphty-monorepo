@@ -98,6 +98,7 @@ describe("pajekImporter: the corpus", () => {
         expect(position.meta.extra).toEqual({
             sourceDims: 3,
             units: "file",
+            pxPerUnit: 500,
             yAxis: "down",
             zOrigin: 0.5,
             zeroUnplaced: true,

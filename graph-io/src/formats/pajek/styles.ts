@@ -2,8 +2,9 @@
  * Pajek styles: each vertex's shape keyword and drawing parameters (`ic`, `bc`, `bw`, `x_fact`, `y_fact`, `lc`, `fos`)
  * and each line's `c`, `w` and `p`, read the way Pajek draws them, with Pajek's stated defaults beneath (an ellipse,
  * black solid lines, an arrow at the target of every arc). Colors are Pajek's: the dvips names, `GrayNN`,
- * `RGBrrggbb`, `RGB(r,g,b)` and the CMYK forms. `x_fact` and `y_fact` are factors of Pajek's normal vertex size, so the
- * lengths are relative.
+ * `RGBrrggbb`, `RGB(r,g,b)` and the CMYK forms. Lengths are in PostScript points, the unit of Pajek's EPS and SVG
+ * export, where the drawing's [0,1] square is [0,500] (`PAJEK_POINTS_PER_UNIT`): a vertex is Pajek's normal size 5
+ * times its `s_size`, `x_fact` and `y_fact`, and `bw`, `w` and `fos` are points as written.
  *
  * Writing: the same parameters from what graphty draws, leaving out what Pajek draws by default; a color that is a
  * dvips name is written by name, any other as `RGBrrggbb`, so colors are exact. The `graphty.styles` block, with the
@@ -19,6 +20,7 @@ import { canonEnum } from "../../styles/canon/enums.js";
 import { canonNumber } from "../../styles/canon/number.js";
 import type { CanonSite } from "../../styles/canon/site.js";
 import { canonText } from "../../styles/canon/text.js";
+import { toolDefaults } from "../../styles/defaults.js";
 import { StyleApproximations } from "../../styles/io/approximations.js";
 import { styleBlockLosses, writeStyleBlock } from "../../styles/io/block.js";
 import { elementValues, takeFromBlock } from "../../styles/io/round-trip.js";
@@ -56,22 +58,56 @@ export const PAJEK_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze({
         "height",
         "labelColor",
         "labelSize",
+        "labelFont",
+        "labelPosition",
     ] as const),
-    edge: Object.freeze(["color", "opacity", "width", "lineStyle", "sourceArrow", "targetArrow"] as const),
+    edge: Object.freeze([
+        "color",
+        "opacity",
+        "width",
+        "lineStyle",
+        "sourceArrow",
+        "targetArrow",
+        "label",
+        "labelColor",
+        "labelSize",
+        "labelFont",
+    ] as const),
     block: "native",
 });
 
 /**
- * Pajek's default vertex size, in the units of a border width `bw`: `x_fact` and `y_fact` are factors of it, so a
- * border width is read as a factor of it too (`bw 1`, Pajek's default, is a fifth of a normal vertex).
+ * Pajek's normal vertex size, in points: what `x_fact` and `y_fact` multiply when a vertex sets no `s_size` (the
+ * manual, p. 89, names `s_size` "default size" and `x_fact`/`y_fact` "magnification" without stating the value).
+ * Assumed, not measured: 5 is the size the reference scene (`test/fidelity/references/pajek_file.py`, BASE) and graph-io
+ * have always used, and it puts Pajek's default `bw 1` at a fifth of a vertex; confirm it in Pajek's Export Options
+ * ("EPS, SVG, X3D, VRML Size of Vertices") when Pajek can be run.
  */
-const VERTEX_SIZE = 5;
+export const PAJEK_VERTEX_SIZE = 5;
+
+/**
+ * Points per coordinate unit: "When Postscript picture is obtained, the square [0,1]x[0,1] is transformed to
+ * [0,500]x[0,500]" (Pajek, "Pajek to EPS", http://mrvar.fdv.uni-lj.si/pajek/DrawEPS.htm).
+ */
+export const PAJEK_POINTS_PER_UNIT = 500;
 
 /** The vertex parameters read as styles. */
-const NODE_KEYS: readonly string[] = ["ic", "bc", "bw", "x_fact", "y_fact", "lc", "fos"];
+const NODE_KEYS: readonly string[] = [
+    "ic",
+    "bc",
+    "bw",
+    "s_size",
+    "x_fact",
+    "y_fact",
+    "lc",
+    "fos",
+    "font",
+    "lr",
+    "lphi",
+];
 
 /** The line parameters read as styles. */
-const EDGE_KEYS: readonly string[] = ["c", "w", "p"];
+const EDGE_KEYS: readonly string[] = ["c", "w", "p", "l", "lc", "fos", "font"];
 
 /** The style column marking arcs, which Pajek draws with an arrow at the target. */
 const DIRECTED_KEY = "directed";
@@ -89,8 +125,10 @@ const READ: Readonly<Record<StyleTarget, readonly string[]>> = {
         "height",
         "labelColor",
         "labelSize",
+        "labelFont",
+        "labelPosition",
     ],
-    edge: ["color", "opacity", "width", "lineStyle"],
+    edge: ["color", "opacity", "width", "lineStyle", "label", "labelColor", "labelSize", "labelFont"],
 };
 
 /** A parameter's value on one element, or null. */
@@ -156,16 +194,96 @@ function readVertex(get: Param, put: Put, at: At): void {
     }
     readColor(get("ic"), "fill", "fillOpacity", put, at);
     readColor(get("bc"), "borderColor", null, put, at);
-    const bw = get("bw");
-    if (bw !== null) {
-        const width = canonNumber(bw, at("borderWidth"));
-        put("borderWidth", width === null ? null : width / VERTEX_SIZE);
-    }
-    readNumber(get("x_fact"), "width", put, at);
-    readNumber(get("y_fact"), "height", put, at);
+    readNumber(get("bw"), "borderWidth", put, at);
+    readSize(get, put, at);
     readColor(get("lc"), "labelColor", null, put, at);
     readNumber(get("fos"), "labelSize", put, at);
+    readText(get("font"), "labelFont", put, at);
+    readLabelPosition(get, put, at);
 }
+
+/**
+ * A vertex's width and height in points: the normal size times its `s_size`, `x_fact` and `y_fact`, each 1 when unset;
+ * a vertex that sets none of the three is left to the default beneath. The manual (p. 89) calls `s_size` "default
+ * size" without a unit; it is read as a factor, as the reference scene (`pajek_file.py`) and the corpus generator
+ * (`gen_pajek.py`, `s_size` 1 to 3) read it.
+ * @param get - the vertex's parameters
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readSize(get: Param, put: Put, at: At): void {
+    const raw = get("s_size");
+    const s = raw === null ? 1 : canonNumber(raw, at("width"));
+    const size = s === null ? null : PAJEK_VERTEX_SIZE * s;
+    for (const [key, property] of [
+        ["x_fact", "width"],
+        ["y_fact", "height"],
+    ] as const) {
+        const f = get(key);
+        if (f === null && raw === null) {
+            continue;
+        }
+        const factor = f === null ? 1 : canonNumber(f, at(property));
+        put(property, size === null || factor === null ? null : Number((size * factor).toPrecision(15)));
+    }
+}
+
+/**
+ * A text parameter (a PostScript font name).
+ * @param raw - the parameter's value, or null
+ * @param property - the property
+ * @param put - receives the value
+ * @param at - the sites
+ */
+function readText(raw: unknown, property: string, put: Put, at: At): void {
+    if (raw !== null && raw !== "") {
+        put(property, canonText(raw, at(property)));
+    }
+}
+
+/** The label positions by Pajek's label angle `lphi`, from 0 degrees (to the right) counterclockwise by 45. */
+const LABEL_ANGLES = [
+    "right",
+    "top-right",
+    "top",
+    "top-left",
+    "left",
+    "bottom-left",
+    "bottom",
+    "bottom-right",
+] as const;
+
+/**
+ * A vertex's label position from Pajek's polar label parameters (manual p. 90): `lr` is the distance of the label from
+ * the vertex center, 0 centering it, and `lphi` its angle in degrees, read as the nearest of the eight neutral sides.
+ * A vertex that sets neither is left to the default beneath.
+ * @param get - the vertex's parameters
+ * @param put - receives the value
+ * @param at - the sites
+ */
+function readLabelPosition(get: Param, put: Put, at: At): void {
+    const lr = get("lr");
+    const lphi = get("lphi");
+    if (lr === null && lphi === null) {
+        return;
+    }
+    const radius = lr === null ? null : canonNumber(lr, at("labelPosition"));
+    if (radius === 0) {
+        put("labelPosition", "center");
+        return;
+    }
+    const angle = lphi === null ? PAJEK_LABEL_ANGLE : canonNumber(lphi, at("labelPosition"));
+    if (angle !== null) {
+        const step = Math.round((((angle % 360) + 360) % 360) / 45) % 8;
+        put("labelPosition", LABEL_ANGLES[step]);
+    }
+}
+
+/**
+ * The label angle Pajek uses when a vertex sets a radius but no angle: 0, to the right. Assumed, as the tool default
+ * label position "right" is (`styles/defaults.ts`): the manual names the parameter (p. 90) but not its default.
+ */
+const PAJEK_LABEL_ANGLE = 0;
 
 /**
  * One line's style: its color, width and pattern.
@@ -180,6 +298,10 @@ function readLine(get: Param, put: Put, at: At): void {
     if (p !== null) {
         put("lineStyle", canonEnum("lineStyle", p, "dvips", at("lineStyle")));
     }
+    readText(get("l"), "label", put, at);
+    readColor(get("lc"), "labelColor", null, put, at);
+    readNumber(get("fos"), "labelSize", put, at);
+    readText(get("font"), "labelFont", put, at);
 }
 
 /**
@@ -272,7 +394,7 @@ export function pajekStyles(snapshot: GraphSnapshot, context: StyleReadContext):
         canonical: true,
         dialect: "dvips",
         tool: "pajek",
-        units: "relative",
+        units: "px",
         node: { values: node },
         edge: { values: edge, rules, columns },
         notes: notes.list(),
@@ -365,7 +487,21 @@ function shapeKeyword(get: Get, approximate: Approximate): string {
 }
 
 /**
- * A vertex's parameters from its values, leaving out the ellipse and the black border 1 wide Pajek draws by default.
+ * What Pajek draws by default for a property (`styles/defaults.ts`), which the writer leaves out.
+ * @param target - nodes or edges
+ * @param property - the property
+ * @returns the default, or undefined
+ */
+function pajekDefault(target: StyleTarget, property: string): StyleValue | undefined {
+    const values: Readonly<Record<string, { readonly value: unknown } | undefined>> | undefined =
+        toolDefaults("pajek")?.[target];
+    return values?.[property]?.value as StyleValue | undefined;
+}
+
+/**
+ * A vertex's parameters from its values, leaving out the ellipse and the black border 1 wide Pajek draws by default;
+ * the inverse of `readVertex`: `x_fact` and `y_fact` are the width and height over the normal size, the other lengths
+ * points as they are.
  * @param get - the vertex's values
  * @param approximate - records approximations
  * @returns the parameters, the shape keyword under `shape`
@@ -383,32 +519,50 @@ function vertexParams(get: Get, approximate: Approximate): Map<string, Written> 
         ["labelColor", "lc"],
     ] as const;
     const numbers = [
-        ["width", "x_fact"],
-        ["height", "y_fact"],
-        ["labelSize", "fos"],
+        ["width", "x_fact", PAJEK_VERTEX_SIZE],
+        ["height", "y_fact", PAJEK_VERTEX_SIZE],
+        ["labelSize", "fos", 1],
     ] as const;
     for (const [property, key] of colors) {
         const v = get(property);
-        if (typeof v === "string" && !(property === "borderColor" && v === "#000000")) {
+        if (typeof v === "string" && v !== pajekDefault("node", property)) {
             out.set(key, pajekColorText(v));
         }
     }
-    for (const [property, key] of numbers) {
+    for (const [property, key, per] of numbers) {
         const v = get(property);
-        if (typeof v === "number") {
-            out.set(key, v);
+        if (typeof v === "number" && v !== pajekDefault("node", property)) {
+            out.set(key, Number((v / per).toPrecision(15)));
         }
     }
     const bw = get("borderWidth");
-    if (typeof bw === "number") {
-        const written = Number((bw * VERTEX_SIZE).toPrecision(15));
-        if (written === 1) {
-            out.delete("bw");
-        } else {
-            out.set("bw", written);
-        }
+    if (typeof bw === "number" && bw !== 1) {
+        out.set("bw", bw);
     }
+    const font = get("labelFont");
+    if (typeof font === "string" && font !== "") {
+        out.set("font", font);
+    }
+    labelPositionParams(get, out);
     return out;
+}
+
+/**
+ * A label position as Pajek's polar label parameters, leaving out the default (to the right): the center is `lr 0`,
+ * a side its angle `lphi`.
+ * @param get - the vertex's values
+ * @param out - the parameters, changed in place
+ */
+function labelPositionParams(get: Get, out: Map<string, Written>): void {
+    const position = get("labelPosition");
+    if (position === "center") {
+        out.set("lr", 0);
+        return;
+    }
+    const step = LABEL_ANGLES.indexOf(position as (typeof LABEL_ANGLES)[number]);
+    if (step > 0) {
+        out.set("lphi", step * 45);
+    }
 }
 
 /**
@@ -427,12 +581,32 @@ function lineParams(get: Get, directed: boolean, approximate: Approximate): Map<
         out.set("c", pajekColorText(color));
     }
     const width = get("width");
-    if (typeof width === "number") {
+    if (typeof width === "number" && width !== pajekDefault("edge", "width")) {
         out.set("w", width);
     }
     const lineStyle = get("lineStyle");
     if (typeof lineStyle === "string" && lineStyle !== "solid" && pajekDots(lineStyle, approximate)) {
         out.set("p", "Dots");
+    }
+    const label = get("label");
+    if (typeof label === "string" && label !== "") {
+        const text = pajekLabelText(label);
+        if (text !== label) {
+            approximate("label", label);
+        }
+        out.set("l", text);
+    }
+    const labelColor = get("labelColor");
+    if (typeof labelColor === "string") {
+        out.set("lc", pajekColorText(labelColor));
+    }
+    const labelSize = get("labelSize");
+    if (typeof labelSize === "number") {
+        out.set("fos", labelSize);
+    }
+    const font = get("labelFont");
+    if (typeof font === "string" && font !== "") {
+        out.set("font", font);
     }
     const target = get("targetArrow");
     if (target !== null && target !== (directed ? "triangle" : "none")) {

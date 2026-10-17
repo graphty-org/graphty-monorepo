@@ -82,4 +82,37 @@ describe("copies of one binding in the legend", () => {
             "not the hidden copy's b, nor the five departments no copy selects",
         );
     });
+
+    it("speaks for the copy shown on the most elements, not the first, so its range is the one drawn", async () => {
+        const s = createGraphSession();
+        await s.data.addNodes([
+            { id: "s01", donations: 10 },
+            { id: "s02", donations: 250000 },
+            { id: "s03", donations: 5000 },
+        ]);
+        const size = { by: "data.donations", scale: "linear", range: [1, 3] } as const;
+        const one = await s.styles.add({
+            name: "s01",
+            target: "node",
+            selector: { match: "ids", nodes: ["s01"], edges: [] },
+            encode: { "node.size": size },
+        });
+        const all = await s.styles.add({
+            name: "donations",
+            target: "node",
+            selector: { match: "everything" },
+            encode: { "node.size": size },
+        });
+        await s.styles.settled();
+
+        const [block] = s.styles.legend().filter((each) => each.channel === "node.size");
+        assert.deepEqual(block.layers, [one.id, all.id]);
+        assert.strictEqual(block.layerId, all.id, "the layer that paints every node, not the one painted over");
+        assert.deepEqual(block.domain && [block.domain.min, block.domain.max], [10, 250000]);
+        assert.deepEqual(
+            [block.swatches.at(0)?.value, block.swatches.at(-1)?.value],
+            [10, 250000],
+            "the ramp keeps its end values",
+        );
+    });
 });

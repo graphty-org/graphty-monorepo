@@ -220,7 +220,7 @@ describe("the canvas key on the real element", () => {
         });
         await session.styles.settled();
         const legend = await screen.findByRole("region", { name: "Legend" }, { timeout: TIMEOUT_MS });
-        await within(legend).findByRole("group", { name: "Shape: Shapes" }, { timeout: TIMEOUT_MS });
+        await within(legend).findByRole("group", { name: /^Shape: / }, { timeout: TIMEOUT_MS });
         const canvas = element.closest<HTMLElement>(".ws-canvas");
         assert.isNotNull(canvas);
         const ids = session.data.nodes().map((node) => node.id);
@@ -242,21 +242,38 @@ describe("the canvas key on the real element", () => {
         assert.isAtLeast(span, (canvas?.clientWidth ?? 0) / 2, "the drawing's width on the canvas");
         await page.screenshot({ path: `${SHOTS}/key-900x700.png` });
 
-        // It scrolls, so it takes focus and marks that more lies below until its end shows.
+        // It scrolls, so it takes focus, and it stops at a line's edge: no line shows cut in half.
         assert.equal(legend.tabIndex, 0);
-        assert.isTrue(legend.hasAttribute("data-more-below"));
-        assert.isNotNull(legend.querySelector(".ws-legend-more"));
+        await waitFor(() => {
+            const box = legend.getBoundingClientRect();
+            const edge =
+                legend.clientTop + legend.clientHeight - Number.parseFloat(getComputedStyle(legend).paddingBottom);
+            const cut = [...legend.querySelectorAll<HTMLElement>(".ws-legend-section > *")].filter((line) => {
+                const rect = line.getBoundingClientRect();
+                const top = rect.top - box.top + legend.scrollTop;
+                return top < edge && top + rect.height > edge + 0.5;
+            });
+            assert.deepEqual(
+                cut.map((line) => line.textContent),
+                [],
+                "lines cut at the bottom edge",
+            );
+        });
         const result = await axe.run(legend, { runOnly: ["scrollable-region-focusable"] });
         assert.deepEqual(
             result.violations.map((violation) => violation.id),
             [],
         );
+        // Tab reaches it, and the arrow keys scroll it.
         await userEvent.click(within(legend).getAllByRole("group")[0] ?? legend);
-        await userEvent.keyboard("{End}");
+        await userEvent.keyboard("{Shift>}{Tab}{/Shift}");
+        assert.notStrictEqual(document.activeElement, legend);
+        await userEvent.keyboard("{Tab}");
+        assert.strictEqual(document.activeElement, legend);
+        await userEvent.keyboard("{ArrowDown}{ArrowDown}{ArrowDown}");
         await waitFor(() => {
-            assert.isFalse(legend.hasAttribute("data-more-below"), "scrolled to its end, no more below");
+            assert.isAbove(legend.scrollTop, 0, "scrolled by the arrow keys");
         });
-        assert.isNull(legend.querySelector(".ws-legend-more"));
     });
 
     it("with three runs on at 1366 x 768, never scrolls by a sliver, and names the route as the Analyze list does", async () => {

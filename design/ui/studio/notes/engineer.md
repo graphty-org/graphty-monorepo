@@ -16,7 +16,19 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-1. (2026-10-17, truthful counts; commit 97d8bff7c) A layer counts only the halves that write a
+1. (2026-10-17, the key) The key titles a bound value by the column it reads ("Size: donations",
+   `rowName` in `canvas/legendWords.ts` through `sourceName`), a run's own result by the run;
+   numbers grouped (`legendNumber`: whole numbers `toLocaleString`, others `formatNumber`); a
+   section whose one row is named as its title is `merged` and drawn as one line ("Color:
+   Agencies" with its chip). A stale key was the ELEMENT's: `foldGroup` in
+   `graphty-element/src/session/styles/legend.ts` filtered a ramp's swatches as categories (all
+   dropped, so no end numbers) and kept the bottom copy even when painted over; now a ramp keeps
+   its swatches and the copy shown on the most elements speaks for the fold. The card stops at a
+   line's edge (`cutAtBottom` in `LegendCard.tsx`) and has no chevron; it takes Tab when it
+   scrolls and arrows scroll it. Tests `legend-copies.test.ts` (element), `legendWords.test.ts`,
+   `LegendCard.real-element.test.tsx`; walks `design/ui/studio/tmp/r1-dry1-key/w2` (sources:
+   size, Agencies, re-bind), `w3` (College football Louvain + Box, Tab and arrows).
+2. (2026-10-17, truthful counts; commit 97d8bff7c) A layer counts only the halves that write a
    property. `paintingParts` / `paintedTarget` in `graph-place/rows.ts` (a half that sets or
    encodes nothing paints nothing; a row writing nothing yet keeps the kinds it is on): the row
    name ("Layer 1, node layer, 15 nodes"), the kind words and glyph, Values' Covers (`covering`
@@ -28,7 +40,7 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    paint now (`counts(group).painted[channel] > 0`, not hidden). Test
    `graph-place/__tests__/TruthfulCounts.real-element.test.tsx`; walks
    `design/ui/studio/tmp/r1-dry1-truthful-counts/w1` (volunteers), `w2` (sources, Louvain).
-2. (2026-10-17, labels; commit 611619ee7) Label settings has "Size" (`sizePx`) beside "Size in";
+3. (2026-10-17, labels; commit 611619ee7) Label settings has "Size" (`sizePx`) beside "Size in";
    its vary glyph binds the label's size channel (`vary("sizePx")` -> `kind.size`, as color and
    background). Typed words: the source button reads "Fixed text" and the words get a "Text" line
    on the field column; switching to Fixed text opens the box a frame later (the closing pop-out
@@ -40,7 +52,7 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    `preventDefault`ed it. Tests `Labels.real-element.test.tsx` "a label entry's size, keys, lists
    and widths", compact-mantine `PopoutEscapeTooltip.browser.test.tsx`,
    `quick-actions-highlight.test.tsx`. Walks `design/ui/studio/tmp/r1-dry1-labels/walk1`, `walk2`.
-3. (2026-10-17) Today's other fixes, one line each (details in git, see above):
+4. (2026-10-17) Today's other fixes, one line each (details in git, see above):
     - table: compact-mantine `DataTable` `columnSizing: "content"`, cut values in one tooltip,
       sorted header's name says its sort, empty cell "No value"; app speaks sort changes.
     - Analyze: Enter in a run setting runs it (`useNumberField` commits, then
@@ -62,50 +74,59 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
       `inspector/words.ts`); filter step on a boolean is a Yes/No select.
     - find box: `selection.checkRule` and `selectorRule(..., { comparisons: true })` (element,
       additive); "No column named ..." with "Did you mean"; Mod+F focuses the find box.
-4. Open questions for the owner live in `owner-decisions.md` ("For the owner"): a bare rule name
+5. Open questions for the owner live in `owner-decisions.md` ("For the owner"): a bare rule name
    reading a run's field; comparisons by default in `selectorRule`; a larger or screen-pixel
    default label size; Kelly's palette for 10 to 19 groups.
-5. Find matches a boolean by its raw text ("yes" finds nothing while rows say Yes): needs an
+6. Find matches a boolean by its raw text ("yes" finds nothing while rows say Yes): needs an
    element answer (match on words the consumer supplies?) before the app can do anything.
-6. Shared worktree: other agents commit beside me. Stage only my files. For a shared file, build
+7. Shared worktree: other agents commit beside me. Stage only my files. For a shared file, build
    the blob from `git show HEAD:<file>` plus my edits by exact string replacement in Python,
    `git hash-object -w` + `git update-index --cacheinfo`, then read `git diff --cached`. Never
    `git stash` (not even `list`). Commit headers <= 100 characters, scope from commitlint's list
    (`workspace` for studio notes, not `design`).
-7. Prove a test fails without the change: copy the fixed file aside, `git show HEAD:<file>` over
+8. Prove a test fails without the change: copy the fixed file aside, `git show HEAD:<file>` over
    it, run only that test (`-t`), copy back at once. Only for files no one else has touched.
-8. graphty tests read compact-mantine from its `dist` (rebuild it: `npm run build` there) and
+9. graphty tests read compact-mantine from its `dist` (rebuild it: `npm run build` there) and
    graphty-element from source; rebuild the app (`pnpm exec nx run graphty:build`, Sentry vars
    unset) before a real.mjs walk; end the session and start again after a rebuild.
-9. API changes: additive ones go in `owner-decisions.md` under "decided by the team" with the
-   name and shape; a changed default or a renamed or removed member goes "for the owner". A new
-   Graph or element member needs `doors.ts` and `test/cost-coverage/method-classes.ts` lines,
-   `npm run api:report` after a build, and `jsx.ts` regenerated by the build.
-10. Combined Style panel (V7 tabs, condition cards, several layers): `style/cards.ts`,
+10. API changes: additive ones go in `owner-decisions.md` under "decided by the team" with the
+    name and shape; a changed default or a renamed or removed member goes "for the owner". A new
+    Graph or element member needs `doors.ts` and `test/cost-coverage/method-classes.ts` lines,
+    `npm run api:report` after a build, and `jsx.ts` regenerated by the build.
+11. Combined Style panel (V7 tabs, condition cards, several layers): `style/cards.ts`,
     `style/WhichPicker.tsx`, `RowStyle` in `StylePanel.tsx`. A controlled text field never
     round-trips through the element; one undo step per open is `TransactionOptions.after`. Not
     built: number card histogram for a run field, "lowest N", dashed chips at rest.
-11. One BoundValue for one layer and for several (owner 2026-10-16); Layer is a temporary value,
+12. One BoundValue for one layer and for several (owner 2026-10-16); Layer is a temporary value,
     a data field is copied as is; Vary by Layer uses the data value's group list.
-12. Anything keyed by a layer id that a document carries is remapped on apply
+13. Anything keyed by a layer id that a document carries is remapped on apply
     (`documentRowKeys`): opened projects lost their rows before.
-13. Element facts worth citing: layers paint one kind (a row is two parts); selectors everything,
+14. Element facts worth citing: layers paint one kind (a row is two parts); selectors everything,
     expression, has, ids, top, member, rule, state; a user layer that sets nothing is refused
     (`E_BAD_LAYER`); Top N takes a tie group whole; `data.histogram` takes data columns only, a
     run field uses `run.result.histogram`; a bound label size wins over a label style's `sizePx`
     in the same stack (`writeRank` in `StylePainter.ts`).
-14. Study tool: `real.mjs --start <dir> empty|setup:<file>` through its own browser slot;
+15. Study tool: `real.mjs --start <dir> empty|setup:<file>` through its own browser slot;
     `--click "role=<role>:<name>"` for shared names, `--click-at x,y` when a name will not match
     (it prints the control it hit); step N lands in screenshot N+1; `--end` always. A select's
     option click can fail on `cm-pointer-still` (list opened under a still pointer): use
     `--key ArrowUp --key Enter`. Compare drawings with PIL `ImageChops.difference(...).getbbox()`
     on the canvas crop `(300,120,1195,835)` at 1440 x 900.
-15. Pre-existing failures seen today, not mine: graphty real-element BindingPopover Louvain names,
-    BulkPilot and BulkVary colors, PopoversAndPickers "id", PropertyRows locked Tab, DataPage
-    `pointer-events: none` picks; graphty browser `coverage.test` COLOR_BRANCHES and `words.test`
-    "Node color by attribute"; compact-mantine Tree story "Keyboard" and figma tree toggles.
 
 ## Decisions and reasons
+
+- (2026-10-17) **A key section is named by what it reads, not by the layer.** "Size: Everything"
+  and "Size: s01" named a layer the reader never thought of as the meaning (pilots T43A, T43B);
+  the column is what the size says. A fixed value reads no column, so its layer still names it.
+- (2026-10-17) **A stale key is fixed where the legend is built.** The key lost its end numbers
+  after a second layer took the same binding: the element folded the two copies and filtered the
+  ramp's samples as if they were categories. Fixed in `foldGroup` so every consumer of
+  `styles.legend()` gets it; `layerId` of a folded block now names the copy shown on the most
+  elements (it named the first, which could paint nothing). Treated as a bug fix, not a change of
+  contract: the field is documented as "the layer that paints it".
+- (2026-10-17) **No chevron over the key's last line.** The fade and chevron covered half a row
+  (T47B "Group 9" cut). The card's height now ends on a line's edge and the scrollbar says there
+  is more. Ceiling: a platform with overlay scrollbars shows no "more" sign until scrolled.
 
 - (2026-10-17) **A half that writes nothing is not counted as painting.** A row on nodes and
   edges with "Edges: 0 styles" was named "8 nodes, 63 edges" and selected 63 edges it never
@@ -192,6 +213,13 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
   is fixed in the prompt.
 
 ## Tried: worked / did not work
+
+- (2026-10-17) Worked: rereading the key's numbers from the walk, not the code -- the end
+  numbers were missing only after a second identical binding, which led to `foldGroup`.
+  Did not work at first: changing only which copy is kept; the ramp still lost its swatches to
+  the category filter (`reached` answers a set for every binding, numbers included).
+- (2026-10-17) A real-element test that finds a section by its old title waits out the 90 s
+  guard and reads as a 15 s timeout: after a title change, search the tests for the old name.
 
 - (2026-10-17) WORKED: proving a test fails without the change while other agents hold
   uncommitted edits in the same files: copy my versions aside, `git show HEAD:<file>` over only

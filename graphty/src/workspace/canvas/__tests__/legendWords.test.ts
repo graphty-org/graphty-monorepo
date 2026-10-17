@@ -314,4 +314,36 @@ describe("the legend card's words", () => {
         const color = block({ channel: "node.color", runId: "r1" });
         assert.equal(keySections([color], keyNames(session))[0].title, "Color: Shortest path");
     });
+
+    it("titles a bound value by the column it reads, not by the layer it sits in", () => {
+        const session = {
+            data: {
+                attributes: () => [{ path: "data.donations", name: "donations" }],
+                readableValues: () => [],
+            },
+            runs: { get: () => undefined },
+            styles: { get: () => ({ name: "Everything" }) },
+        } as unknown as GraphSession;
+        const field = { path: "data.donations", plainName: "Donations", technicalName: "donations" };
+        const size = block({ channel: "node.size", field });
+        assert.equal(keySections([size], keyNames(session))[0].title, "Size: donations");
+        // A fixed value reads no column: its layer names it.
+        const fixed = block({ kind: "literal", swatches: [swatch({ color: "#ff0000" })] });
+        assert.equal(keySections([fixed], keyNames(session))[0].title, "Color: Everything");
+    });
+
+    it("prints a number grouped, as the binding popover writes it", () => {
+        assert.equal(swatchText(block({}), swatch({ value: 250000 })), "250,000");
+        assert.equal(swatchText(block({}), swatch({ value: 0, extent: { min: 0, max: 250000 } })), "0 - 250,000");
+        assert.equal(swatchText(block({}), swatch({ value: 1234.5678 })), "1,235");
+    });
+
+    it("draws a fixed value named as its title as one line, not the name twice", () => {
+        const fixed = block({ kind: "literal", layerId: "Agencies", swatches: [swatch({ color: "#ff0000" })] });
+        const [section] = keySections([fixed], byLayer);
+        assert.deepEqual([section.title, section.merged], ["Color: Agencies", true]);
+        // Rows named otherwise keep their title.
+        const shape = block({ channel: "node.shape", kind: "literal", swatches: [swatch({ paints: "box" })] });
+        assert.isFalse(keySections([shape], byLayer)[0].merged);
+    });
 });

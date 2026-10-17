@@ -21,8 +21,9 @@ import type {
 } from "@graphty/graphty-element/session";
 
 import { highlightEntry } from "../analyze/words";
-import { count } from "../inspector/words";
+import { count, formatNumber } from "../inspector/words";
 import { runName } from "../runWords";
+import { sourceName } from "../style/row";
 import { channelWord } from "../style/words";
 
 /** The property word each channel a legend shows goes by ("Color: PageRank"). */
@@ -177,20 +178,24 @@ function propertyWord(channel: Channel): string {
 }
 
 /**
- * A number the way a legend prints it: four significant figures with the trailing zeros taken
- * off, whole numbers as they are, and very large or very small ones in exponent form.
+ * A number the way a legend prints it: grouped as the binding popover writes it (250,000), whole
+ * numbers in full, others to four significant figures, and very large or very small ones in
+ * exponent form.
  * @param value - the number.
  * @returns the words.
  */
 function legendNumber(value: number): string {
-    if (!Number.isFinite(value) || (Number.isInteger(value) && Math.abs(value) < 1e7)) {
+    if (!Number.isFinite(value)) {
         return String(value);
+    }
+    if (Number.isInteger(value) && Math.abs(value) < 1e7) {
+        return value.toLocaleString();
     }
     const magnitude = Math.abs(value);
     if (magnitude >= 1e7 || (magnitude > 0 && magnitude < 1e-3)) {
         return value.toExponential(2);
     }
-    return String(Number(value.toPrecision(4)));
+    return formatNumber(value);
 }
 
 /**
@@ -330,7 +335,8 @@ interface KeyNames {
 
 /**
  * One section of the key: its title, the block it draws, a fixed-value row's entry, and whether it
- * stands for a run's node and edge highlights in one color (`keySections`).
+ * is drawn as one line, its chip beside its title: a run's node and edge highlights in one color,
+ * or a single row named as its title is (`keySections`).
  */
 interface KeySection {
     readonly title: string;
@@ -412,6 +418,8 @@ function oneRunBlock(blocks: readonly LegendBlock[], names: KeyNames): LegendBlo
  * titled by the run alone ("Shortest path") with one entry ("On the path"), and marked `merged`:
  * two sections with the same chip told a reader nothing the one does not. The card draws a merged
  * section as one line, the chip and the run's name; an exported image keeps the title and entry.
+ * A section whose one row is named as its title is ("Color: Agencies" over "Agencies") is marked
+ * `merged` too, and drawn as the chip beside its title.
  * @param blocks - the blocks worth a key (`keyBlocks`), bottom layer first.
  * @param names - how to name a block's row and its entry.
  * @returns the sections.
@@ -435,8 +443,14 @@ export function keySections(blocks: readonly LegendBlock[], names: KeyNames): Ke
         );
         twins.forEach((twin) => merged.add(twin));
         const row = names.row(block);
+        const entry = names.entry(block);
         const one = twins.length > 0;
-        sections.push({ title: one ? row : sectionTitle(block, row), block, entry: names.entry(block), merged: one });
+        // A layer's one fixed value named as the layer is: its title and its row would read the
+        // same name twice ("Color: Agencies" over "Agencies"), so it is one line too.
+        const only = block.swatches.length === 1 ? block.swatches[0] : undefined;
+        const lone =
+            !one && block.overflow === undefined && only !== undefined && swatchName(block, only, entry) === row;
+        sections.push({ title: one ? row : sectionTitle(block, row), block, entry, merged: one || lone });
     }
     return sections;
 }
@@ -491,14 +505,11 @@ export function imageLegend(blocks: readonly LegendBlock[], names: KeyNames): Sc
  * @returns the name.
  */
 function rowName(session: GraphSession, block: LegendBlock): string {
-    // A rule on a data column names the column, even on a layer a run made ("Color: value").
-    const path = block.runId !== undefined && block.field?.result === undefined ? block.field?.path : undefined;
+    // A binding names what it reads, not the layer it sits in ("Size: donations", never "Size:
+    // Everything"); a run's own result is named by the run below, with its state.
+    const path = block.runId === undefined || block.field?.result === undefined ? block.field?.path : undefined;
     if (path !== undefined) {
-        return (
-            session.data.attributes().find((attribute) => attribute.path === path)?.name ??
-            block.field?.technicalName ??
-            path
-        );
+        return sourceName(session, { by: path }) ?? block.field?.technicalName ?? path;
     }
     const run = block.runId === undefined ? undefined : session.runs.get(block.runId);
     if (run === undefined) {

@@ -591,7 +591,7 @@ export function readsNothing(session: GraphSession, target: Target, channel: Cha
  * @param binding - the binding.
  * @returns the name, or null when no column or run result of this session has the binding's path.
  */
-export function sourceName(session: GraphSession, binding: DataBinding): string | null {
+export function sourceName(session: GraphSession, binding: Pick<DataBinding, "by">): string | null {
     const column = session.data.attributes().find((attribute) => attribute.path === binding.by);
     if (column !== undefined) {
         return column.name;

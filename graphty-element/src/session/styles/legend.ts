@@ -170,7 +170,10 @@ export interface LegendReading {
 export interface LegendBlock {
     /** The channel the block describes. */
     readonly channel: Channel;
-    /** The layer that paints it. */
+    /**
+     * The layer that paints it. For a block standing for several copies (`layers`), the copy
+     * shown on the most elements, whose domain and swatches the block reads.
+     */
     readonly layerId: LayerId;
     /**
      * Every layer whose copy of the same binding this one block stands for, bottom first, when
@@ -1151,7 +1154,7 @@ export function buildLegend(sources: LegendSources): readonly LegendBlock[] {
 }
 
 /**
- * Fold the blocks of copies of one binding in several layers into the first of them, which lists
+ * Fold the blocks of copies of one binding in several layers into one, which lists
  * every layer it stands for and the elements they paint together. Copies that differ only in
  * their value tables (`map`) are copies too -- a binding copied into each of a folder's group
  * layers keeps each group's colour in its own table, so the colour follows the group across a
@@ -1197,10 +1200,13 @@ function foldCopies(
  * @returns The folded block, or the one block of a binding with no copies.
  */
 function foldGroup(copies: readonly LegendBlock[], reached: LegendSources["reached"]): LegendBlock {
-    const [kept] = copies;
     if (copies.length === 1) {
-        return kept;
+        return copies[0];
     }
+    // The copy shown on the most elements speaks for the rest: a copy painted over everywhere (a
+    // one-node layer under a layer that binds every node the same way) holds a domain read over
+    // its own few elements, so a block named for it kept that layer and lost the range drawn.
+    const kept = copies.reduce((best, copy) => ((copy.painted ?? 0) > (best.painted ?? 0) ? copy : best));
     const painted = copies.some((copy) => copy.painted !== undefined)
         ? { painted: copies.reduce((sum, copy) => sum + (copy.painted ?? 0), 0) }
         : {};
@@ -1209,11 +1215,16 @@ function foldGroup(copies: readonly LegendBlock[], reached: LegendSources["reach
         layers: Object.freeze(copies.map((copy) => copy.layerId)),
         ...painted,
     };
+    // A ramp's rows are samples along the domain, not categories an element carries: kept whole,
+    // or the ramp lost both its end values to the category filter below.
+    if (kept.kind === "sequential" || kept.kind === "diverging") {
+        return Object.freeze(folded);
+    }
     const met = copies.map((copy) => reached?.(copy.layerId, copy.channel));
     if (met.some((each) => each === undefined)) {
         return Object.freeze(folded);
     }
-    // Each category once, painted as the copy that meets it paints it, in the first copy's order.
+    // Each category once, painted as the copy that meets it paints it, in the kept copy's order.
     const rank = new Map((UNCAPPED.get(kept) ?? kept.swatches).map((swatch, at) => [String(swatch.value), at]));
     const seen = new Set<string>();
     const rows: LegendSwatch[] = [];

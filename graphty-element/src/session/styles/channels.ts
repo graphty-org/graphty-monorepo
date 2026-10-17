@@ -235,7 +235,7 @@ export type ArrowValue = NonNullable<NonNullable<EdgeStyleConfig["arrowHead"]>["
 /** How heavy a label's letters are, as the `labelWeight` channels take it. */
 export type LabelWeightValue = "normal" | "bold";
 
-/** How a node's size is read: as the common node extent, or as the shape's largest extent. */
+/** How a node's size is read: as a multiplier of the shape's own geometry, or as its largest extent. */
 export type NodeSizeModeValue = NonNullable<NonNullable<NodeStyleConfig["shape"]>["sizeMode"]>;
 
 /** Every node size mode, in schema order. */

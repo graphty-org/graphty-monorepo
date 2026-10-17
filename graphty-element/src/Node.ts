@@ -525,7 +525,7 @@ export class Node {
      * @internal
      */
     framingHalf(axis: "x" | "y" | "z"): number {
-        if (this.mesh.isDisposed()) {
+        if (this.mesh.isDisposed() || !NodeMesh.isFitted(this.drawnStyle?.shape)) {
             return this.size / 2;
         }
 

@@ -938,6 +938,7 @@ export const NodeStyle: z.ZodObject<{
         sizeMode: z.ZodOptional<z.ZodEnum<{
             scale: "scale";
             diameter: "diameter";
+            uniform: "uniform";
         }>>;
         type: z.ZodOptional<z.ZodEnum<{
             diamond: "diamond";

@@ -271,7 +271,7 @@ describe("planar nodes in 3D (#2318)", () => {
         );
 
         assert.isBelow(sizeOf(meshOf(element, "a")).z, 0.1);
-        assert.approximately(sizeOf(meshOf(element, "b")).z, NODE_EXTENT_PER_SIZE, 1e-6);
+        assert.approximately(sizeOf(meshOf(element, "b")).z, 1, 1e-6, "a box of size 1 keeps its own depth");
     });
 });
 
@@ -391,7 +391,7 @@ describe("one extent for every shape (#2495)", () => {
         return Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
     }
 
-    it("draws every shape at one size the same number of pixels across", async () => {
+    it("draws every shape at one size the same number of pixels across under uniform", async () => {
         const element = await mounted(
             "2d",
             [
@@ -400,7 +400,7 @@ describe("one extent for every shape (#2495)", () => {
                 { id: "right", position: { x: 12, y: 0, z: 0 } },
             ],
             [],
-            [layerFor(["probe"], { "node.size": 4, "node.color": "#ff0000" })],
+            [layerFor(["probe"], { "node.size": 4, "node.color": "#ff0000", "node.sizeMode": "uniform" })],
         );
         const projected = new Map<string, number>();
         const rasterised = new Map<string, number>();

@@ -698,6 +698,49 @@ function labelSizePx(em: number): number {
     return (a + Math.sqrt(a * a + 4 * LABEL.perScene * LABEL.margin * em)) / 2;
 }
 
+/** The channels that decide how big a node of a file is drawn. */
+const NODE_EXTENT_CHANNELS: readonly Channel[] = ["node.size", "node.shape", "node.width", "node.height"];
+
+/**
+ * Make a node layer of another program's file draw every shape at one size the same extent across,
+ * as the program drew it (`sizeMode: "uniform"`). The element's own default, "scale",
+ * keeps each shape's own proportions (a box of size 1 is 1 across, an octahedron 2.8), which
+ * would draw a file's diamond nearly three times the size of its ellipse beside it (#2495).
+ *
+ * The mode is set, so it reaches every element the layer selects: those its set channels paint,
+ * or, for a layer that only binds columns, every element of the load when it selects them all.
+ * @param layer - A node layer the translation built.
+ * @param scope - The path of the column marking the load's own elements, if any.
+ */
+function sizeUniformly(layer: Building, scope: Path | null): void {
+    const { set, encode, selector } = layer.spec;
+    if (!NODE_EXTENT_CHANNELS.some((channel) => channel in set || channel in encode)) {
+        return;
+    }
+
+    const all = scope !== null && selector.match === "has" && selector.path === scope;
+    const setChannels = Object.keys(set) as Channel[];
+    set["node.sizeMode"] = "uniform";
+    for (const map of [layer.paint, layer.drawn]) {
+        if (map === null || map === undefined) {
+            continue;
+        }
+
+        const columns = [...(all ? [] : setChannels), ...NODE_EXTENT_CHANNELS].map((channel) => map.get(channel));
+        const length = columns.find((column) => column !== undefined)?.length;
+        if (length !== undefined) {
+            map.set(
+                "node.sizeMode",
+                Array.from({ length }, (_unused, i) =>
+                    all || columns.some((column) => column?.[i] !== null && column?.[i] !== undefined)
+                        ? "uniform"
+                        : null,
+                ),
+            );
+        }
+    }
+}
+
 /** What the file's lengths are multiplied by, per kind of channel, and the scene units one file unit is. */
 interface LengthFactors {
     /** Node sizes, widths, heights and border widths. */
@@ -779,6 +822,8 @@ class KindTranslation {
     /** The kind a layer graphty wrote had, by rule id, where its rule is drawn by the neutral rule. */
     readonly #kinds = new Map<string, LayerKind>();
     #scopeKey: string | null = null;
+    /** The path of the column marking the load's own elements, once a layer is scoped to it. */
+    #scopePath: Path | null = null;
     /** The column marking the elements the file hides, once the visibility pass has run. */
     hidden: { key: string; count: number } | null = null;
     /** The `data.` paths the reader put a column of the file at; undefined until first asked. */
@@ -839,6 +884,12 @@ class KindTranslation {
         );
         // Stable by bucket: a later pass's layer of rule i still sits below every layer of rule i+1.
         ordered.sort((a, b) => a.bucket - b.bucket);
+        if (this.#kind === "node" && this.#input.extracted.styles.source.tool !== "graphty") {
+            ordered.forEach((layer) => {
+                sizeUniformly(layer, this.#scopePath);
+            });
+        }
+
         const { layers, folded } = foldToCap(ordered, this.#n, (run, paint) => this.#folded(run, paint));
         if (folded > 0) {
             this.#notes.add(FILE_STYLE_TRANSLATION_ISSUE.LAYERS_FOLDED, this.#kind, null, folded);
@@ -1204,6 +1255,7 @@ class KindTranslation {
     #scoped(selector: Selector): Selector {
         this.#scopeKey ??= this.#freshKey("load");
         const scope = this.#keep(this.#scopeKey, new Array<boolean>(this.#n).fill(true));
+        this.#scopePath = scope;
         if (selector.match === "everything") {
             return { match: "has", path: scope };
         }

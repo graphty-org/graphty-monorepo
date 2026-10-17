@@ -19,7 +19,7 @@ const css = `
 /* ---------------------------------------------------------------- 8.1 dark menu */
 
 /* The dropdown: the foundation's cm-menu-surface (#1e1e1e, radius 13, elevation 400 from the
-   page's scheme, padding 8 0, children dark-scoped) plus the menu's own width floor and the
+   page's scheme, padding 8 0, dark-scoped) plus the menu's own width floor and the
    viewport clamp, whose max-height the Menu's size middleware writes. The native scrollbar is
    hidden, as in Figma. */
 .cm-menu {
@@ -67,15 +67,12 @@ const css = `
 .cm-tooltip { animation: cm-tooltip-mount 1ms; }
 .cm-tooltip:not([data-cm-seen]) { visibility: hidden; }
 
-/* A submenu is rendered inside its parent's dropdown, so the foundation's "children are dark"
-   rule reaches it and would resolve its shadow dark in the light app. Its shadow follows the
-   page like every other menu's. */
-:where([data-mantine-color-scheme="light"]) .cm-menu-surface > .cm-menu-surface { color-scheme: light; }
 /* Menu.Sub draws its dropdown through a Popover, so the dropdown also carries the popover's
-   classes (cm-popover-surface, cm-popover). The menu's dark surface wins. */
+   classes (cm-popover-surface, cm-popover). The menu's dark surface, and its page shadow, win. */
 .cm-menu-surface.cm-popover-surface {
     background-color: var(--cm-bg-menu);
     color: var(--cm-text-menu);
+    box-shadow: var(--cm-menu-shadow);
     padding: 8px 0;
 }
 

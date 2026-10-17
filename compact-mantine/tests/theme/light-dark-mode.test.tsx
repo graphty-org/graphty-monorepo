@@ -41,6 +41,6 @@ describe("light / dark", () => {
     it("ships the dark-scoped surfaces menus, tooltips and toasts render in", () => {
         const css = compactGlobalCss();
         expect(css).toContain(".cm-dark-surface { color-scheme: dark; }");
-        expect(css).toContain(".cm-menu-surface > * { color-scheme: dark; }");
+        expect(css).toMatch(/\.cm-menu-surface \{\s*color-scheme: dark;/);
     });
 });

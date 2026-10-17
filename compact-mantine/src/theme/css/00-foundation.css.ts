@@ -12,7 +12,13 @@
  * `compactGlobalCss({ highContrast: true })` works without the attribute (SSR, shadow roots).
  */
 import interLatinWoff2 from "../../fonts/inter-latin-wght-normal.woff2";
-import { cmFont, highContrastDeclarations, primaryAccentDeclarations, tokenDeclarations } from "../tokens";
+import {
+    CM_ELEVATIONS,
+    cmFont,
+    highContrastDeclarations,
+    primaryAccentDeclarations,
+    tokenDeclarations,
+} from "../tokens";
 
 /** The latin subset's range, as @fontsource-variable/inter 5.3.0 declares it. */
 const LATIN_RANGE =
@@ -199,17 +205,23 @@ ${FOCUSABLE_REST} {
 .cm-field ::placeholder { color: var(--cm-text-tertiary); opacity: 1; }
 .cm-field ::selection { background-color: var(--cm-text-highlight); }
 
-/* The dark menu surface (spec 6.5, 8.1). The surface keeps the page's scheme so its shadow
-   follows the page; its children render dark. */
+/* The dark menu surface (spec 6.5, 8.1). The surface and everything in it resolve dark, so a
+   token a consumer paints on the surface (a ground, a border) lands in the same scheme as the
+   rows' text. Only the shadow follows the page: --cm-menu-shadow holds the page's layers, and
+   every rule that draws a menu's shadow reads it. */
 .cm-menu-surface {
+    color-scheme: dark;
+    --cm-menu-shadow: var(--cm-elevation-400);
     background-color: var(--cm-bg-menu);
     color: var(--cm-text-menu);
     border: 0;
     border-radius: 13px;
-    box-shadow: var(--cm-elevation-400);
+    box-shadow: var(--cm-menu-shadow);
     padding: 8px 0;
 }
-.cm-menu-surface > * { color-scheme: dark; }
+:where([data-mantine-color-scheme="light"]) .cm-menu-surface {
+    --cm-menu-shadow: ${CM_ELEVATIONS["400"].light.join(", ")};
+}
 
 /* A menu or listbox row: 24 tall, text 16px from the menu edge, the highlight an inner pill
    inset 8px each side. Only one row is ever filled: a selected row gives its highlight up while

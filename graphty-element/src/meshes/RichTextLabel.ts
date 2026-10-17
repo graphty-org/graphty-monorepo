@@ -28,6 +28,9 @@ const depthFadeFrames = new FrameRoster();
 /** The line height a label is drawn at when its style names none. */
 const DEFAULT_LINE_HEIGHT = 1.2;
 
+/** The most texture pixels a label gives one em of its font (see `_createTexture`). */
+const LABEL_MAX_FONT_PX = 64;
+
 export type BadgeType =
     | "notification"
     | "label"
@@ -573,13 +576,19 @@ export class RichTextLabel {
     private _createTexture(): void {
         const MAX_TEXTURE_SIZE = 4096;
 
+        // AT MOST LABEL_MAX_FONT_PX TEXTURE PIXELS PER EM. The plane's size in the scene comes from
+        // the font size, not from the texture, so a label drawn very large in the scene (a file whose
+        // labels are many times its nodes) needs no more pixels than one drawn at that cap: without
+        // it a 1000 px font asked a 4096 x 1024 texture of every label, and a hundred such labels
+        // took gigabytes of GPU memory and crashed the browser.
+        const density = Math.min(1, LABEL_MAX_FONT_PX / this.options.fontSize);
         let textureWidth = this.options.autoSize
-            ? Math.pow(2, Math.ceil(Math.log2(this.actualDimensions.width)))
+            ? Math.pow(2, Math.ceil(Math.log2(this.actualDimensions.width * density)))
             : this.options.resolution;
 
         const aspectRatio = this.actualDimensions.width / this.actualDimensions.height;
         let textureHeight = this.options.autoSize
-            ? Math.pow(2, Math.ceil(Math.log2(this.actualDimensions.height)))
+            ? Math.pow(2, Math.ceil(Math.log2(this.actualDimensions.height * density)))
             : Math.floor(textureWidth / aspectRatio);
 
         if (textureWidth > MAX_TEXTURE_SIZE || textureHeight > MAX_TEXTURE_SIZE) {

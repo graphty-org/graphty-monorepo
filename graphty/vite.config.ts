@@ -46,15 +46,22 @@ export default defineConfig(({ mode }) => {
             sourcemap: true,
             rollupOptions: {
                 output: {
-                    // Babylon.js and graphty-element (bundled from source, see vite.aliases.ts) in
-                    // chunks of their own. In one entry chunk with the app they made an 11 MB chunk
-                    // whose 44 MB sourcemap took the build past Node's default heap (#2563).
+                    // Babylon.js in a chunk of its own. In one entry chunk with the app it made an
+                    // 11 MB chunk whose 44 MB sourcemap took the build past Node's default heap
+                    // (#2563). graphty-element (bundled from source, see vite.aliases.ts) is not
+                    // named here: the app loads its renderer with a dynamic import
+                    // (src/elementLoader.ts), so Rollup puts it in a chunk of its own, and the
+                    // Node-safe entries the start page imports (session types, schema, catalog)
+                    // stay with the app instead of pulling Babylon.js into the first load.
                     manualChunks(id) {
+                        // Vite's dynamic-import helper in a chunk of its own: left to Rollup it
+                        // lands in the Babylon.js chunk, and the first load then fetches all of
+                        // Babylon.js to get one small function.
+                        if (id.includes("vite/preload-helper")) {
+                            return "preload-helper";
+                        }
                         if (id.includes("/node_modules/@babylonjs/")) {
                             return "babylon";
-                        }
-                        if (id.includes("/graphty-element/") && !id.includes("/node_modules/")) {
-                            return "graphty-element";
                         }
                         return undefined;
                     },

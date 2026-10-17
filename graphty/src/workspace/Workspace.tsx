@@ -5,8 +5,8 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { addSelectedCard } from "./canvas/selectedCard";
 import { createRegistry, type WorkspaceRegistration } from "./commands/registry";
 import { ExportDialog } from "./export/ExportDialog";
-import { Frame } from "./frame/Frame";
 import { HelpDialogs } from "./frame/HelpDialogs";
+import { loadedFrame, loadFrame } from "./frameLoader";
 import { useCommandKeys } from "./keys/useCommandKeys";
 import { ReportDialog } from "./privacy/ReportDialog";
 import { ProjectDialogs } from "./project/ProjectDialogs";
@@ -78,10 +78,21 @@ export function Workspace({
         });
     }, [element, store]);
     const projectOpen = useStoreValue(store, (state) => state.project !== null);
+    // The frame's code, loaded on demand (frameLoader.ts); a project that opens before it has
+    // loaded shows once it has.
+    const [Frame, setFrame] = useState(loadedFrame);
+    useEffect(() => {
+        if (projectOpen && Frame === null) {
+            void loadFrame().then((loaded) => {
+                setFrame(() => loaded);
+            });
+        }
+    }, [projectOpen, Frame]);
 
     return (
         <WorkspaceContext.Provider value={value}>
-            {projectOpen ? <Frame onElementReady={onElementReady} /> : <StartScreen />}
+            {projectOpen ? null : <StartScreen />}
+            {projectOpen && Frame !== null ? <Frame onElementReady={onElementReady} /> : null}
             <HelpDialogs />
             <ExportDialog />
             <SettingsDialog />

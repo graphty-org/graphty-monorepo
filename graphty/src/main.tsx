@@ -10,6 +10,7 @@ import ReactDOM from "react-dom/client";
 import { App } from "./App.tsx";
 import { loadGraphtyElement } from "./elementLoader";
 import { theme } from "./theme";
+import { loadFrame } from "./workspace/frameLoader";
 import { startUsageDataIfShared } from "./workspace/privacy/usageData";
 
 // Re-export theme for tests and other modules
@@ -43,10 +44,11 @@ ReactDOM.createRoot(rootElement).render(
     </React.StrictMode>,
 );
 
-// <graphty-element> is defined after the first frame, so the start page's text and buttons paint
-// before the graph's code is fetched and run.
+// <graphty-element> and the project frame load after the first frame, so the start page's text and
+// buttons paint before their code is fetched and run.
 requestAnimationFrame(() => {
     setTimeout(() => {
         void loadGraphtyElement();
+        void loadFrame();
     }, 0);
 });

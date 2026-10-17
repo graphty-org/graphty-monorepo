@@ -23,14 +23,15 @@ const LAYOUT_WIDTH = NARROW_BREAKPOINT + 160;
  * so one board cannot decide the next one's branch.
  * @param search - the query string to render under, e.g. "?demo".
  * @param assert - what to check while that branch is drawn.
+ * @returns settles once checked.
  */
-function withSearch(search: string, assert: () => void): void {
+async function withSearch(search: string, assert: () => void | Promise<void>): Promise<void> {
     const before = `${window.location.pathname}${window.location.search}`;
 
     window.history.pushState({}, "", search);
 
     try {
-        assert();
+        await assert();
     } finally {
         window.history.pushState({}, "", before);
     }
@@ -61,25 +62,26 @@ describe("App", () => {
     });
 
     describe("the other branches", () => {
-        it("keeps the superseded app shell reachable at ?legacy", () => {
-            withSearch("?legacy", () => {
+        it("keeps the superseded app shell reachable at ?legacy", async () => {
+            await withSearch("?legacy", async () => {
                 render(<App />);
 
-                expect(screen.getByTestId("app-shell")).toBeInTheDocument();
+                // Loaded on demand, so the start page's first paint does not wait for it.
+                expect(await screen.findByTestId("app-shell")).toBeInTheDocument();
                 expect(screen.getByRole("navigation", { name: "Activity rail" })).toBeInTheDocument();
             });
         });
 
-        it("renders the compact component gallery at ?demo", () => {
-            withSearch("?demo", () => {
+        it("renders the compact component gallery at ?demo", async () => {
+            await withSearch("?demo", () => {
                 render(<App />);
 
                 expect(screen.queryByTestId("app-shell")).not.toBeInTheDocument();
             });
         });
 
-        it("still renders the tier 1 workspace at ?next, so old links keep working", () => {
-            withSearch("?next", () => {
+        it("still renders the tier 1 workspace at ?next, so old links keep working", async () => {
+            await withSearch("?next", () => {
                 render(<App />);
 
                 expect(screen.queryByTestId("app-shell")).not.toBeInTheDocument();

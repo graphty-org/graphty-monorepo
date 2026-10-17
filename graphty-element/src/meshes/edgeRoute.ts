@@ -207,14 +207,16 @@ export function fanSlot(curved: readonly boolean[], rank: number): number {
  * @param count - How many edges the bundle holds.
  * @param radius - The larger endpoint's radius.
  * @param distance - The distance between the two node centers.
+ * @param spacing - The step the edge's style asks for (`line.fanSpacing`), drawn as it is; unset,
+ *     the step is two radii, narrowed so a wide bundle between close nodes stays readable.
  * @returns The offset, to the left of the bundle's first edge's direction.
  */
-export function fanOffset(slot: number, count: number, radius: number, distance: number): number {
+export function fanOffset(slot: number, count: number, radius: number, distance: number, spacing?: number): number {
     if (count < 2) {
         return 0;
     }
 
-    const step = Math.min(FAN_STEP_RADII * radius, (FAN_SPREAD_MAX * distance) / (count - 1));
+    const step = spacing ?? Math.min(FAN_STEP_RADII * radius, (FAN_SPREAD_MAX * distance) / (count - 1));
     return slot * step;
 }
 
@@ -284,7 +286,8 @@ export function loopTeardrop(center: Xyz, rank: number, count: number, reachAt: 
 
 /**
  * The part of a route from one node center to another that lies outside both nodes: the index of
- * the first point outside the source and of the last outside the target.
+ * the first point outside the source and of the last outside the target, which are one point when
+ * a shallow arc is drawn with two pieces and only its middle clears the nodes.
  * @param flat - The route, flat x, y, z.
  * @param outsideSrc - Whether a point is outside the source node.
  * @param outsideDst - Whether a point is outside the target node.
@@ -302,9 +305,9 @@ export function routeOutside(
     }
 
     let last = n - 1;
-    while (last > first && !outsideDst(flat[3 * last], flat[3 * last + 1], flat[3 * last + 2])) {
+    while (last >= first && !outsideDst(flat[3 * last], flat[3 * last + 1], flat[3 * last + 2])) {
         last--;
     }
 
-    return last > first ? { first, last } : null;
+    return last >= first ? { first, last } : null;
 }

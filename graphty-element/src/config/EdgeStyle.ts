@@ -100,6 +100,12 @@ const LineStyle = z.strictObject({
      * rounded. A file's route (yEd bends) arrives here through its style layer.
      */
     bends: z.string().optional(),
+    /**
+     * How far apart, at their middle, neighboring curved edges between the same two nodes are drawn,
+     * in the scene's units. Unset, they are two node radii apart (the larger node's), closer when the
+     * nodes are close. A file's fanning distance (Cytoscape's) arrives here through its style layer.
+     */
+    fanSpacing: z.number().min(0).optional(),
 });
 
 /**

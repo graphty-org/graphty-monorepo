@@ -2418,3 +2418,83 @@ export const ThreeDBends: Story = {
         layout: "fixed",
     },
 };
+
+/** The fan spacings across: unset (two node radii), then set narrow and wide. */
+const FAN_SPACINGS = [null, 0.15, 0.6] as const;
+
+/** Every edge curved, and each column's spacing set where it has one. */
+const FAN_SPACING_LAYERS: LayerSpec[] = [
+    {
+        name: "curved edges",
+        target: "edge",
+        selector: { match: "everything" },
+        set: { "edge.curvature": true, "edge.width": 2, "edge.arrowHead": "none", "edge.color": "#1f4d99" },
+    },
+    {
+        name: "edges 0.15 apart",
+        target: "edge",
+        selector: { match: "expression", where: "data.spacing == `0.15`" },
+        set: { "edge.fanSpacing": 0.15 },
+    },
+    {
+        name: "edges 0.6 apart",
+        target: "edge",
+        selector: { match: "expression", where: "data.spacing == `0.6`" },
+        set: { "edge.fanSpacing": 0.6 },
+    },
+];
+
+/** A pair of nodes per column, one above the other. */
+const FAN_SPACING_NODES = FAN_SPACINGS.flatMap((spacing, column) => {
+    const x = (column - 1) * 4;
+    return [
+        { id: `fan-${String(spacing)}-a`, position: { x, y: 2.5, z: 0 } },
+        { id: `fan-${String(spacing)}-b`, position: { x, y: -2.5, z: 0 } },
+    ];
+});
+
+/** Four parallel edges between each pair. */
+const FAN_SPACING_EDGES = FAN_SPACINGS.flatMap((spacing) =>
+    [0, 1, 2, 3].map(() => ({
+        src: `fan-${String(spacing)}-a`,
+        dst: `fan-${String(spacing)}-b`,
+        spacing: spacing ?? "unset",
+    })),
+);
+
+/**
+ * Four curved edges between each pair of nodes, fanned apart: two node radii apart at their middle
+ * when `edge.fanSpacing` is unset, then 0.15 and 0.6 apart where a layer sets it.
+ */
+export const TwoDFanSpacing: Story = {
+    play: async ({ canvasElement }) => {
+        const story = "Styles/Edge TwoDFanSpacing";
+        const scene = await drawn(canvasElement, story);
+
+        await assertGraphLoaded(scene, { nodes: FAN_SPACING_NODES.length, edges: FAN_SPACING_EDGES.length });
+        await assertViewMode(scene, "2d");
+        // How far each column's widest edge bows sideways (x) from the line between its nodes.
+        const bow = new Map<string, number>();
+        for (const edge of scene.graph.getDataManager().edges.values()) {
+            const column = String(edge.srcId).split("-")[1];
+            const x = (FAN_SPACINGS.findIndex((spacing) => String(spacing) === column) - 1) * 4;
+            const reach = Math.max(0, ...(edge.drawnCurve ?? []).map((p) => Math.abs(p.x - x)));
+            bow.set(column, Math.max(bow.get(column) ?? 0, reach));
+        }
+        // Four edges sit 1.5 spacings either side of the line at their middle; a shallow arc's
+        // pieces cut inside its curve, so the farthest drawn point may fall a little short of it.
+        for (const spacing of [0.15, 0.6]) {
+            const reach = bow.get(String(spacing)) ?? 0;
+            await holds(
+                reach > 0.85 * 1.5 * spacing && reach < 1.01 * 1.5 * spacing,
+                `${story}: edges ${String(spacing)} apart reach ${String(reach)} from the line`,
+            );
+        }
+    },
+    args: {
+        setup: storySetup({ viewMode: "2d", node: { "node.size": 0.5 }, layers: FAN_SPACING_LAYERS }),
+        nodeData: FAN_SPACING_NODES,
+        edgeData: FAN_SPACING_EDGES,
+        layout: "fixed",
+    },
+};

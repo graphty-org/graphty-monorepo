@@ -304,6 +304,7 @@ export interface ChannelValues {
     "edge.patternCount": number;
     "edge.curvature": boolean;
     "edge.bends": string;
+    "edge.fanSpacing": number;
     "edge.arrowHead": ArrowValue;
     "edge.arrowHeadSize": number;
     "edge.arrowHeadColor": ColorValue;
@@ -1149,6 +1150,21 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "`along` is the fraction of the way from the source node's center to the target's, " +
             "`across` the distance to the left of that line as a fraction of its length. The edge is " +
             "drawn as straight segments through them, with rounded corners when it is also curved.",
+    },
+    "edge.fanSpacing": {
+        channel: "edge.fanSpacing",
+        target: "edge",
+        plainName: "Edge Fan Spacing",
+        shortName: "Fan spacing",
+        group: "line",
+        accepts: "number",
+        min: 0,
+        stylePath: "line.fanSpacing",
+        renderable: true,
+        caveat:
+            "How far apart, at their middle, neighboring curved edges between the same two nodes " +
+            "are drawn, in the scene's units. Left unset, they are two radii of the larger node " +
+            "apart, closer when the nodes are close. A straight edge keeps the line between its nodes.",
     },
     ...arrowEndChannels("Head"),
     ...arrowEndChannels("Tail"),

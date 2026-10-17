@@ -147,6 +147,7 @@
         "Styles/Edge::TwoDAllArrows",
         "Styles/Edge::TwoDAllLines",
         "Styles/Edge::TwoDBends",
+        "Styles/Edge::TwoDFanSpacing",
         "Styles/Edge::TwoDLineAngles",
         "Styles/Edge::TwoDCurvatureWidth",
         "Styles/Edge::ThreeDCurvatureWidth",

@@ -14,6 +14,7 @@ import {
     CubicEase,
     EasingFunction,
     Engine,
+    NullEngine,
     Observable,
     PointerEventTypes,
     Quaternion,
@@ -1411,7 +1412,12 @@ export class Graph implements GraphContext {
         const requested = this.#rendererRequest;
         this.#rendererChosen = true;
         if (requested === "webgl") {
-            this.#rendererStatus = { requested, active: "webgl", reason: null };
+            this.#rendererStatus = {
+                requested,
+                active: "webgl",
+                reason: null,
+                drawing: !(this.engine instanceof NullEngine),
+            };
             return;
         }
 
@@ -1454,7 +1460,12 @@ export class Graph implements GraphContext {
         }
 
         if (typeof opened === "string") {
-            this.#rendererStatus = { requested, active: "webgl", reason: opened };
+            this.#rendererStatus = {
+                requested,
+                active: "webgl",
+                reason: opened,
+                drawing: !(this.engine instanceof NullEngine),
+            };
             return;
         }
 
@@ -1490,7 +1501,7 @@ export class Graph implements GraphContext {
         this.setupBackgroundClickHandler();
         this.managers.set("render", this.renderManager);
         this.managers.set("input", this.inputManager);
-        this.#rendererStatus = { requested, active: "webgpu", reason: null };
+        this.#rendererStatus = { requested, active: "webgpu", reason: null, drawing: true };
     }
 
     /**

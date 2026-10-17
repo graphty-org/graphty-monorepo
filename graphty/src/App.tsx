@@ -27,7 +27,7 @@ export function App(): React.JSX.Element {
     if (params.has("legacy")) {
         return (
             <ErrorBoundary>
-                <AppShell />
+                <AppShell autosave />
             </ErrorBoundary>
         );
     }

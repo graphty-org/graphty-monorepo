@@ -535,6 +535,7 @@ export function NodeInspector(props: NodeInspectorProps): React.JSX.Element {
                 sectionId={INSPECTOR_SECTION_IDS.nodeNotes}
                 defaultOpen
                 inputTestId="node-note-input"
+                draftKey={`node:${nodeId}`}
                 notes={notes}
                 onAddNote={onAddNote}
                 onDeleteNote={onDeleteNote}

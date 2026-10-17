@@ -33,6 +33,7 @@
         "Algorithms/Spanning Tree::Prim",
         "Algorithms/Traversal::BFS",
         "Algorithms/Traversal::DFS",
+        "Autosave/Diagnostics::Diagnostics",
         "Camera Controls::ThreeD",
         "Camera Controls::TwoD",
         "Data::Basic",

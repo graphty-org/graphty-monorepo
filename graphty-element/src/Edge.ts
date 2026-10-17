@@ -17,6 +17,7 @@ import {
     bendPoints,
     fanArc,
     fanOffset,
+    fanSlot,
     loopTeardrop,
     parseBends,
     roundCorners,
@@ -844,7 +845,8 @@ export class Edge {
         // or loses its bends moves between pattern elements and a joined line in a batch
         // (`EdgeMesh.drawsAsPattern`), which is a different mesh.
         const wantsPattern =
-            (style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH) > 0 && EdgeMesh.drawsAsPattern(style);
+            (style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH) > 0 &&
+            EdgeMesh.drawsAsPattern(style, this.srcNode === this.dstNode);
         const sameRoute = wantsPattern === this.mesh instanceof PatternedLineMesh;
         const sameGeometry = sameRoute && (meshKey === this.meshKey || isEqual(style, this.drawnStyle));
 
@@ -948,7 +950,13 @@ export class Edge {
         const drawnStyle =
             options.width > 0 ? style : { ...style, line: { ...style.line, type: "solid" as const, bezier: false } };
 
-        this.lineBatch = EdgeMesh.lineBatch(this.context.getMeshCache(), options, drawnStyle, this.context.getScene());
+        this.lineBatch = EdgeMesh.lineBatch(
+            this.context.getMeshCache(),
+            options,
+            drawnStyle,
+            this.context.getScene(),
+            this.srcNode === this.dstNode,
+        );
 
         if (this.lineBatch) {
             // A curve's run of slots is sized to its length when it is first placed.
@@ -1354,31 +1362,42 @@ export class Edge {
 
     /**
      * The route this edge takes when it is not one straight line between its nodes: a self-loop's
-     * teardrop outside its node, or the arc of an edge fanned out of a bundle of edges between the
-     * same two nodes, from one center to the other. Null for a lone edge and for the middle edge
-     * of an odd bundle, which are drawn straight.
+     * teardrop outside its node, or the arc of a curved edge fanned out of a bundle of edges
+     * between the same two nodes, from one center to the other. Null for a lone edge and for a
+     * straight one: only an edge whose style asks for a curve (`line.bezier`) bows to keep clear
+     * of its siblings.
      * @param src - The source node's center.
      * @param dst - The target node's center.
      * @returns The route, flat x, y, z, or null.
      */
     private bundleRoute(src: Vector3, dst: Vector3): number[] | null {
-        const { rank, count, first } = this.context.getDataManager().drawnBundle(this);
+        const { rank, count, first, members } = this.context.getDataManager().drawnBundle(this);
         if (this.srcNode === this.dstNode) {
             return loopTeardrop(src, rank, count, (dir) => Edge.reachOf(this.srcNode, dir));
         }
 
-        if (count < 2) {
+        if (count < 2 || !this.curved) {
             return null;
         }
 
+        const slot = fanSlot(
+            members.map((e) => e.curved),
+            rank,
+        );
         const radius = Math.max(Edge.radiusOf(this.srcNode), Edge.radiusOf(this.dstNode));
-        const offset = fanOffset(rank, count, radius, Vector3.Distance(src, dst));
+        const offset = fanOffset(slot, count, radius, Vector3.Distance(src, dst));
         if (offset === 0) {
-            return null;
+            // the middle of an evenly spread bundle keeps the line, curved or not
+            return [src.x, src.y, src.z, dst.x, dst.y, dst.z];
         }
 
         const forward = first.srcNode === this.srcNode;
         return fanArc(src, dst, forward ? src : dst, forward ? dst : src, offset);
+    }
+
+    /** Whether this edge's style asks for a curve, which fans it out of a bundle. */
+    private get curved(): boolean {
+        return this.drawnStyle?.line?.bezier === true;
     }
 
     /**

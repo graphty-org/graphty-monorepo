@@ -58,6 +58,8 @@ export interface EdgeBundle {
     readonly count: number;
     /** The bundle's first edge, whose direction the fan is measured from. */
     readonly first: Edge;
+    /** Every edge of the bundle, in bundle order. */
+    readonly members: readonly Edge[];
 }
 
 /**
@@ -1933,7 +1935,7 @@ export class DataManager implements Manager {
                 for (const group of inner.values()) {
                     if (group.length > 1) {
                         group.forEach((each, rank) => {
-                            byEdge.set(each, { rank, count: group.length, first: group[0] });
+                            byEdge.set(each, { rank, count: group.length, first: group[0], members: group });
                         });
                     }
                 }
@@ -1942,7 +1944,7 @@ export class DataManager implements Manager {
             this.bundles = { version: this.edgeVersion, byEdge };
         }
 
-        return this.bundles.byEdge.get(edge) ?? { rank: 0, count: 1, first: edge };
+        return this.bundles.byEdge.get(edge) ?? { rank: 0, count: 1, first: edge, members: [edge] };
     }
 
     /** {@link DataManager.drawnBundle}'s answers, and the edge set they were worked out over. */

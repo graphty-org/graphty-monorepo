@@ -328,6 +328,7 @@ describe("A self-loop and a bundle of parallel edges", () => {
     });
 
     const LINE: EdgeStyleConfig = { line: { type: "solid", color: "#AAAAAA", width: 0.5 } };
+    const CURVED: EdgeStyleConfig = { line: { ...LINE.line, bezier: true } };
 
     /**
      * Add edges between two of the harness's nodes and place every edge once more, as a frame does.
@@ -400,6 +401,17 @@ describe("A self-loop and a bundle of parallel edges", () => {
         });
     }
 
+    for (const type of ["dash", "dot"] as const) {
+        it(`draws a ${type} self-loop round its teardrop, not as a line of no length`, () => {
+            harness = createHarness();
+            const node = addNode(harness, "src", nodeStyle({}));
+            const [loop] = addEdges(harness, [["src", "src"]], { line: { ...LINE.line, type } });
+            const centre = node.mesh.position;
+            const tip = Math.max(...drawn(loop).map((p) => Math.hypot(p.x - centre.x, p.y - centre.y)));
+            assert.isAbove(tip, reachOf(node), "the loop reaches past the node");
+        });
+    }
+
     it("turns each loop on one node a different way", () => {
         harness = createHarness();
         const node = addNode(harness, "src", nodeStyle({}));
@@ -420,14 +432,18 @@ describe("A self-loop and a bundle of parallel edges", () => {
         }
     });
 
-    it("fans two edges between one pair apart, either way round, and leaves a lone edge straight", () => {
+    it("fans two curved edges between one pair apart, either way round, and leaves a lone edge straight", () => {
         harness = createHarness();
         addNode(harness, "src", nodeStyle({}));
         addNode(harness, "dst", nodeStyle({}));
-        const [there, back] = addEdges(harness, [
-            ["src", "dst"],
-            ["dst", "src"],
-        ]);
+        const [there, back] = addEdges(
+            harness,
+            [
+                ["src", "dst"],
+                ["dst", "src"],
+            ],
+            CURVED,
+        );
         const middle = (edge: Edge): Vector3 => {
             const points = drawn(edge);
             return points[Math.floor(points.length / 2)];
@@ -444,30 +460,73 @@ describe("A self-loop and a bundle of parallel edges", () => {
         assert.isNull(lone.drawnCurve, "a lone edge is one straight segment");
     });
 
-    it("draws the middle edge of an odd bundle straight", () => {
+    it("draws the middle edge of an odd curved bundle straight", () => {
+        harness = createHarness();
+        addNode(harness, "src", nodeStyle({}));
+        addNode(harness, "dst", nodeStyle({}));
+        const edges = addEdges(
+            harness,
+            [
+                ["src", "dst"],
+                ["src", "dst"],
+                ["src", "dst"],
+            ],
+            CURVED,
+        );
+        // The nodes sit on the x axis: the middle edge stays on it.
+        const bows = edges.map((edge) => Math.max(...drawn(edge).map((p) => Math.abs(p.y))));
+        assert.isAbove(bows[0], 0.5);
+        assert.isBelow(bows[1], 1e-6);
+        assert.isAbove(bows[2], 0.5);
+    });
+
+    it("leaves a bundle of straight edges straight, overlapping as the style asks", () => {
         harness = createHarness();
         addNode(harness, "src", nodeStyle({}));
         addNode(harness, "dst", nodeStyle({}));
         const edges = addEdges(harness, [
             ["src", "dst"],
-            ["src", "dst"],
+            ["dst", "src"],
             ["src", "dst"],
         ]);
         assert.deepEqual(
-            edges.map((edge) => edge.drawnCurve === null),
-            [false, true, false],
+            edges.map((edge) => edge.drawnCurve),
+            [null, null, null],
         );
+    });
+
+    it("keeps a straight sibling on the line and alternates the curved ones either side of it", () => {
+        harness = createHarness();
+        addNode(harness, "src", nodeStyle({}));
+        addNode(harness, "dst", nodeStyle({}));
+        const [straight] = addEdges(harness, [["src", "dst"]]);
+        const curved = addEdges(
+            harness,
+            [
+                ["src", "dst"],
+                ["src", "dst"],
+            ],
+            CURVED,
+        );
+        straight.update();
+        assert.isNull(straight.drawnCurve, "the straight edge keeps the line");
+        const middles = curved.map((edge) => {
+            const points = drawn(edge);
+            return points[Math.floor(points.length / 2)].y;
+        });
+        assert.isBelow(middles[0] * middles[1], 0, "the two curved edges bow to opposite sides");
     });
 
     it("fans an edge out when a second one is added beside it, with no node moving", () => {
         harness = createHarness();
         addNode(harness, "src", nodeStyle({}));
         addNode(harness, "dst", nodeStyle({}));
-        const [first] = addEdges(harness, [["src", "dst"]]);
-        assert.isNull(first.drawnCurve);
-        addEdges(harness, [["dst", "src"]]);
+        const [first] = addEdges(harness, [["src", "dst"]], CURVED);
+        // a lone curved edge is drawn with its own bow, not fanned
+        const lone = drawn(first).map((p) => p.clone());
+        addEdges(harness, [["dst", "src"]], CURVED);
         first.update();
-        assert.isNotNull(first.drawnCurve, "the first edge regrouped into a bundle of two");
+        assert.notDeepEqual(drawn(first), lone, "the first edge regrouped into a bundle of two");
     });
 });
 

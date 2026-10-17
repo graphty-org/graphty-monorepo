@@ -322,6 +322,10 @@ describe("vary by layer", () => {
         await waitFor(() => {
             assert.deepEqual(written(session, groups, "node.color"), before, "one undo restores every layer");
         });
+        // Undone, the write's receipt goes: its Undo would undo a step that is not its own.
+        await waitFor(async () => {
+            assert.isNull(within(await line("node.color")).queryByRole("status"));
+        });
     });
 
     it("lists Louvain's groups and the layers of a folder with the same group rows", async () => {
@@ -644,6 +648,15 @@ describe("several layers holding different values", () => {
         assert.lengthOf(shown, Math.min(n, 8), "one per layer, the first 8");
         assert.strictEqual(more, n > 8 ? `+${String(n - 8)}` : null);
         assert.notInclude(row.textContent ?? "", "Mixed");
+        // Every value and the "+N" is drawn whole inside the field, none clipped by its edge.
+        const box = row.querySelector("[data-spread]")?.getBoundingClientRect();
+        for (const each of [...shown, ...row.querySelectorAll("[data-spread] [data-more]")]) {
+            const r = each.getBoundingClientRect();
+            assert.isTrue(
+                box !== undefined && r.left >= box.left && r.right <= box.right && r.bottom <= box.bottom,
+                "inside the field",
+            );
+        }
         assert.isNull(row.querySelector("[data-breakdown]"), "every layer sets it: no breakdown");
         for (const [at, each] of shown.entries()) {
             const name = session.styles.get(layers[at])?.name ?? "";
@@ -691,6 +704,8 @@ describe("several layers holding different values", () => {
         await waitFor(() => {
             assert.deepEqual(written(session, layers, "node.size"), [1, 7, 3], "the edited row, the rest as they were");
         });
+        // Only the edited layer changed, and the receipt says so.
+        await within(await line("node.size")).findByText(/: 1 changed/);
         for (const id of layers) {
             assert.isUndefined(session.styles.get(id)?.encode?.["node.size"], "a plain value, no rule");
         }
@@ -703,6 +718,46 @@ describe("several layers holding different values", () => {
             "7",
         );
         await close(popover);
+    });
+
+    it("counts only the layer edited, on a run's group layers whose colors are written in lower case", async () => {
+        const session = await openSample();
+        await session.runs.start("louvain", {}, { seed: 1, style: { groups: "layers", name: "Louvain" } });
+        await session.styles.settled();
+        await clickRow("Louvain");
+        await userEvent.click(within(await line("node.color")).getByRole("button", { name: /^Node color: / }));
+        const popover = await screen.findByRole("dialog", { name: / by layer$/ });
+        await userEvent.click(within(popover).getAllByRole("button", { name: /^Layer .* color/ })[1]);
+        await screen.findByRole("dialog", { name: "Color" });
+        await userEvent.keyboard("{Control>}a{/Control}000000{Enter}");
+        await userEvent.keyboard("{Escape}");
+        await userEvent.keyboard("{Escape}");
+        await within(await line("node.color")).findByText(/: 1 changed/);
+    });
+
+    it("closes a row's color picker on Escape, then the popover on the next, writing the pick", async () => {
+        const session = await openSample();
+        const layers = await eachOwn(session, "Hues", "node.color", TWELVE_COLORS.slice(0, 3));
+        await clickRow("Hues");
+        await userEvent.click(within(await line("node.color")).getByRole("button", { name: /^Node color: / }));
+        const popover = await screen.findByRole("dialog", { name: / by layer$/ });
+        const second = session.styles.get(layers[1])?.name ?? "";
+        await userEvent.click(within(popover).getByRole("button", { name: new RegExp(`^Layer ${second} color`) }));
+        const picker = await screen.findByRole("dialog", { name: "Color" });
+        await userEvent.keyboard("{Control>}a{/Control}000000{Enter}");
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isFalse(picker.isConnected, "Escape closes the picker");
+        });
+        assert.isTrue(popover.isConnected, "and only the picker");
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isFalse(popover.isConnected, "the next Escape closes the popover");
+        });
+        await waitFor(() => {
+            assert.deepEqual(written(session, layers, "node.color"), [TWELVE_COLORS[0], "#000000", TWELVE_COLORS[2]]);
+        });
+        await within(await line("node.color")).findByText(/: 1 changed/);
     });
 
     it("gives each hand-made layer of many groups its own real Degree rule, as one layer gets alone; same popover", async () => {

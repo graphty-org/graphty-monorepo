@@ -341,7 +341,7 @@ describe("bulk editing a run's folder of group layers, after the first pilot", (
             within(fill).getByRole("button", { name: "Remove node color from every layer" }).tagName,
             "BUTTON",
         );
-        const breakdown = within(fill).getByText(/^not set: Top 10 labels$/);
+        const breakdown = within(fill).getByText(/^Not set: Top 10 labels$/);
         assert.equal(getComputedStyle(breakdown).fontSize, "11px", "the breakdown is legible");
         assert.lengthOf(fill.querySelectorAll("[data-spread] .ws-varied-chit"), Math.min(groups.length, 8));
         await userEvent.hover(fill);

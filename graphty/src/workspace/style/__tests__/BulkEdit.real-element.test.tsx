@@ -127,7 +127,7 @@ describe("bulk editing a folder", () => {
         });
         assert.match(
             fill.querySelector("[data-breakdown]")?.textContent ?? "",
-            /not set: Big ones; locked, left alone: /,
+            /(^N|; n)ot set: Big ones; locked, left alone: /,
         );
 
         await oneValueForAll(fill);

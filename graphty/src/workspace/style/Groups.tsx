@@ -689,7 +689,9 @@ function GroupRows({
                         event.stopPropagation();
                     }}
                     onKeyDown={(event) => {
-                        if (event.key !== "ArrowUp" && event.key !== "ArrowDown") {
+                        // Escape goes on to the popouts: the field's picker is portalled but its keys
+                        // bubble through here, and stopping them left the picker open.
+                        if (event.key !== "ArrowUp" && event.key !== "ArrowDown" && event.key !== "Escape") {
                             event.stopPropagation();
                         }
                     }}

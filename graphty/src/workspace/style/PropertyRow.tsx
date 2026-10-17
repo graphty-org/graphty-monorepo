@@ -175,11 +175,13 @@ function breakdownWords(name: string, { set, unset, values, locked }: Breakdown,
     const plural = (n: number, noun: string): string => `${String(n)} ${noun}${n === 1 ? "" : "s"}`;
     const verb = set.length === 1 ? "sets" : "set";
     const setWords = `${plural(set.length, "layer")} ${verb} ${name.toLowerCase()}${values > 1 ? `, to ${plural(values, "value")}` : ""}`;
-    return [
+    const words = [
         ...(spread ? [] : [setWords]),
         ...(unset.length === 0 ? [] : [`not set: ${namesWords(unset)}`]),
         ...(locked.length === 0 ? [] : [`locked, left alone: ${namesWords(locked)}`]),
     ].join("; ");
+    // Under the spread values the line starts with what was a later clause: "Not set: Labels".
+    return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
 /**
@@ -701,7 +703,7 @@ function SpreadValues({
         <UnstyledButton
             className="ws-spread"
             data-spread=""
-            aria-label={`${fieldName(descriptor.channel)}: ${words.join(", ")}${more > 0 ? ` and ${String(more)} more` : ""}`}
+            aria-label={`${fieldName(descriptor.channel)}: ${shown.map((each, at) => `${each.name} ${words[at]}`).join(", ")}${more > 0 ? ` and ${String(more)} more` : ""}`}
             onClick={onOpen}
         >
             {shown.map((each, at) => {

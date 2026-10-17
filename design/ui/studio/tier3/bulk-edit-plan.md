@@ -241,3 +241,7 @@ values, closed unchanged writes nothing. A data field is copied into every layer
 exactly as one layer gets it, layers of several groups included. No value shows for every source.
 The Vary list's "One value for all" gives every layer one value. Recorded in
 `design/ui/studio/owner-decisions.md`.
+
+Piloted on build bulk6 (2026-10-16): Escape now closes a row's color picker first; a write counts
+only the layers whose value changed; a receipt goes away once its write is undone; the values at
+rest wrap onto a second line rather than being cut off.

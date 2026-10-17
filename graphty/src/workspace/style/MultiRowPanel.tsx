@@ -34,6 +34,10 @@ interface LastWrite extends BulkReceipt {
     readonly write: Write;
     /** The rows that did not set the channel and were left out. */
     readonly left: readonly string[];
+    /** Where "Also set those" goes on in a Vary by Layer sequence: how many rows it already gave values. */
+    readonly next: number;
+    /** The history's position just after the write: undone past it, the receipt goes. */
+    readonly position: number;
 }
 
 /**
@@ -75,6 +79,40 @@ function patchOfValues(
         }
     }
     return next;
+}
+
+/**
+ * Whether a layer already holds these plain values, so writing them again changes nothing.
+ * @param layer - the layer.
+ * @param values - the values, by channel.
+ * @param combine - how a number meets the layers beneath.
+ * @returns true when every value is already the layer's own.
+ */
+function holdsValues(layer: Layer, values: LayerValues, combine: DataBinding["combine"]): boolean {
+    return (Object.entries(values) as [Channel, LayerValues[Channel]][]).every(([channel, value]) => {
+        if (value === undefined) {
+            return true;
+        }
+        const encoded = layer.encode?.[channel] as { value?: unknown; combine?: unknown } | undefined;
+        if (typeof value === "number" && combine !== undefined && combine !== "replace") {
+            return encoded?.value === value && encoded.combine === combine;
+        }
+        return encoded === undefined && sameValue(layer.set?.[channel], value);
+    });
+}
+
+/**
+ * Whether two plain values are the same: a hex color in either case is one color ("#e69f00" as a
+ * run writes it, "#E69F00" as a paint reads).
+ * @param a - one value.
+ * @param b - the other.
+ * @returns true when they are the same.
+ */
+function sameValue(a: unknown, b: unknown): boolean {
+    const hex = /^#[\da-f]+$/i;
+    return typeof a === "string" && typeof b === "string" && hex.test(a) && hex.test(b)
+        ? a.toLowerCase() === b.toLowerCase()
+        : a === b;
 }
 
 /** What several rows edited together need beyond the rows: the locked rows and the receipt. */
@@ -158,10 +196,17 @@ function manyOf(
                 return [];
             }
             if ("each" in write) {
-                return [{ id: layer.id, patch: patchOfValues(layer, values[from + at] ?? {}, write.combine) }];
+                // A layer left on its own value is not written, so the receipt counts only real changes.
+                const own = values[from + at] ?? {};
+                return holdsValues(layer, own, write.combine)
+                    ? []
+                    : [{ id: layer.id, patch: patchOfValues(layer, own, write.combine) }];
             }
             return [{ id: layer.id, patch: patchOf(layer, channel, write) }];
         });
+        if (patches.length === 0) {
+            return { updated: [], skipped: [] };
+        }
         // Named in the history as what it did ("Undid changing fill on 5 layers").
         return session.transaction(stepWords(channel, patches.length), (tx) => tx.styles.updateMany(patches));
     };
@@ -171,11 +216,16 @@ function manyOf(
             stack.indexOf(treeLayers(session, b.row.id)[0] ?? ""),
     )[0]?.row.id;
     const below = beneathOf(session, lowest);
-    const last = bulk.last?.side === side ? bulk.last : null;
+    // A receipt speaks for its write only while that write is applied: undone, it goes. (Not
+    // "the last step": "Also set those" adds a step before the receipt learns of it.)
+    const last = bulk.last?.side === side && session.history.position >= bulk.last.position ? bulk.last : null;
     const record = async (channel: Channel, write: Write): Promise<void> => {
         const targets = targetsOf(channel);
         const left = rows.filter((row) => !targets.includes(row));
         const result = await writeRows(targets, channel, write);
+        if (result.updated.length === 0 && result.skipped.length === 0 && left.length === 0) {
+            return;
+        }
         bulk.setLast({
             side,
             channel,
@@ -183,6 +233,8 @@ function manyOf(
             changed: result.updated.length,
             unset: left.map((row) => row.row.name),
             left: left.map((row) => row.row.id),
+            next: targets.length,
+            position: session.history.position,
             locked: bulk.locked.length + result.skipped.length,
             everything: left.filter((row) => reachesEvery(session, row.row.id, side)).map((row) => row.row.name),
         });
@@ -246,12 +298,14 @@ function manyOf(
                 return;
             }
             const targets = rows.filter((row) => last.left.includes(row.row.id));
-            const result = await writeRows(targets, channel, last.write, last.changed);
+            const result = await writeRows(targets, channel, last.write, last.next);
             bulk.setLast({
                 ...last,
                 changed: last.changed + result.updated.length,
                 unset: [],
                 left: [],
+                next: last.next + targets.length,
+                position: session.history.position,
                 everything: [],
             });
         },

@@ -11,6 +11,28 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-16) **Pilot of the temporary Layer build (bulk6): five defects fixed.** Walked by pointer
+  and keyboard, light and dark, on Les Miserables + Louvain and College football + Leiden (10
+  groups, "+2"), with detours (a layer recolored by hand, a layer added to the folder, a reorder,
+  undo, a data field on two layers). Fixed, each with a test in `VaryByLayer.real-element`:
+  (1) Escape in a group row's color picker did nothing -- the row cell (`Groups.tsx` field column)
+  stopped every key but the arrows, and the portalled picker's keys bubble through it in React; it
+  now lets Escape through (single-layer group lists had the same fault). (2) The receipt counted
+  every layer after editing one row ("6 changed"): `writeRows` now skips a layer already holding
+  its value (`holdsValues`, hex colors compared in either case, since a run writes "#e69f00" and a
+  paint reads "#E69F00"), and "Also set those" continues the sequence from `LastWrite.next`, not
+  from `changed`. (3) A receipt stayed after Ctrl+Z, offering an Undo of a step already undone: it
+  now shows only while `session.history.position` has not gone back past the one its write left
+  (not "equal": "Also set those" adds a step before the receipt hears of it, and an equality test
+  unmounted the receipt mid-click). (4) Six shape
+  pictures or eight numbers did not fit one line of the field and were clipped with no "+N": the
+  spread wraps (`.ws-spread` `flex-wrap`, 12 px glyphs), and the at-rest test checks every chip
+  lies inside the field. (5) The line under the spread read "not set: Labels": it starts with a
+  capital now. Also: the spread's accessible name gives each layer's name with its value.
+  Seen, not changed: "One color per value" on a number column still paints oranges (known, an
+  element default; parity with one layer); shape pickers in a group row are 64 px and cut the
+  shape's name (the glyph shows it).
+
 - (2026-10-16) **Layer is temporary; a data field is a real copy (owner decision).** `ManyRows.plain`
   (MultiRowPanel) lists each target layer's plain value top first when they differ and none holds
   a binding; `Field` then draws `SpreadValues` (chits, `CatalogGlyph`, or words; `MAX_CHITS` then

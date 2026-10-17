@@ -1461,6 +1461,64 @@ export const TextAlign: Story = {
     },
 };
 
+/**
+ * Words built from several values, one line each.
+ *
+ * The layer writes `node.label` as a template: the first line reads the node's name, the second
+ * reads its team as a place among the teams and how many there are. The node with no team has no
+ * second line, and the node whose name is written in label markup shows that markup as text,
+ * because a value from the data is never read as markup.
+ */
+export const TextTemplate: Story = {
+    args: {
+        // Empty, so the cat network the file's default args load gives way to the nodes below.
+        dataSource: "",
+        nodeData: [
+            { id: "a", name: "Ada", team: 7, position: { x: -6, y: 0, z: 0 } },
+            { id: "b", name: "Bo", team: 3, position: { x: 0, y: 0, z: 0 } },
+            { id: "c", name: "<color='#ff0000'>Cy</color>", position: { x: 6, y: 0, z: 0 } },
+        ],
+        edgeData: [
+            { src: "a", dst: "b" },
+            { src: "b", dst: "c" },
+        ],
+        layout: "fixed",
+        layoutConfig: { dim: 3 },
+        setup: storySetup({
+            nodeEncode: {
+                "node.label": { template: ["<bold>{data.name}</bold>", "Team {data.team|rank} of {data.team|count}"] },
+            },
+        }),
+    },
+    play: async ({ canvasElement }) => {
+        const scene = await labelled(canvasElement, "TextTemplate", { nodes: 3, edges: 2 });
+        const heightOf = (id: string): number => {
+            const box = scene.graph.getNode(id)?.label?.labelMesh?.getBoundingInfo().boundingBox;
+
+            return box ? box.maximum.y - box.minimum.y : 0;
+        };
+        const twoLines = heightOf("a");
+        const oneLine = heightOf("c");
+
+        await holds(
+            oneLine > 0 && twoLines / oneLine >= 1.6 && Math.abs(heightOf("b") / twoLines - 1) <= 0.05,
+            `Styles/Label TextTemplate: Ada and Bo have a team, so their labels have two lines, and Cy has none, ` +
+                `so its team line is left out; the labels are ${twoLines.toFixed(2)}, ${heightOf("b").toFixed(2)} ` +
+                `and ${oneLine.toFixed(2)} world units tall`,
+        );
+
+        const red = labelGeometry(scene, "#ff0000").find((label) => label.id === "c");
+
+        await holds(
+            red !== undefined && red.ink.width === 0,
+            "Styles/Label TextTemplate: Cy's name holds a color tag, and a value from the data is drawn as text, " +
+                `so none of its label should be red; red ink covers ${String(red?.ink.width)} pixels across`,
+        );
+
+        await assertDistinctPicture(scene, "Styles/Label", labelDigest(scene));
+    },
+};
+
 /** Where the DepthFade story's labels start to fade, and where they are gone, in world units. */
 const DEPTH_FADE_NEAR = 65;
 const DEPTH_FADE_FAR = 105;

@@ -32,7 +32,8 @@ export class RichTextParser {
 
         const styleStack: RichTextStyle[] = [{ ...this.defaultStyle }];
 
-        const tagRegex = /<(\/?)(bold|italic|color|size|font|bg)(?:='([^']*)')?>/g;
+        // `<lt>` draws a literal `<` (see escapeLabelMarkup); every other tag opens or closes a style.
+        const tagRegex = /<(\/?)(bold|italic|color|size|font|bg|lt)(?:='([^']*)')?>/g;
         let match;
 
         while ((match = tagRegex.exec(line)) !== null) {
@@ -45,6 +46,12 @@ export class RichTextParser {
 
             const isClosing = match[1] === "/";
             const tagName = match[2];
+
+            if (tagName === "lt") {
+                segments.push({ text: "<", style: { ...styleStack[styleStack.length - 1] } });
+                currentPos = match.index + match[0].length;
+                continue;
+            }
             const tagValue = match[3];
 
             if (isClosing) {

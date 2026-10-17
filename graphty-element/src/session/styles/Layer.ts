@@ -67,6 +67,7 @@ import type { RunProgressReport } from "../runs";
 import { trimTrailingSeparators } from "../runs/runId";
 import type { CodedFact } from "../shared";
 import { type ChannelDescriptor, channelDescriptor, channelsFor, toColorValue } from "./channels";
+import { parseTemplate, TEMPLATE_CHANNELS } from "./labelTemplate";
 import { columnsFor, type CompiledSelector, type SelectorSource, type SelectorTarget } from "./predicate";
 import type { ScaleRegistry } from "./scales";
 import { compileSelector, type Selector } from "./selector";
@@ -753,6 +754,34 @@ function checkChannel(
 }
 
 /**
+ * Check a template binding: a text channel, and lines whose placeholders parse.
+ * @param descriptor - The channel it writes.
+ * @param template - The lines, as authored.
+ * @param path - Where in the specification it sits.
+ * @param log - Where problems and paths are collected.
+ */
+function checkTemplate(descriptor: ChannelDescriptor, template: unknown, path: string, log: ProblemLog): void {
+    if (!TEMPLATE_CHANNELS.includes(descriptor.channel)) {
+        report(log, {
+            code: "E_BAD_LAYER",
+            message: `${descriptor.plainName} is not text, so it cannot be built from a template.`,
+            path,
+            candidates: TEMPLATE_CHANNELS,
+        });
+
+        return;
+    }
+
+    try {
+        for (const read of parseTemplate(template).paths) {
+            readsPath(log, read);
+        }
+    } catch (thrown) {
+        report(log, problemFrom(thrown, path));
+    }
+}
+
+/**
  * Check one encoded binding.
  * @param descriptor - The channel it writes.
  * @param binding - The binding.
@@ -769,6 +798,12 @@ function checkBinding(
     universal: boolean,
     log: ProblemLog,
 ): void {
+    if ("template" in binding) {
+        checkTemplate(descriptor, binding.template, `${path}.template`, log);
+
+        return;
+    }
+
     if (!("by" in binding)) {
         const problem = checkStaticValue(descriptor, binding.value, `${path}.value`);
 

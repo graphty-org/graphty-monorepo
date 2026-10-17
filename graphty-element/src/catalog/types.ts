@@ -591,9 +591,20 @@ export type StaticStyle = Partial<Record<Channel, ChannelValue>>;
  */
 export type BindingOverflow = "other" | "shape" | "extend";
 
-/** One channel's binding: a literal, or a declarative mapping from a value in the data. */
+/**
+ * One channel's binding: a literal, a declarative mapping from a value in the data, or text
+ * built from several values.
+ *
+ * The `template` form is accepted only by the text channels (`node.label`, `edge.label`,
+ * `node.tooltip`). Each string is one line. `{path}` reads a value with the same path dialect as
+ * `by`; `{path|count}` is the number of distinct values of that path over the graph's nodes (its
+ * edges, for `edge.label`); `{path|rank}` is this element's value's 1-based place among those values, sorted. A line with
+ * any value missing is left out, and every substituted value is escaped so data cannot inject
+ * label markup. The consumer writes every word: the element adds none.
+ */
 export type Binding =
     | { value: ChannelValue }
+    | { template: readonly string[] }
     | {
           by: Path;
           scale?:

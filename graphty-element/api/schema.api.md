@@ -18,6 +18,8 @@ export function areDistinguishableInGrayscale(hex1: string, hex2: string, thresh
 export type Binding = {
     value: ChannelValue;
 } | {
+    template: readonly string[];
+} | {
     by: Path;
     scale?: "linear" | "log" | "neglog10" | "sqrt" | "pow" | "bins" | "quantile" | "ordinal" | "passthrough" | (string & {});
     palette?: PaletteId;

@@ -282,6 +282,10 @@ describe("push-queue: a commit that already failed", () => {
             });
         };
         assert.match(run("Terminated\n[FAIL] Lint failed").stderr, /killed by a signal from outside it/);
+        assert.match(
+            run("Stopped after SIGTERM failed (5405s); the other shards did not finish.\n[FAIL] Tests failed").stderr,
+            /killed by a signal from outside it/,
+        );
         assert.doesNotMatch(run("error  no-unused-vars\n[FAIL] Lint failed").stderr, /killed by a signal/);
     });
 
@@ -352,6 +356,11 @@ printf '%s' "$buf"
         [
             "a test shard killed by a signal",
             "tools/run-tests.sh: graphty FAILED: exit 143\n  [FAIL] graphty (exit 1, 714s); the end of /x/graphty.log:\n[FAIL] Tests (the CI shards of the affected packages) failed",
+        ],
+        // 2026-10-17: the test stage was stopped by a signal while every shard that ran had passed.
+        [
+            "a test stage stopped by a signal",
+            "  [PASS] graphty-element-storybook-3 (3394s)\nStopped after SIGTERM failed (5405s); the other shards did not finish.\n[FAIL] Tests (the CI shards of the affected packages) failed",
         ],
     ]) {
         it(`never refuses after ${what}`, () => {

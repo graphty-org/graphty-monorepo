@@ -176,7 +176,15 @@ describe("the pre-push gate matches CI", () => {
         assert.match(prepush, /nx show projects --affected --base="\$BASE" --head=HEAD --json/);
         assert.match(
             prepush,
-            /run_step "[^"]+" \\\n\s+"timeout --foreground --kill-after=60s '\$\{PREPUSH_TESTS_TIMEOUT:-90m\}' PREPUSH_ROOT='\$ROOT_DIR' node '\$SCRIPT_DIR\/prepush-tests.mjs' '\$PROJECTS' '\$\{BASE:-\}'"/,
+            /run_step "[^"]+" \\\n\s+"PREPUSH_ROOT='\$ROOT_DIR' node '\$SCRIPT_DIR\/prepush-tests.mjs' '\$PROJECTS' '\$\{BASE:-\}'"/,
+        );
+        // No wall-clock limit on the stage: it would count the time shards wait for slots other gates hold
+        // (2026-10-17: a push whose every shard passed failed at 90 minutes). The hang guard is each
+        // shard's own timeout, inside its test slot, so it counts only the time the shard runs.
+        assert.doesNotMatch(prepush, /timeout[^\n]*prepush-tests\.mjs/);
+        assert.match(
+            code(tool("prepush-tests.mjs")),
+            /const cmd = \["timeout", "--kill-after=30s", timeout, "bash", "tools\/run-tests.sh", shard.shard\];\n\s+cmd.unshift\(process.execPath, "tools\/test-slots.mjs"\);/,
         );
         // No test command of its own, which could drift from CI's -- but the NVIDIA run, which CI has none of.
         const nvidia = /\n {4}setsid bash -c "cd webgpu-graph-algorithms && .*\n/;

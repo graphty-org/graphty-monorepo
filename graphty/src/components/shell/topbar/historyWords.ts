@@ -72,6 +72,9 @@ const WORDS: Readonly<Record<HistoryCode, (params: Params) => string>> = {
         return p.type === null ? "Set the data source" : `Loaded ${text(p.type)}`;
     },
     "data.expand": (p) => `Expanded ${text(p.node)}`,
+    "data.import-source": (p) => (p.name === null ? `Loaded from ${text(p.source)}` : `Loaded ${text(p.name)}`),
+    "data.source-expand": (p) => `Expanded ${some(lengthOf(p.seeds), "node")}`,
+    "data.collapse": (p) => `Collapsed ${text(p.node)}`,
     "data.declare": (p) => `Declared ${text(p.column)}`,
     "data.set-source": (p) => (p.name === null ? "Named the source" : `Named the source ${text(p.name)}`),
     "style.add-layer": (p) => `Added layer "${text(p.layer)}"`,

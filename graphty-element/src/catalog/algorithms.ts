@@ -39,7 +39,7 @@
  * is why the all-pairs sweep has its own key rather than a switch on shortest-path.
  */
 
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { AStarAlgorithm } from "../algorithms/AStarAlgorithm";
 import { BellmanFordAlgorithm } from "../algorithms/BellmanFordAlgorithm";

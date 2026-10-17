@@ -55,7 +55,7 @@ import { SourceRuntime } from '@graphty/graph-io';
 import { SourceRuntimeReason } from '@graphty/graph-io';
 import { SourceSample } from '@graphty/graph-io';
 import { SourceValidators } from '@graphty/graph-io';
-import { z } from 'zod/v4';
+import { z } from 'zod';
 
 // @public
 export const ACCELERATION_ERROR_CODES: readonly AccelerationErrorCode[];

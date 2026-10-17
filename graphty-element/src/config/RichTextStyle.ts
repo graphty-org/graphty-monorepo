@@ -90,6 +90,11 @@ export const RichTextStyle = z.strictObject({
     attachPosition: AttachPosition.optional(),
     attachOffset: z.number().default(0).optional(),
 
+    // Screen fit (labelScreenFit.ts). No defaults, so a label that names neither is painted
+    // exactly as before.
+    sizeMode: z.enum(["world", "screen"]).optional(),
+    keepInView: z.boolean().optional(),
+
     // Depth fading
     depthFadeEnabled: z.boolean().default(false).optional(),
     depthFadeNear: z.number().default(10).optional(),

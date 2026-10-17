@@ -1706,3 +1706,106 @@ export const Declutter: Story = {
         await assertDistinctPicture(scene, "Styles/Label");
     },
 };
+
+/**
+ * Where each drawn label's plane is on screen, in the render's pixels.
+ * @param scene - What the story drew.
+ * @returns One rectangle per drawn label.
+ */
+function planesOnScreen(scene: Drawn): { id: string; left: number; right: number; top: number; bottom: number }[] {
+    const { graph } = scene;
+    const camera = graph.scene.activeCamera;
+    if (camera === null) {
+        return [];
+    }
+
+    const engine = graph.scene.getEngine();
+    const viewport = camera.viewport.toGlobal(engine.getRenderWidth(), engine.getRenderHeight());
+    const transform = camera.getViewMatrix().multiply(camera.getProjectionMatrix());
+    return graph.getNodes().flatMap((node) => {
+        const plane = node.label?.labelMesh;
+        if (!plane || plane.isDisposed() || !plane.isEnabled()) {
+            return [];
+        }
+
+        plane.computeWorldMatrix(true);
+        const xs: number[] = [];
+        const ys: number[] = [];
+        for (const corner of plane.getBoundingInfo().boundingBox.vectorsWorld) {
+            const p = Vector3.Project(corner, Matrix.Identity(), transform, viewport);
+            xs.push(p.x);
+            ys.push(p.y);
+        }
+
+        return [
+            {
+                id: String(node.id),
+                left: Math.min(...xs),
+                right: Math.max(...xs),
+                top: Math.min(...ys),
+                bottom: Math.max(...ys),
+            },
+        ];
+    });
+}
+
+export const ScreenSizedLabels: Story = {
+    args: {
+        ...CAT_NETWORK,
+        setup: storySetup({
+            node: { "node.labelStyle": { sizeMode: "screen", sizePx: 14 } },
+            nodeEncode: { "node.label": { by: "data.id", scale: "passthrough" } },
+        }),
+    },
+    play: async ({ canvasElement }) => {
+        const scene = await labelled(canvasElement, "ScreenSizedLabels");
+        const heights = planesOnScreen(scene).map((plane) => plane.bottom - plane.top);
+        const spread = Math.max(...heights) - Math.min(...heights);
+
+        // Twenty cats at twenty depths: world-sized labels would be twenty heights.
+        await holds(
+            heights.length === CAT_NETWORK_SIZE.nodes && spread <= 2,
+            `Styles/Label ScreenSizedLabels: every label should be drawn the same height on screen whatever its ` +
+                `depth -- ${heights.map((h) => h.toFixed(1)).join(", ")}`,
+        );
+        await assertDistinctPicture(scene, "Styles/Label", labelDigest(scene));
+    },
+};
+
+export const KeepInView: Story = {
+    args: {
+        ...CAT_NETWORK,
+        setup: storySetup({
+            node: {
+                "node.labelStyle": {
+                    sizeMode: "screen",
+                    sizePx: 14,
+                    location: "right",
+                    keepInView: true,
+                    background: "#ffffff",
+                    borderWidth: 1,
+                    borderColor: "#c5cad6",
+                    padding: 4,
+                },
+            },
+            nodeEncode: { "node.label": { by: "data.id", scale: "passthrough" } },
+        }),
+    },
+    play: async ({ canvasElement }) => {
+        const scene = await labelled(canvasElement, "KeepInView");
+        const engine = scene.graph.scene.getEngine();
+        const width = engine.getRenderWidth();
+        const height = engine.getRenderHeight();
+        const out = planesOnScreen(scene).filter(
+            (p) => p.left < -1 || p.top < -1 || p.right > width + 1 || p.bottom > height + 1,
+        );
+
+        await holds(
+            out.length === 0,
+            `Styles/Label KeepInView: every label should be drawn inside the canvas; these cross its edge: ${out
+                .map((p) => p.id)
+                .join(", ")}`,
+        );
+        await assertDistinctPicture(scene, "Styles/Label", labelDigest(scene));
+    },
+};

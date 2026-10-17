@@ -15,6 +15,7 @@ import { BadgeStyleManager } from "../BadgeStyleManager";
 import { type RichTextStyleType } from "../config";
 import { FrameRoster } from "./FrameRoster";
 import { buildMaterial, deferLabelRelease, giveAlphaQuietly, setUpQuietly } from "./LabelBatch";
+import { fitToScreen, placeBeside, type PlacementBounds } from "./labelScreenFit";
 import { type ContentArea as PointerContentArea, type PointerDirection, PointerRenderer } from "./PointerRenderer";
 import { RichTextAnimator } from "./RichTextAnimator";
 import { measureLine, RichTextParser } from "./RichTextParser";
@@ -22,6 +23,9 @@ import { RichTextRenderer } from "./RichTextRenderer";
 
 /** The depth-fading labels of each scene, behind one before-render observer; see {@link FrameRoster}. */
 const depthFadeFrames = new FrameRoster();
+
+/** What a label hangs beside before it has been placed. */
+const NO_BOUNDS: PlacementBounds = { min: Vector3.Zero(), max: Vector3.Zero(), z: 0 };
 
 /** The Babylon rendering group a label drawn on top uses: after nodes and edges (group 0). */
 const ON_TOP_RENDERING_GROUP = 1;
@@ -131,6 +135,8 @@ type ResolvedRichTextLabelOptions = RequiredExceptOptional<
     | "textPath"
     | "location"
     | "borders"
+    | "sizeMode"
+    | "keepInView"
 > & {
     badge: BadgeType;
     icon: string | undefined;
@@ -175,6 +181,10 @@ export class RichTextLabel {
     private readonly pointerRenderer: PointerRenderer;
     /** Ends this label's depth fade; see {@link depthFadeFrames}. */
     private stopDepthFade: (() => void) | null = null;
+    /** Ends this label's screen sizing and keeping in view; see labelScreenFit. */
+    private stopScreenFit: (() => void) | null = null;
+    /** What the label hangs beside, in its parent's coordinates, once attached. */
+    private placementBounds: PlacementBounds | null = null;
     private animationStarted = false;
 
     /**
@@ -338,10 +348,15 @@ export class RichTextLabel {
         } else if (this.mesh) {
             this.mesh.position = new Vector3(this.options.position.x, this.options.position.y, this.options.position.z);
             this.originalPosition ??= this.mesh.position.clone();
+            this.placementBounds = this._pointBounds(this.mesh.position);
         }
 
         if (this.options.depthFadeEnabled) {
             this._setupDepthFading();
+        }
+
+        if (this.options.sizeMode === "screen" || this.options.keepInView === true) {
+            this._setupScreenFit();
         }
 
         // Don't start animations immediately - wait for startAnimation() to be called
@@ -463,14 +478,17 @@ export class RichTextLabel {
 
     private _createTexture(): void {
         const MAX_TEXTURE_SIZE = 4096;
+        // A label sized for the screen draws one canvas unit per CSS pixel, so its texture needs
+        // a texel per device pixel to stay sharp on a high-density screen.
+        const density = this.options.sizeMode === "screen" ? Math.max(1, globalThis.devicePixelRatio || 1) : 1;
 
         let textureWidth = this.options.autoSize
-            ? Math.pow(2, Math.ceil(Math.log2(this.actualDimensions.width)))
+            ? Math.pow(2, Math.ceil(Math.log2(this.actualDimensions.width * density)))
             : this.options.resolution;
 
         const aspectRatio = this.actualDimensions.width / this.actualDimensions.height;
         let textureHeight = this.options.autoSize
-            ? Math.pow(2, Math.ceil(Math.log2(this.actualDimensions.height)))
+            ? Math.pow(2, Math.ceil(Math.log2(this.actualDimensions.height * density)))
             : Math.floor(textureWidth / aspectRatio);
 
         if (textureWidth > MAX_TEXTURE_SIZE || textureHeight > MAX_TEXTURE_SIZE) {
@@ -987,13 +1005,14 @@ export class RichTextLabel {
             };
         } else {
             this.mesh.position = new Vector3(this.options.position.x, this.options.position.y, this.options.position.z);
+            this.placementBounds = this._pointBounds(this.mesh.position);
             return;
         }
 
         const labelHeight = (this.options.fontSize / 48) * this.heightInLines;
         const labelWidth = (this.actualDimensions.width / this.actualDimensions.height) * labelHeight;
 
-        const newPos = targetPos.clone();
+        const newPos = new Vector3();
 
         if (this.options.pointer && this.options.pointerDirection === "auto" && this.pointerInfo) {
             switch (position) {
@@ -1021,46 +1040,8 @@ export class RichTextLabel {
             this._drawContent();
         }
 
-        switch (position) {
-            case "top-left":
-                newPos.x = bounds.min.x - labelWidth / 2 - offset;
-                newPos.y = bounds.max.y + labelHeight / 2 + offset;
-                break;
-            case "top":
-                newPos.x = (bounds.min.x + bounds.max.x) / 2;
-                newPos.y = bounds.max.y + labelHeight / 2 + offset;
-                break;
-            case "top-right":
-                newPos.x = bounds.max.x + labelWidth / 2 + offset;
-                newPos.y = bounds.max.y + labelHeight / 2 + offset;
-                break;
-            case "left":
-                newPos.x = bounds.min.x - labelWidth / 2 - offset;
-                newPos.y = (bounds.min.y + bounds.max.y) / 2;
-                break;
-            case "center":
-                newPos.x = (bounds.min.x + bounds.max.x) / 2;
-                newPos.y = (bounds.min.y + bounds.max.y) / 2;
-                break;
-            case "right":
-                newPos.x = bounds.max.x + labelWidth / 2 + offset;
-                newPos.y = (bounds.min.y + bounds.max.y) / 2;
-                break;
-            case "bottom-left":
-                newPos.x = bounds.min.x - labelWidth / 2 - offset;
-                newPos.y = bounds.min.y - labelHeight / 2 - offset;
-                break;
-            case "bottom":
-                newPos.x = (bounds.min.x + bounds.max.x) / 2;
-                newPos.y = bounds.min.y - labelHeight / 2 - offset;
-                break;
-            case "bottom-right":
-                newPos.x = bounds.max.x + labelWidth / 2 + offset;
-                newPos.y = bounds.min.y - labelHeight / 2 - offset;
-                break;
-            default:
-                newPos.y = bounds.max.y + labelHeight / 2 + offset;
-        }
+        this.placementBounds = { min: bounds.min, max: bounds.max, z: targetPos.z };
+        placeBeside(this.placementBounds, position, offset, labelWidth, labelHeight, newPos);
 
         this.mesh.position = newPos;
         this.originalPosition ??= newPos.clone();
@@ -1068,6 +1049,49 @@ export class RichTextLabel {
         if (this.animator) {
             this.animator.updateOriginalPosition(newPos);
         }
+    }
+
+    private _pointBounds(point: Vector3): PlacementBounds {
+        return { min: point.clone(), max: point.clone(), z: point.z };
+    }
+
+    private _setupScreenFit(): void {
+        const { mesh } = this;
+        if (!mesh) {
+            return;
+        }
+
+        const { options } = this;
+        const size = (): ActualDimensions => this.actualDimensions;
+        const lines = (): number => this.heightInLines;
+        const bounds = (): PlacementBounds => this.placementBounds ?? NO_BOUNDS;
+        this.stopScreenFit = fitToScreen(this.scene, {
+            mesh,
+            get planeWidth() {
+                return (size().width / size().height) * this.planeHeight;
+            },
+            get planeHeight() {
+                return (options.fontSize / 48) * lines();
+            },
+            // `fontSize` is `sizePx`, so one canvas unit is one CSS pixel and the letters are
+            // `sizePx` CSS pixels tall.
+            get screenHeight() {
+                return options.sizeMode === "screen" ? size().height : undefined;
+            },
+            get keepInView() {
+                return options.keepInView === true;
+            },
+            get bounds() {
+                return bounds();
+            },
+            // A label with nothing to hang from sits exactly where it was put.
+            get placement() {
+                return options.attachTo ? options.attachPosition : "center";
+            },
+            get offset() {
+                return options.attachTo ? options.attachOffset : 0;
+            },
+        });
     }
 
     private _setupDepthFading(): void {
@@ -1202,6 +1226,8 @@ export class RichTextLabel {
         // Clean up scene callback first
         this.stopDepthFade?.();
         this.stopDepthFade = null;
+        this.stopScreenFit?.();
+        this.stopScreenFit = null;
 
         if (this.animator) {
             this.animator.dispose();

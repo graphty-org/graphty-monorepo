@@ -264,8 +264,14 @@ function useHead(session: GraphSession, rows: readonly PickRow[], side: Side): s
     } else {
         matched = unionCount;
     }
-    const of = matched === undefined ? `of ${String(total)}` : `${String(matched)} of ${String(total)}`;
-    return rows.length > 1 ? `${String(rows.length)} layers, ${of} ${NOUN[side].many}` : of;
+    if (rows.length > 1) {
+        // No one rule says what several Ends cards keep together (each reads its own layer's
+        // nodes), so the union is left unsaid rather than drawn as "of 254 edges".
+        return matched === undefined
+            ? `${String(rows.length)} layers`
+            : `${String(rows.length)} layers, ${String(matched)} of ${String(total)} ${NOUN[side].many}`;
+    }
+    return matched === undefined ? `of ${String(total)}` : `${String(matched)} of ${String(total)}`;
 }
 
 /** Props of a picker. */
@@ -1286,6 +1292,11 @@ function TextCard({
                 >
                     Use the selected nodes
                 </Button>
+            )}
+            {isName && selected.length === 0 && (
+                <Text size="xs" c="dimmed">
+                    Select nodes on the canvas to use them here
+                </Text>
             )}
         </Stack>
     );

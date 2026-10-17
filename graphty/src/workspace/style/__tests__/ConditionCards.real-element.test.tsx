@@ -478,6 +478,23 @@ describe("the combined Style panel", () => {
         assert.strictEqual(session.history.position, steps + 1, "both layers in one step");
     });
 
+    it("a folder's edges turned on follow each group's nodes, and the row says no total it cannot count", async () => {
+        const session = await openSample();
+        await louvainLayers(session);
+        await clickRow("Louvain");
+        await userEvent.click(
+            within(await screen.findByRole("tablist", { name: "Style for" })).getByRole("tab", { name: /^Edge/ }),
+        );
+        await userEvent.click(await screen.findByRole("checkbox", { name: /^Style edges, on in 0 of / }));
+        const row = await whichRow("edges");
+        assert.match(
+            row.getAttribute("aria-label") ?? "",
+            /^Which edges, \d+ layers$/,
+            "no 'of 254 edges' without a number",
+        );
+        assert.include(row.textContent ?? "", "Ends: both in this layer's nodes");
+    });
+
     it("on a layer with a card and one with none: every node, and the card held by 1 of 2 layers", async () => {
         const session = await openSample();
         const leaf: RuleTree = { kind: "text", reads: "data.name", mode: "substring", text: "Mme" };

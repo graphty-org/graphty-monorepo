@@ -281,7 +281,7 @@ export function TimeSlider(props: TimeSliderProps): React.JSX.Element {
                         y={CANVAS_METRICS.TIME_TRACK_HEIGHT - CANVAS_SPACE.MD}
                         width={Math.max(0, timeWindow.end - timeWindow.start) * 100}
                         height={CANVAS_SPACE.XS}
-                        fill={PANEL_INK.ACCENT}
+                        fill={PANEL_INK.ACCENT_GRAPHIC}
                     />
                 )}
             </svg>

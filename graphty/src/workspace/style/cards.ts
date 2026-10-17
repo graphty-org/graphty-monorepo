@@ -117,7 +117,7 @@ export function cardFields(session: GraphSession, side: Side): CardField[] {
  */
 function fieldOf(session: GraphSession, value: ReadableValue): CardField {
     if (value.path === "id") {
-        return { path: "id", on: value.on, kind: "name", name: "Name", group: "Structure" };
+        return { path: "id", on: value.on, kind: "name", name: "Node id", group: "Structure" };
     }
     const groups: Record<ReadableValue["from"], FieldGroup> = { element: "Structure", data: "Data", run: "Results" };
     return {

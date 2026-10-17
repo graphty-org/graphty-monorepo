@@ -266,6 +266,10 @@ describe("the Style tab's sections", () => {
             return found;
         });
         assert.isNotNull(row);
+        // The new line's starting value is selected, so typing replaces it rather than appending.
+        const field = document.activeElement as HTMLInputElement;
+        assert.strictEqual(field.selectionStart, 0, "the value is selected from its start");
+        assert.strictEqual(field.selectionEnd, field.value.length, "to its end");
         (document.activeElement as HTMLElement | null)?.blur();
         await userEvent.click(within(row).getByRole("button", { name: "Remove node size" }));
         await waitFor(() => {

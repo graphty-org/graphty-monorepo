@@ -137,6 +137,10 @@ export function useFocusLine<T extends HTMLElement>(panel: string): RefObject<T 
             handed.current = pending;
             pending = null;
             control.focus();
+            // A line just added starts at a default: typing replaces it, as tabbing into a field does.
+            if (control instanceof HTMLInputElement) {
+                control.select();
+            }
         }
     });
     // A layout cleanup runs before the tab's nodes leave the page, while focus is still in them.

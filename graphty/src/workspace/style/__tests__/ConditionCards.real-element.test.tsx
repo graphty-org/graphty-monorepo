@@ -112,6 +112,11 @@ async function addCard(field: string, kind: "nodes" | "edges" = "nodes"): Promis
         const card = within(region).getByRole("group", { name: new RegExp(`^${field}(,|$)`) });
         // Focus goes to the new card's first control.
         assert.isTrue(card.contains(document.activeElement), "focus is in the added card");
+        assert.notMatch(
+            document.activeElement?.getAttribute("aria-label") ?? "",
+            /^Remove /,
+            "focus is on a value control, not the card's remove button",
+        );
         return card;
     });
 }
@@ -405,7 +410,20 @@ describe("the combined Style panel", () => {
             byLayer.querySelector("input"),
             "a card whose value makes each group a group is not edited in bulk",
         );
-        assert.strictEqual(byLayer.querySelector("[data-layer-source]")?.textContent, "«Layer»");
+        assert.strictEqual(byLayer.querySelector("[data-layer-source]")?.textContent, "\u00ABLayer\u00BB");
+        // Each layer's value, top first as the tree lists them, without the field's name again.
+        const summary = within(byLayer).getByRole("button", { name: /from each layer/ });
+        assert.match(summary.textContent ?? "", /Group 1, Group 2, Group 3, \+\d/);
+        await userEvent.click(summary);
+        const lines = within(byLayer)
+            .getAllByRole("listitem")
+            .map((item) => item.textContent ?? "");
+        assert.match(lines[0], /^Group 1: Group 1, \d+$/, "the first line is the tree's first layer");
+        // The open cards say the union, as the closed row does.
+        assert.match(
+            within(region).getByRole("status").textContent ?? "",
+            new RegExp(`^${String(layers.length)} layers, 77 of 77 nodes$`),
+        );
 
         const steps = session.history.position;
         const card = await addCard("name");
@@ -472,6 +490,27 @@ describe("the combined Style panel", () => {
         assert.isNotNull(within(region).getByRole("group", { name: /^A rule set elsewhere/ }));
         await done();
         assert.deepEqual(session.styles.get(layer.id)?.selector, selector);
+    });
+
+    it("Escape in the add menu closes the menu only; the next Escape closes the picker", async () => {
+        const session = await openSample();
+        await layerOf(session, "Menu");
+        await clickRow("Menu");
+        await userEvent.click(await whichRow());
+        const region = await screen.findByRole("group", { name: "Which nodes" });
+        const add = within(region).getByRole("button", { name: "Add a condition" });
+        await userEvent.click(add);
+        await screen.findByRole("listbox");
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("listbox"), "the menu closed");
+            assert.strictEqual(document.activeElement, add, "focus is back on Add a condition");
+        });
+        assert.isNotNull(screen.queryByRole("group", { name: "Which nodes" }), "the picker is still open");
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.strictEqual(document.activeElement?.getAttribute("aria-expanded"), "false", "closed onto its row");
+        });
     });
 
     it("focus: removing a card goes to the next, else the previous, else Add a condition", async () => {

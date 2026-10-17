@@ -241,6 +241,32 @@ function useLeafCount(
     return side === "node" ? counted.nodes : counted.edges;
 }
 
+/**
+ * The rows' total as the Which row and the open cards both say it: "11 of 77" for one layer,
+ * "10 layers, 77 of 77 nodes" (the union) for several.
+ * @param session - the element's session.
+ * @param rows - the rows.
+ * @param side - nodes or edges.
+ * @returns the words.
+ */
+function useHead(session: GraphSession, rows: readonly PickRow[], side: Side): string {
+    const stats = session.data.statistics();
+    const total = side === "node" ? stats.nodeCount : stats.edgeCount;
+    const union = unionRule(rows);
+    const unionCount = useLeafCount(session, rows.length > 1 ? union : null, side);
+    let matched: number | undefined;
+    if (rows.length === 1) {
+        const [{ layer }] = rows;
+        ({ matched } = session.styles.counts(layer.id));
+    } else if (union === null && rows.every((row) => row.cards.length === 0)) {
+        matched = total;
+    } else {
+        matched = unionCount;
+    }
+    const of = matched === undefined ? `of ${String(total)}` : `${String(matched)} of ${String(total)}`;
+    return rows.length > 1 ? `${String(rows.length)} layers, ${of} ${NOUN[side].many}` : of;
+}
+
 /** Props of a picker. */
 interface WhichPickerProps {
     readonly session: GraphSession;
@@ -345,19 +371,7 @@ function WhichRow({
 }>): React.JSX.Element {
     const stats = session.data.statistics();
     const total = side === "node" ? stats.nodeCount : stats.edgeCount;
-    const union = unionRule(rows);
-    const unionCount = useLeafCount(session, rows.length > 1 ? union : null, side);
-    let matched: number | undefined;
-    if (rows.length === 1) {
-        const [{ layer }] = rows;
-        ({ matched } = session.styles.counts(layer.id));
-    } else if (union === null && rows.every((row) => row.cards.length === 0)) {
-        matched = total;
-    } else {
-        matched = unionCount;
-    }
-    const of = matched === undefined ? `of ${String(total)}` : `${String(matched)} of ${String(total)}`;
-    const head = rows.length > 1 ? `${String(rows.length)} layers, ${of} ${NOUN[side].many}` : of;
+    const head = useHead(session, rows, side);
     const descId = useId();
     const words = shown.map((each) => chipWords(session, each, rows.length));
     return (
@@ -492,20 +506,25 @@ function Cards({
     const writer = useStepWriter(session, `Which ${NOUN[side].many}`);
     const fields = useMemo(() => cardFields(session, side), [session, side]);
     const bulk = rows.length > 1;
-    const stats = session.data.statistics();
-    const total = side === "node" ? stats.nodeCount : stats.edgeCount;
 
     useEffect(() => {
         if (focus === null) {
             return;
         }
         const root = box.current;
+        // A card's first control is its first value control, not the remove button in its header.
+        const controls =
+            focus === "add"
+                ? []
+                : [
+                      ...(root?.querySelectorAll<HTMLElement>(
+                          `[data-card="${CSS.escape(focus)}"] :is(input:not([type=hidden]), button, [tabindex="0"])`,
+                      ) ?? []),
+                  ];
         const target =
             focus === "add"
                 ? root?.querySelector<HTMLElement>("[data-add]")
-                : root?.querySelector<HTMLElement>(
-                      `[data-card="${CSS.escape(focus)}"] :is(input:not([type=hidden]), button, [tabindex="0"])`,
-                  );
+                : (controls.find((each) => each.closest(".ws-card-head") === null) ?? controls[0]);
         target?.focus();
         setFocus(null);
     }, [focus]);
@@ -547,6 +566,7 @@ function Cards({
         }
     };
 
+    const head = useHead(session, rows, side);
     const matched = rows.length === 1 ? session.styles.counts(rows[0].layer.id).matched : undefined;
     let why: string | undefined;
     if (matched === 0 && list.length > 0) {
@@ -575,7 +595,7 @@ function Cards({
                     Which {NOUN[side].many}
                 </Text>
                 <Text size="xs" c="dimmed" ml="auto" role="status" aria-live="polite">
-                    {matched === undefined ? `${String(rows.length)} layers` : `${String(matched)} of ${String(total)}`}
+                    {head}
                 </Text>
             </Group>
             <Text size="xs" c="dimmed">
@@ -727,6 +747,7 @@ function AddCondition({
         },
     });
     const [search, setSearch] = useState("");
+    const button = useRef<HTMLButtonElement>(null);
     const typed = search.trim().toLowerCase();
     const groups = (["Data", "Results", "Structure"] as const).flatMap((group) => {
         const items = fields.filter((f) => f.group === group && (typed === "" || f.name.toLowerCase().includes(typed)));
@@ -748,6 +769,7 @@ function AddCondition({
         >
             <Combobox.Target withAriaAttributes={false}>
                 <Button
+                    ref={button}
                     size="compact-xs"
                     variant="subtle"
                     leftSection={<GLYPHS.add size={12} aria-hidden />}
@@ -770,6 +792,14 @@ function AddCondition({
                     }}
                     placeholder="Search values"
                     aria-label="Search values"
+                    onKeyDown={(event) => {
+                        // Escape closes the list only, not the picker it opened from.
+                        if (event.key === "Escape") {
+                            event.preventDefault();
+                            combobox.closeDropdown();
+                            button.current?.focus();
+                        }
+                    }}
                 />
                 <Combobox.Options mah={240} style={{ overflowY: "auto" }}>
                     {groups.length === 0 ? (
@@ -1258,6 +1288,17 @@ function TextCard({
 }
 
 /**
+ * A card's words without its field's name, for a list under a header that already says it.
+ * @param words - the card's words ("Louvain: Group 1").
+ * @param name - the field's name.
+ * @returns the rest ("Group 1").
+ */
+function withoutField(words: string, name: string): string {
+    const head = [`${name}: `, `${name} `].find((each) => words.startsWith(each));
+    return head === undefined ? words : words.slice(head.length);
+}
+
+/**
  * A card whose values differ by layer, on several layers: <<Layer>> where its value goes, and one
  * row per layer with that layer's own card and count; a row selects that layer. Read-only: a card's
  * value is what makes each group a group. Its x removes the field's card from every layer.
@@ -1287,8 +1328,12 @@ function LayerCard({
     const { card } = shown;
     const name = cardName(card);
     const holding = shown.per.filter((each) => each !== undefined).length;
-    const words = shown.per.flatMap((each) => (each === undefined ? [] : [cardWords(session, each)]));
-    const line = words.length > 3 ? `${words.slice(0, 3).join("; ")}; +${String(words.length - 3)}` : words.join("; ");
+    // The rows come bottom first (paint order); the tree lists them top first, and so does this card.
+    const topFirst = rows.map((row, at) => ({ row, card: shown.per[at] })).reverse();
+    const words = topFirst.flatMap(({ card: each }) =>
+        each === undefined ? [] : [withoutField(cardWords(session, each), name)],
+    );
+    const line = words.length > 3 ? `${words.slice(0, 3).join(", ")}, +${String(words.length - 3)}` : words.join(", ");
     return (
         <div // NOSONAR(S6819): an ARIA group naming one card's controls; a fieldset draws its own border and legend
             role="group"
@@ -1326,12 +1371,13 @@ function LayerCard({
             </UnstyledButton>
             {open && (
                 <Stack gap={2} role="list" aria-label={`${name} in each layer`}>
-                    {rows.map((row, at) => (
+                    {topFirst.map(({ row, card: each }) => (
                         <LayerLine
                             key={row.id}
                             session={session}
                             row={row}
-                            card={shown.per[at]}
+                            card={each}
+                            field={name}
                             side={side}
                             onPick={() => {
                                 store.set({ inspected: { kind: "layer-row", id: row.id } });
@@ -1351,6 +1397,7 @@ function LayerCard({
  * @param props.session - the element's session
  * @param props.row - the row
  * @param props.card - the card
+ * @param props.field - the card's field name, which the card's header already says
  * @param props.side - nodes or edges
  * @param props.onPick - selects the layer
  * @returns The line
@@ -1359,17 +1406,19 @@ function LayerLine({
     session,
     row,
     card,
+    field,
     side,
     onPick,
 }: Readonly<{
     session: GraphSession;
     row: PickRow;
     card: Card | undefined;
+    field: string;
     side: Side;
     onPick: () => void;
 }>): React.JSX.Element {
     const count = useLeafCount(session, card === undefined ? null : leafOf(card), side);
-    const words = card === undefined ? "no card" : cardWords(session, card);
+    const words = card === undefined ? "no card" : withoutField(cardWords(session, card), field);
     return (
         <div role="listitem">
             <UnstyledButton className="ws-card-layer-line" onClick={onPick}>

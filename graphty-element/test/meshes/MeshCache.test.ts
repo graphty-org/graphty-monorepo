@@ -1,5 +1,5 @@
 import { MeshBuilder, NullEngine, RawTexture, Scene, StandardMaterial } from "@babylonjs/core";
-import { assert, beforeEach, describe, it } from "vitest";
+import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { MeshCache } from "../../src/meshes/MeshCache";
 
@@ -10,6 +10,10 @@ describe("MeshCache", () => {
     beforeEach(() => {
         scene = new Scene(new NullEngine());
         cache = new MeshCache();
+    });
+
+    afterEach(() => {
+        scene.getEngine().dispose();
     });
 
     /**

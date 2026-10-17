@@ -1,5 +1,5 @@
 import { InstancedMesh, Mesh, NullEngine, Scene, StandardMaterial } from "@babylonjs/core";
-import { assert, beforeEach, describe, test } from "vitest";
+import { afterEach, assert, beforeEach, describe, test } from "vitest";
 import type { z } from "zod/v4";
 
 import { NodeShapes, NodeStyle } from "../src/config/NodeStyle";
@@ -15,6 +15,10 @@ describe("NodeMesh", () => {
         const engine = new NullEngine();
         scene = new Scene(engine);
         meshCache = new MeshCache();
+    });
+
+    afterEach(() => {
+        scene.getEngine().dispose();
     });
 
     describe("Shape Creation", () => {

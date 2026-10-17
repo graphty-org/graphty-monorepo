@@ -1565,6 +1565,9 @@ export class Graph implements GraphContext {
             // Under the queued build's signal, so a layout the consumer has already asked for still
             // replaces the default before it is built. See `openingSignalFor`.
             await this.buildOpeningLayout(this.#openingSignal);
+            if (this.#teardown.signal.aborted) {
+                return;
+            }
 
             // Mark style-init as completed since styles are initialized in constructor
             // This satisfies cross-batch dependencies for operations like data-add

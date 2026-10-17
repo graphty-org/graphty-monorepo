@@ -111,7 +111,10 @@ fi
 # 2026-10-17: a memory-hungry query outside the gate drove the machine out of memory, and a killer
 # outside this container sent SIGTERM to the largest processes: lint, knip and a test shard of three
 # gates died mid-step, each recorded as the commit's own [FAIL], and the retries were refused.
-KILLED_RE='(^|[0-9] +)(Terminated|Killed)( |$)|exit (code )?(137|143)([^0-9]|$)'
+# Also the test stage's "Stopped after SIGTERM failed": tools/prepush-tests.mjs itself got the signal
+# (until 2026-10-17 a 90-minute stage clock sent it, while every shard that had run had passed and the
+# rest were waiting for test slots other gates held).
+KILLED_RE='(^|[0-9] +)(Terminated|Killed)( |$)|exit (code )?(137|143)([^0-9]|$)|Stopped after SIG[A-Z]+ failed'
 top="$(git rev-parse --show-toplevel 2>/dev/null)"
 inputs="$top/tools/prepush-inputs.mjs"
 [ "$use_gate" = 1 ] && inputs="$gate_dir/tools/prepush-inputs.mjs"

@@ -1960,6 +1960,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             progress: (change) => {
                 publish(watchers, "progress:changed", change);
             },
+            send: (command) => dispatcher.dispatch(command),
+            emit: (event, detail) => {
+                publish(watchers, event, detail);
+            },
             readers: () => ({ styles: dispatcher.state.styles, runs: dispatcher.state.runs }),
         },
         {

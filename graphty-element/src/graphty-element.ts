@@ -49,6 +49,8 @@ import {
 import type { Run, RunChange, StartOptions } from "./session/runs";
 import type { SelectionDelta, SelectionOp, SelectionTarget } from "./session/selection";
 import type { ProgressChange } from "./session/shared";
+import { SOURCE_EVENT_DOM_NAMES } from "./session/sources/ids";
+import type { SourceExpanded, SourceExpandFailed, SourceExpandStart } from "./session/sources/types";
 import type { DefaultPalettes } from "./session/styles";
 import type { ProjectConfigPatch, SessionEventMap, TransactionScope } from "./session/types";
 import type { VisibilityChange } from "./session/visibility";
@@ -120,6 +122,8 @@ export class Graphty extends LitElement {
     #unwatchVisibility: (() => void) | null = null;
     #unwatchHistory: (() => void) | null = null;
     #unwatchProjectStatus: (() => void) | null = null;
+    /** Unsubscribes the three network-source expansion mirrors. */
+    #unwatchSource: (() => void) | null = null;
     #unwatchNotes: (() => void) | null = null;
     #unwatchProgress: (() => void) | null = null;
     readonly #progressAt = new Map<string, number>();
@@ -288,6 +292,28 @@ export class Graphty extends LitElement {
      */
     setDefaultPalettes(palettes: DefaultPalettes, options?: { readonly reapply?: boolean }): void {
         this.session.styles.setDefaultPalettes(palettes, options);
+    }
+
+    /**
+     * Mirror the session's click-to-expand events onto the DOM under their `graphty-source-*` names.
+     * @param session - The session to watch.
+     * @param session.on - Its event subscription.
+     * @returns Unsubscribes all three.
+     */
+    #mirrorSourceEvents(session: { on: GraphSession["on"] }): () => void {
+        const events = Object.keys(SOURCE_EVENT_DOM_NAMES) as (keyof typeof SOURCE_EVENT_DOM_NAMES)[];
+        const offs = events.map((event) =>
+            session.on(event, (detail) => {
+                this.dispatchEvent(
+                    new CustomEvent(SOURCE_EVENT_DOM_NAMES[event], { detail, bubbles: true, composed: true }),
+                );
+            }),
+        );
+        return () => {
+            for (const off of offs) {
+                off();
+            }
+        };
     }
 
     /**
@@ -519,6 +545,8 @@ export class Graphty extends LitElement {
                 new CustomEvent("graphty-project-status", { detail: change, bubbles: true, composed: true }),
             );
         });
+        // Click-to-expand from a network source (experimental): plain codes and values, as the other mirrors.
+        this.#unwatchSource ??= this.#mirrorSourceEvents(session);
         this.#unwatchHistory ??= session.on("history:changed", ({ reason }) => {
             if (reason === "undo" || reason === "redo" || reason === "restore") {
                 this.#loadedPair = undefined;
@@ -733,6 +761,8 @@ export class Graphty extends LitElement {
         this.#unwatchHistory = null;
         this.#unwatchProjectStatus?.();
         this.#unwatchProjectStatus = null;
+        this.#unwatchSource?.();
+        this.#unwatchSource = null;
         this.#unwatchNotes?.();
         this.#unwatchNotes = null;
         this.#unwatchProgress?.();
@@ -4428,6 +4458,9 @@ declare global {
         "graphty-node-drag-start": CustomEvent<NodeEventDetail>;
         "graphty-node-drag-end": CustomEvent<NodeEventDetail>;
         "graphty-label-change": CustomEvent<NodeLabelCounts>;
+        "graphty-source-expand-start": CustomEvent<SourceExpandStart>;
+        "graphty-source-expanded": CustomEvent<SourceExpanded>;
+        "graphty-source-expand-failed": CustomEvent<SourceExpandFailed>;
     }
 
     // Every one bubbles and is composed, so a listener on the document is typed the same way.
@@ -4445,6 +4478,9 @@ declare global {
         "graphty-node-drag-start": CustomEvent<NodeEventDetail>;
         "graphty-node-drag-end": CustomEvent<NodeEventDetail>;
         "graphty-label-change": CustomEvent<NodeLabelCounts>;
+        "graphty-source-expand-start": CustomEvent<SourceExpandStart>;
+        "graphty-source-expanded": CustomEvent<SourceExpanded>;
+        "graphty-source-expand-failed": CustomEvent<SourceExpandFailed>;
     }
 }
 

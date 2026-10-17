@@ -406,3 +406,9 @@ export {
     CPU_PRECISION,
     isAccelerationPolicy,
 } from "./src/acceleration";
+
+// ---------------------------------------------------------------------------------------------
+// Network sources (experimental): graph-io's source contract and the element's load types
+// ---------------------------------------------------------------------------------------------
+
+export * from "./src/session/sources/public";

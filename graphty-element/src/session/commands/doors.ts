@@ -341,6 +341,9 @@ const MASK = exempt(
 );
 const LLM = exempt("Talks to a language model; changes nothing in the graph.");
 const BUDGET = exempt("The history's own budget, not project state.");
+const NOT_BUILT = exempt(
+    "Not built yet: it rejects with E_SOURCE_UNSUPPORTED and changes nothing; it dispatches its own op once it lands.",
+);
 const GESTURE = exempt(
     "Part of a node drag, which the element records as one step of its own: a transaction opened at drag " +
         "start and recorded at the drop with the positions.set and positions.pin it dispatches; checked by " +
@@ -1503,6 +1506,16 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             },
             // Reads and holds a source; the draft it returns loads through data.import.
             prepare: READ,
+            // Network sources (experimental). The probe and the search ask a service and change nothing;
+            // the records and the waiting loads are read from the session.
+            testSource: READ,
+            listSource: READ,
+            loads: READ,
+            pendingSourceLoads: READ,
+            expand: NOT_BUILT,
+            collapse: NOT_BUILT,
+            more: NOT_BUILT,
+            runPendingSourceLoad: NOT_BUILT,
             attributes: READ,
             histogram: READ,
             declare: {

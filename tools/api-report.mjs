@@ -145,6 +145,13 @@ export const PLAIN_STRING_ALLOWLIST = new Set([
     "path",
     "mediaType",
     "color",
+    // network sources: a source's id, the service's address and origin, when a load finished,
+    // and the reader's own user name on that service
+    "source",
+    "endpoint",
+    "origin",
+    "loadedAt",
+    "username",
 ]);
 
 const DECLARATION =

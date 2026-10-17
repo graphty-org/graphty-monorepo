@@ -12,6 +12,7 @@
 import "../data/index";
 
 import { type DerivedGraph, fromBytes, type GraphSnapshot, INVALID_INDEX, type NodeId } from "@graphty/graph-format";
+import type { SourceListing, SourceListQuery, SourceProbe } from "@graphty/graph-io";
 
 import { detectFormat, undetectedFormat } from "../catalog/detect";
 import type {
@@ -44,6 +45,7 @@ import {
     SOURCE_VALUE,
 } from "./commands/data";
 import { Draft, readSource } from "./draft";
+import type { SessionCommand } from "./planning";
 import type { Dispatcher } from "./project/Dispatcher";
 import { frozenRecord } from "./project/draft";
 import { failedEnd, Ingest, progressSource } from "./project/ingest";
@@ -65,6 +67,18 @@ import { edgeSpaceOf } from "./scope/ScopeApi";
 import type { SelectionTextMode } from "./selection";
 import { searchOf } from "./selection/targets";
 import type { ColumnRef, ProgressChange } from "./shared";
+import * as sourceExpand from "./sources/expand";
+import type { SourceHost } from "./sources/host";
+import { SourceLedger } from "./sources/ledger";
+import * as sourceLoad from "./sources/load";
+import type {
+    CollapseResult,
+    ExpandOptions,
+    PendingSourceLoad,
+    SourceInput,
+    SourceLoadOptions,
+    SourceLoadRecord,
+} from "./sources/types";
 import { computeFingerprint, computeStatistics } from "./statistics";
 import type { CompiledLayer } from "./styles/Layer";
 import type {
@@ -94,6 +108,7 @@ import type {
     SessionAttributes,
     SessionDataApi,
     SessionDataConfig,
+    SessionEventMap,
     SessionGraphStore,
     SessionRecordSource,
 } from "./types";
@@ -119,6 +134,10 @@ interface DataWrites {
     declarations(): ReadonlyMap<string, MeasurementDeclaration>;
     /** Publish a progress change as the session's `progress:changed`. */
     progress?(change: ProgressChange): void;
+    /** Dispatch any command: the network-source loads and expansions dispatch their own ops. */
+    send?(command: SessionCommand): Promise<unknown>;
+    /** Publish a session event: the network-source expansions publish theirs. */
+    emit?<K extends keyof SessionEventMap>(event: K, detail: SessionEventMap[K]): void;
     /** The style stack and the finished runs now: what reads a column. */
     readers(): {
         readonly styles: readonly CompiledLayer[];
@@ -405,6 +424,8 @@ export class SessionData implements SessionDataApi {
         readonly result: readonly AttributeDescriptor[];
     } | null = null;
     private disposed = false;
+    /** The records of the loads from network sources; see `loads()`. */
+    private readonly ledger = new SourceLedger();
 
     /**
      * Build the data surface.
@@ -510,8 +531,12 @@ export class SessionData implements SessionDataApi {
      * @returns Settles once the last chunk is in the graph; rejects, recording nothing, when the
      *     load fails.
      */
-    async import(source: DataSourceInput, options: LoadChoices = {}): Promise<void> {
+    async import(source: DataSourceInput, options: LoadChoices & SourceLoadOptions = {}): Promise<void> {
         this.requireLive("import");
+        if (source.source !== undefined) {
+            await sourceLoad.importSource(this.sourceHost(), { ...source, source: source.source }, options);
+            return;
+        }
         // Taken before the first await: a transaction routes only what a verb dispatches
         // synchronously, and detecting the format may have to read the file or fetch the URL.
         const send = this.writes.importer();
@@ -542,6 +567,113 @@ export class SessionData implements SessionDataApi {
         // takes its turn in the order it was asked for.
         const resolved = resolveImportSource(source);
         await send(command(resolved instanceof Promise ? await resolved : resolved));
+    }
+
+    /**
+     * Check a network source's params and credential without loading anything.
+     * @param source - The source id and its params.
+     * @param options - The credential and the endpoint.
+     * @returns What the service said.
+     */
+    testSource(source: SourceInput, options: SourceLoadOptions = {}): Promise<SourceProbe> {
+        this.requireLive("testSource");
+        return sourceLoad.testSource(this.sourceHost(), source, options);
+    }
+
+    /**
+     * Search what a network source holds.
+     * @param source - The source id and the params narrowing the search.
+     * @param query - The search text, cursor and page size.
+     * @param options - The credential and the endpoint.
+     * @returns One page of rows.
+     */
+    listSource(
+        source: SourceInput,
+        query: Omit<SourceListQuery<Record<string, unknown>>, "params"> = {},
+        options: SourceLoadOptions = {},
+    ): Promise<SourceListing> {
+        this.requireLive("listSource");
+        return sourceLoad.listSource(this.sourceHost(), source, query, options);
+    }
+
+    /**
+     * Fetch the neighborhood of nodes from the source that loaded them, as one undoable step.
+     * @param ids - The seeds.
+     * @param options - Depth, direction, limit and the credential.
+     * @returns Settles once the neighborhood is in the graph.
+     */
+    expand(ids: readonly NodeId[], options: ExpandOptions = {}): Promise<void> {
+        this.requireLive("expand");
+        return sourceExpand.expandNodes(this.sourceHost(), ids, options);
+    }
+
+    /**
+     * Remove what a node's expansions alone brought, as one undoable step.
+     * @param id - The node.
+     * @returns What was removed and kept.
+     */
+    collapse(id: NodeId): Promise<CollapseResult> {
+        this.requireLive("collapse");
+        return sourceExpand.collapseNode(this.sourceHost(), id);
+    }
+
+    /**
+     * Load the next page after a capped load from a source.
+     * @param options - The load options.
+     * @returns Settles once the page is in the graph.
+     */
+    more(options: SourceLoadOptions = {}): Promise<void> {
+        this.requireLive("more");
+        return sourceLoad.more(this.sourceHost(), options);
+    }
+
+    /**
+     * The loads from network sources this graph holds.
+     * @returns The records, in load order.
+     */
+    loads(): readonly SourceLoadRecord[] {
+        return this.ledger.loads();
+    }
+
+    /**
+     * The source loads an opened project holds but has not run.
+     * @returns One entry per waiting load.
+     */
+    pendingSourceLoads(): readonly PendingSourceLoad[] {
+        return sourceLoad.pendingSourceLoads(this.sourceHost());
+    }
+
+    /**
+     * Run one waiting source load of an opened project.
+     * @param id - The load's key.
+     * @param options - The credential.
+     * @returns Settles once it is loaded.
+     */
+    runPendingSourceLoad(id: string, options: SourceLoadOptions = {}): Promise<void> {
+        this.requireLive("runPendingSourceLoad");
+        return sourceLoad.runPendingSourceLoad(this.sourceHost(), id, options);
+    }
+
+    /**
+     * What the network-source code works through.
+     * @returns the ledger, the dispatcher and the events
+     */
+    private sourceHost(): SourceHost {
+        const { writes } = this;
+        return {
+            ledger: this.ledger,
+            dispatch: (command) =>
+                writes.send === undefined
+                    ? Promise.reject(
+                          new GraphtyError({
+                              code: "E_INTERNAL",
+                              source: "data",
+                              message: "This session cannot dispatch a source command.",
+                          }),
+                      )
+                    : writes.send(command),
+            emit: (event, detail) => writes.emit?.(event, detail),
+        };
     }
 
     /**

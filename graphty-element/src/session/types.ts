@@ -14,6 +14,7 @@
  */
 
 import type { DerivedGraph, GraphSnapshot, NodeId } from "@graphty/graph-format";
+import type { SourceListing, SourceListQuery, SourceProbe } from "@graphty/graph-io";
 import type { z } from "zod/v4";
 
 import type {
@@ -70,6 +71,17 @@ import type { ScopeApi } from "./scope/index";
 import type { SelectionApi, SelectionDelta, SelectionOwner, SelectionTarget, SelectionTextMode } from "./selection";
 import type { SetChange, SetsApi } from "./sets/types";
 import type { CodedFact, ColumnRef, ProgressChange, ResultRef } from "./shared";
+import type {
+    CollapseResult,
+    ExpandOptions,
+    PendingSourceLoad,
+    SourceExpanded,
+    SourceExpandFailed,
+    SourceExpandStart,
+    SourceInput,
+    SourceLoadOptions,
+    SourceLoadRecord,
+} from "./sources/types";
 import type { ElementPaint, SessionStylesApi, StyleChange, StylesApi } from "./styles";
 import type { SessionVisibilityApi, VisibilityApi, VisibilityChange } from "./visibility";
 
@@ -974,7 +986,65 @@ export interface SessionDataApi {
      * @returns Settles once the last chunk is in the graph; rejects, recording nothing, when the
      *     load fails.
      */
-    import(source: DataSourceInput, options?: LoadChoices): Promise<void>;
+    import(source: DataSourceInput, options?: LoadChoices & SourceLoadOptions): Promise<void>;
+    /**
+     * Check a network source's params and credential without loading anything. Experimental.
+     * @param source - The source id and its params.
+     * @param options - The credential and the endpoint.
+     * @returns What the service said; rejects with the source's code.
+     */
+    testSource(source: SourceInput, options?: SourceLoadOptions): Promise<SourceProbe>;
+    /**
+     * Search what a network source holds (the networks of a repository, ...). Experimental.
+     * @param source - The source id and the params narrowing the search.
+     * @param query - The search text, cursor and page size.
+     * @param options - The credential and the endpoint.
+     * @returns One page of neutral rows.
+     */
+    listSource(
+        source: SourceInput,
+        query?: Omit<SourceListQuery<Record<string, unknown>>, "params">,
+        options?: SourceLoadOptions,
+    ): Promise<SourceListing>;
+    /**
+     * Fetch the neighborhood of nodes from the source that loaded them and merge it, as one
+     * undoable step. A node not loaded from a source rejects with `E_SOURCE_UNSUPPORTED`. Experimental.
+     * @param ids - The seed nodes.
+     * @param options - Depth, direction, limit and the credential.
+     * @returns Settles once the neighborhood is in the graph.
+     */
+    expand(ids: readonly NodeId[], options?: ExpandOptions): Promise<void>;
+    /**
+     * Remove what a node's expansions alone brought, as one undoable step. Experimental.
+     * @param id - The node.
+     * @returns What was removed and what was kept.
+     */
+    collapse(id: NodeId): Promise<CollapseResult>;
+    /**
+     * Load the next page after a capped load from a source. Experimental.
+     * @param options - The load options.
+     * @returns Settles once the page is in the graph.
+     */
+    more(options?: SourceLoadOptions): Promise<void>;
+    /**
+     * The loads from network sources this graph holds, in order: what a refresh needs, never a
+     * secret. Experimental.
+     * @returns The records.
+     */
+    loads(): readonly SourceLoadRecord[];
+    /**
+     * The source loads an opened project holds but has not run: nothing fetches by itself.
+     * Experimental.
+     * @returns One entry per waiting load.
+     */
+    pendingSourceLoads(): readonly PendingSourceLoad[];
+    /**
+     * Run one waiting source load of an opened project, read-only. Experimental.
+     * @param id - The load's key, from `pendingSourceLoads()`.
+     * @param options - The credential.
+     * @returns Settles once it is loaded.
+     */
+    runPendingSourceLoad(id: string, options?: SourceLoadOptions): Promise<void>;
     /**
      * Read a source once and hold its rows, so its tables, columns and the counts a load would
      * produce can be read, and the column roles changed, before anything is added to the graph.
@@ -1201,6 +1271,11 @@ export interface LoadChoices extends ImportOptions {
 export interface DataSourceInput {
     /** The data source's name; detected from the file name, the URL or the content when absent. */
     readonly type?: string;
+    /**
+     * A network source's id (`listSources()` from `./extend` names them), in place of `type`:
+     * `config` then holds the source's params. Experimental.
+     */
+    readonly source?: string;
     /** Its options. */
     readonly config: Readonly<Record<string, unknown>>;
     /**
@@ -1436,6 +1511,15 @@ export interface SessionEventMap {
      * with no view publishes too. See {@link ProgressChange}.
      */
     "progress:changed": ProgressChange;
+    /** An expansion from a network source began. Mirrored as `graphty-source-expand-start`. Experimental. */
+    "source:expand-start": SourceExpandStart;
+    /**
+     * An expansion finished: code `I_SOURCE_EXPANDED`, params `{ seeds, added, partial }`.
+     * Mirrored as `graphty-source-expanded`. Experimental.
+     */
+    "source:expanded": SourceExpanded;
+    /** An expansion failed: the source's code and params. Mirrored as `graphty-source-expand-failed`. Experimental. */
+    "source:expand-failed": SourceExpandFailed;
     /**
      * The project's name or whether it has unsaved changes (`session.project.name`, `.dirty`)
      * changed. Mirrored on the element as `graphty-project-status`.

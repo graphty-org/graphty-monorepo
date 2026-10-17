@@ -111,6 +111,7 @@ const Y3 = "yFiles for HTML API docs,";
 const GEPHI = "gephi master 92e503df61a7";
 const VIS = "vis-network 10.1.2 vis-network.esm.js";
 const SIGMA = "sigma 3.0.3 packages/sigma/src";
+const SIGMA4 = "sigma 4.0.1 dist/types-d8ce3382.esm.js";
 const PAJEK = "Pajek 6.02 reference manual";
 const OGDF = "ogdf master 1a40505ac006";
 const NX = "networkx 6da4704cbf32 networkx/drawing/nx_pylab.py line";
@@ -353,8 +354,8 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 roundedCornerRadius: cornerCap("gephi"),
                 node: {
                     fill: v("#000000", "gephi/graphstore a4c790b2343e NodeImpl.java line 322"),
-                    width: v(10, `${GEPHI} AbstractProcessor.java lines 195-198`),
-                    height: v(10, `${GEPHI} AbstractProcessor.java lines 195-198`),
+                    width: v(20, `${GEPHI} AbstractProcessor.java lines 195-198 (size 10 is a radius)`),
+                    height: v(20, `${GEPHI} AbstractProcessor.java lines 195-198 (size 10 is a radius)`),
                     shape: v("ellipse", "GEXF 1.3 viz shape default disc; Preview NodeRenderer"),
                     labelPosition: v(
                         "center",
@@ -414,14 +415,14 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
             },
             {
                 tool: "sigma",
-                version: "sigma 3.0.3",
+                version: "sigma 4.0.1",
                 units: "relative",
                 roundedCornerRadius: cornerCap("sigma"),
                 node: {
-                    fill: v("#999999", `${SIGMA}/settings.ts lines 119-126`),
+                    fill: v("#666666", `${SIGMA4} DEFAULT_NODE_DISPLAY_DATA (color "#666")`),
                     shape: v("ellipse", `${SIGMA}/settings.ts lines 119-126`),
-                    width: v(4, `${SIGMA}/sigma.ts line 76 (size 2 is a radius)`),
-                    height: v(4, `${SIGMA}/sigma.ts line 76 (size 2 is a radius)`),
+                    width: v(20, `${SIGMA4} DEFAULT_NODE_DISPLAY_DATA (size 10 is a radius)`),
+                    height: v(20, `${SIGMA4} DEFAULT_NODE_DISPLAY_DATA (size 10 is a radius)`),
                     labelColor: v("#000000", `${SIGMA}/settings.ts lines 119-126`),
                     labelFont: v("Arial", `${SIGMA}/settings.ts lines 119-126`),
                     labelSize: v(14, `${SIGMA}/settings.ts lines 119-126`),

@@ -250,7 +250,9 @@ function readVizColor(viz: VizRead, color: string, i: number): void {
 }
 
 /**
- * Reads one element's viz size (a node's width and height) or thickness (an edge's width).
+ * Reads one element's viz size (a node's width and height) or thickness (an edge's width). A node's
+ * size is a radius, as Gephi and sigma draw it (Gephi's preview: a circle of radius 0.92 x size plus
+ * a 0.16 x size outline, an outer diameter of 2 x size), so its width and height are twice it.
  * @param viz - the target's reading
  * @param size - the viz size or thickness column
  * @param i - the element
@@ -258,9 +260,11 @@ function readVizColor(viz: VizRead, color: string, i: number): void {
 function readVizSize(viz: VizRead, size: string, i: number): void {
     const v = canonNumber(plainCell(viz.table.value(size, i)), viz.site(i, "width"));
     if (v !== null) {
-        viz.column("width")[i] = v;
         if (viz.target === "node") {
-            viz.column("height")[i] = v;
+            viz.column("width")[i] = 2 * v;
+            viz.column("height")[i] = 2 * v;
+        } else {
+            viz.column("width")[i] = v;
         }
     }
 }
@@ -559,7 +563,7 @@ export function gexfStyledExport(
             const s = nodeShapes[i];
             return (
                 colorElement(fill[i], fillOpacity[i], indent) +
-                (size === null ? "" : `${indent}<viz:size value="${String(size)}"/>\n`) +
+                (size === null ? "" : `${indent}<viz:size value="${String(size / 2)}"/>\n`) +
                 shapeElement(s, s === "image" ? String(image[i]) : null, indent)
             );
         },

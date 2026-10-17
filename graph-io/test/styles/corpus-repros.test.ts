@@ -124,11 +124,11 @@ describe("sigma's node size", () => {
         edges: [{ source: "a", target: "b", attributes: { size: 3 } }],
     });
 
-    it("is a radius: a node is twice its size across, and sigma's default size 2 is 4 across", async () => {
+    it("is a radius: a node is twice its size across, and sigma 4's default size 10 is 20 across", async () => {
         const r = await load(doc, "json");
         expect(r.styles?.styles.source.tool).toBe("sigma");
-        expect(planned(r, "node", "width")).toEqual([10, 4]);
-        expect(planned(r, "node", "height")).toEqual([10, 4]);
+        expect(planned(r, "node", "width")).toEqual([10, 20]);
+        expect(planned(r, "node", "height")).toEqual([10, 20]);
         // an edge's size is its thickness
         expect(planned(r, "edge", "width")).toEqual([3]);
     });

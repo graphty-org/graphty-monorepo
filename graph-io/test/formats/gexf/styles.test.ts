@@ -65,14 +65,14 @@ describe("GEXF styles: reading", () => {
         expect(snapshot.nodes.value("disclass", i)).toBe("Neurological");
     });
 
-    it("gives a GEXF without colors Gephi's defaults: black size-10 discs, the file's labels, arrows on directed edges", async () => {
+    it("gives a GEXF without colors Gephi's defaults: black discs of size 10 (20 across), the file's labels, arrows on directed edges", async () => {
         const { snapshot, styles } = await load(
             `<gexf version="1.3"><graph defaultedgetype="directed"><nodes><node id="a" label="A"/><node id="b"/></nodes>
             <edges><edge source="a" target="b"/></edges></graph></gexf>`,
         );
         expect(styles.styles.source).toEqual({ format: "gexf", dialect: "gexf", tool: "gephi" });
         expect(resolveStyles(styles, "node", "fill", snapshot)).toEqual(["#000000", "#000000"]);
-        expect(resolveStyles(styles, "node", "width", snapshot)).toEqual([10, 10]);
+        expect(resolveStyles(styles, "node", "width", snapshot)).toEqual([20, 20]);
         expect(resolveStyles(styles, "node", "shape", snapshot)).toEqual(["ellipse", "ellipse"]);
         expect(resolveStyles(styles, "node", "label", snapshot)).toEqual(["A", null]);
         expect(resolveStyles(styles, "edge", "targetArrow", snapshot)).toEqual(["triangle"]);
@@ -147,7 +147,7 @@ describe("GEXF styles: reading", () => {
         );
         expect(resolveStyles(styles, "node", "fill", snapshot)).toEqual(["#ff0000", "#00ff00", "#0000ff", "#010203"]);
         expect(resolveStyles(styles, "node", "fillOpacity", snapshot)).toEqual([0.5, null, 0.501961, null]);
-        expect(resolveStyles(styles, "node", "width", snapshot)[0]).toBe(4);
+        expect(resolveStyles(styles, "node", "width", snapshot)[0]).toBe(8); // viz:size is a radius
         expect(resolveStyles(styles, "node", "shape", snapshot)[0]).toBe("rectangle");
         expect(resolveStyles(styles, "edge", "width", snapshot)).toEqual([3]);
         expect(resolveStyles(styles, "edge", "lineStyle", snapshot)).toEqual(["dashed"]);
@@ -277,7 +277,7 @@ describe("GEXF styles: writing", () => {
         ]);
         const text = await registry.exportGraphToString(snapshot, "gexf", { styles });
         expect(text).toContain('<viz:color r="18" g="52" b="86"/>');
-        expect(text).toContain('<viz:size value="20"/>');
+        expect(text).toContain('<viz:size value="10"/>'); // a radius: 20 across
         const back = await load(text);
         // the block keeps the exact values the viz module approximates
         expect(resolveStyles(back.styles, "node", "shape", back.snapshot)).toEqual(["hexagon", "ellipse"]);

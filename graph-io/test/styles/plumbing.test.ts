@@ -255,7 +255,7 @@ describe("the generic reader of style roles", () => {
         ];
         expect(node("fill")).toEqual(["#ff0000", "#0000ff"]);
         expect(node("fillOpacity")).toEqual([0.5, null]);
-        expect(node("width")).toEqual([3, 3]);
+        expect(node("width")).toEqual([6, 6]); // viz:size is a radius
         expect(node("shape")).toEqual(["rectangle", "ellipse"]);
         expect(resolveStyles(styles, "edge", "width", result.snapshot)).toEqual([2]);
         expect(resolveStyles(styles, "edge", "lineStyle", result.snapshot)).toEqual(["dashed"]);

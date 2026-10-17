@@ -252,7 +252,7 @@ const LIVE_RULE =
  * one finds the prompt cache expired and re-reads the whole context, so a sleep or until loop, or a
  * check repeated turn after turn, pays for the whole context at every check.
  */
-export const WAIT_RULE =
+const WAIT_RULE =
     "Never wait in a model turn: no sleep or until loop, and no re-checking a push, a test run or CI turn after turn. Each turn more than five minutes after the last re-reads this whole conversation, because its prompt cache has expired. " +
     "Start a long step as one background command (run_in_background) and end your turn: its exit notice wakes you. Declare a wait with githerd_wait and end your turn: githerd rings you when it settles. " +
     'One long wait costs one re-read; many short ones cost one each. If a background command must loop, loop inside it on a PID (while kill -0 $PID) or a push\'s line in tmp/push-log.jsonl, never on pgrep -f "<text>", which matches the loop itself. Stop your own background shells before you hand back.';

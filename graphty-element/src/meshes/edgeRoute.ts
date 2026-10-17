@@ -132,8 +132,32 @@ export function surfaceReach(dir: Xyz, half: Xyz, radius: number | null): number
     return Number.isFinite(reach) ? reach : 0;
 }
 
-/** How many points a fanned edge's arc and a self-loop's teardrop are drawn with. */
+/** How many pieces a self-loop's teardrop, and the most a fanned edge's arc, is drawn with. */
 const BUNDLE_STEPS = 24;
+
+/**
+ * The most a fanned arc turns per piece, on average: 7.5 degrees, 48 pieces to a full circle, the
+ * resolution a circle is commonly drawn at. Every piece is one instance the line shader draws, so
+ * an arc drawn with a fixed 24 pieces multiplied a bundled edge's cost by 24 whatever it bent: a
+ * benchmark of 1000 edges between 20 nodes (bundles of about five) drew 23,600 pieces where it
+ * had drawn 1000 straight lines, and fell from 55 frames a second to 5 on a software rasterizer.
+ * At this resolution a piece's middle strays from the true curve by under 2% of its length.
+ */
+const ARC_TURN_PER_PIECE = Math.PI / 24;
+
+/**
+ * How many pieces a fanned edge's arc is drawn with: enough that no piece turns more, on average,
+ * than {@link ARC_TURN_PER_PIECE}, and at least two, so the arc's bowed middle is one of its points.
+ * @param chord - The distance from the arc's start to its end.
+ * @param offset - How far the arc's middle bows from that line.
+ * @returns The piece count, 2 to {@link BUNDLE_STEPS}.
+ */
+export function fanArcPieces(chord: number, offset: number): number {
+    // A quadratic curve's tangents at its ends point at its control point, which sits twice the
+    // bow from the chord's middle, so each end turns atan(4 * bow / chord) off the chord.
+    const turn = 2 * Math.atan2(4 * Math.abs(offset), chord);
+    return Math.min(BUNDLE_STEPS, Math.max(2, Math.ceil(turn / ARC_TURN_PER_PIECE - 1e-9)));
+}
 
 /**
  * How far one fanned edge sits from the next at its middle, in node radii (the larger endpoint's).
@@ -175,7 +199,7 @@ export function fanOffset(rank: number, count: number, radius: number, distance:
  * @param left - The bundle's first edge's source center.
  * @param right - Its target center.
  * @param offset - How far the middle bows, from {@link fanOffset}.
- * @returns The points, flat x, y, z, from `src` to `dst`.
+ * @returns The points, flat x, y, z, from `src` to `dst`: {@link fanArcPieces} pieces.
  */
 export function fanArc(src: Xyz, dst: Xyz, left: Xyz, right: Xyz, offset: number): number[] {
     const dx = right.x - left.x;
@@ -185,9 +209,10 @@ export function fanArc(src: Xyz, dst: Xyz, left: Xyz, right: Xyz, offset: number
     const cx = (src.x + dst.x) / 2 - (dy / length) * offset * 2;
     const cy = (src.y + dst.y) / 2 + (dx / length) * offset * 2;
     const cz = (src.z + dst.z) / 2;
+    const pieces = fanArcPieces(Math.hypot(dst.x - src.x, dst.y - src.y, dst.z - src.z), offset);
     const out: number[] = [];
-    for (let i = 0; i <= BUNDLE_STEPS; i++) {
-        const t = i / BUNDLE_STEPS;
+    for (let i = 0; i <= pieces; i++) {
+        const t = i / pieces;
         const a = (1 - t) * (1 - t);
         const b = 2 * (1 - t) * t;
         const c = t * t;

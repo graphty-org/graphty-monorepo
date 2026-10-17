@@ -5,7 +5,7 @@
  */
 import { assert, describe, it } from "vitest";
 
-import { bendPoints, parseBends, roundCorners, surfaceReach } from "../../src/meshes/edgeRoute";
+import { bendPoints, fanArc, fanArcPieces, parseBends, roundCorners, surfaceReach } from "../../src/meshes/edgeRoute";
 
 const at = (x: number, y: number, z = 0): { x: number; y: number; z: number } => ({ x, y, z });
 
@@ -53,5 +53,25 @@ describe("edge route geometry", () => {
         assert.strictEqual(surfaceReach(at(1, 0), at(9, 9, 9), 2), 2);
         assert.strictEqual(surfaceReach(at(0, -1), at(3, 1, 1), null), 1);
         assert.closeTo(surfaceReach(at(Math.SQRT1_2, Math.SQRT1_2), at(1, 2, 1), null), Math.SQRT2, 1e-12);
+    });
+
+    it("draws a fanned arc with as many pieces as it bends, 7.5 degrees a piece", () => {
+        // a quarter turn: each end 45 degrees off the chord, so the bow is a quarter of the chord
+        assert.strictEqual(fanArcPieces(8, 2), 12);
+        // shallower arcs take fewer pieces, the shallowest two so the bowed middle is a point
+        assert.strictEqual(fanArcPieces(30, 2), 4);
+        assert.strictEqual(fanArcPieces(1000, 0.01), 2);
+        // a bow far wider than its chord turns almost a half turn, and takes at most 24
+        assert.strictEqual(fanArcPieces(1, 10), 24);
+        assert.strictEqual(fanArcPieces(1, 1000), 24);
+        // the sign of the bow is the side, not the bend
+        assert.strictEqual(fanArcPieces(30, -2), fanArcPieces(30, 2));
+
+        const arc = fanArc(at(0, 0), at(30, 0), at(0, 0), at(30, 0), 2);
+        assert.strictEqual(arc.length, 3 * (4 + 1));
+        // it still starts and ends on the centers and bows to the middle
+        assert.deepEqual(arc.slice(0, 3), [0, 0, 0]);
+        assert.deepEqual(arc.slice(-3), [30, 0, 0]);
+        assert.closeTo(arc[3 * 2 + 1], 2, 1e-9);
     });
 });

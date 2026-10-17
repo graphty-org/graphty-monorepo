@@ -153,8 +153,8 @@ describe("node extents", () => {
     }
 
     for (const shape of NodeShapes.options) {
-        test(`${shape} at one size covers the same extent across the view as every other shape`, () => {
-            const { x, y, centre } = extentOf(build({ type: shape, size: 2 }));
+        test(`${shape} at one size covers the same extent across the view as every other shape, under uniform`, () => {
+            const { x, y, centre } = extentOf(build({ type: shape, size: 2, sizeMode: "uniform" }));
 
             assert.approximately(Math.max(x, y), 2 * NODE_EXTENT_PER_SIZE, 1e-6);
             centre.forEach((value) => {
@@ -162,6 +162,12 @@ describe("node extents", () => {
             });
         });
     }
+
+    test("the default sizeMode keeps each solid's own proportions, as before", () => {
+        assert.approximately(extentOf(build({ type: "sphere", size: 2 })).x, 2, 1e-6);
+        assert.approximately(extentOf(build({ type: "box", size: 2 })).x, 2, 1e-6);
+        assert.approximately(extentOf(build({ type: "cylinder", size: 1 })).y, 1.618, 1e-3);
+    });
 
     test("the default shape is drawn exactly as before", () => {
         const { x, y, z } = extentOf(build({ type: "icosphere", size: 1 }));
@@ -290,7 +296,9 @@ describe("node borders", () => {
             assert.isNotNull(border);
             const { extendSize } = border.sourceMesh.getBoundingInfo().boundingBox;
 
-            assert.approximately(extendSize.x * 2, (1 + 0.4) * NODE_EXTENT_PER_SIZE, 0.02);
+            const across = fill.getBoundingInfo().boundingBox.extendSize.x * 2;
+
+            assert.approximately(extendSize.x * 2, across + 0.4 * NODE_EXTENT_PER_SIZE, 0.02);
             assert.isFalse(border.isPickable);
         });
     }

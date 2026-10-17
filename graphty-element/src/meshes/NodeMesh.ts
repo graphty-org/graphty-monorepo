@@ -36,9 +36,10 @@ interface NodeMeshCreateOptions {
 }
 
 /**
- * How far across the view a node of size 1 is drawn, whatever its shape: the default icosphere's
- * diameter, so a graph drawn in the default shape looks exactly as it always has. Width, height,
- * depth and a border's width are in the same units, so a node 4 wide is as wide as a node of size 4.
+ * How far across the view a fitted node of size 1 is drawn (`NodeMesh.isFitted`: any node under
+ * `sizeMode: "uniform"`, and under the default "scale" a flat shape, or one with a width, height,
+ * depth or `planar`): the default icosphere's diameter. Width, height, depth and a border's width are in the same units, so a node
+ * 4 wide is as wide as a node of size 4.
  */
 export const NODE_EXTENT_PER_SIZE = 1.5;
 
@@ -352,6 +353,10 @@ export class NodeMesh {
         const size = Math.max(createOptions.shape.size ?? options.size, MIN_NODE_SIZE);
         const extents = this.extentsOf(createOptions.shape, size);
         const mesh = creator(size, scene);
+        if (!this.isFitted(createOptions.shape)) {
+            return mesh;
+        }
+
         fitNodeMesh(mesh, extents);
         if (createOptions.shape.sizeMode === "diameter" && !this.hasExplicitExtent(createOptions.shape)) {
             NodeMesh.scaleToExtent(mesh, size);
@@ -383,13 +388,36 @@ export class NodeMesh {
 
     /**
      * How many world units one unit of size, width, height, depth or border width is drawn at:
-     * the common node extent under the default `sizeMode`, one unit under "diameter".
+     * the common node extent under "scale" and "uniform", one unit under "diameter".
      * @param shape - The node's shape block, or none.
      * @returns World units per unit of size.
      * @internal
      */
     static extentPerSize(shape: NodeStyleConfig["shape"]): number {
         return shape?.sizeMode === "diameter" ? 1 : NODE_EXTENT_PER_SIZE;
+    }
+
+    /**
+     * Whether a solid node's mesh is fitted to its extents. Under the default `sizeMode: "scale"`,
+     * a node that names no width, height or depth and is not `planar` keeps its shape's own
+     * proportions at `size` (a sphere and a box of size 1 are 1 across, the default icosphere 1.5),
+     * as it always has; `sizeMode: "diameter"` and `"uniform"` draw every shape at one extent instead.
+     * @param shape - The node's shape block, or none.
+     * @returns True when the mesh is scaled to the node's extents.
+     * @internal
+     */
+    static isFitted(shape: NodeStyleConfig["shape"]): boolean {
+        if (shape === undefined) {
+            return false;
+        }
+
+        return (
+            shape.sizeMode === "diameter" ||
+            shape.sizeMode === "uniform" ||
+            shape.planar === true ||
+            isFlatShape(shape.type ?? "") ||
+            this.hasExplicitExtent(shape)
+        );
     }
 
     /**

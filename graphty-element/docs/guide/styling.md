@@ -188,8 +188,8 @@ A channel is one visual property with one name. These are all of them:
 | Node channel        | Takes                                                                      |
 | ------------------- | -------------------------------------------------------------------------- |
 | `node.color`        | any CSS colour                                                             |
-| `node.size`         | 0 or more; every shape at one size is the same width across the view       |
-| `node.sizeMode`     | `scale` (the default) or `diameter`: what `node.size` measures             |
+| `node.size`         | 0 or more; what it measures is `node.sizeMode`'s                           |
+| `node.sizeMode`     | `scale` (the default), `diameter` or `uniform`: what `node.size` measures  |
 | `node.shape`        | `sphere`, `box`, `icosphere`, ..., or a flat `rectangle`, `ellipse`, ...   |
 | `node.width`        | 0 or more: the width, in the units of `node.size`                          |
 | `node.height`       | 0 or more: the height, in the units of `node.size`                         |
@@ -345,20 +345,49 @@ on every node, gives up instancing for the glowing nodes.
 
 ### What a node's size measures
 
-`node.sizeMode` says how `node.size` is read. With `scale`, the default, every shape at one size is
-drawn the same width across the view: 1.5 units per unit of size, the default icosphere's
-diameter. With `diameter`, the size is the largest width, height or depth of the drawn shape, 1
-unit per unit of size: a size-1 octahedron is 1 unit across, like a size-1 sphere. `node.width`,
-`node.height`, `node.depth` and `node.borderWidth` are read in the same units as `node.size`.
+`node.sizeMode` says how `node.size` is read: `scale`, `diameter` or `uniform`. With `scale`, the default, the size multiplies each
+shape's own geometry, so shapes of one size are drawn at different extents. With `diameter`, the
+size is the largest width, height or depth of the drawn shape, the same for every shape: a size-1
+octahedron is as wide as a size-1 sphere.
 
 ```typescript
 await element.session.styles.add({
-    name: "Size is the diameter",
+    name: "Same extent for every shape",
     target: "node",
     selector: { match: "everything" },
     set: { "node.sizeMode": "diameter" },
 });
 ```
+
+A node that sets `node.width`, `node.height`, `node.depth` or `node.planar`, and every flat shape
+(`rectangle`, `round-rectangle`, `ellipse`, ...), is drawn at the common node extent instead: 1.5
+units across per unit, the default icosphere's diameter. `node.width`, `node.height`, `node.depth`
+and `node.borderWidth` are read in the same units as `node.size`. With `uniform`, every node is
+drawn that way, so every shape of one size is the same width across the view. Styles read from
+another program's file set `uniform`, so a file's ellipse and diamond of one size are drawn the
+same width.
+
+Under `scale`, any other node's largest extent is its size times:
+
+| Shape                                                    | Factor |
+| -------------------------------------------------------- | ------ |
+| `sphere`, `box`, `capsule`                               | 1      |
+| `torus-knot`                                             | 1.25   |
+| `goldberg`, `icosphere`, `torus`                         | 1.5    |
+| `square_pyramid`                                         | 1.51   |
+| `cylinder`, `cone`                                       | 1.62   |
+| `geodesic`                                               | 1.7    |
+| `triangular_dipyramid`, `elongated_pentagonal_dipyramid` | 1.96   |
+| `pentagonal_pyramid`                                     | 2.01   |
+| `pentagonal_dipyramid`                                   | 2.06   |
+| `elongated_pentagonal_cupola`                            | 2.07   |
+| `dodecahedron`, `rhombicuboctahedron`                    | 2.14   |
+| `pentagonal_prism`                                       | 2.16   |
+| `hexagonal_prism`                                        | 2.24   |
+| `triangular_prism`                                       | 2.29   |
+| `icosahedron`                                            | 2.35   |
+| `elongated_square_dipyramid`                             | 2.43   |
+| `tetrahedron`, `octahedron`                              | 2.83   |
 
 ### Drawing a style editor
 

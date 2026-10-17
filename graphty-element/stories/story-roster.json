@@ -210,7 +210,6 @@
         "Styles/Node::Flat",
         "Styles/Node::Label",
         "Styles/Node::Opacity",
-        "Styles/Node::PlanarShapes",
         "Styles/Node::Shape",
         "Styles/Node::ShapesIn2D",
         "Styles/Node::Size",

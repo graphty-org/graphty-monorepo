@@ -21,6 +21,7 @@ export {
 export { CompactColorInput } from "./components/CompactColorInput";
 export { ControlGroup } from "./components/ControlGroup";
 export { ControlSection } from "./components/ControlSection";
+// eslint-disable-next-line @typescript-eslint/no-deprecated -- still exported, so consumers keep working until the next major removes it
 export { ControlSubGroup } from "./components/ControlSubGroup";
 export { DataTable } from "./components/DataTable";
 export { GradientEditor } from "./components/GradientEditor";

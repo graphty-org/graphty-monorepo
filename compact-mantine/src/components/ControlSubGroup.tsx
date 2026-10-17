@@ -56,6 +56,10 @@ export interface ControlSubGroupProps extends DisclosureProps {
  * @param props.onOpenChange - Called when it opens or closes, with the new state first and the event second
  * @param props.children - The controls the sub-group holds
  * @returns The sub-group, its header and its controls
+ * @deprecated Nothing in graphty uses it any more, and a fold inside a panel is not how Figma
+ * keeps rare settings out of the way. Use an `AdvancedButton` that opens a `Popout` holding the
+ * rare settings, or a second `ControlSection` when they belong on the panel. It will be removed
+ * in the next major release of compact-mantine.
  * @example
  * ```tsx
  * <ControlSection label="Labels">

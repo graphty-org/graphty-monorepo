@@ -707,6 +707,25 @@ function DataTableInner<TRow extends object>(
     const isSelectable = selectionMode !== "none";
     const allRows = windowRowCount ?? data.length;
     const shownText = labels.rowsShown(numberFormatter.format(rowCount), numberFormatter.format(allRows));
+    const statusText =
+        isSelectable && selection.length > 0
+            ? `${shownText} ${labels.rowsSelected(numberFormatter.format(selection.length))}`
+            : shownText;
+    // The status line is on the page, empty, from the first render, and is written only when
+    // the count or the selection changes after it: a region that arrives already holding its
+    // words is not read by many screen readers, and a table opening is not news. An empty
+    // table (rows still on their way) says nothing.
+    const [spokenStatus, setSpokenStatus] = useState("");
+    const lastStatus = useRef(statusText);
+    useEffect(() => {
+        if (statusText === lastStatus.current) {
+            return;
+        }
+        lastStatus.current = statusText;
+        if (allRows > 0) {
+            setSpokenStatus(statusText);
+        }
+    }, [statusText, allRows]);
 
     /**
      * What to draw in place of the rows when there are none.
@@ -783,10 +802,7 @@ function DataTableInner<TRow extends object>(
                 rows there are, a selection made with the keyboard -- is said
                 out loud rather than only drawn. */}
             <VisuallyHidden role="status" aria-live="polite" dir="auto" data-testid="data-table-status">
-                {shownText}
-                {isSelectable && selection.length > 0
-                    ? ` ${labels.rowsSelected(numberFormatter.format(selection.length))}`
-                    : ""}
+                {spokenStatus}
             </VisuallyHidden>
 
             <Box ref={scrollRef} data-testid="data-table-viewport" className="cm-dt-viewport" style={{ height }}>

@@ -420,10 +420,7 @@ describe("the combined Style panel", () => {
             .map((item) => item.textContent ?? "");
         assert.match(lines[0], /^Group 1: Group 1, \d+$/, "the first line is the tree's first layer");
         // The open cards say the union, as the closed row does.
-        assert.match(
-            within(region).getByRole("status").textContent ?? "",
-            new RegExp(`^${String(layers.length)} layers, 77 of 77 nodes$`),
-        );
+        assert.isNotNull(within(region).getByText(new RegExp(`^${String(layers.length)} layers, 77 of 77 nodes$`)));
 
         const steps = session.history.position;
         const card = await addCard("name");

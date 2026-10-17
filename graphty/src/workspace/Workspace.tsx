@@ -1,5 +1,6 @@
 import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import type { GraphSession } from "@graphty/graphty-element/session";
+import { VisuallyHidden } from "@mantine/core";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { createRegistry, type WorkspaceRegistration } from "./commands/registry";
@@ -93,6 +94,8 @@ export function Workspace({
             });
     }, [element, store, startProjectId]);
     const projectOpen = useStoreValue(store, (state) => state.project !== null);
+    const announcement = useStoreValue(store, (state) => state.announcement);
+    const announced = useStoreValue(store, (state) => state.announced);
     // Focus after the control that held it goes away. The project the workspace started with (a
     // story's, a test's) is left alone; every project opened since (a sample, a file, a recent
     // project, New project) hands focus to the rail button of the open place as its element
@@ -124,6 +127,13 @@ export function Workspace({
             <SettingsDialog />
             <ReportDialog />
             <ProjectDialogs />
+            {/* The one status line, outside the start screen, the frame and every surface the Data
+                page hides, so it is on the page, empty, before anything is written to it and a
+                message is spoken once, politely, as it happens. Each write puts in a new text node,
+                so the same words written again are spoken again. */}
+            <VisuallyHidden role="status" aria-live="polite">
+                <span key={announced}>{announcement}</span>
+            </VisuallyHidden>
         </WorkspaceContext.Provider>
     );
 }

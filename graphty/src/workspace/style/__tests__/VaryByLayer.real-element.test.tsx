@@ -627,7 +627,12 @@ describe("vary by layer", () => {
                 assert.isTrue(binding !== undefined && "by" in binding, "each layer holds its own copy");
             }
         });
-        await within(await line("node.color")).findByRole("status");
+        const atNodeColor = await line("node.color");
+        await waitFor(() => {
+            const found = atNodeColor.querySelector<HTMLElement>("[data-receipt]");
+            assert.isNotNull(found, "the receipt is drawn");
+            return found;
+        });
         await userEvent.keyboard("{Control>}z{/Control}");
         await waitFor(() => {
             assert.deepEqual(written(session, groups, "node.color"), before, "one undo restores every layer");
@@ -901,7 +906,12 @@ describe("several layers holding different values", () => {
                 assert.isUndefined(session.styles.get(id)?.set?.["node.color"]);
             }
         });
-        const receipt = await within(await line("node.color")).findByRole("status");
+        const atNodeColor = await line("node.color");
+        const receipt = await waitFor(() => {
+            const found = atNodeColor.querySelector<HTMLElement>("[data-receipt]");
+            assert.isNotNull(found, "the receipt is drawn");
+            return found;
+        });
         assert.match(receipt.textContent ?? "", /: 2 changed/);
     });
 });

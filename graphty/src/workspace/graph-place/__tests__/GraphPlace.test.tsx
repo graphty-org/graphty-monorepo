@@ -306,10 +306,16 @@ describe("the Graph place", () => {
         assert.equal((box as HTMLInputElement).value, "jav");
     });
 
-    it("says No match for what was typed", async () => {
-        renderPlace(await sessionWithGraph());
+    it("says No match for what was typed, from the status line, not a region that arrives with it", async () => {
+        const store = renderPlace(await sessionWithGraph());
         await userEvent.type(screen.getByRole("combobox", { name: "Find" }), "zzz");
-        assert.isNotNull(await screen.findByText('No match for "zzz"'));
+        const line = await screen.findByText('No match for "zzz"');
+        // The line under the box arrives with its words, so it is not a live region; the
+        // workspace's status line, on the page from the start, speaks them.
+        assert.isNull(line.closest("[role=status], [role=alert], [aria-live]"));
+        await waitFor(() => {
+            assert.equal(store.get().announcement, 'No match for "zzz"');
+        });
     });
 
     it("answers a condition typed without = with the rule as the option Enter picks, and a name with an example", async () => {

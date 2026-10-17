@@ -3,7 +3,7 @@ import type { ChannelDescriptor } from "@graphty/graphty-element/catalog";
 import type { Channel, ChannelValue, LayerId } from "@graphty/graphty-element/schema";
 import type { GraphSession, Layer, LayerGroup, LegendBlock } from "@graphty/graphty-element/session";
 import { ActionIcon, Button, Text, TextInput, Tooltip, VisuallyHidden } from "@mantine/core";
-import React, { useId, useLayoutEffect, useRef, useState } from "react";
+import React, { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
 import { factSentence, paintWords, swatchName } from "../canvas/legendWords";
 import { GLYPHS } from "../glyphs";
@@ -215,16 +215,27 @@ function Receipt({
         `${String(receipt.changed)} changed`,
         ...(receipt.unset.length === 0 ? [] : [`${String(receipt.unset.length)} left unset`]),
         ...(receipt.locked === 0 ? [] : [`${String(receipt.locked)} locked skipped`]),
+    const covers =
+        everything.length === 0
+            ? null
+            : `${namesWords(everything)} ${everything.length === 1 ? "covers" : "cover"} every ${ctx.side === "node" ? "node" : "edge"}: setting ${name.toLowerCase()} there paints over all the others`;
+    // Each write's receipt is spoken once by the status line already on the page, its words only:
+    // the receipt arrives with them, and its buttons are not part of the sentence.
+    const spoken = covers === null ? `${name}: ${words}` : `${name}: ${words}. ${covers}`;
+    useEffect(() => {
+        // Once per write: a new receipt is a new write, even with the same words.
+        store.set({ announcement: spoken });
+    }, [receipt, spoken, store]);
     ].join(", ");
     const everything = receipt.everything ?? [];
     return (
-        <div className="ws-bulk-receipt" role="status" data-receipt={channel}>
+        <div className="ws-bulk-receipt" data-receipt={channel}>
             <Text className="ws-bulk-words">
                 {name}: {words}
             </Text>
-            {everything.length === 0 ? null : (
+            {covers === null ? null : (
                 <Text className="ws-bulk-words" data-covers-everything>
-                    {`${namesWords(everything)} ${everything.length === 1 ? "covers" : "cover"} every ${ctx.side === "node" ? "node" : "edge"}: setting ${name.toLowerCase()} there paints over all the others`}
+                    {covers}
                 </Text>
             )}
             {receipt.unset.length > 0 && (

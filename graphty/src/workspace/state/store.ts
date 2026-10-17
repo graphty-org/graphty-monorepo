@@ -211,7 +211,17 @@ export function createWorkspaceStore(initial: Partial<WorkspaceState> = {}): Wor
     return {
         get: () => state,
         set: (change) => {
-            const fields = typeof change === "function" ? change(state) : change;
+            const given = typeof change === "function" ? change(state) : change;
+            // A notice that is not a failure is spoken once, politely, by the status line (its
+            // toast is not an alert); a failure's toast is its own alert. A write that says its
+            // own words keeps them.
+            const fields =
+                given.notice !== undefined &&
+                given.notice !== null &&
+                given.notice.error !== true &&
+                !("announcement" in given)
+                    ? { ...given, announcement: given.notice.message }
+                    : given;
             state = {
                 ...state,
                 ...fields,

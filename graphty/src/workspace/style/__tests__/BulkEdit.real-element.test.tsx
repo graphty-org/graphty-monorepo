@@ -144,7 +144,11 @@ describe("bulk editing a folder", () => {
         });
         assert.equal(colorOf(session, groups[0]), before.get(groups[0]), "the locked layer is skipped");
         assert.isUndefined(colorOf(session, sized), "a layer that sets no color is left unset");
-        const receipt = await within(fill).findByRole("status");
+        const receipt = await waitFor(() => {
+            const found = fill.querySelector<HTMLElement>("[data-receipt]");
+            assert.isNotNull(found, "the receipt is drawn");
+            return found;
+        });
         assert.match(
             receipt.textContent ?? "",
             new RegExp(`${String(groups.length - 1)} changed, 1 left unset, 1 locked skipped`),

@@ -15,6 +15,8 @@ import { Workspace } from "../../Workspace";
 import { NOTICE_MS } from "../NoticeSlot";
 
 const OPEN: Partial<WorkspaceState> = { project: { name: "Les Miserables", id: 1 } };
+/** A notice's words on screen, not the status line that speaks them. */
+const TOAST = { selector: ".cm-toast-message" };
 
 /**
  * Renders the workspace.
@@ -359,20 +361,20 @@ describe("the workspace frame", () => {
         act(() => {
             store.set({ notice: { message: "Deleted Louvain and 6 groups." } });
         });
-        assert.isNotNull(screen.getByText("Deleted Louvain and 6 groups."));
+        assert.isNotNull(screen.getByText("Deleted Louvain and 6 groups.", TOAST));
         act(() => {
             store.set({ notice: { message: "Saved Les Miserables" } });
         });
-        assert.isNull(screen.queryByText("Deleted Louvain and 6 groups."));
+        assert.isNull(screen.queryByText("Deleted Louvain and 6 groups.", TOAST));
 
         act(() => {
             vi.advanceTimersByTime(NOTICE_MS - 1);
         });
-        assert.isNotNull(screen.getByText("Saved Les Miserables"));
+        assert.isNotNull(screen.getByText("Saved Les Miserables", TOAST));
         act(() => {
             vi.advanceTimersByTime(1);
         });
-        assert.isNull(screen.queryByText("Saved Les Miserables"));
+        assert.isNull(screen.queryByText("Saved Les Miserables", TOAST));
     });
 
     it("keeps an error notice until it is dismissed, and any notice while focus is on it", () => {
@@ -387,7 +389,7 @@ describe("the workspace frame", () => {
         act(() => {
             vi.advanceTimersByTime(NOTICE_MS * 10);
         });
-        assert.isNotNull(screen.getByText("cut-55 could not be opened."));
+        assert.isNotNull(screen.getByText("cut-55 could not be opened.", TOAST));
 
         act(() => {
             store.set({ notice: { message: "Saved Les Miserables" } });
@@ -398,14 +400,14 @@ describe("the workspace frame", () => {
         act(() => {
             vi.advanceTimersByTime(NOTICE_MS * 2);
         });
-        assert.isNotNull(screen.getByText("Saved Les Miserables"));
+        assert.isNotNull(screen.getByText("Saved Les Miserables", TOAST));
         act(() => {
             screen.getByRole("button", { name: "Dismiss" }).blur();
         });
         act(() => {
             vi.advanceTimersByTime(NOTICE_MS);
         });
-        assert.isNull(screen.queryByText("Saved Les Miserables"));
+        assert.isNull(screen.queryByText("Saved Les Miserables", TOAST));
     });
 
     it("runs a notice's one action and takes the notice down", async () => {

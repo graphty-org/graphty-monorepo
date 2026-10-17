@@ -12,6 +12,7 @@ import { ActionIcon, Button, Checkbox, Group, Stack, Text, TextInput, Tooltip } 
 import React, { useEffect, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
+import { useAnnounceChange } from "../state/useAnnounceChange";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { LabelSettings, type VaryField } from "./LabelSettings";
 import { Field, type RowContext, VarySlot } from "./PropertyRow";
@@ -167,6 +168,15 @@ export function LabelSection({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.
     const { session, side: target } = ctx;
     const kinds = TEXT_KINDS[target];
     const kindWord = target === "node" ? "Node" : "Edge";
+    // The label count is said when it changes (a label added, Show all labels); not the count the
+    // section opens with, nor "0 labels" while a graph is still loading.
+    const labelCounts =
+        target === "node" && lineIn(ctx, "node.label") !== undefined && element !== null
+            ? element.nodeLabelCounts
+            : null;
+    useAnnounceChange(
+        labelCounts === null || labelCounts.labeled === 0 ? null : labelStatement(labelCounts, !allLabelsShown),
+    );
     const hasEntry = (kind: TextKindSpec): boolean =>
         lineIn(ctx, kind.words) !== undefined || lineIn(ctx, kind.style) !== undefined;
     const fail = (error: unknown): void => {
@@ -350,7 +360,7 @@ export function LabelSection({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.
                 })}
                 {target === "node" && lineIn(ctx, "node.label") !== undefined && element !== null ? (
                     <Group gap={8} wrap="nowrap">
-                        <Text size="xs" c="dimmed" aria-live="polite">
+                        <Text size="xs" c="dimmed">
                             {labelStatement(element.nodeLabelCounts, !allLabelsShown)}
                         </Text>
                         <Checkbox

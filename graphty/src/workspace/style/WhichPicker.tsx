@@ -20,6 +20,7 @@ import { GLYPHS } from "../glyphs";
 import { findTreeRow } from "../graph-place/rows";
 import { useAsyncValue } from "../inspector/hooks";
 import { isPanelEscape } from "../keys/keys";
+import { useAnnounceChange } from "../state/useAnnounceChange";
 import { useWorkspace } from "../state/WorkspaceContext";
 import {
     type Card,
@@ -582,6 +583,9 @@ function Cards({
     let why: string | undefined;
     if (matched === 0 && list.length > 0) {
         why = list.length === 1 ? `${cardName(list[0].card)} leaves none` : "Each card leaves some; together none";
+    // A card that changes the count says so; the count the picker opens with is not news, nor is
+    // a count still being worked out ("of 24", "2 layers").
+    useAnnounceChange(/\d of \d/.test(head) ? head : null);
     }
     const standsAlone = list.some((each) => each.card.type === "fixed" && each.card.leaf === null);
 
@@ -605,7 +609,7 @@ function Cards({
                 <Text size="xs" fw={600}>
                     Which {NOUN[side].many}
                 </Text>
-                <Text size="xs" c="dimmed" ml="auto" role="status" aria-live="polite">
+                <Text size="xs" c="dimmed" ml="auto">
                     {head}
                 </Text>
             </Group>

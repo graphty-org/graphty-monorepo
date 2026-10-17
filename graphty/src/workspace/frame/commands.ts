@@ -51,8 +51,8 @@ export const registration = defineRegistration({
                 // Undo names the step it took back (tier2-design.md section 1).
                 const message = session === null ? null : await undoOrRedo(session, true);
                 if (message !== null) {
-                    // The status line speaks it every time; a notice mounted fresh is not always spoken.
-                    workspace.set({ notice: { message }, announcement: message });
+                    // The notice is spoken once, by the status line.
+                    workspace.set({ notice: { message } });
                 }
             },
         },
@@ -66,8 +66,8 @@ export const registration = defineRegistration({
             run: async ({ session, workspace }) => {
                 const message = session === null ? null : await undoOrRedo(session, false);
                 if (message !== null) {
-                    // The status line speaks it every time; a notice mounted fresh is not always spoken.
-                    workspace.set({ notice: { message }, announcement: message });
+                    // The notice is spoken once, by the status line.
+                    workspace.set({ notice: { message } });
                 }
             },
         },

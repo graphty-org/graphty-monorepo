@@ -196,12 +196,32 @@ describe("DataTable structure", () => {
         expect(rowNamed("Whiskers")).toHaveStyle({ height: "20px" });
     });
 
-    it("says what it is announcing out loud as well as drawing it", () => {
-        renderTable(<DataTable columns={COLUMNS} data={CATS} />);
+    it("keeps an empty status line from the start and speaks a count only when it changes", () => {
+        const { rerender } = renderTable(<DataTable columns={COLUMNS} data={[]} />);
 
+        // A region that arrives holding words is not read by many screen readers, and an empty
+        // table (rows on their way) is not worth saying.
         const status = screen.getByTestId("data-table-status");
         expect(status).toHaveAttribute("aria-live", "polite");
-        expect(status).toHaveTextContent("4 of 4 rows");
+        expect(status).toHaveTextContent(/^$/);
+
+        rerender(
+            <MantineProvider theme={compactTheme}>
+                <DataTable
+                    columns={COLUMNS}
+                    data={CATS}
+                    labels={{ rowsShown: (shown, all) => `first ${shown} of ${all}` }}
+                />
+            </MantineProvider>,
+        );
+        expect(screen.getByTestId("data-table-status")).toBe(status);
+        expect(status).toHaveTextContent("first 4 of 4");
+    });
+
+    it("does not speak the count a table opens with", () => {
+        renderTable(<DataTable columns={COLUMNS} data={CATS} />);
+
+        expect(screen.getByTestId("data-table-status")).toHaveTextContent(/^$/);
     });
 });
 

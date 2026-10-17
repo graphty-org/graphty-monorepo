@@ -318,7 +318,11 @@ export const BulkReceipt: Story = sceneStory(async () => {
     await userEvent.click(within(fill).getByRole("button", { name: /^Give all \d+ layers one node color$/ }));
     await userEvent.click(await within(fill).findByRole("textbox", { name: /^Node color/ }));
     await userEvent.keyboard("0072B2{Enter}");
-    await within(fill).findByRole("status");
+    await waitFor(() => {
+        const found = fill.querySelector<HTMLElement>("[data-receipt]");
+        expect(found).not.toBeNull();
+        return found as HTMLElement;
+    });
 });
 
 /** Fill > Change source > the run's group on Leiden's folder: the binding popover one layer gets for that value, held until it closes and copies the rule into each layer. */

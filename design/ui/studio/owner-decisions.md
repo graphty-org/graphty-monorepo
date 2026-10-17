@@ -4,6 +4,38 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-17 -- Decided by the team: a toast its caller speaks, and a table that speaks only a changed count (compact-mantine)
+
+Additive: **`Toast` `alert`** (optional boolean, default `true`). With `false` the message is
+not its own `role="alert"`; the caller speaks it through a status line already on the page. Left
+out, a toast is an alert as before. The graphty app passes `false` for every notice that is not a
+failure and writes the words into its one polite status line, so a notice such as an undo is said
+once, politely, not as an alert and a status both; a failure stays an alert.
+
+Behavior, not API: `DataTable`'s hidden status line is on the page empty from the first render and
+is written only when the row count or the selection changes after it, never while the table holds
+no rows. Before, it arrived holding "4 of 4 rows", which many screen readers never read, and a
+table opening (or filling as its rows arrived) said "0 of 0 rows" first. The visible count, the
+`labels.rowsShown` wording and every prop are unchanged.
+
+## 2026-10-17 -- Decided by the team: a chip's color in words, Reset off at the default, a space before a tooltip's key (compact-mantine)
+
+Additive: **`CompactColorInput` `valueText`** (optional string). In the chip form, the words a
+screen reader hears for the color in force, in place of its state and hex: the chip is named
+"<name> color, <valueText>". Without it the chip is named as before ("Group 1 color, not set,
+#3388FF"). The graphty app passes a color's name ("teal") for a group's color in a binding's group
+list, where the color is the value itself and "not set, #009E73" told the reader nothing.
+
+Behavior, not API: `StyleSelect` and `StyleNumberInput` keep drawing Reset once a value is set,
+but it is disabled while the value set equals `defaultValue`, since pressing it would change
+nothing a reader can see. Its name, callback and when it is drawn are unchanged. `TipLabel` puts a
+real space between a tooltip's name and its key, so its text reads "Table Shift+T" and not
+"TableShift+T"; the gap stays about 12px (8px margin after the space).
+
+Not added: `aria-expanded` on a `QuickActions` option. ARIA gives a list option no expanded state
+(the lint rule `jsx-a11y/role-supports-aria-props` refuses it), so the app's folded row "5 values"
+says its state in its name instead ("5 values, hidden" / "5 values, shown").
+
 ## 2026-10-17 -- Decided by the team: a color box says why it refused an entry (compact-mantine)
 
 Additive, in compact-mantine's labels (`CompactMantineLabels`, which a consumer overrides in part):

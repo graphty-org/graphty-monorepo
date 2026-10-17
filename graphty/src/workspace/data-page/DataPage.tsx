@@ -35,6 +35,7 @@ import { meaningGloss, weightName } from "../analyze/words";
 import { missingNodes, NO_NODE_ROW, noNodeRow } from "../data-place/words";
 import { focusIsLost } from "../frame/focus";
 import { GLYPHS } from "../glyphs";
+import { useAnnounceChange } from "../state/useAnnounceChange";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import {
     elementRole,
@@ -151,6 +152,9 @@ function DataPageView({ onRestart }: { readonly onRestart: () => void }): React.
         request.files !== undefined && request.files.length > 0 ? { kind: "files", files: request.files } : null,
     );
     const page = useLoadDraft(session, request.intent === "add" ? "merge" : "replace", initial, request.choices);
+    // A read the reader starts on the open page (another file, a file setting) is said; the read
+    // the page opens on is not, and its rows are said by the grid once they arrive.
+    useAnnounceChange(page.reading && page.source !== null ? `Reading ${sourceName(page.source)}` : null);
     const fileInput = useRef<HTMLInputElement>(null);
     // The door that opened the page (New from data... on the start screen) goes with the start
     // screen; focus goes to the page's first ask, "choose a file...", or its first control.
@@ -728,7 +732,7 @@ function MainView({
     }
     if (page.reading) {
         return (
-            <Group gap="xs" p="md" role="status">
+            <Group gap="xs" p="md">
                 <Loader size="xs" />
                 {/* No running row count until prepare() reports progress (#910). */}
                 <Text size="sm">Reading {sourceName(source)}</Text>
@@ -1167,6 +1171,9 @@ function SampleGrid({ page, table }: PartProps & { table: DraftTable }): React.J
                 label={`Rows of ${table.name}`}
                 columns={columns}
                 data={rows}
+                // The grid says the count it is given when its rows change; a preview of the first
+                // rows says so, as its caption does, never "50 of 50 rows" for a 331-row table.
+                labels={page.filter === "all" ? { rowsShown: () => caption } : undefined}
                 // Each row and the header is one pitch plus the table's 1px grid line, plus the
                 // table's 1px padding.
                 height={(PANEL_GRID.ROW_PITCH + 1) * (Math.max(rows.length, 1) + 1) + 1}

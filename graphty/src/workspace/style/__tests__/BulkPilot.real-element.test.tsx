@@ -368,7 +368,11 @@ describe("bulk editing a run's folder of group layers, after the first pilot", (
                 assert.equal(session.styles.get(each.id)?.set?.["node.color"], "#0000FF", each.name);
             }
         });
-        const receipt = await within(fill).findByRole("status");
+        const receipt = await waitFor(() => {
+            const found = fill.querySelector<HTMLElement>("[data-receipt]");
+            assert.isNotNull(found, "the receipt is drawn");
+            return found;
+        });
         assert.match(
             within(receipt).getByText(/covers every node/).textContent ?? "",
             /^Top 10 labels covers every node/,
@@ -399,7 +403,12 @@ describe("bulk editing a run's folder of group layers, after the first pilot", (
             const binding = session.styles.get(labels.id)?.encode?.["node.shape"];
             assert.isTrue(binding !== undefined && "by" in binding, "Top 10 labels holds its own copy");
         });
-        const shapeReceipt = await within(await line("node.shape")).findByRole("status");
+        const atNodeShape = await line("node.shape");
+        const shapeReceipt = await waitFor(() => {
+            const found = atNodeShape.querySelector<HTMLElement>("[data-receipt]");
+            assert.isNotNull(found, "the receipt is drawn");
+            return found;
+        });
         assert.notMatch(shapeReceipt.textContent ?? "", /more than one group/);
 
         // Another selection: the last one's receipt goes.

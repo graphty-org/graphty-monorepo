@@ -490,12 +490,16 @@ export function FindBox(): React.JSX.Element {
     const origin = session?.selection.origin;
     const ran = isRule && origin !== null && origin !== undefined && "text" in origin && origin.text === text;
     let emptyLine: React.ReactNode = `No match for "${text}"`;
+    // The line's words as a screen reader hears them: the status line speaks them, since the
+    // line arrives with its words.
+    let lineWords: string | null = `No match for "${text}"`;
     if (ran && session !== null) {
         const { nodes, edges } = session.selection;
-        emptyLine =
+        lineWords =
             nodes.length + edges.length === 0
                 ? "Nothing matches this rule"
                 : selectionWords(nodes.length, edges.length);
+        emptyLine = lineWords;
     } else if (isRule) {
         // The press-Enter hint is only for a rule the element accepts.
         const ruleLines = {
@@ -511,9 +515,16 @@ export function FindBox(): React.JSX.Element {
                 ),
         } as const;
         emptyLine = ruleCheck === null ? null : ruleLines[ruleCheck];
+        if (ruleCheck === null) {
+            lineWords = null;
+        } else {
+            lineWords =
+                ruleCheck === "ok" || session === null ? ruleLines.ok : `Type a rule, such as ${exampleRule(session)}`;
+        }
     } else if (typeof textAsRule === "string") {
         // The rule itself is the option under this line.
-        emptyLine = "Start with = to select by a value:";
+        lineWords = "Start with = to select by a value:";
+        emptyLine = lineWords;
     } else if (textAsRule === null && session !== null) {
         // Text that reads as no rule gets an example of one, on a line of its own.
         emptyLine = (
@@ -522,8 +533,10 @@ export function FindBox(): React.JSX.Element {
                 <span className="ws-find-example ws-mono">={exampleRule(session)}</span>
             </>
         );
+        lineWords = `${lineWords}. To select by a value, type a rule such as =${exampleRule(session)}`;
     } else if (found?.notSearchable === "regex") {
-        emptyLine = `Press Enter to select "${text}"`;
+        lineWords = `Press Enter to select "${text}"`;
+        emptyLine = lineWords;
     }
 
     const showLine =
@@ -531,6 +544,14 @@ export function FindBox(): React.JSX.Element {
         (options.length === 0 || isRule || ruleOption !== null) &&
         refusal === null &&
         emptyLine !== null;
+    const spokenLine = showLine ? lineWords : null;
+    useEffect(() => {
+        // Said to the reader in the box; a line that changes because something else changed (a
+        // selection cleared by Esc elsewhere) does not talk over that change's own message.
+        if (spokenLine !== null && spokenLine !== "" && document.activeElement?.id === FIND_BOX_ID) {
+            store.set({ announcement: spokenLine });
+        }
+    }, [spokenLine, store]);
 
     return (
         <div className="ws-find">
@@ -554,7 +575,7 @@ export function FindBox(): React.JSX.Element {
                 error={refusal?.words ?? null}
                 errorProps={{ className: "ws-find-refusal" }}
                 description={showLine ? emptyLine : undefined}
-                descriptionProps={{ role: "status", className: "ws-find-empty" }}
+                descriptionProps={{ className: "ws-find-empty" }}
                 inputWrapperOrder={["label", "input", "error", "description"]}
                 disabled={session === null}
             />

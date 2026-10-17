@@ -13,6 +13,22 @@ Summarized 2026-10-17 from 158 KB. The full earlier notes (every dated entry fro
 
 ## Top of mind
 
+0. (2026-10-17, spoken messages) Every app message is spoken from ONE polite status line that is
+   on the page, empty, before it is written: it now lives in `Workspace.tsx` (it was in `Frame`,
+   which the start screen does not mount). Rules, checked with real.mjs --sr on a fresh build
+   (`design/ui/studio/tmp/r1-dry1-spoken-messages/walk1`..`walk5`):
+    - Write with `store.set({ announcement })`. A notice that is not an error is spoken by the
+      store itself (`store.ts`), and its toast passes `alert={false}` (new compact-mantine `Toast`
+      prop); a failure's toast stays `role="alert"`. Never set both notice and announcement.
+    - A count shown with a control (picker head, label count) uses `useAnnounceChange(words |
+null)` (`state/useAnnounceChange.ts`): silent for the first words, speaks each change, null
+      for a loading or zero state.
+    - compact-mantine `DataTable`'s status line is empty at mount and speaks only a changed count
+      with rows; the read page passes `labels.rowsShown` = its caption ("The first 50 rows of 331").
+    - The find line speaks only while the find box has focus, or it talks over "Selection
+      cleared" when Esc elsewhere changes the selection.
+    - A receipt speaks "Shape: 6 changed" from an effect keyed on the receipt; its buttons are
+      outside the words.
 1. (2026-10-17, focus after adding, graphty + compact-mantine) One rule picks where focus goes in
    a line or card just drawn: `keystrokeTarget` in `style/useFocusLine.ts` -- its first box that
    takes typing (`input` not read-only, hidden, checkbox or radio), else its first control. Every
@@ -124,6 +140,11 @@ Summarized 2026-10-17 from 158 KB. The full earlier notes (every dated entry fro
 
 ## Decisions and reasons
 
+- (2026-10-17) **One status line, on the page before it speaks; a control's opening count is not
+  news; a zero or loading state is never said.** Evidence: the pilots' --sr transcripts marked
+  "Usage data stays off", "24 of 24", "0 of 0 rows", "No match" and the bulk receipt as arriving
+  filled, and the undo notice was said twice (alert + status). The shared table's status region
+  was fixed in compact-mantine, so every table gets it.
 - (2026-10-17) **After an add, focus goes where the next keystroke belongs**: a box that takes
   typing before a swatch or a menu. A select takes typing too (letters open it on the match), so
   no control a reader lands on ignores keys. A cleanup that hands focus on must check that focus
@@ -181,6 +202,12 @@ Summarized 2026-10-17 from 158 KB. The full earlier notes (every dated entry fro
 
 ## Tried: worked / did not work
 
+- (2026-10-17) WORKED: reaching a deep state for a --sr walk with a setup file of clicks (setup
+  clicks run even in screen-reader mode); `--key Escape` in a setup can close a form the pointer
+  walk needed open, so pilot the setup on a pointer session first.
+- (2026-10-17) Other agents in the worktree copy HEAD over shared files to prove their tests and
+  copy back: my edits vanished and came back mid-session. Re-check `git diff` on a shared file
+  right before each edit and before staging; stage hunks with `tmp/spoken-messages/hunks.py`.
 - (2026-10-17) DID NOT WORK: swapping HEAD copies over shared files (WhichPicker, PropertyRow) to
   prove a test fails: other agents' uncommitted hunks in those files ride along and could be lost
   if they edit during the run. Safe only for files no one else has touched (`git diff` first).

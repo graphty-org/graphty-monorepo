@@ -1,7 +1,7 @@
 /**
  * Canonical enumeration values: each dialect's spellings matched against an alias table without regard to case,
  * spaces or underscores. An unknown value of an open enumeration (shapes, border and line styles, arrows) is kept as
- * `other:<raw>` and noted; an unknown value of a closed one (weights, positions) gives no value and is noted.
+ * `other:<raw>` and noted; an unknown value of a closed one (weights, positions, label fits) gives no value and is noted.
  */
 
 import { STYLE_ISSUE } from "../codes.js";
@@ -12,7 +12,7 @@ import { type CanonSite, noteAt, scalarText } from "./site.js";
  * The enumerations a style value can belong to.
  * @category Styles
  */
-export type StyleEnumKind = "shape" | "borderStyle" | "lineStyle" | "arrow" | "weight" | "position";
+export type StyleEnumKind = "shape" | "borderStyle" | "lineStyle" | "arrow" | "weight" | "position" | "labelFit";
 
 type Aliases = Readonly<Record<string, readonly string[]>>;
 
@@ -137,6 +137,11 @@ const POSITIONS: Aliases = {
     "bottom-right": ["bottom-right", "south-east", "southeast"],
 };
 
+const LABEL_FITS: Aliases = {
+    inside: ["inside"],
+    bounds: ["bounds"],
+};
+
 /** vis-network draws these spellings differently from the common reading. */
 const VIS: Partial<Record<StyleEnumKind, Aliases>> = {
     shape: {
@@ -175,6 +180,7 @@ const COMMON: ReadonlyMap<StyleEnumKind, ReadonlyMap<string, string>> = new Map(
     ["arrow", lookup(ARROWS)],
     ["weight", lookup(WEIGHTS)],
     ["position", lookup(POSITIONS)],
+    ["labelFit", lookup(LABEL_FITS)],
 ]);
 
 const DIALECT: ReadonlyMap<string, ReadonlyMap<StyleEnumKind, ReadonlyMap<string, string>>> = new Map(

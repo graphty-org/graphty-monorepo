@@ -321,7 +321,15 @@ export function matches(where: Predicate, src: RefSource, i: number, depth = 0):
     return false;
 }
 
-const ENUM_KINDS: ReadonlySet<string> = new Set(["shape", "borderStyle", "lineStyle", "arrow", "weight", "position"]);
+const ENUM_KINDS: ReadonlySet<string> = new Set([
+    "shape",
+    "borderStyle",
+    "lineStyle",
+    "arrow",
+    "weight",
+    "position",
+    "labelFit",
+]);
 
 /**
  * How a passthrough reads a raw value as a property's canonical value (CSS spelling for colors).

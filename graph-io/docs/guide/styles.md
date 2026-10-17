@@ -56,7 +56,7 @@ if (styles) {
 { format: 'dot', dialect: 'graphviz', tool: 'graphviz' }
 node.tool (defaults, tool): fillOpacity, borderColor, borderWidth, shape, width, height, labelColor, labelSize, labelFont, labelPosition
 node.tool.name-label (passthrough, tool): label
-node.defaults (defaults, inferred): fillOpacity, shape
+node.defaults (defaults, inferred): fillOpacity, shape, labelFit, labelPaddingX, labelPaddingY
 node.by.team (mapping, inferred): fill
 edge.tool (defaults, tool): color, width, lineStyle, sourceArrow, targetArrow, arrowSize, labelColor, labelSize, labelFont
 {"fill":{"kind":"discrete","by":{"data":"team"},"table":[["red","#ff6347"],["blue","#87ceeb"]]}}
@@ -157,6 +157,10 @@ is kept as `other:<the file's spelling>` and noted.
 | `cornerRadius`     | yes   |       |       | a number                                                                                                                                                |
 | `labelSize`        | yes   | yes   |       | a number                                                                                                                                                |
 | `labelWrapWidth`   | yes   |       |       | a number                                                                                                                                                |
+| `labelFit`         | yes   |       |       | `inside`, `bounds`                                                                                                                                      |
+| `labelPaddingX`    | yes   |       |       | a number                                                                                                                                                |
+| `labelPaddingY`    | yes   |       |       | a number                                                                                                                                                |
+| `labelFitSquare`   | yes   |       |       | true or false                                                                                                                                           |
 | `shape`            | yes   |       |       | `ellipse`, `rectangle`, `round-rectangle`, `triangle`, `diamond`, `pentagon`, `hexagon`, `octagon`, `parallelogram`, `trapezoid`, `star`, `vee`, `none` |
 | `borderStyle`      | yes   |       |       | `solid`, `dashed`, `dotted`, `dash-dot`, `double`                                                                                                       |
 | `label`            | yes   | yes   |       | text                                                                                                                                                    |
@@ -462,9 +466,9 @@ if (styles) {
 <!-- generated:begin output:styles/save -->
 
 ```text
-csv { W_STYLE_NOT_WRITTEN: 22, W_STYLE_RULES_NOT_KEPT: 1 }
-gexf { W_STYLE_APPROXIMATED: 1, W_STYLE_NOT_WRITTEN: 13 }
-graphml { W_STYLE_NOT_WRITTEN: 1 }
+csv { W_STYLE_NOT_WRITTEN: 26, W_STYLE_RULES_NOT_KEPT: 1 }
+gexf { W_STYLE_APPROXIMATED: 1, W_STYLE_NOT_WRITTEN: 17 }
+graphml { W_STYLE_NOT_WRITTEN: 5 }
 { format: 'graphml', dialect: 'graphty', tool: 'graphty' }
 true
 [ 'E_STYLES_MISMATCH' ]

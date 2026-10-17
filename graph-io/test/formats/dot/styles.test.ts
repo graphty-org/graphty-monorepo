@@ -186,8 +186,25 @@ describe("DOT styles: Graphviz's rules", () => {
         ]);
         expect([w.get("c"), h.get("c")]).toEqual([144, 144]);
         expect([w.get("p"), h.get("p")]).toEqual([14.4, 14.4]);
-        const minimum = styles.styles.notes.find((n) => n.code === "W_STYLE_SIZE_MINIMUM");
-        expect(minimum?.elements).toEqual([snapshot.ids.indexOf("m")]);
+        const fit = byId(styles, snapshot, "labelFit");
+        expect(["fx", "e", "m", "c", "p"].map((id) => fit.get(id) ?? null)).toEqual([null, null, "inside", null, null]);
+    });
+
+    it("pads a growing node's label as Graphviz does: its margin, else 8 by 4 points, plus the line spacing", async () => {
+        const { snapshot, styles } = await load(String.raw`digraph {
+            a; b [label="one
+two", fontsize=20]; c [margin="0.5,0.25"]; d [margin=0.1]; p [shape=plain];
+        }`);
+        const x = byId(styles, snapshot, "labelPaddingX");
+        const y = byId(styles, snapshot, "labelPaddingY");
+        // the neutral box is one font size per line; Graphviz's lines are 1.2 font sizes
+        expect(["a", "b", "c", "d", "p"].map((id) => [x.get(id), y.get(id)])).toEqual([
+            [8, 5.4],
+            [8, 8],
+            [36, 19.4],
+            [7.2, 8.6],
+            [0, 1.4],
+        ]);
     });
 
     it("raises a negative pen width to 0, as Graphviz draws it, with a note", async () => {
@@ -213,8 +230,18 @@ describe("DOT styles: Graphviz's rules", () => {
             [0, 0],
             [0, 0],
         ]);
-        const minimum = styles.styles.notes.find((n) => n.code === "W_STYLE_SIZE_MINIMUM");
-        expect(minimum?.elements).toEqual(["c", "s", "r", "p"].map((id) => snapshot.ids.indexOf(id)));
+        const fit = byId(styles, snapshot, "labelFit");
+        expect(["c", "s", "r", "e", "o", "p", "q"].map((id) => fit.get(id) ?? null)).toEqual([
+            "inside",
+            "inside",
+            "inside",
+            null,
+            "inside",
+            "inside",
+            null,
+        ]);
+        const square = byId(styles, snapshot, "labelFitSquare");
+        expect(["c", "s", "r", "o"].map((id) => square.get(id) ?? false)).toEqual([true, true, true, false]);
     });
 
     it("draws arrows per dir and the graph's kind: a target arrow on directed edges by default", async () => {
@@ -551,7 +578,7 @@ const GRAPHVIZ = hasGraphviz();
 /**
  * Compares what graphty draws for a DOT file with what Graphviz draws, two-sided: a value the reader missed fails as
  * surely as a wrong one. Labels drawn from HTML or records, and nodes with an external label, are skipped (their
- * markup is not carried); a size noted as a minimum must be at most what Graphviz drew.
+ * markup is not carried); a size of a node that grows to fit its label must be at most what Graphviz drew.
  * @param ex - the styles graphty read
  * @param snapshot - the graph
  * @param gv - what Graphviz draws
@@ -566,7 +593,7 @@ function compareWithGraphviz(
 ): string[] {
     const out: string[] = [];
     const get = (property: string) => drawn(ex, snapshot, "node", property);
-    const [fill, fillOpacity, border, borderWidth, label, labelColor, shape, width, height, visible] = [
+    const [fill, fillOpacity, border, borderWidth, label, labelColor, shape, width, height, visible, labelFit] = [
         "fill",
         "fillOpacity",
         "borderColor",
@@ -577,6 +604,7 @@ function compareWithGraphviz(
         "width",
         "height",
         "visible",
+        "labelFit",
     ].map(get);
     const noted = (code: string, i: number): boolean =>
         ex.styles.notes.some(
@@ -631,7 +659,7 @@ function compareWithGraphviz(
         }
         // a size the file does not state is Graphviz's default minimum, which it grows to fit the label
         const stated = (name: string): boolean => snapshot.nodes.has(name) && snapshot.nodes.isSet(name, i);
-        const minimum = noted("W_STYLE_SIZE_MINIMUM", i);
+        const minimum = labelFit[i] === "inside";
         for (const [name, ourSize, gSize] of [
             ["width", width[i], g.width * 72],
             ["height", height[i], g.height * 72],

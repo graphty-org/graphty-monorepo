@@ -211,9 +211,10 @@ describe("JSON styles: reading", () => {
         expect(values(r, "node", "fill")).toEqual(["#ff0000", "#97c2fc", "#00ff00", "#97c2fc"]);
         // a text color's border is vis-network's darker shade of it
         expect(values(r, "node", "borderColor")).toEqual(["#cc0000", "#2b7ce9", "#2b7ce9", "#2b7ce9"]);
-        // vis-network draws `size` as a radius; the box, which vis-network sizes by its label, still takes the
-        // declared default until nodes sized by their label are read (#3167)
-        expect(values(r, "node", "width")).toEqual([20, 20, 20, 20]);
+        // vis-network draws `size` as a radius; the box, which vis-network sizes by its label, has no minimum and
+        // grows to its label plus the margin
+        expect(values(r, "node", "width")).toEqual([20, 20, 20, 0]);
+        expect(values(r, "node", "labelFit")).toEqual([null, null, null, "bounds"]);
         expect(values(r, "node", "shape")).toEqual(["ellipse", "ellipse", "ellipse", "round-rectangle"]);
         // vis-network draws a label below a dot and inside a box
         expect(values(r, "node", "labelPosition")).toEqual(["bottom", "bottom", "bottom", "center"]);
@@ -242,13 +243,44 @@ describe("JSON styles: reading", () => {
             options: { nodes: { shape: "dot" } },
         });
         // value runs 1..3; a and b take scaling.min 10 and max 30 (radii), c its own 0..100 at the middle
-        expect(values(r, "node", "width")).toEqual([20, 60, 100, 50, null]);
+        expect(values(r, "node", "width")).toEqual([20, 60, 100, 50, 0]);
         const back = await load(
             JSON.parse(
                 await registry.exportGraphToString(r.snapshot, "json", { styles: r.styles, dialect: "vis" }),
             ) as Record<string, unknown>,
         );
-        expect(values(back, "node", "width")).toEqual([20, 60, 100, 50, null]);
+        expect(values(back, "node", "width")).toEqual([20, 60, 100, 50, 0]);
+    });
+
+    it("grows vis.js nodes of the shapes sized by their label as each shape's resize does", async () => {
+        const r = await load({
+            nodes: [
+                { id: "box", shape: "box", label: "a" },
+                { id: "text", shape: "text", label: "a", margin: { top: 1, bottom: 3, left: 2, right: 4 } },
+                { id: "circle", shape: "circle", label: "a", margin: 8 },
+                { id: "database", shape: "database", label: "a" },
+                { id: "ellipse", label: "one\ntwo", font: { size: 10 } },
+                { id: "min", shape: "box", label: "a", widthConstraint: { minimum: 40 } },
+                { id: "dot", shape: "dot", label: "a" },
+            ],
+            edges: [{ from: "box", to: "dot" }],
+            options: { nodes: {} },
+        });
+        expect(values(r, "node", "labelFit")).toEqual([
+            "bounds",
+            "bounds",
+            "bounds",
+            "bounds",
+            "bounds",
+            "bounds",
+            null,
+        ]);
+        // the margin on each side; an ellipse adds half its label's height (two lines of 10) instead
+        expect(values(r, "node", "labelPaddingX")).toEqual([5, 3, 8, 5, 10, 5, null]);
+        expect(values(r, "node", "labelPaddingY")).toEqual([5, 2, 8, 5, 10, 5, null]);
+        expect(values(r, "node", "labelFitSquare")).toEqual([null, null, true, true, null, null, null]);
+        // widthConstraint.minimum is the label's least width, inside the margin
+        expect(values(r, "node", "width")).toEqual([0, 0, 0, 0, 0, 50, 50]);
     });
 
     it("gives NetworkX's node-link NetworkX's drawing defaults, and d3's bare shape none", async () => {

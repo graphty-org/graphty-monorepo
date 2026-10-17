@@ -557,6 +557,19 @@ const VIS_SIZED: ReadonlySet<string> = new Set([
     "icon",
 ]);
 
+/** vis-network's node shapes sized by their label, as the `labelFit` facts of each (vis-network 9.1.9 `resize`). */
+const VIS_LABEL_FIT: ReadonlyMap<string, { readonly square: boolean; readonly ellipse: boolean }> = new Map([
+    ["box", { square: false, ellipse: false }],
+    ["text", { square: false, ellipse: false }],
+    ["circle", { square: true, ellipse: false }],
+    ["database", { square: true, ellipse: false }],
+    ["ellipse", { square: false, ellipse: true }],
+]);
+
+/** vis-network's default `margin` and font size (vis-network.esm.js NodesHandler defaults). */
+const VIS_MARGIN = 5;
+const VIS_FONT_SIZE = 14;
+
 /**
  * vis-network's palette for a group the file does not define, in the order groups first appear (vis-network
  * 10.1.2, `Groups._defaultGroups`): border, background.
@@ -666,6 +679,9 @@ interface VisLayer {
     fontColor?: unknown;
     fontSize?: unknown;
     fontFace?: unknown;
+    margin?: unknown;
+    widthMin?: unknown;
+    heightMin?: unknown;
     width?: unknown;
     dashes?: unknown;
     arrows?: unknown;
@@ -729,6 +745,9 @@ function visNodeLayer(o: Record<string, unknown>, set: SetLayer): void {
     }
     set("borderWidth", o.borderWidth);
     set("opacity", o.opacity);
+    set("margin", o.margin);
+    set("widthMin", isJsonObject(o.widthConstraint) ? o.widthConstraint.minimum : o.widthConstraint);
+    set("heightMin", isJsonObject(o.heightConstraint) ? o.heightConstraint.minimum : o.heightConstraint);
 }
 
 /**
@@ -964,6 +983,8 @@ function visStyles(snapshot: GraphSnapshot, src: JsonStyleSource, context: Style
             const radius = visRadius(merged, range, site);
             row.width = 2 * radius;
             row.height = 2 * radius;
+        } else {
+            Object.assign(row, visLabelFit(merged, shape));
         }
         for (const [p, v] of Object.entries(row)) {
             node.put(p, i, v);
@@ -1010,6 +1031,48 @@ function visStyles(snapshot: GraphSnapshot, src: JsonStyleSource, context: Style
             edge: VIS_KEYS.edge.filter((x) => snapshot.edges.has(x)),
         },
     };
+}
+
+/**
+ * vis.js: how a node of a shape sized by its label grows to hold it (each shape's `resize`): its label's box, at
+ * least `widthConstraint.minimum` by `heightConstraint.minimum`, plus the `margin` on each side is the node's width
+ * and height; a circle and a database stay as wide as they are tall; an ellipse is the box's height taller and
+ * wider instead of the margin (`width + height` by twice the height).
+ * @param layer - the node's merged layer
+ * @param shape - its vis-network shape
+ * @returns the values, none for a shape not sized by its label
+ */
+function visLabelFit(layer: VisLayer, shape: string): Row {
+    const fit = VIS_LABEL_FIT.get(shape);
+    if (fit === undefined) {
+        return {};
+    }
+    const length = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : null);
+    const fontSize = length(layer.fontSize) ?? VIS_FONT_SIZE;
+    const lines = typeof layer.label === "string" ? Math.max(1, layer.label.split("\n").length) : 1;
+    const minW = length(layer.widthMin) ?? 0;
+    const minH = length(layer.heightMin) ?? 0;
+    let padX: number;
+    let padY: number;
+    if (fit.ellipse) {
+        padX = padY = Math.max(lines * fontSize, minH) / 2;
+    } else {
+        const m = layer.margin;
+        const side = (key: string): number => (isJsonObject(m) ? length(m[key]) : length(m)) ?? VIS_MARGIN;
+        padX = (side("left") + side("right")) / 2;
+        padY = (side("top") + side("bottom")) / 2;
+    }
+    const row: Row = {
+        labelFit: "bounds",
+        labelPaddingX: padX,
+        labelPaddingY: padY,
+        width: minW > 0 ? minW + 2 * padX : 0,
+        height: minH > 0 ? minH + 2 * padY : 0,
+    };
+    if (fit.square) {
+        row.labelFitSquare = true;
+    }
+    return row;
 }
 
 /** vis-network's default node size, a radius (`size: 25`, vis-network.esm.js NodesHandler defaults). */
@@ -1183,7 +1246,22 @@ function visEdges(
 
 /** The vis.js keys the reader reads, per target. */
 const VIS_KEYS: Readonly<Record<StyleTarget, readonly string[]>> = {
-    node: ["color", "shape", "size", "value", "scaling", "borderWidth", "opacity", "hidden", "label", "title", "font"],
+    node: [
+        "color",
+        "shape",
+        "size",
+        "value",
+        "scaling",
+        "borderWidth",
+        "opacity",
+        "hidden",
+        "label",
+        "title",
+        "font",
+        "margin",
+        "widthConstraint",
+        "heightConstraint",
+    ],
     edge: ["color", "width", "dashes", "arrows", "hidden", "label", "title", "font"],
 };
 
@@ -1322,10 +1400,28 @@ const visSize = (want: (p: string) => StyleValue | null): StyleValue | null => {
     return VIS_SIZED.has(shape) ? oneSize(want) : null;
 };
 
+/**
+ * What the reader reads back for a fact of a node the writer wrote in a shape vis-network sizes by its label: the
+ * shape's own growth, from the label and font size written.
+ * @param property - the fact
+ * @returns the reading back of the element's values
+ */
+const visFitBack =
+    (property: string) =>
+    (want: (p: string) => StyleValue | null): StyleValue | null => {
+        const s = want("shape");
+        const shape = typeof s === "string" ? visShape(s)[0] : "ellipse";
+        return visLabelFit({ fontSize: want("labelSize"), label: want("label") }, shape)[property] ?? null;
+    };
+
 const VIS_WRITTEN: Written = {
     node: {
-        width: visSize,
-        height: visSize,
+        width: (want) => visSize(want) ?? visFitBack("width")(want),
+        height: (want) => visSize(want) ?? visFitBack("height")(want),
+        labelFit: visFitBack("labelFit"),
+        labelPaddingX: visFitBack("labelPaddingX"),
+        labelPaddingY: visFitBack("labelPaddingY"),
+        labelFitSquare: visFitBack("labelFitSquare"),
         shape: (want) => {
             const s = want("shape");
             if (typeof s !== "string") {

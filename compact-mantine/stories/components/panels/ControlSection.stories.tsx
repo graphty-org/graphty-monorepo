@@ -30,7 +30,6 @@ import { StoryState, StoryStates } from "../../helpers/story-panel";
  * |---|---|
  * | **ControlSection** | A subject of the panel: two or more rows that share a name, which the reader may fold away, or a subject the app supports but the reader has not set up yet (`empty`). |
  * | **ControlGroup** | A named cluster of rows that never folds, inside a section or inside a pop-out. |
- * | **ControlSubGroup** | A quieter fold one level below a section, for settings most readers never open. Prefer an `AdvancedButton` in `actions` that opens a pop-out. |
  *
  * **A section always expands.** The chevron is drawn only where there is
  * something behind it, and in development a section given neither children nor

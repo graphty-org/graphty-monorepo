@@ -13,7 +13,33 @@ Summarized 2026-10-17 from 158 KB. The full earlier notes (every dated entry fro
 
 ## Top of mind
 
-1. (2026-10-17, color box, compact-mantine) Built and checked with real.mjs on a fresh build
+1. (2026-10-17, focus after adding, graphty + compact-mantine) One rule picks where focus goes in
+   a line or card just drawn: `keystrokeTarget` in `style/useFocusLine.ts` -- its first box that
+   takes typing (`input` not read-only, hidden, checkbox or radio), else its first control. Every
+   add path (section "+", folder "+", Edge tab, "One value for all", Undo) and new condition cards
+   (`WhichPicker` `Cards`) route through it. A read-only select's box is never `select()`ed.
+    - Width on a layer made from a selection lost focus to "Add to edge line": the selection
+      tab's row unmounted holding focus and `useFocusOnRemoval`'s rAF focused its section's "+"
+      because `!node.isConnected` was true, AFTER the new tab had focused its own Width box. Now
+      it acts only when focus fell to the page.
+    - compact-mantine `ensureListboxKeyboard`: a letter typed on a CLOSED select-only trigger
+      opens the list and types ahead (APG select-only combobox), as a bubble-phase listener that
+      skips a key a field already used (`defaultPrevented`, a row's "="). The walk waits for the
+      list to be drawn (rAF, 10-frame guard) and runs after Mantine's zero-delay index update.
+      A type-ahead run now also resets on another field (a run carried "g" across tests).
+    - Test: `style/__tests__/FocusAfterAdding.real-element.test.tsx`; compact-mantine
+      `StyleSelect.browser.test.tsx` "opens on a letter typed while closed". `BulkEdit` no longer
+      clicks the color box before typing (a click in a focused, selected box places the caret).
+    - Checked on a fresh build (`design/ui/studio/tmp/r1-dry1-focus-after-adding/`): walk1 (Width
+      on a find-made layer, Edge and Node Color typed "blue"/"orange" + Enter repaint, text card
+      "Mme" gives 6 of 77, Shape list opens on Enter with nothing selected), walk3 (bars' Shape
+      check by hand: "Box", Enter, Escape draws boxes). bars.mjs tier 3: text card and Color line
+      "written"; its Shape check never ran because an earlier move clicks "phone: match", a name
+      another agent's uncommitted WhichPicker edit removed.
+    - Pre-existing, not mine: compact-mantine `tests/figma/overlays.browser.test.tsx` two tooltip
+      tests fail with HEAD's listbox too; several style real-element tests fail on other agents'
+      uncommitted renames ("Find a value", vary button label, Which row label).
+2. (2026-10-17, color box, compact-mantine) Built and checked with real.mjs on a fresh build
    (`design/ui/studio/tmp/r1-dry1-color-box/walk1`, `walk2`):
     - Escape in every color text box reverts AND keeps focus, value selected
       (`revertOnEscape` in `components/color/escape.ts`; `flushSync(revert)` before `select()`, or
@@ -32,7 +58,7 @@ Summarized 2026-10-17 from 158 KB. The full earlier notes (every dated entry fro
       (hex); naming them in words would need a names list from the caller.
     - Pre-existing, not mine: `tests/figma/tree.browser.test.tsx` "toggles: 24px targets" fails
       on this branch (x 184, expected 188); nothing in the tree changed in this work.
-2. (2026-10-17, drawing and camera, commits ceeea1028 element, 6b160deb5 app) Built and checked
+3. (2026-10-17, drawing and camera, commits ceeea1028 element, 6b160deb5 app) Built and checked
    on a fresh build with real.mjs (`design/ui/studio/tmp/r1-dry1-drawing-and-camera/`):
     - Removing a channel repaints: `nodePaintOf` (StylePainter) gave `color: null` for "no layer
       paints a color" and `Node.applyInstanceColor` skipped the write, so the instance kept the
@@ -64,40 +90,44 @@ Summarized 2026-10-17 from 158 KB. The full earlier notes (every dated entry fro
       unit's) but nothing moved, with or without a selection. Do not guess a mechanism.
     - NOT built: a data-column binding (not a run, not Vary by Layer) with more groups than its
       palette still gets the element's default; the reader picks Kelly in the palette select.
-3. (2026-10-17) Opened projects lost their rows: anything keyed by a layer id that a document
+4. (2026-10-17) Opened projects lost their rows: anything keyed by a layer id that a document
    carries must be remapped on apply (`documentRowKeys`, commit 619ce32be).
-4. (2026-10-17) Combined Style panel (V7 tabs, condition cards, several layers) is built; files
+5. (2026-10-17) Combined Style panel (V7 tabs, condition cards, several layers) is built; files
    `style/cards.ts`, `style/WhichPicker.tsx`, `RowStyle` in `StylePanel.tsx`. A controlled text
    field never round-trips through the element; one undo step per open is
    `TransactionOptions.after`. Not built: number card histogram for a run field, "lowest N",
    dashed chips at rest.
-5. One BoundValue for one layer and for several layers (owner decision 2026-10-16); Layer is a
+6. One BoundValue for one layer and for several layers (owner decision 2026-10-16); Layer is a
    temporary value, a data field is copied as is. Vary by Layer uses the same group list as a
    data value (`GroupRows`, `styles.layerGroups`).
-6. Shared worktree: other agents commit beside me. Stage only my files; build commits from HEAD
+7. Shared worktree: other agents commit beside me. Stage only my files; build commits from HEAD
    plus my hunks when a file is shared; re-check `git diff` on a shared file right before
    committing. Never `git stash` (not even `list`) in this repo's agents.
-7. Prove a test fails without the change: copy the fixed file aside, `git show HEAD:<file>` over
+8. Prove a test fails without the change: copy the fixed file aside, `git show HEAD:<file>` over
    it, run the test, copy back. Check a "passes without the fix" test before trusting it (the
    histogram test passed on HEAD at 8 bins because 16/8 happened to be whole).
-8. graphty tests read compact-mantine from its `dist` and graphty-element from source; rebuild
+9. graphty tests read compact-mantine from its `dist` and graphty-element from source; rebuild
    the app (`pnpm exec nx run graphty:build`, Sentry vars unset) before a real.mjs walk; a
    session serves the dist it started on, so end and start again after a rebuild.
-9. API changes: additive ones go in `owner-decisions.md` under "decided by the team" with the
-   name and shape; a changed default or a renamed or removed member goes "for the owner". A new
-   Graph or element member needs `doors.ts` and `test/cost-coverage/method-classes.ts` lines,
-   `npm run api:report` after a build, and `jsx.ts` regenerated by the build.
-10. Element facts worth citing: layers paint one kind (a row is two parts); selectors everything,
+10. API changes: additive ones go in `owner-decisions.md` under "decided by the team" with the
+    name and shape; a changed default or a renamed or removed member goes "for the owner". A new
+    Graph or element member needs `doors.ts` and `test/cost-coverage/method-classes.ts` lines,
+    `npm run api:report` after a build, and `jsx.ts` regenerated by the build.
+11. Element facts worth citing: layers paint one kind (a row is two parts); selectors everything,
     expression, has, ids, top, member, rule, state; a user layer that sets nothing is refused
     (`E_BAD_LAYER`); Top N takes a tie group whole; `data.histogram` takes data columns only, a
     run field uses `run.result.histogram`.
-11. Study tool: `real.mjs --start <dir> empty|setup:<file>` through its own browser slot;
+12. Study tool: `real.mjs --start <dir> empty|setup:<file>` through its own browser slot;
     `--click "role=<role>:<name>"` for shared names; step N lands in screenshot N+1; `--end`
     always. Compare screenshots with PIL `ImageChops.difference(...).getbbox()` on the canvas
     crop (`(300,120,1195,835)` at 1440 x 900) before calling a drawing unchanged.
 
 ## Decisions and reasons
 
+- (2026-10-17) **After an add, focus goes where the next keystroke belongs**: a box that takes
+  typing before a swatch or a menu. A select takes typing too (letters open it on the match), so
+  no control a reader lands on ignores keys. A cleanup that hands focus on must check that focus
+  actually fell to the page, never that its own node is gone: a remounted tab may already hold it.
 - (2026-10-17) **Escape never drops focus to the page.** A text box reverts and stays focused,
   inside a pop-out or not; only an untouched box inside a pop-out lets Escape close the pop-out.
   Evidence: three pilots ended Escape on the page body and lost their place.
@@ -151,6 +181,13 @@ Summarized 2026-10-17 from 158 KB. The full earlier notes (every dated entry fro
 
 ## Tried: worked / did not work
 
+- (2026-10-17) DID NOT WORK: swapping HEAD copies over shared files (WhichPicker, PropertyRow) to
+  prove a test fails: other agents' uncommitted hunks in those files ride along and could be lost
+  if they edit during the run. Safe only for files no one else has touched (`git diff` first).
+- (2026-10-17) WORKED: a `focusin` listener logging a short stack per focus change found the
+  thief (`PropertyRow.tsx` rAF) in one run.
+- (2026-10-17) DID NOT WORK: walking a just-opened Mantine list in `setTimeout(0)` alone; a
+  type-ahead run kept across fields joined a previous test's "g" into "gpent".
 - (2026-10-17) DID NOT WORK: `setDraft(x); input.select()` in one handler: React redraws the
   controlled value after the select and the caret lands at the end. WORKED: `flushSync`.
 - (2026-10-17) WORKED: proving five new userEvent tests fail on HEAD by copying the old sources

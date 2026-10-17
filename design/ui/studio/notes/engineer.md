@@ -17,6 +17,32 @@ Summarized again 2026-10-17 (25.6 KB). The long entries for names and words, foc
 order, the number card, spoken messages, focus after adding, the color box and drawing and camera
 are in git: `git show afc2ee150:design/ui/studio/notes/engineer.md`.
 
+1. (2026-10-17, labels, graphty + compact-mantine; commit 611619ee7) Label row and settings.
+    - Label settings: "Size" (`sizePx`) beside "Size in", Line height on its own line. The size's
+      vary glyph binds the label's size channel (`vary("sizePx")` -> `kind.size`, as color and
+      background do); while that channel is written its Field replaces the style's.
+    - Typed words: line 1 is the source button "Fixed text"; the words get a "Text" line on the
+      field column (was a ~30 px box beside four buttons). The "by attribute" link button is gone:
+      the source button opens the list. Picking Fixed text on an existing entry opens the box a
+      frame later (`requestAnimationFrame(setTyping)`), since the closing pop-out's effect focuses
+      its trigger after the box's autoFocus and the blur closed the box.
+    - `useLabelColumn` measures only `.ws-field` labels; `.ws-text-kind` is `flex: 0 0 auto;
+min-width: var(--ws-label)` (a later `min-width: 0` overrode it once). Adding Label no longer
+      cuts "Icosphere".
+    - `ValuePicker`: `highlight` = the first `inUse` path the list holds (compact-mantine
+      `QuickActions.highlight`, additive); a `display: contents` wrapper closes on Tab (Popout hands
+      focus back to the trigger).
+    - compact-mantine `useEscapeKey`: Mantine's Tooltip (floating-ui `useDismiss`) stops Escape on
+      its trigger, even while compact-mantine holds the tip invisible. A capture listener marks an
+      Escape on a control with an open `role=tooltip` and, after dispatch (`setTimeout`), closes the
+      pop-out unless something `preventDefault`ed it. Escape in a field with typing still only
+      reverts and keeps focus (it was already right on this build).
+    - Tests: `Labels.real-element.test.tsx` "a label entry's size, keys, lists and widths" (5, all
+      fail on the old code); compact-mantine `PopoutEscapeTooltip.browser.test.tsx`,
+      `quick-actions-highlight.test.tsx`. Walks `design/ui/studio/tmp/r1-dry1-labels/walk1`, `walk2`.
+    - Not mine (fail with my ValuePicker at HEAD too): BindingPopover Louvain names, BulkPilot and
+      BulkVary colors, PopoversAndPickers "id", PropertyRows locked Tab; browser `coverage.test`
+      COLOR_BRANCHES and `words.test` "Node color by attribute".
 1. (2026-10-17, table, compact-mantine + graphty) The table reads whole and speaks its sort.
     - compact-mantine `DataTable`: `columnSizing: "content"` (default "fixed") sizes a column
       without a `width` to its header and widest held value (canvas `measureText` with the grid's
@@ -120,6 +146,25 @@ are in git: `git show afc2ee150:design/ui/studio/notes/engineer.md`.
    Control+Shift+Z while it holds typing since it was focused, Enter included; focus and Escape
    hand them back to the app (`trackPendingEdits` in `keys/keys.ts`). Clear selection is disabled
    "Nothing is selected" with an empty selection. Test `frame/__tests__/UndoHistory.real-element.test.tsx`.
+1. (2026-10-17, inspector targets, graphty + graphty-element) The inspector opens the right thing.
+    - "Why this look": each line opens the style tree row holding the layer that won (`rowOf` in
+      `inspector/WhyThisLook.tsx`: `findTreeRow(tree, layer.row ?? layerId)`), named with its
+      folders ("Louvain / Group 3"); only a layer the tree does not list falls back to its run's
+      row or a built-in row. So Everything, Selected and a run's group are links; lines are `li`
+      in a `ul`. The old link opened Louvain's run row, whose Style edits every group layer and
+      shows Group 1's color.
+    - `GroupStyle` (style/StylePanel.tsx): a run that paints each group as a layer (`groups: "layers"`) has no `encode` binding; the group's Style is its layer's panel (the
+      run-owned layer whose `categories` rule holds the group value).
+    - `isGone` in `Inspector.tsx`: an open run, group, layer, folder, rows or source the session no
+      longer holds resolves to the selection or the graph and clears `inspected` (no "Gone").
+    - New element event `canvas:element-click` (`{ node }` / `{ edge }`, ElementSession
+      `elementClick`, doors EVENTS; Graph forwards `node-click` and the edge pick). The inspector
+      closes an open row on it, so a click on the node already selected brings it back.
+    - Node header kind "Node, hidden by a filter" from `visibility.isVisible`; node and edge
+      Values list every column of the kind, an empty one "No value".
+    - Test `inspector/__tests__/InspectorTargets.real-element.test.tsx` (5); element
+      `test/interactions/real-input.test.ts` "a click on a node is published". T7/T8 in
+      `tasks.real-element.test.tsx` now expect the layer row from the link.
 1. (2026-10-17, condition lists) Add a condition (`AddCondition` in `WhichPicker.tsx`): typing
    makes the first match active (`selectFirstOption` in an effect on the typed text), the search
    is `role=combobox` with `aria-controls` (the Options' own `id`), `aria-activedescendant` (my
@@ -134,7 +179,7 @@ are in git: `git show afc2ee150:design/ui/studio/notes/engineer.md`.
    `holdsNodeIds` on `AttributeDescriptor` and `ReadableValue` (every node's value spells its
    id); `cardFields` drops such columns so "Node id" is listed once. Test
    `style/__tests__/ConditionLists.real-element.test.tsx`; element `readable-values.test.ts`.
-2. (2026-10-17, yes and no, graphty) A yes-or-no column reads one way everywhere. graphty-element
+1. (2026-10-17, yes and no, graphty) A yes-or-no column reads one way everywhere. graphty-element
    types it `AttributeDescriptor.type === "boolean"` (measurement stays "categorical"); the app
    reads that fact, never the values. One helper set in `inspector/words.ts`: `yesNoWord`,
    `valueWord(value, type?)` (a boolean, or "true"/"false" text of a boolean column, as Yes/No:
@@ -155,7 +200,7 @@ are in git: `git show afc2ee150:design/ui/studio/notes/engineer.md`.
       `pointer-events: none` -- the uncommitted compact-mantine `cm-pointer-still` rule in
       StyleSelect/inputs.css (a list opened under an unmoved pointer); userEvent clicks without
       moving first. Commit 660c58f96 took my three FindBox lines before `valueWord` existed.
-3. (2026-10-17, find box; commits 4736d4836 element, 81b72a941 compact-mantine, 660c58f96 app,
+1. (2026-10-17, find box; commits 4736d4836 element, 81b72a941 compact-mantine, 660c58f96 app,
    ef95e565f placement fix) Checked on a fresh build (`design/ui/studio/tmp/r1-dry1-find-box/`
    walk1 Les Mis, walk2 sources.graphml, walk3 lesmis-poster; test
    `graph-place/__tests__/FindBox.real-element.test.tsx`, element `test/session/rule-check.test.ts`):
@@ -174,44 +219,44 @@ are in git: `git show afc2ee150:design/ui/studio/notes/engineer.md`.
       clear button clears on Escape. Mod+F on `find.focus`, which also selects the box's text.
     - For the owner: a bare name reading a run's field (breaking), and comparisons by default.
     - Not mine: ConditionCards "Style edges, on in 0 of" fails on another agent's KindSwitch label.
-4. (2026-10-17, earlier today, details in git as above) Names and words (`FIND_ATTRIBUTE`,
+1. (2026-10-17, earlier today, details in git as above) Names and words (`FIND_ATTRIBUTE`,
    `valueFact`, `bindLabel`); focus never falls to the page (`installFocusGuard`, F6 panels);
    number card drafts (`NumberCard`, never hands the element a range it refuses); one status line
    in `Workspace.tsx` (`store.set({ announcement })`, `useAnnounceChange`); `keystrokeTarget` for
    focus after an add; color box Escape and refusals; drawing and camera (null color repaint, no
    card framing, `held` + `tapped` keys, `zoomToPointer`).
-5. (2026-10-17) Opened projects lost their rows: anything keyed by a layer id that a document
+1. (2026-10-17) Opened projects lost their rows: anything keyed by a layer id that a document
    carries must be remapped on apply (`documentRowKeys`, commit 619ce32be).
-6. (2026-10-17) Combined Style panel (V7 tabs, condition cards, several layers) is built; files
+1. (2026-10-17) Combined Style panel (V7 tabs, condition cards, several layers) is built; files
    `style/cards.ts`, `style/WhichPicker.tsx`, `RowStyle` in `StylePanel.tsx`. A controlled text
    field never round-trips through the element; one undo step per open is
    `TransactionOptions.after`. Not built: number card histogram for a run field, "lowest N",
    dashed chips at rest.
-7. One BoundValue for one layer and for several layers (owner decision 2026-10-16); Layer is a
+1. One BoundValue for one layer and for several layers (owner decision 2026-10-16); Layer is a
    temporary value, a data field is copied as is. Vary by Layer uses the same group list as a
    data value (`GroupRows`, `styles.layerGroups`).
-8. Shared worktree: other agents commit beside me. Stage only my files. For a shared file, build
+1. Shared worktree: other agents commit beside me. Stage only my files. For a shared file, build
    the blob from `git show HEAD:<file>` plus my edits by exact string replacement, never
    `hunks.py` when another agent's hunk sits above mine (see Tried); read `git diff --cached`
    before every commit. Never `git stash` (not even `list`) in this repo's agents.
-9. Prove a test fails without the change: copy the fixed file aside, `git show HEAD:<file>` over
+1. Prove a test fails without the change: copy the fixed file aside, `git show HEAD:<file>` over
    it, run the test, copy back. Check a "passes without the fix" test before trusting it (the
    histogram test passed on HEAD at 8 bins because 16/8 happened to be whole).
-10. graphty tests read compact-mantine from its `dist` and graphty-element from source; rebuild
-    the app (`pnpm exec nx run graphty:build`, Sentry vars unset) before a real.mjs walk; a
-    session serves the dist it started on, so end and start again after a rebuild.
-11. API changes: additive ones go in `owner-decisions.md` under "decided by the team" with the
-    name and shape; a changed default or a renamed or removed member goes "for the owner". A new
-    Graph or element member needs `doors.ts` and `test/cost-coverage/method-classes.ts` lines,
-    `npm run api:report` after a build, and `jsx.ts` regenerated by the build.
-12. Element facts worth citing: layers paint one kind (a row is two parts); selectors everything,
-    expression, has, ids, top, member, rule, state; a user layer that sets nothing is refused
-    (`E_BAD_LAYER`); Top N takes a tie group whole; `data.histogram` takes data columns only, a
-    run field uses `run.result.histogram`.
-13. Study tool: `real.mjs --start <dir> empty|setup:<file>` through its own browser slot;
-    `--click "role=<role>:<name>"` for shared names; step N lands in screenshot N+1; `--end`
-    always. Compare screenshots with PIL `ImageChops.difference(...).getbbox()` on the canvas
-    crop (`(300,120,1195,835)` at 1440 x 900) before calling a drawing unchanged.
+1. graphty tests read compact-mantine from its `dist` and graphty-element from source; rebuild
+   the app (`pnpm exec nx run graphty:build`, Sentry vars unset) before a real.mjs walk; a
+   session serves the dist it started on, so end and start again after a rebuild.
+1. API changes: additive ones go in `owner-decisions.md` under "decided by the team" with the
+   name and shape; a changed default or a renamed or removed member goes "for the owner". A new
+   Graph or element member needs `doors.ts` and `test/cost-coverage/method-classes.ts` lines,
+   `npm run api:report` after a build, and `jsx.ts` regenerated by the build.
+1. Element facts worth citing: layers paint one kind (a row is two parts); selectors everything,
+   expression, has, ids, top, member, rule, state; a user layer that sets nothing is refused
+   (`E_BAD_LAYER`); Top N takes a tie group whole; `data.histogram` takes data columns only, a
+   run field uses `run.result.histogram`.
+1. Study tool: `real.mjs --start <dir> empty|setup:<file>` through its own browser slot;
+   `--click "role=<role>:<name>"` for shared names; step N lands in screenshot N+1; `--end`
+   always. Compare screenshots with PIL `ImageChops.difference(...).getbbox()` on the canvas
+   crop (`(300,120,1195,835)` at 1440 x 900) before calling a drawing unchanged.
 
 ## Decisions and reasons
 
@@ -251,6 +296,12 @@ are in git: `git show afc2ee150:design/ui/studio/notes/engineer.md`.
 - (2026-10-17) **Enter in a card's text or number box is Done**, unless the box refuses what it
   holds; Done shows only when there is a card to finish.
 
+- (2026-10-17) **A link to "what paints this" opens the row the reader would click in the tree.**
+  A run's row is several layers; editing it from a node's line edited another group. Evidence:
+  pilots set red from Javert's "Louvain" link and Group 1 turned red.
+- (2026-10-17) **The app learns of a repeated pick from the element, not the DOM.** A click that
+  changes no selection publishes nothing, so the element gained `canvas:element-click`, the twin
+  of `canvas:empty-click`.
 - (2026-10-17) **A yes-or-no column is known by the element's `type`, never by its values.** The
   app maps only a boolean, or "true"/"false" text of a column the element types `boolean`, to
   Yes/No. The data table already said Yes/No (compact-mantine `labels.yes`); every other place
@@ -345,7 +396,7 @@ are in git: `git show afc2ee150:design/ui/studio/notes/engineer.md`.
 - (2026-10-17) DID NOT WORK: a VisuallyHidden ", sorted ascending" inside the sort button: the
   accessible name came out "score , sorted descending" (an absolute span counts as a block).
   WORKED: `aria-label` on the button while sorted. DID NOT WORK: `// eslint-disable-next-line
-  react-hooks/...` in compact-mantine: the plugin is not configured there, so the comment itself
+react-hooks/...` in compact-mantine: the plugin is not configured there, so the comment itself
   errors; a grow-only `useRef` map written while drawing needed no effect at all.
 - (2026-10-17) WORKED: `real.mjs --upload <absolute path>` for a one-off file made in the session
   folder (a 75-character value to see the cut-cell tooltip).
@@ -390,6 +441,11 @@ are in git: `git show afc2ee150:design/ui/studio/notes/engineer.md`.
   handler sets, so the search takes `withKeyboardNavigation={false}` and the app keeps the id.
 - (2026-10-17) `npm run api:report` failed on a missing `dist/logging.d.ts` (another build in
   flight) after writing catalog and session; staged only my lines from those two reports.
+
+- (2026-10-17) DID NOT WORK first time: a real-element click on a node read from
+  `nodeScreenPosition` while the layout still ran landed on empty canvas (the inspector showed
+  Graph). WORKED: `await element.waitForStableFrame()`, then wait for `elementAt(point)` to answer
+  the node, then click.
 - (2026-10-17) DID NOT WORK: `hunks.py stage` (`git apply --cached --unidiff-zero`) on a file
   where another agent's hunk sits above mine and mine are pure insertions: with no removed lines
   to anchor on, git placed them by line number, shifted by the other hunk. It committed

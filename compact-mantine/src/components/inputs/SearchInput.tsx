@@ -42,8 +42,8 @@ export interface SearchInputProps extends Omit<
  * button once there is text, and a focus ring drawn flush with the field that lingers 100ms after
  * focus leaves.
  *
- * Escape clears the text; with nothing to clear it is left to bubble, so an enclosing popover
- * can close. `autoFocus` is off by default: Figma focuses its search fields when their panel
+ * Escape clears the text, in the field or on its clear button; with nothing to clear it is left
+ * to bubble, so an enclosing popover can close. `autoFocus` is off by default: Figma focuses its search fields when their panel
  * opens, and whether that is right is the caller's decision.
  * @example
  * ```tsx
@@ -159,6 +159,15 @@ export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(functi
                         }}
                         onClick={(event) => {
                             clear(event);
+                        }}
+                        // Escape on the clear button does what it does in the field: clears, and
+                        // focus goes back to the field.
+                        onKeyDown={(event) => {
+                            if (event.key === "Escape") {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                clear(event);
+                            }
                         }}
                     />
                 ) : undefined

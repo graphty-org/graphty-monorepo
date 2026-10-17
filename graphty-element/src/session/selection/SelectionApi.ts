@@ -65,6 +65,9 @@ const EMPTY_STRINGS: readonly string[] = Object.freeze([]);
 /** The frozen empty path list handed back wherever every path resolved. */
 const EMPTY_PATHS: readonly Path[] = Object.freeze([]);
 
+/** A rule that reads nothing unknown. */
+const NOTHING_UNKNOWN: RuleCheck = Object.freeze({ unknown: Object.freeze([]) });
+
 // ---------------------------------------------------------------------------------------------
 // The surface
 // ---------------------------------------------------------------------------------------------
@@ -119,6 +122,35 @@ export interface SelectionDelta {
     readonly skipped?: number;
     /** Who asked. */
     readonly cause: SelectionCause;
+}
+
+/**
+ * A path a rule reads that nothing in this session answers, and the readable values it may have
+ * meant. See {@link SelectionApi.checkRule}.
+ * @since 3.32.0
+ */
+export interface UnknownRulePath {
+    /** The path as the rule reads it: a bare column name such as `degree`, or a dotted path. */
+    readonly path: Path;
+    /**
+     * The `data.readableValues()` paths whose catalog name (`plainName` or `technicalName`) is the
+     * path's last name, ignoring case: `degree` names a Degree run's `results.<run>.value`.
+     */
+    readonly candidates: readonly Path[];
+}
+
+/**
+ * What a rule reads that this session cannot answer. See {@link SelectionApi.checkRule}.
+ * @since 3.32.0
+ */
+export interface RuleCheck {
+    /** The paths nothing answers, in the order the rule names them. Empty when every one is answered. */
+    readonly unknown: readonly UnknownRulePath[];
+    /**
+     * The rule with every unknown path written as its one candidate, everything else as it was
+     * typed. Absent when nothing is unknown, or when an unknown path has no candidate or several.
+     */
+    readonly suggestion?: Query;
 }
 
 /** One attribute of the selected nodes, summarised against the same attribute across the graph. */
@@ -278,6 +310,24 @@ export interface SelectionApi {
      */
     count(target: SelectionTarget): Promise<{ readonly nodes: number; readonly edges: number }>;
     /**
+     * Which paths a rule reads that nothing in this session answers, before it is applied: a rule
+     * over a misspelt column matches nothing, which reads like a correct answer of zero. Each
+     * unknown path carries the readable values whose name it is, and when each has exactly one,
+     * the rule rewritten to read them.
+     *
+     * ```ts
+     * // After a Degree run, with no file column named degree:
+     * session.selection.checkRule("degree > `16`");
+     * // { unknown: [{ path: "degree", candidates: ["results.degree.value"] }],
+     * //   suggestion: "results.degree.value > `16`" }
+     * ```
+     * @param where - The rule, as a `where` target or a text target after its "=" reads it.
+     * @returns The unknown paths and the suggestion.
+     * @throws A `GraphtyError` with `E_BAD_SELECTOR` for a rule `apply` refuses.
+     * @since 3.32.0
+     */
+    checkRule(where: Query): RuleCheck;
+    /**
      * Empty the selection.
      * @returns What changed.
      */
@@ -426,6 +476,12 @@ export interface SelectionSources {
      * @returns The paths.
      */
     readonly pathsOf?: (where: Query) => readonly Path[];
+    /**
+     * What a rule reads that nothing answers. Absent reports nothing unknown.
+     * @param where - The rule.
+     * @returns The check.
+     */
+    readonly checkRule?: (where: Query) => RuleCheck;
     /** What a note's targets select. Absent refuses a `note` target. */
     readonly note?: TargetContext["note"];
     /** What a style layer's rule matches. Absent refuses a `layer` target. */
@@ -890,6 +946,10 @@ class Selection implements SelectionOwner {
         this.#sync();
         const members = resolveTarget(target, this.#context());
         return Promise.resolve({ nodes: members.nodes.size, edges: members.edges.size });
+    }
+
+    checkRule(where: Query): RuleCheck {
+        return this.#sources.checkRule?.(where) ?? NOTHING_UNKNOWN;
     }
 
     applyAtNextRead(target: SelectionTarget, op: SelectionOp, cause: SelectionCause): void {

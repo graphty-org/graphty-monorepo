@@ -119,7 +119,7 @@ import {
     type ScopeResolver,
 } from "./scope";
 import { sealedSet } from "./sealed";
-import { createSelectionApi, type SelectionOwner, type SelectionTextMode } from "./selection";
+import { createSelectionApi, type RuleCheck, type SelectionOwner, type SelectionTextMode } from "./selection";
 import { createMaterialiser } from "./sets/algebra";
 import { outcomeOf, SetsCache } from "./sets/cache";
 import { captureItem, captureOf, type HeldCaptures, heldItems, nextCaptures } from "./sets/captures";
@@ -144,6 +144,7 @@ import {
 import { placementLayers } from "./styles/autoApply";
 import { atStylePath, channelsFor } from "./styles/channels";
 import type { CompiledLayer } from "./styles/Layer";
+import { renamePaths, rulePath } from "./styles/predicate";
 import {
     createLayerRepaint,
     type ElementIndices,
@@ -1727,6 +1728,36 @@ function answerablePaths(data: SessionDataApi, runs: RunsApi, target: "node" | "
  * consumer can say why a layer paints nothing rather than showing a confident empty screen.
  * @param data - The session's data surface.
  * @param runs - The runs this session holds.
+/**
+ * What a rule reads that nothing answers, with the readable values each unknown path may have
+ * meant: those whose catalog name is the path's last name, ignoring case.
+ * @param where - The rule.
+ * @param read - The paths it reads, as its compile records them.
+ * @param paths - What this session answers.
+ * @param data - The session's data surface, for the readable values.
+ * @returns The check.
+ */
+function ruleCheckOf(where: Query, read: readonly Path[], paths: PathDirectory, data: SessionDataApi): RuleCheck {
+    const answered = (p: Path): boolean => paths.answers(p, "node") || paths.answers(p, "edge");
+    const missing = read.filter((path) => !answered(path) && !answered(ATTRIBUTE_PREFIX + path));
+    if (missing.length === 0) {
+        return { unknown: [] };
+    }
+    const values = data.readableValues().filter((value) => value.end === undefined && value.path !== "id");
+    const unknown = missing.map((path) => {
+        const name = (path.split(".").at(-1) ?? path).toLowerCase();
+        const candidates = values
+            .filter((value) => [value.plainName, value.technicalName].some((each) => each.toLowerCase() === name))
+            .map((value) => value.path);
+        return { path, candidates: [...new Set(candidates)] };
+    });
+    if (unknown.some((each) => each.candidates.length !== 1)) {
+        return { unknown };
+    }
+    const to = new Map(unknown.map((each) => [each.path, rulePath(each.candidates[0])]));
+    return { unknown, suggestion: renamePaths(where, (path) => to.get(path)) };
+}
+
  * @returns The directory.
  */
 function pathDirectoryOf(data: SessionDataApi, runs: RunsApi): PathDirectory {
@@ -2684,6 +2715,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 throw new GraphtyError({
                     code: "E_UNKNOWN_LAYER",
                     message: `There is no style layer with the id "${id}".`,
+        checkRule: (where: Query) => ruleCheckOf(where, engine.pathsOf(where), paths, data),
                     source: "style",
                     target: { kind: "layer", id },
                     details: { id },

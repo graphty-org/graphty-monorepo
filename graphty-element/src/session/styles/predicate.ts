@@ -1135,33 +1135,89 @@ function collectPaths(node: ExpressionNode, into: Path[]): void {
 const hasValue = (path: Path): RuleTree => ({ kind: "text", reads: path, mode: "regex", text: "" });
 
 /**
+ * A path as a rule leaf names it: a bare column name (`minutes`) is the file column it reads
+ * (`data.minutes`); a `data.` or `results.` path is itself.
+ * @param path - The path as the expression wrote it.
+ * @param bare - Whether a bare column name is read.
+ * @returns The leaf's path, or undefined for a path a leaf does not read the same way.
+ */
+function leafPathOf(path: Path, bare: boolean): Path | undefined {
+    if (/^(data|results)\./.test(path)) {
+        return path;
+    }
+    // The node id and the element's own `graphty.` values are not file columns.
+    return bare && isUnquotedName(path) && path !== "id" && path !== "graphty" ? `data.${path}` : undefined;
+}
+
+/**
+ * The leaf an ordering comparison with a number reads as: `>=` and `<=` as a range, `>` as
+ * "strictly above". `<` has no leaf that matches exactly the same elements.
+ * @param operator - The comparison, written with the path on the left.
+ * @param path - The leaf's path.
+ * @param value - The number.
+ * @returns The leaf, or undefined.
+ */
+function orderingRule(operator: CompareOperator, path: Path, value: number): RuleTree | undefined {
+    switch (operator) {
+        case ">=":
+            return { kind: "range", attribute: path, min: value };
+        case "<=":
+            return { kind: "range", attribute: path, max: value };
+        case ">":
+            return { kind: "threshold", path, above: value };
+        default:
+            return undefined;
+    }
+}
+
+/** The same comparison with its two sides swapped: `5 < x` is `x > 5`. */
+const FLIPPED: Readonly<Record<CompareOperator, CompareOperator>> = Object.freeze({
+    "==": "==",
+    "!=": "!=",
+    "<": ">",
+    "<=": ">=",
+    ">": "<",
+    ">=": "<=",
+});
+
+/**
  * The rule leaf one parsed expression node reads as, or undefined when it has none.
  * @param node - The node.
+ * @param comparisons - Whether ordering comparisons and bare column names are read too.
  * @returns The rule.
  */
-function nodeRule(node: ExpressionNode): RuleTree | undefined {
+function nodeRule(node: ExpressionNode, comparisons: boolean): RuleTree | undefined {
     if (node.kind === "group") {
-        return nodeRule(node.inner);
+        return nodeRule(node.inner, comparisons);
     }
 
     if (node.kind === "and") {
-        const left = nodeRule(node.left);
-        const right = nodeRule(node.right);
+        const left = nodeRule(node.left, comparisons);
+        const right = nodeRule(node.right, comparisons);
         return left === undefined || right === undefined ? undefined : { kind: "all", of: [left, right] };
     }
 
-    if (node.kind !== "compare" || (node.operator !== "==" && node.operator !== "!=")) {
+    if (node.kind !== "compare") {
         return undefined;
     }
 
     const literal = pickLiteral(node.left, node.right);
     const other = node.left.kind === "literal" ? node.right : node.left;
-    if (literal === null || other.kind !== "path" || !/^(data|results)\./.test(other.path)) {
+    const path = other.kind === "path" ? leafPathOf(other.path, comparisons) : undefined;
+    if (literal === null || path === undefined) {
         return undefined;
     }
 
     const { value } = literal;
-    const { path } = other;
+    if (node.operator !== "==" && node.operator !== "!=") {
+        // Only a number orders: an ordering comparison of anything else matches no element, as a
+        // range leaf does not.
+        const operator = node.left.kind === "literal" ? FLIPPED[node.operator] : node.operator;
+        return comparisons && typeof value === "number" && Number.isFinite(value)
+            ? orderingRule(operator, path, value)
+            : undefined;
+    }
+
     let leaf: RuleTree | undefined;
     if (value === null) {
         // `!= null` is the presence test; `== null` its opposite.
@@ -1180,16 +1236,53 @@ function nodeRule(node: ExpressionNode): RuleTree | undefined {
  * The rule tree an expression reads as, for an editor that draws rules: `results.route.onPath ==
  * \`true\`` is the leaf "onPath is true". Only the forms whose rule matches exactly the same
  * elements are read: equality with a number or a yes-or-no value, the presence test, and `&&` of
- * those, over a `data.` or `results.` path.
+ * those, over a `data.` or `results.` path. With `comparisons`, also `>=` and `<=` with a number
+ * (a range), `>` with a number ("strictly above") and a bare column name (`minutes`, which a rule
+ * reads as `data.minutes`).
  * @param where - The expression.
+ * @param comparisons - Whether to read ordering comparisons and bare column names too.
  * @returns The rule, or undefined when the expression has no exact rule form.
  */
-export function expressionRule(where: Query): RuleTree | undefined {
+export function expressionRule(where: Query, comparisons = false): RuleTree | undefined {
     try {
-        return nodeRule(parseExpression(where));
+        return nodeRule(parseExpression(where), comparisons);
     } catch {
         return undefined;
     }
+}
+
+/**
+ * An expression with some of the paths it reads written another way, everything else kept as it
+ * was typed: what a refusal or a check offers as the reader's own rule, corrected.
+ * @param where - The expression.
+ * @param rename - The new source for a path, or undefined to keep it.
+ * @returns The rewritten expression.
+ * @throws A `GraphtyError` with code `E_BAD_SELECTOR` for an expression that does not lex.
+ */
+export function renamePaths(where: Query, rename: (path: Path) => Query | undefined): Query {
+    const tokens = tokenize(where);
+    const isDot = (token: Token | undefined): boolean => token?.kind === "operator" && token.text === ".";
+    let out = "";
+    let copied = 0;
+    for (let at = 0; at < tokens.length; at++) {
+        if (tokens[at].kind !== "identifier" || isDot(tokens[at - 1])) {
+            continue;
+        }
+        // A path: this name and every `.name` after it.
+        const segments = [tokens[at].text];
+        let last = at;
+        while (isDot(tokens[last + 1]) && tokens[last + 2]?.kind === "identifier") {
+            last += 2;
+            segments.push(tokens[last].text);
+        }
+        const replacement = rename(segments.join("."));
+        if (replacement !== undefined) {
+            out += where.slice(copied, tokens[at].at) + replacement;
+            copied = tokenEnd(where, tokens[last].at);
+        }
+        at = last;
+    }
+    return out + where.slice(copied);
 }
 
 /**

@@ -2836,6 +2836,12 @@ export interface RowWrite {
 }
 
 // @public
+export interface RuleCheck {
+    readonly suggestion?: Query;
+    readonly unknown: readonly UnknownRulePath[];
+}
+
+// @public
 export function rulePath(path: Path): Query;
 
 // @public
@@ -3269,6 +3275,7 @@ export type ScopeInput = Exclude<Scope, {
 export interface SelectionApi {
     apply(target: SelectionTarget, op?: SelectionOp): Promise<SelectionDelta>;
     readonly cap: number;
+    checkRule(where: Query): RuleCheck;
     clear(): SelectionDelta;
     count(target: SelectionTarget): Promise<{
         readonly nodes: number;
@@ -3488,7 +3495,9 @@ export type Selector = {
 };
 
 // @public
-export function selectorRule(selector: Selector_2): RuleSelector | undefined;
+export function selectorRule(selector: Selector_2, options?: {
+    readonly comparisons?: boolean;
+}): RuleSelector | undefined;
 
 // @public
 export type SessionAttributes = Readonly<Record<string, unknown>>;
@@ -4262,6 +4271,12 @@ export type UnboundLayerCode = "layer.detached" | "layer.unanswered";
 
 // @public
 export type UndrawnCode = "caption.noArrow";
+
+// @public
+export interface UnknownRulePath {
+    readonly candidates: readonly Path[];
+    readonly path: Path;
+}
 
 // @public
 export interface UpdateManyResult {

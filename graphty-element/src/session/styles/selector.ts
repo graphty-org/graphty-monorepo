@@ -354,10 +354,19 @@ export type RuleSelector = Extract<Selector, { readonly match: "rule" }>;
  *     with an empty `regex`); `top` as a `threshold` leaf; an `expression` that compares a
  *     `data.` or `results.` path with a number, a yes-or-no value or `null` (and `&&` of those)
  *     as the matching leaves. Undefined for a selector with no rule form (`everything`, `ids`,
- *     `member`, `state`, and any other expression), which an editor draws its own way.
+ *     `member`, `state`, and any other expression), which an editor draws its own way. With
+ *     `options.comparisons`, an expression is also read through `>=` and `<=` (a `range` leaf)
+ *     and `>` (a `threshold` leaf's `above`) against a number, and through a bare column name,
+ *     which a rule reads as that file column: `` donations >= `10000` `` is the range leaf on
+ *     `data.donations` from 10000 up.
+ * @param options - How much to read.
+ * @param options.comparisons - Read ordering comparisons and bare column names too. Default false.
  * @since 3.26.0
  */
-export function selectorRule(selector: Selector): RuleSelector | undefined {
+export function selectorRule(
+    selector: Selector,
+    options: { readonly comparisons?: boolean } = {},
+): RuleSelector | undefined {
     switch (selector.match) {
         case "rule":
             return selector;
@@ -374,7 +383,7 @@ export function selectorRule(selector: Selector): RuleSelector | undefined {
                 },
             };
         case "expression": {
-            const where = expressionRule(selector.where);
+            const where = expressionRule(selector.where, options.comparisons === true);
             return where === undefined ? undefined : { match: "rule", where };
         }
         default:

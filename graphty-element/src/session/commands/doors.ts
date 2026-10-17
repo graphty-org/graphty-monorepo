@@ -495,6 +495,7 @@ const SELECTION_API: Readonly<Record<string, Door>> = {
     edgeMask: READ,
     apply: SELECTION,
     count: READ,
+    checkRule: READ,
     clear: SELECTION,
     hovered: READ,
     hover: exempt("The pointer resting on a node is view state, not a step, like the selection."),

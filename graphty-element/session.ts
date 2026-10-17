@@ -363,6 +363,7 @@ export { PROJECT_FILE, projectFileName } from "./src/session/projectFile";
 // ---------------------------------------------------------------------------------------------
 
 export type {
+    RuleCheck,
     SelectionApi,
     SelectionAttributeStatistics,
     SelectionCause,
@@ -372,6 +373,7 @@ export type {
     SelectionStatistics,
     SelectionTarget,
     SelectionTextMode,
+    UnknownRulePath,
 } from "./src/session/selection";
 export { DEFAULT_SELECTION_CAP, SET_OPS } from "./src/session/selection";
 

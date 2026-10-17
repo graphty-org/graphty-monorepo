@@ -124,6 +124,16 @@ export const PajekShapesAndMidLineArrows: Story = {
             `Styles/Node PajekShapesAndMidLineArrows: the node of shape "none" draws ${String(sourceOf?.getTotalIndices())} indices`,
         );
 
+        // Every line meets both its nodes' outlines -- a node with no body included, at its box.
+        const unmet = [...scene.graph.getDataManager().edges.values()].filter((edge) => {
+            const { srcPoint, dstPoint } = edge.getInterceptPoints();
+            return srcPoint === null || dstPoint === null;
+        });
+        await holds(
+            unmet.length === 0,
+            `Styles/Node PajekShapesAndMidLineArrows: ${String(unmet.length)} lines do not meet both their nodes`,
+        );
+
         // Every arrowhead sits near the middle of its line, not at the target node.
         const offMiddle = [...scene.graph.getDataManager().edges.values()].filter((edge) => {
             const cap = edge.arrowCap?.position;

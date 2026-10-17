@@ -1862,25 +1862,25 @@ export class Edge {
 
             const dstHitInfo = this.ray.intersectsMeshes([dstMesh]);
             const srcHitInfo = this.ray.intersectsMeshes([srcMesh]);
-
-            if (dstHitInfo.length && srcHitInfo.length && worldSpan > 0) {
-                const dstHit = dstHitInfo[0].pickedPoint;
-                const srcHit = srcHitInfo[0].pickedPoint;
-
-                if (!srcHit || !dstHit) {
-                    throw new TypeError("error picking points");
+            // A node with no body (shape "none") has no face for the ray to meet: the line meets its box.
+            const along = (hits: typeof srcHitInfo, node: Node, toward: Node): Vector3 | null => {
+                const hit = hits[0]?.pickedPoint;
+                if (hit) {
+                    return Vector3.Lerp(
+                        srcMesh.position,
+                        dstMesh.position,
+                        Vector3.Distance(srcWorld, hit) / worldSpan,
+                    );
                 }
 
-                srcPoint = Vector3.Lerp(
-                    srcMesh.position,
-                    dstMesh.position,
-                    Vector3.Distance(srcWorld, srcHit) / worldSpan,
-                );
-                dstPoint = Vector3.Lerp(
-                    srcMesh.position,
-                    dstMesh.position,
-                    Vector3.Distance(srcWorld, dstHit) / worldSpan,
-                );
+                return node.shapeType === "none"
+                    ? this.leaveNode(node, node.mesh.position, toward.mesh.position)
+                    : null;
+            };
+
+            if (worldSpan > 0) {
+                srcPoint = along(srcHitInfo, this.srcNode, this.dstNode);
+                dstPoint = along(dstHitInfo, this.dstNode, this.srcNode);
             }
         }
 

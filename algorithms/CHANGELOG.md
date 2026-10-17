@@ -1,3 +1,18 @@
+## 3.4.10 (2026-10-17)
+
+### 🚀 Features
+
+- **docs:** theme the documentation site with the graphty brand colors ([#3041](https://github.com/graphty-org/graphty-monorepo/issues/3041))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.35
+- Updated graph-format to 1.4.3
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.4.9 (2026-10-15)
 
 ### 🧱 Updated Dependencies

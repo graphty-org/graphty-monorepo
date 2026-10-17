@@ -179,6 +179,22 @@ describe("StyleLayerPropertiesPanel", () => {
         expect(onUpdate).toHaveBeenCalledWith("layer-4", { set: undefined });
     });
 
+    it("offers a reset only on a number the layer sets, and the reset drops that channel", async () => {
+        const onUpdate = vi.fn();
+        renderPanel(<StyleLayerPropertiesPanel layer={NODE_LAYER} onUpdate={onUpdate} />);
+
+        expect(within(group("Shape")).getByLabelText("Size")).toHaveValue("2");
+        await userEvent.click(within(group("Shape")).getByRole("button", { name: "Reset Size to default" }));
+
+        expect(onUpdate).toHaveBeenCalledWith("layer-1", { set: { "node.color": "#FF0000" } });
+    });
+
+    it("draws an unset number at its default with no reset beside it", () => {
+        renderPanel(<StyleLayerPropertiesPanel layer={makeLayer("layer-7", "Empty")} />);
+
+        expect(within(group("Shape")).queryByRole("button", { name: "Reset Size to default" })).toBeNull();
+    });
+
     it("opens the swatch on a component color clamped into range, without its alpha", () => {
         const components = makeLayer("layer-5", "Components", {
             set: { "node.color": { r: 300, g: -5, b: 127.6, a: 0.5 } },

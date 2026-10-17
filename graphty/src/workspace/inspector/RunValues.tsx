@@ -1,4 +1,13 @@
-import { ControlSection, DataRow, DataRowHeader, HistogramRow, StyleNumberInput } from "@graphty/compact-mantine";
+import {
+    ControlSection,
+    DataRow,
+    DataRowHeader,
+    FieldRow,
+    HistogramRow,
+    PanelField,
+    PanelLabelsProvider,
+    ResetButton,
+} from "@graphty/compact-mantine";
 import type { OptionDescriptor } from "@graphty/graphty-element/catalog";
 import {
     type GraphSession,
@@ -120,19 +129,38 @@ function SettingField({
 }>): React.JSX.Element | null {
     switch (option.type) {
         case "number":
-        case "integer":
+        case "integer": {
+            const fallback = typeof option.default === "number" ? option.default : 0;
             return (
-                <StyleNumberInput
-                    label={option.plainName}
-                    value={typeof value === "number" ? value : undefined}
-                    defaultValue={typeof option.default === "number" ? option.default : 0}
-                    min={typeof option.min === "number" ? option.min : undefined}
-                    max={typeof option.max === "number" ? option.max : undefined}
-                    step={option.step ?? (option.type === "integer" ? 1 : undefined)}
-                    decimalScale={option.type === "integer" ? 0 : undefined}
-                    onChange={onChange}
-                />
+                <PanelLabelsProvider showLabels>
+                    <FieldRow
+                        trailing={
+                            typeof value === "number" && (
+                                <ResetButton
+                                    label={option.plainName}
+                                    onClick={() => {
+                                        onChange(undefined);
+                                    }}
+                                />
+                            )
+                        }
+                    >
+                        <PanelField
+                            label={option.plainName}
+                            kind="number"
+                            value={typeof value === "number" ? value : fallback}
+                            min={typeof option.min === "number" ? option.min : undefined}
+                            max={typeof option.max === "number" ? option.max : undefined}
+                            step={option.step ?? (option.type === "integer" ? 1 : undefined)}
+                            decimalScale={option.type === "integer" ? 0 : undefined}
+                            onChange={(next) => {
+                                onChange(Number(next));
+                            }}
+                        />
+                    </FieldRow>
+                </PanelLabelsProvider>
             );
+        }
         case "enum":
             return (
                 <Select

@@ -7,7 +7,9 @@
 
 import {
     type GraphSession,
+    type LayerId,
     RESULT_SHAPE_CONTRACTS,
+    type RowTarget,
     type Run,
     type StyleRow,
     type StyleRowPlace,
@@ -181,6 +183,45 @@ export function rowName(session: GraphSession, id: string): string {
 }
 
 /**
+ * The halves of a layer row that paint: those that set or encode at least one property. A half
+ * that is on but writes nothing ("Edges: 0 styles") paints nothing, so it is left out.
+ * @param session - the element's session.
+ * @param id - the row's id.
+ * @returns the painting halves' layer ids.
+ */
+export function paintingParts(session: GraphSession, id: string): { node?: LayerId; edge?: LayerId } {
+    const parts = session.styles.parts(id);
+    const writes = (layer: LayerId | undefined): layer is LayerId => {
+        const found = layer === undefined ? undefined : session.styles.get(layer);
+        return Object.keys(found?.set ?? {}).length + Object.keys(found?.encode ?? {}).length > 0;
+    };
+    return {
+        ...(writes(parts?.node) ? { node: parts.node } : {}),
+        ...(writes(parts?.edge) ? { edge: parts.edge } : {}),
+    };
+}
+
+/**
+ * What a layer row paints: nodes, edges or both, counting only the halves that write a property.
+ * A row that writes nothing yet reads as the kinds it is on, so a new layer still says what it
+ * will paint.
+ * @param session - the element's session.
+ * @param id - the row's id.
+ * @returns the kinds, or undefined for a row the stack does not hold.
+ */
+export function paintedTarget(session: GraphSession, id: string): RowTarget | undefined {
+    const target = session.styles.parts(id)?.target;
+    const { node, edge } = paintingParts(session, id);
+    if (target === undefined || (node === undefined && edge === undefined)) {
+        return target;
+    }
+    if (node !== undefined && edge !== undefined) {
+        return "both";
+    }
+    return node === undefined ? "edge" : "node";
+}
+
+/**
  * A layer's kind in words, from what it paints: "Node layer", "Edge layer" or "Node and edge
  * layer". Never where it came from: every layer is equal.
  * @param session - the element's session.
@@ -188,7 +229,7 @@ export function rowName(session: GraphSession, id: string): string {
  * @returns the words, or undefined for a row the stack does not hold.
  */
 export function layerKindWords(session: GraphSession, id: string): string | undefined {
-    const target = session.styles.parts(id)?.target;
+    const target = paintedTarget(session, id);
     if (target === undefined) {
         return undefined;
     }
@@ -205,7 +246,7 @@ export function kindGlyphWords(session: GraphSession, row: StyleRow): string {
     if (row.kind === "folder") {
         return "Folder";
     }
-    const target = session.styles.parts(row.id)?.target;
+    const target = paintedTarget(session, row.id);
     return target === undefined
         ? "Layer"
         : { node: "Paints nodes", edge: "Paints edges", both: "Paints nodes and edges" }[target];

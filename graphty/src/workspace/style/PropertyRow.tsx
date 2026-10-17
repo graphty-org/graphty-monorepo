@@ -214,6 +214,8 @@ function Receipt({
         `${String(receipt.changed)} changed`,
         ...(receipt.unset.length === 0 ? [] : [`${String(receipt.unset.length)} left unset`]),
         ...(receipt.locked === 0 ? [] : [`${String(receipt.locked)} locked skipped`]),
+    ].join(", ");
+    const everything = receipt.everything ?? [];
     const covers =
         everything.length === 0
             ? null
@@ -225,8 +227,6 @@ function Receipt({
         // Once per write: a new receipt is a new write, even with the same words.
         store.set({ announcement: spoken });
     }, [receipt, spoken, store]);
-    ].join(", ");
-    const everything = receipt.everything ?? [];
     return (
         <div className="ws-bulk-receipt" data-receipt={channel}>
             <Text className="ws-bulk-words">
@@ -1121,7 +1121,12 @@ function layersView(
         layersBinding(session, descriptor, values),
         { channel },
     );
-    const list = lineOfLayers(descriptor, groups);
+    // The line shows what the layers paint now: a layer painted over everywhere, or hidden, adds
+    // nothing to the drawing, so it adds nothing to the line (the popover still lists it).
+    const painting = groups.filter(
+        (group) => !group.hidden && (session.styles.counts(group.value).painted[channel] ?? 0) > 0,
+    );
+    const list = lineOfLayers(descriptor, painting.length === 0 ? groups : painting);
     const isColor = descriptor.accepts === "color";
     const distinct = new Set(values.map((each) => (isColor ? hexOf(each.value) : null) ?? JSON.stringify(each.value)))
         .size;

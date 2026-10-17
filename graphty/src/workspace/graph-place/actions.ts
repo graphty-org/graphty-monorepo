@@ -1,7 +1,7 @@
 import type { GraphSession, LayerId, RowSpec, StyleRow, StyleRowPlace } from "@graphty/graphty-element/session";
 
 import type { Notice, WorkspaceState, WorkspaceStore } from "../state/store";
-import { findTreeRow } from "./rows";
+import { findTreeRow, paintingParts } from "./rows";
 
 /**
  * Says why the element refused a tree verb, in a notice, rather than letting the promise reject
@@ -199,20 +199,40 @@ function layersOf(session: GraphSession, row: StyleRow): LayerId[] {
 }
 
 /**
- * Select what it paints (Figma's Select matching layers): selects exactly the nodes and edges the
- * row's layers match, through graphty-element's `{ layer }` selection target.
+ * The layers a row paints with: the halves of a layer row that write a property, those of every
+ * layer in a folder. A half that is on but writes nothing paints nothing, so it is left out.
  * @param session - the element's session.
  * @param row - the row.
+ * @returns the layer ids.
  */
-export async function selectWhatItPaints(session: GraphSession, row: StyleRow): Promise<void> {
-    const layers = layersOf(session, row);
-    if (layers.length === 0) {
-        session.selection.clear();
-        return;
+function paintingLayersOf(session: GraphSession, row: StyleRow): LayerId[] {
+    if (row.kind === "folder") {
+        return row.children.flatMap((child) => paintingLayersOf(session, child));
+    }
+    const { node, edge } = paintingParts(session, row.id);
+    return [node, edge].filter((id): id is LayerId => id !== undefined);
+}
+
+/**
+ * Select what it paints (Figma's Select matching layers): selects exactly the nodes and edges the
+ * row's painting layers match, through graphty-element's `{ layer }` selection target. A row that
+ * paints nothing leaves the selection as it was.
+ * @param session - the element's session.
+ * @param row - the row.
+ * @returns how many nodes and edges it selected; both 0 when it selected nothing.
+ */
+export async function selectWhatItPaints(
+    session: GraphSession,
+    row: StyleRow,
+): Promise<{ readonly nodes: number; readonly edges: number }> {
+    const layers = paintingLayersOf(session, row);
+    if (layers.every((layer) => session.styles.counts(layer).matched === 0)) {
+        return { nodes: 0, edges: 0 };
     }
     for (const [at, layer] of layers.entries()) {
         await session.selection.apply({ layer }, at === 0 ? "replace" : "add");
     }
+    return { nodes: session.selection.nodes.length, edges: session.selection.edges.length };
 }
 
 /**

@@ -3,7 +3,7 @@ import { Tooltip } from "@mantine/core";
 import React from "react";
 
 import { GLYPHS } from "../glyphs";
-import { kindGlyphWords } from "./rows";
+import { kindGlyphWords, paintedTarget } from "./rows";
 
 /**
  * A style tree row's kind glyph: a folder, or what a layer paints -- a dot for nodes, a line for
@@ -25,7 +25,7 @@ export function KindGlyph({
     if (row.kind === "folder") {
         Glyph = GLYPHS.folder;
     } else {
-        const target = session.styles.parts(row.id)?.target;
+        const target = paintedTarget(session, row.id);
         if (target === "node") {
             Glyph = GLYPHS.node;
         } else if (target === "edge") {

@@ -503,6 +503,19 @@ function WhereItShows({
 }
 
 /**
+ * The halves whose matches a row's Covers lists: those that write a property (a half that is on
+ * but sets nothing paints nothing), or every half while the row writes nothing yet.
+ * @param counted - the row's layers with the element's counts.
+ * @returns the halves to list.
+ */
+function covering<T extends { counts: ReturnType<GraphSession["styles"]["counts"]> }>(
+    counted: readonly T[],
+): readonly T[] {
+    const painting = counted.filter(({ counts }) => Object.keys(counts.painted).length > 0);
+    return painting.length === 0 ? counted : painting;
+}
+
+/**
  * The layers of a row: its node part and its edge part, those it has.
  * @param session - the session.
  * @param rowId - the row.
@@ -557,7 +570,7 @@ export function LayerValues({
     return (
         <>
             <ControlSection label="Covers" collapsible={false} headingLevel={3}>
-                {counted.map(({ layer, counts }) => (
+                {covering(counted).map(({ layer, counts }) => (
                     <DataRow
                         key={layer.id}
                         stat

@@ -16,7 +16,7 @@ import { ADD_ROW_LABEL, addFolderOf, addLayer, moveRows, orNotice } from "./acti
 import { ROW_COMMANDS } from "./commands";
 import { KindGlyph } from "./KindGlyph";
 import { RowMenuItems } from "./RowMenu";
-import { count, findTreeRow, isBaseRow, isHidden, layerCount, layerKindWords, placeOf } from "./rows";
+import { count, findTreeRow, isBaseRow, isHidden, layerCount, layerKindWords, paintingParts, placeOf } from "./rows";
 
 /** Longer than a closing menu takes to hand focus back to its opener. */
 const MENU_FOCUS_RETURN_MS = 50;
@@ -39,7 +39,9 @@ interface Paints {
  * @returns the facts.
  */
 function paintsOf(session: GraphSession, row: StyleRow): Paints {
-    const parts = session.styles.parts(row.id);
+    // Only the halves that write a property paint; a row that writes nothing yet counts what it is on.
+    const painting = paintingParts(session, row.id);
+    const parts = painting.node === undefined && painting.edge === undefined ? session.styles.parts(row.id) : painting;
     const read = (layer: string | undefined): ReturnType<GraphSession["styles"]["counts"]> | undefined =>
         layer === undefined ? undefined : session.styles.counts(layer);
     const node = read(parts?.node);
@@ -101,8 +103,9 @@ function PaintedOverMark({ words }: Readonly<{ words: string }>): React.JSX.Elem
 }
 
 /**
- * What a run's group layer shows on its row: the color it paints the group, and how many nodes
- * the group holds. Undefined for any other row.
+ * What a grouping run's layer shows on its row: the color it paints, and how many nodes it
+ * matches. Kept whatever conditions the layer is narrowed or widened by since the run made it.
+ * Undefined for any other row.
  * @param session - the element's session.
  * @param row - the layer row.
  * @param nodes - how many nodes the row matches.
@@ -115,8 +118,7 @@ function groupMarks(
 ): { readonly swatch?: React.ReactNode; readonly count: React.ReactNode } | undefined {
     const id = session.styles.parts(row.id)?.node;
     const layer = id === undefined ? undefined : session.styles.get(id);
-    const where = layer?.selector.match === "rule" ? layer.selector.where : undefined;
-    if (layer?.source.by !== "run" || where?.kind !== "categories" || where.values.length !== 1) {
+    if (layer?.source.by !== "run" || session.runs.get(layer.source.runId)?.record.summary?.groups === undefined) {
         return undefined;
     }
     // A fixed color, or the one color a rule copied into the layer keeps for its group.

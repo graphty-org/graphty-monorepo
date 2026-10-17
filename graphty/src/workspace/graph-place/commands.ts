@@ -1,6 +1,7 @@
 import type { GraphSession, StyleRow, StyleRowPin } from "@graphty/graphty-element/session";
 
 import { type Command, type CommandContext, defineRegistration } from "../commands/registry";
+import { focusInspectorTitle, focusIsLost } from "../frame/focus";
 import type { GLYPHS } from "../glyphs";
 import { addLayer, deleteRow, duplicateRow, orNotice, selectWhatItPaints, ungroup } from "./actions";
 import { FIND_BOX_ID } from "./FindBox";
@@ -166,9 +167,25 @@ export const ROW_COMMANDS: readonly RowCommand[] = [
         applies: () => true,
         disabled: () => null,
         run: async ({ session, workspace }, row) => {
-            if (session !== null) {
-                await orNotice(workspace, `select what ${row.name} paints`, selectWhatItPaints(session, row));
+            if (session === null) {
+                return;
             }
+            await orNotice(
+                workspace,
+                `select what ${row.name} paints`,
+                selectWhatItPaints(session, row).then(({ nodes, edges }) => {
+                    if (nodes + edges === 0) {
+                        workspace.set({ notice: { message: `${row.name} paints nothing, so nothing was selected` } });
+                    }
+                }),
+            );
+            // The header button that ran it goes as the inspector turns to the selection: focus
+            // goes to the inspector's title, which names what was selected.
+            requestAnimationFrame(() => {
+                if (focusIsLost()) {
+                    focusInspectorTitle();
+                }
+            });
         },
     },
     // Figma's Show/Hide and Lock/Unlock: the row's eye and lock are pointer-only (the tree is one

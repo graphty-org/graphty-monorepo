@@ -411,5 +411,5 @@ export {
 // Network sources (experimental): graph-io's source contract and the element's load types
 // ---------------------------------------------------------------------------------------------
 
-export * from "./src/session/sources/public";
 export type { CredentialStore, SourceCredentialTarget, StoredCredentialInfo } from "./src/credentials/CredentialStore";
+export * from "./src/session/sources/public";

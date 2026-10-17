@@ -79,6 +79,7 @@ export default defineConfig({
                         { text: "What Is Under a Point", link: "/guide/element-at" },
                         { text: "Labels", link: "/guide/labels" },
                         { text: "Data Sources", link: "/guide/data-sources" },
+                        { text: "Network Sources", link: "/guide/network-sources" },
                         { text: "Previewing a Load", link: "/guide/load-preview" },
                         { text: "Events", link: "/guide/events" },
                         { text: "Columns, Runs & Progress", link: "/guide/vocabulary" },

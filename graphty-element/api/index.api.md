@@ -527,6 +527,17 @@ export { CredentialKind }
 
 export { credentials }
 
+// @public
+export class CredentialStore {
+    constructor(ai?: ApiKeyManager | Promise<ApiKeyManager>);
+    get ai(): ApiKeyManager | null;
+    forget(target: SourceCredentialTarget): Promise<void>;
+    forgetAll(): Promise<void>;
+    list(): readonly StoredCredentialInfo[];
+    lookup(source: string, origin: string | URL): Promise<Credential_2 | undefined>;
+    remember(target: SourceCredentialTarget, credential: Credential_2): Promise<void>;
+}
+
 // @public (undocumented)
 export interface DataLoadingCompleteEvent {
     // (undocumented)
@@ -4746,6 +4757,12 @@ export interface SourceCredentialIdentity {
     readonly username?: string;
 }
 
+// @public
+export interface SourceCredentialTarget {
+    readonly endpoint: string | URL;
+    readonly source: string;
+}
+
 export { SourceCursor }
 
 export { SourceDescriptor }
@@ -4933,6 +4950,18 @@ export interface StatsUpdateEvent {
     // (undocumented)
     type: "stats-update";
 }
+
+// @public
+export type StoredCredentialInfo = {
+    readonly namespace: "ai";
+    readonly provider: string;
+} | {
+    readonly namespace: "source";
+    readonly source: string;
+    readonly origin: string;
+    readonly kind: CredentialKind;
+    readonly username?: string;
+};
 
 // @public
 export interface StyleChangedEvent {

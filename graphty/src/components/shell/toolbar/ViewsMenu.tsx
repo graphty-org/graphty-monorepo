@@ -335,8 +335,6 @@ export function ViewsMenu(props: ViewsMenuProps): React.JSX.Element {
                     flexDirection: "column",
                     gap: VIEWS_MENU_ROW_GAP,
                     padding: VIEWS_MENU_PADDING,
-                    background: PANEL_INK.SURFACE,
-                    border: `1px solid ${PANEL_INK.BORDER}`,
                     overflowY: "auto",
                 },
             }}

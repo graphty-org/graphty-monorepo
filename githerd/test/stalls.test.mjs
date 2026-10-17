@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { statusStep } from "../lib/asks.mjs";
+import { pausedStatusStep, statusStep } from "../lib/asks.mjs";
 import { move, newJob } from "../lib/board.mjs";
 import { droppableItems, endItem, planPages } from "../lib/notify.mjs";
 import { scanTranscripts } from "../lib/owners.mjs";
@@ -46,7 +46,9 @@ function held() {
  * @param {string} status the registry status
  * @returns {import("../lib/peers.mjs").PeerSession[]} the live sessions
  */
-const live = (status) => [{ pid: 7, sessionId: ID, name: NAME, cwd: "/r", socket: "/2d.sock", status }];
+const live = (status) => [
+    { pid: 7, sessionId: ID, name: NAME, cwd: "/r", socket: "/2d.sock", status, tmux: "0:@8.%8" },
+];
 
 /**
  * One poll: the status question, then the stall step, then the owner's pages (he is away).
@@ -71,7 +73,7 @@ describe("a session that stops answering githerd", () => {
         expect(lines).toContainEqual(expect.objectContaining({ kind: "stall", session: NAME, stall: "silent" }));
         expect(pages).toHaveLength(1);
         expect(pages[0].message).toBe(
-            "Session graphty-monorepo-2d stopped answering githerd's status questions (unanswered since 10-12 02:45 UTC); githerd released its claims. Look at that session.",
+            "Session graphty-monorepo-2d (tmux pane 0:@8.%8, Claude Code status busy) stopped answering githerd's status questions (unanswered since 10-12 02:45 UTC); githerd released its claims. Look at that session.",
         );
         expect(pages[0].bypass).toBe(true);
         // The 22 hours of capacity questions that followed page nothing more.
@@ -114,6 +116,67 @@ describe("a session that stops answering githerd", () => {
     });
 });
 
+// The stall of 2026-10-16: a session ran `githerd pause` at 06:10 for the owner, which also stopped
+// every status question. 08 held issue-2520 and went idle; Claude Code kept appending title, mode
+// and pull request link lines to its transcript, and nothing told the owner for 31 hours.
+describe("a session holding a job while githerd is paused", () => {
+    /** @type {string[]} */
+    const dirs = [];
+    afterEach(() => {
+        for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
+    });
+
+    it("releases the job after a cadence with no model turn, ignoring idle transcript lines, and pages once naming the pane", async () => {
+        const projects = tempDir("githerd-paused-");
+        dirs.push(projects);
+        const cwd = "/home/u/repo";
+        mkdirSync(join(projects, "-home-u-repo"));
+        const file = join(projects, "-home-u-repo", `${ID}.jsonl`);
+        const turn = { type: "assistant", timestamp: "2026-10-16T06:02:26.000Z", message: { content: [] } };
+        writeFileSync(file, JSON.stringify(turn) + "\n");
+        const session = { pid: 7, sessionId: ID, name: NAME, cwd };
+        const day = (/** @type {string} */ hm) => new Date(`2026-10-16T${hm}Z`);
+        const job = newJob({ kind: "issue", target: "#2520", id: "issue-2520" }, day("05:00:00"));
+        move(job, "starting", day("05:00:00"), { holder: { session: ID, window: null, startedBy: "owner" } });
+        move(job, "working", day("05:00:00"));
+        job.statusAsk = { at: "2026-10-16T06:02:22.695Z", heard: true };
+        job.status = { at: "2026-10-16T06:02:27.411Z", text: "#3062 and #2943 open" };
+        /** @type {any} */
+        const state = {
+            jobs: { "issue-2520": job },
+            transcripts: {},
+            settings: { paused: true, pausedAt: "2026-10-16T06:10:11.156Z" },
+        };
+        const sessions = [{ ...session, socket: "/08.sock", status: "shell", tmux: "0:@10.%10" }];
+        /**
+         * One paused poll: the transcripts, the silence check, then the stall step.
+         * @param {Date} now the poll's time
+         * @returns {Promise<any[]>} the ledger lines
+         */
+        const poll = async (now) => {
+            await scanTranscripts(state.transcripts, [session], { root: cwd, projectsDir: projects });
+            const lines = pausedStatusStep(state, { now, minutes: MINUTES });
+            return [...lines, ...stallStep(state, { now, minutes: MINUTES, sessions, lines })];
+        };
+        expect(await poll(day("06:12:00"))).toEqual([]);
+        // What Claude Code appends to the idle session's transcript is no turn.
+        writeFileSync(file, '{"type":"ai-title","aiTitle":"x"}\n{"type":"mode","mode":"normal"}\n', { flag: "a" });
+        expect(await poll(day("06:20:00"))).toEqual([]);
+        expect(await poll(day("06:34:00"))).toEqual([]);
+        const lines = await poll(day("06:35:00"));
+        expect(lines).toContainEqual(expect.objectContaining({ kind: "claim-released", job: "issue-2520" }));
+        expect(state.jobs["issue-2520"]).toMatchObject({ state: "queued", holder: null });
+        const pages = planPages(state, day("06:35:00"));
+        expect(pages.map((p) => p.message)).toEqual([
+            "Session graphty-monorepo-2d (tmux pane 0:@10.%10, Claude Code status shell) took no turn on its githerd jobs " +
+                "since 10-16 06:20 UTC; githerd released its claims. githerd is paused since 10-16 06:10 UTC, so it sends " +
+                "no questions or work: `githerd resume` ends the pause. Look at that session.",
+        ]);
+        expect(await poll(day("07:00:00"))).toEqual([]);
+        expect(planPages(state, day("07:00:00"))).toEqual([]);
+    });
+});
+
 describe("a session waiting on a user dialog", () => {
     it("pages once after a full status cadence on the dialog, the way 2d sat from 02:36", async () => {
         const state = held();
@@ -123,7 +186,7 @@ describe("a session waiting on a user dialog", () => {
         const { lines, pages } = await poll(state, at("02:57:30"), "waiting");
         expect(lines).toContainEqual(expect.objectContaining({ kind: "stall", stall: "dialog" }));
         expect(pages.map((p) => p.message)).toEqual([
-            "Session graphty-monorepo-2d has sat on a dialog waiting for user input since 10-12 02:42 UTC; it cannot answer githerd. Answer it in that session.",
+            "Session graphty-monorepo-2d (tmux pane 0:@8.%8, Claude Code status waiting) has sat on a dialog waiting for user input since 10-12 02:42 UTC; it cannot answer githerd. Answer it in that session.",
         ]);
         // The claims released at 03:02 and every later question page nothing more.
         for (const hm of ["03:02:05", "03:25:19", "12:11:15"]) {

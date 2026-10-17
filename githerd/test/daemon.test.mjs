@@ -2660,6 +2660,47 @@ describe("githerd pause", () => {
     });
 });
 
+describe("a held job while githerd is paused", () => {
+    it("is released unasked when its session shows no activity, with one owner item and no message", async () => {
+        writeConfig({ requiredChecks: ["All Checks Pass"] });
+        /** @type {string[]} */
+        const sent = [];
+        const peers = {
+            sessions: () => [
+                {
+                    pid: 1,
+                    sessionId: "s1",
+                    name: "graphty-08",
+                    cwd: dir,
+                    socket: "/s1.sock",
+                    status: "shell",
+                    tmux: "0:@10.%10",
+                },
+            ],
+            transport: { send: async (/** @type {string} */ socket) => void sent.push(socket) },
+        };
+        const daemon = await start({ peers });
+        daemon.state.settings = { ...daemon.state.settings, paused: true, pausedAt: clock.toISOString() };
+        await poll(daemon);
+        daemon.state.jobs["issue-8"] = {
+            ...newJob({ kind: "issue", target: "#8", id: "issue-8" }, clock),
+            state: "working",
+            holder: { session: "s1", startedBy: "owner" },
+        };
+        for (const at of ["12:00", "12:16", "12:31"]) {
+            clock = new Date(`2026-10-02T${at}:00Z`);
+            await poll(daemon);
+        }
+        const ledger = await readLedger(join(dir, ".githerd"));
+        expect(ledger.filter((e) => e.kind === "claim-released")).toEqual([
+            expect.objectContaining({ job: "issue-8", session: "s1" }),
+        ]);
+        expect(daemon.state.jobs["issue-8"]).toMatchObject({ state: "queued", holder: null });
+        expect(daemon.state.ownerItems["stalled:s1"].question).toContain("graphty-08 (tmux pane 0:@10.%10");
+        expect(sent).toEqual([]);
+    });
+});
+
 describe("inviting idle sessions to pull work", () => {
     it("announces a queued job no worker took once, to idle sessions only, a would-do in dry-run", async () => {
         /** @type {string[]} */

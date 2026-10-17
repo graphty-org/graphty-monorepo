@@ -8,6 +8,7 @@ import {
     inviteStep,
     markMine,
     onboardStep,
+    pausedStatusStep,
     setExcluded,
     setOffersPaused,
     statusStep,
@@ -1017,9 +1018,9 @@ describe("asking an owner session for the status of the job it holds", () => {
                 (/** @type {any} */ s) => (s.pushTickets = [{ branch: "fix/186", cwd: "/r", session: "s1" }]),
             ],
             [
-                "its transcript grew",
+                "took a model turn",
                 (/** @type {any} */ s) =>
-                    (s.transcripts = { s1: { files: {}, pushes: {}, grewAt: "2026-10-05T12:20:00.000Z" } }),
+                    (s.transcripts = { s1: { files: {}, pushes: {}, turnAt: "2026-10-05T12:20:00.000Z" } }),
             ],
         ];
         for (const [words, add] of evidence) {
@@ -1042,11 +1043,37 @@ describe("asking an owner session for the status of the job it holds", () => {
         }
     });
 
+    it("while paused, releases a held job whose session took no turn for a cadence after it fell due, sending nothing", () => {
+        const state = claimed();
+        // Due at 12:15 with nothing to show: marked as asked, nothing sent.
+        expect(pausedStatusStep(state, { now: at("12:15"), minutes: 15 })).toEqual([]);
+        expect(state.jobs["issue-186"].statusAsk).toEqual({
+            at: "2026-10-05T12:15:00.000Z",
+            heard: true,
+            paused: true,
+        });
+        expect(pausedStatusStep(state, { now: at("12:29"), minutes: 15 })).toEqual([]);
+        const reason =
+            "no model turn, githerd tool call or push since 2026-10-05T12:15:00.000Z while githerd was paused";
+        expect(pausedStatusStep(state, { now: at("12:30"), minutes: 15 })).toEqual([
+            { kind: "claim-released", job: "issue-186", session: "s1", reason, asked: "2026-10-05T12:15:00.000Z" },
+        ]);
+        expect(state.jobs["issue-186"]).toMatchObject({ state: "queued", holder: null, reason });
+        // A session that took a model turn keeps its job.
+        const busy = claimed();
+        pausedStatusStep(busy, { now: at("12:15"), minutes: 15 });
+        busy.transcripts = { s1: { files: {}, pushes: {}, turnAt: "2026-10-05T12:20:00Z" } };
+        expect(pausedStatusStep(busy, { now: at("12:30"), minutes: 15 })).toEqual([
+            { kind: "status-seen", job: "issue-186", session: "s1", evidence: "took a model turn" },
+        ]);
+        expect(busy.jobs["issue-186"].state).toBe("working");
+    });
+
     it("asks a session whose only activity is older than the question, or is its answer itself", async () => {
         const f = fake();
         const state = claimed();
         state.sessions = { s1: { calledAt: "2026-10-05T11:50:00.000Z" } };
-        state.transcripts = { s1: { files: {}, pushes: {}, grewAt: "2026-10-05T11:55:00.000Z" } };
+        state.transcripts = { s1: { files: {}, pushes: {}, turnAt: "2026-10-05T11:55:00.000Z" } };
         await statusStep(state, opts(f, { now: at("12:15") }));
         expect(f.sent).toHaveLength(1);
         // The githerd_expect answer is a tool call with the answer's own time: no evidence beyond it.

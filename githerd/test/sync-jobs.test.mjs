@@ -1123,7 +1123,7 @@ describe("syncJobs: pull requests in use (owner decision 2026-10-04)", () => {
         const gone = (/** @type {string} */ s) => ended.has(s);
         // Its last activity, which spares a live session the status question, does not keep a gone one's claim.
         state.sessions = { o1: { calledAt: NOW.toISOString() } };
-        state.transcripts = { o1: { files: {}, pushes: {}, grewAt: NOW.toISOString() } };
+        state.transcripts = { o1: { files: {}, pushes: {}, turnAt: NOW.toISOString() } };
         expect(syncJobs(state, { config: CONFIG, now: NOW, sessionGone: gone }).lapsed).toEqual([]);
         expect(job.state).toBe("waiting");
         ended.add("o1");

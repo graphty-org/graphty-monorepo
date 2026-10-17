@@ -453,6 +453,7 @@ export function controlCommand(state, cmd, now) {
     const entry = (/** @type {Record<string, unknown>} */ fields) => ({ kind: "control", op: cmd.op, ...fields });
     if (cmd.op === "pause" || cmd.op === "resume") {
         settings.paused = cmd.op === "pause";
+        settings.pausedAt = settings.paused ? now.toISOString() : null;
         const text = settings.paused
             ? "paused: no worker starts and no doorbell rings until githerd resume"
             : "resumed: workers start and doorbells ring again";

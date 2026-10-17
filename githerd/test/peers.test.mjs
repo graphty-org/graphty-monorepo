@@ -36,7 +36,7 @@ describe("liveSessions", () => {
                 }),
             );
         entry(11, {});
-        entry(12, { cwd: `${root}/.worktrees/feat-x`, status: "busy" });
+        entry(12, { cwd: `${root}/.worktrees/feat-x`, status: "busy", tmux: "0:@8.%8" });
         entry(13, { cwd: `${root}/.worktrees/githerd-pr-7` });
         entry(14, { cwd: "/home/o/repo-other" });
         entry(15, { messagingSocketPath: undefined });
@@ -46,7 +46,15 @@ describe("liveSessions", () => {
         writeFileSync(join(sessions, "11.abc.key"), "not a session");
         const alive = (/** @type {number} */ pid) => pid !== 16;
         expect(liveSessions({ sessionsDir: sessions, root, alive })).toEqual([
-            { pid: 11, sessionId: "s11", name: "repo-11", cwd: root, socket: "/tmp/cc-socks/11.sock", status: "idle" },
+            {
+                pid: 11,
+                sessionId: "s11",
+                name: "repo-11",
+                cwd: root,
+                socket: "/tmp/cc-socks/11.sock",
+                status: "idle",
+                tmux: null,
+            },
             {
                 pid: 12,
                 sessionId: "s12",
@@ -54,6 +62,7 @@ describe("liveSessions", () => {
                 cwd: `${root}/.worktrees/feat-x`,
                 socket: "/tmp/cc-socks/12.sock",
                 status: "busy",
+                tmux: "0:@8.%8",
             },
         ]);
         expect(liveSessions({ sessionsDir: join(dir, "missing"), root })).toEqual([]);

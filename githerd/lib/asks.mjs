@@ -1136,7 +1136,7 @@ function githerdWatches(job) {
  * per job, which records `job.status`. A job whose listed question the session heard and left
  * unanswered until the next one is due goes back to the queue; jobs it answered are kept. A job whose
  * session shows its own activity since the cadence started (`progress`: a githerd tool call, a push,
- * a push-queue ticket, a growing transcript) is not asked: the activity is the answer. Nothing
+ * a push-queue ticket, a model turn in its transcript) is not asked: the activity is the answer. Nothing
  * else here ends a claim, and elapsed time alone never does. A job githerd itself is watching for
  * (blocked, parked, or waiting on something but a local task) is not asked about, and any question
  * it had pending is dropped, so it is never released for silence. A session githerd may not
@@ -1346,6 +1346,24 @@ async function tellBlockedMergeWaits(state, { now, acting, transport, owners }, 
 }
 
 /**
+ * The status question's silence check while githerd is paused (`githerd pause`), when no question
+ * may be sent: each held job due the question is marked as asked without sending it, so a session
+ * that shows no activity (`progress`) for one more cadence loses the job exactly as an unanswered
+ * question would (`dueJobs`), and stalls.mjs tells the owner. Without it a pause left every held
+ * job with an idle session forever, unasked and unreported (2026-10-16 to 10-17: 31 hours).
+ * @param {any} state the daemon state, changed in place
+ * @param {{now: Date, minutes: number}} opts the clock and the cadence (`workers.statusMinutes`)
+ * @returns {({kind: string} & Record<string, unknown>)[]} the ledger lines
+ */
+export function pausedStatusStep(state, { now, minutes }) {
+    const lines = [];
+    for (const jobs of dueJobs(state, now, minutes, lines).values()) {
+        for (const job of jobs) job.statusAsk = { at: now.toISOString(), heard: true, paused: true };
+    }
+    return lines;
+}
+
+/**
  * The owner-held jobs due the status question, by holding session. A job whose last question was
  * heard and left unanswered goes back to the queue instead (a `claim-released` line); a job
  * githerd itself watches has its pending question dropped.
@@ -1379,7 +1397,9 @@ function dueJobs(state, now, minutes, lines) {
         }
         const answered = job.status?.at >= ask?.at;
         if (ask?.heard && !answered) {
-            const reason = `no answer to the status question of ${ask.at}`;
+            const reason = ask.paused
+                ? `no model turn, githerd tool call or push since ${ask.at} while githerd was paused`
+                : `no answer to the status question of ${ask.at}`;
             releaseOwnerJob(job, reason, now);
             lines.push({ kind: "claim-released", job: job.id, session, reason, asked: ask.at });
             continue;
@@ -1405,8 +1425,8 @@ const askedSince = (job) =>
  * What shows the session holding `job` at work since the status question's cadence last started
  * (its last question or last counted activity, else the claim) and since its last answer, or null:
  * a githerd tool call (`state.sessions[<id>].calledAt`), a push it made (`state.prActivity`), a push
- * of its in the push queue now (`state.pushTickets`), or its transcript or a subagent's growing
- * (`state.transcripts[<id>].grewAt`). Any of them counts as the answer (design 8.2), so a working
+ * of its in the push queue now (`state.pushTickets`), or a model turn in its transcript or a
+ * subagent's (`state.transcripts[<id>].turnAt`; other lines and a newer mtime are no turn). Any of them counts as the answer (design 8.2), so a working
  * session is not woken, at the cost of rewriting its whole context, only to say it is working. The
  * answer itself is no evidence: its tool call has the answer's own time.
  * @param {any} state the daemon state
@@ -1423,7 +1443,7 @@ function progress(state, job) {
         return "has a push in the push queue";
     const pushed = Object.values(state.prActivity ?? {}).some((/** @type {any} */ a) => after(a.pushed?.[id]));
     if (pushed) return "pushed";
-    return after(state.transcripts?.[id]?.grewAt) ? "its transcript grew" : null;
+    return after(state.transcripts?.[id]?.turnAt) ? "took a model turn" : null;
 }
 
 /**

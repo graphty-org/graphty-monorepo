@@ -24,7 +24,8 @@ const SEND_TIMEOUT_MS = 5000;
 
 /**
  * @typedef {{pid: number, sessionId: string, name: string, cwd: string, socket: string,
- *   status: string | null}} PeerSession a live Claude Code session that can take a message
+ *   status: string | null, tmux?: string | null}} PeerSession a live Claude Code session that can take a
+ *   message; `tmux` is its pane as the registry gives it (`<server>:@<window>.%<pane>`)
  * @typedef {{send: (socket: string, text: string) => Promise<void>}} Transport delivers one
  *   message to one session's socket, rejecting when it could not
  */
@@ -67,6 +68,7 @@ function peerOf(e, root, alive) {
         cwd,
         socket: e.messagingSocketPath,
         status: typeof e.status === "string" ? e.status : null,
+        tmux: typeof e.tmux === "string" ? e.tmux : null,
     };
 }
 

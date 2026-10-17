@@ -45,8 +45,9 @@ import { join, relative, sep } from "node:path";
  * relative to the session's transcript, `""` for the transcript itself), the latest push time of
  * each branch, the session's name, the issues it filed (`gh issue create`, by number, with the
  * time), its `gh issue create` calls whose result was not read yet (by tool use id), and when any of
- * its files last grew (`grewAt`, the newest grown file's mtime: the session is working; asks.mjs).
- * @typedef {{files: Record<string, number>, pushes: Record<string, string>, name?: string, grewAt?: string,
+ * its newest model turn (`turnAt`, the newest assistant entry's time in it or a subagent's: the
+ * session is working; asks.mjs).
+ * @typedef {{files: Record<string, number>, pushes: Record<string, string>, name?: string, turnAt?: string,
  *   filed?: Record<string, string>, creates?: Record<string, string>,
  *   limit?: {at: string, text: string, resets: string | null}}} TranscriptScan
  */
@@ -107,6 +108,25 @@ function pushesIn(buf, scan) {
     each(["gh issue create"], (e) => recordCreates(e, scan));
     each(['"error":"rate_limit"'], (e) => recordLimit(e, scan));
     for (const id of Object.keys(scan.creates ?? {})) each([`"tool_use_id":"${id}"`], (e) => recordFiled(e, id, scan));
+    recordTurn(buf, scan);
+}
+
+/**
+ * Moves `scan.turnAt` to the newest model turn in `buf`: an assistant entry with a time, not an API
+ * error. Nothing else counts: Claude Code appends lines to an idle session's transcript too (its
+ * title, mode, permission mode, pull request links, hook summaries, queued messages), and a
+ * growing file or a newer mtime made every idle session look at work (2026-10-17).
+ * @param {Buffer} buf whole lines
+ * @param {TranscriptScan} scan the session's scan, updated
+ */
+function recordTurn(buf, scan) {
+    const needle = '"type":"assistant"';
+    for (let i = buf.lastIndexOf(needle); i !== -1; i = i > 0 ? buf.lastIndexOf(needle, i - 1) : -1) {
+        const e = parseLine(buf, buf.lastIndexOf(10, i) + 1, i);
+        if (e?.type !== "assistant" || typeof e.timestamp !== "string" || e.isApiErrorMessage) continue;
+        if (!scan.turnAt || e.timestamp > scan.turnAt) scan.turnAt = e.timestamp;
+        return;
+    }
 }
 
 /** Claude Code's usage-limit message, as its transcript and its screen show it. */
@@ -267,23 +287,10 @@ async function grownTranscripts(scans, live, projectsDir) {
             const st = await stat(path).catch(() => null);
             if (!st) continue;
             if (st.size < (scan.files[rel] ?? 0)) scan.files[rel] = 0;
-            if (st.size > (scan.files[rel] ?? 0))
-                todo.push(grew(scan, { rel, path, size: st.size, mtime: st.mtimeMs }));
+            if (st.size > (scan.files[rel] ?? 0)) todo.push({ scan, rel, path, size: st.size, mtime: st.mtimeMs });
         }
     }
     return todo;
-}
-
-/**
- * Notes that a session's transcript file grew: `scan.grewAt` moves to the file's mtime if newer.
- * @param {TranscriptScan} scan the session's scan, updated
- * @param {Omit<GrownFile, "scan">} file the grown file
- * @returns {GrownFile} the file with its scan
- */
-function grew(scan, file) {
-    const at = new Date(file.mtime).toISOString();
-    if (!scan.grewAt || at > scan.grewAt) scan.grewAt = at;
-    return { scan, ...file };
 }
 
 /**

@@ -5,8 +5,9 @@
  *
  * A stall is one of two facts, each judged on the status question's own cadence
  * (`workers.statusMinutes`), never on a time constant of its own:
- * - silent: the status question released a claim of the session for no answer (asks.mjs), and the
- *   session has called no githerd tool and given no capacity answer since that question;
+ * - silent: the status question released a claim of the session for no answer (asks.mjs), or,
+ *   while githerd is paused and sends no question, for no activity (asks.mjs pausedStatusStep), and
+ *   the session has called no githerd tool and given no capacity answer since;
  * - dialog: Claude Code's session registry has shown the session `waiting` (a dialog waiting on
  *   the user) for a full cadence.
  * Each stall raises one owner item, `stalled:<session>`, whose text never changes while the stall
@@ -49,15 +50,24 @@ function limited(state, now) {
 }
 
 /**
- * The owner item text of a stall.
- * @param {string} name the session's name
+ * The owner item text of a stall: the session, its tmux pane and Claude Code's status for it, and
+ * whether githerd is paused (no question was sent; `pausedStatusStep`).
+ * @param {import("./peers.mjs").PeerSession} s the session
  * @param {{kind: "silent" | "dialog", since: string}} stall the stall
+ * @param {{paused?: boolean, pausedAt?: string}} settings githerd's settings
  * @returns {string} the question
  */
-function stallText(name, stall) {
-    return stall.kind === "dialog"
-        ? `Session ${name} has sat on a dialog waiting for user input since ${short(stall.since)}; it cannot answer githerd. Answer it in that session.`
-        : `Session ${name} stopped answering githerd's status questions (unanswered since ${short(stall.since)}); githerd released its claims. Look at that session.`;
+function stallText(s, stall, settings) {
+    const where = `${s.name} (tmux pane ${s.tmux ?? "unknown"}, Claude Code status ${s.status ?? "unknown"})`;
+    if (stall.kind === "dialog")
+        return `Session ${where} has sat on a dialog waiting for user input since ${short(stall.since)}; it cannot answer githerd. Answer it in that session.`;
+    if (!settings.paused)
+        return `Session ${where} stopped answering githerd's status questions (unanswered since ${short(stall.since)}); githerd released its claims. Look at that session.`;
+    const since = settings.pausedAt ? ` since ${short(settings.pausedAt)}` : "";
+    return (
+        `Session ${where} took no turn on its githerd jobs since ${short(stall.since)}; githerd released its claims. ` +
+        `githerd is paused${since}, so it sends no questions or work: \`githerd resume\` ends the pause. Look at that session.`
+    );
 }
 
 /**
@@ -140,7 +150,12 @@ export function stallStep(state, { now, minutes, sessions, lines }) {
         stalls[id] = { ...stall, name: s.name, at };
         raiseItem(
             state,
-            { id: `stalled:${id}`, kind: "stalled-session", question: stallText(s.name, stall), blocks: "sessions" },
+            {
+                id: `stalled:${id}`,
+                kind: "stalled-session",
+                question: stallText(s, stall, state.settings ?? {}),
+                blocks: "sessions",
+            },
             now,
         );
         out.push({ kind: "stall", session: s.name, stall: stall.kind, since: stall.since });

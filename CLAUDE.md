@@ -1282,7 +1282,7 @@ A question still unanswered when the next
 one is due puts the job back in the queue, and so does your session ending. So do the job's work in
 a background subagent or workflow, and keep the main conversation free to answer. githerd skips the
 question while it sees the session at work on its own: a githerd tool call, a push or a push-queue
-ticket, or the session's transcript (or a subagent's) growing since the last question.
+ticket, or a model turn in the session's transcript (or a subagent's) since the last question.
 
 **Never wait in a model turn.** A turn more than five minutes after the last one finds the prompt
 cache expired and re-reads the whole conversation, so a `sleep` or `until` loop, or re-checking a

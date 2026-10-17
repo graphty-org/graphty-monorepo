@@ -81,6 +81,7 @@ import {
     onboardStep,
     setExcluded,
     setOffersPaused,
+    pausedStatusStep,
     statusStep,
     workerSessions,
     tellAccepted,
@@ -2231,7 +2232,8 @@ export async function startDaemon({
             await run("jobs", () => jobsFromFacts(t));
             // `githerd pause` also stops every message to the sessions: no invitations, status
             // checks or "are you fixing it?" questions, so a pause spends none of Claude's usage.
-            if (!state.settings?.paused) await run("owners", () => askOwners(t));
+            // What the sessions did is still read: a held job's silence is judged without a question.
+            await run("owners", () => askOwners(t, Boolean(state.settings?.paused)));
             untrustedCriticals(state, t);
         }
         await run("reference", () => referenceWork());
@@ -2244,6 +2246,7 @@ export async function startDaemon({
                 await askStatus(t);
             });
         }
+        if (state.trust.login && state.settings?.paused) await run("paused holders", async () => pausedStatus(t));
         await run("owner items", async () => {
             escalationItems();
             await ownerItemsPoll({
@@ -2439,9 +2442,11 @@ export async function startDaemon({
      * Asks every live session in this repository, worker or not, whose a pull request
      * with failed CI is (asks.mjs,
      * design 8.2); in dry-run the question is a would-do line.
+     * While paused (`quiet`) only the facts are read: no question is sent.
      * @param {Date} t the poll's time
+     * @param {boolean} quiet githerd is paused
      */
-    async function askOwners(t) {
+    async function askOwners(t, quiet) {
         const facts = { root, ...(await (peers.ownerFacts ?? ownerFacts)()) };
         state.prInferred = inferOwners(state.prs ?? {}, { ...facts, disowned: state.prDisowned ?? {} });
         state.prActivity = prActivity(state.prs ?? {}, facts);
@@ -2457,6 +2462,7 @@ export async function startDaemon({
             }).catch(() => ({ code: 1, stdout: "" }));
             return r.code === 0 ? r.stdout : "";
         });
+        if (quiet) return;
         const lines = await askStep(state, {
             now: t,
             acting: writeMode("workers") === "acting",
@@ -2566,6 +2572,18 @@ export async function startDaemon({
             probe: platform.usageProbe,
         });
         for (const line of [...lines, ...stalls, ...back]) void ledger(line);
+    }
+
+    /**
+     * While githerd is paused: releases each held job whose session took no turn for the status
+     * question's cadence, unasked (asks.mjs pausedStatusStep), and tells the owner (stalls.mjs).
+     * @param {Date} t the poll's time
+     */
+    function pausedStatus(t) {
+        const minutes = config.workers.statusMinutes;
+        const lines = pausedStatusStep(state, { now: t, minutes });
+        const stalls = stallStep(state, { now: t, minutes, sessions: messageable(), lines });
+        for (const line of [...lines, ...stalls]) void ledger(line);
     }
 
     /**

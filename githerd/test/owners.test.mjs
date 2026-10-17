@@ -287,22 +287,44 @@ describe("pushes found in Claude Code transcripts", () => {
         expect(scans).toEqual({});
     });
 
-    it("records when a session's transcript or a subagent's last grew, and only when one grew", async () => {
+    it("records a session's newest model turn, in its transcript or a subagent's, and nothing else as one", async () => {
         const { projects, bob } = projectsDir();
-        const old = new Date("2026-10-05T09:00:00Z");
-        utimesSync(join(projects, "-r", "sb.jsonl"), old, old);
-        utimesSync(bob, new Date("2026-10-05T11:30:00Z"), new Date("2026-10-05T11:30:00Z"));
+        const main = join(projects, "-r", "sb.jsonl");
         const scans = /** @type {Record<string, any>} */ ({});
         await scanTranscripts(scans, sessions, { root: ROOT, projectsDir: projects });
-        expect(scans.sb.grewAt).toBe("2026-10-05T11:30:00.000Z");
-        // Unchanged since: the time stays, even with a newer mtime.
-        utimesSync(bob, new Date("2026-10-05T12:00:00Z"), new Date("2026-10-05T12:00:00Z"));
+        // The subagent's assistant entry; the main transcript's user line is no turn.
+        expect(scans.sb.turnAt).toBe("2026-10-05T11:00:00Z");
+        // What Claude Code appends to an idle session's transcript, with a newer mtime: no turn.
+        const idle = [
+            { type: "system", subtype: "stop_hook_summary", timestamp: "2026-10-05T12:00:00Z" },
+            { type: "system", subtype: "turn_duration", timestamp: "2026-10-05T12:00:01Z" },
+            { type: "last-prompt", lastPrompt: "keep going", sessionId: "sb" },
+            { type: "ai-title", aiTitle: "Trusted publishing", sessionId: "sb" },
+            { type: "mode", mode: "normal", sessionId: "sb" },
+            { type: "permission-mode", permissionMode: "auto", sessionId: "sb" },
+            { type: "pr-link", prNumber: 3062, timestamp: "2026-10-05T12:00:02Z" },
+            { type: "queue-operation", operation: "enqueue", timestamp: "2026-10-05T12:00:03Z" },
+            {
+                type: "user",
+                message: { role: "user", content: "githerd: status check" },
+                timestamp: "2026-10-05T12:00:04Z",
+            },
+            {
+                type: "assistant",
+                isApiErrorMessage: true,
+                message: { content: [{ type: "text", text: "API Error" }] },
+                timestamp: "2026-10-05T12:00:05Z",
+            },
+        ];
+        appendFileSync(main, idle.map((e) => JSON.stringify(e) + "\n").join(""));
+        utimesSync(main, new Date("2026-10-05T12:30:00Z"), new Date("2026-10-05T12:30:00Z"));
         await scanTranscripts(scans, sessions, { root: ROOT, projectsDir: projects });
-        expect(scans.sb.grewAt).toBe("2026-10-05T11:30:00.000Z");
-        appendFileSync(bob, "{}\n");
-        utimesSync(bob, new Date("2026-10-05T12:10:00Z"), new Date("2026-10-05T12:10:00Z"));
+        expect(scans.sb.turnAt).toBe("2026-10-05T11:00:00Z");
+        // A model turn, in the transcript or a subagent's: the newest counts.
+        appendFileSync(main, bash("ls", "2026-10-05T12:40:00Z"));
+        appendFileSync(bob, bash("ls", "2026-10-05T12:35:00Z"));
         await scanTranscripts(scans, sessions, { root: ROOT, projectsDir: projects });
-        expect(scans.sb.grewAt).toBe("2026-10-05T12:10:00.000Z");
+        expect(scans.sb.turnAt).toBe("2026-10-05T12:40:00Z");
     });
 
     it("lets the push log win over a transcript, and a later logged push free it", () => {

@@ -1485,7 +1485,12 @@ shows each limit with the measurement that applied at the last start.
   question, the last counted activity, else the claim) and since its last answer counts as the
   answer, and no message is sent (`status-seen`, the cadence restarting then). The activity is a
   githerd tool call (`state.sessions[<id>].calledAt`), a push it made (the push log), a push-queue
-  ticket of its now, or its transcript or a subagent's growing (`state.transcripts[<id>].grewAt`).
+  ticket of its now, or a model turn (an assistant entry) in its transcript or a subagent's
+  (`state.transcripts[<id>].turnAt`). A growing file or a newer mtime is no turn: Claude Code
+  appends title, mode, pull request link and hook lines to an idle session's transcript too.
+  While githerd is paused no question is sent, and a held job whose session shows none of this
+  activity for a cadence after it fell due is released unasked, with the stalled-session owner
+  item naming its tmux pane and the pause (`pausedStatusStep`; the 31-hour stall of 2026-10-16).
   Each question wakes a long-lived session whose prompt cache has usually expired, so it re-reads
   its whole context (often 300k tokens) only to say it is working; the 2026-10-16 usage analysis
   put these questions at about $1.6k a week. A session with no such activity is asked as before, and

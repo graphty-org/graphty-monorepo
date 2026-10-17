@@ -84,6 +84,11 @@ export function Workspace({
         store.set({ opening: null });
         defaults
             .then(() => opening.load(session))
+            // A graph opened as a new project starts its history: Undo has nothing to take back
+            // until the reader changes something, so one Undo too many never unloads the graph.
+            .then(() => {
+                session.history.clear();
+            })
             .catch((error: unknown) => {
                 const notice = { message: notReadSentence(opening.name, error, "opened"), error: true };
                 store.set((state) =>

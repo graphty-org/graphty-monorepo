@@ -17,6 +17,16 @@ Summarized again 2026-10-17 (25.6 KB). The long entries for names and words, foc
 order, the number card, spoken messages, focus after adding, the color box and drawing and camera
 are in git: `git show afc2ee150:design/ui/studio/notes/engineer.md`.
 
+1. (2026-10-17, undo, graphty) A graph opened as a new project starts its history: the app calls
+   `session.history.clear()` once the open lands (sample: `Workspace.tsx` after `opening.load`;
+   Data page load with intent "new"; a fresh non-project document in `openInSession`; a project
+   file clears itself in the element). `project.dirty` stays false after the clear (the element's
+   save point follows `clear`). Adding data to an open graph stays undoable. Undo notices name the
+   act: "adding the layer Cosette"; a batch with no label names its ops ("changing settings and
+   importing data") from `HistoryStep.ops`, never "2 changes". A text box keeps Control+Z and
+   Control+Shift+Z while it holds typing since it was focused, Enter included; focus and Escape
+   hand them back to the app (`trackPendingEdits` in `keys/keys.ts`). Clear selection is disabled
+   "Nothing is selected" with an empty selection. Test `frame/__tests__/UndoHistory.real-element.test.tsx`.
 1. (2026-10-17, condition lists) Add a condition (`AddCondition` in `WhichPicker.tsx`): typing
    makes the first match active (`selectFirstOption` in an effect on the typed text), the search
    is `role=combobox` with `aria-controls` (the Options' own `id`), `aria-activedescendant` (my
@@ -112,6 +122,14 @@ are in git: `git show afc2ee150:design/ui/studio/notes/engineer.md`.
 
 ## Decisions and reasons
 
+- (2026-10-17) **Opening is not a change.** A new graph's history starts after it is read, so
+  one Undo too many never unloads the graph; the app clears history (the element's public
+  `history.clear()`), the element's own project-file open already did. Evidence: pilots T39A,
+  T45A, T49A/B emptied the graph with one Control+Z and read "Undid 2 changes."
+- (2026-10-17) **Typing is the text box's to undo, Enter included.** Enter ran the typing (a
+  find, a value) but the reader still sees it in the box; Control+Z there undoing an app step
+  out of sight was the defect (T49B find box). Escape (the box dropped the typing) and focus hand
+  Undo back to the app, so "type, Escape, Control+Z" still undoes the app step.
 - (2026-10-17) **A list's search is a combobox that names its first match as active, and Tab
   never enters the list.** Every pilot that typed a field name and pressed Enter got nothing (the
   Mantine search selects only on an arrow key); Tab landed on the scrolling listbox. The list is as
@@ -211,6 +229,10 @@ are in git: `git show afc2ee150:design/ui/studio/notes/engineer.md`.
 
 ## Tried: worked / did not work
 
+- (2026-10-17) WORKED: naming an unlabeled batch from `HistoryStep.ops` through the same
+  WORDS map, skipping codes whose words need params (`PARAM_WORDS`). Considered and left: giving
+  the element's import batches the import's fact (`session/data.ts`, `draft.ts`), which changes a
+  returned fact; after the history clear only an add-with-settings load still reaches it.
 - (2026-10-17) WORKED: Tab handled in a portaled list's search by closing it and focusing the
   trigger in keydown without `preventDefault`: the browser's Tab then moves on from the trigger
   (Shift+Tab is prevented so it stays on the trigger). DID NOT WORK: `combobox.selectFirstOption()`

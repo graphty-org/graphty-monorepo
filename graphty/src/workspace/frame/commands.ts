@@ -115,9 +115,14 @@ export const registration = defineRegistration({
             label: "Clear selection",
             group: "Selection",
             keys: ["Escape"],
-            disabled: ({ session }) => (session === null ? "Nothing is drawn" : null),
+            disabled: ({ session }) => {
+                if (session === null) {
+                    return "Nothing is drawn";
+                }
+                return session.selection.size === 0 ? "Nothing is selected" : null;
+            },
             run: ({ session, workspace }) => {
-                if (session === null || session.selection.size === 0) {
+                if (session === null) {
                     return;
                 }
                 // Says what went, so an Escape pressed for something else is not silent; a rule in

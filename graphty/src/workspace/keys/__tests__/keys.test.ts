@@ -80,7 +80,12 @@ describe("workspace keys", () => {
             input.dispatchEvent(new Event("input", { bubbles: true }));
             assert.isTrue(hasPendingEdit(input), "typing is");
             input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
-            assert.isFalse(hasPendingEdit(input), "Enter commits it");
+            assert.isTrue(hasPendingEdit(input), "after Enter the typing is still the field's to undo");
+            input.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+            assert.isFalse(hasPendingEdit(input), "Escape drops the typing");
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+            input.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
+            assert.isFalse(hasPendingEdit(input), "focusing it again starts over");
         } finally {
             stop();
             input.remove();

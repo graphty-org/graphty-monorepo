@@ -115,13 +115,13 @@ const WORDS: Readonly<Record<HistoryCode, (params: Params, session: GraphSession
     "data.expand": (p) => `expanding ${text(p, "node", "a node")}`,
     "data.declare": (p) => `changing the column ${text(p, "column", "")}`.trimEnd(),
     "data.set-source": () => "renaming the source",
-    "style.add-layer": (p, s) => `adding ${layerWords(s, p)}`,
+    "style.add-layer": (p, s) => `adding the layer ${layerWords(s, p)}`,
     "style.update-layer": (p, s) => {
         const what = channels(p.channels);
         return what === "" ? `changing ${layerWords(s, p)}` : `changing ${what} on ${layerWords(s, p)}`;
     },
-    "style.remove-layer": (p, s) => `removing ${layerWords(s, p)}`,
-    "style.move-layer": (p, s) => `moving ${layerWords(s, p)}`,
+    "style.remove-layer": (p, s) => `removing the layer ${layerWords(s, p)}`,
+    "style.move-layer": (p, s) => `moving the layer ${layerWords(s, p)}`,
     "style.remove-layers": (p) => `removing ${counted(p, "layer")}`,
     "style.highlight": (p, s) => `highlighting ${runWords(s, p.run)}`,
     "style.fix-channel": (p, s) => `fixing ${channels(p.channel)} on ${layerWords(s, p)}`,
@@ -176,35 +176,87 @@ const WORDS: Readonly<Record<HistoryCode, (params: Params, session: GraphSession
     transaction: (p) => text(p, "label", "a change"),
 };
 
+/** A history step as Undo and Redo read it: its fact, and the ops of the commands it holds. */
+interface Step {
+    readonly fact: CodedFact<HistoryCode>;
+    readonly ops: readonly string[];
+}
+
+/** Codes whose words say something only their params decide (on or off, 2D or 3D). */
+const PARAM_WORDS: ReadonlySet<string> = new Set([
+    "data.label",
+    "style.encode",
+    "style.fix-channel",
+    "style.pin-row",
+    "style.lock-row",
+    "style.hide-row",
+    "view.dimension",
+    "view.immersive",
+]);
+
+/**
+ * The words of a step's commands, read from their ops: "changing settings and importing data".
+ * An op the words do not name (an op that is no step of its own, a code the element added since,
+ * one whose words need its params) is left out.
+ * @param session - the element's session.
+ * @param ops - the ops, in the order they ran.
+ * @returns the words, or null when none is named.
+ */
+function opWords(session: GraphSession, ops: readonly string[]): string | null {
+    const named = [
+        ...new Set(
+            ops.flatMap((op) =>
+                Object.hasOwn(WORDS, op) && !PARAM_WORDS.has(op) ? [WORDS[op as HistoryCode]({}, session)] : [],
+            ),
+        ),
+    ];
+    if (named.length === 0) {
+        return null;
+    }
+    return named.length === 1 ? named[0] : `${named.slice(0, -1).join(", ")} and ${String(named.at(-1))}`;
+}
+
 /**
  * One history step as Undo and Redo name it: "Size by PageRank", `turning off "weight is at
- * least 4"`. A filter step change names the step's rule when the session holds the step.
+ * least 4"`. A filter step change names the step's rule when the session holds the step; a batch
+ * nobody named names what it holds rather than "2 changes".
  * @param session - the element's session.
- * @param fact - the step's fact.
+ * @param step - the step.
  * @returns the words.
  */
-function historyWords(session: GraphSession, fact: CodedFact<HistoryCode>): string {
+function historyWords(session: GraphSession, step: Step): string {
+    const { fact } = step;
+    if (fact.code === "batch" && typeof fact.params.label !== "string") {
+        const held = opWords(session, step.ops);
+        if (held !== null) {
+            return held;
+        }
+    }
     // A code the element adds in a minor release has no words yet: name it generically.
     const words = WORDS[fact.code] as (typeof WORDS)[HistoryCode] | undefined;
     return stepChange(session, fact) ?? words?.(fact.params, session) ?? "the last change";
 }
 
 /**
- * The fact the next Undo (or Redo) takes back, or null when there is none.
+ * The step the next Undo (or Redo) takes back, or null when there is none.
  * @param session - the element's session.
  * @param undo - true for Undo, false for Redo.
- * @returns the fact, or null.
+ * @returns the step, or null.
  */
-function nextFact(session: GraphSession, undo: boolean): CodedFact<HistoryCode> | null {
+function nextStep(session: GraphSession, undo: boolean): Step | null {
     const { history } = session;
     if (!undo) {
-        return history.steps.at(history.position)?.fact ?? null;
+        return history.steps.at(history.position) ?? null;
     }
     const next = history.nextUndo;
     if (next === null) {
         return null;
     }
-    return next.kind === "undo" ? next.step.fact : (next.pending.at(-1)?.fact ?? null);
+    if (next.kind === "undo") {
+        return next.step;
+    }
+    const pending = next.pending.at(-1);
+    return pending === undefined ? null : { fact: pending.fact, ops: [] };
 }
 
 /**
@@ -215,8 +267,8 @@ function nextFact(session: GraphSession, undo: boolean): CodedFact<HistoryCode> 
  */
 export function historyTip(session: GraphSession | null, undo: boolean): string {
     const verb = undo ? "Undo" : "Redo";
-    const fact = session === null ? null : nextFact(session, undo);
-    return fact === null || session === null ? verb : `${verb} ${historyWords(session, fact)}`;
+    const step = session === null ? null : nextStep(session, undo);
+    return step === null || session === null ? verb : `${verb} ${historyWords(session, step)}`;
 }
 
 /**
@@ -228,12 +280,13 @@ export function historyTip(session: GraphSession | null, undo: boolean): string 
  * @returns the words, or null when there was nothing to take back.
  */
 export async function undoOrRedo(session: GraphSession, undo: boolean): Promise<string | null> {
-    const fact = nextFact(session, undo);
-    const before = fact === null ? null : historyWords(session, fact);
-    const step = fact === null ? null : stepChange(session, fact);
+    const next = nextStep(session, undo);
+    const before = next === null ? null : historyWords(session, next);
+    const filterStep = next === null ? null : stepChange(session, next.fact);
     await (undo ? session.undo() : session.redo());
-    if (fact === null) {
+    if (next === null) {
         return null;
     }
-    return `${undo ? "Undid" : "Redid"} ${step ?? stepChange(session, fact) ?? before ?? "the last change"}.`;
+    const words = filterStep ?? stepChange(session, next.fact) ?? before ?? "the last change";
+    return `${undo ? "Undid" : "Redid"} ${words}.`;
 }

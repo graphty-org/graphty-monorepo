@@ -72,12 +72,14 @@ export function firesWhileTyping(combo: string, pendingEdit = true): boolean {
     return mod && (!FIELD_KEYS.has(key) || (!pendingEdit && HISTORY_KEYS.has(key)));
 }
 
-/** The fields the reader has typed into since focusing them or committing (Enter, change). */
+/** The fields the reader has typed into since focusing them or dropping the typing (Escape). */
 const edited = new WeakSet<EventTarget>();
 
 /**
- * Starts telling which fields hold an edit of their own: typing marks a field; focusing it,
- * Enter in it and its change event (a commit) unmark it.
+ * Starts telling which fields hold an edit of their own: typing marks a field; focusing it and
+ * Escape in it (the field drops its typing) unmark it. Enter does not: the typing is still the
+ * field's to undo after Enter ran it (a find, a value), so Control+Z there takes back the typing,
+ * never an app step the reader did not see.
  * @returns the function that stops it.
  */
 export function trackPendingEdits(): () => void {
@@ -92,14 +94,13 @@ export function trackPendingEdits(): () => void {
         }
     };
     const onKeyDown = (event: KeyboardEvent): void => {
-        if (event.key === "Enter") {
+        if (event.key === "Escape") {
             unmark(event);
         }
     };
     const listeners = [
         ["input", mark],
         ["focusin", unmark],
-        ["change", unmark],
         ["keydown", onKeyDown],
     ] as const;
     for (const [type, listener] of listeners) {
@@ -115,7 +116,7 @@ export function trackPendingEdits(): () => void {
 /**
  * Whether a field holds an edit of its own, which its own Undo should take back first.
  * @param target - the key press's target.
- * @returns true when the reader typed into it since focusing it or committing.
+ * @returns true when the reader typed into it since focusing it or pressing Escape in it.
  */
 export function hasPendingEdit(target: EventTarget | null): boolean {
     return target !== null && edited.has(target);

@@ -372,7 +372,10 @@ async function openInSession(
             return true;
         }
         if (report.opened !== "project") {
-            if (!fresh) {
+            if (fresh) {
+                // Opened as a new graph, so it starts its history (a project file does so itself).
+                session.history.clear();
+            } else {
                 workspace.set({ notice: { message: `Added ${file.name} to this project` } });
             }
             return true;

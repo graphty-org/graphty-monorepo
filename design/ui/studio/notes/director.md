@@ -10,6 +10,14 @@ by the SonarQube gate, so no pull request yet).
 
 ## Top of mind
 
+- 2026-10-16: DECIDED one BoundValue for single and bulk (SpreadValues deleted), the Layer token
+  (guillemets, purple `--cm-text-component`, weight 600, via a new VariablePill `tone`), and color
+  sets from 2 to dozens: 24 px strip of up to 4 hard stops or a gradient; one-row line of all chits
+  up to 6, else 5 and "+N"; Other chit kept; count in the spoken name; 3:1 ring token. Spec in
+  `tier3/bulk-edit-plan.md`. Widths were judged at the measured 96 px narrowest field, not the
+  184 px grid figure. For the study: is the token read as a column named Layer; does anyone click
+  a chit.
+
 - 2026-10-13: PUSH BLOCKED. The pre-push SonarQube step reports 213 findings on lines this branch
   changes against master. About 45 are on tier 1 lines, and most of the rest (readonly members,
   Sets, `.dataset`) are cases master's burn-down already fixed after this branch left master. So

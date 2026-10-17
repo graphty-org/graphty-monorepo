@@ -15,6 +15,17 @@ save and reopen.
 
 ## Top of mind
 
+- 2026-10-16 **Bulk field becomes BoundValue (owner).** My part proposed: the pill is the only tab
+  stop; click/Enter/Space opens the one BindingPopover (single: "Color by Louvain"; bulk: "Color by
+  layer", straight into Layer pre-filled). The strip in the pill is a glance cue, never clickable on
+  its own. The line under it is one row, never wraps: every chit for 2-8 values, else the first 8 and
+  "+N"; a ramp shows its ends. A chit click opens the popover with that row's control focused; "+N"
+  opens it with the whole list (search, sort) -- pointer shortcuts only, the keyboard path is pill >
+  popover > row. The pill's spoken name carries the count ("Fill: Louvain, 6 groups, Okabe-Ito";
+  "Fill: each layer's own, 12 layers"), the guillemets never spoken. Found: `chits()` squeezes 6 hard
+  stops into the 20 px strip (3.3 px each) and the line's chits are title-only (mouse only). Watch:
+  does the set-off "Layer" read as a data column named Layer?
+
 - 2026-10-13 **Tier 3 paused for the owner's review after build 3** (served as
   `tier3-i3-617b43b270`; review `tier3/iterations/3/review.md`). Built and mine: unset is the minus
   at rest on a set field, emptying + Enter, or Delete; its tooltip names what comes back read over

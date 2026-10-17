@@ -245,3 +245,119 @@ The Vary list's "One value for all" gives every layer one value. Recorded in
 Piloted on build bulk6 (2026-10-16): Escape now closes a row's color picker first; a write counts
 only the layers whose value changed; a receipt goes away once its write is undone; the values at
 rest wrap onto a second line rather than being cut off.
+
+## Director decision 2026-10-16: one BoundValue, and color sets from 2 to dozens
+
+The owner's rule: a bulk edit draws exactly what one layer's edit draws. So the bulk field whose
+layers differ is BoundValue, fed by Layer; SpreadValues and its `.ws-spread` / `.ws-spread-chip`
+CSS are deleted. Where the proposals disagreed, parity with a single layer won, then readability,
+then the narrowest measured width (the field is about 96 px at the narrowest panel, from the bulk6
+College football screenshot, so the 140 to 184 px budgets in two proposals do not fit).
+
+### The Layer source in the field
+
+- Visible name: the word Layer in guillemets (written in source as "«Layer»"), in the
+  slot where "Louvain" goes. Capitalized, as in the Vary list.
+- Style: `--cm-text-component` (purple: #8638e5 light, #d1a8ff dark; 5.19:1 or better in every
+  state on both themes, measured by `tmp/visual-bulk7/contrast.py`), weight 600, upright. The
+  guillemets stay: they are the cue that is not color (WCAG 1.4.1), and they keep it apart from a
+  real data column named "layer", which stays plain text.
+- How: an additive `tone?: "component"` prop on compact-mantine's VariablePill (sets
+  `data-tone="component"` on the name, the tone the tree's rows already use). No local CSS
+  override in the app.
+- Detail slot: "N layers" ("10 layers"). A single layer's detail stays its palette's name.
+- Tooltip: the guillemet word, then "Each layer's own value".
+- The Vary by list's Layer item uses the same token and sits first, above the data fields.
+- Popover title: "Node color from each layer" (`bindingTitle` gains the Layer case; it no longer
+  says "by Layer").
+- Detach (unlink) in bulk: tooltip "One value for all: use <first layer's value> for all 10
+  layers", name "Give all 10 layers one node color".
+- Rejected: a tinted field background (the field must look like a single layer's field); brand
+  blue (4.23:1 on white, and it already means selection and focus).
+
+### The strip in the field (both cases)
+
+- 24 x 14 px (was 20). Each stop at least 6 px.
+- Categorical (any legend block of kind categorical, and Layer always): one hard stop per color up
+  to 4; with 5 or more, the first 4 in list order. 2 colors are 12 px each, 3 are 8 px.
+- Continuous: the ramp as a smooth gradient, at every size.
+- The strip carries no count. Rejected: a separate rule for quantile bins (they are categorical
+  blocks; add one if a study session misreads them).
+- `chits()` changes from 6 stops to 4; `SWATCH_STRIP` becomes 24.
+
+### The line under the field (VariedLine, both cases)
+
+- One row, never wraps (this replaces bulk6's wrap onto a second line).
+- 12 px chits, 2 px gap, a 1 px inset ring (below).
+- 6 colors or fewer: every chit (82 px at 6).
+- 7 or more: the first 5 chits, then "+N" in xs `--cm-text-secondary`. So it never says "+1".
+  At 40: 5 chits and "+35", about 92 px.
+- N counts every group not drawn, including `overflow.hidden` (the element's row cap).
+- The gray Other chit, when the paint lumps groups into Other, is drawn as the last shown chit
+  (the canvas paints those nodes gray, so the key shows gray). It is not counted in N; the
+  existing `legend.lumped` note line still says how many were lumped.
+- Past the palette's length, round 6's rule stands: each chit shows the group's shape in its
+  color. No "colors repeat" note: with 5 chits shown, a repeat is never on the line.
+- Continuous: the two ends under the strip's ends ("1" and "36"), plus the existing non-neutral
+  scale note ("Log scale").
+- Not a color (shape, size, words): today's words line, first 3 then "+N", unchanged.
+- Bulk: the same rules, one chit per layer in list order, read from graphty-element's
+  `styles.layerGroups` (each group's `paints[channel]` and `name`); a single layer reads its
+  legend block. VariedLine takes the neutral list both give (name, color, role, kind, ends,
+  hidden count), so there is one drawing. A layer with no value draws as "No value" draws on a
+  normal layer.
+- Chits are not controls: no click shortcuts into the popover (rejected for now; the study notes
+  whether anyone tries to click one). Each keeps its mouse `title` ("Group 3" single, the layer
+  name bulk).
+- Rejected: named rows for 2 or 3 values (rows of different heights break the 900 x 700 fit bar
+  and the parity of the row's height).
+
+### Ring, light and dark
+
+- Strip and every chit: `box-shadow: inset 0 0 0 1px var(--cm-swatch-ring)`, a new
+  compact-mantine token: rgba(0, 0, 0, 0.45) light, rgba(255, 255, 255, 0.5) dark, 3:1 or
+  better against the panel in both themes (WCAG 1.4.11), so Okabe-Ito yellow on white and black
+  on dark keep an edge. The old `rgba(0,0,0,.15)` (about 1.2:1) goes.
+- "+N" and the range ends stay `--cm-text-secondary`; verify 4.5:1 in dark.
+
+### Keyboard and screen reader
+
+- The pill is the only tab stop. Click, Enter or Space opens the one BindingPopover; Escape or
+  Done closes it and returns focus to the pill (already true). Bulk opens straight into Layer,
+  each row on its layer's current value; closing writes each layer its own plain value in one
+  undo step, closing unchanged writes nothing (unchanged rules).
+- The pill's name always states the count:
+    - categorical: "Node color: Louvain, 6 groups, Okabe-Ito"
+    - continuous: "Node color: Degree, 1 to 36, Viridis"
+    - bulk: "Node color: from each layer, 10 layers, 7 colors" (distinct colors); add ", 1 has no
+      value" when some do. The guillemets are never spoken.
+- The strip and the line are `aria-hidden`. The pill gets `aria-describedby` pointing at a
+  visually hidden text: the same entries the line draws, as name and color words from
+  `valueWords`, then "and N more": "Group 1 orange, Group 2 sky blue, ... and 22 more". Bulk
+  names are layer names.
+- Label alignment: the property's label lines up with the field's first line, not the middle of
+  the two-line block.
+
+### No graphty-element change
+
+Everything above reads what the element already returns (`styles.legendOf`, `styles.layerGroups`,
+the catalog palettes). The only API additions are compact-mantine's (VariablePill `tone`,
+`--cm-swatch-ring`), both additive.
+
+### Tests to write (graphty, real input through `userEvent`)
+
+1. Strip: 2, 3, 6 and 40 categories give 2, 3, 4 and 4 stops; a ramp gives a gradient.
+2. Line: 6 groups draw 6 chits and no "+N"; 7 draw 5 and "+2"; 40 draw 5 and "+35"; a lumped
+   paint draws the gray chit last and keeps its note; "+1" never appears.
+3. Single layer bound to Louvain and bulk with layers that differ render the same component
+   (`data-varied-line` under a VariablePill); no `.ws-spread` anywhere.
+4. Bulk field: visible text is the guillemet word with `data-tone="component"`; the pill's name is
+   "Node color: from each layer, N layers, M colors"; the described-by text lists layer names.
+5. Bulk: Tab to the pill, Enter opens the popover titled "Node color from each layer" with each
+   row on its layer's value; Escape closes it, focus is on the pill, nothing was written.
+6. compact-mantine: VariablePill `tone="component"` colors the name only; the ring token measures
+   3:1 against the panel background in light and dark.
+
+Pilot after the build (keys only, through `tool/real.mjs`, one browser through
+`tool/with-browser.sh`): Les Miserables + Louvain (6), College football + Leiden (more than 8),
+a degree ramp, and a folder of 10 layers; screenshots in light and dark at the narrowest panel.

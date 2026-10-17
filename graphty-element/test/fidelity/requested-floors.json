@@ -546,10 +546,12 @@
         },
         "graphml-libcitygml-mapping": {
             "position": 1,
+            "size": 1,
             "shape": 1,
             "fill": 1,
             "fillOpacity": 1,
             "borderColor": 1,
+            "borderWidth": 1,
             "borderStyle": 1,
             "labelText": 1,
             "labelColor": 1,
@@ -557,12 +559,10 @@
             "visible": 1,
             "edgeColor": 1,
             "edgeOpacity": 1,
+            "edgeWidth": 1,
             "lineStyle": 1,
             "arrows": 1,
-            "edgeLabel": 1,
-            "size": 1,
-            "borderWidth": 1,
-            "edgeWidth": 1
+            "edgeLabel": 1
         },
         "graphml-cla-checker-graph": {
             "position": 1,
@@ -606,6 +606,7 @@
         },
         "graphml-yfiles-html-ss13-tree": {
             "position": 1,
+            "size": 1,
             "shape": 1,
             "labelText": 1,
             "labelColor": 1,
@@ -613,18 +614,19 @@
             "visible": 1,
             "edgeColor": 1,
             "edgeOpacity": 1,
+            "edgeWidth": 1,
             "lineStyle": 1,
             "arrows": 1,
-            "edgeLabel": 1,
-            "size": 1,
-            "edgeWidth": 1
+            "edgeLabel": 1
         },
         "graphml-yfiles-html-stag-flowchart": {
             "position": 1,
+            "size": 1,
             "shape": 0.43243243243243246,
             "fill": 1,
             "fillOpacity": 1,
             "borderColor": 1,
+            "borderWidth": 1,
             "borderStyle": 1,
             "labelText": 1,
             "labelColor": 1,
@@ -632,19 +634,19 @@
             "visible": 1,
             "edgeColor": 1,
             "edgeOpacity": 1,
+            "edgeWidth": 1,
             "lineStyle": 1,
             "arrows": 1,
-            "edgeLabel": 1,
-            "size": 1,
-            "borderWidth": 1,
-            "edgeWidth": 1
+            "edgeLabel": 1
         },
         "graphml-synthetic-nodes": {
             "position": 1,
+            "size": 1,
             "shape": 0.7323943661971831,
             "fill": 1,
             "fillOpacity": 1,
             "borderColor": 1,
+            "borderWidth": 1,
             "borderStyle": 0.8695652173913043,
             "labelText": 0.9859154929577465,
             "labelColor": 1,
@@ -652,12 +654,10 @@
             "visible": 1,
             "edgeColor": 1,
             "edgeOpacity": 1,
+            "edgeWidth": 1,
             "lineStyle": 1,
             "arrows": 1,
-            "edgeLabel": 1,
-            "size": 1,
-            "borderWidth": 1,
-            "edgeWidth": 1
+            "edgeLabel": 1
         },
         "graphml-synthetic-edges": {
             "position": 1,
@@ -1683,6 +1683,8 @@
         "pajek-1crn": {
             "position": 1,
             "shape": 1,
+            "fill": 1,
+            "fillOpacity": 1,
             "borderColor": 1,
             "borderWidth": 1,
             "borderStyle": 1,
@@ -1694,14 +1696,13 @@
             "edgeWidth": 1,
             "lineStyle": 1,
             "arrows": 1,
-            "edgeLabel": 1,
-            "fill": 1,
-            "fillOpacity": 1
+            "edgeLabel": 1
         },
         "pajek-c": {
             "position": 1,
             "shape": 1,
             "fill": 1,
+            "fillOpacity": 1,
             "borderColor": 1,
             "borderWidth": 1,
             "borderStyle": 1,
@@ -1713,13 +1714,13 @@
             "edgeWidth": 1,
             "lineStyle": 1,
             "arrows": 1,
-            "edgeLabel": 1,
-            "fillOpacity": 1
+            "edgeLabel": 1
         },
         "pajek-football": {
             "position": 1,
             "shape": 1,
             "fill": 1,
+            "fillOpacity": 1,
             "borderColor": 1,
             "borderWidth": 1,
             "borderStyle": 1,
@@ -1731,13 +1732,13 @@
             "edgeWidth": 1,
             "lineStyle": 1,
             "arrows": 1,
-            "edgeLabel": 1,
-            "fillOpacity": 1
+            "edgeLabel": 1
         },
         "pajek-kdorola": {
             "position": 1,
             "shape": 1,
             "fill": 1,
+            "fillOpacity": 1,
             "borderColor": 1,
             "borderWidth": 1,
             "borderStyle": 1,
@@ -1749,25 +1750,24 @@
             "edgeWidth": 1,
             "lineStyle": 1,
             "arrows": 1,
-            "edgeLabel": 1,
-            "fillOpacity": 1
+            "edgeLabel": 1
         },
         "pajek-lin-rel4": {
             "position": 1,
             "shape": 0.9615384615384616,
             "fillOpacity": 1,
             "borderColor": 1,
+            "borderWidth": 1,
             "borderStyle": 1,
             "labelText": 1,
             "labelColor": 1,
             "visible": 1,
             "edgeColor": 1,
             "edgeOpacity": 1,
+            "edgeWidth": 1,
             "lineStyle": 1,
             "arrows": 1,
-            "edgeLabel": 1,
-            "borderWidth": 1,
-            "edgeWidth": 1
+            "edgeLabel": 1
         },
         "xgmml-aracne-mycccnd1": {
             "position": 1,

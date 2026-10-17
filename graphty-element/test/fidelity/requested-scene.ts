@@ -115,7 +115,11 @@ export function requestedScene(session: GraphSession, sourceSha256: string, comm
             fill: fill?.hex ?? null,
             fillOpacity: num(channel(merged, "node.opacity"), 1) * (fill?.alpha ?? 1),
             border: {
-                color: borderWidth > 0 ? (colorOf(merged["node.borderColor"])?.hex ?? null) : null,
+                // a border of opacity 0 is not drawn (meshes/NodeMesh.ts createBorder)
+                color:
+                    borderWidth > 0 && num(merged["node.borderOpacity"], 1) > 0
+                        ? (colorOf(merged["node.borderColor"])?.hex ?? null)
+                        : null,
                 width: borderWidth * SCENE_PER_UNIT.node,
                 style: borderStyleOf(borderStyle),
             },

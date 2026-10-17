@@ -105,6 +105,8 @@ export interface NodeStyleValues {
     readonly fillOpacity: number;
     /** The opacity of the whole node, 0..1. */
     readonly opacity: number;
+    /** The opacity of the border alone, 0..1 (0 draws no border). */
+    readonly borderOpacity: number;
     /** The width. */
     readonly width: number;
     /** The height. */

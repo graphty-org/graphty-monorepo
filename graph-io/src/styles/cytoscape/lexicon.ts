@@ -383,6 +383,13 @@ export const CYTOSCAPE_LEXICON: Readonly<
                 ["NODE_BORDER_COLOR", color],
             ],
         ],
+        [
+            "borderOpacity",
+            [
+                ["NODE_BORDER_TRANSPARENCY", opacity255],
+                ["NODE_BORDER_OPACITY", opacity01],
+            ],
+        ],
         ["borderWidth", [["NODE_BORDER_WIDTH", length]]],
         [
             "borderStyle",

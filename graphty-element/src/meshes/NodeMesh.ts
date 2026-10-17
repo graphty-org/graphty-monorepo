@@ -443,8 +443,9 @@ export class NodeMesh {
     ): InstancedMesh | null {
         const { border, shape } = createOptions;
         const width = (border?.width ?? 0) * this.extentPerSize(shape);
+        const opacity = border?.opacity ?? 1;
 
-        if (width <= 0 || shape?.type === undefined) {
+        if (width <= 0 || opacity <= 0 || shape?.type === undefined) {
             return null;
         }
 
@@ -455,7 +456,7 @@ export class NodeMesh {
             const depth = flat ? (extents.z ?? extents.across) : THIN_DEPTH_RATIO * extents.across;
             const mesh = ringSlab("node-border", borderRing(outline, width, border?.style ?? "solid"), depth, scene);
             placeByZIndex(mesh, shape, options.is2D);
-            mesh.material = this.createBorderMaterial(border?.color ?? "#000000", scene);
+            mesh.material = this.createBorderMaterial(border?.color ?? "#000000", opacity, scene);
 
             return mesh;
         });
@@ -521,13 +522,15 @@ export class NodeMesh {
      * The border's material: its colour, unlit, so a border reads as the colour a file gave it in
      * 2D and 3D alike, the way an edge's line does.
      * @param color - The border colour.
+     * @param opacity - The border's opacity, 0..1.
      * @param scene - The scene.
      * @returns The frozen material.
      */
-    private static createBorderMaterial(color: string, scene?: Scene): StandardMaterial {
+    private static createBorderMaterial(color: string, opacity: number, scene?: Scene): StandardMaterial {
         const mat = new StandardMaterial("node-border", scene);
         mat.disableLighting = true;
         mat.emissiveColor = Color3.FromHexString(color);
+        mat.alpha = opacity;
         mat.freeze();
 
         return mat;

@@ -257,6 +257,15 @@ describe("resolution", () => {
         expect(resolveCytoscape("edge", style, elements([1])).opacity).toEqual([0.5]);
     });
 
+    it("reads a node border's transparency as its opacity, in both dialects", () => {
+        const desktop = emptyCytoscapeStyle();
+        desktop.node.defaults.set("NODE_BORDER_TRANSPARENCY", "0");
+        expect(resolveCytoscape("node", desktop, elements([1])).borderOpacity).toEqual([0]);
+        const cx2 = emptyCytoscapeStyle();
+        cx2.node.defaults.set("NODE_BORDER_OPACITY", 0.78);
+        expect(resolveCytoscape("node", cx2, elements([1])).borderOpacity).toEqual([0.78]);
+    });
+
     it("fills what the style leaves unset with the chosen tool's defaults", () => {
         const style = emptyCytoscapeStyle();
         expect(resolveCytoscape("node", style, elements([1])).fill).toBeUndefined();

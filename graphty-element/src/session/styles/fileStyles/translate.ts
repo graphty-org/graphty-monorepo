@@ -482,6 +482,7 @@ function channelPlans(
             // outline's screen-space glow it covers the fill once the graph is framed (issue #2252).
             ["borderColor", [id(graphty ? "node.outline" : "node.borderColor")]],
             ["borderWidth", [length("node.borderWidth")]],
+            ["borderOpacity", [id("node.borderOpacity")]],
             ["cornerRadius", [length("node.cornerRadius")]],
             // Drawn in a pass of their own (`#extents`), only where some node's sides differ.
             ["width", [length("node.width")]],

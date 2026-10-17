@@ -94,6 +94,7 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.drawOrder": "mesh",
     "node.borderColor": "mesh",
     "node.borderWidth": "mesh",
+    "node.borderOpacity": "mesh",
     "node.borderStyle": "mesh",
     "node.cornerRadius": "mesh",
     // An effect's COLOUR is geometry here, and the renderer is why. Babylon draws an instanced

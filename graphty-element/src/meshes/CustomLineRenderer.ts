@@ -828,6 +828,11 @@ void main(void) {
         // Register material for its own scene's resolution updates
         this.resolutionTracked.add(shaderMaterial);
 
+        // Blocked for the material's life, as in FilledArrowRenderer.applyShader: a ShaderMaterial
+        // re-derives its defines on every readiness check, and everything set on it later is a
+        // uniform. Unblocked, the setter below walks every mesh in the scene, so a line in a new
+        // colour cost the size of the graph (issue #2894).
+        shaderMaterial.blockDirtyMechanism = true;
         // Disable backface culling for double-sided rendering
         shaderMaterial.backFaceCulling = false;
 
@@ -946,6 +951,8 @@ void main(void) {
         // Register material for its own scene's resolution updates
         this.resolutionTracked.add(shaderMaterial);
 
+        // See create (issue #2894).
+        shaderMaterial.blockDirtyMechanism = true;
         shaderMaterial.backFaceCulling = false;
         mesh.material = shaderMaterial;
 

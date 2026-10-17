@@ -2045,6 +2045,7 @@ export class Graphty extends LitElement {
     clearData(): void;
     connectedCallback(): void;
     static createApiKeyManager(): Promise<ApiKeyManager>;
+    get credentials(): CredentialStore;
     get dataSource(): string | undefined;
     set dataSource(value: string | undefined);
     get dataSourceConfig(): Record<string, unknown> | undefined;
@@ -2147,6 +2148,9 @@ export class Graphty extends LitElement {
         graphName?: string;
     }): Promise<{
         loadId: number;
+    }>;
+    loadFromSource(source: string, params: Readonly<Record<string, unknown>>, options?: SourceLoadOptions): Promise<{
+        key: string;
     }>;
     loadFromUrl(url: string, options?: {
         format?: string;

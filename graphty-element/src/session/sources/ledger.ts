@@ -178,6 +178,32 @@ export class SourceLedger {
     }
 
     /**
+     * Record that a load ran again (a waiting load of an opened project) or read more pages: its
+     * key, source, config and options stay; what the fetch found replaces what was there.
+     * @param loadKey - the load's key
+     * @param facts - what the run found
+     * @param facts.pages - pages read in this run, added to the record's
+     * @param facts.next - where it continues now
+     * @param facts.validators - what tells whether it changed
+     * @param facts.credential - the credential used, for its identity
+     * @param facts.endpoint - the endpoint it ran against
+     */
+    refreshLoad(
+        loadKey: string,
+        facts: Pick<LoadFacts, "next" | "validators" | "credential" | "endpoint"> & { readonly pages?: number },
+    ): void {
+        const load = this.require(loadKey);
+        this.replace(loadKey, {
+            ...load,
+            loadedAt: new Date().toISOString(),
+            pages: load.pages + (facts.pages ?? 0),
+            next: facts.next ?? null,
+            validators: plain(facts.validators ?? load.validators),
+            credential: identityOf(facts.credential, facts.endpoint ?? load.endpoint) ?? load.credential,
+        });
+    }
+
+    /**
      * Every record, in load order.
      * @returns frozen copies
      */

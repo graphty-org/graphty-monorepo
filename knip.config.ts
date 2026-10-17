@@ -203,6 +203,7 @@ const config: KnipConfig = {
                           "ai.ts!",
                           "catalog.ts!",
                           "commands.ts!",
+                          "credentials.ts!",
                           "extend.ts!",
                           "format.ts!",
                           "logging.ts!",

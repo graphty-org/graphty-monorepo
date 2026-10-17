@@ -39,6 +39,7 @@ import type { CodedFact } from "../shared";
 import { deepEquals } from "../styles/predicate";
 import type { HistoryCode, NodeRecordInput, RowUpdate } from "../types";
 import type { BatchCommand } from "./index";
+import type { DataImportSourceCommand } from "./source-load";
 
 /** A record to add; its id, or its endpoints, are read through the configured paths. */
 type RecordInput = NodeRecordInput;
@@ -134,6 +135,8 @@ export interface DataImportCommand {
     readonly unmatched?: "add" | "leave-out";
     /** A node record repeating an id an earlier one gave; see `LoadChoices.duplicateIds`. */
     readonly duplicateIds?: "first" | "merge" | "refuse";
+    /** For `"merge"`: a node already in the graph keeps its attributes (the default) or takes the incoming ones. */
+    readonly existing?: "keep" | "update";
     /**
      * Count the load instead of refusing it: a limit it passes is recorded in the report, and
      * the graph `present` describes counts as already there. Only a draft's scratch session sends it.
@@ -200,7 +203,12 @@ interface DataSetSourceCommand {
 
 /** Every data op. */
 export type DataCommand =
-    DataApplyCommand | DataImportCommand | DataExpandCommand | DataDeclareCommand | DataSetSourceCommand;
+    | DataApplyCommand
+    | DataImportCommand
+    | DataImportSourceCommand
+    | DataExpandCommand
+    | DataDeclareCommand
+    | DataSetSourceCommand;
 
 /** The measurements every declaration may name. */
 const DECLARABLE: ReadonlySet<string> = new Set(["categorical", "ordinal", "quantitative", "time"]);
@@ -546,7 +554,7 @@ function importFact(command: DataImportCommand): CodedFact<"data.import"> {
     return { code: "data.import", params: { name: named ?? null, type: type ?? null } };
 }
 
-const dataImport: UndoableDefinition<DataImportCommand> = {
+export const dataImport: UndoableDefinition<DataImportCommand> = {
     op: "data.import",
     undo: { kind: "undoable", label: importLabel, fact: importFact },
     // A chunked writer: a layout can move the lane between its chunks, so it takes the

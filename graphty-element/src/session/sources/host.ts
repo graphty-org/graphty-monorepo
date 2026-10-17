@@ -11,6 +11,10 @@ import type { SourceLedger } from "./ledger";
 export interface SourceHost {
     /** The load records. */
     readonly ledger: SourceLedger;
+    /** The keys of the records an opened project holds that have not run since it opened. */
+    readonly pending: Set<string>;
+    /** The data surface, which a credential store is attached to (see `credentialLookup`). */
+    readonly owner: object;
     /**
      * Dispatch a command through the session's dispatcher, as one undoable step.
      * @param command - the command

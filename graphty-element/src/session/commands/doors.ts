@@ -28,6 +28,8 @@
  * No entry point exports this module.
  */
 
+import { defineSource, registerSource, registry } from "@graphty/graph-io";
+
 import type { LayerSpec } from "../../catalog/types";
 import type { SessionCommand } from "../planning";
 import type { ImportSource } from "./data";
@@ -206,6 +208,81 @@ interface ImportExtra {
 function imports(mode: "replace" | "merge", source: ImportSource, extra: ImportExtra = {}): SessionCommand {
     return { op: "data.import", source, mode, ...extra };
 }
+
+/** The network source the doors load from: two pages of one node each, read with no request. */
+const DOOR_SOURCE = "door-source";
+
+/**
+ * Register the doors' network source, once.
+ * @returns Its id.
+ */
+function doorSource(): string {
+    if (!registry.hasSource(DOOR_SOURCE)) {
+        registerSource(
+            defineSource({
+                id: DOOR_SOURCE,
+                async *records(_params: Record<string, never>, ctx) {
+                    for (let page = Number(ctx.cursor?.page ?? 0); page < 2; page++) {
+                        await Promise.resolve();
+                        yield { nodes: [{ id: `door-s${String(page)}` }], next: page === 0 ? { page: 1 } : null };
+                    }
+                },
+            }),
+        );
+    }
+
+    return DOOR_SOURCE;
+}
+
+/**
+ * What a load from the doors' source dispatches.
+ * @param mode - Replace or merge.
+ * @param ids - The node ids the read held.
+ * @param extra - The other load choices.
+ * @returns The command.
+ */
+function sourceImport(mode: "replace" | "merge", ids: readonly string[], extra: object = {}): SessionCommand {
+    return {
+        op: "data.import-source",
+        source: { type: `source:${DOOR_SOURCE}`, config: {} },
+        mode,
+        held: {
+            nodes: ids.map((id) => ({ id })),
+            edges: [],
+            declaredDirection: null,
+            errors: [],
+            errorLimit: 100,
+            idPath: "id",
+            source: "source",
+            target: "target",
+        },
+        ...extra,
+    };
+}
+
+/** The saved load an opened project's `runPendingSourceLoad` door runs. */
+const DOOR_PENDING = {
+    version: 1,
+    loads: [
+        {
+            key: "door-load",
+            source: DOOR_SOURCE,
+            version: 1,
+            config: {},
+            endpoint: null,
+            options: {},
+            loadedAt: "2026-10-17T00:00:00.000Z",
+            pages: 1,
+            next: null,
+            validators: {},
+            credential: null,
+            expansions: [],
+        },
+    ],
+};
+
+/** Loading from the doors' network source on the element. */
+const LOAD_FROM_SOURCE = calls(() => [doorSource(), {}], [sourceImport("replace", ["door-s0", "door-s1"])]);
 
 /** The data rows the element and `Graph` share. */
 const DATA_DOORS: Readonly<Record<string, Door>> = {
@@ -720,6 +797,9 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             removeNodes: REMOVE_NODES,
             addDataFromSource: ADD_FROM_SOURCE,
             loadFromUrl: LOAD_FROM_URL_ELEMENT,
+            loadFromSource: LOAD_FROM_SOURCE,
+            // The reader's remembered credentials: secrets of this machine, never in a project.
+            credentials: READ,
             loadFromFile: LOAD_FROM_FILE,
             pin: pinsN1(PIN_N1),
             unpin: pinsN1(UNPIN_N1),
@@ -1360,6 +1440,12 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         whole: KEYS,
     },
     {
+        name: "CredentialStore",
+        file: "src/credentials/CredentialStore.ts",
+        half: "renderer",
+        whole: KEYS,
+    },
+    {
         name: "VoiceInputAdapter",
         file: "src/ai/input/VoiceInputAdapter.ts",
         half: "renderer",
@@ -1514,8 +1600,39 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             pendingSourceLoads: READ,
             expand: NOT_BUILT,
             collapse: NOT_BUILT,
-            more: NOT_BUILT,
-            runPendingSourceLoad: NOT_BUILT,
+            // The next page after a capped load from a source: its rows, merged.
+            more: {
+                kind: "dispatches",
+                op: "data.import-source",
+                call: {
+                    kind: "call",
+                    args: [],
+                    around: async (target) => {
+                        const data = target as { import(source: unknown, options: unknown): Promise<void> };
+                        await data.import(
+                            { source: doorSource(), config: {} },
+                            { limits: { maxNodes: 1, onLimit: "stop" } },
+                        );
+                        return () => Promise.resolve();
+                    },
+                },
+                expect: [sourceImport("merge", ["door-s1"])],
+            },
+            // A saved load of an opened project, run again: its rows, merged over the ones it brought.
+            runPendingSourceLoad: {
+                kind: "dispatches",
+                op: "data.import-source",
+                call: {
+                    kind: "call",
+                    args: ["door-load"],
+                    around: (target) => {
+                        doorSource();
+                        (target as { restoreSourceMember(member: unknown): void }).restoreSourceMember(DOOR_PENDING);
+                        return Promise.resolve(() => Promise.resolve());
+                    },
+                },
+                expect: [sourceImport("merge", ["door-s0", "door-s1"], { existing: "update" })],
+            },
             attributes: READ,
             histogram: READ,
             declare: {

@@ -20,6 +20,7 @@ import type { Dispatcher, TransactionOptions } from "./project/Dispatcher";
 import { createRunResult, type ResultElementValues } from "./results/RunResult";
 import { type Caveats, ENGINE_VERSIONS, type RunExecutionContext, type RunExecutor, type RunOutcome } from "./runs";
 import type { CodedFact } from "./shared";
+import { SOURCE_RECORD_MEMBER } from "./sources/ids";
 import type {
     DataSourceInput,
     GraphSession,
@@ -53,6 +54,8 @@ const MEMBER_KINDS = [
     "graphty-style",
     "graphty-notes",
     "graphty-view-state",
+    // Experimental: the loads from network sources (design/graph-io/network-sources-design.md 16.1).
+    "graphty-sources",
 ] as const;
 
 /** One of the member kinds a project file writes. */
@@ -93,6 +96,20 @@ export interface ProjectSaveOptions {
      * project dirty, and so does any change made while the write was under way. Default `true`.
      */
     readonly markSaved?: boolean;
+}
+
+/** What the session lends the project file for the loads from network sources. */
+interface ProjectSources {
+    /**
+     * The `graphty-sources` member to write.
+     * @returns it, or null when nothing was loaded from a source
+     */
+    member(): unknown;
+    /**
+     * Take an opened project's member; its loads wait until they are run.
+     * @param member - the member, or undefined when the file holds none
+     */
+    restore(member: unknown): void;
 }
 
 /** Where the project was last saved: a history step, and whether that step has changed since. */
@@ -432,6 +449,7 @@ function checkedExtensions(extensions: Readonly<Record<string, unknown>>): Recor
  * @param dispatcher - Its dispatcher, whose `runs` slice holds each finished run's command.
  * @param isDerived - Whether the element minted a run's id.
  * @param options - What to leave out, and the caller's extensions.
+ * @param sources - The loads from network sources, when the session has any.
  * @returns The document and what was left out.
  */
 function write(
@@ -439,6 +457,7 @@ function write(
     dispatcher: Dispatcher,
     isDerived: (id: RunId) => boolean,
     options: ProjectSaveOptions,
+    sources?: ProjectSources,
 ): { document: Record<string, unknown>; leftOut: ProjectProblem[] } {
     const nodes = session.data.nodes();
     const edges = session.data.edges();
@@ -540,6 +559,10 @@ function write(
             },
         },
     ].filter((member) => !leaveOut.has(member.kind as string));
+    const sourceMember = sources?.member() as Record<string, unknown> | null | undefined;
+    if (sourceMember !== null && sourceMember !== undefined) {
+        members.push({ kind: SOURCE_RECORD_MEMBER, ...sourceMember });
+    }
 
     const extensions = checkedExtensions(options.extensions ?? {});
     const { name } = session.project;
@@ -1247,15 +1270,20 @@ function nameOfFile(fileName: string | undefined): string | null {
  * @param hooks - What the session lends it.
  * @param hooks.announce - Publishes `project:status`.
  * @param hooks.isDerived - Whether the element minted a run's id.
+ * @param hooks.sources - Writes and restores the loads from network sources.
  * @returns The API.
  */
 export function projectOf(
     session: GraphSession,
     dispatcher: Dispatcher,
     canned: CannedOutcomes,
-    hooks: { readonly announce: (change: ProjectStatus) => void; readonly isDerived: (id: RunId) => boolean },
+    hooks: {
+        readonly announce: (change: ProjectStatus) => void;
+        readonly isDerived: (id: RunId) => boolean;
+        readonly sources?: ProjectSources;
+    },
 ): ProjectApi {
-    const { announce, isDerived } = hooks;
+    const { announce, isDerived, sources } = hooks;
     // Clean means: the history's cursor is on the save point's step (null: the baseline), and
     // nothing has been merged into that step or cleared from under it. A save made with
     // `markSaved: false` keeps its own point, followed the same way, until `markSaved` adopts it.
@@ -1317,7 +1345,7 @@ export function projectOf(
             return session.config.set({ name });
         },
         save(options = {}) {
-            const { document, leftOut } = write(session, dispatcher, isDerived, options);
+            const { document, leftOut } = write(session, dispatcher, isDerived, options, sources);
             const text = JSON.stringify(document);
             const saved: SavedProject = Object.freeze({
                 text,
@@ -1393,6 +1421,15 @@ export function projectOf(
                     (tx) => readProject({ tx, problems, restored }, doc, graph, name, canned),
                     opening,
                 );
+                // The loads from network sources wait, fetching nothing, until the application runs them.
+                try {
+                    sources?.restore(doc.members.get(SOURCE_RECORD_MEMBER)?.[0]);
+                } catch (error) {
+                    problems.push({
+                        code: isGraphtyError(error) ? error.code : "E_INTERNAL",
+                        params: { kind: SOURCE_RECORD_MEMBER },
+                    });
+                }
                 // A project opens with a fresh history: its opened state is the baseline.
                 session.history.clear();
                 adopt(pointNow());

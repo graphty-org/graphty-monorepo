@@ -41,6 +41,7 @@ export const COMMANDS = Object.freeze({
     batch: { undo: "undoable" },
     "data.apply": { undo: "undoable" },
     "data.import": { undo: "undoable" },
+    "data.import-source": { undo: "undoable" },
     "data.expand": { undo: "undoable" },
     "data.declare": { undo: "undoable" },
     "data.setSource": { undo: "undoable" },

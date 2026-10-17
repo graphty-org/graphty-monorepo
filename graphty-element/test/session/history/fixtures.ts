@@ -200,6 +200,47 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         command: { op: "data.import", source: { type: "json", config: { data: IMPORTED } }, mode: "merge" },
     },
     {
+        name: "data.import-source: rows a network source load read, replacing the graph",
+        variant: "replace",
+        tags: BOTH,
+        command: {
+            op: "data.import-source",
+            source: { type: "source:people", config: { team: "core" }, name: "People" },
+            mode: "replace",
+            held: {
+                nodes: [{ id: "ana", name: "Ana" }, { id: "bo" }],
+                edges: [{ source: "ana", target: "bo" }],
+                declaredDirection: null,
+                errors: [],
+                errorLimit: 100,
+                idPath: "id",
+                source: "source",
+                target: "target",
+            },
+        },
+    },
+    {
+        name: "data.import-source merging, updating the nodes already there",
+        variant: "merge",
+        tags: BOTH,
+        command: {
+            op: "data.import-source",
+            source: { type: "source:people", config: { team: "core" } },
+            mode: "merge",
+            existing: "update",
+            held: {
+                nodes: [{ id: "n1", name: "renamed" }, { id: "cy" }],
+                edges: [{ source: "n1", target: "cy" }],
+                declaredDirection: null,
+                errors: [],
+                errorLimit: 100,
+                idPath: "id",
+                source: "source",
+                target: "target",
+            },
+        },
+    },
+    {
         name: "data.expand: a fetched neighbourhood, one edge of it already held",
         tags: BOTH,
         command: {

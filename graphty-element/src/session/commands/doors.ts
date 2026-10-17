@@ -1063,6 +1063,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             isPinned: READ,
             roundRadius: READ,
             drawnRadius: READ,
+            borderReach: READ,
+            framingHalf: READ,
             drawnHalfExtents: READ,
         },
     },

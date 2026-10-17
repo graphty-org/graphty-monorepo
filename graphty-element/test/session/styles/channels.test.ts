@@ -23,7 +23,7 @@ import {
     toColorValue,
 } from "../../../src/session/styles/channels";
 
-/** The thirty-six channels the element publishes, in the order the table declares them. */
+/** The forty-three channels the element publishes, in the order the table declares them. */
 const DECLARED = [
     "node.color",
     "node.size",
@@ -40,6 +40,13 @@ const DECLARED = [
     "node.wireframe",
     "node.flat",
     "node.marker",
+    "node.width",
+    "node.height",
+    "node.depth",
+    "node.planar",
+    "node.borderColor",
+    "node.borderWidth",
+    "node.borderStyle",
     "edge.color",
     "edge.width",
     "edge.opacity",
@@ -87,8 +94,8 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into fifteen node channels and twenty-one edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 15);
+    it("splits into twenty-two node channels and twenty-one edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 22);
         assert.strictEqual(channelsFor("edge").length, 21);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
@@ -280,6 +287,10 @@ describe("what a style editor needs to draw a row", () => {
         "node.glow",
         "node.glowStrength",
         "node.marker",
+        // Unset, a node's width, height and depth follow its size and its shape's proportions.
+        "node.width",
+        "node.height",
+        "node.depth",
         "edge.patternCount",
         "edge.arrowHeadText",
         "edge.arrowHeadTextStyle",
@@ -369,11 +380,12 @@ describe("what a style editor needs to draw a row", () => {
 });
 
 describe("colour channels", () => {
-    it("are the six that carry a colour, and the type says the same six", () => {
+    it("are the seven that carry a colour, and the type says the same seven", () => {
         const fromTheType: readonly ColorChannel[] = [
             "node.color",
             "node.outline",
             "node.glow",
+            "node.borderColor",
             "edge.color",
             "edge.arrowHeadColor",
             "edge.arrowTailColor",

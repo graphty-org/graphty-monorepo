@@ -3,7 +3,7 @@
  */
 
 import { CHANNEL_DESCRIPTORS } from "@graphty/graphty-element/catalog";
-import { EdgeArrowTypes, EdgeLineTypes, NodeShapes } from "@graphty/graphty-element/schema";
+import { EdgeArrowTypes, EdgeLineTypes, NodeBorderStyles, NodeShapes } from "@graphty/graphty-element/schema";
 
 /**
  * One choice of a style picker: the value written into the layer and the word drawn for it.
@@ -90,3 +90,9 @@ export const ARROW_TYPE_OPTIONS: StyleOption[] = EdgeArrowTypes.options.map((typ
 export const NODE_SIZE_MODE_OPTIONS: StyleOption[] = (CHANNEL_DESCRIPTORS["node.sizeMode"].values ?? []).map(
     (mode) => ({ value: mode, label: optionLabel(mode) }),
 );
+
+/** The node border line styles, as the element's `NodeBorderStyles` spells them. */
+export const BORDER_STYLE_OPTIONS: StyleOption[] = NodeBorderStyles.options.map((style) => ({
+    value: style,
+    label: optionLabel(style),
+}));

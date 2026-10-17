@@ -1,7 +1,7 @@
 /**
- * The start screen, Settings and the usage data card, without the element (its tag stays an
- * empty box): what the screen says, the card's answers and the chip that follows them, Settings
- * and its sections, and the ways in. `StartScreen.real-element.test.tsx` opens the samples.
+ * The start page, Settings and the usage data card, without the element (its tag stays an
+ * empty box): what the page says, the card's answers and the chip that follows them, Settings
+ * and its sections, and the ways in, for a first visit and a returning reader. `StartScreen.real-element.test.tsx` opens the samples.
  */
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
@@ -11,6 +11,7 @@ vi.mock("../../../lib/sentry", () => ({ initSentry, stopSentry, captureUserFeedb
 
 import { render, screen, within } from "../../../test/test-utils";
 import { forgetUsageAnswer } from "../../privacy/usageData";
+import { clearRecent, rememberRecent } from "../../project/recent";
 import { SINGLE_KEY_SHORTCUTS } from "../../settings/preferences";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -28,7 +29,8 @@ function renderStart() {
     return store;
 }
 
-beforeEach(() => {
+beforeEach(async () => {
+    await clearRecent();
     forgetUsageAnswer();
     localStorage.removeItem(SINGLE_KEY_SHORTCUTS.key);
     initSentry.mockClear();
@@ -40,14 +42,21 @@ afterEach(() => {
 });
 
 describe("the start screen", () => {
-    it("offers the two ways in, Recent projects and the four samples, Les Miserables first", () => {
+    it("offers the first visit's ways in and the four samples, Les Miserables first", () => {
         renderStart();
 
-        assert.isNotNull(screen.getByRole("heading", { level: 1, name: "graphty" }));
-        assert.isNotNull(screen.getByRole("main"));
-        assert.isNotNull(screen.getByRole("button", { name: /Open project or file\.\.\./ }));
-        assert.isNotNull(screen.getByRole("button", { name: /New from data\.\.\./ }));
-        assert.isNotNull(screen.getByText("Projects you open or create appear here. They are kept in this browser."));
+        assert.isNotNull(screen.getByRole("img", { name: "graphty" }));
+        assert.equal(
+            screen.getByRole("heading", { level: 1 }).textContent,
+            "Analyze any network.Free and open source.",
+        );
+        assert.isNotNull(screen.getByRole("button", { name: /^Open a file/ }));
+        assert.isNotNull(screen.getByRole("button", { name: "Open network data" }));
+        assert.isNotNull(screen.getByRole("button", { name: "Samples" }));
+        assert.isNotNull(screen.getByRole("button", { name: "New project" }));
+        assert.isNotNull(screen.getByRole("link", { name: "MIT licensed on GitHub" }));
+        assert.isNotNull(screen.getByRole("link", { name: "Put it on your own site" }));
+        assert.isNotNull(screen.getByRole("toolbar", { name: "Analyze the graph" }));
         const samples = within(screen.getByRole("region", { name: "Samples" })).getAllByRole("button");
         assert.deepEqual(
             samples.map((button) => button.getAttribute("aria-label")),
@@ -119,13 +128,49 @@ describe("the start screen", () => {
         assert.isNotNull(screen.getByRole("button", { name: "Local only" }));
     });
 
-    it("opens the Data page for New from data...", async () => {
+    it("opens an empty project for New project", async () => {
         const store = renderStart();
 
-        await userEvent.click(screen.getByRole("button", { name: /New from data\.\.\./ }));
+        await userEvent.click(screen.getByRole("button", { name: "New project" }));
 
-        assert.equal(store.get().page, "data-page");
-        assert.isNotNull(store.get().project);
+        assert.equal(store.get().project?.name, "Untitled");
+        assert.equal(store.get().page, "panels");
+    });
+
+    it("scrolls to the samples for Samples", async () => {
+        renderStart();
+        const samples = screen.getByRole("region", { name: "Samples" });
+        let scrolled = false;
+        samples.scrollIntoView = () => {
+            scrolled = true;
+        };
+
+        await userEvent.click(screen.getByRole("button", { name: "Samples" }));
+
+        assert.isTrue(scrolled);
+    });
+
+    it("lists the network sources that are on the way, and opens a graph from a link", async () => {
+        const store = renderStart();
+
+        await userEvent.click(screen.getByRole("button", { name: "Open network data" }));
+        const dialog = await screen.findByRole("dialog", { name: "Open network data" });
+        for (const source of ["NDEx", "Neo4j", "Web API"]) {
+            assert.isNotNull(within(dialog).getByText(source));
+        }
+        assert.isNull(within(dialog).queryByText(/Memgraph/));
+        assert.isNotNull(within(dialog).getByText(/on the way/));
+        const open = within(dialog).getByRole("button", { name: "Open" });
+        assert.isTrue(open.hasAttribute("disabled"));
+
+        await userEvent.type(
+            within(dialog).getByRole("textbox", { name: "Open from a link" }),
+            "https://example.com/data/trade%20routes.graphml",
+        );
+        await userEvent.click(open);
+
+        assert.equal(store.get().project?.name, "trade routes");
+        assert.equal(store.get().opening?.name, "trade routes");
     });
 
     it("opens a dropped file as a project named after it", async () => {
@@ -133,7 +178,7 @@ describe("the start screen", () => {
         const transfer = new DataTransfer();
         transfer.items.add(new File(["graph [ ]"], "my network.gml"));
 
-        const screenRoot = screen.getByRole("region", { name: "Start" }).closest(".ws-start");
+        const screenRoot = document.querySelector(".ws-land");
         assert.isNotNull(screenRoot);
         // A file dragged in from the desktop: userEvent drags only elements of the page, so the
         // browser's own drag events for an outside file are dispatched as the browser sends them
@@ -142,6 +187,27 @@ describe("the start screen", () => {
         screenRoot?.dispatchEvent(new DragEvent("drop", { bubbles: true, dataTransfer: transfer }));
 
         assert.equal(store.get().project?.name, "my network");
+    });
+
+    it("welcomes a returning reader with Resume and the next three recent projects", async () => {
+        await rememberRecent({ id: "a", name: "Trade routes", nodes: 40, at: 1 });
+        await rememberRecent({ id: "b", name: "Karate split", nodes: 34, at: 2 });
+        await rememberRecent({ id: "c", name: "Florentine marriages", nodes: 15, at: 3 });
+        await rememberRecent({ id: "d", name: "Key players", nodes: 77, at: 4 });
+        await rememberRecent({ id: "e", name: "Oldest", nodes: 5, at: 0 });
+        renderStart();
+
+        assert.equal(screen.getByRole("heading", { level: 1 }).textContent, "Welcome back.");
+        assert.isNotNull(screen.getByRole("button", { name: /^Resume Key players/ }));
+        assert.deepEqual(
+            ["Florentine marriages", "Karate split", "Trade routes", "Oldest"].map(
+                (name) => screen.queryByRole("button", { name: `Open ${name}` }) !== null,
+            ),
+            [true, true, true, false],
+        );
+        assert.isNotNull(screen.getByRole("button", { name: /^Open a file/ }));
+        assert.isNotNull(screen.getByRole("button", { name: "New project" }));
+        assert.isNull(screen.queryByRole("button", { name: "Open network data" }));
     });
 });
 

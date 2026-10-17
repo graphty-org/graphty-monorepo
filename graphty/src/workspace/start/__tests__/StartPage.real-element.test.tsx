@@ -1,0 +1,204 @@
+/**
+ * The start page on the REAL graphty-element, driven by the browser's own pointer and keyboard:
+ * the live graph behind it fades what a pointed-at node is not linked to, shows a clicked node's
+ * card, and runs the graph buttons; Open a file opens the chosen file; Resume reopens the newest
+ * recent project. Every assertion reads what the element or the workspace reports.
+ */
+
+// Registers the real <graphty-element>, as the app's loader does.
+import "@graphty/graphty-element";
+
+import type { GraphSession } from "@graphty/graphty-element/session";
+import { afterEach, assert, beforeAll, beforeEach, describe, it } from "vitest";
+import { commands, page, userEvent } from "vitest/browser";
+
+import { render, screen, waitFor } from "../../../test/test-utils";
+import { forgetUsageAnswer } from "../../privacy/usageData";
+import { clearRecent, rememberRecent } from "../../project/recent";
+import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
+import { Workspace } from "../../Workspace";
+
+declare module "vitest/browser" {
+    interface BrowserCommands {
+        /** Answers the next file picker with this file (graphty/vitest.config.ts). */
+        chooseNextFile: (name: string, mimeType: string, text: string) => Promise<void>;
+    }
+}
+
+/** A hang guard for the element coming up and a sample loading, not a pass/fail timing. */
+const TIMEOUT_MS = 60_000;
+
+type Element = HTMLElementTagNameMap["graphty-element"];
+
+/**
+ * Renders the start page and waits for its graph: Les Miserables loaded and its communities found.
+ * @returns the store, the hero's element, its session and the unmount.
+ */
+async function startPage(): Promise<{
+    store: WorkspaceStore;
+    element: Element;
+    session: GraphSession;
+    unmount: () => void;
+}> {
+    const store = createWorkspaceStore();
+    const { unmount } = render(<Workspace store={store} />);
+    let element: Element | null = null;
+    await waitFor(
+        () => {
+            element = document.querySelector("graphty-element");
+            assert.equal(element?.session.data.statistics().nodeCount, 77);
+            assert.isDefined(element?.session.runs.get("louvain")?.result);
+        },
+        { timeout: TIMEOUT_MS },
+    );
+    if (element === null) {
+        throw new Error("the start page's graph never came up");
+    }
+    const hero = element as Element;
+    // Stop the turning with the page's own button, so a node stays under the pointer.
+    const pause = screen.queryByRole("button", { name: "Pause the turning" });
+    if (pause !== null) {
+        await userEvent.click(pause);
+    }
+    await hero.session.styles.settled();
+    await hero.waitForStableFrame();
+    return { store, element: hero, session: hero.session, unmount };
+}
+
+/**
+ * Whether a style layer of the start page fades a node now.
+ * @param session - the hero's session.
+ * @param node - the node.
+ * @returns true when a hover layer wins the node's opacity.
+ */
+function faded(session: GraphSession, node: string): boolean {
+    const winner = session.styles.explain({ node }).channels.find((entry) => entry.channel === "node.opacity");
+    return session.styles.list().some((layer) => layer.id === winner?.layerId && layer.selector.match === "hover");
+}
+
+beforeAll(async () => {
+    await page.viewport(1440, 900);
+});
+
+beforeEach(async () => {
+    await clearRecent();
+    forgetUsageAnswer();
+});
+
+afterEach(async () => {
+    await clearRecent();
+});
+
+describe("the start page's graph", () => {
+    it("fades what a pointed-at node is not linked to, and nothing once the pointer leaves", async () => {
+        const { element, session } = await startPage();
+        const at = element.nodeScreenPosition("Napoleon");
+        assert.isTrue(at?.visible, "Napoleon is on screen");
+
+        await userEvent.hover(element, { position: { x: at?.x ?? 0, y: at?.y ?? 0 } });
+        await waitFor(() => {
+            assert.equal(session.selection.hovered, "Napoleon");
+        });
+        await session.styles.settled();
+        // Napoleon's one neighbor is Myriel; Valjean is two steps away.
+        assert.isFalse(faded(session, "Napoleon"));
+        assert.isFalse(faded(session, "Myriel"));
+        assert.isTrue(faded(session, "Valjean"));
+        assert.equal(session.selection.size, 0, "pointing at a node selects nothing");
+
+        await userEvent.unhover(element);
+        await waitFor(() => {
+            assert.isNull(session.selection.hovered);
+        });
+        await session.styles.settled();
+        assert.isFalse(faded(session, "Valjean"));
+    });
+
+    it("shows a clicked node's card with its connections and community", async () => {
+        const { element, session } = await startPage();
+        await waitFor(() => {
+            assert.isDefined(session.runs.get("degree")?.result);
+        });
+        const at = element.nodeScreenPosition("Valjean");
+        assert.isTrue(at?.visible, "Valjean is on screen");
+
+        await userEvent.click(element, { position: { x: at?.x ?? 0, y: at?.y ?? 0 } });
+        await session.styles.settled();
+        await element.waitForStableFrame();
+
+        assert.deepEqual([...session.selection.nodes].map(String), ["Valjean"]);
+        const label = element.labelOf("Valjean");
+        assert.isTrue(label?.drawn);
+        const lines = label?.text.split("\n") ?? [];
+        assert.equal(lines[0], "Valjean");
+        assert.equal(lines[1], "Connections: 36");
+        assert.match(lines[2] ?? "", /^Community \d+ of \d+$/);
+    });
+
+    it("runs Key players and Shortest path through the element, one at a time", async () => {
+        const { session } = await startPage();
+
+        await userEvent.click(screen.getByRole("button", { name: "Key players" }));
+        await waitFor(() => {
+            assert.isDefined(session.runs.get("betweenness")?.result);
+            assert.isNotNull(screen.queryByText(/Valjean is the biggest\./));
+        });
+
+        await userEvent.click(screen.getByRole("button", { name: "Shortest path" }));
+        await waitFor(() => {
+            assert.isDefined(session.runs.get("shortest-path")?.result);
+            assert.isNotNull(screen.queryByText("The shortest route from Napoleon to Brujon: 4 steps."));
+        });
+        assert.isUndefined(session.runs.get("betweenness"), "Key players was switched off");
+        assert.equal(screen.getByRole("button", { name: "Key players" }).getAttribute("aria-pressed"), "false");
+
+        await userEvent.click(screen.getByRole("button", { name: "2D" }));
+        await waitFor(() => {
+            assert.equal(session.layout.dimension, "2d");
+        });
+    });
+});
+
+describe("the start page's ways in", () => {
+    it("opens the file chosen from Open a file as a project", async () => {
+        const { store } = await startPage();
+
+        await commands.chooseNextFile(
+            "triangle.json",
+            "application/json",
+            JSON.stringify({ nodes: [{ id: "a" }, { id: "b" }, { id: "c" }], edges: [{ src: "a", dst: "b" }] }),
+        );
+        await userEvent.click(screen.getByRole("button", { name: /^Open a file/ }));
+
+        await waitFor(
+            () => {
+                assert.equal(store.get().project?.name, "triangle");
+                assert.equal(document.querySelector("graphty-element")?.session.data.statistics().nodeCount, 3);
+            },
+            { timeout: TIMEOUT_MS },
+        );
+    });
+
+    it("reopens the newest recent project from Resume", async () => {
+        // A saved project to resume: the start page's own graph, saved.
+        const first = await startPage();
+        const saved = await first.session.project.save();
+        first.unmount();
+        await rememberRecent({ id: "kept", name: "Les Miserables study", nodes: 77, at: Date.now() });
+
+        const store = createWorkspaceStore();
+        render(<Workspace store={store} />);
+        const resume = await screen.findByRole("button", { name: /^Resume Les Miserables study/ });
+        // This browser kept no handle to the file, so Resume asks for it, as Locate... does.
+        await commands.chooseNextFile("study.graphty.json", "application/json", saved.text);
+        await userEvent.click(resume);
+
+        await waitFor(
+            () => {
+                assert.isNotNull(store.get().project);
+                assert.equal(document.querySelector("graphty-element")?.session.data.statistics().nodeCount, 77);
+            },
+            { timeout: TIMEOUT_MS },
+        );
+    });
+});

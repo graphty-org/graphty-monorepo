@@ -40,6 +40,18 @@ export function openSample(workspace: WorkspaceStore, sample: StartSample): void
 }
 
 /**
+ * Opens the graph file at a web address as a new project named after the file. The element reads
+ * the format from the address and the file, as for any file.
+ * @param workspace - the workspace store.
+ * @param url - the address.
+ */
+export function openUrl(workspace: WorkspaceStore, url: string): void {
+    const file = new URL(url).pathname.split("/").pop() ?? "";
+    const name = decodeURIComponent(file).replace(/\.[^.]*$/, "") || new URL(url).hostname;
+    openProject(workspace, name, (session) => session.data.import({ config: { url }, name }));
+}
+
+/**
  * Opens a file: from the start screen as a new project named after the file; inside a project it
  * is added to that project (tier1-design.md section 2.1, the File list's intake).
  * @param ctx - the command context.

@@ -717,6 +717,12 @@ export class Graph implements GraphContext {
                 await this.layoutManager.updatePositions([...this.dataManager.nodes.values()]);
             }
 
+            // A change to graph values alone (the source's name, the import report) moves nothing
+            // a layer reads, so it repaints nothing unless an earlier write left the paint owed.
+            if (!dispatcher.paintOwed && dirty.size > 0 && [...dirty].every((key) => key.startsWith("v:"))) {
+                return;
+            }
+
             // While an import reads, the pass after each chunk builds what arrived but does not
             // paint; the pass its end schedules paints the whole graph once. Likewise a graph
             // write with another still waiting behind it leaves the paint to the last of them,

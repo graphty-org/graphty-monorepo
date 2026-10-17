@@ -59,7 +59,8 @@ concurrency:
 # Mergify's app. The branch name alone is not enough: anyone can push a branch with that prefix. A job's
 # `if` cannot read env, so the build job repeats this test.
 # The jobs read the repository and download this run's artifacts; checks: write lets a failed job mark the
-# summary checks failed at once (.github/actions/early-verdict). The visual job asks for its own.
+# summary checks failed at once (.github/actions/early-verdict), and a passing summary job clears them
+# (its "Clear this check's early verdicts" step). The visual job asks for its own.
 permissions:
     contents: read
     checks: write
@@ -68,6 +69,37 @@ env:
     MERGE_QUEUE: ${{ startsWith(github.head_ref, 'mergify/merge-queue/') && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'mergify[bot]' }}
 
 jobs:
+    # Whether a run that GitHub started as a draft's is still one. `gh pr create --draft` followed at once
+    # by `gh pr ready` delivers `opened` (draft: true) and `ready_for_review` a second apart, and GitHub
+    # can create the draft's run AFTER the ready run. Mergify and the ruleset read the newest run of the
+    # workflow on the head commit, so that draft run's failing "draft: CI not run" summary checks hid the
+    # ready run's green ones for good (#2991, #3068), and no job can rewrite another run's check (the
+    # Checks API answers 403). So a run started as a draft reads the pull request now: when it is ready
+    # and its head is still this commit, the run is a real run and reports a real verdict. It cannot be
+    # cancelled by a later push (it is in the draft concurrency group), which costs one stale run in that
+    # rare case. A failed read reports "not ready" (the run stays a draft run), so this never lets a
+    # draft through. continue-on-error: the job decides nothing itself, the build job reads its output.
+    # The job runs on every run and only its step is conditional: a SKIPPED job skips every job after it in
+    # the needs chain, even one whose own `if` passes, so skipping this job on a ready pull request skipped
+    # everything after the build (#3134's first run).
+    draft:
+        name: Draft state
+        continue-on-error: true
+        runs-on: ubuntu-24.04
+        outputs:
+            ready: ${{ steps.read.outputs.ready }}
+        steps:
+            - name: Read whether the pull request is still a draft
+              id: read
+              if: github.event_name == 'pull_request' && github.event.pull_request.draft
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  PR: ${{ github.event.pull_request.number }}
+                  SHA: ${{ github.event.pull_request.head.sha }}
+              run: |
+                  ready=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR" --jq '(.draft | not) and .head.sha == $ENV.SHA') || ready=false
+                  echo "ready=$ready" | tee -a "$GITHUB_OUTPUT"
+
     # The packages job: decides what the run tests, builds every package and uploads their dist folders,
     # the only thing the test jobs download. It does nothing else, so the test jobs start as soon as the
     # packages are built: the checks that need a build but no test (lint, docs, the Storybooks, knip,
@@ -75,10 +107,11 @@ jobs:
     # "All Checks Pass" and "Queue Checks Pass" require just as they required these steps when they were
     # part of one Build job (it took 23 minutes, and only its first 4 produced what the tests need).
     # Skipping it on a draft skips every job that needs it; the two summary jobs still run, and fail, on a
-    # draft.
+    # draft. A run started as a draft's whose pull request is ready by now runs (the draft job above).
     packages:
         name: Build
-        if: github.event_name != 'pull_request' || !github.event.pull_request.draft || (startsWith(github.head_ref, 'mergify/merge-queue/') && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'mergify[bot]')
+        needs: draft
+        if: ${{ !cancelled() && (github.event_name != 'pull_request' || !github.event.pull_request.draft || needs.draft.outputs.ready == 'true' || (startsWith(github.head_ref, 'mergify/merge-queue/') && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'mergify[bot]')) }}
         runs-on: ubuntu-24.04
         # What the rest of the run tests, decided once here: the test job's matrix and the other jobs'
         # conditions read these instead of each asking nx again. See the "Plan" step below.
@@ -1469,6 +1502,27 @@ jobs:
                   fi
                   node "$gate/visual-review/trusted/cli.mjs" gate --captures "$RUNNER_TEMP/visual" "${pr[@]}" --base HEAD^1 --head HEAD
 
+            # The early verdicts (.github/actions/early-verdict) live in another workflow's check suite, which
+            # this job's success does not replace, so a re-run that passed stayed red to Mergify (#2639).
+            - name: Clear this check's early verdicts
+              if: success() && github.event_name == 'pull_request'
+              continue-on-error: true
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  CHECK: All Checks Pass
+                  SHA: ${{ github.event.pull_request.head.sha }}
+                  RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+              run: |
+                  # An early verdict is a failure posted through the Checks API: its details link is a run,
+                  # never a job (".../job/<id>"), and only those can be rewritten.
+                  for id in $(gh api "repos/$GITHUB_REPOSITORY/commits/$SHA/check-runs?filter=all&per_page=100" --paginate \
+                      --jq '.check_runs[] | select(.name == $ENV.CHECK and .conclusion == "failure" and (.details_url | contains("/job/") | not)) | .id'); do
+                      gh api -X PATCH "repos/$GITHUB_REPOSITORY/check-runs/$id" --silent -f conclusion=success \
+                          -f "output[title]=Superseded by a passing run" \
+                          -f "output[summary]=An earlier early verdict said this run could not pass. A later run of the same commit passed: $RUN_URL"
+                      echo "cleared early verdict $id"
+                  done
+
     # The merge queue's verdict, which Mergify's merge_conditions name. The job exists in every run so
     # the check name is always reported, but it succeeds only when "All Checks Pass" succeeded (never on
     # a draft), and on a merge-queue run (MERGE_QUEUE above) only when the run was the full suite: a
@@ -1493,3 +1547,24 @@ jobs:
                       echo "::error::a merge-queue run must run the full suite"
                       exit 1
                   fi
+
+            # The early verdicts (.github/actions/early-verdict) live in another workflow's check suite, which
+            # this job's success does not replace, so a re-run that passed stayed red to Mergify (#2639).
+            - name: Clear this check's early verdicts
+              if: success() && github.event_name == 'pull_request'
+              continue-on-error: true
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  CHECK: Queue Checks Pass
+                  SHA: ${{ github.event.pull_request.head.sha }}
+                  RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+              run: |
+                  # An early verdict is a failure posted through the Checks API: its details link is a run,
+                  # never a job (".../job/<id>"), and only those can be rewritten.
+                  for id in $(gh api "repos/$GITHUB_REPOSITORY/commits/$SHA/check-runs?filter=all&per_page=100" --paginate \
+                      --jq '.check_runs[] | select(.name == $ENV.CHECK and .conclusion == "failure" and (.details_url | contains("/job/") | not)) | .id'); do
+                      gh api -X PATCH "repos/$GITHUB_REPOSITORY/check-runs/$id" --silent -f conclusion=success \
+                          -f "output[title]=Superseded by a passing run" \
+                          -f "output[summary]=An earlier early verdict said this run could not pass. A later run of the same commit passed: $RUN_URL"
+                      echo "cleared early verdict $id"
+                  done

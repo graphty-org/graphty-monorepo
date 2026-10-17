@@ -1280,7 +1280,17 @@ background subagent, and set `capacity` to how many more you can take now (sayin
 stops you, if something does); while one is saturated, take none until githerd invites you again.
 A question still unanswered when the next
 one is due puts the job back in the queue, and so does your session ending. So do the job's work in
-a background subagent or workflow, and keep the main conversation free to answer.
+a background subagent or workflow, and keep the main conversation free to answer. githerd skips the
+question while it sees the session at work on its own: a githerd tool call, a push or a push-queue
+ticket, or the session's transcript (or a subagent's) growing since the last question.
+
+**Never wait in a model turn.** A turn more than five minutes after the last one finds the prompt
+cache expired and re-reads the whole conversation, so a `sleep` or `until` loop, or re-checking a
+push or a test run turn after turn, pays for the whole context at every check. Start a push
+(`githerd_push`, or `tools/push-queue.sh` with `run_in_background`) or a long test run as one
+background command and end your turn: its exit notice wakes you. Or declare the wait with
+`githerd_wait` and end your turn: githerd rings you when it settles. One long wait over many short
+ones.
 Commands, the MCP server and the owner's one-time prerequisites are in `githerd/README.md`.
 
 ## Claude Session History

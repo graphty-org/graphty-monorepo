@@ -751,11 +751,12 @@ export function valueFieldKind(descriptor: ChannelDescriptor): ValueFieldKind | 
 export const LAYER_TOKEN = "\u00ABLayer\u00BB";
 
 /**
- * The title of a binding popover: "Color by Louvain", or "Node color from each layer" with no source.
+ * The title of a binding popover: "Color by Louvain", or "Color from each layer" with no source (the same
+ * property word, so one layer's popover and several layers' differ only in the source).
  * @param channel - the bound property.
  * @param source - what it reads, in words; none when each layer gives its own value.
  * @returns the title.
  */
 export function bindingTitle(channel: ChannelDescriptor["channel"], source?: string): string {
-    return source === undefined ? `${fieldName(channel)} from each layer` : `${channelWord(channel)} by ${source}`;
+    return source === undefined ? `${channelWord(channel)} from each layer` : `${channelWord(channel)} by ${source}`;
 }

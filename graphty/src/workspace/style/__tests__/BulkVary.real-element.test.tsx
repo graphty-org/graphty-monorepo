@@ -79,7 +79,7 @@ describe("vary by data on several layers", () => {
         // Each group layer holds its own color: the pill opens by Layer, and Change source picks the group.
         const fill = await line("node.color");
         await userEvent.click(within(fill).getByRole("button", { name: /^Node color: from each layer, / }));
-        const byLayer = await screen.findByRole("dialog", { name: "Node color from each layer" });
+        const byLayer = await screen.findByRole("dialog", { name: "Color from each layer" });
         await userEvent.click(within(byLayer).getByRole("button", { name: "Change source" }));
         const options = await screen.findAllByRole("option", { name: /group|community|louvain/i });
         await userEvent.click(options[0]);

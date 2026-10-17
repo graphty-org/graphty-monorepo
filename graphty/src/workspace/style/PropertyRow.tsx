@@ -256,13 +256,19 @@ function Receipt({
     );
 }
 
+/** The most layers a coverage caption names; past it, "and N more", as the line under a field. */
+const COVERED_NAMES = 3;
+
 /**
- * The words under a set field a layer above covers: "Covered by Degree on 77 of 77".
+ * The words under a set field a layer above covers: "Covered by Degree on 77 of 77". Past three
+ * layers it names the first three and counts the rest, so a folder of 35 is one short line.
  * @param over - who covers it, and where.
  * @returns the words.
  */
 function coveredWords(over: PaintedOver): string {
-    return `Covered by ${listWords(over.by)} on ${String(over.count)} of ${String(over.of)}`;
+    const rest = over.by.length - COVERED_NAMES;
+    const by = rest > 1 ? `${over.by.slice(0, COVERED_NAMES).join(", ")} and ${String(rest)} more` : listWords(over.by);
+    return `Covered by ${by} on ${String(over.count)} of ${String(over.of)}`;
 }
 
 /**

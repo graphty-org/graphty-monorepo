@@ -161,7 +161,7 @@ async function varyByGroup(field: HTMLElement, name: string): Promise<HTMLElemen
         await userEvent.click(within(field).getByRole("button", { name: `${name} by attribute` }));
     } else {
         await userEvent.click(fromEach);
-        const byLayer = await screen.findByRole("dialog", { name: `${name} from each layer` });
+        const byLayer = await screen.findByRole("dialog", { name: / from each layer$/ });
         await userEvent.click(within(byLayer).getByRole("button", { name: "Change source" }));
     }
     const options = await screen.findAllByRole("option", { name: /group|community|louvain/i });

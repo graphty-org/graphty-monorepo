@@ -11,6 +11,29 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-16) **Pilot of the one-BoundValue build (b3f7efee1): five defects fixed.** Walked by
+  pointer and keyboard, light and dark, on Les Miserables + Louvain (6), College football + Leiden
+  (10), Spectral and Hierarchical clustering (2 and 35), a 115-value text column, each beside one
+  layer bound to the same result; reopen, Escape-unchanged (nothing written), undo. Single and bulk
+  fields match at 2, 6, 10 and 35 but for the token. Fixed: (1) by Layer every row starts as its
+  layer's own value, which outranks the palette, so a new Palette did nothing -- `repaletted` in
+  `BulkBinding.tsx` drops the map entries still on their opening value (a row edited in the
+  popover keeps its color). (2) "Extend the palette" on number groups with no palette named let the
+  element pick a sequential ramp ("Orange to brown", palette select blank): the overflow select now
+  pins the categorical palette shown (`binding.palette ?? shown`). Element default worth an issue:
+  `overflow: "extend"` with no palette paints a sequential ramp for numbered categories. (3) The
+  popover title said "Node color from each layer" beside "Color by Louvain": now "Color from each
+  layer" (`bindingTitle` uses `channelWord` for both). (4) The popover's Source line said plain
+  "Layer": it now draws the token in the component tone, guillemets `aria-hidden`
+  (`data-layer-source`). (5) The coverage caption listed every covering layer (34 names for 35
+  clusters): first three, then "and N more". Also "18 lumped into \"other\"" now says "into Other",
+  as the key names it. Tests: VaryByLayer "recolors every row from a palette picked by Layer",
+  "extends the palette shown, not a ramp" (fails without the fix); Sections "names at most three
+  covering layers". Seen, not fixed: the single lumped line reads "5 chits, gray Other, +3" (Other
+  before the count; a director call); "Update <run> layer" on a selected run folder adds a second
+  folder of the same name; a new layer added while a folder is selected goes into that folder,
+  which then shows Mixed (one layer holds a binding) -- expected by the rules, but a surprise.
+
 - (2026-10-16) **One BoundValue for one layer and for several (owner decision; director spec
   "Director decision 2026-10-16" in `tier3/bulk-edit-plan.md`).** SpreadValues and `.ws-spread*`
   are deleted. `BoundValue` takes a `source`: `{ kind: "data", layer, binding, write, bind }` or

@@ -199,7 +199,11 @@ describe("the binding popover's rows and readings", () => {
         await userEvent.keyboard("{Escape}");
         await userEvent.click(within(popover).getByRole("combobox", { name: /^More values than colors/ }));
         await userEvent.click(await screen.findByRole("option", { name: "Extend the palette" }));
-        const reset = await within(popover).findByTestId("style-select-reset");
+        // The overflow select's own Clear: extending pins the palette shown, so that select has one too.
+        const reset = (await within(popover).findAllByTestId("style-select-reset")).find((each) =>
+            /More values than colors/.test(each.getAttribute("aria-label") ?? ""),
+        );
+        assert.isDefined(reset, "the overflow select's Clear");
         const marks = reset.querySelectorAll("svg line, svg path");
         assert.lengthOf(marks, 1, "one stroke");
         const line = marks[0];

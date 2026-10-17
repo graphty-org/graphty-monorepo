@@ -51,6 +51,37 @@ interface BulkBindingProps {
 }
 
 /**
+ * A new palette by Layer: every row still on the value its layer had when the popover opened takes
+ * the palette's color, so the choice shows at once (every row starts as its layer's own value, and
+ * an own value outranks the palette). A row changed in this popover keeps its color, as an own
+ * value on one layer keeps it.
+ * @param before - the binding before the change
+ * @param after - the binding after it
+ * @param prefill - each layer's value when the popover opened
+ * @returns the binding to hold
+ */
+function repaletted(before: LayerBinding, after: LayerBinding, prefill: BulkBindingProps["prefill"]): LayerBinding {
+    if (after.palette === before.palette || after.map === undefined || prefill === undefined) {
+        return after;
+    }
+    const opened = new Map<string, unknown>(prefill.map((each) => [each.id, each.value]));
+    const map = Object.fromEntries(
+        Object.entries(after.map).filter(([id, value]) => !sameValue(opened.get(id), value)),
+    ) as LayerBinding["map"];
+    return { ...after, map };
+}
+
+/**
+ * Whether two values are one, a hex color in either case.
+ * @param a - one value
+ * @param b - the other
+ * @returns whether they are the same
+ */
+function sameValue(a: unknown, b: unknown): boolean {
+    return typeof a === "string" && typeof b === "string" ? a.toLowerCase() === b.toLowerCase() : a === b;
+}
+
+/**
  * Varying a property of several layers: the one binding popover, opened beside the property's row,
  * holding its binding until it closes. Closing it writes, as one undo step, each layer its own
  * plain value (by Layer) or its own copy of the binding (by a value of the data). Change source
@@ -132,7 +163,7 @@ export function BulkBinding({
                             layers={ids}
                             binding={held.binding}
                             onChange={(binding) => {
-                                setHeld({ kind: "layers", binding });
+                                setHeld({ kind: "layers", binding: repaletted(held.binding, binding, prefill) });
                             }}
                             onSource={change}
                         />

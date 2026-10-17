@@ -255,7 +255,7 @@ const FACT_SENTENCES: Readonly<Record<LegendFactCode, (param: (name: string) => 
     "legend.no-value-in-domain": (param) => `no value has a place between ${param("min")} and ${param("max")}`,
     "legend.nothing-measured": () => "nothing measured",
     "legend.unreadable": (param) => `${param("count")} carry no value the scale can read`,
-    "legend.lumped": (param) => `${param("count")} lumped into "other"`,
+    "legend.lumped": (param) => `${param("count")} lumped into Other`,
     "legend.not-measured": (param) => `not measured (${param("count")})`,
     "legend.painted-over": (param) => `painted over by "${param("name")}"`,
 };

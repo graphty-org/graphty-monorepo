@@ -22,7 +22,7 @@ import { type DataBinding, type DataChoice, type LayerBinding, startingValue, to
 import { focusLineNext } from "./useFocusLine";
 import { ValueField } from "./ValueField";
 import { ValuePicker } from "./ValuePicker";
-import { channelWord, enumWords, failureWords, paletteWord, SCALE_WORDS } from "./words";
+import { channelWord, enumWords, failureWords, LAYER_TOKEN, paletteWord, SCALE_WORDS } from "./words";
 
 /** What `toColorValue` reads. */
 type ColorInput = Parameters<typeof toColorValue>[0];
@@ -188,7 +188,13 @@ export function BindingPopover(props: Readonly<BindingPopoverProps>): React.JSX.
 
     return (
         <Stack gap={8} role="group" aria-label={`${name} binding`}>
-            <SourceHeader descriptor={descriptor} source={parts.source} inUse={parts.inUse} onSource={onSource} />
+            <SourceHeader
+                descriptor={descriptor}
+                source={parts.source}
+                byLayer={parts.noun === "layers"}
+                inUse={parts.inUse}
+                onSource={onSource}
+            />
             {parts.ramp}
             {parts.categorical ? (
                 <Stack gap={8}>
@@ -204,7 +210,16 @@ export function BindingPopover(props: Readonly<BindingPopoverProps>): React.JSX.
                             defaultValue="other"
                             options={[...OVERFLOW_WORDS[descriptor.target]]}
                             onChange={(overflow) => {
-                                patch({ overflow: overflow as LayerBinding["overflow"] });
+                                // Keep the palette the groups are drawn in: with none named, the
+                                // element picks its own for the new overflow (a ramp for number
+                                // groups), and "Extend the palette" would not extend the one shown.
+                                const shown = session.catalog
+                                    .palettes()
+                                    .find((p) => p.kind === "categorical" && p.id === parts.palette)?.id;
+                                patch({
+                                    overflow: overflow as LayerBinding["overflow"],
+                                    palette: binding.palette ?? shown,
+                                });
                             }}
                         />
                     ) : null}
@@ -384,6 +399,7 @@ function layerParts(
  * @param props - Component props
  * @param props.descriptor - the bound property
  * @param props.source - what it reads, in words
+ * @param props.byLayer - the source is Layer: set off as the field's pill sets it off
  * @param props.inUse - the path it reads now, listed first; none for Layer
  * @param props.onSource - reads another attribute or result instead
  * @returns The line and, while choosing, the list
@@ -391,11 +407,13 @@ function layerParts(
 function SourceHeader({
     descriptor,
     source,
+    byLayer,
     inUse,
     onSource,
 }: Readonly<{
     descriptor: ChannelDescriptor;
     source: string;
+    byLayer: boolean;
     inUse: readonly string[];
     onSource: (choice: DataChoice) => void;
 }>): React.JSX.Element {
@@ -404,7 +422,17 @@ function SourceHeader({
         <>
             <Group justify="space-between" wrap="nowrap">
                 <Text size="xs">
-                    Source: <strong>{source}</strong>
+                    Source:{" "}
+                    {byLayer ? (
+                        // The marks are drawn, not spoken: a screen reader says "Layer".
+                        <Text span inherit fw={600} c="var(--cm-text-component)" data-layer-source>
+                            <span aria-hidden>{LAYER_TOKEN.slice(0, 1)}</span>
+                            {LAYER_TOKEN.slice(1, -1)}
+                            <span aria-hidden>{LAYER_TOKEN.slice(-1)}</span>
+                        </Text>
+                    ) : (
+                        <strong>{source}</strong>
+                    )}
                 </Text>
                 <Button
                     size="compact-xs"

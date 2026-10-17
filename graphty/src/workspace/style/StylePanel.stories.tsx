@@ -327,7 +327,7 @@ export const BulkVaryByData: Story = sceneStory(async () => {
     const fill = await fillRow(tab);
     // Each layer on its own color: the pill opens the popover by Layer, and Change source picks the value.
     await userEvent.click(within(fill).getByRole("button", { name: /^Node color: from each layer, / }));
-    const byLayer = await page().findByRole("dialog", { name: "Node color from each layer" });
+    const byLayer = await page().findByRole("dialog", { name: "Color from each layer" });
     await userEvent.click(within(byLayer).getByRole("button", { name: "Change source" }));
     const options = await page().findAllByRole("option", { name: /^Leiden/ });
     await userEvent.click(options[0]);
@@ -340,7 +340,7 @@ export const BulkVaryByLayer: Story = sceneStory(async () => {
     const tab = await openLeidenFolder();
     const fill = await fillRow(tab);
     await userEvent.click(within(fill).getByRole("button", { name: /^Node color: from each layer, / }));
-    const popover = await page().findByRole("dialog", { name: "Node color from each layer" });
+    const popover = await page().findByRole("dialog", { name: "Color from each layer" });
     await within(popover).findByRole("grid", { name: "Layer groups" });
 });
 

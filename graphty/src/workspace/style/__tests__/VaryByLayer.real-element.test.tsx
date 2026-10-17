@@ -120,7 +120,14 @@ async function varyByLayer(row: HTMLElement): Promise<HTMLElement> {
     await screen.findByRole("dialog", { name: "Vary by" });
     await userEvent.click(await screen.findByRole("option", { name: /^Layer/ }));
     const popover = await screen.findByRole("dialog", { name: / from each layer$/ });
-    await within(popover).findByText("Layer", { selector: "strong" });
+    // The source line sets Layer off as the field does: the marks drawn, the word spoken.
+    const token = await waitFor(() => {
+        const found = popover.querySelector<HTMLElement>("[data-layer-source]");
+        assert.isNotNull(found);
+        return found;
+    });
+    assert.strictEqual(token?.textContent, "\u00ABLayer\u00BB");
+    assert.lengthOf(token?.querySelectorAll("[aria-hidden]") ?? [], 2, "the guillemets are not spoken");
     return popover;
 }
 
@@ -589,7 +596,7 @@ describe("vary by layer", () => {
         // Each group layer holds its own color: the pill opens by Layer, and Change source picks the field.
         const fill = await line("node.color");
         await userEvent.click(within(fill).getByRole("button", { name: /^Node color: from each layer, / }));
-        const byLayer = await screen.findByRole("dialog", { name: "Node color from each layer" });
+        const byLayer = await screen.findByRole("dialog", { name: "Color from each layer" });
         await userEvent.click(within(byLayer).getByRole("button", { name: "Change source" }));
         await userEvent.click(await screen.findByRole("option", { name: /^id\b/i }));
         const popover = await screen.findByRole("dialog", { name: /^Color by / });
@@ -753,6 +760,31 @@ describe("several layers holding different values", () => {
             "7",
         );
         await close(popover);
+    });
+
+    it("recolors every row from a palette picked by Layer, as a palette repaints one layer's groups", async () => {
+        const session = await openSample();
+        const values = ["#111111", "#222222", "#333333"];
+        const layers = await eachOwn(session, "Own", "node.color", values);
+        await clickRow("Own");
+        await userEvent.click(within(await line("node.color")).getByRole("button", { name: /^Node color: / }));
+        const popover = await screen.findByRole("dialog", { name: / from each layer$/ });
+        const palette = within(popover).getByRole<HTMLInputElement>("combobox", { name: "Palette" });
+        const shown = palette.value;
+        await userEvent.click(palette);
+        const option = (await screen.findAllByRole("option")).find((o) => o.textContent !== shown);
+        if (option === undefined) {
+            throw new Error("no other palette");
+        }
+        await userEvent.click(option);
+        await close(popover);
+        await waitFor(() => {
+            const now = written(session, layers, "node.color").map((v) => String(v).toLowerCase());
+            for (const [at, value] of now.entries()) {
+                assert.notStrictEqual(value, values[at], "each row took the palette's color");
+            }
+            assert.lengthOf(new Set(now), 3, "three colors apart");
+        });
     });
 
     it("counts only the layer edited, on a run's group layers whose colors are written in lower case", async () => {
@@ -966,6 +998,39 @@ describe("color sets from 2 to dozens", () => {
         }
     });
 
+    it("extends the palette shown, not a ramp, when 35 numbered groups go past it", async () => {
+        const session = await openSample();
+        const run = session.runs.start("hierarchical-clustering", { clusters: 35 });
+        await run;
+        await session.styles.settled();
+        const layer = session.styles
+            .list()
+            .find((l) => session.runs.bindings(run.id).includes(l.id) && l.encode?.["node.color"] !== undefined);
+        if (layer === undefined) {
+            throw new Error("the run colored no layer");
+        }
+        const name = session.styles.tree().find((r) => r.id === (layer.row ?? layer.id))?.name ?? "";
+        const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
+        await userEvent.click(within(tree).getByRole("treeitem", { name: (n) => n.startsWith(`${name}, `) }));
+        const row = await line("node.color");
+        await userEvent.click(within(row).getByRole("button", { name: /^Node color: / }));
+        const popover = await screen.findByRole("dialog", { name: /^Color by / });
+        // Not set: the palette is the one the element paints with, named last ("Palette, not set, <name>").
+        const palette = within(popover).getByRole<HTMLInputElement>("combobox", { name: /^Palette, not set, / });
+        const shown = (palette.getAttribute("aria-label") ?? "").split(", ").at(-1) ?? "";
+        await userEvent.click(within(popover).getByRole("combobox", { name: /^More values than colors/ }));
+        await userEvent.click(await screen.findByRole("option", { name: "Extend the palette" }));
+        await close(popover);
+        await waitFor(() => {
+            const block = session.styles.legendOf(layer.id).find((b) => b.channel === "node.color");
+            assert.strictEqual(block?.kind, "categorical", "still one color per group, not a ramp");
+            const { chits, more } = atRest(row);
+            assert.lengthOf(chits, 5);
+            assert.match(more ?? "", /^\+\d+$/);
+        });
+        within(row).getByRole("button", { name: new RegExp(`${shown}$`) });
+    });
+
     it("draws the lumped Other chit last, uncounted, with its note", async () => {
         const { session, layerId } = await louvainSelected();
         const binding = session.styles.get(layerId)?.encode?.["node.color"];
@@ -1049,7 +1114,7 @@ describe("color sets from 2 to dozens", () => {
         }
         assert.strictEqual(document.activeElement, pill, "Tab reaches the pill");
         await userEvent.keyboard("{Enter}");
-        const popover = await screen.findByRole("dialog", { name: "Node color from each layer" });
+        const popover = await screen.findByRole("dialog", { name: "Color from each layer" });
         for (const [at, id] of layers.entries()) {
             const chip = within(popover).getByRole("button", {
                 name: new RegExp(`^Layer ${session.styles.get(id)?.name ?? ""} color`),

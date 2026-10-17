@@ -454,6 +454,20 @@ describe("the Style tab's sections", () => {
         );
     });
 
+    it("names at most three covering layers and counts the rest", async () => {
+        const { session } = await openScene();
+        await session.runs.start("louvain", {}, { seed: 1, style: { groups: "layers", name: "Louvain" } });
+        await session.styles.settled();
+        await openStyle("Everything");
+        const words = await waitFor(() => {
+            const text = section("node", "fill").querySelector("[data-covered-caption]")?.textContent ?? "";
+            assert.match(text, /^Covered by /);
+            return text;
+        });
+        // Louvain's six group layers cover it: three by name, then a count, never all six.
+        assert.match(words, /^Covered by [^,]+, [^,]+, [^,]+ and 3 more on 77 of 77$/, words);
+    });
+
     it("reads the value the setting rows give a property only some selected rows set, and who sets it", async () => {
         const { session } = await openScene();
         const valjean = String(session.data.nodes().find((n) => n.name === "Valjean")?.id);

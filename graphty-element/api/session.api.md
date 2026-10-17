@@ -2962,6 +2962,8 @@ export interface SelectionApi {
     edgeMask(): Uint8Array;
     readonly edges: readonly EdgeId[];
     has(id: NodeId | EdgeId): boolean;
+    hover(id: NodeId | null): void;
+    readonly hovered: NodeId | null;
     nodeMask(): Uint8Array;
     readonly nodes: readonly NodeId[];
     readonly origin: SelectionTarget | null;
@@ -3133,6 +3135,25 @@ export type Selector = {
 | {
     match: "member";
     of: Scope;
+}
+/**
+* What the reader is pointing at: the node under the pointer (`reach: "node"`, the default),
+* or that node, its neighbors and the edges that touch it (`reach: "neighbors"`). With
+* `invert: true`, everything else -- but only while a node is hovered, so the layer paints
+* nothing at rest. Edges: the edges that touch the hovered node, for either reach. View
+* state: the layer follows the pointer with no undo step. `session.selection.hovered` says
+* which node it is.
+*
+* ```ts
+* // Fade what the pointed-at node is not linked to.
+* session.styles.add({ name: "Dim the rest", target: "node",
+*     selector: { match: "hover", reach: "neighbors", invert: true }, set: { "node.opacity": 0.25 } });
+* ```
+*/
+| {
+    match: "hover";
+    reach?: "node" | "neighbors";
+    invert?: boolean;
 };
 
 // @public

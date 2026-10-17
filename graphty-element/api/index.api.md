@@ -4502,8 +4502,10 @@ export class SelectionManager implements Manager {
     dispose(): void;
     getSelectedNode(): Node_2 | null;
     getSelectedNodes(): Node_2[];
+    hover(id: NodeIdType | null): void;
     init(): Promise<void>;
     isSelected(node: Node_2): boolean;
+    leave(id: NodeIdType): void;
     onEdgesRemoved(ids: readonly EdgeId[]): void;
     onNodeRemoved(node: Node_2): void;
     select(node: Node_2): void;

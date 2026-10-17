@@ -990,6 +990,14 @@ export class Graph implements GraphContext {
         this.selectionManager = new SelectionManager(this.eventManager);
         this.selectionManager.setDataManager(this.dataManager);
         this.selectionManager.bindSelection(this.session.selection);
+        // The pointer left the graph: no node is under it, whatever node it last crossed.
+        this.element.addEventListener(
+            "pointerleave",
+            () => {
+                this.session.selection.hover(null);
+            },
+            { signal: this.#teardown.signal },
+        );
 
         // The render loop honours the two masks from here on: what is drawn, and what is drawn as
         // selected, are answered by the model rather than by the style stack.

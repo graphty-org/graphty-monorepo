@@ -136,6 +136,7 @@ import {
     type SessionStylesApi,
 } from "./styles";
 import { atStylePath, channelsFor } from "./styles/channels";
+import { createHoverSource } from "./styles/hover";
 import type { CompiledLayer } from "./styles/Layer";
 import { createLayerRepaint, type ElementPaint, type ElementRemaps, type RepaintEngine } from "./styles/repaint";
 import { createScaleRegistry } from "./styles/scales";
@@ -1889,6 +1890,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // policy's own `styles` member states: a session that paints nothing is a legitimate session,
     // and the stack does not exist yet at the moment the runs are constructed.
     let stack: SessionStylesApi | null = null;
+    // Set once the stack exists; until then no layer reads the pointer.
+    let repaintHover = (): void => undefined;
     // The query engine, late-bound for the same reason: it reads the style layers' selector
     // source, which reads the runs, and the scope and visibility APIs are built before both.
     let query: QueryEngine | null = null;
@@ -2462,6 +2465,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             publish(watchers, "selection:changed", delta);
         },
         onMaskVersion: advanceTick,
+        // The pointer moved to another node, or off every node: repaint what a hover layer paints.
+        onHover: () => {
+            repaintHover();
+        },
     });
 
     // ONE registry for the stack and for the pass that paints from it. Two would let a layer be
@@ -2515,9 +2522,19 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     });
     const nodeIndex = nodeIndexOf(snapshot);
     const edgeIndex = edgeIndexOf(snapshot);
+    const hoverSource = createHoverSource(snapshot, () => {
+        const id = selection?.hovered ?? null;
+        return id === null ? undefined : nodeIndex(id);
+    });
     const styles = createStylesApi({
         dispatcher,
-        elements: { ...elements, nodeIndex, edgeIndex, scope: (spec: Scope) => layerScopes.live(spec) },
+        elements: {
+            ...elements,
+            nodeIndex,
+            edgeIndex,
+            scope: (spec: Scope) => layerScopes.live(spec),
+            hover: hoverSource,
+        },
         admitScope: (spec: unknown) => scope.admit(spec),
         base: elementBaseLayers(),
         paths,
@@ -2551,6 +2568,29 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     });
 
     stack = styles;
+    // ponytail: a hover change repaints every element when any layer reads the pointer (an
+    // inverted hover layer flips the whole graph anyway); repaint only the old and new
+    // neighborhoods if a graph large enough to feel it needs that.
+    repaintHover = (): void => {
+        const compiled = styles.compiled();
+        if (!compiled.some((entry) => entry.selector.match === "hover")) {
+            return;
+        }
+
+        const graph = snapshot();
+        const all = (count: number): number[] => Array.from({ length: count }, (_, index) => index);
+        painter
+            .repaintElements(
+                compiled,
+                { node: all(graph.nodeCount), edge: all(graph.edgeCount) },
+                { signal: teardown.signal, report: () => undefined },
+            )
+            .catch((error: unknown) => {
+                if (!teardown.signal.aborted) {
+                    console.error("[graphty] Could not repaint the layers that follow the pointer.", error);
+                }
+            });
+    };
 
     // The `runs` hook: a run whose entry changed -- recorded, re-run, undone, redone -- has
     // replaced the columns under `results.<runId>`, which any layer may read (a run's own layers,

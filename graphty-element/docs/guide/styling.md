@@ -61,7 +61,7 @@ if (!verdict.ok) {
 
 ## Selectors
 
-A selector says which elements a layer is about. There are six kinds, and they are spelled out
+A selector says which elements a layer is about. There are seven kinds, and they are spelled out
 rather than implied:
 
 ```typescript
@@ -71,6 +71,7 @@ rather than implied:
 { match: "top", path: "results.degree.value", n: 10 } // the top 10 by a run's field, whole ties only
 { match: "expression", where: "data.type == 'server'" }
 { match: "member", of: { set: id } }           // the members of a set, or any other scope
+{ match: "hover", reach: "neighbors" }          // the node under the pointer, and its neighbors
 ```
 
 An `ids` selector finds an integer id in either spelling, as every other id lookup does: `["1", "3"]`
@@ -86,6 +87,33 @@ the data a rule set reads, or re-run the run a followed set reads, and the layer
 elements that joined or left without being touched. A set has no colour of its own -- colouring
 one is this layer. A layer naming a set that was removed keeps painting the members the set's
 kept record names, so removing a set never blanks a layer.
+
+### What the pointer is over
+
+`{ match: "hover" }` paints the node under the pointer. With `reach: "neighbors"` it also paints
+that node's neighbors; for an edge layer it paints the edges that touch the hovered node, whatever
+the reach. `invert: true` paints everything else instead -- but only while a node is hovered, so
+the layer paints nothing at rest. That is the usual "fade what this node is not linked to" look:
+
+```typescript
+await session.styles.add({
+    name: "Fade the rest",
+    target: "node",
+    selector: { match: "hover", reach: "neighbors", invert: true },
+    set: { "node.opacity": 0.25 },
+});
+await session.styles.add({
+    name: "Fade the other links",
+    target: "edge",
+    selector: { match: "hover", invert: true },
+    set: { "edge.opacity": 0.15 },
+});
+```
+
+The element tells the session which node the pointer is over as it moves, and the layer repaints
+with no undo step: pointing is view state. `session.selection.hovered` reads the node (or `null`),
+and `session.selection.hover(id)` sets it, for a page that draws its own pointer or a test. Pointing
+at a node selects nothing.
 
 ### The top N
 

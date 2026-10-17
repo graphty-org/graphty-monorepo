@@ -572,6 +572,13 @@ export class NodeDragHandler {
             const pickedNodeId = pickNodeId(this.scene, this.scene.pointerX, this.scene.pointerY);
             const isOverThisNode = pickedNodeId === this.node.id;
 
+            // Tell the session which node is under the pointer, for `{ match: "hover" }` layers.
+            // Asked on every move over the node, not only on arrival, because the pointer can
+            // leave the canvas and come back onto the same node without this node seeing it go.
+            if (isOverThisNode) {
+                this.getContext().getSelectionManager?.()?.hover(this.node.id);
+            }
+
             // Emit node-hover when entering the node (not when already hovering)
             if (isOverThisNode && !this.isHovered) {
                 this.isHovered = true;
@@ -596,6 +603,7 @@ export class NodeDragHandler {
                 // Reset hover state when leaving
                 this.isHovered = false;
                 this.node.hideTooltip();
+                this.getContext().getSelectionManager?.()?.leave(this.node.id);
             }
         });
     }

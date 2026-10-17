@@ -40,6 +40,7 @@ import {
     type CompiledSelector,
     compileExpressionPredicate,
     hasPredicate,
+    hoverPredicate,
     idsPredicate,
     scopePredicate,
     type SelectorSource,
@@ -89,13 +90,18 @@ export type Selector =
      * The members of a scope, usually a kept set. One bit test per element against the scope's
      * live bitmap, which follows the set; a scope that cannot be resolved paints nothing.
      */
-    | { readonly match: "member"; readonly of: Scope };
+    | { readonly match: "member"; readonly of: Scope }
+    /**
+     * What the reader is pointing at: the hovered node, or it and its neighbors; inverted, the
+     * rest of the graph while a node is hovered. See the public `Selector` for the reading.
+     */
+    | { readonly match: "hover"; readonly reach?: "node" | "neighbors"; readonly invert?: boolean };
 
 /** The path list every selector that reads no column shares. */
 const EMPTY_PATHS: readonly Path[] = Object.freeze([]);
 
 /** Every selector kind, for a refusal that lists what was allowed. */
-const SELECTOR_KINDS = ["everything", "expression", "has", "ids", "top", "member"] as const;
+const SELECTOR_KINDS = ["everything", "expression", "has", "ids", "top", "member", "hover"] as const;
 
 /** The prefix of the only paths a top selector ranks: a run's published fields. */
 const RESULT_PATH_PREFIX = "results.";
@@ -253,6 +259,16 @@ function assertSelector(selector: Selector): void {
             }
 
             return;
+        case "hover":
+            if (selector.reach !== undefined && selector.reach !== "node" && selector.reach !== "neighbors") {
+                throw badShape('A "hover" selector\'s reach is "node" or "neighbors".', { reach: selector.reach });
+            }
+
+            if (selector.invert !== undefined && typeof selector.invert !== "boolean") {
+                throw badShape('A "hover" selector\'s invert is true or false.', { invert: selector.invert });
+            }
+
+            return;
         default:
             throw badShape(`"${String(kind)}" is not a selector kind.`, { match: kind, kinds: SELECTOR_KINDS });
     }
@@ -337,6 +353,25 @@ export function compileSelector(selector: Selector, target: SelectorTarget, sour
                 test: scopePredicate(live, target),
                 paths: EMPTY_PATHS,
                 problem: () => live.problem(),
+            };
+        }
+        case "hover": {
+            const { hover } = source;
+            if (hover === undefined) {
+                throw new GraphtyError({
+                    code: "E_UNSUPPORTED",
+                    message:
+                        'This session cannot evaluate a "hover" selector, because nothing reports the pointer to it.',
+                    source: "style",
+                    details: { match: "hover" },
+                });
+            }
+
+            return {
+                match: "hover",
+                target,
+                test: hoverPredicate(hover, target, selector.reach ?? "node", selector.invert === true),
+                paths: EMPTY_PATHS,
             };
         }
         default: {

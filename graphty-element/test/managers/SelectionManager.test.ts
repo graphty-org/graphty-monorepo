@@ -5,6 +5,7 @@ import { Graph } from "../../src/Graph";
 import { EventManager } from "../../src/managers/EventManager";
 import { SelectionManager } from "../../src/managers/SelectionManager";
 import type { Node } from "../../src/Node";
+import type { SelectionOwner } from "../../src/session/selection";
 import { assertScalesLinearly, visitsDuring } from "../helpers/cost";
 import { cleanupTestGraph, createTestGraph } from "../helpers/testSetup";
 
@@ -331,6 +332,60 @@ describe("SelectionManager", () => {
                     return visits;
                 },
                 { sizes: [250, 1000], counter: "elements visited by one toggle" },
+            );
+        });
+    });
+
+    describe("hover", () => {
+        /**
+         * A selection holding only the pointer's node, as the session's does.
+         * @returns The selection, and the nodes it was told about in order.
+         */
+        function pointerSelection(): { selection: SelectionOwner; told: (string | number | null)[] } {
+            const told: (string | number | null)[] = [];
+            const selection = {
+                hovered: null as string | number | null,
+                hover(id: string | number | null): void {
+                    this.hovered = id;
+                    told.push(id);
+                },
+            };
+            return { selection: selection as unknown as SelectionOwner, told };
+        }
+
+        it("tells the selection which node the pointer is over, and clears it on leaving that node", () => {
+            const { selection, told } = pointerSelection();
+            selectionManager.bindSelection(selection);
+
+            selectionManager.hover("a");
+            selectionManager.hover("b");
+            // The pointer arrived on b before a heard it leave: a's leaving changes nothing.
+            selectionManager.leave("a");
+            assert.strictEqual(selection.hovered, "b");
+            selectionManager.leave("b");
+
+            assert.isNull(selection.hovered);
+            assert.deepStrictEqual(told, ["a", "b", null]);
+        });
+
+        it("costs the same work however many nodes are selected", async () => {
+            await assertScalesLinearly(
+                async (size) => {
+                    const manager = new SelectionManager(eventManager);
+                    for (let i = 0; i < size; i++) {
+                        manager.toggle(createMockNode(String(i)));
+                    }
+                    const { selection } = pointerSelection();
+                    manager.bindSelection(selection);
+
+                    const visits = await visitsDuring(() => {
+                        manager.hover("3");
+                        manager.leave("3");
+                    });
+                    manager.dispose();
+                    return visits;
+                },
+                { sizes: [250, 1000], growth: "constant", counter: "elements visited by one hover and leave" },
             );
         });
     });

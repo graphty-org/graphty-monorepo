@@ -267,6 +267,21 @@ const CASES: readonly Case[] = [
         },
     },
     {
+        method: "SelectionApi.hover",
+        growth: "linear",
+        prepare: async (session) => {
+            await session.styles.add({
+                name: "Fade the rest",
+                target: "node",
+                selector: { match: "hover", reach: "neighbors", invert: true },
+                set: { "node.opacity": 0.25 },
+            });
+            return () => {
+                session.selection.hover("n5");
+            };
+        },
+    },
+    {
         method: "SelectionApi.promote",
         growth: "linear",
         prepare: async (session, size) => {

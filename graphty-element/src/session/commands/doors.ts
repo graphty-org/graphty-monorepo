@@ -478,6 +478,8 @@ const SELECTION_API: Readonly<Record<string, Door>> = {
     truncated: READ,
     origin: READ,
     has: READ,
+    hovered: READ,
+    hover: exempt("The node under the pointer is view state, not saved in a project file."),
     nodeMask: READ,
     edgeMask: READ,
     apply: SELECTION,

@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { AdvancedColorStyle, ColorStyle } from "./common";
 import { RichTextStyle } from "./RichTextStyle";

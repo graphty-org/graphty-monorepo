@@ -26,6 +26,7 @@ import { DEPRECATED_LAYOUT_IDS, KNOWN_FORMAT_IDS, KNOWN_LAYOUT_IDS, KNOWN_PALETT
 import { BLUE_HIGHLIGHT, GREEN_SUCCESS, ORANGE_WARNING } from "../../src/config/palettes/binary";
 import {
     CARBON_COLORS,
+    KELLY_COLORS,
     OKABE_ITO_COLORS,
     PASTEL_COLORS,
     TOL_MUTED_COLORS,
@@ -422,6 +423,7 @@ const paletteAnchors: readonly [string, readonly string[]][] = [
     ["tol-muted", TOL_MUTED_COLORS],
     ["pastel", PASTEL_COLORS],
     ["carbon", CARBON_COLORS],
+    ["kelly", KELLY_COLORS],
     ["purple-green", PURPLE_GREEN_COLORS],
     ["blue-orange", BLUE_ORANGE_COLORS],
     ["red-blue", RED_BLUE_COLORS],

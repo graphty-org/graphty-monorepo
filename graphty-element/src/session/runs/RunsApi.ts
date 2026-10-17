@@ -19,6 +19,7 @@
  * renderer's manager to talk to it.
  */
 
+import { paletteDescriptor } from "../../catalog/palettes";
 import { registeredAlgorithmByKey } from "../../catalog/registry";
 import {
     type AlgorithmDescriptor,
@@ -27,6 +28,7 @@ import {
     type LayerId,
     type NodeId,
     type OptionDescriptor,
+    type PaletteId,
     type RunId,
     type Scope,
     type ScopeInput,
@@ -363,6 +365,24 @@ function groupsPreview<B extends { readonly palette?: string }, P extends { read
     const named = binding.palette ?? preview(binding, "node.color", column).palette;
     const palette = named === null || named === "custom" ? {} : { palette: named };
     return preview({ ...binding, overflow: "extend", ...palette }, "node.color", column);
+}
+
+/**
+ * The first of a consumer's palettes with a color for every group, else its first.
+ * @param palettes - The palettes, in order of preference.
+ * @param column - The groups' values, one per node.
+ * @returns `{ palette }`, or nothing when no palettes were given.
+ */
+function preferredPalette(
+    palettes: readonly PaletteId[] | undefined,
+    column: readonly unknown[],
+): { readonly palette?: PaletteId } {
+    if (palettes === undefined || palettes.length === 0) {
+        return {};
+    }
+    const groups = new Set(column.filter((value) => value !== undefined && value !== null)).size;
+    const covering = palettes.find((id) => (paletteDescriptor(id)?.colors.length ?? 0) >= groups);
+    return { palette: covering ?? palettes[0] };
 }
 
 /**
@@ -1784,7 +1804,11 @@ class Runs implements SessionRunsApi {
         const column = elementIdsOf(result, "node").map((id) => result.node(id)?.[field]);
         // Every group has a layer of its own, so none is folded into an "other" grey: the groups
         // past the palette's colours take colours of their own.
-        const preview = groupsPreview(styles.previewColumn.bind(styles), binding, column);
+        const preview = groupsPreview(
+            styles.previewColumn.bind(styles),
+            { ...binding, ...preferredPalette(style.groupPalettes, column) },
+            column,
+        );
         const found = findRow(rowsOf(draft.styles), layer.id);
         const folder = styles.execute(
             {

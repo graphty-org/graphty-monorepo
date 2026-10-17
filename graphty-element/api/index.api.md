@@ -1694,6 +1694,7 @@ export class Graph implements GraphContext {
     getVoiceAdapter(): VoiceInputAdapter;
     getXRConfig(): XRConfig | undefined;
     getXRSessionManager(): XRSessionManager | undefined;
+    getZoomToPointer(): boolean;
     importCameraPresets(presets: Record<string, CameraState>): void;
     init(): Promise<void>;
     // (undocumented)
@@ -1819,6 +1820,7 @@ export class Graph implements GraphContext {
     setViewInsets(insets: ViewInsets | undefined): void;
     setViewMode(mode: ViewMode, options?: QueueableOptions): Promise<void>;
     setXRConfig(config: PartialXRConfig): void;
+    setZoomToPointer(on: boolean): void;
     shutdown(): void;
     // (undocumented)
     skybox?: string;
@@ -2309,6 +2311,8 @@ export class Graphty extends LitElement {
     zoomStep(direction: "in" | "out", options?: CameraAnimationOptions): Promise<void>;
     zoomToFit(): void;
     zoomToNodes(nodeIds: (string | number) | readonly (string | number)[], options?: CameraAnimationOptions): Promise<void>;
+    get zoomToPointer(): boolean;
+    set zoomToPointer(value: boolean);
     zoomToSelection(options?: CameraAnimationOptions): Promise<void>;
 }
 
@@ -2945,6 +2949,9 @@ export function isLighting(value: unknown): value is Lighting;
 
 // @public
 export function isViewMode(value: string): value is ViewMode;
+
+// @public
+export const KELLY_COLORS: readonly ["#F3C300", "#875692", "#F38400", "#A1CAF1", "#BE0032", "#C2B280", "#008856", "#E68FAC", "#0067A5", "#F99379", "#604E97", "#F6A600", "#B3446C", "#DCD300", "#882D17", "#8DB600", "#654522", "#E25822", "#2B3D26"];
 
 // @public
 export interface LayoutChangedEvent {

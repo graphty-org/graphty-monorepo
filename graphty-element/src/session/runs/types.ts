@@ -23,6 +23,7 @@ import type {
     FieldDescriptor,
     LayerId,
     NodeId,
+    PaletteId,
     ResultShape,
     RunId,
     Scope,
@@ -537,6 +538,14 @@ export type RunStyle =
            * @since 3.29.0
            */
           readonly groupName?: (group: RunGroup) => string;
+          /**
+           * The palettes the group layers may be colored from when `groups` is `"layers"`, in
+           * order of preference: the first with a color for every group the run finds; when none
+           * has, the first, its colors continued past its end. Absent, the colors are the ones the
+           * run's single layer would have painted. Ignored without `groups`.
+           * @since 3.32.0
+           */
+          readonly groupPalettes?: readonly PaletteId[];
       };
 
 /**

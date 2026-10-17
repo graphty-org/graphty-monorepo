@@ -125,6 +125,30 @@ export class OrbitCameraController {
     }
 
     /**
+     * Zoom like {@link zoom}, keeping the point under a spot on the screen where it is: the pivot
+     * slides toward that spot by the share of the distance the zoom took away.
+     *
+     * Exact for a point on the plane through the pivot that faces the camera, and close for a
+     * node in front of or behind it.
+     * ponytail: plane through the pivot, not the picked depth; pick the node under the pointer if
+     * a deep 3D layout drifts noticeably.
+     * @param delta - Distance delta to adjust the camera by; negative zooms in.
+     * @param x - The spot's horizontal position, -1 (left edge) to 1 (right edge).
+     * @param y - The spot's vertical position, -1 (bottom edge) to 1 (top edge).
+     */
+    public zoomToward(delta: number, x: number, y: number): void {
+        const before = this.cameraDistance;
+        this.zoom(delta);
+        const taken = before - this.cameraDistance;
+        const { tanX, tanY } = this.#halfFovTangents();
+        const free = this.#freeArea();
+        const slide = new Vector3((x - free.x) * tanX * taken, (y - free.y) * tanY * taken, 0);
+        this.pivot.position.addInPlace(Vector3.TransformNormal(slide, this.pivot.computeWorldMatrix(true)));
+        this.pivot.computeWorldMatrix(true);
+        this.updateCameraPosition();
+    }
+
+    /**
      * The distance rule every programmatic writer of `cameraDistance` follows: floored at
      * `minZoomDistance`, never capped. The ceiling is a zoom-out limit for a reader, not a
      * framing limit -- a saved state for a large graph can sit beyond it, and `zoom` accepts that

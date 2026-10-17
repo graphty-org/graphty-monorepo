@@ -122,6 +122,25 @@ export class TwoDCameraController {
     }
 
     /**
+     * Zoom like {@link zoom}, keeping the point under a spot on the canvas where it is.
+     * @param factor - Zoom factor (greater than 1 zooms out, less than 1 zooms in)
+     * @param x - The spot's horizontal position, 0 (left edge) to 1 (right edge).
+     * @param y - The spot's vertical position, 0 (top edge) to 1 (bottom edge).
+     */
+    public zoomAt(factor: number, x: number, y: number): void {
+        const left = this.camera.orthoLeft ?? -1;
+        const right = this.camera.orthoRight ?? 1;
+        const top = this.camera.orthoTop ?? 1;
+        const bottom = this.camera.orthoBottom ?? -1;
+        // The spot's offset from the camera in the camera's own axes, which are its parent's.
+        const offsetX = left + x * (right - left);
+        const offsetY = top - y * (top - bottom);
+        this.zoom(factor);
+        this.camera.position.x += (1 - factor) * offsetX;
+        this.camera.position.y += (1 - factor) * offsetY;
+    }
+
+    /**
      * Rotates the camera around the Z-axis.
      * @param delta - Rotation delta in radians
      */

@@ -346,6 +346,12 @@ function nodePaintOf(resolved: ResolvedStyle, meshKey: number, plainText: (chann
         writeChannel(bag, channel, value, plainText(channel));
     }
 
+    // NO LAYER PAINTS A COLOR: THE ELEMENT'S OWN DEFAULT, never "leave the instance as it was".
+    // The color lives in the instance buffer, and a null here used to skip the write, so a node
+    // whose color layer was removed kept the removed color on screen while every read of its
+    // style said nothing painted one.
+    color ??= bootstrapNodePaint().color;
+
     // AN ALPHA IN THE COLOR IS OPACITY, multiplied with `node.opacity` (issue #2071). The instance
     // buffer cannot carry it (see Node.applyInstanceColor), so it goes where opacity goes. An
     // opaque color leaves the opacity, and so the mesh key, exactly as it was.

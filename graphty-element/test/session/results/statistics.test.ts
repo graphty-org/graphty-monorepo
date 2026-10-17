@@ -331,6 +331,21 @@ describe("buildHistogram", () => {
         }
     });
 
+    it("bands a number field that holds only whole numbers on whole numbers, as it would a count", () => {
+        // Degrees 1 to 17 published as plain numbers: more distinct values than bins.
+        const values = [1, 1, 2, 2, 2, 3, 3, 4, 4, 5, 6, 6, 9, 10, 12, 16, 17];
+        const { bins } = buildHistogram(arrayColumn(values), { bins: 10 });
+
+        assert.isAbove(bins.length, 1);
+        for (const bin of bins) {
+            assert.isTrue(
+                Number.isInteger(bin.from) && Number.isInteger(bin.to),
+                `${String(bin.from)} to ${String(bin.to)}`,
+            );
+        }
+        assert.strictEqual(binned(bins), values.length);
+    });
+
     it("cuts a continuous field into the number of bands asked for, covering the whole range", () => {
         const values = Array.from({ length: 400 }, (_unused, index) => index / 7);
         const { bins } = buildHistogram(arrayColumn(values), { bins: 8 });

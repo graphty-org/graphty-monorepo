@@ -23,6 +23,8 @@ interface InputHandler {
     enable(): void;
     disable(): void;
     update(): void;
+    /** Whether the wheel zooms toward the point under the pointer; absent, the input has no wheel. */
+    zoomToPointer?: boolean;
 }
 
 export type CameraKey = "orbit" | "2d" | "xr";
@@ -126,6 +128,19 @@ export class CameraManager {
                 controller.setViewInsets(insets);
             } else {
                 controller.viewInsets = insets;
+            }
+        }
+    }
+
+    /**
+     * Make every camera's wheel zoom toward the point under the pointer, or toward the view's
+     * center.
+     * @param on - True to zoom toward the pointer.
+     */
+    public setZoomToPointer(on: boolean): void {
+        for (const input of this.inputs.values()) {
+            if ("zoomToPointer" in input) {
+                input.zoomToPointer = on;
             }
         }
     }

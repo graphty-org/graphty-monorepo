@@ -262,6 +262,29 @@ describe("a partition's groups as layers", () => {
         );
     });
 
+    for (const count of [6, 12]) {
+        it(`colors ${String(count)} groups from the first of the consumer's palettes with a color for each`, async () => {
+            const s = createGraphSession({ runs: { execute: communities } });
+            membership = Object.fromEntries(Array.from({ length: count }, (_, i) => [`n${String(i)}`, i]));
+            await s.data.addNodes(Object.keys(membership).map((id) => ({ id })));
+            await s.runs.start(
+                "louvain",
+                {},
+                { as: "louvain", style: { groups: "layers", groupPalettes: ["okabe-ito", "kelly"] } },
+            );
+            await s.styles.settled();
+            const expected = count <= 8 ? "okabe-ito" : "kelly";
+            const palette = s.catalog.palettes().find((p) => p.id === expected)?.colors ?? [];
+            const colors = Object.keys(membership).map((node) => colorOf(s, node)?.toUpperCase());
+            assert.lengthOf(new Set(colors), count, colors.join(", "));
+            assert.sameMembers(
+                colors,
+                palette.slice(0, count).map((color) => color.toUpperCase()),
+                `${expected}'s first ${String(count)} colors`,
+            );
+        });
+    }
+
     it("puts the folder of groups back when a deleted folder's run restores its layer", async () => {
         const s = await session();
         await s.runs.start("louvain", {}, { as: "louvain", style: { groups: "layers", name: "Louvain" } });

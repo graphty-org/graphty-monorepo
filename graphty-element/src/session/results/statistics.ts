@@ -892,6 +892,26 @@ function readsAsValues(distinct: Map<number, number>, integerValued: boolean): b
 }
 
 /**
+ * Whether every finite value in a column is a whole number, and at least one is there.
+ * @param column - The column.
+ * @returns True when the column holds only whole numbers.
+ */
+function everyValueWhole(column: NumericColumnSource): boolean {
+    let any = false;
+    for (let index = 0; index < column.length; index++) {
+        const value = column.get(index);
+        if (Number.isFinite(value)) {
+            if (!Number.isInteger(value)) {
+                return false;
+            }
+            any = true;
+        }
+    }
+
+    return any;
+}
+
+/**
  * Cut a column into bins.
  *
  * Three layouts, chosen in this order:
@@ -916,7 +936,10 @@ function readsAsValues(distinct: Map<number, number>, integerValued: boolean): b
  */
 export function buildHistogram(column: NumericColumnSource, options?: HistogramRequest): Histogram {
     const binCount = resolveBinCount(options?.bins);
-    const integerValued = options?.integerValued ?? false;
+    // A column every value of which is a whole number counts things whatever its declared type
+    // (a degree a run publishes as a number): its bands start and end on whole numbers, never
+    // "1 to 1.8".
+    const integerValued = options?.integerValued === true || everyValueWhole(column);
     const statistics = computeColumnStatistics(column);
     const suggestedScale = suggestHistogramScale(statistics);
     const distinct = countDistinct(column, binCount);

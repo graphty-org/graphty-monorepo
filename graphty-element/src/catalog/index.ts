@@ -6,6 +6,8 @@
  * inspected without a canvas.
  */
 
+export type { CanvasKeyAction, CanvasKeyDescriptor, CanvasKeyView } from "./canvasKeys";
+export { CANVAS_KEY_DESCRIPTORS } from "./canvasKeys";
 export type { LabelLookDescriptor, LabelLookId } from "./label-looks";
 export { LABEL_LOOKS, labelLook, labelLookChanges } from "./label-looks";
 export type {

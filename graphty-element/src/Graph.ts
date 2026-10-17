@@ -427,6 +427,8 @@ export class Graph implements GraphContext {
     };
     /** Whether the camera frames the graph on its own; see {@link setAutoFrame}. */
     #autoFrame = true;
+    /** Whether the wheel zooms toward the pointer; see {@link setZoomToPointer}. */
+    #zoomToPointer = false;
     /** How the 3D nodes are lit; see {@link setLighting}. */
     #lighting: Lighting = DEFAULT_LIGHTING;
     /** The node thumbnails drawn so far, by what they draw. */
@@ -1533,6 +1535,7 @@ export class Graph implements GraphContext {
         this.camera = this.renderManager.camera;
         this.camera.onReaderMove = this.#readerMovedCamera;
         this.camera.setViewInsets(this.#viewInsets);
+        this.camera.setZoomToPointer(this.#zoomToPointer);
         this.renderManager.applyLighting(this.#lighting);
         this.scene.clearColor = background;
         this.statsManager.initializeBabylonInstrumentation(this.scene, this.engine);
@@ -3846,6 +3849,26 @@ export class Graph implements GraphContext {
         if (!on) {
             this.updateManager.stopAutoZoomToFit();
         }
+    }
+
+    /**
+     * Whether the mouse wheel zooms toward the point under the pointer.
+     * @returns True when it does; false (the default) when it zooms toward the view's center
+     */
+    getZoomToPointer(): boolean {
+        return this.#zoomToPointer;
+    }
+
+    /**
+     * Make the mouse wheel zoom toward the point under the pointer, so what is under the pointer
+     * stays under it, or toward the view's center (the default). In 3D the point is taken on the
+     * plane through the point the camera turns about. A preference of the view, not saved in a
+     * project file.
+     * @param on - True to zoom toward the pointer.
+     */
+    setZoomToPointer(on: boolean): void {
+        this.#zoomToPointer = on;
+        this.camera.setZoomToPointer(on);
     }
 
     /**

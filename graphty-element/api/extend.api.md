@@ -1329,7 +1329,7 @@ export const KNOWN_LAYOUT_IDS: readonly ["force", "force-2d", "circular", "radia
 export const KNOWN_LOG_SINK_IDS: readonly ["console", "remote"];
 
 // @public
-export const KNOWN_PALETTE_IDS: readonly ["viridis", "ylorbr", "plasma", "inferno", "blues", "greens", "oranges", "okabe-ito", "tol-vibrant", "tol-muted", "pastel", "carbon", "purple-green", "blue-orange", "red-blue", "blue-highlight", "green-highlight", "orange-highlight"];
+export const KNOWN_PALETTE_IDS: readonly ["viridis", "ylorbr", "plasma", "inferno", "blues", "greens", "oranges", "okabe-ito", "tol-vibrant", "tol-muted", "pastel", "carbon", "kelly", "purple-green", "blue-orange", "red-blue", "blue-highlight", "green-highlight", "orange-highlight"];
 
 // @public
 export const LAYERED_GROUPING_FIELD_SPECS: readonly ResultFieldSpec[];

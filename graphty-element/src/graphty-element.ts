@@ -2278,6 +2278,44 @@ export class Graphty extends LitElement {
     }
 
     /**
+     * Whether the mouse wheel zooms toward the point under the pointer.
+     * @remarks
+     * Off (the default), the wheel zooms toward the center of the view. On, it zooms toward the
+     * point under the pointer, so a node under the pointer stays under it while the view grows or
+     * shrinks around it; in 3D the point is taken on the plane through the point the camera turns
+     * about. A preference of this view, not part of the project: switching it records no undo step
+     * and is not saved in a project file.
+     *
+     * The attribute is off unless it is present and not `"false"`.
+     * @since 3.32.0
+     * @example
+     * ```typescript
+     * element.zoomToPointer = true;
+     * ```
+     * ```html
+     * <graphty-element zoom-to-pointer></graphty-element>
+     * ```
+     * @returns True when the wheel zooms toward the pointer
+     */
+    @property({
+        attribute: "zoom-to-pointer",
+        converter: {
+            fromAttribute: (value: string | null): boolean => value !== null && value !== "false",
+        },
+    })
+    get zoomToPointer(): boolean {
+        return this.#graph.getZoomToPointer();
+    }
+    /**
+     * Switches zooming toward the pointer on or off.
+     */
+    set zoomToPointer(value: boolean) {
+        const oldValue = this.zoomToPointer;
+        this.#graph.setZoomToPointer(value);
+        this.requestUpdate("zoomToPointer", oldValue);
+    }
+
+    /**
      * Whether the camera was placed since the element last framed the graph on its own.
      * @remarks
      * True once the reader zooms, turns or pans the view with the mouse, a touch or a key, or the

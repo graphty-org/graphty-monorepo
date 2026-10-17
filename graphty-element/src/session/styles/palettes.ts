@@ -246,6 +246,14 @@ function requirePalette(id: PaletteId): PaletteDescriptor {
 }
 
 /**
+ * Built-in palettes the element offers and never picks on its own. Kelly's nineteen colors would
+ * fit 10 to 19 groups, and picking them for a binding that names no palette would change what
+ * every such binding draws today (the first eight groups in their palette and the rest in the
+ * "other" gray). A consumer names it, or lists it in a run's `groupPalettes`.
+ */
+const OFFERED_NOT_CHOSEN: ReadonlySet<PaletteId> = new Set<PaletteId>(["kelly"]);
+
+/**
  * The palette a binding that names none is painted through.
  *
  * DERIVED FROM THE CATALOGUE'S DECLARED CAPACITIES, not from a list of names written here. A
@@ -288,7 +296,7 @@ function defaultPaletteFor(registry: ScaleRegistry, scale: string, groups: numbe
     }
 
     const tightestFit = [...palettesOfKind("categorical")]
-        .filter((candidate) => paletteCapacity(candidate, groups).fits)
+        .filter((candidate) => !OFFERED_NOT_CHOSEN.has(candidate.id) && paletteCapacity(candidate, groups).fits)
         .sort(
             (left, right) => (left.capacity ?? Number.POSITIVE_INFINITY) - (right.capacity ?? Number.POSITIVE_INFINITY),
         );

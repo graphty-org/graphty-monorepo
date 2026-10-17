@@ -190,6 +190,39 @@ describe("the mouse", () => {
         assert.closeTo(end.y - start.y, -30, 2, "the node moved up with the pointer");
     });
 
+    for (const viewMode of ["2d", "3d"] as const) {
+        it(`with zoomToPointer, the wheel in ${viewMode} keeps the node under the pointer under it`, async () => {
+            const element = await mounted(viewMode);
+            element.zoomToPointer = true;
+            const start = at(element, "a");
+            const gap = spread(element);
+
+            for (let notch = 0; notch < 3; notch++) {
+                await wheel(element, start, -100);
+            }
+            await frames();
+
+            assert.isAbove(spread(element), gap * 1.2, "scrolling up zoomed in");
+            const end = at(element, "a");
+            assert.isBelow(Math.hypot(end.x - start.x, end.y - start.y), 3, "node a stayed under the pointer");
+        });
+    }
+
+    it("without zoomToPointer, the wheel zooms toward the center and the node off center moves", async () => {
+        const element = await mounted("2d");
+        const start = at(element, "a");
+
+        for (let notch = 0; notch < 3; notch++) {
+            await wheel(element, start, -100);
+        }
+        await frames();
+
+        // Drawn or not: it may slide off the canvas.
+        const end = element.nodeScreenPosition("a");
+        assert.isDefined(end);
+        assert.isAbove(Math.hypot(end.x - start.x, end.y - start.y), 10, "node a slid away from the pointer");
+    });
+
     it("the wheel zooms the 2D view", async () => {
         const element = await mounted("2d");
         const gap = spread(element);
@@ -366,6 +399,35 @@ describe("the keyboard", () => {
 
         await userEvent.keyboard(`{${modifier}>}{Shift>}z{/Shift}{/${modifier}}`);
         assert.strictEqual(element.session.history.position, position, "and redone");
+    });
+
+    for (const key of ["w", "="]) {
+        it(`each tap of "${key}" zooms the 3D view in`, async () => {
+            const element = await mounted("3d");
+            await click(element, EMPTY);
+            const gap = spread(element);
+
+            // A tap: down and up before the next frame, which a key read once a frame never saw.
+            await userEvent.keyboard(key);
+            await frames();
+            const once = spread(element);
+            await userEvent.keyboard(key);
+            await frames();
+
+            assert.isAbove(once, gap * 1.05, "the first tap zoomed in");
+            assert.isAbove(spread(element), once * 1.05, "and so did the second");
+        });
+    }
+
+    it("a tap of = zooms the 2D view in", async () => {
+        const element = await mounted("2d");
+        await click(element, EMPTY);
+        const gap = spread(element);
+
+        await userEvent.keyboard("=");
+        await frames(10);
+
+        assert.isAbove(spread(element), gap, "the tap zoomed in");
     });
 
     it("holding an arrow key turns the 3D camera", async () => {

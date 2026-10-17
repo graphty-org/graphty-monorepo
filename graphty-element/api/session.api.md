@@ -3198,6 +3198,7 @@ export type RunStyle = boolean | {
     readonly name?: string;
     readonly groups?: "layers";
     readonly groupName?: (group: RunGroup) => string;
+    readonly groupPalettes?: readonly PaletteId[];
 };
 
 // @public

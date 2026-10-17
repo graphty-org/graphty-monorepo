@@ -253,6 +253,23 @@ export type CameraId = (typeof KNOWN_CAMERA_IDS)[number] | (string & {});
 export function camerasForMode(mode: DrawingMode): readonly CameraDescriptor[];
 
 // @public
+export const CANVAS_KEY_DESCRIPTORS: readonly CanvasKeyDescriptor[];
+
+// @public
+export type CanvasKeyAction = "zoom-in" | "zoom-out" | "pan-up" | "pan-down" | "pan-left" | "pan-right" | "turn-up" | "turn-down" | "turn-left" | "turn-right" | "roll-left" | "roll-right";
+
+// @public
+export interface CanvasKeyDescriptor {
+    readonly action: CanvasKeyAction;
+    readonly keys: readonly string[];
+    readonly plainName: string;
+    readonly view: CanvasKeyView;
+}
+
+// @public
+export type CanvasKeyView = "2d" | "3d";
+
+// @public
 export interface CatalogApi {
     // (undocumented)
     algorithms(): readonly AlgorithmDescriptor[];
@@ -951,7 +968,7 @@ export const KNOWN_LAYOUT_IDS: readonly ["force", "force-2d", "circular", "radia
 export const KNOWN_LOG_SINK_IDS: readonly ["console", "remote"];
 
 // @public
-export const KNOWN_PALETTE_IDS: readonly ["viridis", "ylorbr", "plasma", "inferno", "blues", "greens", "oranges", "okabe-ito", "tol-vibrant", "tol-muted", "pastel", "carbon", "purple-green", "blue-orange", "red-blue", "blue-highlight", "green-highlight", "orange-highlight"];
+export const KNOWN_PALETTE_IDS: readonly ["viridis", "ylorbr", "plasma", "inferno", "blues", "greens", "oranges", "okabe-ito", "tol-vibrant", "tol-muted", "pastel", "carbon", "kelly", "purple-green", "blue-orange", "red-blue", "blue-highlight", "green-highlight", "orange-highlight"];
 
 // @public
 export type KnownAlgorithm = (typeof KNOWN_ALGORITHMS)[number];

@@ -199,6 +199,7 @@ export interface GraphtyElementJSXProps {
     "run-algorithms-on-load"?: boolean;
     "starting-camera-distance"?: string;
     "view-mode"?: string;
+    "zoom-to-pointer"?: boolean;
     acceleration?: Graphty["acceleration"];
     accelerationMinNodes?: Graphty["accelerationMinNodes"];
     algorithmsOnLoad?: Graphty["algorithmsOnLoad"];
@@ -236,6 +237,7 @@ export interface GraphtyElementJSXProps {
     viewInsets?: Graphty["viewInsets"];
     viewMode?: Graphty["viewMode"];
     xr?: Graphty["xr"];
+    zoomToPointer?: Graphty["zoomToPointer"];
 }
 
 // (No @packageDocumentation comment for this package)

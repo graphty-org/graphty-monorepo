@@ -179,6 +179,11 @@ interface ChannelPlan {
     readonly identity: boolean;
     /** Whether a value is drawn as the nearest one rather than exactly. */
     readonly nearest?: (value: StyleValue) => boolean;
+    /**
+     * True when `convert` is not in proportion to the value: a continuous mapping is then drawn
+     * between its converted points, not as each element's own value converted.
+     */
+    readonly curved?: boolean;
 }
 
 /** A layer being built, with what it paints. */
@@ -478,7 +483,12 @@ function channelPlans(
         const px = factors.label;
         return px === null
             ? id(channel)
-            : { channel, convert: (value) => (typeof value === "number" ? round(px(value)) : null), identity: false };
+            : {
+                  channel,
+                  convert: (value) => (typeof value === "number" ? round(px(value)) : null),
+                  identity: false,
+                  curved: true,
+              };
     };
     if (kind === "node") {
         const shapeTable = new Map(Object.entries(shapes));
@@ -1659,6 +1669,42 @@ class KindTranslation {
     }
 
     /**
+     * What a channel draws for one rule's values: each value converted, except that a curved
+     * conversion of a continuous mapping is drawn between its converted points.
+     * @param rule - The rule.
+     * @param property - The property.
+     * @param plan - The channel and how values become its values.
+     * @param truth - The rule's values by element.
+     * @param source - The styles the rule belongs to.
+     * @returns The drawn values by element.
+     */
+    #drawnOf(
+        rule: StyleRule,
+        property: string,
+        plan: ChannelPlan,
+        truth: readonly (StyleValue | null)[],
+        source: ExtractedStyles,
+    ): readonly unknown[] {
+        const mapping = rule.map?.[property as StyleProperty];
+        if (plan.curved !== true || mapping?.kind !== "continuous") {
+            return truth.map((value) => (value === null ? null : plan.convert(value)));
+        }
+
+        const convert = (value: StyleValue): StyleValue => {
+            const converted = plan.convert(value);
+            return typeof converted === "number" ? converted : value;
+        };
+        const points = mapping.points.map((point) => ({
+            ...point,
+            below: convert(point.below),
+            value: convert(point.value),
+            above: convert(point.above),
+        }));
+        const { set: _set, ...rest } = rule;
+        return this.#evaluate({ ...rest, map: { [property]: { ...mapping, points } } }, property, source);
+    }
+
+    /**
      * Emit one property of one rule on one channel.
      * @param rule - The rule.
      * @param bucket - Its place in rule order.
@@ -1668,7 +1714,7 @@ class KindTranslation {
      */
     #emit(rule: StyleRule, bucket: number, property: string, plan: ChannelPlan, source: ExtractedStyles): void {
         const truth = this.#evaluate(rule, property, source);
-        const drawn = truth.map((value) => (value === null ? null : plan.convert(value)));
+        const drawn = this.#drawnOf(rule, property, plan, truth, source);
         this.#noteConversion(property, plan, truth, drawn);
         if (!drawn.some((value) => value !== null)) {
             // A rule that gives no value and selects nothing in this graph says nothing; one that selects

@@ -9,7 +9,7 @@
 import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
-import { afterEach, assert, beforeAll, beforeEach, describe, it } from "vitest";
+import { afterEach, assert, beforeAll, beforeEach, describe, it, vi } from "vitest";
 import { commands, page, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor } from "../../../test/test-utils";
@@ -45,7 +45,9 @@ async function startPage(): Promise<{
     let element: Element | null = null;
     await waitFor(
         () => {
-            element = document.querySelector("graphty-element");
+            element = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
+                "graphty-element[data-start-page]",
+            );
             assert.equal(element?.session.data.statistics().nodeCount, 77);
             assert.isDefined(element?.session.runs.get("louvain")?.result);
         },
@@ -86,6 +88,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+    vi.unstubAllGlobals();
     await clearRecent();
 });
 
@@ -138,18 +141,20 @@ describe("the start page's graph", () => {
     it("runs Key players and Shortest path through the element, one at a time", async () => {
         const { session } = await startPage();
 
+        const runOf = (algorithm: string) => session.runs.list().find((run) => run.algorithm === algorithm);
+
         await userEvent.click(screen.getByRole("button", { name: "Key players" }));
         await waitFor(() => {
-            assert.isDefined(session.runs.get("betweenness")?.result);
+            assert.isDefined(runOf("betweenness")?.result);
             assert.isNotNull(screen.queryByText(/Valjean is the biggest\./));
         });
 
         await userEvent.click(screen.getByRole("button", { name: "Shortest path" }));
         await waitFor(() => {
-            assert.isDefined(session.runs.get("shortest-path")?.result);
+            assert.isDefined(runOf("shortest-path")?.result);
             assert.isNotNull(screen.queryByText("The shortest route from Napoleon to Brujon: 4 steps."));
         });
-        assert.isUndefined(session.runs.get("betweenness"), "Key players was switched off");
+        assert.isUndefined(runOf("betweenness"), "Key players was switched off");
         assert.equal(screen.getByRole("button", { name: "Key players" }).getAttribute("aria-pressed"), "false");
 
         await userEvent.click(screen.getByRole("button", { name: "2D" }));
@@ -173,30 +178,59 @@ describe("the start page's ways in", () => {
         await waitFor(
             () => {
                 assert.equal(store.get().project?.name, "triangle");
-                assert.equal(document.querySelector("graphty-element")?.session.data.statistics().nodeCount, 3);
+                assert.equal(
+                    document
+                        .querySelector<HTMLElementTagNameMap["graphty-element"]>(
+                            "graphty-element:not([data-start-page])",
+                        )
+                        ?.session.data.statistics().nodeCount,
+                    3,
+                );
             },
             { timeout: TIMEOUT_MS },
         );
     });
 
     it("reopens the newest recent project from Resume", async () => {
-        // A saved project to resume: the start page's own graph, saved.
-        const first = await startPage();
-        const saved = await first.session.project.save();
+        // A saved project to resume: the start page's own graph, saved as soon as it has loaded.
+        const first = render(<Workspace store={createWorkspaceStore()} />);
+        let hero: GraphSession | undefined;
+        await waitFor(
+            () => {
+                hero = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
+                    "graphty-element[data-start-page]",
+                )?.session;
+                assert.equal(hero?.data.statistics().nodeCount, 77);
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        if (hero === undefined) {
+            throw new Error("the start page's graph never came up");
+        }
+        const saved = await hero.project.save();
         first.unmount();
         await rememberRecent({ id: "kept", name: "Les Miserables study", nodes: 77, at: Date.now() });
 
         const store = createWorkspaceStore();
         render(<Workspace store={store} />);
         const resume = await screen.findByRole("button", { name: /^Resume Les Miserables study/ });
-        // This browser kept no handle to the file, so Resume asks for it, as Locate... does.
+        // This browser kept no handle to the file, so Resume asks for it, as Locate... does, with
+        // the file input (the File System Access picker is switched off, as where a browser has none).
+        vi.stubGlobal("showOpenFilePicker", undefined);
         await commands.chooseNextFile("study.graphty.json", "application/json", saved.text);
         await userEvent.click(resume);
 
         await waitFor(
             () => {
                 assert.isNotNull(store.get().project);
-                assert.equal(document.querySelector("graphty-element")?.session.data.statistics().nodeCount, 77);
+                assert.equal(
+                    document
+                        .querySelector<HTMLElementTagNameMap["graphty-element"]>(
+                            "graphty-element:not([data-start-page])",
+                        )
+                        ?.session.data.statistics().nodeCount,
+                    77,
+                );
             },
             { timeout: TIMEOUT_MS },
         );

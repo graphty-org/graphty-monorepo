@@ -51,14 +51,15 @@ async function elementSession(): Promise<GraphSession> {
 }
 
 /**
- * The style layers beyond the element's own locked base layers (node and edge defaults).
+ * The style layers beyond the element's own locked base layers (node and edge defaults) and the
+ * workspace's selected-node card.
  * @param session - the element's session.
  * @returns the names of the added layers.
  */
 function addedLayers(session: GraphSession): string[] {
     return session.styles
         .list()
-        .filter((layer) => layer.kind !== "base")
+        .filter((layer) => layer.kind !== "base" && layer.source.by !== "template")
         .map((layer) => layer.name);
 }
 

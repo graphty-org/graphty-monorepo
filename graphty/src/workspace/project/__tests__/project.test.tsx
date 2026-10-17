@@ -63,7 +63,7 @@ describe("the Project package", () => {
         await userEvent.click(screen.getByRole("button", { name: "Project: Les Miserables" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Close project" }));
         assert.isNull(store.get().project);
-        assert.isNotNull(screen.getByText("Projects you open or create appear here. They are kept in this browser."));
+        assert.isNotNull(screen.getByRole("heading", { level: 1, name: /^Analyze any network\./ }));
     });
 
     it("lists recent projects with their size, asks for a downloaded file with Locate..., and removes one", async () => {

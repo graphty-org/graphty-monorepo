@@ -105,6 +105,8 @@ export function HeroGraph({
     const [session, setSession] = useState<GraphSession | null>(null);
     const [shown, setShown] = useState<Shown>({ communities: true, pick: null, flat: false });
     const [said, setSaid] = useState<Said>({});
+    // The run Key players or Shortest path started, so the other button can take it away.
+    const pickRun = useRef<string | null>(null);
 
     useEffect(() => {
         let live = true;
@@ -184,14 +186,14 @@ export function HeroGraph({
             const next: Pick = shown.pick === pick ? null : pick;
             setShown((before) => ({ ...before, pick: next }));
             setSaid((before) => ({ ...before, keyPlayer: undefined, path: undefined, flipped: undefined }));
-            for (const id of ["betweenness", "shortest-path"]) {
-                if (session.runs.get(id) !== undefined) {
-                    session.runs.remove(id);
-                }
+            if (pickRun.current !== null) {
+                session.runs.remove(pickRun.current);
+                pickRun.current = null;
             }
             if (next === "key") {
                 // Sized by the measure, and nothing else: the communities keep their colors.
                 const run = session.runs.start("betweenness", {}, { style: false });
+                pickRun.current = run.id;
                 const result = await finished(run);
                 if (result !== null) {
                     await session.styles.encode({ run: run.id, channel: "node.size", range: [1, 4] });
@@ -203,7 +205,9 @@ export function HeroGraph({
                 }
             } else if (next === "path") {
                 const [from, to] = sample.path;
-                const result = await finished(session.runs.start("shortest-path", { source: from, target: to }));
+                const run = session.runs.start("shortest-path", { source: from, target: to });
+                pickRun.current = run.id;
+                const result = await finished(run);
                 if (result !== null) {
                     const { hops } = result.graph;
                     const steps = typeof hops === "number" ? hops : 0;
@@ -248,6 +252,7 @@ export function HeroGraph({
                 {defined ? (
                     <graphty-element
                         ref={ref}
+                        data-start-page=""
                         aria-label="A network drawn as a 3D graph. Drag to turn it; point at a node to see its neighbors, click it for details."
                         background={{ backgroundType: "color", color: background }}
                         style={{ display: "block", width: "100%", height: "100%" }}

@@ -475,7 +475,12 @@ describe("vary by layer", () => {
             assert.isNull(screen.queryByRole("menuitem", { name: "Clear shape: back to the palette" }));
         });
         assert.isTrue(panel.isConnected, "the popover stays open");
-        assert.deepEqual(written(session, layers, "node.shape"), before, "nothing written while it is open");
+        // Each change shows on the drawing as it is made, while the popover is open.
+        await waitFor(() => {
+            assert.notDeepEqual(written(session, layers, "node.shape"), before, "written while it is open");
+            assert.strictEqual(written(session, layers, "node.shape")[1], "cylinder");
+        });
+        const steps = session.history.position;
         await close(panel);
 
         await waitFor(() => {
@@ -485,6 +490,7 @@ describe("vary by layer", () => {
                 "the distinct shapes first, and the row's own pick",
             );
         });
+        assert.strictEqual(session.history.position, steps, "the open's writes are one undo step");
     });
 
     it.each([true, false])(
@@ -618,7 +624,10 @@ describe("vary by layer", () => {
         await within(popover).findByRole("grid", { name: /groups$/ });
         assert.isNull(within(fill).queryByRole("group", { name: /in each layer/ }), "no per-layer preview");
         assert.include(sections(popover), "More <groups> than colors: combobox", "the single layer's sections");
-        assert.deepEqual(written(session, groups, "node.color"), before, "nothing written while it is open");
+        // The source picked is written at once, so the drawing shows it while the popover is open.
+        await waitFor(() => {
+            assert.notDeepEqual(written(session, groups, "node.color"), before, "written while it is open");
+        });
 
         await close(popover);
         await waitFor(() => {
@@ -716,7 +725,11 @@ describe("several layers holding different values", () => {
             assert.lengthOf(chits, drawn, "every chit up to 6, else the first 5");
             assert.strictEqual(more, n <= 6 ? null : `+${String(n - 5)}`);
             for (const [at, chit] of chits.entries()) {
-                assert.strictEqual(chit.title, session.styles.get(layers[at])?.name, "in layer order, top first");
+                assert.strictEqual(
+                    chit.dataset.name,
+                    session.styles.get(layers[at])?.name,
+                    "in layer order, top first",
+                );
                 assert.strictEqual(getComputedStyle(chit).backgroundColor, rgbOf(String(values[at])));
             }
             // The line is one row inside the field: nothing wraps, nothing is clipped.

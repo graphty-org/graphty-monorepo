@@ -71,7 +71,7 @@ async function line(channel: string): Promise<HTMLElement> {
 }
 
 describe("vary by data on several layers", () => {
-    it("copies Fill by the run's group into each group layer when its popover closes, one Undo; Shape the same", async () => {
+    it("copies Fill by the run's group into each group layer as it is picked, one Undo; Shape the same", async () => {
         const { session, groups } = await openScene();
         const before = groups.map((id) => session.styles.get(id)?.set?.["node.color"]);
         await clickRow("Louvain");
@@ -87,10 +87,13 @@ describe("vary by data on several layers", () => {
         // The binding popover a single layer gets, holding the binding until it closes.
         const popover = await screen.findByRole("dialog", { name: /^Color by / });
         await within(popover).findByRole("group", { name: "Color binding" });
-        assert.isTrue(
-            groups.every((id) => session.styles.get(id)?.encode?.["node.color"] === undefined),
-            "nothing is written while it is open",
-        );
+        // The source picked is written at once, so the drawing shows it while the popover is open.
+        await waitFor(() => {
+            assert.isTrue(
+                groups.every((id) => session.styles.get(id)?.encode?.["node.color"] !== undefined),
+                "written while it is open",
+            );
+        });
         await userEvent.keyboard("{Escape}");
 
         await waitFor(() => {

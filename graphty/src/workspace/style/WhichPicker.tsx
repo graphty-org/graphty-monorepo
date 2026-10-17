@@ -271,8 +271,8 @@ function useHead(session: GraphSession, rows: readonly PickRow[], side: Side): s
     if (rows.length > 1) {
         // No one rule says what several Ends cards keep together (each reads its own layer's
         // nodes), so the union is left unsaid rather than drawn as "of 254 edges".
-        // How many layers is the panel's header's to say.
-        return `${matched === undefined ? "" : String(matched)} of ${String(total)} ${NOUN[side].many}`.trim();
+        // How many layers is the panel's header's to say; a total it cannot count is left unsaid.
+        return matched === undefined ? "" : `${String(matched)} of ${String(total)} ${NOUN[side].many}`;
     }
     return matched === undefined ? `of ${String(total)}` : `${String(matched)} of ${String(total)}`;
 }
@@ -408,7 +408,9 @@ function WhichRow({
             aria-expanded={false}
             aria-controls={regionId}
             // The rule is in the name, so it is heard while the cards are folded: "Which nodes, 10 of 24, kind: agency, company".
-            aria-label={[`Which ${NOUN[side].many}`, head, ...(shown.length === 0 ? [empty] : words)].join(", ")}
+            aria-label={[`Which ${NOUN[side].many}`, head, ...(shown.length === 0 ? [empty] : words)]
+                .filter((part) => part !== "")
+                .join(", ")}
             onClick={(event) => {
                 const chip = (event.target as Element).closest<HTMLElement>("[data-chip]");
                 onOpen(chip?.dataset.chip);

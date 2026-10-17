@@ -1343,6 +1343,7 @@ function VariedLine({ list }: Readonly<{ list: LineList | undefined }>): React.J
                     <Tooltip key={`${String(at)}:${entry.name}`} label={entry.name}>
                         <span
                             className="ws-varied-chit"
+                            data-name={entry.name}
                             data-other={entry === list.other ? "" : undefined}
                             style={{ background: entry.color ?? "var(--mantine-color-gray-5)" }}
                         />

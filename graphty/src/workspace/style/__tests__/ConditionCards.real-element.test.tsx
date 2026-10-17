@@ -420,7 +420,7 @@ describe("the combined Style panel", () => {
             .map((item) => item.textContent ?? "");
         assert.match(lines[0], /^Group 1: Group 1, \d+$/, "the first line is the tree's first layer");
         // The open cards say the union, as the closed row does.
-        assert.isNotNull(within(region).getByText(new RegExp(`^${String(layers.length)} layers, 77 of 77 nodes$`)));
+        assert.isNotNull(within(region).getByText(/^77 of 77 nodes$/));
 
         const steps = session.history.position;
         const card = await addCard("name");
@@ -482,13 +482,9 @@ describe("the combined Style panel", () => {
         await userEvent.click(
             within(await screen.findByRole("tablist", { name: "Style for" })).getByRole("tab", { name: /^Edge/ }),
         );
-        await userEvent.click(await screen.findByRole("checkbox", { name: /^Style edges, on in 0 of / }));
+        await userEvent.click(await screen.findByRole("checkbox", { name: "Style edges" }));
         const row = await whichRow("edges");
-        assert.match(
-            row.getAttribute("aria-label") ?? "",
-            /^Which edges, \d+ layers, Ends/,
-            "no 'of 254 edges' without a number",
-        );
+        assert.match(row.getAttribute("aria-label") ?? "", /^Which edges, Ends/, "no 'of 254 edges' without a number");
         assert.include(row.textContent ?? "", "Ends: both in this layer's nodes");
     });
 
@@ -503,7 +499,7 @@ describe("the combined Style panel", () => {
         await waitFor(() => {
             assert.match(
                 row.getAttribute("aria-label") ?? "",
-                /^Which nodes, 2 layers, 77 of 77 nodes, name: «Layer», 1 of 2 layers$/,
+                /^Which nodes, 77 of 77 nodes, name: «Layer», 1 of 2 layers$/,
             );
         });
         assert.include(row.textContent ?? "", "name: «Layer», 1 of 2 layers");

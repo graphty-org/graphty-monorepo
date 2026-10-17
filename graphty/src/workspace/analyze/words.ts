@@ -11,7 +11,8 @@
 import type { AlgorithmDescriptor, OptionDescriptor } from "@graphty/graphty-element/catalog";
 import type { Caveats, CostEstimate, GraphSession, Run, WeightMeaning } from "@graphty/graphty-element/session";
 
-import { formatNumber } from "../inspector/words";
+import { findTreeRow } from "../graph-place/rows";
+import { count, formatNumber } from "../inspector/words";
 
 /** One heading of the list, and the result shapes it gathers. */
 export interface Heading {
@@ -632,6 +633,26 @@ export function pathAnnouncement(session: GraphSession, run: Run): string | null
     return words.length === null
         ? `No path from ${words.from} to ${words.to}.`
         : `Shortest path added: ${words.from} to ${words.to}, ${words.length}`;
+}
+
+/**
+ * The status line for a finished grouping run, from its result and the layers it made: "Louvain
+ * finished: 6 groups, each a layer in the Louvain folder of Style layers" (or "...: 6 groups"
+ * when no folder holds its layers).
+ * @param session - the element's session.
+ * @param run - the run.
+ * @param name - the run's name in words.
+ * @returns the line, or null for a run whose result has no groups.
+ */
+export function groupsAnnouncement(session: GraphSession, run: Run, name: string): string | null {
+    const groups = run.result?.summary().groups;
+    if (groups === undefined) {
+        return null;
+    }
+    const layer = session.runs.layers(run.id)?.present[0];
+    const folder = layer === undefined ? undefined : findTreeRow(session.styles.tree(), layer)?.folders.at(-1);
+    const found = `${name} finished: ${count(groups.length, "group")}`;
+    return folder === undefined ? found : `${found}, each a layer in the ${folder.name} folder of Style layers`;
 }
 
 /**

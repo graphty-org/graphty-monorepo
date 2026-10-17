@@ -160,7 +160,8 @@ export interface StyleNumberInputProps {
  * (`40*2` commits 80); text that is not a number reverts. On commit the number
  * is pulled into `min`..`max` and the box is redrawn showing what was actually
  * kept. ArrowUp and ArrowDown step it at once (Shift: ten steps), Escape
- * abandons what was typed.
+ * abandons what was typed. Inside a form, Enter then submits the form, as in
+ * any text box.
  *
  * What the reader types is read in their own locale, so `3,14` is 3.14 wherever
  * the comma is the decimal separator, and the locale's own digits are numbers

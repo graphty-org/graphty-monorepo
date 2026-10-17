@@ -1,5 +1,5 @@
 import { DirectionProvider, MantineProvider } from "@mantine/core";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import React, { type ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -101,6 +101,54 @@ describe("StyleNumberInput", () => {
         await user.type(box, "10{Enter}");
         expect(box).toHaveValue("10");
         expect(screen.queryByRole("button", { name: /reset/i })).not.toBeInTheDocument();
+    });
+
+    it("submits its form on Enter with the number just typed, as any text box does", async () => {
+        const submitted: unknown[] = [];
+        function Form(): React.JSX.Element {
+            const [size, setSize] = React.useState<number | undefined>(undefined);
+            return (
+                <form
+                    onSubmit={(event) => {
+                        event.preventDefault();
+                        submitted.push(size);
+                    }}
+                >
+                    <StyleNumberInput label="Size" value={size} defaultValue={10} onChange={setSize} />
+                    <button type="submit">Run</button>
+                </form>
+            );
+        }
+        renderInput(<Form />);
+        const box = screen.getByRole("spinbutton");
+        await userEvent.clear(box);
+        await userEvent.type(box, "20{Enter}");
+        await waitFor(() => {
+            expect(submitted).toEqual([20]);
+        });
+        expect(box).toHaveFocus();
+    });
+
+    it("does not submit its form on Enter while the submit button is disabled", async () => {
+        const onSubmit = vi.fn((event: React.FormEvent) => {
+            event.preventDefault();
+        });
+        renderInput(
+            <form onSubmit={onSubmit}>
+                <StyleNumberInput label="Size" value={undefined} defaultValue={10} onChange={vi.fn()} />
+                <button type="submit" disabled>
+                    Run
+                </button>
+            </form>,
+        );
+        await userEvent.type(screen.getByRole("spinbutton"), "{Enter}");
+        // The field submits a frame after Enter; this frame runs after it.
+        await new Promise<void>((resolve) => {
+            requestAnimationFrame(() => {
+                resolve();
+            });
+        });
+        expect(onSubmit).not.toHaveBeenCalled();
     });
 
     it("has data-is-default attribute when using default", () => {

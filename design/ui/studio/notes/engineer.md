@@ -17,6 +17,19 @@ Summarized again 2026-10-17 (25.6 KB). The long entries for names and words, foc
 order, the number card, spoken messages, focus after adding, the color box and drawing and camera
 are in git: `git show afc2ee150:design/ui/studio/notes/engineer.md`.
 
+1. (2026-10-17, Analyze run, graphty + compact-mantine) Enter in a run setting runs it, and a
+   grouping run says what it made. `useNumberField` (compact-mantine) held Enter back so the number
+   commits first, which also killed the browser's implicit form submit; it now commits, then a
+   frame later `form.requestSubmit(submitButton)` when the field sits in a form with an enabled
+   submit button (Analyze's Resolution, Layout's settings, any dialog). The "Analyze Shift+A"
+   tooltip after Run was already gone on HEAD (`focusReturned` in compact-mantine's
+   `overlayBehavior.ts`, after the frozen build): no change, the new test covers it. The status
+   line for a run whose result has groups (`summary().groups`) waits for `styles.settled()` and
+   reads "Louvain (resolution 1.2) finished: 7 groups, each a layer in the Louvain folder of Style
+   layers" (`groupsAnnouncement` in `analyze/words.ts`, folder found from the run's first present
+   layer in `styles.tree()`). Test: `GroupsAsLayers.real-element.test.tsx` "runs on Enter in a
+   setting..."; compact-mantine `StyleNumberInput.test.tsx` "submits its form on Enter". Walk:
+   `design/ui/studio/tmp/r1-dry1-analyze/kb` (screen reader, keys) and `pointer`.
 1. (2026-10-17, filter steps, graphty) The filter step's value box ("Is", `ValueBox` in
    `rules/RuleRows.tsx`) is a Mantine Autocomplete with `selectFirstOptionOnChange`, so Enter takes
    the first listed value, never the letters typed ("name is Mme" hid the whole graph). Its list
@@ -307,6 +320,16 @@ are in git: `git show afc2ee150:design/ui/studio/notes/engineer.md`.
 
 ## Tried: worked / did not work
 
+- (2026-10-17) WORKED: Enter submitting a form from a field that must commit first: keep
+  `preventDefault` on the keydown, then `requestAnimationFrame(() => form.requestSubmit(button))`.
+  By the next frame React has rendered the committed value, so the form's `onSubmit` reads it;
+  letting the native implicit submit through would race the commit. Checking the submit button's
+  `disabled` inside the frame keeps the platform's rule (no submit through a disabled default
+  button).
+- (2026-10-17) DID NOT WORK: expecting the run's spoken name to be the folder's name. `runName`
+  adds the settings that differ from the default ("Louvain (resolution 1.2)") while the folder
+  keeps the name the app gave the run; a test that typed 1.2 and expected "Louvain finished"
+  waited out its 15 s.
 - (2026-10-17) WORKED: Mantine Autocomplete with a controlled `dropdownOpened={opened && listed.length > 0}`
   and a pre-filtered `data` (identity `filter`): Escape on a box whose list is empty reaches the
   form, and `selectFirstOptionOnChange` still marks the first option after each keystroke (its

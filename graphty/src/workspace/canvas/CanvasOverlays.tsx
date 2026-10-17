@@ -4,7 +4,7 @@ import type { GraphSession, LegendBlock, ProgressChange, RunStatus } from "@grap
 import { Button, Menu, Tooltip } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
-import { pathAnnouncement } from "../analyze/words";
+import { groupsAnnouncement, pathAnnouncement } from "../analyze/words";
 import { SampleItems } from "../frame/menus";
 import { GLYPHS } from "../glyphs";
 import { count } from "../inspector/words";
@@ -90,18 +90,23 @@ function useCanvasReading(session: GraphSession | null): CanvasReading {
                     return;
                 }
                 const ended = ENDED[change.run.status];
-                if (ended !== undefined) {
-                    const name = runName(session, change.run);
-                    // The event carries the run's record; its result is on the live run.
-                    const run = session.runs.get(change.run.id);
-                    const path =
-                        change.run.status === "succeeded" && run !== undefined ? pathAnnouncement(session, run) : null;
+                const name = runName(session, change.run);
+                // The event carries the run's record; its result is on the live run.
+                const run = change.run.status === "succeeded" ? session.runs.get(change.run.id) : undefined;
+                // A grouping run says what it made once its layers are in the tree.
+                const grouped = run?.result?.summary().groups !== undefined;
+                if (ended !== undefined && !grouped) {
+                    const path = run === undefined ? null : pathAnnouncement(session, run);
                     store.set({ announcement: path ?? `${name} ${ended}` });
                 }
                 // The painting is decided once the element has finished painting for the run.
                 void session.styles.settled().then(() => {
                     if (!live) {
                         return;
+                    }
+                    const groups = run === undefined ? null : groupsAnnouncement(session, run, name);
+                    if (groups !== null) {
+                        store.set({ announcement: groups });
                     }
                     const notice = runNotice(session, change.run.id);
                     if (notice !== null) {

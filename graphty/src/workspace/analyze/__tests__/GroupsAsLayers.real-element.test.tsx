@@ -23,11 +23,13 @@ const TIMEOUT_MS = 90_000;
 
 /**
  * The workspace on Les Miserables.
+ * @param store - The workspace's store.
  * @returns The session.
  */
-async function openScene(): Promise<GraphSession> {
+async function openScene(
+    store = createWorkspaceStore({ project: { name: "Untitled", id: 1 } }),
+): Promise<GraphSession> {
     await page.viewport(1440, 900);
-    const store = createWorkspaceStore({ project: { name: "Untitled", id: 1 } });
     render(<Workspace store={store} />);
     const session = await waitFor(
         () => {
@@ -125,5 +127,51 @@ describe("a grouping run from Analyze", () => {
         const after = session.styles.tree().find((row) => row.name === "Louvain")?.children ?? [];
         const names = after.map((row) => row.name);
         assert.lengthOf(new Set(names), names.length, `a re-run names its new groups apart: ${names.join(", ")}`);
+    });
+
+    it("runs on Enter in a setting, says what it made, and drops no tooltip on Analyze", async () => {
+        const store = createWorkspaceStore({ project: { name: "Untitled", id: 1 } });
+        const session = await openScene(store);
+        const toolbar = screen.getByRole("toolbar", { name: "Canvas tools" });
+        const analyze = within(toolbar).getByRole("button", { name: "Analyze" });
+        await userEvent.click(analyze);
+        await userEvent.type(await screen.findByRole("combobox", { name: "Filter analyses" }), "Louvain");
+        await userEvent.keyboard("{Enter}");
+        const resolution = await screen.findByRole("spinbutton", { name: /^Resolution/ });
+        await userEvent.tripleClick(resolution);
+        await userEvent.keyboard("1.2{Enter}");
+
+        const runId = await waitFor(
+            () => {
+                const found = session.runs.list().find((r) => r.algorithm === "louvain");
+                assert.equal(found?.status, "succeeded");
+                return found?.id ?? "";
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        const run = session.runs.get(runId);
+        assert.equal(run?.params.resolution, 1.2, "the run used the value typed before Enter");
+        const groups = run?.result?.summary().groups?.length ?? 0;
+        assert.isAbove(groups, 1);
+        await waitFor(
+            () => {
+                // The run's name carries the setting that differs from the default.
+                assert.equal(
+                    store.get().announcement,
+                    `Louvain (resolution 1.2) finished: ${String(groups)} groups, each a layer in the Louvain folder of Style layers`,
+                );
+            },
+            { timeout: TIMEOUT_MS },
+        );
+
+        // Focus came back to Analyze by the popover closing, not by the reader: no tooltip shows.
+        assert.equal(document.activeElement, analyze);
+        const tips = [...document.querySelectorAll<HTMLElement>('[role="tooltip"]')].filter((tip) =>
+            tip.textContent.startsWith("Analyze"),
+        );
+        assert.isTrue(
+            tips.every((tip) => !tip.checkVisibility({ opacityProperty: true, visibilityProperty: true })),
+            "no Analyze tooltip over the drawing",
+        );
     });
 });

@@ -77,7 +77,8 @@ interface NumberField {
  *
  * - typing applies nothing until Enter, Tab or blur; the text may be an expression (`40*2`);
  *   anything that does not evaluate silently reverts;
- * - Enter commits and keeps focus (the whole value is re-selected); Escape reverts and keeps
+ * - Enter commits and keeps focus (the whole value is re-selected), then submits the field's form
+ *   when it has an enabled submit button; Escape reverts and keeps
  *   focus (the whole value selected), and with nothing typed is left to what holds the field;
  * - ArrowUp / ArrowDown step at once (Shift: ten steps);
  * - a click selects the whole value;
@@ -154,8 +155,17 @@ export function useNumberField(options: NumberFieldOptions): NumberField {
                 event.preventDefault();
                 commit(event);
                 const input = event.currentTarget;
+                // Enter in a form's field submits it, as in any text box: the field's own Enter
+                // is held back so the commit lands first, and the form is submitted a frame later
+                // with the committed value, through its submit button unless that is disabled.
+                const submit = input.form?.querySelector<HTMLButtonElement | HTMLInputElement>(
+                    'button[type="submit"], input[type="submit"]',
+                );
                 requestAnimationFrame(() => {
                     input.select();
+                    if (submit?.disabled === false && submit.isConnected) {
+                        input.form?.requestSubmit(submit);
+                    }
                 });
             } else if (event.key === "Escape") {
                 // Takes back what was typed and keeps focus, the whole value selected, so focus

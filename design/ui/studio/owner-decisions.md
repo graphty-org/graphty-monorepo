@@ -4,6 +4,17 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-17 -- Decided by the team: Enter in a number field submits its form (compact-mantine)
+
+compact-mantine's number fields (`StyleNumberInput`, `PanelField`'s number box, through
+`useNumberField`) held Enter back so the typed number committed first, which also stopped the
+browser from submitting the form around the field: Enter in a run's setting did nothing while
+Enter in any other text box ran the form. Now Enter commits, keeps focus as before, and a frame
+later submits the field's form through its submit button when the form has one that is enabled.
+A field outside a form, or in a form whose submit button is disabled, behaves as before. A fix to
+the platform's own behavior, not a new choice: no option to turn it off, since a form that should
+not submit on Enter has no submit button.
+
 ## 2026-10-17 -- Decided by the team: a pill's tooltip words, reachable refused rows, a still pointer, a caret target (compact-mantine)
 
 Additive, compact-mantine `VariablePill`: `tooltip?: string`, the tooltip's words when they are not

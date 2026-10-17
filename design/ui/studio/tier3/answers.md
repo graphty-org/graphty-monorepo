@@ -26,8 +26,10 @@ Participants never see this file. Tasks: `tasks.md`. Bars: `criteria.md`. Partic
   person does -- a click, a typed entry with its Enter, one key, picking one option. Typing and
   picking the offered match is one step. A click the tool refused (keyboard-only mode) is none.
 - **`grade.md` starts with three lines**, which `../tool/score.mjs` reads:
-  `Grade: S|SD|F|G|VOID`, `False done: yes|no`, `Wrong turns: <n>`. A T47 success adds a fourth,
-  `Route: folder|several|one by one|around` (T47 below); a scripted exit adds `Scripted exit: yes`.
+  `Grade: S|SD|F|G|VOID`, `False done: yes|no`, `Wrong turns: <n>`. A T47 or T48 success adds
+  `Route: folder|several|one by one|around|cover` (T47 and T48 below); every T46 and T47 session
+  adds `Token: touched|not touched, <what followed>` (did the reader open or change a field
+  showing the purple "Layer" token, and what came of it); a scripted exit adds `Scripted exit: yes`.
 - **Severity** 0-4 (Nielsen) for every problem, with the step and screenshot. Not new findings:
   a new name drawn too small at the default framing, and the default label font naming no fallback
   (open owner decisions, `../owner-decisions.md`).
@@ -211,24 +213,22 @@ difference is a finding.
 
 ## T47. Every cluster at once, colors kept
 
-- **Success (S):** A: every node's size above its starting 1 and the same for all, every cluster's
-  color unchanged. B: every node drawn as Box, every cluster's color unchanged.
+- **Success (S):** every node drawn as Box (A and B), every cluster's color unchanged.
 - **Stacks that count:** the run's folder edited once (its Shape line, written to every group
   layer: S, `Route: folder`); two or more group layers picked together and edited once (S,
   `Route: several`); each group layer edited one by one (S, steps counted, `Route: one by one`);
-  the Everything layer's size or shape (S, `Route: around`: the group layers write only color, so
+  the Everything layer's shape (S, `Route: around`: the group layers write only color, so
   it shows, but the bulk edit was not used). Any cluster's color changed, or all clusters given
   one color through the folder's color field: F. A route on the file's conference column (`value`)
   instead of a run: F (not the program's clusters). Bar 1 holds for T47 only when at least half
-  its S and SD sessions are not `around`; the stall rule and question 3 count only `folder` and
-  `several`.
+  its S and SD sessions are `folder` or `several`; the stall rule and question 3 count the same.
 - **Success path (B, 13 steps, piloted in `pilot-materials/T47B/`):** 1. "No thanks". 2. College
   football. 3. Analyze. 4. `louvain`. 5. Enter. 6. Run (10 clusters). 7. The Louvain folder
   (Style shows "10 layers in Louvain", the Color line reads the purple "Layer" token with the
   clusters' swatches). 8. Shape "+". 9. Shape. 10. Open the shape list ("Node shape"). 11. Box.
-  A: as B to step 8, then Size, type a size above 1, Enter.
-- **Final screen:** cubes (B) or bigger dots (A) in ten (six) colors; `styles.json` shows each
-  group layer with its own `node.color` and the new `node.shape` (or `node.size`).
+  A: the same steps on Les Miserables (six clusters); re-piloted on the frozen build.
+- **Final screen:** cubes in ten (B) or six (A) colors; `styles.json` shows each group layer with
+  its own `node.color` and the new `node.shape`.
 
 ## T48. Cluster colors on only some people
 
@@ -238,8 +238,10 @@ difference is a finding.
   chip's total taken as everyone, is F. (The two counts are not added to "Facts no briefing may
   hold": a bare 15 or 12 matches unrelated text in persona files, and no briefing names T48.)
 - **Stacks that count:** a `trained` (A) or `on_record` (B) card set to Yes on every cluster layer,
-  added once on the folder's picker (S) or on each layer (S); a new layer above that paints the
-  others back to `#6366F1` (SD: it covers, it does not pick).
+  added once on the folder's picker (S, `Route: folder`), on two or more cluster layers picked
+  together (S, `Route: several`) or on each layer (S, `Route: one by one`); a new layer above that
+  paints the others back to `#6366F1` (SD, `Route: cover`: it covers, it does not pick). Bar 1
+  holds for T48 only when at least half its S and SD sessions are `folder` or `several`.
 - **Success path (A, 11 steps):** file in (3), Analyze, `louvain`, Enter, Run, the Louvain folder,
   Which nodes (open the picker), "Add a condition", `trained` (Yes; the count reads for the
   folder's layers together), Done.
@@ -297,6 +299,12 @@ difference is a finding.
   reading `data.role` (or `data.kind`).
 
 ## Change log
+
+- 2026-10-17 (second review, before the freeze): T47 A is cubes, as B (its "clearly bigger" had
+  no threshold a grader could apply, and its "the same for all" was never asked). T48 grades carry
+  `Route:` (folder, several, one by one, cover), and both T47 and T48 hold bar 1 only when most
+  successes went by the folder or several route. T46 and T47 grades carry a `Token:` line for
+  question 3.
 
 - 2026-10-17 (after the review of the tier 3 materials): T51 added. T45 B blue, not black. T47 A's
   success is "bigger than the start, the same for all", not "twice" (the starting size is never on

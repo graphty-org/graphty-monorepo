@@ -32,10 +32,13 @@
 // (axe, shared names, focus kept after each action), 9 (words at rest, against the "tier3" counts in
 // bars-limits.json; --record-limits writes them) and 10 (cut text, raw codes), at 1440 x 900 and
 // 900 x 700. It also writes every measured screen's words and control names to vocabulary.json for
-// wording.mjs.
+// wording.mjs. After adding a text card, a color and a shape it types a value with no click first
+// (bar 8, "typed"): the value must be written, so focus landed where the next input goes; a planted
+// case types on the start screen, where nothing takes text, and must fail.
 //
 // --scheme picks the app's color scheme for tier 1's screens (dark, the app's default, when left
-// out). Tier 2's screens are walked with real.mjs sessions (REAL_DIST=<build dir>), each in its own
+// out); with --tier 3, given explicitly, it opens every tier 3 walk in that scheme (REAL_SCHEME), so
+// bar 6 of ../tier3/criteria.md is walked once per theme. Tier 2's screens are walked with real.mjs sessions (REAL_DIST=<build dir>), each in its own
 // browser slot. Before a check is trusted it must fail on a planted case: an image with no text
 // alternative (axe), two buttons of one name, focus dropped to the page (also after each action
 // added for the focus check), the active option scrolled out of the find list, a clipped name and an
@@ -351,7 +354,12 @@ const SIZES = TIER === "3" ? ["1440x900", "900x700"] : ["1440x900", "1280x800"];
 const real = (size, ...a) => {
     const r = spawnSync(process.execPath, [REAL, ...a], {
         encoding: "utf8",
-        env: { ...process.env, REAL_DIST: dist, REAL_VIEWPORT: size },
+        env: {
+            ...process.env,
+            REAL_DIST: dist,
+            REAL_VIEWPORT: size,
+            ...(TIER === "3" && si > 0 ? { REAL_SCHEME: scheme } : {}),
+        },
     });
     return { code: r.status, out: `${r.stdout || ""}${r.stderr || ""}`.trim() };
 };
@@ -652,8 +660,22 @@ const WALKS3 = [
                 screen: "a new layer, its picker open",
             },
             { do: steps("--click Add a condition", "--expect role=option:name"), screen: "the add-a-condition menu" },
-            { do: steps("--click role=option:name"), focus: "adding a card", screen: "a text card" },
-            { do: steps("--click Type the text to match", "--type Mme", "--expect 6 of 77") },
+            {
+                do: steps("--click role=option:name"),
+                focus: "adding a card",
+                screen: "a text card",
+                typed: {
+                    as: "a new text card",
+                    do: steps("--type Mme", "--expect 6 of 77"),
+                    // no Escape first: it closes the picker and drops the unfinished card
+                    recover: steps(
+                        "--click Type the text to match",
+                        "--key Control+a",
+                        "--type Mme",
+                        "--expect 6 of 77",
+                    ),
+                },
+            },
             {
                 do: steps("--click Done", "--expect name contains Mme"),
                 focus: "Done in the picker",
@@ -664,22 +686,30 @@ const WALKS3 = [
                 do: steps("--click Add to node fill", "--click role=menuitem:Color"),
                 focus: "adding a color",
                 screen: "a color just added",
-            },
-            {
-                do: steps(
-                    "--click Node color, set here",
-                    "--key Control+a",
-                    "--type purple",
-                    "--key Enter",
-                    "--expect 800080",
-                ),
+                typed: {
+                    as: "a new Color line",
+                    do: steps("--key Control+a", "--type purple", "--key Enter", "--expect 800080"),
+                    recover: steps(
+                        "--key Escape",
+                        "--click Node color, set here",
+                        "--key Control+a",
+                        "--type purple",
+                        "--key Enter",
+                        "--expect 800080",
+                    ),
+                },
             },
             { do: steps("--key Control+z", "--expect-not 800080"), focus: "Undo" },
             { do: steps("--click Add to node text"), screen: "the text menu" },
             { do: steps("--key Escape"), focus: "Escape from the text menu" },
             { do: steps("--click Analyze", "--expect Degree"), screen: "the analysis list" },
             {
-                do: steps("--type louvain", "--key Enter", "--expect Resolution"),
+                // the analyses' one-line descriptions are words a prompt may echo
+                do: steps("--type louvain", "--expect Louvain"),
+                screen: "the analysis list, filtered to groups",
+            },
+            {
+                do: steps("--key Enter", "--expect Resolution"),
                 screen: "a groups analysis before it runs",
             },
             {
@@ -701,6 +731,41 @@ const WALKS3 = [
                 ),
                 screen: "two layers picked together",
                 words: "two layers picked together",
+            },
+            {
+                do: steps(
+                    "--click role=treeitem:Everything",
+                    ...NEW_LAYER,
+                    "--click role=tab:Edge",
+                    "--click Add a condition",
+                    "--click role=option:shared_chapters",
+                    "--expect Between",
+                ),
+            },
+            {
+                do: steps("--click Done", "--expect shared_chapters"),
+                focus: "Done in an Edge tab picker",
+                screen: "a layer with an Edge tab condition, at rest",
+            },
+        ],
+    },
+    {
+        // a colleague's project: what a layer someone else made picks out, and why (T50)
+        name: "colleague",
+        moves: [
+            {
+                do: steps(
+                    "--click No thanks",
+                    "--click Open project or file",
+                    "--upload lesmis-poster.graphty.json",
+                    "--expect Opened lesmis-poster",
+                ),
+                screen: "a colleague's project just opened",
+            },
+            {
+                do: steps("--click role=treeitem:Poster", "--expect Mlle"),
+                focus: "selecting a colleague's layer",
+                screen: "a colleague's layer selected",
             },
         ],
     },
@@ -747,9 +812,44 @@ const WALKS3 = [
                 screen: "a layer with four conditions, at rest",
                 words: "a layer with four conditions, at rest",
             },
+            {
+                do: steps(
+                    "--click Add to node fill",
+                    "--click role=menuitem:Color",
+                    "--click Node color by attribute",
+                    "--click role=option:role",
+                    "--expect-not role=option:role",
+                ),
+                focus: "picking a column for a color",
+                screen: "a color bound to a category column, with its key",
+            },
+            {
+                do: steps("--click Node color: role", "--expect Change source"),
+                screen: "the color popover of a category column",
+            },
+            { do: steps("--key Escape"), focus: "Escape from the color popover" },
             { do: steps("--click Add to node shape", "--click role=menuitem:Size"), focus: "adding a size" },
             { do: steps("--click Node size by attribute"), screen: "the size popover, before a column is picked" },
             { do: steps("--key Escape"), focus: "Escape from the size popover" },
+            {
+                do: steps(
+                    "--click Node size by attribute",
+                    "--click role=option:hours",
+                    "--click Node size: hours",
+                    "--expect Change source",
+                ),
+                screen: "the size popover of a number column",
+            },
+            { do: steps("--key Escape"), focus: "Escape from a bound size's popover" },
+            {
+                // last in its walk: a failed check leaves the walk where the next move need not start
+                do: steps("--click Add to node shape", "--click role=menuitem:Shape"),
+                focus: "adding a shape",
+                typed: {
+                    as: "a new Shape line",
+                    do: steps("--type Box", "--key Enter", "--key Escape", "--expect Box"),
+                },
+            },
         ],
     },
     {
@@ -779,6 +879,11 @@ const WALKS3 = [
                 words: "a run's folder, its picker open, a card added to every layer",
             },
             { do: steps("--click Done"), focus: "Done in a folder's picker" },
+            {
+                do: steps("--click Node color: from each layer", "--expect Color from each layer"),
+                screen: "the color from each layer dialog",
+            },
+            { do: steps("--key Escape"), focus: "Escape from the color from each layer dialog" },
         ],
     },
 ];
@@ -795,6 +900,7 @@ async function walkTier2(base) {
     const planted = [];
     const caught = [];
     const vocab = {};
+    const typed = {};
     for (const size of SIZES)
         for (const w of TIER === "3" ? WALKS3 : WALKS) {
             const first = size === SIZES[0];
@@ -820,6 +926,21 @@ async function walkTier2(base) {
                         lost = true;
                         log.push(`MISS ${label}: ${r.out.split("\n").filter((l) => MISSED.test(l))[0]} (${shot})`);
                         continue;
+                    }
+                    // focus landed where the next input goes: the value typed with no click is written.
+                    // A miss is a bar 8 finding, not a lost walk: recover by clicking into the field
+                    if (m.typed) {
+                        const t = real(size, "--step", dir, ...m.typed.do);
+                        const ok = !MISSED.test(t.out);
+                        if (first) typed[m.typed.as] = ok;
+                        if (!ok && m.typed.recover) {
+                            const rr = real(size, "--step", dir, ...m.typed.recover);
+                            if (MISSED.test(rr.out)) {
+                                lost = true;
+                                log.push(`MISS ${label}: recovering after typing into ${m.typed.as} failed`);
+                                continue;
+                            }
+                        }
                     }
                     if (!m.screen && !m.audit && !(first && (m.focus || m.words || m.scroll))) continue;
                     const { data } = await ask(dir, { op: "measure" });
@@ -857,6 +978,12 @@ async function walkTier2(base) {
                         else caught.push(`focus dropped to the page: caught on "${label}"`);
                         if (data.focusOnPage)
                             planted.push("the focus check reported the page before anything was planted");
+                        if (TIER === "3") {
+                            // nothing on the start screen takes text, so typing must not write
+                            const t = real(size, "--step", dir, "--type", "Plantedtext", "--expect", "Plantedtext");
+                            if (MISSED.test(t.out)) caught.push(`typing with focus in no field: caught on "${label}"`);
+                            else planted.push(`the typed check missed typing with focus in no field on "${label}"`);
+                        }
                     }
                     if (!data.names.controls) planted.push(`the shared-name check read no controls on "${label}"`);
                     if (m.screen) {
@@ -890,7 +1017,8 @@ async function walkTier2(base) {
                 real(size, "--end", dir);
             }
         }
-    return { screens, names, focus, scroll, words, cut, raw, log, planted, caught, vocab };
+    if (TIER === "3" && !Object.keys(typed).length) planted.push("the typed check typed into no field");
+    return { screens, names, focus, scroll, words, cut, raw, log, planted, caught, vocab, typed };
 }
 
 async function outer() {
@@ -957,6 +1085,7 @@ async function outer() {
         .filter((v) => !excused(v));
     const shared = Object.entries(t2.names).filter(([, g]) => g.length);
     const fell = Object.entries(t2.focus).filter(([, f]) => f);
+    const unwritten = Object.entries(t2.typed).filter(([, ok]) => !ok);
     const counts = Object.fromEntries(Object.entries(t2.words).map(([k, v]) => [k, v.words.length]));
     const over = Object.entries(counts).filter(
         ([k, n]) => !n || (limits.words?.[k] !== undefined && n > limits.words[k]),
@@ -983,6 +1112,7 @@ async function outer() {
                     screens: t2.screens,
                     sharedNames: t2.names,
                     focusOnPage: t2.focus,
+                    typedWithNoClick: t2.typed,
                     activeOptionInView: t2.scroll,
                     words: t2.words,
                 },
@@ -1019,6 +1149,10 @@ async function outer() {
     if (!shared.length) console.log("  none");
     console.log("bar 8, focus fallen to the page after:");
     for (const [name, f] of Object.entries(t2.focus)) console.log(`  ${f ? "FELL" : "kept"} ${name}`);
+    if (TIER === "3") {
+        console.log("bar 8, a value typed with no click is written into:");
+        for (const [name, ok] of Object.entries(t2.typed)) console.log(`  ${ok ? "written" : "NOT WRITTEN"} ${name}`);
+    }
     console.log("bar 8, the find list's active option after ArrowDown:");
     for (const [name, a] of Object.entries(t2.scroll))
         console.log(
@@ -1057,6 +1191,7 @@ async function outer() {
         t2Failing.length ||
         shared.length ||
         fell.length ||
+        unwritten.length ||
         scrolled.length ||
         (TIER !== "3" && (inn.rest.words.length === 0 || inn.rest.words.length > 50)) ||
         over.length ||

@@ -58,6 +58,8 @@ person watching would have read it.
   and `session.json` records `"keyboardOnlyMode": true`.
 - `REAL_VIEWPORT=<w>x<h>` on the `--start` command opens the window at another size (a screenshot
   audit at 1200x900 or 900x700); studies keep the default 1440 x 900. `session.json` records it.
+- `REAL_SCHEME=light` (or `dark`) on the `--start` command opens the app in that color scheme, for
+  the scripted walk of both themes (`bars.mjs --tier 3 --scheme`); studies leave it unset.
 - Scrollbars are drawn as a person's desktop Chrome draws them: Playwright's headless Chromium
   hides them by default (`--hide-scrollbars`), and the tool turns that off, so a pane that
   scrolls shows its scrollbar in the screenshot. A report quotes a control's name up to 80

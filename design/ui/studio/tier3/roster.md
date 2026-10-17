@@ -16,11 +16,12 @@ project records (designloom): `/home/apowers/Projects/graphty-monorepo/design/de
   priority is the average first-time user. Dev, Grace and Ruth have the studio's fullest first-time
   files; Elena (`explorer-elena.yaml`), Tom and Nadia are the earlier tiers' first-time personas.
   Tom only opens what others send him, so he takes the colleague's-project task (T50) and the
-  plainest tasks: none of the several-layer tasks (T47, T48), where his persona's give-up would be
-  scripted.
+  plainest tasks: none of the several-layer tasks (T47, T48) and not T51, where his persona's
+  give-up (a second failure, a "discrete or continuous?" kind of question) would be scripted.
 - **One analyst who knows another graph tool** (Alex, `analyst-alex.yaml`, has used Gephi or
   NetworkX), and **one genomics researcher who knows Cytoscape** (Maren,
-  `genomics-cytoscape-user.yaml`), for the yeast half of T40 and one more task. They show where an
+  `genomics-cytoscape-user.yaml`), for the yeast half of T40 and one more task. Neither sits on
+  T39 (bar 4 measures newcomers), and no half of a core task holds more than one of them. They show where an
   expectation from another tool meets this panel. Neither stands in for the newcomers: every
   finding from them is reported with who they are, and no first move of theirs is called
   "unprompted" for everyone (`criteria.md`, "Priming").
@@ -138,15 +139,15 @@ dataset, because the study cannot pass while a task is unjudged.
 
 | Task half                                        | n      | Participants        |
 | ------------------------------------------------ | ------ | ------------------- |
-| T38 own file, volunteers (A)                     | 2      | Grace, Dev          |
+| T38 own file, volunteers (A)                     | 2      | Alex, Dev           |
 | T38 own file, sources (B)                        | 2      | Ruth, Elena         |
 | T39 one color, Les Miserables (A)                | 3      | Elena, Tom, Sam     |
-| T39 one color, College football (B)              | 3      | Dev, Nadia, Maren   |
+| T39 one color, College football (B)              | 3      | Dev, Nadia, Ruth    |
 | T40 letters in a name, Les Miserables (A)        | 3      | Ruth, Nadia, Sam    |
-| T40 letters in a name, yeast genes (B)           | 3      | Maren, Dev, Alex    |
+| T40 letters in a name, yeast genes (B)           | 3      | Maren, Dev, Grace   |
 | T41 two facts, volunteers (A)                    | 2      | Nadia, Tom          |
 | T41 two facts, sources (B)                       | 2      | Grace, Alex         |
-| T43 bigger for more, volunteers (A)              | 2      | Ruth, Elena         |
+| T43 bigger for more, volunteers (A)              | 2      | Maren, Elena        |
 | T43 bigger for more, sources (B)                 | 2      | Dev, Nadia          |
 | T44 names, Les Miserables (A)                    | 1      | Alex                |
 | T44 names, volunteers (B)                        | 1      | Tom                 |
@@ -158,20 +159,29 @@ dataset, because the study cannot pass while a task is unjudged.
 | T47 every cluster at once, College football (B)  | 3      | Nadia, Ruth, Sam    |
 | T48 colors on only some, volunteers (A)          | 3      | Sam, Alex, Ruth     |
 | T48 colors on only some, sources (B)             | 3      | Nadia, Grace, Elena |
-| T49 put it back, Les Miserables (A)              | 2      | Dev, Grace          |
+| T49 put it back, Les Miserables (A)              | 2      | Dev, Tom            |
 | T49 put it back, karate club (B)                 | 2      | Alex, Ruth          |
 | T50 a colleague's project, lesmis-poster (A)     | 2      | Tom, Elena          |
 | T50 a colleague's project, volunteers-thanks (B) | 2      | Ruth, Dev           |
 | T51 each kind its own color, volunteers (A)      | 1      | Elena               |
-| T51 each kind its own color, sources (B)         | 1      | Tom                 |
+| T51 each kind its own color, sources (B)         | 1      | Grace               |
 | **Total**                                        | **56** |                     |
 
 Sessions per persona: Dev 8, Elena 8, Ruth 7, Grace 7, Nadia 7, Alex 7, Tom 6, Sam 4, Maren 2.
 Newcomers (Dev, Grace, Ruth, Elena, Tom, Nadia): 43 of 56 (77%).
 
+Every session starts `empty`, and every one of Sam's `empty --keys` (T39 A, T40 A, T47 B, T48 A):
+the start each task names (`tasks.md`, "Rules"; the table above, "Where each session starts").
+
 Run order: the core tasks first (T39, T40, T47, T48), then the rest; at most 4 sessions at once.
 
 ## Change log
+
+- 2026-10-17 (second review, before the freeze): Maren off T39 (bar 4 measures newcomers): she
+  takes Ruth's T43 A and Ruth takes her T39 B. Alex off T40 B, so a core half no longer rests on
+  two people who know another graph tool: Grace takes it and Alex takes her T38 A. Tom off T51 B,
+  where his persona's give-up would be scripted: Grace takes it and Tom takes her T49 A. Every
+  persona keeps its count, and no one has both halves of a task.
 
 - 2026-10-17 (after the review of the tier 3 materials): T48 raised to 6 and made a core task,
   paid for by T37 leaving round 1 (Ruth and Elena added to T48 A and B; Grace, the Director's pick

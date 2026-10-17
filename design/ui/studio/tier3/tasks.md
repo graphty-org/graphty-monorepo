@@ -81,15 +81,13 @@ category column, read back from the key: T51.
 - **Prompt A (Les Miserables):** "This is your first time using this program, and it has just
   opened. It comes with a few ready-made networks. Open the one about the characters of Les
   Miserables and have a first look around. Tell us how many characters it holds, how many ties
-  link them, and which character looks the most connected."
+  link them, and which character has the most ties to others."
 - **Prompt B (karate club):** "This is your first time using this program, and it has just
   opened. It comes with a few ready-made networks. Open the one about Zachary's karate club and
   have a first look around. Tell us how many members it holds, how many ties link them,
-  and which member looks the most connected."
+  and which member has the most ties to others."
 - **Measures:** the first minutes before any styling: where a newcomer looks first, and whether the
-  counts and the most connected one are read from the screen.
-- **Kept on purpose:** `connected` -- the everyday word; the app's run is named Degree, which the
-  prompt avoids.
+  counts and the one with the most ties are read from the screen.
 - **Round 1:** not run. Every session already records its first move after the sample or file
   opened, and T38 reads the node and tie counts from the screen. Kept for a later round.
 
@@ -191,15 +189,15 @@ category column, read back from the key: T51.
   how many characters are in Javert's circle."
 - **Prompt B (College football):** "This is your first time using this program, and it has just
   opened. Open the ready-made network of American college football teams. Have the program work
-  out clusters of teams that play each other most often, each cluster drawn in its own color --
+  out clusters of teams that often play one another, each cluster drawn in its own color --
   not the conferences in the file, the program's own clusters. Then make Nebraska's cluster
   bright red, while every other cluster keeps its own color. Tell us how many teams are in it."
 - **Kept on purpose:** `javert`, `nebraska`, `conference` -- data.
 
 ### T47. Every cluster at once, colors kept (two datasets)
 
-- **Prompt A (Les Miserables):** "This is your first time using this program, and it has just opened. Open the ready-made network of the characters of Les Miserables. Have the program work out the circles of characters who appear together, each circle in its own color. Then make the characters of every circle clearly bigger, while every circle keeps its own color."
-- **Prompt B (College football):** "This is your first time using this program, and it has just opened. Open the ready-made network of American college football teams. Have the program work out clusters of teams that play each other most often, each cluster in its own color -- not the conferences in the file, the program's own clusters. Then draw the teams of every cluster as cubes instead of balls, while every cluster keeps its own color."
+- **Prompt A (Les Miserables):** "This is your first time using this program, and it has just opened. Open the ready-made network of the characters of Les Miserables. Have the program work out the circles of characters who appear together, each circle in its own color. Then draw the characters of every circle as cubes instead of balls, while every circle keeps its own color."
+- **Prompt B (College football):** "This is your first time using this program, and it has just opened. Open the ready-made network of American college football teams. Have the program work out clusters of teams that often play one another, each cluster in its own color -- not the conferences in the file, the program's own clusters. Then draw the teams of every cluster as cubes instead of balls, while every cluster keeps its own color."
 - **Route under study:** whether the clusters are changed together, and whether the field that
   holds a different color for each cluster is left alone. A route through the whole drawing's own
   look also passes and is recorded.
@@ -208,9 +206,11 @@ category column, read back from the key: T51.
 
 ### T48. Cluster colors on only some people (two datasets)
 
-- **Prompt A (volunteers):** "This is your first time using this program, and it has just opened. The food bank's volunteer list, volunteers.graphml, is on this computer. Bring it into the program. Have the program work out the clusters of people who work shifts together, each cluster in its own color. Then keep those colors only on people who have finished food-safety training; everyone else looks the way they did when the file first opened. Tell us how many people keep a cluster color."
-- **Prompt B (sources):** "This is your first time using this program, and it has just opened. A reporter colleague's sources for her waterfront zoning story, sources.graphml, are on this computer. Bring them into the program. Have the program work out clusters of sources that deal with each other, each cluster in its own color. Then keep those colors only on sources who agreed to speak on the record; everyone else looks the way they did when the file first opened. Tell us how many sources keep a cluster color."
-- **Route under study:** picking by data across several clusters at once.
+- **Prompt A (volunteers):** "This is your first time using this program, and it has just opened. The food bank's volunteer list, volunteers.graphml, is on this computer. Bring it into the program. Have the program work out the circles of people who work shifts together, each circle in its own color. Then keep those colors only on people who have finished food-safety training; everyone else looks the way they did when the file first opened. Tell us how many people keep a circle's color."
+- **Prompt B (sources):** "This is your first time using this program, and it has just opened. A reporter colleague's sources for her waterfront zoning story, sources.graphml, are on this computer. Bring them into the program. Have the program work out clusters of sources that deal with one another, each cluster in its own color. Then keep those colors only on sources who agreed to speak on the record; everyone else looks the way they did when the file first opened. Tell us how many sources keep a cluster color."
+- **Route under study:** picking by data across several clusters at once: on the run's folder or
+  on several of its layers picked together, against one layer at a time or a covering layer
+  (graded `Route:`, `answers.md`).
 - **Kept on purpose:** `training`, `record` -- data.
 
 ### T49. Put it back (two datasets)
@@ -296,7 +296,7 @@ path again by keyboard only. They come from the pilot walks of the combined Styl
   new layer made by hand for Javert's circle; the conferences in the file used for B; "Nebraska" typed into the find box (the file's
   team names have no spaces: "Florida State" finds nothing, "Florida" finds the University of
   Florida).
-- **T47:** the starting layer's size changed instead of the clusters' (passes, recorded).
+- **T47:** the starting layer's shape changed instead of the clusters' (passes, recorded).
 - **T48:** a yes/no card added to one cluster only; a new layer above the clusters that paints
   everyone else back to the old color.
 - **T49:** Control+Z pressed several times past the color change; the red typed over with the old
@@ -307,6 +307,13 @@ path again by keyboard only. They come from the pilot walks of the combined Styl
   read instead of the picker.
 
 ## Change log
+
+- 2026-10-17 (second review, before the freeze): T47 A asks for cubes, as B does, so both halves
+  ask for one change on two domains (A asked for "clearly bigger", which no grader can threshold,
+  and T43 already tests bigger). T48 A says "circles", as T46 A and T47 A do, so the task's noun
+  runs on two domains; T46 B, T47 B and T48 B say "one another", not "each other", which the
+  description of the groups analysis uses. T37 asks for "the most ties to others": its old
+  "connected" was kept for a false reason (an Analyze card is called "Most connected").
 
 - 2026-10-17 (after the review of the tier 3 materials): T51 added (each kind its own color);
   T37 and T42 not run in round 1. Words changed: T38 B, T41 B, T42 B, T43 B, T48 B and T51 B are

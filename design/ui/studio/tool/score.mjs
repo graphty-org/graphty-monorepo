@@ -2,16 +2,20 @@
 // Scores a tier 3 round's sessions against the scripted bars of ../tier3/criteria.md:
 //   bar 1: each task's success (S or SD) at least 80% of its valid sessions, and each dataset half at
 //          least 2 of 3 (67%); a task run at fewer than 4 sessions does not hold (the study cannot
-//          pass while a task is unjudged). A task in ROUTE_TASKS (T47) holds only when at least half
-//          its successes went through the layers under study (grade.md "Route:" not "around"), and
-//          its successes on the bulk route (folder or several) are reported for the stall rule
+//          pass while a task is unjudged). A task in ROUTE_TASKS (T47, T48) holds only when at least
+//          half its successes went by the bulk route under study (grade.md "Route: folder" or
+//          "several"), which is also the stall rule's count. Bar 1 over the newcomers alone (every
+//          persona but Alex and Maren, who know another graph tool) is reported, not judged
 //   bar 2: no false "done" (a grade that says the participant claimed done while the screen showed
 //          otherwise)
 //   bar 3: the median wrong turns of each task's valid sessions at most 2
 //   bar 4: time to the first styled graph on T39 (--task), whose sessions start with no graph open:
 //          the median steps from 01.png to the first screenshot where every node is drawn in one
 //          color that is not the start's (T39's success state), at most twice the answer key's steps
-//          (--key-steps, default 6); a session that never got there counts as never (Infinity). Minutes between the two screenshots' own clocks are reported beside it, as a trend
+//          (--key-steps, default 6); a session that never got there, or was not graded S or SD, counts
+//          as never (Infinity). Keyboard-only sessions (start "empty --keys") count their steps in
+//          another unit, so they are left out and reported apart. Minutes between the two
+//          screenshots' own clocks are reported beside it, as a trend
 //          only: a simulated participant's thinking time is in them. The same median over every
 //          other task's empty-start sessions is reported, not judged
 //
@@ -20,7 +24,7 @@
 //
 // Reads <round dir>/plan.md (one row per session: | id | task | A or B: dataset | persona | `start` |),
 // each sessions/<id>/grade.md's first lines ("Grade: S", "False done: no", "Wrong turns: 1", and
-// "Route: folder|several|one by one|around" on a ROUTE_TASKS success, "Scripted exit: yes" on a G
+// "Route: folder|several|one by one|around|cover" on a ROUTE_TASKS success, "Scripted exit: yes" on a G
 // the persona file scripted), and
 // each session's styles-steps.jsonl (written by real.mjs). A re-run <id>b replaces a VOID <id>.
 // A session with no readable grade fails the run: a bar measured on zero sessions does not hold.
@@ -30,8 +34,8 @@ import { mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
-// tasks whose success counts only when most of it went through the layers under study
-const ROUTE_TASKS = new Set(["T47"]);
+// tasks whose success counts only when most of it went by the bulk route under study
+const ROUTE_TASKS = new Set(["T47", "T48"]);
 const BULK_ROUTES = new Set(["folder", "several"]);
 
 const median = (xs) => {
@@ -64,7 +68,7 @@ function readGrade(dir) {
     const grade = t.match(/^Grade: (S|SD|F|G|VOID)\b/m)?.[1];
     const falseDone = t.match(/^False done: (yes|no)\b/im)?.[1]?.toLowerCase();
     const turns = t.match(/^Wrong turns: (\d+)/m)?.[1];
-    const route = t.match(/^Route: (folder|several|one by one|around)\b/im)?.[1]?.toLowerCase() ?? null;
+    const route = t.match(/^Route: (folder|several|one by one|around|cover)\b/im)?.[1]?.toLowerCase() ?? null;
     const scriptedExit = /^Scripted exit: yes\b/im.test(t);
     if (!grade || !falseDone || turns === undefined) return { unreadable: f };
     return { grade, falseDone: falseDone === "yes", wrongTurns: Number(turns), route, scriptedExit };
@@ -138,13 +142,15 @@ export function score(rd, keySteps = 6, firstTask = "T39") {
             holds: judged && ok / of.length >= 0.8,
         });
         if (ROUTE_TASKS.has(t)) {
-            const through = wins.filter((s) => s.route && s.route !== "around").length;
             const bulk = wins.filter((s) => BULK_ROUTES.has(s.route)).length;
+            const routes = Object.entries(Object.groupBy(wins, (s) => s.route ?? "none"))
+                .map(([r, xs]) => `${r} ${xs.length}`)
+                .join(", ");
             bars.push({
                 bar: 1,
-                what: `${t} successes through the layers under study (folder, several or one by one; at least half)`,
-                value: `${through} of ${ok}; on the bulk route (folder or several, the stall rule's count) ${bulk}`,
-                holds: ok > 0 && through * 2 >= ok,
+                what: `${t} successes on the bulk route (folder or several; at least half, the stall rule's count)`,
+                value: `${bulk} of ${ok} (${routes || "no success"})`,
+                holds: ok > 0 && bulk * 2 >= ok,
             });
         }
         for (const h of judged ? ["A", "B"] : []) {
@@ -177,7 +183,12 @@ export function score(rd, keySteps = 6, firstTask = "T39") {
             minutes: median(timed.map((s) => s.firstStyled.minutes).filter((m) => m !== null)),
         };
     };
-    const own = sessions.filter((s) => s.task === firstTask && s.start.startsWith("empty"));
+    const keys = (s) => s.start.includes("--keys");
+    const won = (s) => s.grade === "S" || s.grade === "SD";
+    // a session not graded S or SD never reached the success state, whatever color it drew
+    const own = sessions
+        .filter((s) => s.task === firstTask && s.start.startsWith("empty") && !keys(s))
+        .map((s) => (won(s) ? s : { ...s, firstStyled: null }));
     const f = firstStyledOf(own);
     bars.push({
         bar: 4,
@@ -190,8 +201,20 @@ export function score(rd, keySteps = 6, firstTask = "T39") {
         sessions.filter((s) => s.task !== firstTask && s.start.startsWith("empty")),
         null,
     );
+    const newcomers = sessions.filter((s) => !/^(Alex|Maren)\b/.test(s.persona));
     const reported = {
         otherTasksFirstStyled: { sessions: rest.timed.length, steps: rest.steps, minutes: rest.minutes },
+        // the keyboard user's steps to the first styled graph, in key presses: bar 7's evidence, not bar 4's
+        keyboardFirstStyled: sessions
+            .filter((s) => s.task === firstTask && keys(s))
+            .map((s) => ({ id: s.id, grade: s.grade, steps: s.firstStyled?.steps ?? null })),
+        // bar 1 without the two personas who know another graph tool
+        newcomersOnly: Object.fromEntries(
+            tasks.map((t) => {
+                const of = newcomers.filter((s) => s.task === t);
+                return [t, `${of.filter(won).length} of ${of.length}`];
+            }),
+        ),
         // a give-up the persona file scripted: graded G, kept in bar 1's denominator
         scriptedExits: sessions.filter((s) => s.scriptedExit).map((s) => s.id),
     };
@@ -207,7 +230,7 @@ async function selfTest() {
             const d = join(rd, "sessions", s.id);
             await mkdir(d, { recursive: true });
             rows.push(
-                `| ${s.id.replace(/b$/, "")} | ${s.task} | ${s.half}: data | Grace | \`${s.start ?? "empty"}\` |`,
+                `| ${s.id.replace(/b$/, "")} | ${s.task} | ${s.half}: data | ${s.persona ?? "Grace"} | \`${s.start ?? "empty"}\` |`,
             );
             if (s.grade)
                 await writeFile(
@@ -283,6 +306,36 @@ async function selfTest() {
             ...s,
             colors: [null, ["x"], ["x", "y"], ["x", "y"]],
         })),
+        "T47 passed all one by one": [
+            ...good,
+            ...["r1-s06", "r1-s07", "r1-s08", "r1-s09"].map((id, i) => ({
+                id,
+                task: "T47",
+                half: i < 2 ? "A" : "B",
+                grade: "S",
+                route: "one by one",
+            })),
+        ],
+        "a T48 success with no Route line": [
+            ...good,
+            ...["r1-s06", "r1-s07", "r1-s08", "r1-s09"].map((id, i) => ({
+                id,
+                task: "T48",
+                half: i < 2 ? "A" : "B",
+                grade: "S",
+                route: i ? "folder" : undefined,
+            })),
+        ],
+        "only keyboard-only sessions reached one new color": good.map((s, i) => ({
+            ...s,
+            start: i < 3 ? "empty --keys" : "empty",
+            looks: i < 3 ? undefined : [null, "a", "a"],
+        })),
+        "the one session that reached one new color was graded F": good.map((s, i) => ({
+            ...s,
+            grade: i === 2 ? "F" : s.grade,
+            looks: i === 2 ? undefined : [null, "a", "a"],
+        })),
         "T47 passed only around the clusters": [
             ...good,
             ...["r1-s06", "r1-s07", "r1-s08", "r1-s09"].map((id, i) => ({
@@ -332,6 +385,7 @@ async function selfTest() {
                 half: i < 3 ? "A" : "B",
                 grade: i === 5 ? "G" : "S",
                 route: ["folder", "several", "around", "one by one", "folder"][i],
+                persona: i === 0 ? "Alex" : undefined,
                 scripted: i === 5,
             })),
         ]),
@@ -343,7 +397,12 @@ async function selfTest() {
         `a T47 passed through the clusters fails: ${JSON.stringify(routed.bars.filter((b) => !b.holds))}`,
     );
     assert.deepEqual(routed.reported.scriptedExits, ["r1-s11"], "a scripted exit was not reported");
-    assert.match(routed.bars.find((b) => b.what.startsWith("T47 successes")).value, /bulk route .* 3$/);
+    assert.match(routed.bars.find((b) => b.what.startsWith("T47 successes")).value, /^3 of 5 /);
+    assert.equal(
+        routed.reported.newcomersOnly.T47,
+        "4 of 5",
+        "Alex's session was not left out of the newcomers' count",
+    );
     await rm(base, { recursive: true, force: true });
     console.log("score.mjs self-test: every planted failure caught, the passing round passes");
 }
@@ -361,6 +420,15 @@ else if (args[0]) {
     const o = r.reported.otherTasksFirstStyled;
     console.log(
         `reported: other tasks' steps to the first styled graph, median ${o.steps} over ${o.sessions} sessions`,
+    );
+    for (const k of r.reported.keyboardFirstStyled)
+        console.log(
+            `reported: keyboard-only ${k.id} (${k.grade}), steps to the first styled graph ${k.steps ?? "never"}`,
+        );
+    console.log(
+        `reported: bar 1 over the newcomers alone: ${Object.entries(r.reported.newcomersOnly)
+            .map(([t, v]) => `${t} ${v}`)
+            .join(", ")}`,
     );
     console.log(r.holds ? "every scripted bar holds" : "a scripted bar fails or was not measured");
     process.exitCode = r.holds ? 0 : 1;

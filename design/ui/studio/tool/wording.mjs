@@ -5,6 +5,9 @@
 // A shared word passes only when tasks.md keeps it on purpose: in the task's own
 // "- **Kept on purpose:**" line or the "**Kept in every task:**" line, each word in backticks with
 // its reason. Common English words (the list below) are never counted. Plurals match their singular.
+// A kept word the screens show is listed too ("kept, on screen"), never failed: a later build can put
+// a kept word on screen (a fix that borrows a reader's word), and the round reads that list against
+// the last round's to re-justify the word or report the task as primed.
 //
 //   node wording.mjs <tasks.md> <vocabulary.json>   prints each shared word by task; exit 1 on any
 //   node wording.mjs --self-test                    plants an echo and checks it is caught
@@ -47,6 +50,7 @@ export function check(tasksText, vocab) {
     // a kept list runs from its label to the next bullet, heading or blank line
     const everywhere = kept(tasksText.match(/^\*\*Kept in every task:\*\*([\s\S]*?)(?=\n\s*\n|\n- |\n#)/m)?.[1]);
     const found = [];
+    const keptSeen = [];
     let prompts = 0;
     for (const sec of tasksText.split(/^(?=### T\d+)/m).filter((x) => x.startsWith("### T"))) {
         const task = sec.match(/^### (T\d+)/)[1];
@@ -59,12 +63,13 @@ export function check(tasksText, vocab) {
         for (const p of said)
             for (const t of tokens(p)) {
                 const s = stem(t);
-                if (COMMON.has(t.toLowerCase()) || COMMON.has(s) || everywhere.has(s) || ownKept.has(s)) continue;
-                if (screen.has(s)) found.push({ task, word: t, seen: screen.get(s) });
+                if (COMMON.has(t.toLowerCase()) || COMMON.has(s)) continue;
+                if (!screen.has(s)) continue;
+                (everywhere.has(s) || ownKept.has(s) ? keptSeen : found).push({ task, word: t, seen: screen.get(s) });
             }
     }
-    const unique = [...new Map(found.map((f) => [`${f.task} ${stem(f.word)}`, f])).values()];
-    return { prompts, screens: Object.keys(vocab).length, shared: unique };
+    const unique = (xs) => [...new Map(xs.map((f) => [`${f.task} ${stem(f.word)}`, f])).values()];
+    return { prompts, screens: Object.keys(vocab).length, shared: unique(found), keptOnScreen: unique(keptSeen) };
 }
 
 function selfTest() {
@@ -87,6 +92,7 @@ function selfTest() {
         vocab,
     );
     assert.deepEqual(keptOnPurpose.shared, [], "a word kept on purpose was still reported");
+    assert.equal(keptOnPurpose.keptOnScreen.length, 2, "a kept word on screen was not listed as kept, on screen");
     const keptOnTwoLines = check(
         `### T93. D\n\n- **Prompt A (z):** "Add a condition."\n- **Kept on purpose:** \`condition\` -- reason\n  \`add\` -- reason\n`,
         vocab,
@@ -103,6 +109,7 @@ else if (args.length === 2) {
         console.log(`FAIL: read ${r.prompts} prompts and ${r.screens} screens; a check over nothing checks nothing`);
         process.exitCode = 1;
     } else {
+        for (const s of r.keptOnScreen) console.log(`${s.task}: "${s.word}" kept, on screen (${s.seen})`);
         for (const s of r.shared) console.log(`${s.task}: "${s.word}" is on screen (${s.seen})`);
         console.log(
             `${r.prompts} prompts against ${r.screens} screens: ${r.shared.length} shared word${r.shared.length === 1 ? "" : "s"} not kept on purpose`,

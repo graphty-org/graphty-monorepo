@@ -876,6 +876,13 @@ async function serve(dir, sr) {
     // every session records live regions: a notice that times out while a slow step settles is
     // still reported (goneNotices), as a person would have seen it
     await s.context.addInitScript(watchLive);
+    // REAL_SCHEME=light|dark: the app's color scheme for a scripted walk (bars.mjs --tier 3 --scheme);
+    // studies leave it unset, so a participant sees the app's own default
+    if (process.env.REAL_SCHEME)
+        await s.context.addInitScript(
+            (v) => localStorage.setItem("mantine-color-scheme-value", v),
+            process.env.REAL_SCHEME,
+        );
     await newTab(s);
 
     const sock = sockOf(dir);

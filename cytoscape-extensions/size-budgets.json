@@ -4,10 +4,10 @@
     "minimumHeadroomBytes": 1024,
     "parts": {
         "main entry (loaded up front)": 135404,
-        "file formats, all of them (on the first graphtyImport or graphtyExport)": 291177,
-        "generators (on the first graphtyGenerate or graphtyDataset)": 23862,
-        "WebGPU code (on the first GPU-eligible call)": 117298,
-        "everything (every chunk of the build)": 565917,
-        "script-tag bundle (dist/cytoscape-extensions.bundle.js, without the file formats)": 274400
+        "file formats, all of them (on the first graphtyImport or graphtyExport)": 292362,
+        "generators (on the first graphtyGenerate or graphtyDataset)": 23865,
+        "WebGPU code (on the first GPU-eligible call)": 117299,
+        "everything (every chunk of the build)": 567104,
+        "script-tag bundle (dist/cytoscape-extensions.bundle.js, without the file formats)": 274403
     }
 }

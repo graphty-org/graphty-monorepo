@@ -291,7 +291,8 @@ function spellsDecl(): ColumnDecl {
 }
 
 /**
- * The position column declaration (design section 5.2: f64 x 3, role position, units "file").
+ * The position column declaration (design section 5.2: f64 x 3, role position, units "file"), with
+ * its spelling for `extractPositions()`.
  * @param sourceDims - 2 or 3, the coordinate count of the first vertex line with coordinates
  * @returns a fresh declaration
  */
@@ -303,7 +304,9 @@ function positionDecl(sourceDims: number): ColumnDecl {
         nullable: true,
         role: "position",
         origin: { format: "pajek", id: "coordinates" },
-        extra: { sourceDims, units: "file" },
+        // Pajek draws y downward (USAir97.net has Deadhorse, Alaska at y 0.10 and Miami at 0.53),
+        // centers depth on 0.5, and NetworkX writes "0.0 0.0" for a node with no position
+        extra: { sourceDims, units: "file", yAxis: "down", zOrigin: 0.5, zeroUnplaced: true },
     };
 }
 

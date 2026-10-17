@@ -20,7 +20,7 @@ const CLUSTER_COLUMN = "graphty.cluster";
  * statement gives it; edge records carry `source`, `target` and the edge's attributes. A port on an
  * edge endpoint (`a:p1 -> b`) names a place on the node, not another node, so it is not part of
  * the id. A cluster subgraph is not drawn as a node unless an edge names it as an endpoint. `pos`
- * stays the text the file wrote. A node written in several statements has the attributes of all
+ * stays the text the file wrote, and the node's `position` is read from it. A node written in several statements has the attributes of all
  * of them, the later ones winning, as Graphviz draws it.
  *
  * DOT states direction once, in the keyword that opens the file. A body with no keyword
@@ -76,7 +76,7 @@ export class DOTDataSource extends DataSource {
             );
         }
 
-        const { nodes, edges } = toRecords(imported, columnsMapping(snapshot, true));
+        const { nodes, edges } = toRecords(imported, columnsMapping(snapshot));
 
         // An edge to a cluster needs the cluster as its endpoint; any other cluster only groups.
         const cluster = snapshot.nodes.get(CLUSTER_COLUMN);

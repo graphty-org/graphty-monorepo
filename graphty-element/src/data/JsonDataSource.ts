@@ -8,7 +8,16 @@ import { GraphtyError } from "../errors";
 import { BaseDataSourceConfig, DataSource, DataSourceChunk } from "./DataSource";
 import { resolveEndpoints } from "./endpoints";
 import type { DataLoadingError } from "./ErrorAggregator";
-import { aggregateErrors, columnsMapping, importRecords, importWhole, toRecords } from "./graph-io-import";
+import { applyFilePositions, filePositionsOf } from "./filePositions";
+import {
+    aggregateErrors,
+    columnsMapping,
+    importDocument,
+    importRecords,
+    importWhole,
+    toRecords,
+} from "./graph-io-import";
+import { readSeedPosition } from "./seedPosition";
 import type { SourceInput } from "./source-bytes";
 
 const JsonNodeConfig = z
@@ -103,6 +112,45 @@ function plainKey(expression: string): string | null {
  */
 function isObject(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Whether a parsed document is a Cytoscape.js document: an `elements` object or array, or a
+ * top-level array of elements.
+ * @param document - the parsed JSON document
+ * @returns true for a Cytoscape document
+ */
+function isCytoscapeDocument(document: unknown): boolean {
+    return Array.isArray(document) || (isObject(document) && "elements" in document);
+}
+
+/**
+ * Replace each node record's own `position` with the one graph-io's `extractPositions` reads from
+ * it, the path every other reader's positions take. A record's `position` (`{ x, y, z? }` or
+ * `[x, y, z?]`) is read as graphty-element's own convention -- center, y up, file units -- and a
+ * file whose positions are unusable (every node on one point) keeps none.
+ * @param records - the node records, changed in place
+ */
+async function placeRecords(records: readonly Record<string, unknown>[]): Promise<void> {
+    if (!records.some((record) => "position" in record)) {
+        return;
+    }
+
+    // Each record goes to graph-io as its row number and its coordinates.
+    const stubs = records.map((record, row) => {
+        const seed = readSeedPosition(record);
+        return seed === null ? { id: String(row) } : { id: String(row), x: seed[0], y: seed[1], z: seed[2] };
+    });
+    const imported = await importDocument(jsonImporter, JSON.stringify({ nodes: stubs, edges: [] }), {
+        dialect: "node-link",
+    });
+
+    for (const record of records) {
+        delete record.position;
+    }
+
+    const { ids } = imported.snapshot;
+    applyFilePositions(records, filePositionsOf(imported), (_record, row) => ids.indexOf(String(row)));
 }
 
 /**
@@ -208,6 +256,11 @@ export class JsonDataSource extends DataSource {
             return;
         }
 
+        if (isCytoscapeDocument(data) && this.usesDefaultPaths()) {
+            yield* this.readCytoscape(jsonString);
+            return;
+        }
+
         this.refuseOtherGraph();
 
         // Declared before the first chunk is yielded, so the direction reaches the builder while it
@@ -269,6 +322,7 @@ export class JsonDataSource extends DataSource {
                 ? rawEdges.filter((edge, index) => this.isValidEdge(edge, index))
                 : rowsOf(imported.edges).map((row) => rawEdges[row]);
 
+        await placeRecords(nodes as Record<string, unknown>[]);
         yield* this.chunkData(nodes as AdHocData[], edges as AdHocData[]);
     }
 
@@ -328,6 +382,28 @@ export class JsonDataSource extends DataSource {
         }
 
         const { nodes, edges } = toRecords(imported, columnsMapping(snapshot));
+        yield* this.chunkData(nodes, edges);
+    }
+
+    /**
+     * Read a Cytoscape.js document through graph-io's JSON importer, which reads its `data` keys,
+     * `classes` and `parent`, and its y-down `position` the way every reader's positions are read.
+     * @param text - the document
+     * @yields DataSourceChunk objects containing the graph's nodes and edges
+     */
+    private async *readCytoscape(text: string): AsyncGenerator<DataSourceChunk, void, unknown> {
+        this.refuseOtherGraph();
+        const imported = await importWhole(
+            jsonImporter,
+            text,
+            {
+                dialect: "cytoscape",
+                ...(this.opts.errorLimit === undefined ? {} : { errorLimit: this.opts.errorLimit }),
+            },
+            this.errorAggregator,
+            { firstDeclarationWins: true },
+        );
+        const { nodes, edges } = toRecords(imported, columnsMapping(imported.snapshot));
         yield* this.chunkData(nodes, edges);
     }
 

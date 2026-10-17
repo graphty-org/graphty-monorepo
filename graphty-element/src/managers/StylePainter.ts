@@ -121,6 +121,7 @@ const RICH_TEXT_KEYS = {
     enabled: "enabled",
     font: "font",
     sizePx: "fontSize",
+    size: "size",
     color: "textColor",
     lineHeight: "lineHeight",
     textAlign: "textAlign",

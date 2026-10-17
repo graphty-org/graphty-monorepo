@@ -374,6 +374,20 @@ export interface NodeScreenPosition {
 }
 
 /**
+ * The entries of an options object that hold a value: a key set to null or undefined is left out,
+ * so it never reaches a load as a declared-and-empty override.
+ * @param options - the options
+ * @returns the options without their empty entries
+ */
+function presentOnly<T extends Record<string, unknown>>(options: T): Partial<{ [K in keyof T]: NonNullable<T[K]> }> {
+    return Object.fromEntries(
+        Object.entries(options).filter(([, value]) => value !== null && value !== undefined),
+    ) as Partial<{
+        [K in keyof T]: NonNullable<T[K]>;
+    }>;
+}
+
+/**
  * Main orchestrator class for graph visualization and interaction.
  * Integrates Babylon.js scene management, coordinates nodes, edges, layouts, and styling.
  */
@@ -2063,6 +2077,9 @@ export class Graph implements GraphContext {
      * @param options.graphIndex - Which graph to read, by position, from a file that holds several
      *     (`listGraphs` from `./catalog` lists them); the first when neither choice is given
      * @param options.graphName - Which graph to read, by name, from a file that holds several
+     * @param options.layout - `"recommended"` chooses a layout for what was loaded once it is loaded:
+     *     `fixed`, which draws each node where the file put it, when every node arrived with a position,
+     *     and a computed one otherwise. `"keep"` (the default) leaves the layout as it is
      * @returns Promise that resolves to the load's id when data is loaded
      */
     async loadFromFile(
@@ -2075,6 +2092,7 @@ export class Graph implements GraphContext {
             replace?: boolean;
             graphIndex?: number;
             graphName?: string;
+            layout?: "recommended" | "keep";
         },
     ): Promise<{ loadId: number }> {
         const load = this.reserveLoad(options?.replace);
@@ -2131,6 +2149,9 @@ export class Graph implements GraphContext {
      * @param options.replace - Replace the graph, once the data has parsed; see `addDataFromSource`
      * @param options.graphIndex - Which graph to read, by position, from a file that holds several
      * @param options.graphName - Which graph to read, by name, from a file that holds several
+     * @param options.layout - `"recommended"` chooses a layout for what was loaded once it is loaded:
+     *     `fixed`, which draws each node where the file put it, when every node arrived with a position,
+     *     and a computed one otherwise. `"keep"` (the default) leaves the layout as it is
      * @returns Promise that resolves to the load's id when data is loaded
      * @example
      * ```typescript
@@ -2154,6 +2175,7 @@ export class Graph implements GraphContext {
             replace?: boolean;
             graphIndex?: number;
             graphName?: string;
+            layout?: "recommended" | "keep";
         },
     ): Promise<{ loadId: number }> {
         const load = this.reserveLoad(options?.replace);
@@ -2199,10 +2221,13 @@ export class Graph implements GraphContext {
         const edgeTarget = options?.edgeTarget ?? configured.edgeDstIdPath;
         const mergedOptions = {
             nodeIdPath: options?.nodeIdPath ?? configured.nodeIdPath,
-            ...(edgeSource === null ? {} : { edgeSource }),
-            ...(edgeTarget === null ? {} : { edgeTarget }),
-            ...(options?.graphIndex === undefined ? {} : { graphIndex: options.graphIndex }),
-            ...(options?.graphName === undefined ? {} : { graphName: options.graphName }),
+            ...presentOnly({
+                edgeSource,
+                edgeTarget,
+                graphIndex: options?.graphIndex,
+                graphName: options?.graphName,
+                layout: options?.layout,
+            }),
         };
 
         // If we already fetched content for detection, pass it as data to avoid double-fetch

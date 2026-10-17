@@ -6,7 +6,6 @@ import {
     aggregateErrors,
     attributeTitle,
     cell,
-    components,
     importDocument,
     type RecordMapping,
     toRecords,
@@ -33,11 +32,9 @@ const YFILES_SHAPES: Readonly<Record<string, string>> = {
  */
 function writeYFiles(key: string, column: Column, row: number, record: Record<string, unknown>): void {
     switch (key) {
-        case "position": {
-            const [x, y] = components(column, row);
-            record.position = { x, y, z: 0 };
+        case "position":
+            // Written by toRecords, centered and y up, as for every format.
             break;
-        }
         case "shape":
             record.shape = YFILES_SHAPES[(column.value(row) as string).toLowerCase()] ?? "box";
             break;

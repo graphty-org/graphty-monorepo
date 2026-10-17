@@ -339,7 +339,13 @@ Two record conventions, both inherited:
 
 - a `position` key on a node record -- `{ x, y, z }`, `[x, y]` or `[x, y, z]` -- seeds that node's
   coordinates, so a file that arrives arranged stays arranged with no placement code in the
-  format;
+  format. It is the node's center, with y growing upward, in the file's own units; the element
+  multiplies it by `positionScale`. A file that writes y downward (screen order) or a box's
+  top-left corner converts before it writes `position`;
+- a reader made with `DataSource.fromImporter` writes no `position` itself: the element reads the
+  importer's role-`position` column, or its `positions()` hook, with
+  `extractPositions` from `@graphty/graph-io/positions`, the same way it reads every built-in
+  format (see [Drawing a file where it was saved](../data-sources.md#drawing-a-file-where-it-was-saved));
 - a `weight` key on an edge record is read through the configured weight path.
 
 ## How it is refused

@@ -261,6 +261,7 @@ export interface BaseDataSourceConfig {
     file?: File;
     graphIndex?: number;
     graphName?: string;
+    layout?: "recommended" | "keep";
     url?: string;
 }
 
@@ -888,6 +889,7 @@ export const EdgeStyle: z.ZodObject<{
             text: z.ZodOptional<z.ZodString>;
             font: z.ZodOptional<z.ZodDefault<z.ZodString>>;
             fontSize: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+            size: z.ZodOptional<z.ZodNumber>;
             fontWeight: z.ZodOptional<z.ZodDefault<z.ZodString>>;
             lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             textColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
@@ -1051,6 +1053,7 @@ export const EdgeStyle: z.ZodObject<{
             text: z.ZodOptional<z.ZodString>;
             font: z.ZodOptional<z.ZodDefault<z.ZodString>>;
             fontSize: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+            size: z.ZodOptional<z.ZodNumber>;
             fontWeight: z.ZodOptional<z.ZodDefault<z.ZodString>>;
             lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             textColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
@@ -1213,6 +1216,7 @@ export const EdgeStyle: z.ZodObject<{
         text: z.ZodOptional<z.ZodString>;
         font: z.ZodOptional<z.ZodDefault<z.ZodString>>;
         fontSize: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        size: z.ZodOptional<z.ZodNumber>;
         fontWeight: z.ZodOptional<z.ZodDefault<z.ZodString>>;
         lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         textColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
@@ -1632,6 +1636,7 @@ export class Graph implements GraphContext {
         replace?: boolean;
         graphIndex?: number;
         graphName?: string;
+        layout?: "recommended" | "keep";
     }): Promise<{
         loadId: number;
     }>;
@@ -1643,6 +1648,7 @@ export class Graph implements GraphContext {
         replace?: boolean;
         graphIndex?: number;
         graphName?: string;
+        layout?: "recommended" | "keep";
     }): Promise<{
         loadId: number;
     }>;
@@ -2059,6 +2065,7 @@ export class Graphty extends LitElement {
         replace?: boolean;
         graphIndex?: number;
         graphName?: string;
+        layout?: "recommended" | "keep";
     }): Promise<{
         loadId: number;
     }>;
@@ -2070,6 +2077,7 @@ export class Graphty extends LitElement {
         replace?: boolean;
         graphIndex?: number;
         graphName?: string;
+        layout?: "recommended" | "keep";
     }): Promise<{
         loadId: number;
     }>;
@@ -3414,6 +3422,7 @@ export const NodeStyle: z.ZodObject<{
         text: z.ZodOptional<z.ZodString>;
         font: z.ZodOptional<z.ZodDefault<z.ZodString>>;
         fontSize: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        size: z.ZodOptional<z.ZodNumber>;
         fontWeight: z.ZodOptional<z.ZodDefault<z.ZodString>>;
         lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         textColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
@@ -3556,6 +3565,7 @@ export const NodeStyle: z.ZodObject<{
         text: z.ZodOptional<z.ZodString>;
         font: z.ZodOptional<z.ZodDefault<z.ZodString>>;
         fontSize: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        size: z.ZodOptional<z.ZodNumber>;
         fontWeight: z.ZodOptional<z.ZodDefault<z.ZodString>>;
         lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         textColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
@@ -4168,6 +4178,7 @@ export const RichTextStyle: z.ZodObject<{
     text: z.ZodOptional<z.ZodString>;
     font: z.ZodOptional<z.ZodDefault<z.ZodString>>;
     fontSize: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+    size: z.ZodOptional<z.ZodNumber>;
     fontWeight: z.ZodOptional<z.ZodDefault<z.ZodString>>;
     lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
     textColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;

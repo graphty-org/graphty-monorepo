@@ -44,6 +44,12 @@ export interface BaseDataSourceConfig {
     graphIndex?: number;
     /** Which graph to read from a file that holds several, by its name. */
     graphName?: string;
+    /**
+     * `"recommended"` chooses a layout for what was loaded, once it is loaded: the `fixed` layout,
+     * which draws each node where the file put it, when every node arrived with a position, and a
+     * computed one otherwise. `"keep"` (the default) leaves the layout as it is.
+     */
+    layout?: "recommended" | "keep";
 }
 
 /**
@@ -96,6 +102,7 @@ const ELEMENT_OWNED_OPTIONS: ReadonlySet<string> = new Set([
     "edgeDstIdPath",
     "graphIndex",
     "graphName",
+    "layout",
 ]);
 
 /**

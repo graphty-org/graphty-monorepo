@@ -154,6 +154,8 @@ exports[`documentation examples > loading/typed-options runs 1`] = `[]`;
 
 exports[`documentation examples > loading/url-request runs 1`] = `[]`;
 
+exports[`documentation examples > positions/read runs 1`] = `[]`;
+
 exports[`documentation examples > quick-start/download runs 1`] = `
 [
   "[confirm] 107 node ids are not integers, so they are rewritten; the original ids are written too, and an import with restoreMangledIds: true reads them back

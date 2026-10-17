@@ -1,7 +1,7 @@
 import { Autocomplete, Badge, MantineSize, PasswordInput, Pill, Radio, Select, Textarea } from "@mantine/core";
 import { describe, expect, it } from "vitest";
 
-import { render, screen } from "../../../test/test-utils";
+import { render, screen } from "../../test/test-utils";
 
 /**
  * Regression tests for compact size styling on Phase 3 Mantine components.

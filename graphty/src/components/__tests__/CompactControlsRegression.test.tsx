@@ -2,7 +2,7 @@ import { ActionIcon, Button, Checkbox, SegmentedControl, Slider, Switch } from "
 import { Check } from "lucide-react";
 import { describe, expect, it } from "vitest";
 
-import { render, screen } from "../../../test/test-utils";
+import { render, screen } from "../../test/test-utils";
 
 /**
  * Regression tests for compact size styling on additional Mantine components.

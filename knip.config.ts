@@ -338,17 +338,6 @@ const config: KnipConfig = {
     // stays under dead-code detection. Add `@public` -- with a clause saying why -- rather
     // than reaching for a blanket setting or an ignore pattern.
 
-    // `StatusBarAccelerationMode`, in the app's status-bar model, is referenced only by the
-    // `acceleration?: StatusBarAccelerationMode` member of `StatusBarIssuesModel` declared beside it in
-    // the same file, which is why knip reports it unused. It exists to NAME a published signature: drop
-    // the export and that member has a type no caller can write down. The per-symbol mechanism above is
-    // `@public` at the declaration, and this entry is a stand-in for it -- delete this entry when the tag
-    // lands. Until then the ignore covers that one file and unused TYPES alone, so a dead value export in
-    // it is still reported.
-    ignoreIssues: {
-        "graphty/src/components/shell/statusbar/statusBarModel.ts": ["types"],
-    },
-
     // `@internal` marks an export that exists ONLY because TypeScript's declaration emit requires
     // every named type in a published signature to be exported -- the parameter and return types
     // of `createPluginRegistry`, say. It is the opposite of `@public`: a symbol nobody outside its

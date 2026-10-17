@@ -5,6 +5,7 @@ import { GraphBuilder, type GraphSnapshot } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
 import { importGraph } from "../../src/registry.js";
+import { dropMismatchedKeys } from "../../src/styles/cytoscape/mappings.js";
 import {
     cx1Definition,
     type CytoscapeBypass,
@@ -165,6 +166,23 @@ describe("mapping definitions", () => {
         expect(typedKey("TRUE", "boolean")).toBe(true);
         expect(typedKey("x", "boolean")).toBe("x");
         expect(typedKey({}, "string")).toBeNull();
+    });
+
+    it("empties a discrete mapping whose integer keys meet a double column, as Cytoscape matches nothing", () => {
+        const style = emptyCytoscapeStyle();
+        const m = mappingFromCx1({ type: "DISCRETE", definition: "COL=tier,T=integer,K=0=4,V=0=DASH" });
+        const same = mappingFromCx1({ type: "DISCRETE", definition: "COL=n,T=integer,K=0=4,V=0=DASH" });
+        if (m === null || same === null) {
+            throw new Error("the definitions did not parse");
+        }
+        style.node.mappings.set("NODE_BORDER_STROKE", m);
+        style.node.mappings.set("NODE_LABEL_POSITION", same);
+        const notes = new StyleNotes();
+        const types: Record<string, string> = { tier: "double", n: "long" };
+        dropMismatchedKeys(style.node, (c) => types[c] ?? null, notes, "node");
+        expect(style.node.mappings.get("NODE_BORDER_STROKE")).toMatchObject({ kind: "discrete", table: [] });
+        expect(style.node.mappings.get("NODE_LABEL_POSITION")).toMatchObject({ table: [[4, "DASH"]] });
+        expect(notes.list().map((n) => n.code)).toEqual(["W_STYLE_BAD_MAPPING"]);
     });
 
     it("reads CX2 continuous intervals as points", () => {

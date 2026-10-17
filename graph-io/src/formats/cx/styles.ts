@@ -16,7 +16,12 @@ import {
     cytoscapeWritableProperties,
     emitCytoscapeStyle,
 } from "../../styles/cytoscape/emit.js";
-import { type CytoscapeStyle, cytoscapeStyleFromCx, sharedColumnFallback } from "../../styles/cytoscape/mappings.js";
+import {
+    type CytoscapeStyle,
+    cytoscapeStyleFromCx,
+    dropMismatchedKeys,
+    sharedColumnFallback,
+} from "../../styles/cytoscape/mappings.js";
 import {
     cytoscapeBackground,
     type CytoscapeBypass,
@@ -146,6 +151,10 @@ export function readDeclaredStyles(
         const table = target === "node" ? snapshot.nodes : snapshot.edges;
         const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
         sharedColumnFallback(style[target], (column) => table.has(column));
+        // CX2's reader types a mapping's keys by the column; CX version 1 keeps the mapping's own type
+        if (dialect !== "cx2") {
+            dropMismatchedKeys(style[target], (column) => table.get(column)?.meta.origin?.type ?? null, notes, target);
+        }
         for (const m of style[target].mappings.values()) {
             if (!table.has(m.column)) {
                 notes.add(STYLE_ISSUE.MAPPING_COLUMN_MISSING, target, m.column, { sample: m.kind });

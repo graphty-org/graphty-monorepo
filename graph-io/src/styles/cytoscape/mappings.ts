@@ -132,6 +132,56 @@ export function sharedColumnFallback(style: CytoscapeTargetStyle, has: (column: 
     }
 }
 
+/**
+ * Whether a numeric type name is integral (`integer`, `long`), floating (`double`, `real`) or neither.
+ * @param type - the type name as a file gives it
+ * @returns the family, or null
+ */
+function numericFamily(type: string | null): "integral" | "floating" | null {
+    const t = (type ?? "")
+        .toLowerCase()
+        .replace(/^list_of_/, "")
+        .replace(/^java\.lang\./, "");
+    if (t === "integer" || t === "long" || t === "int" || t === "short") {
+        return "integral";
+    }
+    if (t === "double" || t === "float" || t === "real") {
+        return "floating";
+    }
+    return null;
+}
+
+/**
+ * Empties every discrete mapping whose keys are typed integral (`integer`, `long`) over a floating (`double`)
+ * column, or the other way round. Cytoscape compares a Java Integer key with a Double value, which never match, so
+ * the mapping sets nothing and the default shows (`4.0` does not match key `4`). Noted as `W_STYLE_BAD_MAPPING`.
+ * @param style - the target's style, changed in place
+ * @param typeOf - a column's declared type, or null when unknown
+ * @param notes - where problems are noted
+ * @param target - nodes or edges, for notes
+ * @category Styles
+ */
+export function dropMismatchedKeys(
+    style: CytoscapeTargetStyle,
+    typeOf: (column: string) => string | null,
+    notes: StyleNotes,
+    target: StyleTarget,
+): void {
+    for (const [vp, m] of style.mappings) {
+        if (m.kind !== "discrete" || m.table.length === 0) {
+            continue;
+        }
+        const key = numericFamily(m.type);
+        const column = numericFamily(typeOf(m.column));
+        if (key !== null && column !== null && key !== column) {
+            style.mappings.set(vp, { ...m, table: [] });
+            notes.add(STYLE_ISSUE.BAD_MAPPING, target, m.column, {
+                sample: `${vp}: ${key} keys on a ${column} column`,
+            });
+        }
+    }
+}
+
 const NUMERIC_TYPES: ReadonlySet<string> = new Set(["integer", "long", "double", "float", "int", "short"]);
 const DECIMAL = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
 

@@ -32,6 +32,8 @@ export const CYJS_PROPERTY_DEFAULTS: ReadonlyMap<string, string> = new Map([
     ["display", "element"],
     ["text-valign", "top"],
     ["text-halign", "center"],
+    ["text-wrap", "none"],
+    ["text-max-width", "9999px"],
     ["line-color", "rgb(153,153,153)"],
     ["line-style", "solid"],
     ["target-arrow-shape", "none"],

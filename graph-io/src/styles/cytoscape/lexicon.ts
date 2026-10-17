@@ -398,6 +398,13 @@ export const CYTOSCAPE_LEXICON: Readonly<
         ["label", [["NODE_LABEL", text]]],
         ["labelColor", [["NODE_LABEL_COLOR", color]]],
         ["labelSize", [["NODE_LABEL_FONT_SIZE", length]]],
+        [
+            "labelWrapWidth",
+            [
+                ["NODE_LABEL_WIDTH", length],
+                ["NODE_LABEL_MAX_WIDTH", length],
+            ],
+        ],
         ["labelFont", [["NODE_LABEL_FONT_FACE", fontFamily]]],
         ["labelWeight", [["NODE_LABEL_FONT_FACE", fontWeight]]],
         ["labelItalic", [["NODE_LABEL_FONT_FACE", fontItalic]]],

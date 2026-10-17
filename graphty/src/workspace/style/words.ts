@@ -103,6 +103,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.labelFont": "Label font",
     "node.labelWeight": "Label weight",
     "node.labelItalic": "Label italic",
+    "node.labelWrapWidth": "Label wrap width",
     "node.tooltip": "Tooltip",
     "node.tooltipStyle": "Tooltip style",
     "node.opacity": "Opacity",
@@ -149,6 +150,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.labelFont": "Label font",
     "edge.labelWeight": "Label weight",
     "edge.labelItalic": "Label italic",
+    "edge.labelWrapWidth": "Label wrap width",
 };
 
 /**

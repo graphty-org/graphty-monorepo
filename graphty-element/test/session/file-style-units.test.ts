@@ -206,6 +206,48 @@ function spacingOverSize(session: GraphSession): number {
     return (Math.hypot(b.x - a.x, b.y - a.y) * (scale as number)) / node;
 }
 
+describe("a file of nodes wider than they are tall", () => {
+    it("draws the median node's larger side at the element's node size", async () => {
+        // Boxes 145 x 40: a median over widths and heights together falls between the two (92.5)
+        // and draws every box 1.57 node sizes wide; by each node's larger side it is 1.
+        const doc = JSON.stringify({
+            elements: [{ data: { id: "a" } }, { data: { id: "b" } }, { data: { id: "c" } }],
+            style: [{ selector: "node", style: { shape: "rectangle", width: 145, height: 40 } }],
+        });
+        const session = createGraphSession();
+        await session.data.import({ type: "json", config: { data: doc } }, { styles: "file" });
+        await vi.waitFor(() => {
+            assert.lengthOf(session.history.pending, 0);
+        });
+        assert.closeTo(number(session, { node: "a" }, "node.width"), 1, 1e-9);
+        assert.closeTo(number(session, { node: "a" }, "node.height"), 40 / 145, 1e-9);
+        session.dispose();
+    });
+});
+
+describe("a label's wrap width", () => {
+    it("is drawn in the scene's units, in proportion to the node size", async () => {
+        // Nodes 40 across wrap their labels at 80: twice a node's width, which is 1.5 scene units.
+        const doc = JSON.stringify({
+            elements: [{ data: { id: "a", name: "a long label" } }, { data: { id: "b", name: "b" } }],
+            style: [
+                {
+                    selector: "node",
+                    style: { width: 40, height: 40, label: "data(name)", "text-wrap": "wrap", "text-max-width": 80 },
+                },
+            ],
+        });
+        const session = createGraphSession();
+        await session.data.import({ type: "json", config: { data: doc } }, { styles: "file" });
+        await vi.waitFor(() => {
+            assert.lengthOf(session.history.pending, 0);
+        });
+        const label = drawn(session, { node: "a" }, "node.labelStyle") as { wrapWidth?: unknown } | undefined;
+        assert.closeTo(Number(label?.wrapWidth), 2 * 1.5, 1e-9);
+        session.dispose();
+    });
+});
+
 describe("a DOT file's lengths are drawn in one unit", () => {
     it("draws neato input positions (inches) in proportion to the node size (points)", async () => {
         // Nodes half an inch across (36 points), 4 inches apart (288 points): Graphviz draws them 8 node widths apart.

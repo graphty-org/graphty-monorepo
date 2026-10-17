@@ -429,6 +429,19 @@ jobs:
             - name: Build Storybook (cytoscape-extensions)
               run: pnpm exec nx run cytoscape-extensions:build-storybook --exclude-task-dependencies
 
+            # The fidelity stories' reference pictures are Git LFS objects, cached like the visual job's
+            # baselines so a run downloads only the pictures added since the cache was saved. The
+            # package's build-storybook pulls them (a no-op once the cache restored them).
+            - name: Restore the style fidelity reference pictures
+              uses: actions/cache@v4
+              with:
+                  path: .git/lfs/objects
+                  key: lfs-fidelity-references-${{ hashFiles('graph-io/fidelity-stories/references/*.png') }}
+                  restore-keys: lfs-fidelity-references-
+
+            - name: Build Storybook (graph-io-fidelity)
+              run: pnpm exec nx run graph-io-fidelity:build-storybook --exclude-task-dependencies
+
             - name: Upload Storybook build (graphty-element)
               uses: actions/upload-artifact@v4
               with:
@@ -469,6 +482,13 @@ jobs:
               with:
                   name: build-storybook-cytoscape-extensions
                   path: cytoscape-extensions/storybook-static/
+                  retention-days: 1
+
+            - name: Upload Storybook build (graph-io-fidelity)
+              uses: actions/upload-artifact@v4
+              with:
+                  name: build-storybook-graph-io-fidelity
+                  path: graph-io/fidelity-stories/storybook-static/
                   retention-days: 1
 
             # A failure here settles "All Checks Pass" and "Queue Checks Pass": say so now, not when the
@@ -1025,6 +1045,12 @@ jobs:
                   name: build-storybook-cytoscape-extensions
                   path: cytoscape-extensions/storybook-static/
 
+            - name: Download Storybook build (graph-io-fidelity)
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-storybook-graph-io-fidelity
+                  path: graph-io/fidelity-stories/storybook-static/
+
             - name: Download algorithms gh-pages
               uses: actions/download-artifact@v4
               with:
@@ -1227,6 +1253,10 @@ jobs:
                       artifact: build-storybook-app
                     - project: cytoscape-extensions
                       artifact: build-storybook-cytoscape-extensions
+                    # Its Storybook is not at <project>/storybook-static, so the row names where it is.
+                    - project: graph-io-fidelity
+                      artifact: build-storybook-graph-io-fidelity
+                      storybook: graph-io/fidelity-stories/storybook-static
         steps:
             # A Storybook this pull request cannot affect (the build job's visual-skip) is not captured: the job
             # writes the not-affected marker in place of results.json and uploads it as the capture, so the
@@ -1327,7 +1357,7 @@ jobs:
               uses: actions/download-artifact@v4
               with:
                   name: ${{ matrix.artifact }}
-                  path: ${{ matrix.project }}/storybook-static/
+                  path: ${{ matrix.storybook || format('{0}/storybook-static', matrix.project) }}/
 
             # A story with no baseline that looks as it does in master's newest capture is "unseeded"; one
             # that differs, or is new, is "new". Both block until the owner accepts the story or seeds it.

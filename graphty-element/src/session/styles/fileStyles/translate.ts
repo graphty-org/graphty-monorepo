@@ -24,6 +24,7 @@ import {
     type ColumnRef,
     type ExtractedStyles,
     type Mapping,
+    matchPredicate,
     planStyles,
     type Predicate,
     resolveStyles,
@@ -31,7 +32,9 @@ import {
     type StyleProperty,
     type StyleRule,
     type StyleTarget,
+    type StyleTool,
     type StyleValue,
+    toolDefaults,
 } from "@graphty/graph-io/styles";
 
 import type { LabelLocation } from "../../../catalog/label-style";
@@ -70,7 +73,7 @@ export const LAYER_SPEC_EXT = "@graphty/graphty-element";
 export interface FileStyleOptions {
     /**
      * How lengths are scaled: `"median"` (the default) scales every length by one factor, so the
-     * file's median node size is the element's default node size and node sizes, borders, edge
+     * file's median node size (by its larger side) is the element's default node size and node sizes, borders, edge
      * widths, label sizes and the stored positions a recommended layout keeps all keep the file's
      * proportions; `"file"` keeps the file's numbers as they are.
      */
@@ -498,6 +501,8 @@ function channelPlans(
             ],
             ["labelColor", [label("labelColor")]],
             ["labelSize", [length("node.labelSize", factors.label)]],
+            // A label's wrap width is drawn in the scene's units, a node size's in its own.
+            ["labelWrapWidth", [length("node.labelWrapWidth", factors.node * SCENE_PER_UNIT.node)]],
             ["labelFont", [label("labelFont")]],
             ["labelWeight", [label("labelWeight")]],
             ["labelItalic", [label("labelItalic")]],
@@ -528,30 +533,20 @@ function channelPlans(
 }
 
 /**
- * The largest corner radius, in the file's units, of a rounded rectangle whose file gives none:
- * Cytoscape.js's (`getRoundRectangleRadius`, cytoscape.js 3.34.3 dist/cytoscape.cjs.js line 4386),
- * the one program that publishes its rule. yEd and the rest draw barely rounded corners too, so a
- * 513 x 453 group keeps small corners instead of a quarter of its side.
- */
-const FILE_CORNER_RADIUS = 8;
-
-/**
- * A node rule of the writing program's defaults with the corner radius it draws when the file gives
- * none. Every other rule, and a file graphty wrote, is unchanged.
+ * A node rule of the writing program's defaults with the corner radius it draws on a rounded
+ * rectangle when the file gives none (graph-io's `roundedCornerRadius`, in the file's units), so a
+ * 513 x 453 group keeps small corners instead of a quarter of its side. Every other rule, and a
+ * file whose program has no such default, is unchanged.
  * @param rule - The rule.
  * @param tool - The program that wrote the file.
  * @returns The rule.
  */
-function withCornerCap(rule: StyleRule, tool: string | null): StyleRule {
-    if (
-        rule.origin !== "tool" ||
-        rule.target !== "node" ||
-        tool === "graphty" ||
-        rule.set?.cornerRadius !== undefined
-    ) {
+function withCornerCap(rule: StyleRule, tool: StyleTool | null): StyleRule {
+    const cap = tool === null ? undefined : toolDefaults(tool)?.roundedCornerRadius?.value;
+    if (rule.origin !== "tool" || rule.target !== "node" || cap === undefined || rule.set?.cornerRadius !== undefined) {
         return rule;
     }
-    return { ...rule, set: { ...rule.set, cornerRadius: FILE_CORNER_RADIUS } };
+    return { ...rule, set: { ...rule.set, cornerRadius: cap } };
 }
 
 /** The properties the element draws nothing for, per kind. */
@@ -672,7 +667,7 @@ function inRuleOrder(
  * The scene units one unit of each kind of length channel is drawn as in 2D, so every length of a
  * file can be put in one unit.
  */
-const SCENE_PER_UNIT = {
+export const SCENE_PER_UNIT = {
     /** `node.size`, its width and height and `node.borderWidth`: NODE_EXTENT_PER_SIZE (meshes/NodeMesh.ts). */
     node: 1.5,
     /** `edge.width`: a 2D line is `width / 40` scene units wide (meshes/EdgeMesh.ts). */
@@ -719,7 +714,7 @@ const KEPT: LengthFactors = { node: 1, edge: 1, label: 1, scene: null };
 
 /**
  * What the file's lengths are multiplied by: ONE scale for every length (issue #2322), chosen so
- * the file's median node is drawn at the element's own node size (or, when the file sizes no node,
+ * the file's median node, by its larger side, is drawn at the element's own node size (or, when the file sizes no node,
  * its median edge at the element's edge width), and converted to each channel's unit.
  * @param input - The translation's input.
  * @returns The factors: all 1 when lengths are kept as the file has them.
@@ -738,7 +733,15 @@ function lengthFactors(input: TranslateInput): LengthFactors {
         )
             ? resolveStyles(extracted, kind, property, snapshot)
             : [];
-    const nodeMedian = median([...resolved("node", "width"), ...resolved("node", "height")]);
+    // Each node's larger side, so a file of wide boxes is scaled by their width rather than by a
+    // median that falls between the widths and the heights.
+    const widths = resolved("node", "width");
+    const heights = resolved("node", "height");
+    const sides = (widths.length > 0 ? widths : heights).map((_, i) => {
+        const sizes = [widths[i], heights[i]].filter((value): value is number => typeof value === "number");
+        return sizes.length === 0 ? null : Math.max(...sizes);
+    });
+    const nodeMedian = median(sides);
     const nodeBase = typeof base.node["node.size"] === "number" ? base.node["node.size"] : 1;
     const edgeBase = typeof base.edge["edge.width"] === "number" ? base.edge["edge.width"] : 1;
     const scene =
@@ -1051,21 +1054,7 @@ class KindTranslation {
             return held;
         }
 
-        const probe: StyleRule = {
-            id: "match",
-            target: this.#kind,
-            role: "group",
-            origin: "inferred",
-            where,
-            set: { label: "1" },
-        };
-        const values = resolveStyles(
-            { ...source, styles: { ...source.styles, rules: [probe] } },
-            this.#kind,
-            "label",
-            this.#input.snapshot,
-        );
-        const out = values.map((value) => value !== null);
+        const out = matchPredicate(source, this.#kind, where, this.#input.snapshot);
         this.#matchCache.set(key, out);
         return out;
     }

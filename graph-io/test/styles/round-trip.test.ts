@@ -98,7 +98,14 @@ async function corpusSamples(): Promise<readonly (readonly [string, LoadedGraph,
     for (const format of registered.filter((f) => f.corpus !== false)) {
         const files = new Set(corpusFiles(`${STYLE_CORPUS}/${format.name}`).map((r) => `${format.name}/${r}`));
         const inputs = formatInputs(format)
-            .filter((i) => files.has(i.name) && !i.name.includes("/generated/") && i.bytes !== undefined)
+            .filter(
+                (i) =>
+                    files.has(i.name) &&
+                    !i.name.includes("/generated/") &&
+                    // the style fidelity fixtures are scored against their source programs, not sampled here
+                    !i.name.includes("/fidelity/") &&
+                    i.bytes !== undefined,
+            )
             .sort((a, b) => (a.bytes?.length ?? 0) - (b.bytes?.length ?? 0));
         for (const input of inputs) {
             const loaded = await input.load().catch(() => null);

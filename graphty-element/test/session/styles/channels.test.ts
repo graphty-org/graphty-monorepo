@@ -36,6 +36,7 @@ const DECLARED = [
     "node.labelFont",
     "node.labelWeight",
     "node.labelItalic",
+    "node.labelWrapWidth",
     "node.tooltip",
     "node.tooltipStyle",
     "node.opacity",
@@ -82,6 +83,7 @@ const DECLARED = [
     "edge.labelFont",
     "edge.labelWeight",
     "edge.labelItalic",
+    "edge.labelWrapWidth",
 ];
 
 describe("the channel set", () => {
@@ -108,9 +110,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into thirty node channels and twenty-seven edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 30);
-        assert.strictEqual(channelsFor("edge").length, 27);
+    it("splits into thirty-one node channels and twenty-eight edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 31);
+        assert.strictEqual(channelsFor("edge").length, 28);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -323,11 +325,13 @@ describe("what a style editor needs to draw a row", () => {
         "node.labelFont",
         "node.labelWeight",
         "node.labelItalic",
+        "node.labelWrapWidth",
         "edge.labelColor",
         "edge.labelSize",
         "edge.labelFont",
         "edge.labelWeight",
         "edge.labelItalic",
+        "edge.labelWrapWidth",
     ]);
 
     /** The JavaScript type a default must have, per value kind. */

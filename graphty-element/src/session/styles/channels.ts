@@ -276,6 +276,7 @@ export interface ChannelValues {
     "node.labelFont": string;
     "node.labelWeight": LabelWeightValue;
     "node.labelItalic": boolean;
+    "node.labelWrapWidth": number;
     "node.tooltip": string;
     "node.tooltipStyle": LabelStyle;
     "node.opacity": number;
@@ -322,6 +323,7 @@ export interface ChannelValues {
     "edge.labelFont": string;
     "edge.labelWeight": LabelWeightValue;
     "edge.labelItalic": boolean;
+    "edge.labelWrapWidth": number;
 }
 
 /**
@@ -588,7 +590,7 @@ function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEn
 
 /** The label channels that write one field of a label style. */
 type LabelFieldChannel<Target extends "node" | "edge"> =
-    `${Target}.label${"Color" | "Size" | "Font" | "Weight" | "Italic"}`;
+    `${Target}.label${"Color" | "Size" | "Font" | "Weight" | "Italic" | "WrapWidth"}`;
 
 /** The field of a label style each label field channel writes, by the channel's suffix. */
 const LABEL_FIELD_OF_SUFFIX = {
@@ -597,13 +599,14 @@ const LABEL_FIELD_OF_SUFFIX = {
     Font: "font",
     Weight: "weight",
     Italic: "italic",
+    WrapWidth: "wrapWidth",
 } as const satisfies Record<string, keyof LabelStyle>;
 
 /** A label style field one channel writes on its own. */
 export type LabelFieldName = (typeof LABEL_FIELD_OF_SUFFIX)[keyof typeof LABEL_FIELD_OF_SUFFIX];
 
 /**
- * The five label field channels of one target: color, size, font, weight and italic.
+ * The six label field channels of one target: color, size, font, weight, italic and wrap width.
  *
  * Each is ONE FIELD of the label style, which is what lets a rule drive it: a whole label style
  * is a bag of fields no scale produces, while a size is a number a column can be read into. The
@@ -638,6 +641,7 @@ function labelFieldChannels<Target extends "node" | "edge">(
         row("Font", "Font", { accepts: "text" }),
         row("Weight", "Weight", { accepts: "enum", values: LABEL_WEIGHT_VALUES }),
         row("Italic", "Italic", { accepts: "boolean" }),
+        row("WrapWidth", "Wrap Width", { accepts: "number", min: 0 }),
     ];
 
     return Object.fromEntries(rows.map((entry) => [entry.channel, entry])) as Record<
@@ -653,6 +657,7 @@ const LABEL_STYLE_PATH_OF_SUFFIX: Readonly<Record<keyof typeof LABEL_FIELD_OF_SU
     Font: "font",
     Weight: "fontWeight",
     Italic: "fontStyle",
+    WrapWidth: "wrapWidth",
 };
 
 /** Every weight the `labelWeight` channels take. */
@@ -664,7 +669,7 @@ const LABEL_WEIGHT_VALUES: readonly LabelWeightValue[] = ["normal", "bold"];
  * @returns The style channel and the field, or undefined for a channel that is not a label field.
  */
 export function labelFieldOf(channel: Channel): { readonly into: Channel; readonly field: LabelFieldName } | undefined {
-    const match = /^(node|edge)\.label(Color|Size|Font|Weight|Italic)$/.exec(channel);
+    const match = /^(node|edge)\.label(Color|Size|Font|Weight|Italic|WrapWidth)$/.exec(channel);
 
     if (match === null) {
         return undefined;

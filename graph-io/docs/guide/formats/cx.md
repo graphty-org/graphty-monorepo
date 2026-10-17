@@ -133,7 +133,7 @@ What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-
 | [`graphAttributes`](./index.md#graphattributes) | yes                       |
 | [`positions`](./index.md#positions)             | yes                       |
 | [`viz`](./index.md#viz)                         | no                        |
-| [`styles`](./index.md#styles)                   | 35 properties, rules kept |
+| [`styles`](./index.md#styles)                   | 36 properties, rules kept |
 
 <!-- generated:end -->
 
@@ -151,14 +151,14 @@ express is written as bypasses (`W_STYLE_LAYER_FLATTENED`). See [Styles](../styl
 
 <!-- generated:begin styles:cx -->
 
-|                                     |                                                                                                                                                                                                                               |
-| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Reads styles                        | yes, with `styles: true`                                                                                                                                                                                                      |
-| Node properties written             | `fill`, `fillOpacity`, `borderColor`, `borderWidth`, `borderStyle`, `shape`, `width`, `height`, `label`, `labelColor`, `labelSize`, `labelPosition`, `tooltip`, `visible`, `labelFont`, `labelWeight`, `labelItalic`          |
-| Edge properties written             | `color`, `opacity`, `width`, `lineStyle`, `sourceArrow`, `targetArrow`, `sourceArrowColor`, `targetArrowColor`, `curved`, `label`, `labelColor`, `labelSize`, `tooltip`, `visible`, `labelFont`, `labelWeight`, `labelItalic` |
-| Graph properties written            | `background`                                                                                                                                                                                                                  |
-| Rules kept for graphty              | yes, as the `graphty.styles` graph attribute                                                                                                                                                                                  |
-| Not written (`W_STYLE_NOT_WRITTEN`) | node: `opacity`, `cornerRadius`, `image`; edge: `arrowSize`, `bends`, `sourceLabel`, `targetLabel`                                                                                                                            |
+|                                     |                                                                                                                                                                                                                                        |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Reads styles                        | yes, with `styles: true`                                                                                                                                                                                                               |
+| Node properties written             | `fill`, `fillOpacity`, `borderColor`, `borderWidth`, `borderStyle`, `shape`, `width`, `height`, `label`, `labelColor`, `labelSize`, `labelWrapWidth`, `labelPosition`, `tooltip`, `visible`, `labelFont`, `labelWeight`, `labelItalic` |
+| Edge properties written             | `color`, `opacity`, `width`, `lineStyle`, `sourceArrow`, `targetArrow`, `sourceArrowColor`, `targetArrowColor`, `curved`, `label`, `labelColor`, `labelSize`, `tooltip`, `visible`, `labelFont`, `labelWeight`, `labelItalic`          |
+| Graph properties written            | `background`                                                                                                                                                                                                                           |
+| Rules kept for graphty              | yes, as the `graphty.styles` graph attribute                                                                                                                                                                                           |
+| Not written (`W_STYLE_NOT_WRITTEN`) | node: `opacity`, `cornerRadius`, `image`; edge: `arrowSize`, `bends`, `sourceLabel`, `targetLabel`                                                                                                                                     |
 
 <!-- generated:end -->
 

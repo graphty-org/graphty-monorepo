@@ -46,6 +46,7 @@ export {
 } from "./io/index.js";
 export {
     featuresOf,
+    matchPredicate,
     MAX_STYLE_RULES,
     type PlanOptions,
     planStyles,
@@ -53,5 +54,6 @@ export {
     styleFingerprint,
     type StyleValues,
 } from "./plan/index.js";
+export { isStyleSlotColumn } from "./slots.js";
 export type * from "./types.js";
 export { isStyleValue, STYLE_ENUMS, STYLE_PROPERTIES, type StyleValueKind } from "./vocabulary.js";

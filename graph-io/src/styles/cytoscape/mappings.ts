@@ -110,6 +110,28 @@ export function emptyCytoscapeStyle(): CytoscapeStyle {
     return { network: { defaults: new Map() }, node: target(), edge: target() };
 }
 
+/** Cytoscape's network-collection columns and the plain columns it fills them from when a file holds only those. */
+const SHARED_COLUMNS: ReadonlyMap<string, string> = new Map([
+    ["shared name", "name"],
+    ["shared interaction", "interaction"],
+]);
+
+/**
+ * Points every mapping over `shared name` or `shared interaction` at `name` or `interaction` when the file holds only
+ * the plain column: Cytoscape fills the shared column from it on import, so the mapping reads the same values.
+ * @param style - the target's style, changed in place
+ * @param has - whether the file holds a column
+ * @category Styles
+ */
+export function sharedColumnFallback(style: CytoscapeTargetStyle, has: (column: string) => boolean): void {
+    for (const [vp, m] of style.mappings) {
+        const plain = SHARED_COLUMNS.get(m.column);
+        if (plain !== undefined && !has(m.column) && has(plain)) {
+            style.mappings.set(vp, { ...m, column: plain });
+        }
+    }
+}
+
 const NUMERIC_TYPES: ReadonlySet<string> = new Set(["integer", "long", "double", "float", "int", "short"]);
 const DECIMAL = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
 

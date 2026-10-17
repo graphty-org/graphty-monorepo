@@ -8,7 +8,7 @@
 
 import { StyleBudget } from "../budget.js";
 import { STYLE_ISSUE } from "../codes.js";
-import { toolDefaults } from "../defaults.js";
+import { toolDefaults, type ToolDerivedDefault } from "../defaults.js";
 import { StyleNotes } from "../notes.js";
 import type {
     ExtractedStyles,
@@ -52,7 +52,7 @@ export const MAX_STYLE_RULES = 16;
 /** The most candidate features tested per target, fewest distinct values first. */
 const MAX_FEATURES = 64;
 /** Lengths a tool states in its own unit; they are left out when the file's unit differs. */
-const LENGTHS: ReadonlySet<string> = new Set(["width", "height", "borderWidth", "labelSize"]);
+const LENGTHS: ReadonlySet<string> = new Set(["width", "height", "borderWidth", "labelSize", "labelWrapWidth"]);
 
 /**
  * What the planner is given: the canonical per-element values a style reader produced, the rules the file declares,
@@ -172,7 +172,7 @@ export function planStyles(values: StyleValues, features: StyleFeatures, options
                 out,
                 allFeatures[target],
                 new Set(options.rawColumns?.[target] ?? []),
-                toolSet,
+                { set: toolSet, derived: defaults?.derived ?? [] },
                 options.signal,
             ),
         );
@@ -506,7 +506,9 @@ function passCandidate(
  * @param out - the reader's output
  * @param features - the candidate features
  * @param rawNames - the data columns the values were read from
- * @param toolSet - the tool's default values, or null
+ * @param tool - the tool's default values (or null) and its defaults that are rules
+ * @param tool.set - the tool's default values, or null
+ * @param tool.derived - the tool's defaults that are rules
  * @param signal - cancels the planning
  * @returns the target's rules, bottom to top
  */
@@ -515,10 +517,11 @@ function planTarget(
     out: ReaderOutput | undefined,
     features: readonly StyleFeature[],
     rawNames: ReadonlySet<string>,
-    toolSet: Record<string, StyleValue> | null,
+    tool: { readonly set: Record<string, StyleValue> | null; readonly derived: readonly ToolDerivedDefault[] },
     signal: AbortSignal | undefined,
 ): StyleRule[] {
     const { target, n } = plan;
+    const toolSet = tool.set;
     for (const [k, v] of out?.columns ?? []) {
         plan.columns.set(k, v);
     }
@@ -536,6 +539,7 @@ function planTarget(
                       set: toolSet,
                   },
               ];
+    toolRule.push(...derivedRules(plan, tool.derived, features, out?.rules ?? [], truth));
     const declared = prepareDeclared(plan, out?.rules ?? [], features);
     const declaredProps = new Set(declared.flatMap(writes));
 
@@ -629,6 +633,50 @@ function planTarget(
         drafts.push(exceptions);
     }
     return drafts.map(finish);
+}
+
+/**
+ * The tool's defaults that are rules, for those the planner can state over the graph's own columns: a label from a
+ * column (Cytoscape's `name`, sigma's and vis-network's `label`) on every node that has a value there, when the reader
+ * gives no node a label. A default a reader already states with a tool rule of its own (Graphviz's `\N`, Gephi's
+ * source color), or a property the reader gives values for, is the reader's.
+ * @param plan - the target's state
+ * @param derived - the tool's defaults that are rules
+ * @param features - the candidate features, which hold the data columns' values
+ * @param given - the reader's rules
+ * @param truth - the reader's values per property
+ * @returns the rules, bottom to top
+ */
+function derivedRules(
+    plan: TargetPlan,
+    derived: readonly ToolDerivedDefault[],
+    features: readonly StyleFeature[],
+    given: readonly StyleRule[],
+    truth: ReadonlyMap<string, unknown>,
+): Draft[] {
+    const stated = new Set([...given.filter((r) => r.origin === "tool").flatMap(writes), ...truth.keys()]);
+    const out: Draft[] = [];
+    for (const d of derived) {
+        if (plan.target !== "node" || d.kind !== "labelFromColumn" || stated.has("label")) {
+            continue;
+        }
+        const { column } = d;
+        const feature = features.find((f) => "data" in f.ref && f.ref.data === column);
+        if (feature?.values.some((v) => v !== null && v !== "") !== true) {
+            continue;
+        }
+        stated.add("label");
+        out.push({
+            id: uniqueId(plan, "node.tool.label"),
+            target: "node",
+            role: "passthrough",
+            origin: "tool",
+            where: { has: { data: column } },
+            map: { label: { kind: "passthrough", by: { data: column } } },
+            facts: { reason: "NODE_NAME" },
+        });
+    }
+    return out;
 }
 
 /**

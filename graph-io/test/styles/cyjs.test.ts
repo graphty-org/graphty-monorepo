@@ -357,6 +357,25 @@ describe("the cascade", () => {
         }
     });
 
+    it("reads a label's wrap width from text-max-width only where text-wrap is wrap", () => {
+        const r = evaluateCytoscapeJs({
+            elements: SMALL.elements,
+            style: [
+                { selector: "node", style: { "text-max-width": 80 } },
+                { selector: ".big", style: { "text-wrap": "wrap" } },
+                { selector: "#b", style: { "text-wrap": "ellipsis" } },
+            ],
+        });
+        // a and c are .big: they wrap at 80; b truncates rather than wraps; d does not wrap at all.
+        expect(r.node.values.labelWrapWidth).toEqual([80, null, 80, null]);
+        // Wrapped with no width of its own, a label breaks only at its own line breaks.
+        const unset = evaluateCytoscapeJs({
+            elements: SMALL.elements,
+            style: [{ selector: "node", style: { "text-wrap": "wrap" } }],
+        });
+        expect(unset.node.values.labelWrapWidth ?? [null, null, null, null]).toEqual([null, null, null, null]);
+    });
+
     it("reads a stylesheet given as text as it reads the same sheet given as an array", () => {
         const text = `node { width: 20; background-color: #336699 }
             .big { width: 50 }

@@ -13,7 +13,17 @@ import { bootstrapEdgePaint, type EdgePaint } from "./managers/StylePainter";
 import type { ArrowCap } from "./meshes/ArrowCapBatch";
 import type { EdgeLineBatch } from "./meshes/EdgeLineBatch";
 import { EdgeMesh } from "./meshes/EdgeMesh";
-import { bendPoints, parseBends, roundCorners, surfaceReach } from "./meshes/edgeRoute";
+import {
+    bendPoints,
+    fanArc,
+    fanOffset,
+    loopTeardrop,
+    parseBends,
+    roundCorners,
+    routeOutside,
+    surfaceReach,
+    type Xyz,
+} from "./meshes/edgeRoute";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { type AttachPosition, RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
 import { Node, NodeIdType } from "./Node";
@@ -256,6 +266,15 @@ export class Edge {
     private lineIsCurve = false;
 
     /**
+     * Whether this edge is drawn as a self-loop's teardrop or fanned out of a bundle of edges
+     * between the same two nodes: a run of slots, like a curve.
+     */
+    private bundled = false;
+
+    /** The data manager's edge set this edge was last placed against; a new one may regroup its bundle. */
+    private bundleVersion = -1;
+
+    /**
      * The bends this edge's line passes through (`line.bends`, flat along/across pairs), or null
      * for a line straight from node to node. A bent line is a run of slots like a curve.
      */
@@ -373,9 +392,9 @@ export class Edge {
      * Where this edge sits among the edges sharing its ordered endpoint pair, counting from zero.
      *
      * Derived on every read from the graph store rather than stored, so a removal cannot leave it
-     * stale. Nothing draws with it yet -- two parallel edges still render as two
-     * coincident lines -- but a style layer can read it, and the geometry work that eventually
-     * separates parallel edges needs exactly this number.
+     * stale. The drawing fans parallel edges out by their place among every edge joining the
+     * same two nodes in EITHER direction (`DataManager.drawnBundle`), which this ordered rank is
+     * not.
      * @returns the rank, or -1 for an edge the store no longer holds
      */
     get parallelRank(): number {
@@ -438,7 +457,7 @@ export class Edge {
         const batch = this.lineBatch;
         const last = this.lineSlots.at(-1);
 
-        if (batch === null || !this.lineIsCurve || last === undefined) {
+        if (batch === null || !(this.lineIsCurve || this.bundled) || last === undefined) {
             return null;
         }
 
@@ -667,10 +686,14 @@ export class Edge {
 
         const srcMoved = !(this._lastSrcPos?.equalsWithEpsilon(srcPos, 0.001) ?? false);
         const dstMoved = !(this._lastDstPos?.equalsWithEpsilon(dstPos, 0.001) ?? false);
+        // An edge added beside this one, or taken away, fans this one out or back in.
+        const { edgeVersion } = this.context.getDataManager();
 
-        if (!srcMoved && !dstMoved) {
+        if (!srcMoved && !dstMoved && edgeVersion === this.bundleVersion) {
             return;
         }
+
+        this.bundleVersion = edgeVersion;
 
         this.context.getStatsManager().startMeasurement("Edge.update");
 
@@ -682,17 +705,12 @@ export class Edge {
 
         const src = new Vector3(lnk.src.x, lnk.src.y, lnk.src.z ?? 0);
         const dst = new Vector3(lnk.dst.x, lnk.dst.y, lnk.dst.z ?? 0);
-        const bent = this.lineBends !== null && this.lineBatch !== null && this.drawnStyle?.line?.width !== 0;
-        if (bent && this.lineBatch && this.lineBends) {
-            this.placeBent(this.lineBatch, src, dst, this.lineBends);
-        } else {
-            const { srcPoint, dstPoint } = this.transformArrowCap();
-            this.transformEdgeMesh(srcPoint ?? src, dstPoint ?? dst);
-        }
+        const bent = this.placeLine(src, dst);
 
         // Update label position if exists
         if (this.label) {
-            const midPoint = bent && this.lineBatch ? this.curveMiddle(this.lineBatch) : Vector3.Center(src, dst);
+            const midPoint =
+                (bent || this.bundled) && this.lineBatch ? this.curveMiddle(this.lineBatch) : Vector3.Center(src, dst);
             this.label.attachTo(midPoint, this._labelAttachPosition, this._labelOffset);
         }
 
@@ -703,6 +721,28 @@ export class Edge {
         this._lastDstPos = dstPos.clone();
 
         this.context.getStatsManager().endMeasurement("Edge.update");
+    }
+
+    /**
+     * Lay the edge's line between its ends: along its bends, along its bundle's route (a fanned
+     * arc or a self-loop), or straight with its arrow caps.
+     * @param src - The source end.
+     * @param dst - The target end.
+     * @returns Whether the line was laid along its bends.
+     */
+    private placeLine(src: Vector3, dst: Vector3): boolean {
+        const drawsLine = this.lineBatch !== null && this.drawnStyle?.line?.width !== 0;
+        const bent = this.lineBends !== null && drawsLine;
+        const route = !bent && drawsLine ? this.bundleRoute(src, dst) : null;
+        this.bundled = route !== null && this.lineBatch !== null && this.placeRoute(this.lineBatch, src, dst, route);
+        if (bent && this.lineBatch && this.lineBends) {
+            this.placeBent(this.lineBatch, src, dst, this.lineBends);
+        } else if (!this.bundled) {
+            const { srcPoint, dstPoint } = this.transformArrowCap();
+            this.transformEdgeMesh(srcPoint ?? src, dstPoint ?? dst);
+        }
+
+        return bent;
     }
 
     /** Put each arrow cap's caption, if it has one, beside the cap where the cap now sits. */
@@ -1284,6 +1324,14 @@ export class Edge {
         if (this.lineBatch && this.lineIsCurve) {
             this.placeCurve(this.lineBatch, srcPoint, dstPoint);
         } else if (this.lineBatch) {
+            // A line that was fanned out or looped holds a run: hand back all but its first slot.
+            while (this.lineSlots.length > 1) {
+                const slot = this.lineSlots.pop();
+                if (slot !== undefined) {
+                    this.lineBatch.release(slot);
+                }
+            }
+
             this.lineBatch.place(this.lineSlots[0], srcPoint, dstPoint);
         } else if (this.mesh instanceof PatternedLineMesh) {
             // Pattern lines: Update element positions in world space
@@ -1302,6 +1350,104 @@ export class Edge {
         const half = node.drawnHalfExtents;
         const reach = node.roundRadius ?? Math.hypot(half.x, half.y);
         return Math.max(EdgeMesh.SELF_LOOP_RADIUS, reach + EdgeMesh.SELF_LOOP_CLEARANCE);
+    }
+
+    /**
+     * The route this edge takes when it is not one straight line between its nodes: a self-loop's
+     * teardrop outside its node, or the arc of an edge fanned out of a bundle of edges between the
+     * same two nodes, from one center to the other. Null for a lone edge and for the middle edge
+     * of an odd bundle, which are drawn straight.
+     * @param src - The source node's center.
+     * @param dst - The target node's center.
+     * @returns The route, flat x, y, z, or null.
+     */
+    private bundleRoute(src: Vector3, dst: Vector3): number[] | null {
+        const { rank, count, first } = this.context.getDataManager().drawnBundle(this);
+        if (this.srcNode === this.dstNode) {
+            return loopTeardrop(src, rank, count, (dir) => Edge.reachOf(this.srcNode, dir));
+        }
+
+        if (count < 2) {
+            return null;
+        }
+
+        const radius = Math.max(Edge.radiusOf(this.srcNode), Edge.radiusOf(this.dstNode));
+        const offset = fanOffset(rank, count, radius, Vector3.Distance(src, dst));
+        if (offset === 0) {
+            return null;
+        }
+
+        const forward = first.srcNode === this.srcNode;
+        return fanArc(src, dst, forward ? src : dst, forward ? dst : src, offset);
+    }
+
+    /**
+     * How far a node's surface and border are from its center in a direction.
+     * @param node - The node.
+     * @param dir - The unit direction.
+     * @returns The distance.
+     */
+    private static reachOf(node: Node, dir: Xyz): number {
+        return surfaceReach(dir, node.drawnHalfExtents, node.roundRadius) + node.borderReach;
+    }
+
+    /**
+     * A node's radius for spacing the edges around it: its own when round, its box's half-diagonal
+     * across the view otherwise.
+     * @param node - The node.
+     * @returns The radius.
+     */
+    private static radiusOf(node: Node): number {
+        const half = node.drawnHalfExtents;
+        return node.roundRadius ?? Math.hypot(half.x, half.y);
+    }
+
+    /**
+     * Draw this edge along a route from one node center to the other: the part outside both
+     * nodes, each end trimmed for its arrow cap along the route's own direction there.
+     * @param batch - The batch the run is in.
+     * @param src - The source node's center.
+     * @param dst - The target node's center.
+     * @param route - The route, flat x, y, z, from `src` to `dst`.
+     * @returns False, drawing nothing, when no part of the route is outside both nodes.
+     */
+    private placeRoute(batch: EdgeLineBatch, src: Vector3, dst: Vector3, route: readonly number[]): boolean {
+        const outside =
+            (node: Node, centre: Vector3) =>
+            (x: number, y: number, z: number): boolean => {
+                const d = Math.hypot(x - centre.x, y - centre.y, z - centre.z);
+                return (
+                    d > 0 &&
+                    d > Edge.reachOf(node, { x: (x - centre.x) / d, y: (y - centre.y) / d, z: (z - centre.z) / d })
+                );
+            };
+        const span = routeOutside(route, outside(this.srcNode, src), outside(this.dstNode, dst));
+        if (span === null) {
+            return false;
+        }
+
+        const first = Vector3.FromArray(route, 3 * span.first);
+        const last = Vector3.FromArray(route, 3 * span.last);
+        const start = this.leaveNode(this.srcNode, src, first);
+        const end = this.leaveNode(this.dstNode, dst, last);
+
+        const { arrowCap } = this;
+        if (arrowCap) {
+            this.placeArrowHead(arrowCap, end, end.subtract(last).normalize());
+        }
+
+        const lineStart = this.placeArrowTail(start, first, first.subtract(start).normalize());
+        const lineEnd = this.lineEndBefore(last, end);
+        this.placeRun(batch, [
+            lineStart.x,
+            lineStart.y,
+            lineStart.z,
+            ...route.slice(3 * span.first, 3 * span.last + 3),
+            lineEnd.x,
+            lineEnd.y,
+            lineEnd.z,
+        ]);
+        return true;
     }
 
     /**

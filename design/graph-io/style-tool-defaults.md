@@ -106,20 +106,20 @@ NOT the "default" style. Cytoscape writes every property into `session_vizmap.xm
 matters for hand-made or truncated sessions. Source:
 `tmp/style-import/src/BasicVisualLexicon.java` (cytoscape-api, `org.cytoscape.view.presentation.property`).
 
-| Property          | Fallback value                                             | BasicVisualLexicon.java line |
-| ----------------- | ---------------------------------------------------------- | ---------------------------- |
-| Node fill         | rgb(200, 0, 0) `#C80000`                                   | 83                           |
-| Node shape        | `ELLIPSE`                                                  | 302-303                      |
-| Node size / w / h | 50 / 60 / 40                                               | 147, 155, 163                |
-| Node border       | `#000000` (Color.BLACK), width 2.0                         | 230, 54, 238                 |
-| Node label        | empty text; `#000000`; SansSerif plain 12; centered        | 123, 91, 255, 55, 205        |
-| Node opacity      | 255                                                        | 273                          |
-| Edge color        | Color.DARK_GRAY `#404040` (`EDGE_STROKE_UNSELECTED_PAINT`) | 469                          |
-| Edge width        | 1.0                                                        | 368                          |
-| Edge line type    | `SOLID`                                                    | 392                          |
-| Edge arrows       | none; size 6                                               | 487, 493, 500, 508           |
-| Edge label        | empty; `#000000`; SansSerif plain 10                       | 360, 327, 408, 416           |
-| Background        | `#FFFFFF` (Color.WHITE)                                    | 667                          |
+| Property          | Fallback value                                                      | BasicVisualLexicon.java line |
+| ----------------- | ------------------------------------------------------------------- | ---------------------------- |
+| Node fill         | rgb(200, 0, 0) `#C80000`                                            | 83                           |
+| Node shape        | `ELLIPSE`                                                           | 302-303                      |
+| Node size / w / h | 50 / 60 / 40                                                        | 147, 155, 163                |
+| Node border       | `#000000` (Color.BLACK), width 2.0                                  | 230, 54, 238                 |
+| Node label        | empty text; `#000000`; SansSerif plain 12; centered; wrap width 200 | 123, 91, 255, 55, 205, 196   |
+| Node opacity      | 255                                                                 | 273                          |
+| Edge color        | Color.DARK_GRAY `#404040` (`EDGE_STROKE_UNSELECTED_PAINT`)          | 469                          |
+| Edge width        | 1.0                                                                 | 368                          |
+| Edge line type    | `SOLID`                                                             | 392                          |
+| Edge arrows       | none; size 6                                                        | 487, 493, 500, 508           |
+| Edge label        | empty; `#000000`; SansSerif plain 10                                | 360, 327, 408, 416           |
+| Background        | `#FFFFFF` (Color.WHITE)                                             | 667                          |
 
 ## 3. Cytoscape.js (Cytoscape.js JSON)
 
@@ -128,21 +128,21 @@ stylesheet in `styfn.getDefaultProperties` (`dist/cytoscape.cjs.js:18451` onward
 `src/style/properties.js`), confirmed by asking a live headless instance
 (`tmp/style-import/spike/cyjs-defaults.cjs`, output `tmp/style-import/spike/data/cyjs-defaults.json`).
 
-| Property        | Value                                                                                                                            | cytoscape.cjs.js line                   |
-| --------------- | -------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
-| Node fill       | `#999` (rgb 153,153,153), background-opacity 1                                                                                   | 18536, 18538                            |
-| Node shape      | `ellipse`                                                                                                                        | 18571                                   |
-| Node size       | 30 x 30                                                                                                                          | 18569-18570                             |
-| Node border     | `#000`, width 0, solid                                                                                                           | 18555, 18557-18558                      |
-| Opacity         | 1                                                                                                                                | 18503                                   |
-| Label text      | `''` (no label unless the stylesheet maps one)                                                                                   | 18507                                   |
-| Label           | `#000`, 16px, `Helvetica Neue, Helvetica, sans-serif`, normal weight; `text-valign: top`, `text-halign: center` (ABOVE the node) | 18474, 18496, 18493, 18495, 18470-18471 |
-| Edge color      | `#999` (line, and arrow colors)                                                                                                  | 18639                                   |
-| Edge width      | 3                                                                                                                                | 18711                                   |
-| Edge line style | `solid`, line-opacity 1                                                                                                          | 18638, 18642                            |
-| Edge arrows     | `none` at both ends (`arrow-shape`, per end prefix), arrow-scale 1                                                               | 18670-18671, 18660                      |
-| Edge curve      | `haystack` (straight, no arrows drawable until `bezier`)                                                                         | 18658                                   |
-| Background      | none: the container is transparent (page background shows)                                                                       | --                                      |
+| Property        | Value                                                                                                                                                                      | cytoscape.cjs.js line                                 |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| Node fill       | `#999` (rgb 153,153,153), background-opacity 1                                                                                                                             | 18536, 18538                                          |
+| Node shape      | `ellipse`                                                                                                                                                                  | 18571                                                 |
+| Node size       | 30 x 30                                                                                                                                                                    | 18569-18570                                           |
+| Node border     | `#000`, width 0, solid                                                                                                                                                     | 18555, 18557-18558                                    |
+| Opacity         | 1                                                                                                                                                                          | 18503                                                 |
+| Label text      | `''` (no label unless the stylesheet maps one)                                                                                                                             | 18507                                                 |
+| Label           | `#000`, 16px, `Helvetica Neue, Helvetica, sans-serif`, normal weight; `text-valign: top`, `text-halign: center` (ABOVE the node); `text-wrap: none`, `text-max-width` 9999 | 18474, 18496, 18493, 18495, 18470-18471, 18482, 18484 |
+| Edge color      | `#999` (line, and arrow colors)                                                                                                                                            | 18639                                                 |
+| Edge width      | 3                                                                                                                                                                          | 18711                                                 |
+| Edge line style | `solid`, line-opacity 1                                                                                                                                                    | 18638, 18642                                          |
+| Edge arrows     | `none` at both ends (`arrow-shape`, per end prefix), arrow-scale 1                                                                                                         | 18670-18671, 18660                                    |
+| Edge curve      | `haystack` (straight, no arrows drawable until `bezier`)                                                                                                                   | 18658                                                 |
+| Background      | none: the container is transparent (page background shows)                                                                                                                 | --                                                    |
 
 ## 4. Graphviz (DOT)
 

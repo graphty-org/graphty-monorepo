@@ -494,11 +494,13 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
     if (batch !== null) {
         const slots = internal.lineSlots;
         const flat = (batch.mesh.metadata as { is2DLine?: boolean } | null)?.is2DLine === true;
-        if (internal.lineIsCurve) {
-            // a run of slots: a curve, or straight segments through the line's bends
-            world = edge.drawnCurve ?? [];
+        const run = edge.drawnCurve;
+        if (run !== null) {
+            // a run of slots: a curve, straight segments through the line's bends, or a self-loop
+            // or a fanned parallel edge, which are arcs whatever the style
+            world = run;
             const straight = flat ? "line-2d" : "screen-line";
-            kind = internal.drawnStyle?.line?.bezier === true ? "curve" : straight;
+            kind = internal.drawnStyle?.line?.bezier === true || !internal.lineIsCurve ? "curve" : straight;
         } else {
             world = slots.length > 0 ? batch.endsOf(slots[0]) : [];
             kind = flat ? "line-2d" : "screen-line";
@@ -509,8 +511,12 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
         color = m ? hex(m.rgb) : null;
         // A flat line's style opacity, not its material's alpha: a sub-pixel line is drawn one pixel
         // wide with its alpha scaled by its width, the same ink as its own width at full opacity.
-        const styled = (batch.mesh.metadata as { lineOpacity?: number } | null)?.lineOpacity;
-        opacity = (styled ?? m?.alpha ?? 1) * batch.mesh.visibility;
+        const meta = batch.mesh.metadata as { lineOpacity?: number; joinedLine?: boolean } | null;
+        const styled = meta?.lineOpacity;
+        // A joined line's shader draws its own `opacity` and never reads the mesh's visibility, which
+        // it sets only to be drawn in the transparent pass, so the visibility is not ink.
+        const visibility = meta?.joinedLine === true ? 1 : batch.mesh.visibility;
+        opacity = (styled ?? m?.alpha ?? 1) * visibility;
     } else if (edge.mesh instanceof PatternedLineMesh) {
         kind = "pattern";
         const pm = edge.mesh;

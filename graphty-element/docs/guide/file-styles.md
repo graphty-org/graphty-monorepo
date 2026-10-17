@@ -69,18 +69,18 @@ documents carry styles. CSV and OBO files hold none.
 A note never stops the load: every style that can be drawn is drawn. The codes graphty-element adds
 while it turns a file's rules into layers:
 
-| Code                         | What happened                                                                                                        |
-| ---------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `W_STYLE_DRAWN_NEAREST`      | Drawn as the nearest value the element has: a 2D shape as a 3D one, a width and a height as one size, a dash pattern |
-| `W_STYLE_NOT_DRAWN`          | A property the element does not draw (an image, an edge tooltip); left out                                           |
-| `W_STYLE_NO_COUNTERPART`     | A value the element has no counterpart for (a label position, an unknown arrow); left out                            |
-| `W_STYLE_COLUMN_ABSENT`      | A rule reads a column no element of this load holds; left out                                                        |
-| `W_STYLE_TABLE_AS_VALUES`    | A mapping table too large or too mixed to keep as a table; its values are kept per element                           |
-| `W_STYLE_LAYERS_FOLDED`      | Layers folded into one that keeps their values, to stay within the bound on layers per kind                          |
-| `W_STYLE_LABEL_CAPPED`       | More distinct label styles than `labelLayers` allows; the rest are drawn as the nearest kept one                     |
-| `W_STYLE_LAYER_REFUSED`      | A layer the element refused; it is left out and the others apply                                                     |
-| `W_STYLE_LAYER_SPEC_IGNORED` | A layer graphty wrote into the file could not be rebuilt as it was; the file's own rule is drawn instead             |
-| `W_STYLE_NOT_UNDERSTOOD`     | A rule, condition or mapping of a kind this version does not know; left out                                          |
+| Code                         | What happened                                                                                                                   |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `W_STYLE_DRAWN_NEAREST`      | Drawn as the nearest value the element has: a shape the element does not have, a width and a height as one size, a dash pattern |
+| `W_STYLE_NOT_DRAWN`          | A property the element does not draw (an image, an edge tooltip); left out                                                      |
+| `W_STYLE_NO_COUNTERPART`     | A value the element has no counterpart for (a label position, an unknown arrow); left out                                       |
+| `W_STYLE_COLUMN_ABSENT`      | A rule reads a column no element of this load holds; left out                                                                   |
+| `W_STYLE_TABLE_AS_VALUES`    | A mapping table too large or too mixed to keep as a table; its values are kept per element                                      |
+| `W_STYLE_LAYERS_FOLDED`      | Layers folded into one that keeps their values, to stay within the bound on layers per kind                                     |
+| `W_STYLE_LABEL_CAPPED`       | More distinct label styles than `labelLayers` allows; the rest are drawn as the nearest kept one                                |
+| `W_STYLE_LAYER_REFUSED`      | A layer the element refused; it is left out and the others apply                                                                |
+| `W_STYLE_LAYER_SPEC_IGNORED` | A layer graphty wrote into the file could not be rebuilt as it was; the file's own rule is drawn instead                        |
+| `W_STYLE_NOT_UNDERSTOOD`     | A rule, condition or mapping of a kind this version does not know; left out                                                     |
 
 The other `W_STYLE_*` codes come from reading the file itself: a value that does not parse, a
 gradient or an HTML label, a Cytoscape session with several styles, and so on. Every code, from
@@ -107,12 +107,12 @@ await element.loadFromUrl(url, {
 });
 ```
 
-| Option         | Default             | What it decides                                                                                                                                                                                                                                                                                         |
-| -------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `lengths`      | `"median"`          | `"median"` scales every length by one factor, so the file's median node size is the element's default node size and node sizes, borders, edge widths, label sizes and a kept layout's positions keep the file's proportions; `"file"` keeps the file's numbers as they are                              |
-| `shapes`       | `FILE_STYLE_SHAPES` | The element shape each 2D shape of the file is drawn as (`ellipse` as a `sphere`, `rectangle` as a `box`, `diamond` as an `octahedron`, `round-rectangle` and `parallelogram` as the flat shapes of the same name, ...). A shape the table leaves out is not drawn from the file, and the load notes it |
-| `labelLayers`  | `8` (at most 16)    | How many layers label positions may take when the file sets them element by element. Further positions are drawn as the most common kept one, and noted                                                                                                                                                 |
-| `toolDefaults` | `true`              | Whether a property the file leaves unset gets the default of the program that wrote it (below)                                                                                                                                                                                                          |
+| Option         | Default             | What it decides                                                                                                                                                                                                                                                                                           |
+| -------------- | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lengths`      | `"median"`          | `"median"` scales every length by one factor, so the file's median node size (each node by its larger side) is the element's default node size and node sizes, borders, edge widths, label sizes and a kept layout's positions keep the file's proportions; `"file"` keeps the file's numbers as they are |
+| `shapes`       | `FILE_STYLE_SHAPES` | The element shape each 2D shape of the file is drawn as (every 2D shape as the flat shape of the same name: `ellipse`, `rectangle`, `hexagon`, ...; a body-less `none` as an `ellipse`). A shape the table leaves out is not drawn from the file, and the load notes it                                   |
+| `labelLayers`  | `8` (at most 16)    | How many layers label positions may take when the file sets them element by element. Further positions are drawn as the most common kept one, and noted                                                                                                                                                   |
+| `toolDefaults` | `true`              | Whether a property the file leaves unset gets the default of the program that wrote it (below)                                                                                                                                                                                                            |
 
 Copy `FILE_STYLE_SHAPES` and change the entries you want, as above.
 

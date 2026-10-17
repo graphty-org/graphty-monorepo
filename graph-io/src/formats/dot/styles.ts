@@ -38,17 +38,11 @@ import { type DotEscapeNames, dotLabelText, htmlLabelText, recordLabelText } fro
 import { STYLE_ISSUE } from "../../styles/codes.js";
 import { toolDefaults } from "../../styles/defaults.js";
 import { StyleApproximations } from "../../styles/io/approximations.js";
-import {
-    blockStyles,
-    parseStyleBlock,
-    STYLE_BLOCK_NAME,
-    styleBlockLosses,
-    writeStyleBlock,
-} from "../../styles/io/block.js";
+import { STYLE_BLOCK_NAME, styleBlockLosses, writeStyleBlock } from "../../styles/io/block.js";
+import { elementValues, takeFromBlock } from "../../styles/io/round-trip.js";
 import type { ExporterStyleInput } from "../../styles/io/writer.js";
 import { StyleNotes } from "../../styles/notes.js";
-import { styleFingerprint } from "../../styles/plan/features.js";
-import { plainCell, resolveStyles } from "../../styles/plan/resolve.js";
+import { plainCell } from "../../styles/plan/resolve.js";
 import type {
     ImporterStyles,
     StyleColumn,
@@ -1360,23 +1354,6 @@ function writeEdgeArrows(get: Get, directed: boolean, approximate: Approximate, 
 }
 
 /**
- * Each element's values of the properties the writer writes, as a getter per element.
- * @param picture - each element's value of a property
- * @param target - nodes or edges
- * @returns the getter
- */
-function getter(
-    picture: (target: StyleTarget, property: string) => readonly (StyleValue | null)[],
-    target: StyleTarget,
-): (i: number) => Get {
-    const columns = new Map<string, readonly (StyleValue | null)[]>();
-    for (const p of DOT_STYLE_CAPABILITIES[target]) {
-        columns.set(p, picture(target, p));
-    }
-    return (i) => (property) => columns.get(property)?.[i] ?? null;
-}
-
-/**
  * For a file graphty wrote: where a value read from the attributes is what the writer writes for the block's own
  * value (a hexagon written as a hexagon, a pentagon-like vee as an inverted triangle, an opacity rounded to 255 steps,
  * a size rounded in inches), the block's exact value is the truth, so a re-import gives back the same rules; a value
@@ -1394,29 +1371,16 @@ function exactFromBlock(
     read: { readonly node: ValueColumns; readonly edge: ValueColumns },
     cx: ReturnType<typeof contexts>,
 ): void {
-    const parsed = parseStyleBlock(text, styleFingerprint(snapshot));
-    const ex = parsed.ok ? blockStyles(parsed.block, snapshot, "dot") : null;
-    if (ex === null) {
-        return;
-    }
     const notes = new StyleNotes();
-    for (const target of ["node", "edge"] as const) {
-        const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
-        const get = getter((t, p) => resolveStyles(ex, t, p as never, snapshot), target);
-        const values = read[target];
-        for (let i = 0; i < n; i++) {
-            const want = get(i);
+    takeFromBlock(snapshot, text, "dot", (target) => ({
+        values: read[target],
+        properties: DOT_STYLE_CAPABILITIES[target],
+        writes: DOT_STYLE_CAPABILITIES[target],
+        readBack: (i, want) => {
             const back = writtenAndReadBack(target, i, want, cx, notes);
-            for (const property of DOT_STYLE_CAPABILITIES[target]) {
-                const native = values[property]?.[i] ?? null;
-                const w = want(property);
-                if (native !== w && native === (back.get(property) ?? null)) {
-                    values[property] ??= new Array<StyleValue | null>(n).fill(null);
-                    values[property][i] = w;
-                }
-            }
-        }
-    }
+            return (property) => back.get(property) ?? null;
+        },
+    }));
 }
 
 /**
@@ -1584,7 +1548,7 @@ function attributeColumns(
     w: AttributeWrite,
 ): Map<string, (Written | null)[]> {
     const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
-    const get = getter((t, p) => input.picture(t, p as never), target);
+    const get = elementValues((t, p) => input.picture(t, p as never), target, DOT_STYLE_CAPABILITIES[target]);
     const columns = new Map<string, (Written | null)[]>();
     for (let i = 0; i < n; i++) {
         const attrs =

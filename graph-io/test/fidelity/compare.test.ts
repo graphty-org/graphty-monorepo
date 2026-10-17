@@ -353,6 +353,71 @@ describe("scene comparison", () => {
         expect(c.properties.fill.status).toBe("pass");
     });
 
+    it("fails a self-loop drawn with no extent, even where the reference recorded it as a point, without needing an alignment", () => {
+        // CyREST records a loop as a zero-length line at its node: edgePath passes a loop drawn as
+        // nothing. selfLoops judges the subject's loop against its own node.
+        const loopRef = scene(
+            "cytoscape-desktop",
+            [node("a", 0, 0), node("b", 10, 0)],
+            [
+                edge("a->a", "a", "a", [
+                    [0, 0],
+                    [0, 0],
+                ]),
+            ],
+            [{ property: "position", reason: "no stored positions" }],
+        );
+        const flat = scene(
+            "graphty",
+            [node("a", 5, 5), node("b", 30, 5)],
+            [
+                edge("a->a", "a", "a", [
+                    [5, 5],
+                    [5, 5],
+                ]),
+            ],
+        );
+        const c = compareScenes(loopRef, flat);
+        expect(c.transform).toBeNull();
+        expect(c.properties.selfLoops).toMatchObject({ status: "fail", n: 1, passRate: 0 });
+        const drawn = {
+            ...flat,
+            edges: [
+                edge("a->a", "a", "a", [
+                    [5, 5],
+                    [12, -4],
+                    [20, 5],
+                    [12, 14],
+                    [5, 5],
+                ]),
+            ],
+        };
+        expect(compareScenes(loopRef, drawn).properties.selfLoops).toMatchObject({ status: "pass", n: 1 });
+        // no loops, nothing to judge
+        expect(compareScenes(ref, sub).properties.selfLoops.status).toBe("unjudged");
+    });
+
+    it("fails a group box or an annotation the reference does not have", () => {
+        expect(compareScenes(ref, sub).properties.groups.status).toBe("unjudged");
+        const boxed = {
+            ...sub,
+            groups: [
+                {
+                    id: "g",
+                    members: ["a", "b"],
+                    bbox: { x: 395, y: 245, w: 60, h: 60 },
+                    fill: null,
+                    border: null,
+                    label: null,
+                },
+            ],
+            annotations: [{ kind: "shape" as const, bbox: { x: 0, y: 0, w: 5, h: 5 } }],
+        };
+        const c = compareScenes(ref, boxed);
+        expect(c.properties.groups).toMatchObject({ status: "fail", n: 1, worst: [{ id: "extra g" }] });
+        expect(c.properties.annotations).toMatchObject({ status: "fail", n: 1, worst: [{ id: "extra shape#0" }] });
+    });
+
     it("takes each property from the best route that carries it, and checks the routes against each other", () => {
         // gephi's ledger cannot carry shape and alters font size and border; sigma's cannot carry border
         const gephi = {

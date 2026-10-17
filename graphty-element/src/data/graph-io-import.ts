@@ -17,6 +17,7 @@ import {
     type ImportReport,
     INPUT_ISSUE,
 } from "@graphty/graph-io";
+import { isStyleSlotColumn } from "@graphty/graph-io/styles";
 
 import type { AdHocData } from "../config/common.js";
 import { GraphtyError } from "../errors/index.js";
@@ -750,23 +751,6 @@ export function toRecords(
     return { nodes: nodes as AdHocData[], edges: edges as AdHocData[] };
 }
 
-/** The origin namespaces of the columns the CX and CX2 importers read a file's bypasses into. */
-const BYPASS_NAMESPACES: ReadonlySet<string> = new Set(["cx.bypass", "cx2.bypass"]);
-
-/**
- * Whether a column holds a format's own style slots rather than data: the bypasses of a CX or
- * CX2 file, and an XGMML (or Cytoscape session) element's `<graphics>` block.
- * @param column - the column
- * @returns true for a style slot
- */
-function isStyleSlot(column: Column): boolean {
-    const { origin } = column.meta;
-    return (
-        (typeof origin?.namespace === "string" && BYPASS_NAMESPACES.has(origin.namespace)) ||
-        (column.dtype === "json" && origin?.type === "graphics" && origin.namespace === "xgmml")
-    );
-}
-
 /**
  * A mapping that leaves a format's own style slots off the records, for a load that draws the
  * file's styles as layers: the layers carry them, and an export with styles writes them again
@@ -777,8 +761,8 @@ function isStyleSlot(column: Column): boolean {
  */
 export function withoutStyleSlots(snapshot: GraphSnapshot, mapping: RecordMapping): RecordMapping {
     const slots = {
-        node: [...snapshot.nodes].filter(isStyleSlot).map((column) => column.meta.name),
-        edge: [...snapshot.edges].filter(isStyleSlot).map((column) => column.meta.name),
+        node: [...snapshot.nodes].filter((column) => isStyleSlotColumn(column.meta)).map((column) => column.meta.name),
+        edge: [...snapshot.edges].filter((column) => isStyleSlotColumn(column.meta)).map((column) => column.meta.name),
     };
     if (slots.node.length === 0 && slots.edge.length === 0) {
         return mapping;
@@ -799,7 +783,7 @@ export function withoutStyleSlots(snapshot: GraphSnapshot, mapping: RecordMappin
             mapping.edge(row, record);
             drop(slots.edge, record);
         },
-        path: (kind, column) => (isStyleSlot(column) ? null : path(kind, column)),
+        path: (kind, column) => (isStyleSlotColumn(column.meta) ? null : path(kind, column)),
     };
 }
 

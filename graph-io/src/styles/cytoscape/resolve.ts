@@ -321,7 +321,7 @@ function resolver(
 /**
  * Every element's value per neutral property under a Cytoscape style, the way Cytoscape draws it: per visual
  * property a bypass, else the mapping's value, else the default; `nodeSizeLocked` and `arrowColorMatchesEdge`
- * applied. `EDGE_CURVED` only rounds an edge's bends, so an edge without bends is `curved: false`. Visual properties
+ * applied (under `nodeSizeLocked` a node's own `NODE_WIDTH` or `NODE_HEIGHT` bypass still sets that dimension). `EDGE_CURVED` only rounds an edge's bends, so an edge without bends is `curved: false`. Visual properties
  * no neutral property carries are noted as `W_STYLE_NOT_CARRIED`.
  * @param target - nodes or edges
  * @param style - the style
@@ -341,7 +341,7 @@ export function resolveCytoscape(
     const n = elements.count;
     const { used, bypassed } = vpUsage(s, elements.bypasses ?? []);
     const chosen = chooseVps(target, s, used);
-    const { one } = resolver(target, s, elements, notes, options.budget);
+    const { one, bypass } = resolver(target, s, elements, notes, options.budget);
     const out: Partial<Record<string, StyleColumn>> = {};
     const column = (vp: string, parse: CytoscapeValueParser, property: string): (StyleValue | null)[] => {
         options.budget?.spend(target, n);
@@ -355,9 +355,17 @@ export function resolveCytoscape(
         out[prop] = column(vp, parse, prop);
     }
     if (target === "node" && s.dependencies.get("nodeSizeLocked") === true) {
+        // a node's own width or height still wins over the locked size: Cytoscape draws it
         const size = column(NODE_SIZE_VP, sizeParser, "width").map((v) => v ?? NODE_SIZE_FALLBACK);
-        out.width = size;
-        out.height = size.slice();
+        const own = (vp: string, property: string): StyleColumn =>
+            size.map((v, i) => {
+                const b = bypass(i, vp);
+                const parsed =
+                    b === undefined || b === null ? null : sizeParser(b, { notes, target, property, element: i });
+                return parsed ?? v;
+            });
+        out.width = own("NODE_WIDTH", "width");
+        out.height = own("NODE_HEIGHT", "height");
     }
     if (target === "edge" && s.dependencies.get("arrowColorMatchesEdge") === true && out.color !== undefined) {
         out.sourceArrowColor = out.color.slice();

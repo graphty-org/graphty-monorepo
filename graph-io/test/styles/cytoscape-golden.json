@@ -1,5 +1,5 @@
 {
-    "source": "tmp/style-import/spike/cytoscape.mjs (resolveCytoscape) through readers.mjs cx and cx2, run on 2026-10-11; each column run-length encoded as [value, count]; the labelFont of a CX2 font face naming its desktop font (FONT_NAME) is that font, as Cytoscape desktop reads it back; edge curved only where EDGE_CURVED rounds bends the edge has (#2489)",
+    "source": "tmp/style-import/spike/cytoscape.mjs (resolveCytoscape) through readers.mjs cx and cx2, run on 2026-10-11; each column run-length encoded as [value, count]; the labelFont of a CX2 font face naming its desktop font (FONT_NAME) is that font, as Cytoscape desktop reads it back; edge curved only where EDGE_CURVED rounds bends the edge has (#2489); labelWrapWidth (NODE_LABEL_WIDTH, CX2 NODE_LABEL_MAX_WIDTH) added from graph-io's own resolver on 2026-10-16",
     "files": {
         "cx/ndex2-client/glypican2_no_cartesian_layout.cx": {
             "node": {
@@ -19,6 +19,7 @@
                 "labelPosition": [["center", 2]],
                 "labelSize": [[12, 2]],
                 "labelWeight": [["normal", 2]],
+                "labelWrapWidth": [[200, 2]],
                 "shape": [["ellipse", 2]],
                 "tooltip": [["Protein", 2]],
                 "visible": [[true, 2]],
@@ -62,6 +63,7 @@
                 "labelPosition": [["center", 2]],
                 "labelSize": [[12, 2]],
                 "labelWeight": [["normal", 2]],
+                "labelWrapWidth": [[200, 2]],
                 "shape": [["round-rectangle", 2]],
                 "visible": [[true, 2]],
                 "width": [[75, 2]]
@@ -129,6 +131,7 @@
                 "labelPosition": [["center", 6]],
                 "labelSize": [[10, 6]],
                 "labelWeight": [["normal", 6]],
+                "labelWrapWidth": [[200, 6]],
                 "shape": [
                     ["rectangle", 4],
                     ["ellipse", 2]
@@ -313,6 +316,7 @@
                     [18, 37]
                 ],
                 "labelWeight": [["normal", 81]],
+                "labelWrapWidth": [[200, 81]],
                 "shape": [
                     ["rectangle", 20],
                     ["round-rectangle", 16],
@@ -421,6 +425,7 @@
                 "labelPosition": [["center", 2]],
                 "labelSize": [[12, 2]],
                 "labelWeight": [["normal", 2]],
+                "labelWrapWidth": [[200, 2]],
                 "shape": [["round-rectangle", 2]],
                 "visible": [[true, 2]],
                 "width": [[75, 2]]
@@ -546,6 +551,7 @@
                     ["bold", 4],
                     ["normal", 16]
                 ],
+                "labelWrapWidth": [[200, 24]],
                 "shape": [
                     ["octagon", 4],
                     ["hexagon", 1],
@@ -633,6 +639,7 @@
                 "labelPosition": [["center", 4]],
                 "labelSize": [[12, 4]],
                 "labelWeight": [["normal", 4]],
+                "labelWrapWidth": [[200, 4]],
                 "shape": [["round-rectangle", 4]],
                 "visible": [[true, 4]],
                 "width": [[75, 4]]
@@ -671,6 +678,7 @@
                 "labelPosition": [["center", 1]],
                 "labelSize": [[12, 1]],
                 "labelWeight": [["normal", 1]],
+                "labelWrapWidth": [[200, 1]],
                 "shape": [["round-rectangle", 1]],
                 "visible": [[true, 1]],
                 "width": [[75, 1]]
@@ -697,6 +705,7 @@
                 "labelPosition": [["center", 3]],
                 "labelSize": [[12, 3]],
                 "labelWeight": [["normal", 3]],
+                "labelWrapWidth": [[200, 3]],
                 "shape": [["ellipse", 3]],
                 "visible": [[true, 3]],
                 "width": [[60, 3]]
@@ -912,6 +921,7 @@
                     [12, 49]
                 ],
                 "labelWeight": [["normal", 145]],
+                "labelWrapWidth": [[200, 145]],
                 "shape": [
                     ["ellipse", 75],
                     ["diamond", 1],
@@ -1129,6 +1139,7 @@
                 "labelPosition": [["center", 58]],
                 "labelSize": [[12, 58]],
                 "labelWeight": [["normal", 58]],
+                "labelWrapWidth": [[200, 58]],
                 "shape": [
                     ["rectangle", 15],
                     ["ellipse", 1],
@@ -1549,6 +1560,86 @@
                     [26, 1]
                 ],
                 "labelWeight": [["normal", 93]],
+                "labelWrapWidth": [
+                    [147.733, 1],
+                    [151.6, 2],
+                    [163.2, 1],
+                    [155.467, 1],
+                    [143.867, 2],
+                    [167.067, 1],
+                    [140, 3],
+                    [143.867, 2],
+                    [151.6, 1],
+                    [147.733, 1],
+                    [201.867, 1],
+                    [182.533, 1],
+                    [143.867, 2],
+                    [140, 5],
+                    [155.467, 1],
+                    [140, 2],
+                    [232.8, 1],
+                    [186.4, 1],
+                    [151.6, 3],
+                    [143.867, 2],
+                    [209.6, 1],
+                    [151.6, 1],
+                    [167.067, 2],
+                    [209.6, 1],
+                    [151.6, 1],
+                    [147.733, 1],
+                    [190.267, 1],
+                    [151.6, 1],
+                    [163.2, 1],
+                    [151.6, 1],
+                    [147.733, 1],
+                    [205.733, 1],
+                    [174.8, 1],
+                    [151.6, 1],
+                    [201.867, 1],
+                    [151.6, 1],
+                    [163.2, 1],
+                    [182.533, 1],
+                    [314, 1],
+                    [174.8, 1],
+                    [155.467, 1],
+                    [217.333, 1],
+                    [151.6, 1],
+                    [190.267, 1],
+                    [182.533, 1],
+                    [236.667, 1],
+                    [155.467, 1],
+                    [209.6, 1],
+                    [163.2, 1],
+                    [155.467, 1],
+                    [143.867, 1],
+                    [283.067, 1],
+                    [217.333, 1],
+                    [198, 1],
+                    [240.533, 1],
+                    [205.733, 1],
+                    [271.467, 1],
+                    [267.6, 1],
+                    [228.933, 1],
+                    [430, 1],
+                    [143.867, 1],
+                    [225.067, 1],
+                    [205.733, 1],
+                    [213.467, 1],
+                    [178.667, 1],
+                    [143.867, 1],
+                    [151.6, 1],
+                    [155.467, 1],
+                    [205.733, 1],
+                    [317.867, 1],
+                    [163.2, 1],
+                    [283.067, 1],
+                    [163.2, 1],
+                    [170.933, 1],
+                    [174.8, 1],
+                    [279.2, 1],
+                    [163.2, 1],
+                    [174.8, 1]
+                ],
                 "shape": [["ellipse", 93]],
                 "visible": [[true, 93]],
                 "width": [
@@ -2390,6 +2481,7 @@
                     [12, 18]
                 ],
                 "labelWeight": [["normal", 42]],
+                "labelWrapWidth": [[200, 42]],
                 "shape": [
                     ["ellipse", 2],
                     ["round-rectangle", 3],
@@ -2598,6 +2690,7 @@
                     [12, 8]
                 ],
                 "labelWeight": [["normal", 18]],
+                "labelWrapWidth": [[200, 18]],
                 "shape": [
                     ["ellipse", 2],
                     ["triangle", 1],
@@ -2845,6 +2938,7 @@
                 "labelPosition": [["center", 47]],
                 "labelSize": [[25, 47]],
                 "labelWeight": [["normal", 47]],
+                "labelWrapWidth": [[200, 47]],
                 "shape": [["round-rectangle", 47]],
                 "visible": [[true, 47]],
                 "width": [
@@ -2923,19 +3017,11 @@
             "background": "#ffffff"
         },
         "cx/authored/bypass-name-collision.cx": {
-            "node": {
-                "fill": [["#ff0000", 1]]
-            },
+            "node": { "fill": [["#ff0000", 1]] },
             "edge": {},
             "background": null
         },
-        "cx/authored/old-aspect-names.cx": {
-            "node": {
-                "shape": [["ellipse", 2]]
-            },
-            "edge": {},
-            "background": null
-        },
+        "cx/authored/old-aspect-names.cx": { "node": { "shape": [["ellipse", 2]] }, "edge": {}, "background": null },
         "cx/authored/visual-properties.cx": {
             "node": {
                 "fill": [
@@ -2958,9 +3044,7 @@
                 "shape": [["ellipse", 2]],
                 "width": [[35, 2]]
             },
-            "edge": {
-                "width": [[2, 1]]
-            },
+            "edge": { "width": [[2, 1]] },
             "background": "#ffffff"
         },
         "cx2/ndex2-client/demo.cx2": {
@@ -2999,6 +3083,7 @@
                     [7.59375, 1]
                 ],
                 "labelWeight": [["normal", 6]],
+                "labelWrapWidth": [[200, 6]],
                 "shape": [["ellipse", 6]],
                 "visible": [[true, 6]],
                 "width": [
@@ -3051,6 +3136,7 @@
                 "labelPosition": [["center", 2]],
                 "labelSize": [[12, 2]],
                 "labelWeight": [["normal", 2]],
+                "labelWrapWidth": [[200, 2]],
                 "shape": [["ellipse", 2]],
                 "tooltip": [["Protein", 2]],
                 "visible": [[true, 2]],
@@ -3094,6 +3180,7 @@
                 "labelPosition": [["center", 2]],
                 "labelSize": [[12, 2]],
                 "labelWeight": [["normal", 2]],
+                "labelWrapWidth": [[200, 2]],
                 "shape": [["round-rectangle", 2]],
                 "visible": [[true, 2]],
                 "width": [[75, 2]]
@@ -3163,11 +3250,7 @@
             },
             "background": "#ffffff"
         },
-        "cx2/ndex-object-model/cx2_metadata_after_normal_aspect.cx": {
-            "node": {},
-            "edge": {},
-            "background": null
-        },
+        "cx2/ndex-object-model/cx2_metadata_after_normal_aspect.cx": { "node": {}, "edge": {}, "background": null },
         "cx2/cytoscape-web/svg-passthrough.valid.cx2": {
             "node": {
                 "borderColor": [["#cccccc", 330]],
@@ -4284,6 +4367,7 @@
                     [10, 1]
                 ],
                 "labelWeight": [["normal", 330]],
+                "labelWrapWidth": [[200, 330]],
                 "shape": [["ellipse", 330]],
                 "visible": [[true, 330]],
                 "width": [
@@ -4677,6 +4761,7 @@
                 "labelPosition": [["center", 45]],
                 "labelSize": [[12, 45]],
                 "labelWeight": [["normal", 45]],
+                "labelWrapWidth": [[200, 45]],
                 "shape": [
                     ["rectangle", 4],
                     ["ellipse", 10],
@@ -4970,6 +5055,7 @@
                     [11.003, 1]
                 ],
                 "labelWeight": [["normal", 70]],
+                "labelWrapWidth": [[200, 70]],
                 "shape": [["ellipse", 70]],
                 "visible": [[true, 70]],
                 "width": [
@@ -5054,6 +5140,7 @@
                 "labelPosition": [["center", 4]],
                 "labelSize": [[20, 4]],
                 "labelWeight": [["normal", 4]],
+                "labelWrapWidth": [[200, 4]],
                 "shape": [["rectangle", 4]],
                 "visible": [[true, 4]],
                 "width": [[25, 4]]
@@ -5506,6 +5593,7 @@
                     [10, 151]
                 ],
                 "labelWeight": [["normal", 161]],
+                "labelWrapWidth": [[200, 161]],
                 "shape": [
                     ["rectangle", 1],
                     ["ellipse", 1],
@@ -6061,6 +6149,7 @@
                 "labelPosition": [["center", 267]],
                 "labelSize": [[12, 267]],
                 "labelWeight": [["normal", 267]],
+                "labelWrapWidth": [[200, 267]],
                 "shape": [["ellipse", 267]],
                 "visible": [[true, 267]],
                 "width": [[50, 267]]
@@ -7037,6 +7126,7 @@
                 "labelPosition": [["center", 75]],
                 "labelSize": [[28, 75]],
                 "labelWeight": [["normal", 75]],
+                "labelWrapWidth": [[200, 75]],
                 "shape": [
                     ["round-rectangle", 5],
                     ["hexagon", 1],
@@ -7504,6 +7594,7 @@
                 "labelPosition": [["center", 16]],
                 "labelSize": [[12, 16]],
                 "labelWeight": [["normal", 16]],
+                "labelWrapWidth": [[200, 16]],
                 "shape": [["ellipse", 16]],
                 "visible": [[true, 16]],
                 "width": [[60, 16]]
@@ -7635,9 +7726,7 @@
                     [60, 1]
                 ]
             },
-            "edge": {
-                "width": [[2, 1]]
-            },
+            "edge": { "width": [[2, 1]] },
             "background": "#ffffff"
         }
     }

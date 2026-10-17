@@ -19,8 +19,9 @@ import { type CanonSite, MAX_STYLE_VALUE_LENGTH, noteAt } from "../../styles/can
 import { canonText } from "../../styles/canon/text.js";
 import { STYLE_ISSUE } from "../../styles/codes.js";
 import { StyleApproximations } from "../../styles/io/approximations.js";
+import { elementValues, takeFromBlock } from "../../styles/io/round-trip.js";
 import type { ExporterStyleInput } from "../../styles/io/writer.js";
-import type { StyleNotes } from "../../styles/notes.js";
+import { StyleNotes } from "../../styles/notes.js";
 import { plainCell } from "../../styles/plan/resolve.js";
 import type { StyleTarget, StyleValue, StyleWorkBudget, StyleWriteCapabilities } from "../../styles/types.js";
 import type { LossNote } from "../../types.js";
@@ -946,58 +947,24 @@ function polyLineEdgeTree(get: GetValue, path: unknown, approximate: Approximate
 }
 
 /**
- * Each element's values of the properties the writer writes, as a getter per element.
- * @param picture - each element's value of a property
- * @param target - nodes or edges
- * @returns the getter
- */
-function getter(
-    picture: (target: StyleTarget, property: string) => readonly (StyleValue | null)[],
-    target: StyleTarget,
-): (i: number) => GetValue {
-    const columns = new Map<string, readonly (StyleValue | null)[]>();
-    for (const p of GRAPHML_STYLE_CAPABILITIES[target]) {
-        columns.set(p, picture(target, p));
-    }
-    return (i) => (property) => columns.get(property)?.[i] ?? null;
-}
-
-/**
  * For a file graphty wrote: where a value read from the yEd graphics is what the writer writes for the block's own
  * value (a pentagon written as a hexagon, an opacity rounded to yEd's 255 steps), the block's exact value is the
  * truth, so a re-import gives back the same rules; a value another program changed since stays the truth.
+ * @param snapshot - the graph
+ * @param text - the block's text
  * @param read - the values the reader read, changed in place
- * @param picture - each element's value of a property under the block's rules
- * @param counts - the node and edge counts
- * @param counts.node - the node count
- * @param counts.edge - the edge count
- * @param notes - a scratch note list for reading back what the writer writes
  */
-export function exactFromBlock(
-    read: YedRead,
-    picture: (target: StyleTarget, property: string) => readonly (StyleValue | null)[],
-    counts: { readonly node: number; readonly edge: number },
-    notes: StyleNotes,
-): void {
-    for (const target of ["node", "edge"] as const) {
-        const values = read[target];
-        const get = getter(picture, target);
-        for (let i = 0; i < counts[target]; i++) {
-            const want = get(i);
+export function exactFromBlock(snapshot: GraphSnapshot, text: string, read: YedRead): void {
+    const notes = new StyleNotes();
+    takeFromBlock(snapshot, text, "graphml", (target) => ({
+        values: read[target],
+        properties: GRAPHML_STYLE_CAPABILITIES[target],
+        writes: GRAPHML_STYLE_CAPABILITIES[target],
+        readBack: (_i, want) => {
             const back = writtenAndReadBack(target, want, notes);
-            if (back === null) {
-                continue;
-            }
-            for (const property of GRAPHML_STYLE_CAPABILITIES[target]) {
-                const native = values[property]?.[i] ?? null;
-                const w = want(property);
-                if (native !== w && native === (back.get(property) ?? null)) {
-                    values[property] ??= new Array<StyleValue | null>(counts[target]).fill(null);
-                    values[property][i] = w;
-                }
-            }
-        }
-    }
+            return back === null ? null : (property) => back.get(property) ?? null;
+        },
+    }));
 }
 
 /**
@@ -1173,8 +1140,8 @@ export function graphmlStyledExport(
         input.picture(target, property as never);
     const nodeColumns = treeColumns(snapshot.nodes);
     const edgeColumns = treeColumns(snapshot.edges);
-    const getNode = getter(picture, "node");
-    const getEdge = getter(picture, "edge");
+    const getNode = elementValues(picture, "node", GRAPHML_STYLE_CAPABILITIES.node);
+    const getEdge = elementValues(picture, "edge", GRAPHML_STYLE_CAPABILITIES.edge);
     const nodeTrees: (Tree | null)[] = [];
     for (let i = 0; i < snapshot.nodeCount; i++) {
         const get = getNode(i);

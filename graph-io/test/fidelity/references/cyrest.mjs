@@ -48,11 +48,14 @@ export function cyrestIds(topology) {
 
 /**
  * The scene of one Cytoscape network view as CyREST reports it.
- * @param v - { nodes, edges } (visual property rows by SUID), topology (the view's Cytoscape.js JSON), background, annotations, locked
+ * Under "lock node width and height", Cytoscape draws a node at NODE_SIZE, except where the node
+ * itself sets its width or height (a bypass): that dimension is drawn at the node's own value. The
+ * resolved rows cannot tell the two apart, so `bypassed` names them.
+ * @param v - { nodes, edges } (visual property rows by SUID), topology (the view's Cytoscape.js JSON), background, annotations, locked, bypassed (SUID to the node's own { w, h }, either absent)
  * @returns nodes, edges, groups, annotations, background and gaps
  */
 export function sceneFromCyrest(v) {
-    const { nodes: nodeRows, edges: edgeRows, topology, background, annotations, locked } = v;
+    const { nodes: nodeRows, edges: edgeRows, topology, background, annotations, locked, bypassed = {} } = v;
     const gaps = [];
     const ids = cyrestIds(topology);
     const idOf = ids.nodes;
@@ -65,8 +68,9 @@ export function sceneFromCyrest(v) {
     const geo = new Map();
     const nodes = nodeRows.map((r) => {
         const id = idOf.get(String(r.SUID));
-        const w = locked ? r.NODE_SIZE : r.NODE_WIDTH;
-        const h = locked ? r.NODE_SIZE : r.NODE_HEIGHT;
+        const own = bypassed[String(r.SUID)] ?? {};
+        const w = locked ? (own.w ?? r.NODE_SIZE) : r.NODE_WIDTH;
+        const h = locked ? (own.h ?? r.NODE_SIZE) : r.NODE_HEIGHT;
         geo.set(String(r.SUID), [
             r.NODE_X_LOCATION,
             r.NODE_Y_LOCATION,
@@ -169,6 +173,38 @@ export function sceneFromCyrest(v) {
     };
 }
 
+/**
+ * The width and height each node sets itself (its bypasses), which Cytoscape draws even under
+ * "lock node width and height".
+ * @param call - a CyREST call: (method, path) to the parsed body, throwing when not ok
+ * @param net - the network SUID
+ * @param view - the view SUID
+ * @param rows - the view's node rows
+ * @returns SUID to { w, h }, each present only when bypassed
+ */
+export async function sizeBypasses(call, net, view, rows) {
+    const out = {};
+    for (const r of rows) {
+        const own = {};
+        for (const [vp, key] of [
+            ["NODE_WIDTH", "w"],
+            ["NODE_HEIGHT", "h"],
+        ]) {
+            const got = await call("GET", `/networks/${net}/views/${view}/nodes/${r.SUID}/${vp}/bypass`).catch(
+                () => null,
+            );
+            const value = got?.data?.value ?? got?.value;
+            if (typeof value === "number") {
+                own[key] = value;
+            }
+        }
+        if (own.w !== undefined || own.h !== undefined) {
+            out[String(r.SUID)] = own;
+        }
+    }
+    return out;
+}
+
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
     const [port, input, sample, route, out, cydocOut] = process.argv.slice(2);
     const base = `http://localhost:${port}/v1`;
@@ -214,6 +250,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     const style = await call("GET", `/networks/${net}/views/${view}/currentStyle`);
     const deps = await call("GET", `/styles/${encodeURIComponent(style.title)}/dependencies`);
     const locked = deps.some((d) => d.visualPropertyDependency === "nodeSizeLocked" && d.enabled);
+    const bypassed = locked ? await sizeBypasses(call, net, view, nodes) : {};
     const annotations = (await cmd("annotation", "list", { network: `SUID:${net}` })).data ?? [];
     const version = (await call("GET", "/version")).cytoscapeVersion;
     const extra =
@@ -232,6 +269,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
         background: netProps.NETWORK_BACKGROUND_PAINT,
         annotations,
         locked,
+        bypassed,
     });
     finishScene(
         {

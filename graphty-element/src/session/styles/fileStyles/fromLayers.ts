@@ -47,7 +47,7 @@ import type { CompiledLayer } from "../Layer";
 import { computedOf, parseFileStylePath } from "./path";
 import { ARROW_SHAPES, FILE_STYLE_SHAPES, LINE_STYLES, LINE_STYLES_NEAREST } from "./shapes";
 import { fileStyleColumn, type FileStyleStore } from "./store";
-import { LAYER_SPEC_EXT } from "./translate";
+import { LAYER_SPEC_EXT, SCENE_PER_UNIT } from "./translate";
 
 /** What turning the stack into neutral styles needs. */
 export interface LayersToStylesInput {
@@ -161,6 +161,8 @@ const color: PropertyPlan["toNeutral"] = (value) => {
 const number: PropertyPlan["toNeutral"] = (value) =>
     typeof value === "number" && Number.isFinite(value) ? value : null;
 const text: PropertyPlan["toNeutral"] = (value) => (typeof value === "string" ? value : null);
+const scaled = (value: unknown, by: number): number | null =>
+    typeof value === "number" && Number.isFinite(value) ? value * by : null;
 const flag: PropertyPlan["toNeutral"] = (value) => (typeof value === "boolean" ? value : null);
 const opacity: PropertyPlan["toNeutral"] = (value) =>
     typeof value === "number" && value >= 0 && value <= 1 ? value : null;
@@ -190,6 +192,8 @@ const PLANS: Readonly<Record<StyleTarget, ReadonlyMap<string, PropertyPlan>>> = 
         ["node.labelFont", plan(text, "labelFont")],
         ["node.labelWeight", plan(weight, "labelWeight")],
         ["node.labelItalic", plan(flag, "labelItalic")],
+        // The scene's units, written in a node size's, which a file graphty wrote is read back in.
+        ["node.labelWrapWidth", plan((value) => scaled(value, 1 / SCENE_PER_UNIT.node), "labelWrapWidth")],
         ["node.shape", plan(table(SHAPE_OF), "shape")],
         ["node.size", plan(number, "width", "height")],
         ["node.opacity", plan(opacity, "opacity")],

@@ -9,6 +9,7 @@ import type { GraphSnapshot } from "@graphty/graph-format";
 
 import { keptForStyles } from "../../common/report.js";
 import type { GraphImporter, ImportReport } from "../../types.js";
+import { readAnnotations } from "../annotations.js";
 import { StyleBudget } from "../budget.js";
 import { canonColor, colorOpacity } from "../canon/color.js";
 import { canonEnum, type StyleEnumKind } from "../canon/enums.js";
@@ -27,6 +28,7 @@ import type {
     ReaderOutput,
     StyleColumn,
     StyleDialect,
+    StyleFingerprint,
     StyleNote,
     StyleProperty,
     StyleTarget,
@@ -104,29 +106,14 @@ export function extractStyles(
     const signal = options.signal ?? undefined;
     const notes = new StyleNotes();
     const budget = options.budget ?? new StyleBudget();
+    for (const kind of readAnnotations(snapshot).skipped) {
+        notes.add(STYLE_ISSUE.ANNOTATION_SKIPPED, "graph", "annotations", { sample: kind });
+    }
     const canonical = readStyleValues(importer, snapshot, report, { notes, budget, signal });
     const fingerprint = styleFingerprint(snapshot);
-    const blockText = canonical?.block ?? graphValue(snapshot, STYLE_BLOCK_NAME);
-    if (blockText !== undefined) {
-        const parsed = parseStyleBlock(blockText, fingerprint);
-        if (parsed.ok) {
-            const truth = canonical === null ? {} : { node: canonical.node.values, edge: canonical.edge.values };
-            const fromBlock = blockStyles(
-                parsed.block,
-                snapshot,
-                importer.format,
-                truth,
-                canonical?.notes ?? [],
-                canonical?.tool ?? null,
-                canonical?.opacityInColor === true,
-            );
-            if (fromBlock !== null) {
-                return fromBlock;
-            }
-            notes.add(STYLE_ISSUE.BLOCK_IGNORED, null, null, { sample: "INVALID" });
-        } else {
-            notes.add(STYLE_ISSUE.BLOCK_IGNORED, null, null, { sample: parsed.reason });
-        }
+    const fromBlock = stylesFromBlock(importer, snapshot, canonical, notes, fingerprint);
+    if (fromBlock !== null) {
+        return fromBlock;
     }
     if (canonical === null) {
         const list = notes.list();
@@ -161,6 +148,52 @@ export function extractStyles(
         return planned;
     }
     return { ...planned, styles: { ...planned.styles, notes: [...canonical.notes, ...planned.styles.notes] } };
+}
+
+/**
+ * The styles a file's `graphty.styles` block gives, with the importer's values as the truth; a block that does not
+ * parse or describes another graph is noted as ignored.
+ * @param importer - the importer that read the file
+ * @param snapshot - the graph it built
+ * @param canonical - what the importer read, or null
+ * @param notes - the notes so far; an ignored block is noted here
+ * @param fingerprint - the graph's style fingerprint
+ * @returns the styles, or null when the file has no usable block
+ */
+function stylesFromBlock(
+    importer: GraphImporter,
+    snapshot: GraphSnapshot,
+    canonical: ReturnType<typeof readStyleValues>,
+    notes: StyleNotes,
+    fingerprint: StyleFingerprint,
+): ExtractedStyles | null {
+    const blockText = canonical?.block ?? graphValue(snapshot, STYLE_BLOCK_NAME);
+    if (blockText === undefined) {
+        return null;
+    }
+    const parsed = parseStyleBlock(blockText, fingerprint);
+    if (!parsed.ok) {
+        notes.add(STYLE_ISSUE.BLOCK_IGNORED, null, null, { sample: parsed.reason });
+        return null;
+    }
+    const truth = canonical === null ? {} : { node: canonical.node.values, edge: canonical.edge.values };
+    const fromBlock = blockStyles(
+        parsed.block,
+        snapshot,
+        importer.format,
+        truth,
+        canonical?.notes ?? [],
+        canonical?.tool ?? null,
+        canonical?.opacityInColor === true,
+    );
+    if (fromBlock === null) {
+        notes.add(STYLE_ISSUE.BLOCK_IGNORED, null, null, { sample: "INVALID" });
+        return null;
+    }
+    const skipped = notes.list();
+    return skipped.length === 0
+        ? fromBlock
+        : { ...fromBlock, styles: { ...fromBlock.styles, notes: [...fromBlock.styles.notes, ...skipped] } };
 }
 
 /**

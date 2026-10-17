@@ -113,7 +113,7 @@ What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-
 | [`graphAttributes`](./index.md#graphattributes) | yes                                              |
 | [`positions`](./index.md#positions)             | yes                                              |
 | [`viz`](./index.md#viz)                         | no                                               |
-| [`styles`](./index.md#styles)                   | 35 properties, rules kept                        |
+| [`styles`](./index.md#styles)                   | 36 properties, rules kept                        |
 
 <!-- generated:end -->
 
@@ -122,7 +122,10 @@ What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-
 Cytoscape writes the resolved look of every node and edge into its `<graphics>` element: fill,
 outline, size, shape, label, arrows and line style, and its own `cy:` properties. With
 `styles: true`, graph-io reads them, finds the rules they follow (a color by an attribute, a size
-by degree) and adds the defaults of Cytoscape's default style.
+by degree) and adds the defaults of Cytoscape's default style. A node whose graphics state no label
+shows its `name`, else its `label=`, as Cytoscape's default style shows it. Cytoscape draws an
+expanded group's members but not the group's own node, and a collapsed group's node but not its
+members: those nodes are marked not visible (`visible: false`).
 
 A save with styles writes `<graphics>` for every node and edge, and keeps the rules for graphty as
 the graph attribute `graphty.styles`. Without the `styles` option, a save writes back the
@@ -130,14 +133,14 @@ the graph attribute `graphty.styles`. Without the `styles` option, a save writes
 
 <!-- generated:begin styles:xgmml -->
 
-|                                     |                                                                                                                                                                                                                               |
-| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Reads styles                        | yes, with `styles: true`                                                                                                                                                                                                      |
-| Node properties written             | `fill`, `fillOpacity`, `borderColor`, `borderWidth`, `borderStyle`, `shape`, `width`, `height`, `label`, `labelColor`, `labelSize`, `labelPosition`, `tooltip`, `visible`, `labelFont`, `labelWeight`, `labelItalic`          |
-| Edge properties written             | `color`, `opacity`, `width`, `lineStyle`, `sourceArrow`, `targetArrow`, `sourceArrowColor`, `targetArrowColor`, `curved`, `label`, `labelColor`, `labelSize`, `tooltip`, `visible`, `labelFont`, `labelWeight`, `labelItalic` |
-| Graph properties written            | `background`                                                                                                                                                                                                                  |
-| Rules kept for graphty              | yes, as the `graphty.styles` graph attribute                                                                                                                                                                                  |
-| Not written (`W_STYLE_NOT_WRITTEN`) | node: `opacity`, `cornerRadius`, `image`; edge: `arrowSize`, `bends`, `sourceLabel`, `targetLabel`                                                                                                                            |
+|                                     |                                                                                                                                                                                                                                        |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Reads styles                        | yes, with `styles: true`                                                                                                                                                                                                               |
+| Node properties written             | `fill`, `fillOpacity`, `borderColor`, `borderWidth`, `borderStyle`, `shape`, `width`, `height`, `label`, `labelColor`, `labelSize`, `labelWrapWidth`, `labelPosition`, `tooltip`, `visible`, `labelFont`, `labelWeight`, `labelItalic` |
+| Edge properties written             | `color`, `opacity`, `width`, `lineStyle`, `sourceArrow`, `targetArrow`, `sourceArrowColor`, `targetArrowColor`, `curved`, `label`, `labelColor`, `labelSize`, `tooltip`, `visible`, `labelFont`, `labelWeight`, `labelItalic`          |
+| Graph properties written            | `background`                                                                                                                                                                                                                           |
+| Rules kept for graphty              | yes, as the `graphty.styles` graph attribute                                                                                                                                                                                           |
+| Not written (`W_STYLE_NOT_WRITTEN`) | node: `opacity`, `cornerRadius`, `image`; edge: `arrowSize`, `bends`, `sourceLabel`, `targetLabel`                                                                                                                                     |
 
 <!-- generated:end -->
 

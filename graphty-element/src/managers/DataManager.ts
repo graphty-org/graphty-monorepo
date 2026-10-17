@@ -50,6 +50,16 @@ const GRAPH_RESULTS = "graphResults";
 
 export type { AddEdgesOptions } from "../session/project/ingest";
 
+/** Where an edge is drawn among the edges joining the same two nodes: see `DataManager.drawnBundle`. */
+export interface EdgeBundle {
+    /** Its place in the bundle, from zero. */
+    readonly rank: number;
+    /** How many edges the bundle holds. */
+    readonly count: number;
+    /** The bundle's first edge, whose direction the fan is measured from. */
+    readonly first: Edge;
+}
+
 /**
  * Dispose the given nodes and edges -- `teardown` does that -- at a cost in proportion to them,
  * not to the scene they leave.
@@ -1892,6 +1902,51 @@ export class DataManager implements Manager {
     getEdge(edgeId: string): Edge | undefined {
         return this.edges.get(edgeId);
     }
+
+    /**
+     * Where an edge is drawn among every edge joining the same two nodes, in either direction (a
+     * self-loop among the loops on its node): its place, how many there are, and the bundle's
+     * first edge, whose direction the fan is measured from. Worked out over the whole edge set
+     * once per change to it, so a frame's worth of edges costs one pass, not a walk of each
+     * endpoint's edges per edge.
+     * @param edge - The edge.
+     * @returns Its bundle; a lone edge is a bundle of one.
+     */
+    drawnBundle(edge: Edge): EdgeBundle {
+        if (this.bundles?.version !== this.edgeVersion) {
+            const byEdge = new Map<Edge, EdgeBundle>();
+            const pairs = new Map<Node, Map<Node, Edge[]>>();
+            for (const each of this.edgeMap.values()) {
+                const { srcNode: a, dstNode: b } = each;
+                let group = pairs.get(a)?.get(b) ?? pairs.get(b)?.get(a);
+                if (group === undefined) {
+                    group = [];
+                    const inner = pairs.get(a) ?? new Map<Node, Edge[]>();
+                    inner.set(b, group);
+                    pairs.set(a, inner);
+                }
+
+                group.push(each);
+            }
+
+            for (const inner of pairs.values()) {
+                for (const group of inner.values()) {
+                    if (group.length > 1) {
+                        group.forEach((each, rank) => {
+                            byEdge.set(each, { rank, count: group.length, first: group[0] });
+                        });
+                    }
+                }
+            }
+
+            this.bundles = { version: this.edgeVersion, byEdge };
+        }
+
+        return this.bundles.byEdge.get(edge) ?? { rank: 0, count: 1, first: edge };
+    }
+
+    /** {@link DataManager.drawnBundle}'s answers, and the edge set they were worked out over. */
+    private bundles: { version: number; byEdge: Map<Edge, EdgeBundle> } | null = null;
 
     /**
      * Every edge running from one node to another.

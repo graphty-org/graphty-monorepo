@@ -16,11 +16,11 @@ import {
 import { normalizeVisualProperties } from "../../styles/cytoscape/lexicon.js";
 import { emptyCytoscapeStyle } from "../../styles/cytoscape/mappings.js";
 import { cytoscapeBackground, type CytoscapeBypass, resolveCytoscapeBypasses } from "../../styles/cytoscape/resolve.js";
-import { blockStyles, parseStyleBlock, STYLE_BLOCK_NAME } from "../../styles/io/block.js";
+import { STYLE_BLOCK_NAME } from "../../styles/io/block.js";
+import { takeFromBlock } from "../../styles/io/round-trip.js";
 import type { ExporterStyleInput } from "../../styles/io/writer.js";
 import { StyleNotes } from "../../styles/notes.js";
-import { styleFingerprint } from "../../styles/plan/features.js";
-import { plainCell, resolveStyles } from "../../styles/plan/resolve.js";
+import { plainCell } from "../../styles/plan/resolve.js";
 import type {
     EdgeStyleProperty,
     GraphStyle,
@@ -37,7 +37,7 @@ import type {
 } from "../../styles/types.js";
 import type { LossNote } from "../../types.js";
 import { lossOf } from "../cx/styles.js";
-import { GRAPHICS_COLUMN, XGMML_ORIGIN_NAMESPACE } from "./constants.js";
+import { GRAPHICS_COLUMN, SUBGRAPH_COLUMN, XGMML_ORIGIN_NAMESPACE } from "./constants.js";
 
 type Table = GraphSnapshot["nodes"];
 
@@ -121,6 +121,17 @@ export function readXgmmlStyles(
             ? resolveCytoscapeBypasses(target, maps, { notes, budget: context.budget })
             : {};
         hiddenToVisible(table, settings.hiddenColumn ?? null, n, values);
+        if (target === "node") {
+            hideGroupsCytoscapeHides(snapshot, values);
+        }
+        if (
+            target === "node" &&
+            settings.tool === "cytoscape" &&
+            values.label === undefined &&
+            !snapshot.graph.has(STYLE_BLOCK_NAME)
+        ) {
+            nameLabels(table, n, values);
+        }
         exactFromBlock(snapshot, target, values);
         out[target] = { values: nonEmpty(values) };
     }
@@ -134,6 +145,26 @@ export function readXgmmlStyles(
         graph: graphStyleOf(snapshot, notes),
         notes: notes.list(),
     };
+}
+
+/**
+ * The labels Cytoscape shows for nodes whose graphics state none: its default style labels a node by its name, and
+ * a node with no `name` att is named by its `label=` (Cytoscape 2.x files often carry only that). Not for a file
+ * graphty wrote: its block says what to draw.
+ * @param table - the node table
+ * @param n - the node count
+ * @param values - the values per property, changed in place
+ */
+function nameLabels(table: Table, n: number, values: Partial<Record<string, StyleColumn>>): void {
+    const label = table.byRole("label")?.meta.name ?? null;
+    const text = (column: string | null, i: number): string | null => {
+        const v = column !== null && table.has(column) ? plainCell(table.value(column, i)) : null;
+        return typeof v === "string" || typeof v === "number" ? String(v) : null;
+    };
+    const labels = Array.from({ length: n }, (_v, i) => text("name", i) ?? text(label, i));
+    if (labels.some((v) => v !== null)) {
+        values.label = labels;
+    }
 }
 
 /**
@@ -166,59 +197,28 @@ export function exactFromBlock(
     if (typeof text !== "string") {
         return;
     }
-    const parsed = parseStyleBlock(text, styleFingerprint(snapshot));
-    const ex = parsed.ok ? blockStyles(parsed.block, snapshot, "xgmml") : null;
-    if (ex === null) {
-        return;
-    }
-    const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
-    const want = new Map<string, readonly (StyleValue | null)[]>();
-    const exact = (property: string): readonly (StyleValue | null)[] => {
-        let held = want.get(property);
-        if (held === undefined) {
-            held = resolveStyles(ex, target, property as StyleProperty, snapshot);
-            want.set(property, held);
+    takeFromBlock(snapshot, text, "xgmml", (t, block) => {
+        if (t !== target) {
+            return null;
         }
-        return held;
-    };
-    // What each element's exact values are written as, read back the way the file is read.
-    const written = Array.from({ length: n }, (_v, i) =>
-        cytoscapeElementProperties(
-            target,
-            (property) => exact(property)[i] ?? null,
-            dialect,
-            () => undefined,
-        ),
-    );
-    const readBack = resolveCytoscapeBypasses(target, written, { notes: new StyleNotes() });
-    for (const [property, native] of Object.entries(values)) {
-        const back = readBack[property];
-        if (native !== undefined && back !== undefined) {
-            values[property] = withBlockValues(native, back, exact(property));
-        }
-    }
-}
-
-/**
- * A property's values with the block's exact value wherever the file's value is what the writer wrote for it.
- * @param native - the file's values
- * @param back - what the writer wrote for the block's values, read back
- * @param w - the block's values
- * @returns the values, the file's own array when none changes
- */
-function withBlockValues(
-    native: StyleColumn,
-    back: readonly (StyleValue | null)[],
-    w: readonly (StyleValue | null)[],
-): StyleColumn {
-    let changed: (StyleValue | null)[] | null = null;
-    for (let i = 0; i < native.length; i++) {
-        if (w[i] !== null && native[i] !== w[i] && native[i] === back[i]) {
-            changed ??= [...native];
-            changed[i] = w[i];
-        }
-    }
-    return changed ?? native;
+        const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
+        // What each element's exact values are written as, read back the way the file is read.
+        const written = Array.from({ length: n }, (_v, i) =>
+            cytoscapeElementProperties(
+                target,
+                (property) => block(target, property)[i] ?? null,
+                dialect,
+                () => undefined,
+            ),
+        );
+        const readBack = resolveCytoscapeBypasses(target, written, { notes: new StyleNotes() });
+        return {
+            values,
+            properties: Object.keys(values).filter((p) => values[p] !== undefined && readBack[p] !== undefined),
+            readBack: (i) => (property) => readBack[property]?.[i] ?? null,
+            take: (_property, wanted) => wanted !== null,
+        };
+    });
 }
 
 /**
@@ -247,6 +247,97 @@ export function hiddenToVisible(
     if (visible !== null) {
         values.visible = visible;
     }
+}
+
+/**
+ * Marks not visible what Cytoscape does not draw of its groups: an expanded group's own node (its members are drawn
+ * in its place), and every node inside a collapsed group (the group's node is drawn in their place). A group is
+ * collapsed when its nested graph's `__groupCollapsed.SUID` names the network being read. A file graphty wrote is
+ * left alone: its block says what to draw.
+ * @param snapshot - the graph
+ * @param values - the node values per property, changed in place
+ */
+export function hideGroupsCytoscapeHides(snapshot: GraphSnapshot, values: Partial<Record<string, StyleColumn>>): void {
+    const parent = snapshot.nodes.byRole("parent");
+    if (parent === null || snapshot.graph.has(STYLE_BLOCK_NAME)) {
+        return;
+    }
+    const n = snapshot.nodeCount;
+    const members = membersOf(parent, n);
+    if (members.size === 0) {
+        return;
+    }
+    const network = (snapshot.meta.extra as { xgmml?: { graphId?: unknown } } | undefined)?.xgmml?.graphId;
+    const visible = values.visible === undefined ? new Array<StyleValue | null>(n).fill(null) : [...values.visible];
+    for (const [group, inside] of members) {
+        if (!collapsedIn(snapshot, group, network)) {
+            visible[group] = false;
+            continue;
+        }
+        for (const i of insideAtAnyDepth(group, inside, members)) {
+            visible[i] = false;
+        }
+    }
+    values.visible = visible;
+}
+
+/**
+ * Each group node's direct members.
+ * @param parent - the node parent column
+ * @param n - the node count
+ * @returns group node to its members
+ */
+function membersOf(
+    parent: NonNullable<ReturnType<GraphSnapshot["nodes"]["byRole"]>>,
+    n: number,
+): Map<number, number[]> {
+    const members = new Map<number, number[]>();
+    for (let i = 0; i < n; i++) {
+        const g = parent.isSet(i) ? plainCell(parent.value(i)) : null;
+        if (typeof g === "number" && g !== i) {
+            members.set(g, [...(members.get(g) ?? []), i]);
+        }
+    }
+    return members;
+}
+
+/**
+ * Every node inside a group, at any depth.
+ * @param group - the group node
+ * @param inside - its direct members
+ * @param members - each group node's direct members
+ * @returns the nodes inside
+ */
+function insideAtAnyDepth(group: number, inside: readonly number[], members: Map<number, number[]>): Set<number> {
+    const stack = [...inside];
+    const seen = new Set<number>([group]);
+    const out = new Set<number>();
+    for (let i = stack.pop(); i !== undefined; i = stack.pop()) {
+        if (!seen.has(i)) {
+            seen.add(i);
+            out.add(i);
+            stack.push(...(members.get(i) ?? []));
+        }
+    }
+    return out;
+}
+
+/**
+ * Whether a group node's nested graph says the group is collapsed in a network (`__groupCollapsed.SUID` lists it).
+ * @param snapshot - the graph
+ * @param group - the group node
+ * @param network - the id of the network being read, or anything else when unknown
+ * @returns true when collapsed there
+ */
+function collapsedIn(snapshot: GraphSnapshot, group: number, network: unknown): boolean {
+    if (typeof network !== "string" || !snapshot.nodes.has(SUBGRAPH_COLUMN)) {
+        return false;
+    }
+    const sub = plainCell(snapshot.nodes.value(SUBGRAPH_COLUMN, group));
+    const atts = sub !== null && typeof sub === "object" ? (sub as { atts?: unknown }).atts : null;
+    const collapsed =
+        atts !== null && typeof atts === "object" ? (atts as Record<string, unknown>)["__groupCollapsed.SUID"] : null;
+    return Array.isArray(collapsed) && collapsed.some((v) => String(v) === network);
 }
 
 /**

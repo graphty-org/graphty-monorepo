@@ -168,12 +168,8 @@ describe("import styles from files, on the real element", () => {
         assert.equal(colorOf(session, "n0"), "#0000ff");
         // The paint tree words each of the file's layers from its facts.
         assert.isNotEmpty(await screen.findAllByText(/from the file/i, {}, { timeout: TIMEOUT_MS }));
-        // Gephi's disc has no 3D counterpart: the load tells the reader the shape is drawn as the nearest one.
-        await screen.findByText(
-            /The file's styles are drawn, with these differences: A style is drawn as the nearest one graphty has \(node shape\)/,
-            {},
-            { timeout: TIMEOUT_MS },
-        );
+        // Gephi's disc is drawn as the flat ellipse of the same name, so the load names no shape drawn as a nearest one.
+        assert.isNull(screen.queryByText(/drawn as the nearest one graphty has \(node shape\)/));
     });
 
     it("the Data page loads none of the file's layers with the box unchecked, and keeps that choice", async () => {

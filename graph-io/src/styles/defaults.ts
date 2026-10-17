@@ -82,6 +82,12 @@ export interface ToolDefaults {
     readonly graph: ToolDefaultValues<GraphStyleValues>;
     /** Defaults that are rules, applied above the constants. */
     readonly derived: readonly ToolDerivedDefault[];
+    /**
+     * The largest corner radius, in `units`, the program draws on a rounded rectangle whose file gives none. Not a
+     * node default: it only bounds the rounding of the shape the file names, so no rule carries it and no writer has
+     * to hold it.
+     */
+    readonly roundedCornerRadius?: ToolDefaultValue<number>;
 }
 
 /**
@@ -110,6 +116,18 @@ const OGDF = "ogdf master 1a40505ac006";
 const NX = "networkx 6da4704cbf32 networkx/drawing/nx_pylab.py line";
 
 /**
+ * The largest corner radius of a rounded rectangle whose file gives none, in the program's units. Cytoscape.js is the
+ * one program that publishes its rule (`getRoundRectangleRadius`); the others draw barely rounded corners too, so they
+ * get the same 8, and a 513 x 453 group keeps small corners instead of a quarter of its side.
+ * @param tool - the program, when it is not Cytoscape.js and so states no radius of its own
+ * @returns the default
+ */
+function cornerCap(tool?: string): ToolDefaultValue<number> {
+    const rule = `${CYJS} 4386`;
+    return v(8, tool === undefined ? rule : `${rule} (Cytoscape.js's rule; ${tool} states none)`);
+}
+
+/**
  * The defaults of every program graph-io recognizes as a file's writer, by tool id.
  * @category Styles
  */
@@ -120,6 +138,7 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 tool: "cytoscape",
                 version: "cytoscape-impl develop 6c63e97c5152 (3.11)",
                 units: "px",
+                roundedCornerRadius: cornerCap("cytoscape"),
                 node: {
                     fill: v("#89d0f5", `${CY} 382`),
                     fillOpacity: v(1, `${CY} 383`),
@@ -134,6 +153,7 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     labelWeight: v("normal", `${CY} 370`),
                     labelItalic: v(false, `${CY} 370`),
                     labelSize: v(12, `${CY} 371`),
+                    labelWrapWidth: v(200, `${CY} 372`),
                     labelPosition: v("center", `${CY} 380`),
                 },
                 edge: {
@@ -160,6 +180,7 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 tool: "cytoscape-fallbacks",
                 version: "cytoscape-api develop (3.11)",
                 units: "px",
+                roundedCornerRadius: cornerCap("cytoscape-fallbacks"),
                 node: {
                     fill: v("#c80000", `${CYL} 83`),
                     fillOpacity: v(1, `${CYL} 273`),
@@ -173,6 +194,7 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     labelWeight: v("normal", `${CYL} 255`),
                     labelItalic: v(false, `${CYL} 255`),
                     labelSize: v(12, `${CYL} 55`),
+                    labelWrapWidth: v(200, `${CYL} 196`),
                     labelPosition: v("center", `${CYL} 205`),
                 },
                 edge: {
@@ -194,6 +216,7 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 tool: "cytoscape-js",
                 version: "cytoscape.js 3.34.3",
                 units: "px",
+                roundedCornerRadius: cornerCap(),
                 node: {
                     fill: v("#999999", `${CYJS} 18536`),
                     fillOpacity: v(1, `${CYJS} 18538`),
@@ -233,6 +256,7 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 tool: "graphviz",
                 version: "graphviz main (16.1.0)",
                 units: "px",
+                roundedCornerRadius: cornerCap("graphviz"),
                 node: {
                     fillOpacity: v(0, `${GV}/style/ (default "", not filled)`),
                     borderColor: v("#000000", `${GV}/color/`),
@@ -270,6 +294,7 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 tool: "yed",
                 version: "yEd / yFiles for Java 2.19",
                 units: "px",
+                roundedCornerRadius: cornerCap("yed"),
                 node: {
                     fill: v("#ffcc00", `${YED_QA}; ${YED_CORPUS} of y:Fill color`),
                     shape: v("rectangle", "yFiles for Java 2.19 ShapeNodeRealizer API docs"),
@@ -299,6 +324,7 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 tool: "yfiles3",
                 version: "yFiles for HTML (API docs retrieved 2026-10-11)",
                 units: "px",
+                roundedCornerRadius: cornerCap("yfiles3"),
                 node: {
                     fill: v("#ffffff", `${Y3} ShapeNodeStyle fill`),
                     borderColor: v("#000000", `${Y3} ShapeNodeStyle stroke`),
@@ -324,6 +350,7 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 tool: "gephi",
                 version: "gephi 0.11.4-SNAPSHOT",
                 units: "relative",
+                roundedCornerRadius: cornerCap("gephi"),
                 node: {
                     fill: v("#000000", "gephi/graphstore a4c790b2343e NodeImpl.java line 322"),
                     width: v(10, `${GEPHI} AbstractProcessor.java lines 195-198`),
@@ -359,6 +386,7 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 tool: "vis-network",
                 version: "vis-network 10.1.2",
                 units: "px",
+                roundedCornerRadius: cornerCap("vis-network"),
                 node: {
                     fill: v("#97c2fc", `${VIS} lines 32986-33110`),
                     borderColor: v("#2b7ce9", `${VIS} lines 32986-33110`),
@@ -388,11 +416,12 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 tool: "sigma",
                 version: "sigma 3.0.3",
                 units: "relative",
+                roundedCornerRadius: cornerCap("sigma"),
                 node: {
                     fill: v("#999999", `${SIGMA}/settings.ts lines 119-126`),
                     shape: v("ellipse", `${SIGMA}/settings.ts lines 119-126`),
-                    width: v(2, `${SIGMA}/sigma.ts line 76`),
-                    height: v(2, `${SIGMA}/sigma.ts line 76`),
+                    width: v(4, `${SIGMA}/sigma.ts line 76 (size 2 is a radius)`),
+                    height: v(4, `${SIGMA}/sigma.ts line 76 (size 2 is a radius)`),
                     labelColor: v("#000000", `${SIGMA}/settings.ts lines 119-126`),
                     labelFont: v("Arial", `${SIGMA}/settings.ts lines 119-126`),
                     labelSize: v(14, `${SIGMA}/settings.ts lines 119-126`),
@@ -411,6 +440,7 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 tool: "pajek",
                 version: "Pajek 6.02",
                 units: "relative",
+                roundedCornerRadius: cornerCap("pajek"),
                 node: {
                     shape: v("ellipse", `${PAJEK} p. 85`),
                     opacity: v(1, `${PAJEK} p. 87`),
@@ -434,6 +464,7 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 tool: "ogdf",
                 version: "ogdf master 1a40505ac006",
                 units: "px",
+                roundedCornerRadius: cornerCap("ogdf"),
                 node: {
                     fill: v("#ffffff", `${OGDF} LayoutStandards.cpp lines 38-45`),
                     shape: v("rectangle", `${OGDF} LayoutStandards.cpp lines 38-45`),
@@ -455,6 +486,7 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 tool: "networkx",
                 version: "networkx 3.7 (main 6da4704cbf32)",
                 units: "px",
+                roundedCornerRadius: cornerCap("networkx"),
                 node: {
                     fill: v("#1f78b4", `${NX} 1378`),
                     fillOpacity: v(1, `${NX} 549`),

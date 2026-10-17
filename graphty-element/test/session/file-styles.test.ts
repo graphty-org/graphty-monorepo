@@ -196,7 +196,7 @@ describe("a file's styles drawn by the load", () => {
         session.dispose();
     });
 
-    it("draws a rounded rectangle and a parallelogram as the flat shapes of those names, with no nearest note", async () => {
+    it("draws every 2D shape as the flat shape of the same name, with no nearest note", async () => {
         const doc = JSON.stringify({
             elements: [{ data: { id: "a" } }, { data: { id: "b" } }, { data: { id: "c" } }],
             style: [
@@ -206,7 +206,7 @@ describe("a file's styles drawn by the load", () => {
             ],
         });
         const session = createGraphSession();
-        // Without Cytoscape's default ellipse beneath, which is itself drawn as the nearest solid.
+        // Without Cytoscape's default ellipse beneath.
         await session.data.import(
             { type: "json", config: { data: doc } },
             { styles: "file", styleOptions: { toolDefaults: false } },
@@ -214,15 +214,11 @@ describe("a file's styles drawn by the load", () => {
 
         assert.strictEqual(drawn(session, { node: "a" }, "node.shape"), "round-rectangle");
         assert.strictEqual(drawn(session, { node: "b" }, "node.shape"), "parallelogram");
-        assert.strictEqual(drawn(session, { node: "c" }, "node.shape"), "box");
+        assert.strictEqual(drawn(session, { node: "c" }, "node.shape"), "rectangle");
         const nearest = (session.data.lastImport()?.styles?.notes ?? []).filter(
             (note) => note.code === FILE_STYLE_ISSUE.DRAWN_NEAREST && note.params.property === "shape",
         );
-        // Only the rectangle is drawn as the nearest solid.
-        assert.deepEqual(
-            nearest.map((note) => note.params.count),
-            [1],
-        );
+        assert.deepEqual(nearest, []);
         session.dispose();
     });
 
@@ -552,22 +548,22 @@ describe("a graphty layer whose expression holds an escape JSON rejects", () => 
 
 describe("a load's notes", () => {
     it("count each element once, however many of the file's rules give it a value drawn as the nearest", async () => {
-        // Gephi's default disc applies to all three nodes and the file's own square to one: both
-        // are drawn as the nearest 3D shape, but only three nodes are drawn that way.
-        const gexf = `<?xml version="1.0" encoding="UTF-8"?>
-<gexf xmlns="http://gexf.net/1.3" xmlns:viz="http://gexf.net/1.3/viz" version="1.3">
-<graph defaultedgetype="undirected"><nodes>
-<node id="a"><viz:color r="255" g="0" b="0"/><viz:size value="20"/></node>
-<node id="b"><viz:color r="0" g="128" b="255"/><viz:size value="10"/></node>
-<node id="c"><viz:color r="0" g="200" b="0"/><viz:size value="5"/><viz:shape value="square"/></node>
-</nodes><edges><edge source="a" target="b"/><edge source="b" target="c"/></edges></graph></gexf>`;
+        // Two rules give node a a box wider than it is tall, which is drawn as one size (the
+        // nearest): two nodes are drawn that way, not three.
+        const doc = JSON.stringify({
+            elements: [{ data: { id: "a" } }, { data: { id: "b" } }, { data: { id: "c" } }],
+            style: [
+                { selector: "#a, #b", style: { width: 40, height: 20 } },
+                { selector: "#a", style: { width: 60, height: 20 } },
+            ],
+        });
         const session = createGraphSession();
-        await session.data.import({ type: "gexf", config: { data: gexf } }, { styles: "file" });
+        await session.data.import({ type: "json", config: { data: doc } }, { styles: "file" });
         const notes = session.data.lastImport()?.styles?.notes ?? [];
         const nearest = notes.filter((note) => note.code === FILE_STYLE_ISSUE.DRAWN_NEAREST);
         assert.isAbove(nearest.length, 0);
         for (const note of nearest) {
-            assert.isAtMost(Number(note.params.count), 3, JSON.stringify(note.params));
+            assert.isAtMost(Number(note.params.count), 2, JSON.stringify(note.params));
         }
 
         session.dispose();

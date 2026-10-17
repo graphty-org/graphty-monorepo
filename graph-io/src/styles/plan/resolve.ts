@@ -651,12 +651,42 @@ export function resolveStyles(
     property: StyleProperty,
     snapshot?: GraphSnapshot,
 ): readonly (StyleValue | null)[] {
+    return resolveRules(extracted.styles.rules, target, property, sourceOf(extracted, target, snapshot));
+}
+
+/**
+ * Which elements a rule's condition selects under a file's styles, read the way `resolveStyles()` reads it.
+ * @param extracted - the styles whose columns and features the condition reads
+ * @param target - nodes or edges
+ * @param where - the condition
+ * @param snapshot - the graph; when given, data columns and degrees are read from it, otherwise from
+ * `extracted.features`
+ * @returns per element, whether the condition selects it
+ * @category Styles
+ */
+export function matchPredicate(
+    extracted: ExtractedStyles,
+    target: StyleTarget,
+    where: Predicate,
+    snapshot?: GraphSnapshot,
+): readonly boolean[] {
+    const src = sourceOf(extracted, target, snapshot);
+    return Array.from({ length: src.n }, (_v, i) => matches(where, src, i));
+}
+
+/**
+ * Where a file's styles read their per-element values from.
+ * @param extracted - the styles
+ * @param target - nodes or edges
+ * @param snapshot - the graph, or undefined to read from `extracted.features`
+ * @returns the reference source
+ */
+function sourceOf(extracted: ExtractedStyles, target: StyleTarget, snapshot: GraphSnapshot | undefined): RefSource {
     let n = extracted.fingerprint[target === "node" ? "nodes" : "edges"];
     if (snapshot !== undefined) {
         n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
     }
-    const src = refSource(target, n, extracted.columns[target], extracted.features[target], snapshot);
-    return resolveRules(extracted.styles.rules, target, property, src);
+    return refSource(target, n, extracted.columns[target], extracted.features[target], snapshot);
 }
 
 /**

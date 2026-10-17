@@ -176,3 +176,66 @@ export function measureLine(
 
     return { width, lineBox, baseline: (lineBox - inkHeight) / 2 + outline + ascent };
 }
+
+/**
+ * Break lines that run past a width at the spaces between their words, keeping each word's
+ * style. A word wider than the width keeps a line of its own; a line that fits is kept as it is.
+ * @param ctx - A canvas to measure on.
+ * @param lines - The lines, each a list of styled segments.
+ * @param width - The widest a line may be, in the canvas's pixels.
+ * @returns The lines, wrapped.
+ */
+export function wrapLines(ctx: CanvasRenderingContext2D, lines: TextSegment[][], width: number): TextSegment[][] {
+    const measure = (text: string, style: TextSegment["style"]): number => {
+        ctx.font = `${style.style} ${style.weight} ${style.size}px ${style.font}`;
+        return ctx.measureText(text).width;
+    };
+    return lines.flatMap((line) => wrapLine(line, width, measure));
+}
+
+const SPACES = /^\s+$/;
+
+/**
+ * Break one line at the spaces between its words.
+ * @param line - The line's styled segments.
+ * @param width - The widest a line may be, in the canvas's pixels.
+ * @param measure - How wide a piece of text is in a style.
+ * @returns The line, wrapped into one or more lines.
+ */
+function wrapLine(
+    line: TextSegment[],
+    width: number,
+    measure: (text: string, style: TextSegment["style"]) => number,
+): TextSegment[][] {
+    const out: TextSegment[][] = [];
+    let current: TextSegment[] = [];
+    let used = 0;
+    const pieces = line.flatMap(({ text, style }) =>
+        text
+            .split(/(\s+)/)
+            .filter((piece) => piece !== "")
+            .map((piece) => ({ text: piece, style })),
+    );
+    for (const piece of pieces) {
+        const space = SPACES.test(piece.text);
+        const span = measure(piece.text, piece.style);
+        if (!space && used > 0 && used + span > width) {
+            // Spaces left at the end of a broken line are dropped.
+            while (current.length > 0 && SPACES.test(current.at(-1)?.text ?? "")) {
+                current.pop();
+            }
+
+            out.push(current);
+            current = [];
+            used = 0;
+        }
+
+        if (!space || used > 0) {
+            current.push(piece);
+            used += span;
+        }
+    }
+
+    out.push(current);
+    return out;
+}

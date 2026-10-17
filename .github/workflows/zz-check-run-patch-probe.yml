@@ -15,7 +15,9 @@ jobs:
                   GH_TOKEN: ${{ github.token }}
                   SHA: ${{ github.event.pull_request.head.sha }}
                   R: ${{ github.repository }}
+                  N: ${{ github.event.pull_request.number }}
               run: |
+                  gh api "repos/$R/pulls/$N" --jq '"live draft: \(.draft)"' || echo "READ PULL FAILED"
                   id=$(gh api "repos/$R/check-runs" -f name="Probe early" -f head_sha="$SHA" -f status=completed -f conclusion=failure -f "output[title]=t" -f "output[summary]=s" --jq .id)
                   echo "created API check run $id"
                   gh api -X PATCH "repos/$R/check-runs/$id" -f conclusion=success -f "output[title]=superseded" -f "output[summary]=probe" --jq '"PATCH API run: \(.id) \(.conclusion) suite \(.check_suite.id)"' || echo "PATCH API run FAILED"

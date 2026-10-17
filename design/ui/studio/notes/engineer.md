@@ -13,7 +13,27 @@ Summarized 2026-10-17 from 158 KB. The full earlier notes (every dated entry fro
 
 ## Top of mind
 
-0. (2026-10-17, spoken messages) Every app message is spoken from ONE polite status line that is
+1. (2026-10-17, number card, graphty, commit a51efe4a2) The number card never hands the element
+   a range it refuses. `NumberCard` in `style/WhichPicker.tsx` keeps each box's typed text as a
+   draft (`Drafts`, `checkDrafts`) and calls `onChange` only when every box reads and from <= to;
+   otherwise a `role="alert"` line under the boxes says why ("From is above to: 220 is more than
+   205.", "\"$10,000\" is not a number. Type digits only, like 10000.") and the layer keeps the
+   last range it took. Boxes are Mantine `TextInput`s (`NumberBox`): a click from outside selects
+   the value, a digit after a starting 0 replaces it, grouping separators read through
+   compact-mantine `useNumberParser`, any other character refused (`\p{Nd}`, spaces, `.,'+-`
+   only). Highest above the count says "There are only 24 nodes, so this keeps all of them."
+   The step writer clears "That rule could not be used for this layer" after a write succeeds.
+    - Test: `style/__tests__/NumberCard.real-element.test.tsx` (4 tests, all fail on the old card).
+    - Checked on a fresh build (`design/ui/studio/tmp/r1-dry1-number-card/walk1`, sources.graphml):
+      10000 typed after the focused 0 gives 9 of 24; click "to" selects 250000; "1" and "15" held
+      with the message, count stays 9; "10,000" reads; "$10,000" kept and refused after Tab;
+      Highest 10000 says only 24; 220 then Control+A "205" holds, layer stays 220 to 250000.
+    - The element's throw is right and unchanged. "The first crash moved every node" goes to the
+      drawing unit; I could not reproduce it before (drawing and camera item) and the card can no
+      longer reach that throw, so a reproduction needs a range rule written another way.
+    - Seen, not mine: commit 7a23b98f9 put `useAnnounceChange(...)` in `Cards` INSIDE the
+      `if (matched === 0 ...)` block (a conditional hook); the working tree has it outside.
+2. (2026-10-17, spoken messages) Every app message is spoken from ONE polite status line that is
    on the page, empty, before it is written: it now lives in `Workspace.tsx` (it was in `Frame`,
    which the start screen does not mount). Rules, checked with real.mjs --sr on a fresh build
    (`design/ui/studio/tmp/r1-dry1-spoken-messages/walk1`..`walk5`):
@@ -29,7 +49,7 @@ null)` (`state/useAnnounceChange.ts`): silent for the first words, speaks each c
       cleared" when Esc elsewhere changes the selection.
     - A receipt speaks "Shape: 6 changed" from an effect keyed on the receipt; its buttons are
       outside the words.
-1. (2026-10-17, focus after adding, graphty + compact-mantine) One rule picks where focus goes in
+3. (2026-10-17, focus after adding, graphty + compact-mantine) One rule picks where focus goes in
    a line or card just drawn: `keystrokeTarget` in `style/useFocusLine.ts` -- its first box that
    takes typing (`input` not read-only, hidden, checkbox or radio), else its first control. Every
    add path (section "+", folder "+", Edge tab, "One value for all", Undo) and new condition cards
@@ -55,7 +75,7 @@ null)` (`state/useAnnounceChange.ts`): silent for the first words, speaks each c
     - Pre-existing, not mine: compact-mantine `tests/figma/overlays.browser.test.tsx` two tooltip
       tests fail with HEAD's listbox too; several style real-element tests fail on other agents'
       uncommitted renames ("Find a value", vary button label, Which row label).
-2. (2026-10-17, color box, compact-mantine) Built and checked with real.mjs on a fresh build
+4. (2026-10-17, color box, compact-mantine) Built and checked with real.mjs on a fresh build
    (`design/ui/studio/tmp/r1-dry1-color-box/walk1`, `walk2`):
     - Escape in every color text box reverts AND keeps focus, value selected
       (`revertOnEscape` in `components/color/escape.ts`; `flushSync(revert)` before `select()`, or
@@ -74,7 +94,7 @@ null)` (`state/useAnnounceChange.ts`): silent for the first words, speaks each c
       (hex); naming them in words would need a names list from the caller.
     - Pre-existing, not mine: `tests/figma/tree.browser.test.tsx` "toggles: 24px targets" fails
       on this branch (x 184, expected 188); nothing in the tree changed in this work.
-3. (2026-10-17, drawing and camera, commits ceeea1028 element, 6b160deb5 app) Built and checked
+5. (2026-10-17, drawing and camera, commits ceeea1028 element, 6b160deb5 app) Built and checked
    on a fresh build with real.mjs (`design/ui/studio/tmp/r1-dry1-drawing-and-camera/`):
     - Removing a channel repaints: `nodePaintOf` (StylePainter) gave `color: null` for "no layer
       paints a color" and `Node.applyInstanceColor` skipped the write, so the instance kept the
@@ -106,40 +126,44 @@ null)` (`state/useAnnounceChange.ts`): silent for the first words, speaks each c
       unit's) but nothing moved, with or without a selection. Do not guess a mechanism.
     - NOT built: a data-column binding (not a run, not Vary by Layer) with more groups than its
       palette still gets the element's default; the reader picks Kelly in the palette select.
-4. (2026-10-17) Opened projects lost their rows: anything keyed by a layer id that a document
+6. (2026-10-17) Opened projects lost their rows: anything keyed by a layer id that a document
    carries must be remapped on apply (`documentRowKeys`, commit 619ce32be).
-5. (2026-10-17) Combined Style panel (V7 tabs, condition cards, several layers) is built; files
+7. (2026-10-17) Combined Style panel (V7 tabs, condition cards, several layers) is built; files
    `style/cards.ts`, `style/WhichPicker.tsx`, `RowStyle` in `StylePanel.tsx`. A controlled text
    field never round-trips through the element; one undo step per open is
    `TransactionOptions.after`. Not built: number card histogram for a run field, "lowest N",
    dashed chips at rest.
-6. One BoundValue for one layer and for several layers (owner decision 2026-10-16); Layer is a
+8. One BoundValue for one layer and for several layers (owner decision 2026-10-16); Layer is a
    temporary value, a data field is copied as is. Vary by Layer uses the same group list as a
    data value (`GroupRows`, `styles.layerGroups`).
-7. Shared worktree: other agents commit beside me. Stage only my files; build commits from HEAD
+9. Shared worktree: other agents commit beside me. Stage only my files; build commits from HEAD
    plus my hunks when a file is shared; re-check `git diff` on a shared file right before
    committing. Never `git stash` (not even `list`) in this repo's agents.
-8. Prove a test fails without the change: copy the fixed file aside, `git show HEAD:<file>` over
-   it, run the test, copy back. Check a "passes without the fix" test before trusting it (the
-   histogram test passed on HEAD at 8 bins because 16/8 happened to be whole).
-9. graphty tests read compact-mantine from its `dist` and graphty-element from source; rebuild
-   the app (`pnpm exec nx run graphty:build`, Sentry vars unset) before a real.mjs walk; a
-   session serves the dist it started on, so end and start again after a rebuild.
-10. API changes: additive ones go in `owner-decisions.md` under "decided by the team" with the
+10. Prove a test fails without the change: copy the fixed file aside, `git show HEAD:<file>` over
+    it, run the test, copy back. Check a "passes without the fix" test before trusting it (the
+    histogram test passed on HEAD at 8 bins because 16/8 happened to be whole).
+11. graphty tests read compact-mantine from its `dist` and graphty-element from source; rebuild
+    the app (`pnpm exec nx run graphty:build`, Sentry vars unset) before a real.mjs walk; a
+    session serves the dist it started on, so end and start again after a rebuild.
+12. API changes: additive ones go in `owner-decisions.md` under "decided by the team" with the
     name and shape; a changed default or a renamed or removed member goes "for the owner". A new
     Graph or element member needs `doors.ts` and `test/cost-coverage/method-classes.ts` lines,
     `npm run api:report` after a build, and `jsx.ts` regenerated by the build.
-11. Element facts worth citing: layers paint one kind (a row is two parts); selectors everything,
+13. Element facts worth citing: layers paint one kind (a row is two parts); selectors everything,
     expression, has, ids, top, member, rule, state; a user layer that sets nothing is refused
     (`E_BAD_LAYER`); Top N takes a tie group whole; `data.histogram` takes data columns only, a
     run field uses `run.result.histogram`.
-12. Study tool: `real.mjs --start <dir> empty|setup:<file>` through its own browser slot;
+14. Study tool: `real.mjs --start <dir> empty|setup:<file>` through its own browser slot;
     `--click "role=<role>:<name>"` for shared names; step N lands in screenshot N+1; `--end`
     always. Compare screenshots with PIL `ImageChops.difference(...).getbbox()` on the canvas
     crop (`(300,120,1195,835)` at 1440 x 900) before calling a drawing unchanged.
 
 ## Decisions and reasons
 
+- (2026-10-17) **A typed number is the reader's until the card can take it.** A box that holds no
+  number, or a range the element would refuse, keeps its text, says why and writes nothing; a
+  value is never rewritten into another number (0) behind the reader. Leaving a box the card took
+  shows the number it holds; leaving a refused box keeps the text.
 - (2026-10-17) **One status line, on the page before it speaks; a control's opening count is not
   news; a zero or loading state is never said.** Evidence: the pilots' --sr transcripts marked
   "Usage data stays off", "24 of 24", "0 of 0 rows", "No match" and the bulk receipt as arriving
@@ -202,6 +226,13 @@ null)` (`state/useAnnounceChange.ts`): silent for the first words, speaks each c
 
 ## Tried: worked / did not work
 
+- (2026-10-17) WORKED: proving a fix in a file other agents had edited: build "theirs" as the
+  working file with only my blocks swapped back to HEAD's, check that `diff HEAD theirs` plus my
+  hunks equals `git diff HEAD`, swap, run, restore only if the file is still byte-equal to what was
+  swapped in. Stage HEAD plus `diff -u theirs mine` as a blob. Run prettier on the staged blob:
+  the pre-commit hook skips a file with unstaged changes.
+- (2026-10-17) DID NOT WORK: a notes edit keyed on the first item's text; another agent had added
+  a "0." item above it. Insert under the heading and renumber the whole list.
 - (2026-10-17) WORKED: reaching a deep state for a --sr walk with a setup file of clicks (setup
   clicks run even in screen-reader mode); `--key Escape` in a setup can close a form the pointer
   walk needed open, so pilot the setup on a pointer session first.

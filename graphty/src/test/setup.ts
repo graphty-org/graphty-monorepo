@@ -3,7 +3,7 @@ import "@testing-library/jest-dom";
 import "@mantine/core/styles.css";
 
 import { cleanup } from "@testing-library/react";
-import { afterEach, vi } from "vitest";
+import { afterEach, beforeAll, vi } from "vitest";
 
 import { loadFrame } from "../workspace/frameLoader";
 
@@ -13,8 +13,13 @@ import { loadFrame } from "../workspace/frameLoader";
 vi.mock("../elementLoader", () => ({ loadGraphtyElement: () => Promise.resolve() }));
 
 // The project frame loads on demand in the app (workspace/frameLoader.ts); a test has it from the
-// start, so a project it opens shows at once.
-await loadFrame();
+// start, so a project it opens shows at once. Loaded before the file's tests and after its imports,
+// so the file's own module mocks (Sentry's, most of all) are the ones the frame gets.
+// A file that mocks a module the frame needs, and never opens a project, cannot load it, and does
+// not need it.
+beforeAll(async () => {
+    await loadFrame().catch(() => undefined);
+});
 
 // Strict state: every graphty-element these tests create checks that its project state changes
 // only through the element's dispatcher. Set before any test file loads the element, which reads

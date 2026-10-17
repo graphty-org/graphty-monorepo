@@ -38,5 +38,6 @@ except:
 - Draws differently on each load: `json-cyjs-synth-edges` (its group boxes) and `gml-bionetgen-ruleviz-pattern`
   (two captures of its story differ), left out until that is fixed.
 
-`stories/Fidelity.stories.ts` lists one story per sample. To add one, put its picture at
-`references/<sample id>.png`, add a row to `references/SOURCES.md`, and add the story.
+The stories are grouped by format, one file per format under `stories/` (`Gml.stories.ts` is "Style Fidelity/GML"),
+one story per sample, named for the sample without its format. To add one, put its picture at
+`references/<sample id>.png`, add a row to `references/SOURCES.md`, and add the story to its format's file.

@@ -210,7 +210,7 @@ const NO_PICTURE: Readonly<Record<string, string>> = {
 const ALL: readonly FidelitySample[] = [...SAMPLES, ...CORPUS_SAMPLES];
 
 /**
- * A story for one sample.
+ * A story for one sample; its stories file names it, without the format its folder already says.
  * @param id - the sample's id (its directory under test/fidelity/scenes/)
  * @param fileUrl - the sample file, imported with `?url`
  * @returns the story
@@ -220,5 +220,5 @@ export function fidelityStory(id: string, fileUrl: string): StoryObj {
     if (sample === undefined) {
         throw new Error(`${id} is not a fidelity sample`);
     }
-    return { name: id, render: () => render(sample, fileUrl) };
+    return { render: () => render(sample, fileUrl) };
 }

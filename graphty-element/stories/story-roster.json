@@ -67,6 +67,7 @@
         "Extending/Simple tier/Logging::LayoutLogPanel",
         "Extending/Simple tier/Palette::BrandPalettes",
         "Graphty::graphty",
+        "Labels::CardDrawing",
         "Layout/2D::Arf",
         "Layout/2D::Bfs",
         "Layout/2D::Bipartite",

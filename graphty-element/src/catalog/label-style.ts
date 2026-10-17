@@ -109,17 +109,6 @@ export interface LabelStyle {
     /** Which way a linear gradient runs. */
     gradientDirection?: LabelGradientDirection;
 
-    /** Whether the panel casts a drop shadow. The label grows by the blur and offset so it is not cut off. */
-    panelShadow?: boolean;
-    /** The colour of the panel's shadow. */
-    panelShadowColor?: string;
-    /** How far the panel's shadow is blurred. */
-    panelShadowBlur?: number;
-    /** How far the panel's shadow is thrown to the right. */
-    panelShadowOffsetX?: number;
-    /** How far the panel's shadow is thrown downwards. */
-    panelShadowOffsetY?: number;
-
     /**
      * What {@link LabelStyle.sizePx} measures. `"world"` (the default) sizes the letters on the
      * label's own canvas, so they grow and shrink with the zoom. `"screen"` makes it the height
@@ -178,6 +167,20 @@ export interface LabelStyle {
     shadowOffsetX?: number;
     /** How far the shadow is thrown downwards. */
     shadowOffsetY?: number;
+
+    /**
+     * Whether the panel casts a drop shadow. The label grows by the shadow's blur and offset, so
+     * the shadow is never cut off; the panel stays where it was.
+     */
+    panelShadow?: boolean;
+    /** The color of the panel's shadow. */
+    panelShadowColor?: string;
+    /** How far the panel's shadow is blurred, on the label's own canvas. */
+    panelShadowBlur?: number;
+    /** How far the panel's shadow is thrown to the right. */
+    panelShadowOffsetX?: number;
+    /** How far the panel's shadow is thrown downwards. */
+    panelShadowOffsetY?: number;
 
     /** How the label moves. */
     animation?: LabelAnimation;
@@ -239,11 +242,6 @@ export const LABEL_STYLE_FIELDS: readonly (keyof LabelStyle)[] = Object.keys({
     gradientType: 0,
     gradientColors: 0,
     gradientDirection: 0,
-    panelShadow: 0,
-    panelShadowColor: 0,
-    panelShadowBlur: 0,
-    panelShadowOffsetX: 0,
-    panelShadowOffsetY: 0,
     sizeMode: 0,
     keepInView: 0,
     closeButton: 0,
@@ -266,6 +264,11 @@ export const LABEL_STYLE_FIELDS: readonly (keyof LabelStyle)[] = Object.keys({
     shadowBlur: 0,
     shadowOffsetX: 0,
     shadowOffsetY: 0,
+    panelShadow: 0,
+    panelShadowColor: 0,
+    panelShadowBlur: 0,
+    panelShadowOffsetX: 0,
+    panelShadowOffsetY: 0,
     animation: 0,
     animationSpeed: 0,
     depthFade: 0,

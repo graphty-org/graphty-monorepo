@@ -108,17 +108,15 @@ export const RichTextStyle = z.strictObject({
 
     // Background effects
     backgroundPadding: z.number().default(0).optional(),
+    panelShadow: z.boolean().default(false).optional(),
+    panelShadowColor: ColorStyle.default("rgba(0, 0, 0, 0.3)").optional(),
+    panelShadowBlur: z.number().min(0).default(16).optional(),
+    panelShadowOffsetX: z.number().default(0).optional(),
+    panelShadowOffsetY: z.number().default(6).optional(),
     backgroundGradient: z.boolean().default(false).optional(),
     backgroundGradientType: GradientType.default("linear").optional(),
     backgroundGradientColors: z.array(ColorStyle).optional(),
     backgroundGradientDirection: GradientDirection.default("vertical").optional(),
-
-    // Panel shadow
-    panelShadow: z.boolean().default(false).optional(),
-    panelShadowColor: ColorStyle.default("#00000040").optional(),
-    panelShadowBlur: z.number().default(12).optional(),
-    panelShadowOffsetX: z.number().default(0).optional(),
-    panelShadowOffsetY: z.number().default(4).optional(),
 
     // Screen fit and close
     sizeMode: z.enum(["world", "screen"]).default("world").optional(),

@@ -174,9 +174,19 @@ export interface EdgeStyleValues {
      * The points the edge's route passes through between its two nodes, each as `along,across` relative to the line
      * from the source node's center to the target's (`along` the fraction of the way along it, `across` the distance
      * to its left, y up, as a fraction of its length), separated by spaces: `"0,-0.5 1,-0.5"`. Drawn as straight
-     * segments through them, with rounded corners when `curved`.
+     * segments through them, with rounded corners when `curved`. A self-loop has no line between two centers, so its
+     * points are written as `sourcePort` is, relative to its node's center and size.
      */
     readonly bends: string;
+    /**
+     * Where the edge leaves its source node, when not at its center: `x,y` relative to the node's center as fractions
+     * of its half width and half height, y up (`"1,0"` is the middle of its right side, `"0,1"` of its top), so the
+     * point stays on the same spot of the node at any size. The line runs from that point instead of from where the
+     * line from the center crosses the node's outline.
+     */
+    readonly sourcePort: string;
+    /** Where the edge meets its target node, when not at its center: written as `sourcePort` is. */
+    readonly targetPort: string;
     /** The label text. */
     readonly label: string;
     /** The tooltip text. */

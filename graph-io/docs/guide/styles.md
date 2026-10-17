@@ -176,6 +176,8 @@ is kept as `other:<the file's spelling>` and noted.
 | `targetArrow`      |       | yes   |       | `none`, `triangle`, `triangle-open`, `vee`, `tee`, `diamond`, `diamond-open`, `circle`, `circle-open`, `square`, `crow`, `half`, `inverted`             |
 | `curved`           |       | yes   |       | true or false                                                                                                                                           |
 | `bends`            |       | yes   |       | text                                                                                                                                                    |
+| `sourcePort`       |       | yes   |       | text                                                                                                                                                    |
+| `targetPort`       |       | yes   |       | text                                                                                                                                                    |
 | `sourceLabel`      |       | yes   |       | text                                                                                                                                                    |
 | `targetLabel`      |       | yes   |       | text                                                                                                                                                    |
 | `background`       |       |       | yes   | a color, `#rrggbb`                                                                                                                                      |

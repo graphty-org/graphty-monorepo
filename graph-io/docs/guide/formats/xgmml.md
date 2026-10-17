@@ -140,7 +140,7 @@ the graph attribute `graphty.styles`. Without the `styles` option, a save writes
 | Edge properties written             | `color`, `opacity`, `width`, `lineStyle`, `sourceArrow`, `targetArrow`, `sourceArrowColor`, `targetArrowColor`, `curved`, `label`, `labelColor`, `labelSize`, `tooltip`, `visible`, `labelFont`, `labelWeight`, `labelItalic`                           |
 | Graph properties written            | `background`                                                                                                                                                                                                                                            |
 | Rules kept for graphty              | yes, as the `graphty.styles` graph attribute                                                                                                                                                                                                            |
-| Not written (`W_STYLE_NOT_WRITTEN`) | node: `opacity`, `cornerRadius`, `image`; edge: `arrowSize`, `bends`, `sourceLabel`, `targetLabel`                                                                                                                                                      |
+| Not written (`W_STYLE_NOT_WRITTEN`) | node: `opacity`, `cornerRadius`, `image`; edge: `arrowSize`, `bends`, `sourcePort`, `targetPort`, `sourceLabel`, `targetLabel`                                                                                                                          |
 
 <!-- generated:end -->
 

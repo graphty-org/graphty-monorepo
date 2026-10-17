@@ -11,7 +11,15 @@ import type { GraphSnapshot } from "@graphty/graph-format";
 
 import { toFilePositions, toNeutral } from "../../positions/convert.js";
 import type { PositionColumnExtra } from "../../positions/types.js";
-import { type BendPoint, bendsToPoints, canonBends } from "../../styles/canon/bends.js";
+import {
+    type BendPoint,
+    bendsToPoints,
+    canonBends,
+    canonNodeOffsets,
+    flattenCubic,
+    flattenQuadSpline,
+    nodeOffsetsToPoints,
+} from "../../styles/canon/bends.js";
 import { canonColor, colorOpacity } from "../../styles/canon/color.js";
 import { canonEnum } from "../../styles/canon/enums.js";
 import { canonNumber } from "../../styles/canon/number.js";
@@ -532,8 +540,9 @@ function readEdge(real: Realizer, put: PutValue, at: SiteOf): void {
 }
 
 /**
- * Whether yEd draws an edge curved: an arc always; a Bezier, quad curve, spline or generic edge only through its
- * control points (with none it is a straight line); a polyline only when it smooths bends it has.
+ * Whether yEd draws an edge curved: an arc always; a Bezier, quad curve or spline only through its control points
+ * (with none it is a straight line); a polyline, and a generic edge (a framed or styled polyline), only when it smooths
+ * bends it has.
  * @param real - the edge realizer
  * @returns true when curved, null when a polyline does not say whether it smooths
  */
@@ -542,7 +551,7 @@ function edgeCurved(real: Realizer): boolean | null {
         return true;
     }
     const bent = treeChildren(treeChild(real.r, "Path"), "Point").length > 0;
-    if (real.type !== "PolyLineEdge") {
+    if (real.type !== "PolyLineEdge" && real.type !== "GenericEdge") {
         return bent;
     }
     const smoothed = treeAttr(treeChild(real.r, "BendStyle"), "smoothed");
@@ -550,22 +559,51 @@ function edgeCurved(real: Realizer): boolean | null {
 }
 
 /**
- * An edge's bends: the points of its `y:Path`, relative to the centers of its two nodes. yEd draws a polyline through
- * them; a curve type (Bezier, quad curve, spline) passes near them as its control points.
+ * An edge's route from its `y:Path`: the ports its ends attach at (`sx sy`, `tx ty`: offsets from the node centers),
+ * relative to each node's size, and its bends, relative to the centers of its two nodes (a self-loop's to its node's
+ * size). yEd draws a polyline, an arc or a spline through the points; a Bezier or quad curve edge takes them as
+ * control points its curve does not pass through, so its curve is flattened into the points it does pass through.
  * @param real - the edge realizer
- * @param centers - each node's center, x and y
+ * @param nodes - each node's center x and y, width and height
  * @param source - the source node's index
  * @param target - the target node's index
- * @returns the `bends` value, or null without bends
+ * @param put - receives the values
  */
-function edgeBends(real: Realizer, centers: Float64Array, source: number, target: number): string | null {
-    const points = treeChildren(treeChild(real.r, "Path"), "Point").map((p): BendPoint => [
+function readEdgeRoute(real: Realizer, nodes: Float64Array, source: number, target: number, put: PutValue): void {
+    const path = treeChild(real.r, "Path");
+    const at = (k: number): BendPoint => [nodes[4 * k], nodes[4 * k + 1]];
+    const size = (k: number): BendPoint => [nodes[4 * k + 2], nodes[4 * k + 3]];
+    const offset = (key: string): number => Number(treeAttr(path, key) ?? 0) || 0;
+    const ends: readonly [BendPoint, BendPoint] = [
+        [at(source)[0] + offset("sx"), at(source)[1] + offset("sy")],
+        [at(target)[0] + offset("tx"), at(target)[1] + offset("ty")],
+    ];
+    const port = (k: number, end: BendPoint): string | null =>
+        end[0] === at(k)[0] && end[1] === at(k)[1] ? null : canonNodeOffsets(at(k), size(k), [end], true);
+    put("sourcePort", port(source, ends[0]));
+    put("targetPort", port(target, ends[1]));
+    let points = treeChildren(path, "Point").map((p): BendPoint => [
         Number(treeAttr(p, "x")),
         Number(treeAttr(p, "y")),
     ]);
-    const at = (k: number): BendPoint => [centers[2 * k], centers[2 * k + 1]];
-    return canonBends(at(source), at(target), points, true);
+    if (points.length > 0 && (real.type === "BezierEdge" || real.type === "QuadCurveEdge")) {
+        const controls = [ends[0], ...points, ends[1]];
+        const curve =
+            real.type === "BezierEdge"
+                ? flattenCubic(controls)
+                : flattenQuadSpline(controls, Number(treeAttr(real.r, "straightness") ?? YED_STRAIGHTNESS));
+        points = (curve ?? controls).slice(1, -1);
+    }
+    put(
+        "bends",
+        source === target
+            ? canonNodeOffsets(at(source), size(source), points, true)
+            : canonBends(at(source), at(target), points, true),
+    );
 }
+
+/** yEd's quad curve straightness when a file gives none. */
+const YED_STRAIGHTNESS = 0.1;
 
 /** Canonical values per property, by element index. */
 export type ValueColumns = Record<string, (StyleValue | null)[]>;
@@ -608,8 +646,8 @@ export interface YedRead {
  */
 export function readYedStyles(snapshot: GraphSnapshot, notes: StyleNotes, budget: StyleWorkBudget): YedRead | null {
     let found = false;
-    // each node's center, read with the node, for its edges' bends; NaN for a node without yEd graphics
-    const centers = new Float64Array(2 * snapshot.nodeCount).fill(Number.NaN);
+    // each node's center, width and height, read with the node, for its edges' routes; NaN without yEd graphics
+    const boxes = new Float64Array(4 * snapshot.nodeCount).fill(Number.NaN);
     const read = (target: StyleTarget): ValueColumns => {
         const table = target === "node" ? snapshot.nodes : snapshot.edges;
         const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
@@ -636,11 +674,14 @@ export function readYedStyles(snapshot: GraphSnapshot, notes: StyleNotes, budget
             if (target === "node") {
                 readNode(real, put, at);
                 const geometry = treeChild(real.r, "Geometry");
-                centers[2 * i] = Number(treeAttr(geometry, "x")) + Number(treeAttr(geometry, "width")) / 2;
-                centers[2 * i + 1] = Number(treeAttr(geometry, "y")) + Number(treeAttr(geometry, "height")) / 2;
+                const [w, h] = [Number(treeAttr(geometry, "width")), Number(treeAttr(geometry, "height"))];
+                boxes.set(
+                    [Number(treeAttr(geometry, "x")) + w / 2, Number(treeAttr(geometry, "y")) + h / 2, w, h],
+                    4 * i,
+                );
             } else {
                 readEdge(real, put, at);
-                put("bends", edgeBends(real, centers, snapshot.edgeSource(i), snapshot.edgeTarget(i)));
+                readEdgeRoute(real, boxes, snapshot.edgeSource(i), snapshot.edgeTarget(i), put);
             }
         }
         return out.values;
@@ -684,6 +725,8 @@ export const GRAPHML_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze(
         "targetArrow",
         "curved",
         "bends",
+        "sourcePort",
+        "targetPort",
         "label",
         "labelColor",
         "labelSize",
@@ -1117,25 +1160,44 @@ function keptPath(table: GraphSnapshot["edges"], columns: readonly string[], e: 
     return undefined;
 }
 
+/** A written node's center and its width and height. */
+type WrittenBox = readonly [center: BendPoint, size: BendPoint];
+
 /**
- * An edge's `y:Path` with its points placed from its `bends` value between the written node centers, so the bends
- * read back as written; the ports of the path it had are kept. Without a value, or without both centers, the path it
- * had.
+ * An edge's `y:Path` with its points placed from its `bends` value between the written node centers (a self-loop's
+ * around its node) and its ports from its `sourcePort` and `targetPort`, so they read back as written; a port with no
+ * value keeps the one of the path it had. Without a bend or port value, or without both centers, the path it had.
  * @param kept - the path from the graphics the edge had, or undefined
- * @param bends - the edge's `bends` value
- * @param ends - the written centers of its source and target
+ * @param get - the edge's values
+ * @param ends - the written boxes of its source and target
+ * @param loop - whether the edge is a self-loop
  * @returns the path, or undefined
  */
-function pathWithBends(kept: unknown, bends: StyleValue | null, ends: readonly [BendPoint, BendPoint]): unknown {
-    const points = typeof bends === "string" ? bendsToPoints(ends[0], ends[1], bends, true) : null;
-    if (points === null) {
+function pathWithRoute(kept: unknown, get: GetValue, ends: readonly [WrittenBox, WrittenBox], loop: boolean): unknown {
+    const bends = get("bends");
+    const [[c0, size0], [c1]] = ends;
+    let points: BendPoint[] | null = null;
+    if (typeof bends === "string") {
+        points = loop ? nodeOffsetsToPoints(c0, size0, bends, true) : bendsToPoints(c0, c1, bends, true);
+    }
+    const ports = (["sourcePort", "targetPort"] as const).map((property, k) => {
+        const value = get(property);
+        const [center, size] = ends[k];
+        const at = typeof value === "string" ? nodeOffsetsToPoints(center, size, value, true) : null;
+        return at === null ? null : [at[0][0] - center[0], at[0][1] - center[1]];
+    });
+    if (points === null && ports.every((p) => p === null)) {
         return kept;
     }
     const path: Tree = {};
-    for (const port of ["sx", "sy", "tx", "ty"]) {
-        path[`@_${port}`] = treeAttr(kept, port) ?? "0.0";
-    }
-    path["y:Point"] = points.map(([x, y]) => ({ "@_x": String(x), "@_y": String(y) }));
+    ["sx", "sy", "tx", "ty"].forEach((key, k) => {
+        const port = ports[k >> 1];
+        path[`@_${key}`] = port === null ? (treeAttr(kept, key) ?? "0.0") : String(port[k & 1]);
+    });
+    const written =
+        points ??
+        treeChildren(kept, "Point").map((q): BendPoint => [Number(treeAttr(q, "x")), Number(treeAttr(q, "y"))]);
+    path["y:Point"] = written.map(([x, y]) => ({ "@_x": String(x), "@_y": String(y) }));
     return path;
 }
 
@@ -1189,19 +1251,24 @@ export function graphmlStyledExport(
         const at = keptPosition(snapshot.nodes, nodeColumns, i) ?? columnPosition(snapshot, i, get);
         nodeTrees.push(shapeNodeTree(get, at, approximateFor("node")));
     }
-    const centers = nodeTrees.map((tree): BendPoint => {
+    const boxes = nodeTrees.map((tree): WrittenBox => {
         const geometry = treeChild(treeChild(tree, "ShapeNode"), "Geometry");
         const at = (k: string): number => Number(treeAttr(geometry, k) ?? Number.NaN);
-        return [at("x") + at("width") / 2, at("y") + at("height") / 2];
+        return [
+            [at("x") + at("width") / 2, at("y") + at("height") / 2],
+            [at("width"), at("height")],
+        ];
     });
     const edgeTrees: (Tree | null)[] = [];
     for (let e = 0; e < snapshot.edgeCount; e++) {
         const get = getEdge(e);
-        const ends: readonly [BendPoint, BendPoint] = [
-            centers[snapshot.edgeSource(e)],
-            centers[snapshot.edgeTarget(e)],
-        ];
-        const path = pathWithBends(keptPath(snapshot.edges, edgeColumns, e), get("bends"), ends);
+        const [source, target] = [snapshot.edgeSource(e), snapshot.edgeTarget(e)];
+        const path = pathWithRoute(
+            keptPath(snapshot.edges, edgeColumns, e),
+            get,
+            [boxes[source], boxes[target]],
+            source === target,
+        );
         edgeTrees.push(polyLineEdgeTree(get, path, approximateFor("edge")));
     }
     const out = snapshot.withColumns();

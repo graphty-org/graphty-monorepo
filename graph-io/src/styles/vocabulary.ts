@@ -74,6 +74,8 @@ export const STYLE_PROPERTIES: {
         ["targetArrow", "arrow"],
         ["curved", "boolean"],
         ["bends", "text"],
+        ["sourcePort", "text"],
+        ["targetPort", "text"],
         ["label", "text"],
         ["tooltip", "text"],
         ["labelFont", "text"],

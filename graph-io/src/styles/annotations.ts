@@ -38,6 +38,7 @@ export interface AnnotationBase {
  * @category Styles
  */
 export interface ShapeAnnotation extends AnnotationBase {
+    /** Which kind of annotation this is: always "shape". */
     readonly kind: "shape";
     /** The box's center. */
     readonly center: AnnotationPoint;
@@ -64,6 +65,7 @@ export interface ShapeAnnotation extends AnnotationBase {
  * @category Styles
  */
 export interface TextAnnotation extends AnnotationBase {
+    /** Which kind of annotation this is: always "text". */
     readonly kind: "text";
     /** The text. */
     readonly text: string;
@@ -90,6 +92,7 @@ export interface TextAnnotation extends AnnotationBase {
  * @category Styles
  */
 export interface ArrowAnnotation extends AnnotationBase {
+    /** Which kind of annotation this is: always "arrow". */
     readonly kind: "arrow";
     /** Where the line starts. */
     readonly from: AnnotationPoint;

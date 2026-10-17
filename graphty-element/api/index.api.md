@@ -970,6 +970,17 @@ export const EdgeStyle: z.ZodObject<{
                 horizontal: "horizontal";
                 diagonal: "diagonal";
             }>>>;
+            panelShadow: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+            panelShadowColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+            panelShadowBlur: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+            panelShadowOffsetX: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+            panelShadowOffsetY: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+            sizeMode: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
+                world: "world";
+                screen: "screen";
+            }>>>;
+            keepInView: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+            closeButton: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
             pointer: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
             pointerDirection: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
                 top: "top";
@@ -1133,6 +1144,17 @@ export const EdgeStyle: z.ZodObject<{
                 horizontal: "horizontal";
                 diagonal: "diagonal";
             }>>>;
+            panelShadow: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+            panelShadowColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+            panelShadowBlur: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+            panelShadowOffsetX: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+            panelShadowOffsetY: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+            sizeMode: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
+                world: "world";
+                screen: "screen";
+            }>>>;
+            keepInView: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+            closeButton: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
             pointer: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
             pointerDirection: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
                 top: "top";
@@ -1295,6 +1317,17 @@ export const EdgeStyle: z.ZodObject<{
             horizontal: "horizontal";
             diagonal: "diagonal";
         }>>>;
+        panelShadow: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+        panelShadowColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+        panelShadowBlur: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        panelShadowOffsetX: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        panelShadowOffsetY: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        sizeMode: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
+            world: "world";
+            screen: "screen";
+        }>>>;
+        keepInView: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+        closeButton: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         pointer: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         pointerDirection: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
             top: "top";
@@ -3278,6 +3311,12 @@ export type NodeIdType = string | number;
 
 // @public
 export interface NodeLabel {
+    readonly closeRect?: {
+        readonly x: number;
+        readonly y: number;
+        readonly width: number;
+        readonly height: number;
+    };
     readonly drawn: boolean;
     readonly text: string;
 }
@@ -3496,6 +3535,17 @@ export const NodeStyle: z.ZodObject<{
             horizontal: "horizontal";
             diagonal: "diagonal";
         }>>>;
+        panelShadow: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+        panelShadowColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+        panelShadowBlur: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        panelShadowOffsetX: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        panelShadowOffsetY: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        sizeMode: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
+            world: "world";
+            screen: "screen";
+        }>>>;
+        keepInView: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+        closeButton: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         pointer: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         pointerDirection: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
             top: "top";
@@ -3638,6 +3688,17 @@ export const NodeStyle: z.ZodObject<{
             horizontal: "horizontal";
             diagonal: "diagonal";
         }>>>;
+        panelShadow: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+        panelShadowColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+        panelShadowBlur: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        panelShadowOffsetX: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        panelShadowOffsetY: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        sizeMode: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
+            world: "world";
+            screen: "screen";
+        }>>>;
+        keepInView: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+        closeButton: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         pointer: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         pointerDirection: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
             top: "top";
@@ -4250,6 +4311,17 @@ export const RichTextStyle: z.ZodObject<{
         horizontal: "horizontal";
         diagonal: "diagonal";
     }>>>;
+    panelShadow: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+    panelShadowColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+    panelShadowBlur: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+    panelShadowOffsetX: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+    panelShadowOffsetY: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+    sizeMode: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
+        world: "world";
+        screen: "screen";
+    }>>>;
+    keepInView: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+    closeButton: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
     pointer: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
     pointerDirection: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
         top: "top";

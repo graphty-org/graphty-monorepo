@@ -76,7 +76,11 @@ export function lineOf(layers: readonly Layer[], channel: Channel): Line | undef
         const layer = layers[i];
         const bound = layer.encode?.[channel];
         if (bound !== undefined) {
-            return "by" in bound ? { layer, binding: bound } : { layer, value: bound.value };
+            if ("by" in bound) {
+                return { layer, binding: bound };
+            }
+            // A text template is neither one value nor one data binding: the row sets it, nothing more.
+            return "value" in bound ? { layer, value: bound.value } : { layer };
         }
         const value = layer.set?.[channel];
         if (value !== undefined) {

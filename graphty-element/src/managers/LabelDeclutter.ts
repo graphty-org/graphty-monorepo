@@ -51,6 +51,11 @@ export interface NodeLabel {
      * true, as it does in {@link NodeLabelCounts}.
      */
     readonly drawn: boolean;
+    /**
+     * Where the label's close button (`labelStyle.closeButton`) is on screen, in CSS pixels from
+     * the top-left corner of the element's canvas. Absent when the label draws no close button.
+     */
+    readonly closeRect?: { readonly x: number; readonly y: number; readonly width: number; readonly height: number };
 }
 
 /** The counts before any label is drawn. */

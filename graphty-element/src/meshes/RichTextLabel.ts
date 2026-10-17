@@ -15,6 +15,8 @@ import { BadgeStyleManager } from "../BadgeStyleManager";
 import { type RichTextStyleType } from "../config";
 import { FrameRoster } from "./FrameRoster";
 import { buildMaterial, deferLabelRelease, giveAlphaQuietly, setUpQuietly } from "./LabelBatch";
+import { closeGlyphSize, drawCloseGlyph, type LabelCanvasRect } from "./labelClose";
+import { labelScreenFit } from "./labelScreenFit";
 import { type ContentArea as PointerContentArea, type PointerDirection, PointerRenderer } from "./PointerRenderer";
 import { RichTextAnimator } from "./RichTextAnimator";
 import { measureLine, RichTextParser } from "./RichTextParser";
@@ -176,6 +178,8 @@ export class RichTextLabel {
     /** Ends this label's depth fade; see {@link depthFadeFrames}. */
     private stopDepthFade: (() => void) | null = null;
     private animationStarted = false;
+    /** Where the close button sits on the label's canvas; null when it draws none. */
+    private closeRect: LabelCanvasRect | null = null;
 
     /**
      * Factory method to create a rich text label
@@ -251,6 +255,14 @@ export class RichTextLabel {
             smartOverflow: false,
             maxNumber: 999,
             overflowSuffix: "+",
+            panelShadow: false,
+            panelShadowColor: "#00000040",
+            panelShadowBlur: 12,
+            panelShadowOffsetX: 0,
+            panelShadowOffsetY: 4,
+            sizeMode: "world",
+            keepInView: false,
+            closeButton: false,
             _badgeType: undefined,
             _smartSizing: undefined,
             _paddingRatio: undefined,
@@ -343,6 +355,8 @@ export class RichTextLabel {
         if (this.options.depthFadeEnabled) {
             this._setupDepthFading();
         }
+
+        labelScreenFit(this);
 
         // Don't start animations immediately - wait for startAnimation() to be called
         // This allows the layout to settle before animations begin
@@ -443,6 +457,17 @@ export class RichTextLabel {
                 this.contentArea.x += extraWidth / 2;
             }
         }
+
+        const closeSize = closeGlyphSize(this.options);
+        this.closeRect =
+            closeSize > 0
+                ? {
+                      x: this.contentArea.x + this.contentArea.width - closeSize,
+                      y: this.contentArea.y,
+                      width: closeSize,
+                      height: closeSize,
+                  }
+                : null;
     }
 
     private _calculatePointerDimensions(): void {
@@ -544,6 +569,10 @@ export class RichTextLabel {
         }
 
         this.renderer.drawText(ctx, this.parsedContent, textArea);
+
+        if (this.closeRect !== null) {
+            drawCloseGlyph(ctx, this.closeRect);
+        }
 
         ctx.restore();
         this.texture.update();

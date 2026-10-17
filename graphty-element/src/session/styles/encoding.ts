@@ -1549,5 +1549,12 @@ export function prepareBinding(options: PrepareBindingOptions): PreparedBinding 
     const descriptor = requireChannel(options.channel);
     const { binding } = options;
 
+    if ("template" in binding) {
+        // ponytail: refused until the text-template piece lands; Layer.checkBinding refuses it first.
+        throw badBinding(`${descriptor.plainName} cannot be built from a template yet.`, {
+            channel: descriptor.channel,
+        });
+    }
+
     return "value" in binding ? prepareLiteral(descriptor, binding) : prepareRule(descriptor, binding, options);
 }

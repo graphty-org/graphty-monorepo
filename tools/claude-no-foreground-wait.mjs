@@ -22,8 +22,12 @@ function seconds(args) {
         return Infinity;
     }
     let total = 0;
-    for (const [, n, unit] of args.matchAll(/(\d+(?:\.\d+)?)([smhd]?)/g)) {
-        total += Number(n) * UNIT[unit || "s"];
+    for (const token of args.trim().split(/\s+/)) {
+        const match = /^(\d+(?:\.\d+)?)([smhd]?)$/.exec(token);
+        if (!match) {
+            break;
+        }
+        total += Number(match[1]) * UNIT[match[2] || "s"];
     }
     return total;
 }
@@ -45,11 +49,16 @@ export function waitIn(input) {
     if (/\bgh\s+run\s+watch\b/.test(command) || /\bgh\s+pr\s+checks\b[^;&|\n]*--watch\b/.test(command)) {
         return "a gh watch";
     }
-    if (/(?:^|[;&|({\n]|\b(?:do|then|else)\b)\s*watch\s/.test(command)) {
+    const commandWords = command.split(/[;&|({\n]/).map((part) => part.trim().split(/\s+/));
+    if (
+        commandWords.some(
+            (words) => words[0] === "watch" || (["do", "then", "else"].includes(words[0]) && words[1] === "watch"),
+        )
+    ) {
         return "watch";
     }
     let total = 0;
-    for (const [, sleepArgs] of command.matchAll(/\bsleep\s+((?:\d+(?:\.\d+)?[smhd]?\s*)+|inf\w*)/g)) {
+    for (const [, sleepArgs] of command.matchAll(/\bsleep\s+([^;&|\n)]*)/g)) {
         total += seconds(sleepArgs);
     }
     return total >= LIMIT ? `sleeps of ${total} s` : null;

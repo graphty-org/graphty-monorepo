@@ -349,6 +349,9 @@ describe("SelectionManager", () => {
                     this.hovered = id;
                     told.push(id);
                 },
+                clear(): void {
+                    this.hovered = null;
+                },
             };
             return { selection: selection as unknown as SelectionOwner, told };
         }

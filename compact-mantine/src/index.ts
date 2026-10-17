@@ -22,7 +22,6 @@ export {
 export { CompactColorInput } from "./components/CompactColorInput";
 export { ControlGroup } from "./components/ControlGroup";
 export { ControlSection } from "./components/ControlSection";
-export { ControlSubGroup } from "./components/ControlSubGroup";
 export { DataTable } from "./components/DataTable";
 export { GradientEditor } from "./components/GradientEditor";
 export { InfoCircle } from "./components/InfoCircle";
@@ -36,8 +35,6 @@ export {
 } from "./components/popout";
 export { ScrollArea, type ScrollAreaProps } from "./components/ScrollArea";
 export { SegmentedControl } from "./components/SegmentedControl";
-export { StyleNumberInput } from "./components/StyleNumberInput";
-export { StyleSelect } from "./components/StyleSelect";
 export { ToggleWithContent } from "./components/ToggleWithContent";
 
 // Buttons: the toggle icon button and the split button (design/figma-spec.md 4.4, 4.5).
@@ -108,6 +105,7 @@ export {
     ProseBlock,
     RampRow,
     RankChip,
+    ResetButton,
     SparklineRow,
     ToggleRow,
     ToggleRowGroup,
@@ -195,7 +193,6 @@ export type {
     CompoundSegment,
     ControlGroupProps,
     ControlSectionProps,
-    ControlSubGroupProps,
     DataRowHeaderProps,
     DataRowProps,
     DataRowSortDirection,
@@ -249,10 +246,8 @@ export type {
     ProseBlockProps,
     RampRowProps,
     RankChipProps,
+    ResetButtonProps,
     SparklineRowProps,
-    StyleNumberInputProps,
-    StyleSelectOption,
-    StyleSelectProps,
     ToggleRowGroupProps,
     ToggleRowProps,
     ToggleWithContentProps,

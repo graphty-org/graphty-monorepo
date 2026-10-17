@@ -1,3 +1,13 @@
+## 0.9.27 (2026-10-17)
+
+### 🚀 Features
+
+- **compact-mantine:** replace legacy number, select and fold controls with Figma rows ([968d8fd6b](https://github.com/graphty-org/graphty-monorepo/commit/968d8fd6b))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.9.26 (2026-10-16)
 
 ### 🩹 Fixes

@@ -831,6 +831,10 @@ type PutRow = (p: string, v: StyleValue | null) => void;
 function visNodeValues(layer: VisLayer, sized: boolean, put: PutRow, site: (property: string) => CanonSite): void {
     if (layer.shape !== undefined) {
         put("shape", canonEnum("shape", layer.shape, "vis", site("shape")));
+        // vis-network draws a label inside the shapes sized by their label and below the shapes sized by `size`
+        if (typeof layer.shape === "string") {
+            put("labelPosition", VIS_SIZED.has(layer.shape) ? "bottom" : "center");
+        }
     }
     if (sized && layer.size !== undefined) {
         const v = canonNumber(layer.size, site("width"));
@@ -1259,6 +1263,13 @@ const VIS_WRITTEN: Written = {
             }
             const site = { notes: new StyleNotes(), target: "node" as const, property: "shape" };
             return canonEnum("shape", visShape(s)[0], "vis", site);
+        },
+        labelPosition: (want) => {
+            const s = want("shape");
+            if (typeof s !== "string") {
+                return null;
+            }
+            return VIS_SIZED.has(visShape(s)[0]) ? "bottom" : "center";
         },
     },
     edge: {

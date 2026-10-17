@@ -234,6 +234,11 @@ export const EdgeStyle: z.ZodObject<{
                 "bottom-right": "bottom-right";
             }>>;
             attachOffset: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+            sizeMode: z.ZodOptional<z.ZodEnum<{
+                world: "world";
+                screen: "screen";
+            }>>;
+            keepInView: z.ZodOptional<z.ZodBoolean>;
             depthFadeEnabled: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
             depthFadeNear: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             depthFadeFar: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
@@ -267,17 +272,6 @@ export const EdgeStyle: z.ZodObject<{
                 horizontal: "horizontal";
                 diagonal: "diagonal";
             }>>>;
-            panelShadow: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
-            panelShadowColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
-            panelShadowBlur: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
-            panelShadowOffsetX: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
-            panelShadowOffsetY: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
-            sizeMode: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
-                world: "world";
-                screen: "screen";
-            }>>>;
-            keepInView: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
-            closeButton: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
             pointer: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
             pointerDirection: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
                 top: "top";
@@ -414,6 +408,11 @@ export const EdgeStyle: z.ZodObject<{
                 "bottom-right": "bottom-right";
             }>>;
             attachOffset: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+            sizeMode: z.ZodOptional<z.ZodEnum<{
+                world: "world";
+                screen: "screen";
+            }>>;
+            keepInView: z.ZodOptional<z.ZodBoolean>;
             depthFadeEnabled: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
             depthFadeNear: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             depthFadeFar: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
@@ -447,17 +446,6 @@ export const EdgeStyle: z.ZodObject<{
                 horizontal: "horizontal";
                 diagonal: "diagonal";
             }>>>;
-            panelShadow: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
-            panelShadowColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
-            panelShadowBlur: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
-            panelShadowOffsetX: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
-            panelShadowOffsetY: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
-            sizeMode: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
-                world: "world";
-                screen: "screen";
-            }>>>;
-            keepInView: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
-            closeButton: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
             pointer: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
             pointerDirection: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
                 top: "top";
@@ -593,6 +581,11 @@ export const EdgeStyle: z.ZodObject<{
             "bottom-right": "bottom-right";
         }>>;
         attachOffset: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        sizeMode: z.ZodOptional<z.ZodEnum<{
+            world: "world";
+            screen: "screen";
+        }>>;
+        keepInView: z.ZodOptional<z.ZodBoolean>;
         depthFadeEnabled: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         depthFadeNear: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         depthFadeFar: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
@@ -626,17 +619,6 @@ export const EdgeStyle: z.ZodObject<{
             horizontal: "horizontal";
             diagonal: "diagonal";
         }>>>;
-        panelShadow: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
-        panelShadowColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
-        panelShadowBlur: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
-        panelShadowOffsetX: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
-        panelShadowOffsetY: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
-        sizeMode: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
-            world: "world";
-            screen: "screen";
-        }>>>;
-        keepInView: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
-        closeButton: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         pointer: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         pointerDirection: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
             top: "top";
@@ -813,7 +795,7 @@ export interface LabelStyle {
     shadowColor?: string;
     shadowOffsetX?: number;
     shadowOffsetY?: number;
-    sizeMode?: "world" | "screen";
+    sizeMode?: LabelSizeMode;
     sizePx?: number;
     smartOverflow?: boolean;
     textAlign?: LabelTextAlign;
@@ -1038,6 +1020,11 @@ export const NodeStyle: z.ZodObject<{
             "bottom-right": "bottom-right";
         }>>;
         attachOffset: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        sizeMode: z.ZodOptional<z.ZodEnum<{
+            world: "world";
+            screen: "screen";
+        }>>;
+        keepInView: z.ZodOptional<z.ZodBoolean>;
         depthFadeEnabled: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         depthFadeNear: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         depthFadeFar: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
@@ -1071,17 +1058,6 @@ export const NodeStyle: z.ZodObject<{
             horizontal: "horizontal";
             diagonal: "diagonal";
         }>>>;
-        panelShadow: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
-        panelShadowColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
-        panelShadowBlur: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
-        panelShadowOffsetX: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
-        panelShadowOffsetY: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
-        sizeMode: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
-            world: "world";
-            screen: "screen";
-        }>>>;
-        keepInView: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
-        closeButton: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         pointer: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         pointerDirection: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
             top: "top";
@@ -1197,6 +1173,11 @@ export const NodeStyle: z.ZodObject<{
             "bottom-right": "bottom-right";
         }>>;
         attachOffset: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        sizeMode: z.ZodOptional<z.ZodEnum<{
+            world: "world";
+            screen: "screen";
+        }>>;
+        keepInView: z.ZodOptional<z.ZodBoolean>;
         depthFadeEnabled: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         depthFadeNear: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         depthFadeFar: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
@@ -1230,17 +1211,6 @@ export const NodeStyle: z.ZodObject<{
             horizontal: "horizontal";
             diagonal: "diagonal";
         }>>>;
-        panelShadow: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
-        panelShadowColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
-        panelShadowBlur: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
-        panelShadowOffsetX: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
-        panelShadowOffsetY: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
-        sizeMode: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
-            world: "world";
-            screen: "screen";
-        }>>>;
-        keepInView: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
-        closeButton: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         pointer: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         pointerDirection: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
             top: "top";
@@ -1436,6 +1406,11 @@ export const RichTextStyle: z.ZodObject<{
         "bottom-right": "bottom-right";
     }>>;
     attachOffset: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+    sizeMode: z.ZodOptional<z.ZodEnum<{
+        world: "world";
+        screen: "screen";
+    }>>;
+    keepInView: z.ZodOptional<z.ZodBoolean>;
     depthFadeEnabled: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
     depthFadeNear: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
     depthFadeFar: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
@@ -1469,17 +1444,6 @@ export const RichTextStyle: z.ZodObject<{
         horizontal: "horizontal";
         diagonal: "diagonal";
     }>>>;
-    panelShadow: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
-    panelShadowColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
-    panelShadowBlur: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
-    panelShadowOffsetX: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
-    panelShadowOffsetY: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
-    sizeMode: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
-        world: "world";
-        screen: "screen";
-    }>>>;
-    keepInView: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
-    closeButton: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
     pointer: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
     pointerDirection: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
         top: "top";

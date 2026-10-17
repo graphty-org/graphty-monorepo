@@ -988,6 +988,9 @@ export type LabelLocation = "top" | "top-right" | "top-left" | "left" | "center"
 export type LabelPointerDirection = "top" | "bottom" | "left" | "right" | "auto";
 
 // @public
+export type LabelSizeMode = "world" | "screen";
+
+// @public
 export interface LabelStyle {
     animation?: LabelAnimation;
     animationSpeed?: number;
@@ -1039,7 +1042,7 @@ export interface LabelStyle {
     shadowColor?: string;
     shadowOffsetX?: number;
     shadowOffsetY?: number;
-    sizeMode?: "world" | "screen";
+    sizeMode?: LabelSizeMode;
     sizePx?: number;
     smartOverflow?: boolean;
     textAlign?: LabelTextAlign;

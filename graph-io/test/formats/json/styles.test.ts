@@ -211,7 +211,8 @@ describe("JSON styles: reading", () => {
         expect(values(r, "node", "fill")).toEqual(["#ff0000", "#97c2fc", "#00ff00", "#97c2fc"]);
         // a text color's border is vis-network's darker shade of it
         expect(values(r, "node", "borderColor")).toEqual(["#cc0000", "#2b7ce9", "#2b7ce9", "#2b7ce9"]);
-        expect(values(r, "node", "width")).toEqual([10, 10, 10, 10]);
+        // vis-network draws `size` as a radius
+        expect(values(r, "node", "width")).toEqual([20, 20, 20, 20]);
         expect(values(r, "node", "shape")).toEqual(["ellipse", "ellipse", "ellipse", "ellipse"]);
         // an edge without a color of its own takes its source node's border (its target's under inherit "to")
         expect(values(r, "edge", "color")).toEqual(["#cc0000", "#0000ff", "#2b7ce9"]);
@@ -222,7 +223,29 @@ describe("JSON styles: reading", () => {
             "declared",
             "tool",
         ]);
-        expect(rules.find((x) => x.id === "node.vis.defaults")?.set).toMatchObject({ shape: "ellipse", width: 10 });
+        expect(rules.find((x) => x.id === "node.vis.defaults")?.set).toMatchObject({ shape: "ellipse", width: 20 });
+    });
+
+    it("sizes vis.js dots by value over the scaling range, else vis-network's default size 25, and boxes by label", async () => {
+        const r = await load({
+            nodes: [
+                { id: "a", value: 1 },
+                { id: "b", value: 3 },
+                { id: "c", value: 2, scaling: { min: 0, max: 100 } },
+                { id: "d", shape: "square" },
+                { id: "e", shape: "box" },
+            ],
+            edges: [{ from: "a", to: "b" }],
+            options: { nodes: { shape: "dot" } },
+        });
+        // value runs 1..3; a and b take scaling.min 10 and max 30 (radii), c its own 0..100 at the middle
+        expect(values(r, "node", "width")).toEqual([20, 60, 100, 50, null]);
+        const back = await load(
+            JSON.parse(
+                await registry.exportGraphToString(r.snapshot, "json", { styles: r.styles, dialect: "vis" }),
+            ) as Record<string, unknown>,
+        );
+        expect(values(back, "node", "width")).toEqual([20, 60, 100, 50, null]);
     });
 
     it("gives NetworkX's node-link NetworkX's drawing defaults, and d3's bare shape none", async () => {

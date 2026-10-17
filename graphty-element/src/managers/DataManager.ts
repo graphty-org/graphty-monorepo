@@ -15,7 +15,6 @@ import { type LayoutEngine, layoutEngineInternals } from "../layout/LayoutEngine
 import { disposeLabelsTogether } from "../meshes/LabelBatch";
 import { MeshCache } from "../meshes/MeshCache";
 import { adoptNodeRecord, Node, NodeIdType, placeNodeRow } from "../Node";
-import type { NodeDragHandler } from "../NodeBehavior";
 import { inputCountersOf } from "../session/attributes";
 import { legacyScopeOf } from "../session/commands/algo";
 import {
@@ -52,15 +51,15 @@ export type { AddEdgesOptions } from "../session/project/ingest";
  * Dispose the given nodes and edges -- `teardown` does that -- at a cost in proportion to them,
  * not to the scene they leave.
  *
- * Babylon takes each disposed mesh, action manager and pointer observer out of a scene-wide list
+ * Babylon takes each disposed mesh and action manager out of a scene-wide list
  * with `indexOf` and `splice`, and checks whether an action manager is still owned by walking
  * `scene.meshes`. Disposing k elements one at a time out of a scene of N costs k x N: about 20 s
  * for a clear at the 50,000-node render ceiling (issue #543), and quadratic for removing half a
  * graph (issue #2732). So, before `teardown` runs, everything the elements are about to dispose
  * is taken out of those lists in one pass over each: their meshes out of `scene.meshes` and their
- * parent's children, each mesh's action manager out of `scene.actionManagers`, and each node's two
- * pointer observers out of `scene.onPrePointerObservable`, which its drag handler then forgets so
- * its dispose never searches for them. While `teardown` runs, the survivors are set aside and
+ * parent's children, and each mesh's action manager out of `scene.actionManagers`. (A node's
+ * pointer callbacks leave a set of their own in constant time; see `nodePointerRosterOf`.)
+ * While `teardown` runs, the survivors are set aside and
  * the two scene lists are empty, so every search a dispose makes finds nothing at once; Babylon
  * still runs the rest of its dispose, including the `onMeshRemovedObservable` notification and
  * the scene root-node bookkeeping. Afterwards the survivors go back in their order, less any that
@@ -69,9 +68,7 @@ export type { AddEdgesOptions } from "../session/project/ingest";
  * An action manager a surviving mesh shares is unhooked from the doomed mesh first, so the
  * doomed mesh's dispose, finding no other owner in the emptied list, does not dispose it.
  *
- * An observer list compacted while it is being notified would skip a surviving observer for that
- * one event. No teardown runs inside a pre-pointer notification today: removals go through the
- * session's dispatcher, not a pointer observer. No frame runs during `teardown`: it is synchronous.
+ * No frame runs during `teardown`: it is synchronous.
  *
  * ONLY MESHES THE CALLER IS ABOUT TO DISPOSE may be passed: a live mesh dropped here would stay
  * alive and simply stop being drawn. Each element's own mesh and everything parented to it (a
@@ -98,8 +95,7 @@ export function disposeReleased<T>(nodes: Iterable<Node>, edges: Iterable<Edge>,
  */
 function setAsideAndDispose<T>(nodes: Iterable<Node>, edges: Iterable<Edge>, teardown: () => T): T {
     const doomed = new Set<AbstractMesh>();
-    const handlers: NodeDragHandler[] = [];
-    collectDoomed(nodes, edges, doomed, handlers);
+    collectDoomed(nodes, edges, doomed);
 
     // Only the parents that are not going themselves: a label's node mesh is, and its child list
     // is a handful long anyway.
@@ -134,10 +130,6 @@ function setAsideAndDispose<T>(nodes: Iterable<Node>, edges: Iterable<Edge>, tea
     // the deprecation `IAssetContainer` puts on it for asset containers, and lint sees only that.
     const { actionManagers } = scene as { actionManagers: AbstractActionManager[] };
     dropAll(actionManagers, managers);
-    dropAll(scene.onPrePointerObservable.observers, new Set(handlers.flatMap((handler) => handler.sceneObservers)));
-    for (const handler of handlers) {
-        handler.forgetSceneObservers();
-    }
 
     // A disposed mesh leaves its parent by an `indexOf` over the parent's child list, and every
     // node mesh shares one parent, the graph root: that list is set aside too (issues #2733, #2749).
@@ -185,18 +177,12 @@ function restore<T>(list: T[], survivors: readonly T[], alive: (item: T) => bool
 
 /**
  * Collect what {@link disposeReleased} drops: each element's own live mesh and everything
- * parented to it, and each node's drag handler.
+ * parented to it.
  * @param nodes - The nodes about to be disposed.
  * @param edges - The edges about to be disposed.
  * @param doomed - Receives the meshes.
- * @param handlers - Receives the drag handlers.
  */
-function collectDoomed(
-    nodes: Iterable<Node>,
-    edges: Iterable<Edge>,
-    doomed: Set<AbstractMesh>,
-    handlers: NodeDragHandler[],
-): void {
+function collectDoomed(nodes: Iterable<Node>, edges: Iterable<Edge>, doomed: Set<AbstractMesh>): void {
     // Anything that is not a live Babylon mesh is skipped: a patterned line, whose segments go by
     // their own dispose.
     const add = (mesh: unknown): void => {
@@ -209,9 +195,6 @@ function collectDoomed(
     };
     for (const node of nodes) {
         add(node.mesh);
-        if (node.dragHandler) {
-            handlers.push(node.dragHandler);
-        }
     }
 
     for (const edge of edges) {

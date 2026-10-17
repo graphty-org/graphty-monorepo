@@ -175,6 +175,8 @@ export const CYJS_EDGE_PROPERTIES: ReadonlyMap<string, CyjsPropertySpec> = new M
     ["target-arrow-color", { property: "targetArrowColor", type: "color" }],
     ["source-arrow-color", { property: "sourceArrowColor", type: "color" }],
     ["curve-style", { property: "curved", type: "enum", enums: CURVES }],
+    // a bundle's control points are this far apart, so the curves' middles half of it (see cyjsNeutral)
+    ["control-point-step-size", { property: "fanSpacing", type: "size" }],
     ["arrow-scale", { property: "arrowSize", type: "positive" }],
     ["source-label", { property: "sourceLabel", type: "text" }],
     ["target-label", { property: "targetLabel", type: "text" }],
@@ -820,7 +822,8 @@ export function cyjsNeutral(spec: CyjsPropertySpec, v: CyjsFlat, site: CanonSite
                 });
                 return undefined;
             }
-            return num6(v.value);
+            // Cytoscape.js steps a bundle's control points; a quadratic's middle is half as far out
+            return num6(spec.property === "fanSpacing" ? v.value / 2 : v.value);
         default:
             break;
     }

@@ -80,6 +80,7 @@ export const STYLE_PROPERTIES: {
         ["targetArrow", "arrow"],
         ["curved", "boolean"],
         ["bends", "text"],
+        ["fanSpacing", "number"],
         ["label", "text"],
         ["tooltip", "text"],
         ["labelFont", "text"],

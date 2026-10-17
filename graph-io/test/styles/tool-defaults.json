@@ -108,6 +108,7 @@
             "targetArrow": "none",
             "arrowSize": 1,
             "curved": false,
+            "fanSpacing": 20,
             "labelColor": "#000000",
             "labelSize": 16,
             "labelFont": "Helvetica Neue, Helvetica, sans-serif",

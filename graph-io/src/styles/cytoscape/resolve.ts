@@ -5,6 +5,8 @@
  * of elements plus the size of the style, and spends from the extraction's one budget.
  */
 
+import type { GraphSnapshot } from "@graphty/graph-format";
+
 import type { CanonSite } from "../canon/site.js";
 import { STYLE_ISSUE } from "../codes.js";
 import { toolDefaults } from "../defaults.js";
@@ -61,9 +63,15 @@ export interface CytoscapeElements {
     readonly bypasses?: readonly CytoscapeBypass[];
     /**
      * Edges only: each edge's source and target node index, in the order Cytoscape created the edges. With them,
-     * the edges Cytoscape desktop fans apart (parallel edges without bends) are marked curved.
+     * the edges Cytoscape desktop fans apart (parallel edges without bends) are marked curved; with `nodeSize` too
+     * (each node's larger drawn side, by node index, as `fanNodeSizes()` reads it), they are given the `fanSpacing`
+     * desktop spaces them by.
      */
-    readonly ends?: { readonly source: ArrayLike<number>; readonly target: ArrayLike<number> };
+    readonly ends?: {
+        readonly source: ArrayLike<number>;
+        readonly target: ArrayLike<number>;
+        readonly nodeSize?: ArrayLike<number | null>;
+    };
 }
 
 /**
@@ -83,6 +91,30 @@ export interface CytoscapeResolveOptions {
     readonly defaults?: StyleTool | null;
     /** `resolveCytoscapeBypasses()` only: the edges' ends, as `CytoscapeElements.ends`. */
     readonly ends?: CytoscapeElements["ends"];
+}
+
+/** How closely desktop stacks the edges it fans, 0..1: its anchors are twice this times the node size apart. */
+const EDGE_STACKING_DENSITY_VP = "EDGE_STACKING_DENSITY";
+/** Desktop's `EDGE_STACKING_DENSITY` default. */
+const EDGE_STACKING_DENSITY_DEFAULT = 0.5;
+
+/**
+ * A graph's edge ends for `CytoscapeElements.ends`, with each node's larger side from the nodes' resolved `width`
+ * and `height`: what desktop spaces the edges it fans between two nodes by.
+ * @param snapshot - the graph
+ * @param nodes - the nodes' values per property
+ * @returns the ends
+ */
+export function edgeEnds(
+    snapshot: GraphSnapshot,
+    nodes: Partial<Record<string, StyleColumn>>,
+): NonNullable<CytoscapeElements["ends"]> {
+    const nodeSize = Array.from({ length: snapshot.nodeCount }, (_, i) => {
+        const sides = [nodes.width?.[i], nodes.height?.[i]].filter((v): v is number => typeof v === "number");
+        return sides.length === 0 ? null : Math.max(...sides);
+    });
+    const { src, dst } = snapshot.edgeList();
+    return { source: src, target: dst, nodeSize };
 }
 
 /** Locked node sizes with no `NODE_SIZE` anywhere draw at Cytoscape's lexicon default. */
@@ -391,7 +423,9 @@ export function resolveCytoscape(
  * rounds the bends an edge has, and the bends Cytoscape adds itself. Among the edges joining the same two nodes
  * (either way round, not loops), it draws the first it created straight and bends each later one without bends
  * of its own round an anchor beside the line (`DEdgeDetails.getAnchors`, `EDGE_STACKING` `AUTO_BEND`, the default)
- * -- unless the first has bends, when every anchor falls on the line.
+ * -- unless the first has bends, when every anchor falls on the line. Its anchors are the larger side of the two
+ * nodes times twice `EDGE_STACKING_DENSITY` apart, so the curves' middles half that: each fanned edge's
+ * `fanSpacing`, when the node sizes are known.
  * @param out - the values per property, changed in place
  * @param one - reads one visual property of one element
  * @param ends - each edge's source and target node index, in creation order, when known
@@ -425,6 +459,19 @@ function straightenBendless(
         }
     }
     out.curved = curved.map((c, i) => (c === true ? fanned.has(i) || bent(i) : c));
+    if (ends?.nodeSize === undefined || fanned.size === 0) {
+        return;
+    }
+    const { source, target, nodeSize } = ends;
+    out.fanSpacing = curved.map((_, i) => {
+        const size = Math.max(nodeSize[source[i]] ?? Number.NaN, nodeSize[target[i]] ?? Number.NaN);
+        if (out.curved?.[i] !== true || !fanned.has(i) || bent(i) || !Number.isFinite(size)) {
+            return null;
+        }
+        const read = one(EDGE_STACKING_DENSITY_VP, sizeParser, "fanSpacing", i);
+        const density = Math.min(1, typeof read === "number" ? read : EDGE_STACKING_DENSITY_DEFAULT);
+        return size * density;
+    });
 }
 
 /** An edge's bend handles. */

@@ -294,6 +294,9 @@ export class Edge {
     /** The `line.bends` text {@link Edge.lineBends} was read from. See {@link syncContent}. */
     private drawnBends?: string;
 
+    /** The `line.fanSpacing` the edge's arc was last placed with. See {@link syncContent}. */
+    private drawnFanSpacing?: number;
+
     /**
      * The source mesh this edge is currently drawn from.
      *
@@ -1060,6 +1063,12 @@ export class Edge {
             rebuilt = true;
         }
 
+        // The fan spacing keys no mesh either: a new one only moves the arc.
+        if (style.line?.fanSpacing !== this.drawnFanSpacing) {
+            this.drawnFanSpacing = style.line?.fanSpacing;
+            rebuilt = true;
+        }
+
         if (rebuilt) {
             this.invalidatePositionCache();
         }
@@ -1395,7 +1404,7 @@ export class Edge {
             rank,
         );
         const radius = Math.max(Edge.radiusOf(this.srcNode), Edge.radiusOf(this.dstNode));
-        const offset = fanOffset(slot, count, radius, Vector3.Distance(src, dst));
+        const offset = fanOffset(slot, count, radius, Vector3.Distance(src, dst), this.drawnStyle?.line?.fanSpacing);
         if (offset === 0) {
             // the middle of an evenly spread bundle keeps the line, curved or not
             return [src.x, src.y, src.z, dst.x, dst.y, dst.z];

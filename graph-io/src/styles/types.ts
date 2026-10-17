@@ -202,6 +202,10 @@ export interface EdgeStyleValues {
      * segments through them, with rounded corners when `curved`.
      */
     readonly bends: string;
+    /**
+     * How far apart, at their middle, neighboring curved edges between the same two nodes are drawn (a length).
+     */
+    readonly fanSpacing: number;
     /** The label text. */
     readonly label: string;
     /** The tooltip text. */

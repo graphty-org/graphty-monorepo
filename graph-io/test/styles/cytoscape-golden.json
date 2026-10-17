@@ -1,5 +1,5 @@
 {
-    "source": "tmp/style-import/spike/cytoscape.mjs (resolveCytoscape) through readers.mjs cx and cx2, run on 2026-10-11; each column run-length encoded as [value, count]; the labelFont of a CX2 font face naming its desktop font (FONT_NAME) is that font, as Cytoscape desktop reads it back; edge curved only where EDGE_CURVED rounds bends the edge has (#2489); labelWrapWidth (NODE_LABEL_WIDTH, CX2 NODE_LABEL_MAX_WIDTH) added from graph-io's own resolver on 2026-10-16; node borderOpacity (NODE_BORDER_TRANSPARENCY, CX2 NODE_BORDER_OPACITY) added from graph-io's own resolver on 2026-10-17; edge curved also where Cytoscape desktop fans a bundle of parallel edges (graph-io's resolver, 2026-10-17)",
+    "source": "tmp/style-import/spike/cytoscape.mjs (resolveCytoscape) through readers.mjs cx and cx2, run on 2026-10-11; each column run-length encoded as [value, count]; the labelFont of a CX2 font face naming its desktop font (FONT_NAME) is that font, as Cytoscape desktop reads it back; edge curved only where EDGE_CURVED rounds bends the edge has (#2489); labelWrapWidth (NODE_LABEL_WIDTH, CX2 NODE_LABEL_MAX_WIDTH) added from graph-io's own resolver on 2026-10-16; node borderOpacity (NODE_BORDER_TRANSPARENCY, CX2 NODE_BORDER_OPACITY) added from graph-io's own resolver on 2026-10-17; edge curved also where Cytoscape desktop fans a bundle of parallel edges (graph-io's resolver, 2026-10-17); edge fanSpacing (the curves' middle spacing desktop fans parallel edges by: the larger side of the two nodes times EDGE_STACKING_DENSITY) from graph-io's readers, 2026-10-17",
     "files": {
         "cx/ndex2-client/glypican2_no_cartesian_layout.cx": {
             "node": {
@@ -444,6 +444,10 @@
                 "curved": [
                     [false, 1],
                     [true, 3]
+                ],
+                "fanSpacing": [
+                    [null, 1],
+                    [37.5, 3]
                 ],
                 "labelColor": [["#000000", 4]],
                 "labelFont": [["sans-serif", 4]],
@@ -966,6 +970,11 @@
                     [true, 1],
                     [false, 99]
                 ],
+                "fanSpacing": [
+                    [null, 113],
+                    [30, 1],
+                    [null, 99]
+                ],
                 "labelColor": [["#000000", 213]],
                 "labelFont": [["sans-serif", 213]],
                 "labelItalic": [[false, 213]],
@@ -1236,6 +1245,13 @@
                     [false, 3],
                     [true, 1],
                     [false, 6]
+                ],
+                "fanSpacing": [
+                    [null, 20],
+                    [28.5, 1],
+                    [null, 16],
+                    [26.73485, 1],
+                    [null, 10]
                 ],
                 "labelColor": [["#000000", 48]],
                 "labelFont": [["sans-serif", 48]],
@@ -2780,6 +2796,19 @@
                     [false, 1],
                     [true, 2],
                     [false, 6]
+                ],
+                "fanSpacing": [
+                    [null, 14],
+                    [30, 1],
+                    [null, 4],
+                    [30, 1],
+                    [null, 3],
+                    [30, 1],
+                    [null, 1],
+                    [30, 1],
+                    [null, 1],
+                    [30, 2],
+                    [null, 6]
                 ],
                 "labelColor": [["#000000", 35]],
                 "labelFont": [["sans-serif", 35]],
@@ -4664,6 +4693,11 @@
                     [true, 1],
                     [false, 241]
                 ],
+                "fanSpacing": [
+                    [null, 117],
+                    [52.353, 1],
+                    [null, 241]
+                ],
                 "labelColor": [["#000000", 359]],
                 "labelFont": [["sans-serif", 359]],
                 "labelItalic": [[false, 359]],
@@ -4878,6 +4912,11 @@
                     [false, 14],
                     [true, 1],
                     [false, 15]
+                ],
+                "fanSpacing": [
+                    [null, 14],
+                    [45, 1],
+                    [null, 15]
                 ],
                 "labelColor": [["#000000", 30]],
                 "labelFont": [["sans-serif", 30]],
@@ -5241,6 +5280,16 @@
                     [true, 1],
                     [false, 1],
                     [true, 1]
+                ],
+                "fanSpacing": [
+                    [null, 1],
+                    [12.5, 2],
+                    [null, 1],
+                    [12.5, 1],
+                    [null, 2],
+                    [12.5, 1],
+                    [null, 1],
+                    [12.5, 1]
                 ],
                 "labelColor": [["#000000", 10]],
                 "labelFont": [["sans-serif", 10]],
@@ -6388,6 +6437,11 @@
                     [true, 1],
                     [false, 98]
                 ],
+                "fanSpacing": [
+                    [null, 220],
+                    [25, 1],
+                    [null, 98]
+                ],
                 "labelColor": [["#000000", 319]],
                 "labelFont": [["sans-serif", 319]],
                 "labelItalic": [[false, 319]],
@@ -7357,6 +7411,46 @@
                     [false, 1],
                     [true, 1]
                 ],
+                "fanSpacing": [
+                    [null, 9],
+                    [72.5, 1],
+                    [null, 3],
+                    [72.5, 1],
+                    [null, 3],
+                    [72.5, 1],
+                    [null, 19],
+                    [72.5, 1],
+                    [null, 4],
+                    [72.5, 1],
+                    [null, 2],
+                    [72.5, 1],
+                    [null, 5],
+                    [72.5, 2],
+                    [null, 5],
+                    [72.5, 1],
+                    [null, 9],
+                    [72.5, 1],
+                    [null, 1],
+                    [72.5, 1],
+                    [null, 6],
+                    [72.5, 2],
+                    [null, 1],
+                    [72.5, 1],
+                    [null, 4],
+                    [72.5, 2],
+                    [null, 7],
+                    [72.5, 2],
+                    [null, 1],
+                    [72.5, 2],
+                    [null, 4],
+                    [72.5, 2],
+                    [null, 3],
+                    [72.5, 1],
+                    [null, 4],
+                    [72.5, 2],
+                    [null, 1],
+                    [72.5, 1]
+                ],
                 "labelColor": [["#000000", 117]],
                 "labelFont": [["sans-serif", 117]],
                 "labelItalic": [[false, 117]],
@@ -7759,6 +7853,15 @@
                     [false, 7],
                     [true, 1],
                     [false, 8]
+                ],
+                "fanSpacing": [
+                    [null, 21],
+                    [30, 3],
+                    [null, 18],
+                    [30, 1],
+                    [null, 7],
+                    [30, 1],
+                    [null, 8]
                 ],
                 "labelColor": [["#000000", 59]],
                 "labelFont": [["sans-serif", 59]],

@@ -9,16 +9,39 @@ import {
     bendPoints,
     fanArc,
     fanArcPieces,
+    fanOffset,
     fanSlot,
     parseBends,
     pointFromEnd,
     roundCorners,
+    routeOutside,
     surfaceReach,
 } from "../../src/meshes/edgeRoute";
 
 const at = (x: number, y: number, z = 0): { x: number; y: number; z: number } => ({ x, y, z });
 
 describe("edge route geometry", () => {
+    it("keeps a route whose middle alone clears both nodes, and none that never leaves them", () => {
+        // a shallow two-piece arc between nodes of radius 1: only the middle point is outside both
+        const arc = [0, 0, 0, 2.5, 0.1, 0, 5, 0, 0];
+        const outside = (cx: number) => (x: number, y: number) => Math.hypot(x - cx, y) > 1;
+        assert.deepEqual(routeOutside(arc, outside(0), outside(5)), { first: 1, last: 1 });
+        // a straight route: the only point clear of the source is the target's center
+        assert.isNull(routeOutside([0, 0, 0, 0.5, 0, 0, 5, 0, 0], outside(0), outside(5)));
+    });
+
+    it("spaces a bundle two radii apart, narrowed between close nodes, unless the style sets the spacing", () => {
+        assert.strictEqual(fanOffset(1, 3, 0.5, 10), 1);
+        // three gaps' worth of spread may not exceed 1.2 times the distance between the nodes
+        assert.closeTo(fanOffset(1, 4, 0.5, 1), 0.4, 1e-12);
+        // a set spacing is drawn as it is, however close or large the nodes
+        assert.strictEqual(fanOffset(1, 3, 0.5, 10, 0.25), 0.25);
+        assert.strictEqual(fanOffset(-2, 4, 0.5, 1, 3), -6);
+        assert.strictEqual(fanOffset(1, 3, 0.5, 10, 0), 0);
+        // a lone edge never bows
+        assert.strictEqual(fanOffset(1, 1, 0.5, 10, 2), 0);
+    });
+
     it("reads along,across pairs, and nothing from a value that is not one", () => {
         assert.deepEqual(parseBends("0,-0.5  1,-0.5"), [0, -0.5, 1, -0.5]);
         assert.deepEqual(parseBends(" 0.25,1e-3 "), [0.25, 0.001]);

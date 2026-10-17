@@ -8,7 +8,7 @@
 import { describe, expect, it } from "vitest";
 
 import { createRegistry } from "../../src/registry.js";
-import { resolveStyles } from "../../src/styles/internal.js";
+import { resolveStyles, type StyleProperty } from "../../src/styles/internal.js";
 
 const registry = createRegistry();
 
@@ -19,11 +19,22 @@ const registry = createRegistry();
  * @returns the values
  */
 async function curved(doc: string, format: string): Promise<unknown[]> {
+    return edgeValues(doc, format, "curved");
+}
+
+/**
+ * Each edge's value of one property, by edge index.
+ * @param doc - the file
+ * @param format - its format
+ * @param property - the property
+ * @returns the values
+ */
+async function edgeValues(doc: string, format: string, property: StyleProperty): Promise<unknown[]> {
     const r = await registry.importGraph(doc, { format, styles: true, errorLimit: Infinity });
     if (!r.styles) {
         throw new Error("no styles");
     }
-    return [...resolveStyles(r.styles, "edge", "curved", r.snapshot)];
+    return [...resolveStyles(r.styles, "edge", property, r.snapshot)];
 }
 
 const YED_HEAD = `<?xml version="1.0" encoding="UTF-8"?>
@@ -165,6 +176,31 @@ describe("curved edges: Cytoscape desktop", () => {
         expect(await curved(straight, "cx2")).toEqual([false, false]);
     });
 
+    it("spaces the fanned edges by the larger side of the two nodes times the stacking density", async () => {
+        const nodes = (doc: string, sizes: Record<number, [number, number]>): string => {
+            const parsed = JSON.parse(doc) as Record<string, unknown>[];
+            parsed.splice(-1, 0, {
+                nodeBypasses: Object.entries(sizes).map(([id, [w, h]]) => ({
+                    id: Number(id),
+                    v: { NODE_WIDTH: w, NODE_HEIGHT: h },
+                })),
+            });
+            return JSON.stringify(parsed);
+        };
+        const bundle: [number, number][] = [
+            [1, 2],
+            [1, 2],
+            [2, 1],
+            [2, 3],
+        ];
+        const sized = { 1: [40, 20], 2: [30, 60], 3: [10, 10] } as Record<number, [number, number]>;
+        // the anchors are 60 x 2 x 0.5 apart, so the curves' middles 30; the first edge and the lone one are straight
+        const plain = nodes(cx2(bundle, { EDGE_CURVED: true, EDGE_BEND: "" }), sized);
+        expect(await edgeValues(plain, "cx2", "fanSpacing")).toEqual([null, 30, 30, null]);
+        const dense = nodes(cx2(bundle, { EDGE_CURVED: true, EDGE_BEND: "", EDGE_STACKING_DENSITY: 0.2 }), sized);
+        expect(await edgeValues(dense, "cx2", "fanSpacing")).toEqual([null, 12, 12, null]);
+    });
+
     it("draws an edge of a file with no style straight, as Cytoscape's default style does", async () => {
         expect(await curved(cx2([[1, 2]], {}), "cx2")).toEqual([false]);
     });
@@ -198,6 +234,19 @@ describe("curved edges: Cytoscape.js", () => {
         ];
         // b-c is a pair, both bowed; a-c is three, the middle one straight; the loop is always curved
         expect(await curved(cyjs(edges, "bezier"), "json")).toEqual([false, true, true, true, false, true, true]);
+    });
+
+    it("spaces a bundle's curves half its control-point-step-size apart at their middle, 40 by default", async () => {
+        const doc = (style: Record<string, unknown>): string =>
+            JSON.stringify({
+                elements: {
+                    nodes: ["a", "b"].map((id) => ({ data: { id } })),
+                    edges: [0, 1].map((i) => ({ data: { id: `e${i}`, source: "a", target: "b" } })),
+                },
+                style: [{ selector: "edge", style: { "curve-style": "bezier", ...style } }],
+            });
+        expect(await edgeValues(doc({ "control-point-step-size": 30 }), "json", "fanSpacing")).toEqual([15, 15]);
+        expect(await edgeValues(doc({}), "json", "fanSpacing")).toEqual([20, 20]);
     });
 
     it("bows every unbundled-bezier edge, and draws segments and taxi edges as straight pieces", async () => {

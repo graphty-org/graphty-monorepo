@@ -544,6 +544,8 @@ function channelPlans(
         ["arrowPosition", [id("edge.arrowHeadPosition"), id("edge.arrowTailPosition")]],
         ["curved", [id("edge.curvature")]],
         ["bends", [id("edge.bends")]],
+        // Drawn in the scene's units, in proportion to the nodes it spaces the edges by.
+        ["fanSpacing", [length("edge.fanSpacing", factors.node * SCENE_PER_UNIT.node)]],
         ["label", [id("edge.label")]],
         ["targetLabel", [id("edge.arrowHeadText")]],
         ["sourceLabel", [id("edge.arrowTailText")]],

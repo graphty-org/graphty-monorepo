@@ -18,7 +18,12 @@ import {
     sharedColumnFallback,
     typedKey,
 } from "../../styles/cytoscape/mappings.js";
-import { cytoscapeBackground, type CytoscapeElements, resolveCytoscape } from "../../styles/cytoscape/resolve.js";
+import {
+    cytoscapeBackground,
+    type CytoscapeElements,
+    edgeEnds,
+    resolveCytoscape,
+} from "../../styles/cytoscape/resolve.js";
 import { cytoscapeRules } from "../../styles/cytoscape/translate.js";
 import { StyleNotes } from "../../styles/notes.js";
 import { dataCell } from "../../styles/plan/resolve.js";
@@ -67,7 +72,7 @@ export function readSessionStyles(snapshot: GraphSnapshot, context: StyleReadCon
     const out: Record<StyleTarget, ReaderOutput> = { node: { values: {} }, edge: { values: {} } };
     for (const target of ["node", "edge"] as const) {
         context.signal?.throwIfAborted();
-        out[target] = sessionTargetStyles(snapshot, target, style, { notes, budget: context.budget });
+        out[target] = sessionTargetStyles(snapshot, target, style, { notes, budget: context.budget }, out.node.values);
     }
     const background = cytoscapeBackground(style, notes);
     return {
@@ -107,6 +112,7 @@ function sessionStyle(kept: SessionStyleSource | undefined, notes: StyleNotes): 
  * @param work - where problems are noted, and the work budget
  * @param work.notes - where problems are noted
  * @param work.budget - the work budget
+ * @param nodes - the nodes' values, when reading the edges
  * @returns the reader output for the target
  */
 function sessionTargetStyles(
@@ -114,6 +120,7 @@ function sessionTargetStyles(
     target: StyleTarget,
     style: CytoscapeStyle,
     work: { readonly notes: StyleNotes; readonly budget: StyleReadContext["budget"] },
+    nodes: ReaderOutput["values"],
 ): ReaderOutput {
     const { notes } = work;
     const table = target === "node" ? snapshot.nodes : snapshot.edges;
@@ -129,7 +136,7 @@ function sessionTargetStyles(
         count: n,
         value: (column, i) => (table.has(column) ? dataCell(table, column, i) : null),
         bypasses: graphicsBypasses(table, target, n, notes),
-        ...(target === "edge" ? { ends: { source: snapshot.edgeList().src, target: snapshot.edgeList().dst } } : {}),
+        ...(target === "edge" ? { ends: edgeEnds(snapshot, nodes) } : {}),
     };
     const values = resolveCytoscape(target, style, elements, work);
     hiddenToVisible(table, HIDDEN_COLUMN, n, values);

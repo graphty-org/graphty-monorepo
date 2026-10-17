@@ -206,6 +206,7 @@ const PLANS: Readonly<Record<StyleTarget, ReadonlyMap<string, PropertyPlan>>> = 
         ["edge.arrowHead", plan(table(ARROW_OF), "targetArrow")],
         ["edge.arrowTail", plan(table(ARROW_OF), "sourceArrow")],
         ["edge.bends", plan(text, "bends")],
+        ["edge.fanSpacing", plan((value) => scaled(value, 1 / SCENE_PER_UNIT.node), "fanSpacing")],
         ["edge.arrowHeadColor", plan(color, "targetArrowColor")],
         ["edge.arrowTailColor", plan(color, "sourceArrowColor")],
         ["edge.label", plan(text, "label")],

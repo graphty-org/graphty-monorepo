@@ -55,8 +55,22 @@ import { CHANNEL_DESCRIPTORS, type ChannelDescriptor } from "../../src/session/s
 /** Two nodes and the edge between them: enough for every channel, small enough to be quick. */
 const NODES = [{ id: "alpha" }, { id: "omega" }];
 
-/** The one edge, which every edge channel is measured on. */
-const EDGES = [{ src: "alpha", dst: "omega" }];
+/**
+ * The edge every edge channel is measured on, and a second one beside it: a bundle's spacing is
+ * drawn only between two edges. Straight, the two lie on one line and draw as one.
+ */
+const EDGES = [
+    { src: "alpha", dst: "omega" },
+    { src: "alpha", dst: "omega" },
+];
+
+/**
+ * What a channel needs written before it has anything to change, in a layer of its own around its
+ * measurement: a bundle fans apart only when its edges are curved.
+ */
+const PREREQUISITES: Readonly<Partial<Record<string, Record<string, unknown>>>> = {
+    "edge.fanSpacing": { "edge.curvature": true },
+};
 
 /** How wide the canvas is. */
 const WIDTH = 480;
@@ -299,6 +313,16 @@ describe("every channel the table says is renderable", () => {
                             `channel nothing can write is a channel nothing can test.`,
                     );
 
+                    const needs = PREREQUISITES[descriptor.channel];
+                    const prerequisite =
+                        needs === undefined
+                            ? null
+                            : await session.styles.add({
+                                  name: `probe prerequisites ${descriptor.channel}`,
+                                  target,
+                                  selector: { match: "everything" },
+                                  set: needs,
+                              });
                     const before = await read();
                     const layer: LayerSpec = {
                         name: `probe ${descriptor.channel}`,
@@ -312,6 +336,10 @@ describe("every channel the table says is renderable", () => {
                     await session.styles.remove(added.id);
 
                     const restored = await read();
+                    if (prerequisite !== null) {
+                        await session.styles.remove(prerequisite.id);
+                    }
+
                     const movedByWriting = pixelsMoved(before, after);
                     const painted = after.structure !== before.structure || movedByWriting > PIXEL_CHANGE;
                     const waiver = waived.get(descriptor.channel);

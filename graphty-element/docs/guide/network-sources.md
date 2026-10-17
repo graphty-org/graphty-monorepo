@@ -37,6 +37,23 @@ for (const { id, descriptor } of sourceDescriptors()) {
 }
 ```
 
+## Load a sample by its id
+
+Every public sample a source lists has an id. `session.data.loadSample(id)` loads it in one call,
+with the sample's parameters, its endpoint and the login its service publishes:
+
+```ts
+// The Neo4j demo server's movies database, with the login the demo publishes.
+await element.session.data.loadSample("neo4j-movies");
+
+// graph-samples' karate club.
+await element.session.data.loadSample("graph-samples-karate");
+```
+
+It takes the options `import` takes; a `credential` or `endpoint` you pass wins over the sample's.
+An id no source lists rejects with `E_SOURCE_UNKNOWN`, whose `details.known` lists every sample id.
+The ids are the `id` of each entry in `descriptor.samples`, from `sourceDescriptors()`.
+
 ## Write your own source
 
 A source is an id and a function that returns nodes and edges. `ctx.fetchJson` does the request,
@@ -125,7 +142,8 @@ offer to replace it. The full list is `SOURCE_ISSUE` in `@graphty/graphty-elemen
 
 ## Undo, more pages and merging
 
-A load is one undoable step. Undo and redo replay the rows that were read; they never fetch again.
+A load is one undoable step. Undo and redo replay the rows that were read; they never fetch again. `session.data.loads()` follows them: undoing a load or an expansion takes its record off the list,
+and redo puts it back.
 
 A capped load (`limits: { maxNodes: 500, onLimit: "stop" }`) records where it stopped;
 `session.data.more()` loads the next page into the graph. The cap is checked after each page the

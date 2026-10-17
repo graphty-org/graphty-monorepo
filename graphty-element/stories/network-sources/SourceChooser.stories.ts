@@ -1,7 +1,8 @@
 /**
  * @file A source chooser built from the catalog: every sample every registered source lists on
  * its descriptor (`sourceDescriptors()` from `./catalog`), one button each, with the counts the
- * sample declares. Clicking one loads it with its endpoint and the login its service publishes.
+ * sample declares. Clicking one loads it by its id, `session.data.loadSample(id)`, which brings
+ * its params, its endpoint and the login its service publishes.
  * The play function clicks NDEx's WikiPathways WP5483.
  *
  * The buttons, their order and their words are the story's: the catalog hands back data
@@ -13,7 +14,7 @@ import type { Meta, StoryObj } from "@storybook/web-components-vite";
 import { userEvent } from "storybook/test";
 
 import { sourceDescriptors } from "../../catalog.ts";
-import { credentials, type Graphty, replayFetch, type SourceLoadOptions } from "../../index.ts";
+import { replayFetch, type SourceLoadOptions } from "../../index.ts";
 import { holds } from "../assertions";
 import ndexRecordings from "../fixtures/sources/ndex-wp5483.json";
 import openalexRecordings from "../fixtures/sources/openalex-citing.json";
@@ -36,27 +37,6 @@ interface Choice {
 function choices(): Choice[] {
     return sourceDescriptors().flatMap((info) =>
         (info.descriptor.samples ?? []).map((sample) => ({ source: info.id, sample })),
-    );
-}
-
-/**
- * Load one sample: its parameters, its endpoint, and its published login if it has one.
- * @param element - The element.
- * @param choice - The sample.
- * @param options - The fetch to use (absent when live).
- * @returns Settles once loaded.
- */
-async function loadSample(element: Graphty, { source, sample }: Choice, options: SourceLoadOptions): Promise<void> {
-    await element.session.data.clear();
-    await element.session.data.import(
-        { source, config: sample.params, name: sample.plainName },
-        {
-            ...options,
-            ...(sample.endpoint === undefined ? {} : { endpoint: sample.endpoint }),
-            ...(sample.publicLogin === undefined
-                ? {}
-                : { credential: credentials.basic(sample.publicLogin.username, sample.publicLogin.password) }),
-        },
     );
 }
 
@@ -108,7 +88,7 @@ export const Samples: StoryObj<SourceArgs> = {
                     return;
                 }
                 facts.textContent = `loading ${choice.sample.id}`;
-                loading = loadSample(element, choice, options).then(
+                loading = element.session.data.loadSample(choice.sample.id, options).then(
                     () => {
                         facts.textContent = `${choice.sample.id}\n${loadFacts(element)}`;
                     },

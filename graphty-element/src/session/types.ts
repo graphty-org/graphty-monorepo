@@ -1027,6 +1027,17 @@ export interface SessionDataApi {
      */
     more(options?: SourceLoadOptions): Promise<void>;
     /**
+     * Load one of the public samples the registered sources list (`samples` on a descriptor of
+     * `sourceDescriptors()`, graph-samples' datasets among them), as one undoable step: the
+     * sample's params, its endpoint and the login its service publishes, so
+     * `loadSample("neo4j-movies")` is the whole call. Experimental.
+     * @param id - The sample's id, such as `"string-tp53"` or `"graph-samples-karate"`.
+     * @param options - Anything `import` takes; a `credential` or `endpoint` given here wins.
+     * @returns Settles once the sample is in the graph; rejects with `E_SOURCE_UNKNOWN` (its
+     *     `known` lists every sample id) when no source lists the id.
+     */
+    loadSample(id: string, options?: LoadChoices & SourceLoadOptions): Promise<void>;
+    /**
      * The loads from network sources this graph holds, in order: what a refresh needs, never a
      * secret. Experimental.
      * @returns The records.

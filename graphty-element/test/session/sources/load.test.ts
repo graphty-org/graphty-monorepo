@@ -141,6 +141,58 @@ describe("session.data.import from a network source", () => {
         });
     });
 
+    it("keeps data.loads() in step with undo and redo", async () => {
+        await withSession(async (session) => {
+            const fetch = peopleFetch();
+            await session.data.import(
+                { source: "people-load", config: { team: "core" } },
+                { endpoint: ENDPOINT, fetch },
+            );
+            const [first] = session.data.loads();
+            await session.data.import(
+                { source: "people-load", config: { team: "core" }, name: "Again" },
+                { endpoint: ENDPOINT, fetch },
+            );
+            const [second] = session.data.loads();
+            assert.notStrictEqual(second.key, first.key, "a replacing load replaces the record");
+            assert.lengthOf(session.data.loads(), 1);
+
+            await session.undo();
+            assert.deepEqual(
+                session.data.loads().map((record) => record.key),
+                [first.key],
+                "undoing a replacing load brings back the load it replaced",
+            );
+            await session.undo();
+            assert.deepEqual(session.data.loads(), [], "undoing the first load leaves no record");
+            const { text } = await session.project.save();
+            assert.notInclude(text, '"people-load"', "nor does the saved project offer it");
+
+            await session.redo();
+            assert.deepEqual(
+                session.data.loads().map((record) => record.key),
+                [first.key],
+            );
+            await session.redo();
+            assert.deepEqual(
+                session.data.loads().map((record) => record.key),
+                [second.key],
+            );
+        });
+    });
+
+    it("writes _source.expansion none on every node a load brings", async () => {
+        await withSession(async (session) => {
+            await session.data.import(
+                { source: "people-load", config: { team: "core" } },
+                { endpoint: ENDPOINT, fetch: peopleFetch() },
+            );
+            for (const node of session.data.nodes()) {
+                assert.strictEqual(node["_source.expansion"], "none", `node ${String(node.id)}`);
+            }
+        });
+    });
+
     it("keeps a sentinel credential out of the journal, data.source(), events, the records and the project file", async () => {
         await withSession(async (session) => {
             const seen: unknown[] = [];

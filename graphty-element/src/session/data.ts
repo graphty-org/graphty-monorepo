@@ -69,6 +69,7 @@ import { searchOf } from "./selection/targets";
 import type { ColumnRef, ProgressChange } from "./shared";
 import * as sourceExpand from "./sources/expand";
 import { ExpansionState, type HostEdge, type SourceHost } from "./sources/host";
+import { SOURCE_RECORD_VERSION, sourceLoadsOf } from "./sources/ids";
 import { SourceLedger } from "./sources/ledger";
 import * as sourceLoad from "./sources/load";
 import type {
@@ -526,9 +527,8 @@ export class SessionData implements SessionDataApi {
     async clear(): Promise<void> {
         this.requireLive("clear");
         await this.writes.dispatch({ kind: "clear" });
-        // Nothing a source load brought is left, so neither is its record: a saved project must
-        // not offer to fetch it again. Like a replacing file load, undo does not bring it back.
-        this.ledger.clear();
+        // Nothing a source load brought is left, so `loads()` lists none of them and a saved
+        // project does not offer to fetch them again; undo brings the rows and the records back.
         this.pendingLoads.clear();
     }
 
@@ -547,8 +547,8 @@ export class SessionData implements SessionDataApi {
         }
 
         if ((options.mode ?? "replace") === "replace") {
-            // A file or a URL replacing the graph replaces what its source loads brought too.
-            this.ledger.clear();
+            // A file or a URL replacing the graph replaces what its source loads brought too; their
+            // records stay in the ledger, unlisted, so undoing the replacement lists them again.
             this.pendingLoads.clear();
         }
         // Taken before the first await: a transaction routes only what a verb dispatches
@@ -643,11 +643,40 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
-     * The loads from network sources this graph holds.
+     * Load a public sample a registered source lists, as one undoable step.
+     * @param id - The sample's id.
+     * @param options - Anything `import` takes.
+     * @returns Settles once the sample is in the graph.
+     */
+    async loadSample(id: string, options: LoadChoices & SourceLoadOptions = {}): Promise<void> {
+        this.requireLive("loadSample");
+        await sourceLoad.loadSample(this.sourceHost(), id, options);
+    }
+
+    /**
+     * The loads from network sources this graph holds: a load or an expansion is listed while a
+     * node it brought is in the graph, so undo and redo take its record away and back with it.
      * @returns The records, in load order.
      */
     loads(): readonly SourceLoadRecord[] {
-        return this.ledger.loads();
+        return this.ledger.loads(this.liveLoadKeys());
+    }
+
+    /**
+     * Every load and expansion key a node of the graph carries in `_source.loads`.
+     * ponytail: walks every node on each call; cache it by revision if `loads()` gets hot.
+     * @returns the keys
+     */
+    private liveLoadKeys(): ReadonlySet<string> {
+        const keys = new Set<string>();
+        const snapshot = this.current();
+        for (let index = 0; index < snapshot.nodeCount; index++) {
+            for (const key of sourceLoadsOf(this.records?.nodeAttributes(index, snapshot.ids.idOf(index)))) {
+                keys.add(key);
+            }
+        }
+
+        return keys;
     }
 
     /**
@@ -675,7 +704,8 @@ export class SessionData implements SessionDataApi {
      * @returns the member
      */
     sourceMember(): unknown {
-        return this.ledger.loads().length === 0 ? null : this.ledger.toMember();
+        const loads = this.loads();
+        return loads.length === 0 ? null : { version: SOURCE_RECORD_VERSION, loads };
     }
 
     /**
@@ -707,6 +737,7 @@ export class SessionData implements SessionDataApi {
             pending: this.pendingLoads,
             owner: this,
             expansions: this.expansions,
+            loads: () => this.loads(),
             node: (id) => this.node(id),
             nodeIds: () => [...this.current().ids],
             edges: () => {

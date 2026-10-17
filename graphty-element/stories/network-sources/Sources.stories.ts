@@ -6,7 +6,6 @@
 
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
-import { sourceDescriptors } from "../../catalog.ts";
 import { credentials } from "../../index.ts";
 import ndexRecordings from "../fixtures/sources/ndex-wp5483.json";
 import boltRecordings from "../fixtures/sources/neo4j-bolt.json";
@@ -87,23 +86,12 @@ export const OpenAlexCiting = sourceStory({
 });
 
 /**
- * STRING's functional partners of TP53: the `rest` source with the mapping its catalog sample
- * carries, so no code knows STRING's response shape.
+ * STRING's functional partners of TP53: the `rest` source's catalog sample, loaded by its id, with
+ * the mapping the sample carries, so no code knows STRING's response shape.
  */
 export const StringTp53 = sourceStory({
     recordings: stringRecordings,
-    load: (element, options) => {
-        const sample = sourceDescriptors()
-            .find((info) => info.id === "rest")
-            ?.descriptor.samples?.find((s) => s.id === "string-tp53");
-        if (sample === undefined) {
-            throw new Error("the rest source lists no string-tp53 sample");
-        }
-        return element.session.data.import(
-            { source: "rest", config: sample.params, name: sample.plainName },
-            { ...options, ...(sample.endpoint === undefined ? {} : { endpoint: sample.endpoint }) },
-        );
-    },
+    load: (element, options) => element.session.data.loadSample("string-tp53", options),
 });
 
 /** A third party's 15-line source, registered on the page and loaded by its id. */

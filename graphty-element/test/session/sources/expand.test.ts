@@ -150,6 +150,20 @@ describe("session.data.expand from a network source", () => {
         assert.lengthOf(fetch.calls, 1, "redo replays the rows");
     });
 
+    it("keeps data.loads() in step when an expansion is undone and redone", async () => {
+        const session = await seeded();
+        await session.data.expand(["valjean"]);
+        const keys = (): string[] => (session.data.loads()[0]?.expansions ?? []).map((x) => x.key);
+        assert.deepEqual(keys(), ["load-1/x1"]);
+
+        await session.undo();
+        assert.deepEqual(keys(), [], "the undone expansion is no longer listed");
+        assert.lengthOf(session.data.loads(), 1, "the load that brought the seed still is");
+
+        await session.redo();
+        assert.deepEqual(keys(), ["load-1/x1"]);
+    });
+
     it("sends the credential it is given through the source's guarded fetch, and records no secret", async () => {
         const session = await seeded("context");
         const fetch = replayFetch(PEOPLE_RECORDINGS.map((r) => ({ ...r, credential: true })));

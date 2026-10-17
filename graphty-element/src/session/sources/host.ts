@@ -7,6 +7,7 @@ import type { EdgeId, NodeId } from "../../catalog/types";
 import type { SessionCommand } from "../planning";
 import type { SessionEventMap } from "../types";
 import type { SourceLedger } from "./ledger";
+import type { SourceLoadRecord } from "./types";
 
 /** One edge as the expand code reads it. */
 export interface HostEdge {
@@ -33,6 +34,11 @@ export interface SourceHost {
     readonly owner: object;
     /** What expansions keep beside the graph: the ones running, and the rows each wrote. */
     readonly expansions: ExpansionState;
+    /**
+     * The load records the graph still holds rows of: `data.loads()`.
+     * @returns the records, in load order
+     */
+    loads(): readonly SourceLoadRecord[];
     /**
      * Dispatch a command through the session's dispatcher, as one undoable step.
      * @param command - the command

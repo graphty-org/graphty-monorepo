@@ -10,6 +10,7 @@
 
 import {
     type Credential,
+    credentials,
     type LoadFromSourceOptions,
     registry,
     SOURCE_FORMAT_PREFIX,
@@ -20,6 +21,7 @@ import {
     type SourceReportInfo,
 } from "@graphty/graph-io";
 
+import type { NodeId } from "../../catalog/types";
 import { ErrorAggregator } from "../../data/ErrorAggregator";
 import { aggregateErrors, columnsMapping, toRecords } from "../../data/graph-io-import";
 import { ensureGraphSamplesSource } from "../../data/graphSamplesSource";
@@ -193,9 +195,15 @@ function dispatchRows(
     // keys; union them here if a row two loads bring must answer to both.
     const stamp = (row: Record<string, unknown>): Record<string, unknown> => ({ ...row, [SOURCE_ATTR.loads]: [key] });
     const merge = options.mode === "merge";
+    // A node no expansion has fetched around reads "none" (design section 14.4); a merge keeps
+    // what an earlier expansion found about a node already there.
+    const stampNode = (row: Record<string, unknown>): Record<string, unknown> => ({
+        [SOURCE_ATTR.expansion]: (merge ? host.node(row.id as NodeId)?.[SOURCE_ATTR.expansion] : undefined) ?? "none",
+        ...stamp(row),
+    });
     const held: HeldRows = {
         ...read.held,
-        nodes: read.held.nodes.map(stamp),
+        nodes: read.held.nodes.map(stampNode),
         edges: read.held.edges.map(stamp),
         // A merge re-reads edges the graph may already hold (a next page, a rerun of a saved load):
         // one per pair, as an expansion does. ponytail: also folds a real parallel edge the source
@@ -238,12 +246,11 @@ export async function importSource(
     const before = host.ledger.toMember();
     const pendingBefore = [...host.pending];
     if ((options.mode ?? "replace") === "replace") {
-        host.ledger.clear();
         host.pending.clear();
     }
 
-    // ponytail: the ledger is not part of the undo history, so undoing a load keeps its record;
-    // move it into the graph slice if a consumer needs data.loads() to follow undo.
+    // The ledger keeps every record; `data.loads()` lists the ones whose rows the graph holds, so
+    // undoing this load (or the load it replaces) takes its record away (or back) with the rows.
     const record = host.ledger.addLoad({
         source: input.source,
         version: read.info?.version ?? descriptorOf(input.source)?.version ?? 1,
@@ -268,6 +275,43 @@ export async function importSource(
     }
 
     return record;
+}
+
+/**
+ * Load a public sample a registered source lists: its params, endpoint and published login.
+ * @param host - the session pieces
+ * @param id - the sample's id
+ * @param options - the load options; a credential or endpoint given here wins
+ * @returns the load's record
+ */
+export function loadSample(host: SourceHost, id: string, options: SourceLoadOptions): Promise<SourceLoadRecord> {
+    ensureGraphSamplesSource();
+    const listed = registry
+        .listSources()
+        .flatMap((info) => (info.descriptor.samples ?? []).map((sample) => ({ source: info.id, sample })));
+    const found = listed.find((entry) => entry.sample.id === id);
+    if (found === undefined) {
+        return Promise.reject(
+            new GraphtyError({
+                code: "E_SOURCE_UNKNOWN",
+                message: `No registered source lists a sample with id ${JSON.stringify(id)}.`,
+                source: "data",
+                details: { id, known: listed.map((entry) => entry.sample.id) },
+            }),
+        );
+    }
+
+    const { source, sample } = found;
+    const login = sample.publicLogin;
+    return importSource(
+        host,
+        { source, config: sample.params, name: sample.plainName },
+        {
+            ...(sample.endpoint === undefined ? {} : { endpoint: sample.endpoint }),
+            ...(login === undefined ? {} : { credential: credentials.basic(login.username, login.password) }),
+            ...options,
+        },
+    );
 }
 
 /**
@@ -313,7 +357,7 @@ export async function listSource(
  * @returns settles once the page is drawn, or at once when no load has more
  */
 export async function more(host: SourceHost, options: SourceLoadOptions): Promise<void> {
-    const record = host.ledger
+    const record = host
         .loads()
         .filter((r) => r.next !== null)
         .at(-1);

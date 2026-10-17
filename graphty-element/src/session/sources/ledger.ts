@@ -205,10 +205,18 @@ export class SourceLedger {
 
     /**
      * Every record, in load order.
+     * @param live - when given, only the loads and expansions whose keys are in it: the ones the
+     *     graph still holds rows of, so an undone load or expansion is not listed
      * @returns frozen copies
      */
-    loads(): readonly SourceLoadRecord[] {
-        return Object.freeze(this.records.map((r) => Object.freeze(plain(r))));
+    loads(live?: ReadonlySet<string>): readonly SourceLoadRecord[] {
+        const records =
+            live === undefined
+                ? this.records
+                : this.records
+                      .filter((r) => live.has(r.key))
+                      .map((r) => ({ ...r, expansions: r.expansions.filter((x) => live.has(x.key)) }));
+        return Object.freeze(records.map((r) => Object.freeze(plain(r))));
     }
 
     /**

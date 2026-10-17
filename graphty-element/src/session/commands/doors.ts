@@ -216,11 +216,19 @@ const DOOR_SOURCE = "door-source";
  * Register the doors' network source, once.
  * @returns Its id.
  */
+/** The one sample the doors' network source lists. */
+const DOOR_SAMPLE = "door-sample";
+
 function doorSource(): string {
     if (!registry.hasSource(DOOR_SOURCE)) {
         registerSource(
             defineSource({
                 id: DOOR_SOURCE,
+                descriptor: {
+                    plainName: "Door source",
+                    params: [],
+                    samples: [{ id: DOOR_SAMPLE, plainName: "Door sample", params: {} }],
+                },
                 async *records(_params: Record<string, never>, ctx) {
                     for (let page = Number(ctx.cursor?.page ?? 0); page < 2; page++) {
                         await Promise.resolve();
@@ -289,7 +297,23 @@ const DOOR_PENDING = {
 };
 
 /** Loading from the doors' network source on the element. */
-const LOAD_FROM_SOURCE = calls(() => [doorSource(), {}], [sourceImport("replace", ["door-s0", "door-s1"])]);
+const LOAD_FROM_SOURCE = calls(
+    () => [doorSource(), {}],
+    [
+        sourceImport(
+            "replace",
+            ["door-s0", "door-s1"],
+            {},
+            {
+                nodes: ["door-s0", "door-s1"].map((id) => ({
+                    id,
+                    "_source.expansion": "none",
+                    "_source.loads": ["load-1"],
+                })),
+            },
+        ),
+    ],
+);
 
 /** The data rows the element and `Graph` share. */
 const DATA_DOORS: Readonly<Record<string, Door>> = {
@@ -1632,12 +1656,33 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                         ["door-s1"],
                         {},
                         {
-                            nodes: [{ id: "door-s1", "_source.loads": ["load-1"] }],
+                            nodes: [{ id: "door-s1", "_source.expansion": "none", "_source.loads": ["load-1"] }],
                             repeated: "first",
                         },
                     ),
                 ],
             },
+            // A sample a source lists, loaded with its params as one source load.
+            loadSample: calls(() => {
+                doorSource();
+                return [DOOR_SAMPLE];
+            }, [
+                {
+                    ...sourceImport(
+                        "replace",
+                        ["door-s0", "door-s1"],
+                        {},
+                        {
+                            nodes: ["door-s0", "door-s1"].map((id) => ({
+                                id,
+                                "_source.expansion": "none",
+                                "_source.loads": ["load-1"],
+                            })),
+                        },
+                    ),
+                    source: { type: `source:${DOOR_SOURCE}`, config: {}, name: "Door sample" },
+                } as SessionCommand,
+            ]),
             // A saved load of an opened project, run again: its rows, merged over the ones it brought.
             runPendingSourceLoad: {
                 kind: "dispatches",
@@ -1658,7 +1703,11 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                         ["door-s0", "door-s1"],
                         { existing: "update" },
                         {
-                            nodes: ["door-s0", "door-s1"].map((id) => ({ id, "_source.loads": ["door-load"] })),
+                            nodes: ["door-s0", "door-s1"].map((id) => ({
+                                id,
+                                "_source.expansion": "none",
+                                "_source.loads": ["door-load"],
+                            })),
                             repeated: "first",
                         },
                     ),

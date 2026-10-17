@@ -3366,6 +3366,7 @@ export interface SessionDataApi {
     lastImport(): LoadReport | null;
     listSource(source: SourceInput, query?: Omit<SourceListQuery<Record<string, unknown>>, "params">, options?: SourceLoadOptions): Promise<SourceListing>;
     loads(): readonly SourceLoadRecord[];
+    loadSample(id: string, options?: LoadChoices & SourceLoadOptions): Promise<void>;
     more(options?: SourceLoadOptions): Promise<void>;
     name(id: NodeId_2): string | undefined;
     neighbors(id: NodeId_2, options?: NeighborOptions): NeighborPage;

@@ -51,8 +51,9 @@ Undo puts everything back.
 
 ## What each node says about itself
 
-The element writes neutral facts as `_source.` attributes on every node an expansion touches. It ships no
-style for them; what to emphasize is your choice.
+The element writes neutral facts as `_source.` attributes on every node a source load brings or an
+expansion touches; a node no expansion has fetched around reads `_source.expansion: "none"`. It ships
+no style for them; what to emphasize is your choice.
 
 | Path                | Meaning                                                                |
 | ------------------- | ---------------------------------------------------------------------- |

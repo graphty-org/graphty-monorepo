@@ -89,8 +89,11 @@ export function firstPageUrl(
 function linkOf(header: string, rel: string): string | null {
     for (const part of header.split(/,(?=\s*<)/)) {
         const m = /^\s*<([^>]*)>(.*)$/.exec(part);
-        const rels = m === null ? null : /;\s*rel="?([^";]+)"?/i.exec(m[2]);
-        if (m !== null && rels !== null && rels[1].split(/\s+/).includes(rel)) {
+        if (m === null) {
+            continue;
+        }
+        const rels = /;\s*rel="?([^";]+)"?/i.exec(m[2]);
+        if (rels?.[1].split(/\s+/).includes(rel)) {
             return m[1];
         }
     }
@@ -109,6 +112,30 @@ interface PageResponse {
     readonly records: number;
     /** Where the load runs: a missing Link header in a browser may be one the service hides. */
     readonly runtime: string;
+}
+
+/**
+ * The next page's URL from the Link header, or null after the last one.
+ * @param rel - the relation that names the next page
+ * @param page - this page's response
+ * @param endpoint - the mapping's endpoint
+ * @param report - the load's report
+ * @returns the next position
+ */
+function nextLink(rel: string, page: PageResponse, endpoint: URL, report: ImportReportBuilder): PagePosition {
+    const header = page.headers.get("link");
+    if (header === null) {
+        if (page.runtime === "browser") {
+            // a browser reads Link only when the service exposes it: never a silent single page
+            failOn(report, "E_SOURCE_RESPONSE", "the Link header cannot be read", {
+                expected: "link-header",
+                contentType: page.headers.get("content-type"),
+            });
+        }
+        return null;
+    }
+    const next = linkOf(header, rel);
+    return next === null ? null : checkOrigin(new URL(next, page.url), endpoint, report).href;
 }
 
 /**
@@ -139,21 +166,8 @@ export function nextPosition(
             const step = paging.unit === "pages" ? 1 : paging.size.value;
             return Number(position) + step;
         }
-        case "link-header": {
-            const header = page.headers.get("link");
-            if (header === null) {
-                if (page.runtime === "browser") {
-                    // a browser reads Link only when the service exposes it: never a silent single page
-                    failOn(report, "E_SOURCE_RESPONSE", "the Link header cannot be read", {
-                        expected: "link-header",
-                        contentType: page.headers.get("content-type"),
-                    });
-                }
-                return null;
-            }
-            const next = linkOf(header, paging.rel ?? "next");
-            return next === null ? null : checkOrigin(new URL(next, page.url), endpoint, report).href;
-        }
+        case "link-header":
+            return nextLink(paging.rel ?? "next", page, endpoint, report);
         case "next-url": {
             const next = selectOne(page.body, paging.next);
             return typeof next === "string" && next !== ""

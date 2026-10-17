@@ -59,6 +59,15 @@ interface Page {
     readonly status: number;
 }
 
+/**
+ * How long until a budget resets.
+ * @param reset - the reset header's number: past 1e9 an epoch in seconds, otherwise seconds from now
+ * @returns milliseconds from now, never negative
+ */
+function resetDelayMs(reset: number): number {
+    return Math.max(0, reset > 1e9 ? reset * 1000 - Date.now() : reset * 1000);
+}
+
 /** One call's running state. */
 class RestRun {
     readonly endpoint: URL;
@@ -110,11 +119,7 @@ class RestRun {
             return;
         }
         const reset = names.reset === undefined ? null : Number(headers.get(names.reset) ?? Number.NaN);
-        // a reset past 1e9 is an epoch in seconds; otherwise it is seconds from now
-        const resetMs =
-            reset === null || !Number.isFinite(reset)
-                ? undefined
-                : Math.max(0, reset > 1e9 ? reset * 1000 - Date.now() : reset * 1000);
+        const resetMs = reset === null || !Number.isFinite(reset) ? undefined : resetDelayMs(reset);
         this.facts.budget = { remaining: Number(remaining), ...(resetMs === undefined ? {} : { resetMs }) };
     }
 
@@ -346,103 +351,224 @@ function batches(ids: readonly string[], max: number): string[][] {
  * @returns the report
  */
 async function expandInto(run: RestRun, request: ExpandRequest<unknown>, sink: GraphSink): Promise<ImportReport> {
-    const { mapping, values } = run.plan;
-    const { ctx } = run;
-    const names = expandRequests(mapping, request);
-    if (names.length === 0) {
-        failOn(ctx.report, "E_SOURCE_UNSUPPORTED", "the mapping has no request for this expansion", {
-            feature: request.depth === 0 ? "hydrate" : "expand",
-        });
+    return new Expansion(run, request, sink).expand();
+}
+
+/** Which batch of which request of which hop is being read. */
+interface BatchAt {
+    readonly hop: number;
+    readonly x: number;
+    readonly b: number;
+}
+
+/** One expansion's running state. */
+class Expansion {
+    private readonly mapping: RestMapping;
+    private readonly names: string[];
+    private readonly state: RecordState;
+    private readonly types: ReadonlySet<string> | undefined;
+    private added = 0;
+    private wrote = false;
+
+    /**
+     * Check the expansion and set the sink's direction.
+     * @param run - the call
+     * @param request - the seeds and how far to go
+     * @param sink - where to write
+     */
+    constructor(
+        private readonly run: RestRun,
+        private readonly request: ExpandRequest<unknown>,
+        private readonly sink: GraphSink,
+    ) {
+        const { ctx } = run;
+        this.mapping = run.plan.mapping;
+        this.names = expandRequests(this.mapping, request);
+        if (this.names.length === 0) {
+            failOn(ctx.report, "E_SOURCE_UNSUPPORTED", "the mapping has no request for this expansion", {
+                feature: request.depth === 0 ? "hydrate" : "expand",
+            });
+        }
+        if (request.ids.length === 0) {
+            failOn(ctx.report, "E_SOURCE_PARAM", "an expansion needs seed ids", { name: "ids", reason: "required" });
+        }
+        this.state = newState([...request.ids.map(String), ...(request.exclude ?? []).map(String)]);
+        this.types = request.relationshipTypes === undefined ? undefined : new Set(request.relationshipTypes);
+        if (this.mapping.directed !== undefined && sink.edgeCount === 0) {
+            sink.setDirected(this.mapping.directed);
+        }
     }
-    if (request.ids.length === 0) {
-        failOn(ctx.report, "E_SOURCE_PARAM", "an expansion needs seed ids", { name: "ids", reason: "required" });
+
+    /**
+     * Run every hop.
+     * @returns the report
+     */
+    async expand(): Promise<ImportReport> {
+        let frontier = this.request.ids.map(String);
+        const depth = Math.max(1, this.request.depth ?? 1);
+        for (let hop = 1; hop <= depth && frontier.length > 0; hop++) {
+            const reached: string[] = [];
+            const stop = await this.hop(hop, frontier, reached);
+            if (stop !== null) {
+                return stop;
+            }
+            frontier = [...new Set(reached)];
+        }
+        return this.run.finish(this.state, null);
     }
-    const seeds = request.ids.map(String);
-    const state = newState([...seeds, ...(request.exclude ?? []).map(String)]);
-    const types = request.relationshipTypes === undefined ? undefined : new Set(request.relationshipTypes);
-    if (mapping.directed !== undefined && sink.edgeCount === 0) {
-        sink.setDirected(mapping.directed);
-    }
-    const resume = ctx.cursor;
-    let frontier = seeds;
-    let added = 0;
-    let wrote = false;
-    for (let hop = 1; hop <= Math.max(1, request.depth ?? 1) && frontier.length > 0; hop++) {
-        const reached: string[] = [];
-        for (const [x, name] of names.entries()) {
-            const r = mapping.requests[name];
-            for (const [b, batch] of batches(frontier, r.batch?.max ?? 1).entries()) {
-                if (
-                    hop === 1 &&
-                    resume !== null &&
-                    (x < Number(resume.x) || (x === Number(resume.x) && b < Number(resume.b)))
-                ) {
+
+    /**
+     * Run one hop: every request over every batch of the frontier.
+     * @param hop - the hop, from 1
+     * @param frontier - the ids this hop starts from
+     * @param reached - collects the ids this hop adds
+     * @returns the report when the expansion stopped, else null
+     */
+    private async hop(hop: number, frontier: readonly string[], reached: string[]): Promise<ImportReport | null> {
+        for (const [x, name] of this.names.entries()) {
+            const max = this.mapping.requests[name].batch?.max ?? 1;
+            for (const [b, batch] of batches(frontier, max).entries()) {
+                if (this.skipped({ hop, x, b })) {
                     continue;
                 }
-                const own = { ...values, id: batch[0], ids: batch.join(r.batch?.join ?? ",") };
-                let position: PagePosition | undefined =
-                    hop === 1 && resume !== null && x === Number(resume.x) && b === Number(resume.b)
-                        ? ((resume.at as PagePosition) ?? undefined)
-                        : undefined;
-                for (;;) {
-                    let page: Page;
-                    try {
-                        page = await run.read(name, own, position);
-                    } catch (err) {
-                        if (wrote && err instanceof ImportError && AUTH_CODES.has(String(err.issue?.code))) {
-                            const p = err.issue?.params ?? {};
-                            warnOn(
-                                ctx.report,
-                                "W_SOURCE_AUTH",
-                                "a later page needs a credential; the pages before it are kept",
-                                {
-                                    origin: typeof p.origin === "string" ? p.origin : run.endpoint.origin,
-                                    status: typeof p.status === "number" ? p.status : null,
-                                },
-                            );
-                            return run.finish(state, hop === 1 ? { x, b, at: position ?? null } : null);
-                        }
-                        throw err;
-                    }
-                    const before = new Set([...state.full, ...state.stubs]);
-                    const out = toRecords(mapping, [{ records: page.records, entity: r.entity }], state);
-                    writePage(out, sink, ctx, types);
-                    wrote = true;
-                    for (const node of out.nodes) {
-                        const id = String(node.id);
-                        if (!before.has(id) && !state.known.has(id)) {
-                            reached.push(id);
-                            added++;
-                        }
-                    }
-                    const more = page.next === null ? null : { x, b, at: page.next };
-                    if (request.limit !== undefined && added >= request.limit) {
-                        warnOn(ctx.report, "W_SOURCE_LIMIT", "the expansion reached its limit", {
-                            limit: "limit",
-                            value: added,
-                        });
-                        // ponytail: only a capped first hop can resume; a deeper hop's frontier is not recorded
-                        return run.finish(
-                            state,
-                            hop === 1 ? (more ?? nextBatch(x, b, names, frontier, mapping)) : null,
-                        );
-                    }
-                    if (ctx.limits.reached()) {
-                        return run.finish(
-                            state,
-                            hop === 1 ? (more ?? nextBatch(x, b, names, frontier, mapping)) : null,
-                        );
-                    }
-                    if (page.next === null) {
-                        break;
-                    }
-                    position = page.next;
+                const stop = await this.readBatch({ hop, x, b }, name, batch, frontier, reached);
+                if (stop !== null) {
+                    return stop;
                 }
             }
         }
-        frontier = [...new Set(reached)];
+        return null;
     }
-    return run.finish(state, null);
+
+    /**
+     * Whether a resumed first hop already read this batch.
+     * @param at - the batch
+     * @returns true to skip it
+     */
+    private skipped(at: BatchAt): boolean {
+        const { hop, x, b } = at;
+        const resume = this.run.ctx.cursor;
+        if (hop !== 1 || resume === null) {
+            return false;
+        }
+        const rx = Number(resume.x);
+        return x < rx || (x === rx && b < Number(resume.b));
+    }
+
+    /**
+     * Where a batch starts: the recorded position for the batch a first hop stopped in.
+     * @param at - the batch
+     * @returns the position, or undefined for the first page
+     */
+    private startPosition(at: BatchAt): PagePosition | undefined {
+        const { hop, x, b } = at;
+        const resume = this.run.ctx.cursor;
+        return hop === 1 && resume !== null && x === Number(resume.x) && b === Number(resume.b)
+            ? ((resume.at as PagePosition) ?? undefined)
+            : undefined;
+    }
+
+    /**
+     * Read one batch page by page.
+     * @param at - the batch
+     * @param name - the request
+     * @param batch - its ids
+     * @param frontier - the hop's ids
+     * @param reached - collects the ids it adds
+     * @returns the report when the expansion stopped, else null
+     */
+    private async readBatch(
+        at: BatchAt,
+        name: string,
+        batch: readonly string[],
+        frontier: readonly string[],
+        reached: string[],
+    ): Promise<ImportReport | null> {
+        const r = this.mapping.requests[name];
+        const own = { ...this.run.plan.values, id: batch[0], ids: batch.join(r.batch?.join ?? ",") };
+        let position = this.startPosition(at);
+        for (;;) {
+            let page: Page;
+            try {
+                page = await this.run.read(name, own, position);
+            } catch (err) {
+                return this.authStop(err, at.hop === 1 ? { x: at.x, b: at.b, at: position ?? null } : null);
+            }
+            this.writeNew(page, r.entity, reached);
+            const stop = this.capStop(at, page, frontier);
+            if (stop !== null || page.next === null) {
+                return stop;
+            }
+            position = page.next;
+        }
+    }
+
+    /**
+     * Keep what was written when a later page needs a credential; rethrow anything else.
+     * @param err - what the page threw
+     * @param cursor - where to resume
+     * @returns the report
+     */
+    private authStop(err: unknown, cursor: SourceCursor | null): ImportReport {
+        if (!this.wrote || !(err instanceof ImportError) || !AUTH_CODES.has(String(err.issue?.code))) {
+            throw err;
+        }
+        const p = err.issue?.params ?? {};
+        warnOn(this.run.ctx.report, "W_SOURCE_AUTH", "a later page needs a credential; the pages before it are kept", {
+            origin: typeof p.origin === "string" ? p.origin : this.run.endpoint.origin,
+            status: typeof p.status === "number" ? p.status : null,
+        });
+        return this.run.finish(this.state, cursor);
+    }
+
+    /**
+     * Write a page and collect the nodes it added.
+     * @param page - the page
+     * @param entity - its records' entity
+     * @param reached - collects the ids it adds
+     */
+    private writeNew(page: Page, entity: string, reached: string[]): void {
+        const { state } = this;
+        const before = new Set([...state.full, ...state.stubs]);
+        const out = toRecords(this.mapping, [{ records: page.records, entity }], state);
+        writePage(out, this.sink, this.run.ctx, this.types);
+        this.wrote = true;
+        for (const node of out.nodes) {
+            const id = String(node.id);
+            if (!before.has(id) && !state.known.has(id)) {
+                reached.push(id);
+                this.added++;
+            }
+        }
+    }
+
+    /**
+     * Stop at the expansion's limit or the load's caps.
+     * @param at - the batch
+     * @param page - the page just written
+     * @param frontier - the hop's ids
+     * @returns the report when a cap was reached, else null
+     */
+    private capStop(at: BatchAt, page: Page, frontier: readonly string[]): ImportReport | null {
+        const { hop, x, b } = at;
+        const { ctx } = this.run;
+        const limited = this.request.limit !== undefined && this.added >= this.request.limit;
+        if (limited) {
+            warnOn(ctx.report, "W_SOURCE_LIMIT", "the expansion reached its limit", {
+                limit: "limit",
+                value: this.added,
+            });
+        }
+        if (!limited && !ctx.limits.reached()) {
+            return null;
+        }
+        const more = page.next === null ? null : { x, b, at: page.next };
+        // ponytail: only a capped first hop can resume; a deeper hop's frontier is not recorded
+        return this.run.finish(
+            this.state,
+            hop === 1 ? (more ?? nextBatch(x, b, this.names, frontier, this.mapping)) : null,
+        );
+    }
 }
 
 /**

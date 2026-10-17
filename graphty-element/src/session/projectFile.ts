@@ -1334,6 +1334,97 @@ export function projectOf(
         tell();
     });
 
+    /**
+     * Open a project over the session: its graph and slices in one transaction, its network
+     * loads waiting, and a fresh history.
+     * @param doc - the read document
+     * @param fileName - the file's name, if it had one
+     * @param discard - whether unsaved changes may be lost
+     * @param problems - collects what could not be restored
+     * @param restored - collects the slices that were
+     */
+    const openProject = async (
+        doc: ReadDocument,
+        fileName: unknown,
+        discard: boolean,
+        problems: ProjectProblem[],
+        restored: Set<ProjectSlice>,
+    ): Promise<void> => {
+        if (isDirty() && !discard) {
+            throw new GraphtyError({
+                code: "E_UNSAVED_CHANGES",
+                message: "The session has unsaved changes. Pass { discard: true } to open the project over them.",
+                source: "data",
+            });
+        }
+
+        const data = doc.members.get("graphty-data")?.[0];
+        if (data === undefined) {
+            throw badDocument({ member: "graphty-data" });
+        }
+
+        const graph = nodeLinkOf(data);
+        const name = doc.name ?? nameOfFile(typeof fileName === "string" ? fileName : undefined);
+        const opening: TransactionOptions = { fact: { code: "project.open", params: { name: name ?? null } } };
+        await session.transaction(
+            "Open project",
+            (tx) => readProject({ tx, problems, restored }, doc, graph, name, canned),
+            opening,
+        );
+        // The loads from network sources wait, fetching nothing, until the application runs them.
+        try {
+            sources?.restore(doc.members.get(SOURCE_RECORD_MEMBER)?.[0]);
+        } catch (error) {
+            problems.push({
+                code: isGraphtyError(error) ? error.code : "E_INTERNAL",
+                params: { kind: SOURCE_RECORD_MEMBER },
+            });
+        }
+        // A project opens with a fresh history: its opened state is the baseline.
+        session.history.clear();
+        adopt(pointNow());
+    };
+
+    /**
+     * Open a plain graphty document into the session: its graph when the session is empty, its
+     * styles and notes, and a problem for each project slice it cannot hold.
+     * @param doc - the read document
+     * @param problems - collects what could not be restored
+     * @param restored - collects the slices that were
+     */
+    const openDocument = async (
+        doc: ReadDocument,
+        problems: ProjectProblem[],
+        restored: Set<ProjectSlice>,
+    ): Promise<void> => {
+        const data = doc.members.get("graphty-data")?.[0];
+        const graph = data === undefined || session.data.nodes().length > 0 ? undefined : nodeLinkOf(data);
+        await session.transaction(
+            "Open document",
+            async (tx) => {
+                const opening = { tx, problems, restored };
+                if (graph !== undefined) {
+                    await importInto(tx, graph, data?.source);
+                    restored.add("graph");
+                }
+
+                for (const kind of [
+                    "graphty-session",
+                    "graphty-arrangement",
+                    "graphty-results",
+                    "graphty-view-state",
+                ] as const) {
+                    if (doc.members.has(kind)) {
+                        problems.push({ code: "E_UNSUPPORTED", params: { kind } });
+                    }
+                }
+
+                await addStylesAndNotes(opening, doc.members, (value) => value, doc.name ?? null);
+            },
+            OPEN_DOCUMENT,
+        );
+    };
+
     return {
         get name() {
             return nameNow();
@@ -1399,67 +1490,9 @@ export function projectOf(
             const restored = new Set<ProjectSlice>();
 
             if (isProject) {
-                if (isDirty() && options.discard !== true) {
-                    throw new GraphtyError({
-                        code: "E_UNSAVED_CHANGES",
-                        message:
-                            "The session has unsaved changes. Pass { discard: true } to open the project over them.",
-                        source: "data",
-                    });
-                }
-
-                const data = doc.members.get("graphty-data")?.[0];
-                if (data === undefined) {
-                    throw badDocument({ member: "graphty-data" });
-                }
-
-                const graph = nodeLinkOf(data);
-                const name = doc.name ?? nameOfFile(typeof fileName === "string" ? fileName : undefined);
-                const opening: TransactionOptions = { fact: { code: "project.open", params: { name: name ?? null } } };
-                await session.transaction(
-                    "Open project",
-                    (tx) => readProject({ tx, problems, restored }, doc, graph, name, canned),
-                    opening,
-                );
-                // The loads from network sources wait, fetching nothing, until the application runs them.
-                try {
-                    sources?.restore(doc.members.get(SOURCE_RECORD_MEMBER)?.[0]);
-                } catch (error) {
-                    problems.push({
-                        code: isGraphtyError(error) ? error.code : "E_INTERNAL",
-                        params: { kind: SOURCE_RECORD_MEMBER },
-                    });
-                }
-                // A project opens with a fresh history: its opened state is the baseline.
-                session.history.clear();
-                adopt(pointNow());
+                await openProject(doc, fileName, options.discard === true, problems, restored);
             } else {
-                const data = doc.members.get("graphty-data")?.[0];
-                const graph = data === undefined || session.data.nodes().length > 0 ? undefined : nodeLinkOf(data);
-                await session.transaction(
-                    "Open document",
-                    async (tx) => {
-                        const opening = { tx, problems, restored };
-                        if (graph !== undefined) {
-                            await importInto(tx, graph, data?.source);
-                            restored.add("graph");
-                        }
-
-                        for (const kind of [
-                            "graphty-session",
-                            "graphty-arrangement",
-                            "graphty-results",
-                            "graphty-view-state",
-                        ] as const) {
-                            if (doc.members.has(kind)) {
-                                problems.push({ code: "E_UNSUPPORTED", params: { kind } });
-                            }
-                        }
-
-                        await addStylesAndNotes(opening, doc.members, (value) => value, doc.name ?? null);
-                    },
-                    OPEN_DOCUMENT,
-                );
+                await openDocument(doc, problems, restored);
             }
 
             return Object.freeze({

@@ -357,11 +357,8 @@ export async function listSource(
  * @returns settles once the page is drawn, or at once when no load has more
  */
 export async function more(host: SourceHost, options: SourceLoadOptions): Promise<void> {
-    const record = host
-        .loads()
-        .filter((r) => r.next !== null)
-        .at(-1);
-    if (record === undefined || record.next === null) {
+    const record = [...host.loads()].reverse().find((r) => r.next !== null);
+    if (!record?.next) {
         return;
     }
 
@@ -393,14 +390,14 @@ function isLocalNetwork(endpoint: string | null): boolean {
         return false;
     }
 
-    const host = new URL(endpoint).hostname.replace(/^\[|\]$/g, "");
+    const host = new URL(endpoint).hostname.replaceAll(/(?:^\[)|(?:\]$)/g, "");
     return (
         host === "localhost" ||
         host === "::1" ||
         host.endsWith(".local") ||
-        /^127\./.test(host) ||
-        /^10\./.test(host) ||
-        /^192\.168\./.test(host) ||
+        host.startsWith("127.") ||
+        host.startsWith("10.") ||
+        host.startsWith("192.168.") ||
         /^172\.(1[6-9]|2\d|3[01])\./.test(host)
     );
 }

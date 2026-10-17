@@ -28,7 +28,7 @@ import {
     type SourceValidators,
 } from "../types.js";
 import { CYPHER_DESCRIPTOR, NEO4J_DESCRIPTOR, NEPTUNE_DESCRIPTOR } from "./descriptor.js";
-import { canonicalRows, Collector, requireGraph, writeCollected } from "./flatten.js";
+import { canonicalRows, Collector, compareText, requireGraph, writeCollected } from "./flatten.js";
 import { type CypherParams } from "./params.js";
 import { type CypherProfile, neo4jProfile, neptuneProfile, serverFacts } from "./profiles.js";
 import {
@@ -245,12 +245,7 @@ class Reader {
         const size = checkedInteger(params.pageSize ?? DEFAULT_PAGE_SIZE, "pageSize", 1, MAX_PAGE_SIZE, ctx.report);
         let phase: "nodes" | "edges" = cursor?.phase === "edges" ? "edges" : "nodes";
         let after: string | number | boolean | null = cursor?.after ?? null;
-        let total: number | undefined;
-        if (params.countFirst === true && cursor === null) {
-            const [n, r] = counts(this.filters);
-            const [a, b] = await Promise.all([this.transport.run(n, {}), this.transport.run(r, {})]);
-            total = Number(a.rows[0]?.[0] ?? 0) + Number(b.rows[0]?.[0] ?? 0);
-        }
+        const total = params.countFirst === true && cursor === null ? await this.total() : undefined;
         for (;;) {
             const nodes = phase === "nodes";
             const { collected, rows, fields } = await this.generated(
@@ -260,14 +255,7 @@ class Reader {
                         : edgePage(profile, this.filters, size, after !== null),
                 after === null ? {} : { after },
             );
-            const last = rows.at(-1)?.[fields.indexOf("key")];
-            const key = typeof last === "string" || typeof last === "number" ? last : null;
-            let next: SourceCursor | null;
-            if (rows.length >= Number(size) && key !== null) {
-                next = { phase, after: key };
-            } else {
-                next = nodes ? { phase: "edges", after: null } : null;
-            }
+            const next = nextCursor(phase, rows, fields, Number(size));
             yield { collected, next };
             const { counts: done } = ctx.report;
             ctx.progress(done.nodes + done.edges, total, "items");
@@ -280,18 +268,51 @@ class Reader {
     }
 
     /**
+     * How many nodes and relationships the filters match, for progress.
+     * @returns the count
+     */
+    private async total(): Promise<number> {
+        const [n, r] = counts(this.filters);
+        const [a, b] = await Promise.all([this.transport.run(n, {}), this.transport.run(r, {})]);
+        return Number(a.rows[0]?.[0] ?? 0) + Number(b.rows[0]?.[0] ?? 0);
+    }
+
+    /**
      * The server facts and validators of what was read.
      * @param lines - the canonical rows
      * @returns the server facts and validators
      */
     async facts(lines: string[]): Promise<{ server: Readonly<Record<string, string>>; validators: SourceValidators }> {
         const profile = await this.profile();
-        const contentHash = await sha256Hex(lines.sort().join("\n"));
+        const contentHash = await sha256Hex([...lines].sort(compareText).join("\n"));
         return {
             server: serverFacts(profile),
             validators: profile.version === null ? { contentHash } : { contentHash, serverVersion: profile.version },
         };
     }
+}
+
+/**
+ * Where mode "all" resumes after a page: the same phase after the page's last key while pages are
+ * full, then the relationships from the start, then nothing.
+ * @param phase - the page's phase
+ * @param rows - the page's rows
+ * @param fields - the page's field names
+ * @param size - the page size
+ * @returns the next cursor, or null at the end
+ */
+function nextCursor(
+    phase: "nodes" | "edges",
+    rows: readonly (readonly unknown[])[],
+    fields: readonly string[],
+    size: number,
+): SourceCursor | null {
+    const last = rows.at(-1)?.[fields.indexOf("key")];
+    const key = typeof last === "string" || typeof last === "number" ? last : null;
+    if (rows.length >= size && key !== null) {
+        return { phase, after: key };
+    }
+    return phase === "nodes" ? { phase: "edges", after: null } : null;
 }
 
 /**

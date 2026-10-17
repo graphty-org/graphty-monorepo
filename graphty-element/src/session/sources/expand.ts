@@ -36,7 +36,7 @@ const NOT_EDITS = new Set(["id", "position"]);
 function unitHash(text: string): number {
     let hash = 2166136261;
     for (let i = 0; i < text.length; i++) {
-        hash = Math.imul(hash ^ text.charCodeAt(i), 16777619);
+        hash = Math.imul(hash ^ text.charCodeAt(i), 16777619); // NOSONAR(S7758): hashes UTF-16 code units on purpose; code points would move existing seeds
     }
 
     // FNV-1a alone moves the high bits little for a change in the last character, so keys that
@@ -58,7 +58,7 @@ function unitHash(text: string): number {
 function editable(record: Readonly<Record<string, unknown>>): string {
     const keys = Object.keys(record)
         .filter((key) => !NOT_EDITS.has(key) && !isSourceFactKey(key))
-        .sort();
+        .sort((a, b) => (a < b ? -1 : 1)); // keys are unique; code-unit order, independent of locale
     return JSON.stringify(keys.map((key) => [key, record[key]]));
 }
 
@@ -214,18 +214,20 @@ async function expandGroup(
             {
                 params: load.config,
                 ids: seeds,
-                ...(options.depth === undefined ? {} : { depth: options.depth }),
-                ...(options.direction === undefined ? {} : { direction: options.direction }),
-                ...(options.limit === undefined ? {} : { limit: options.limit }),
-                ...(options.relationshipTypes === undefined ? {} : { relationshipTypes: options.relationshipTypes }),
+                ...definedOnly({
+                    depth: options.depth,
+                    direction: options.direction,
+                    limit: options.limit,
+                    relationshipTypes: options.relationshipTypes,
+                }),
             },
-            {
-                ...(load.endpoint === null ? {} : { endpoint: load.endpoint }),
-                ...(credential === undefined ? {} : { credential }),
-                ...(cursor === undefined || cursor === null ? {} : { cursor }),
-                ...(options.signal === undefined ? {} : { signal: options.signal }),
-                ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
-            },
+            definedOnly({
+                endpoint: load.endpoint ?? undefined,
+                credential,
+                cursor: cursor ?? undefined,
+                signal: options.signal,
+                fetch: options.fetch,
+            }),
         );
     } catch (error) {
         const thrown = toGraphtyError(error);
@@ -240,9 +242,7 @@ async function expandGroup(
     const next = fetched.report.source?.next ?? null;
     const expansion = host.ledger.addExpansion(load.key, {
         ids: seeds,
-        ...(options.depth === undefined ? {} : { depth: options.depth }),
-        ...(options.direction === undefined ? {} : { direction: options.direction }),
-        ...(options.limit === undefined ? {} : { limit: options.limit }),
+        ...definedOnly({ depth: options.depth, direction: options.direction, limit: options.limit }),
         next,
     });
     const command = mergeCommand(host, fetched, expansion.key, seeds, next, options.layout ?? "continue");
@@ -386,6 +386,80 @@ function mergeCommand(
 }
 
 /**
+ * An object without its undefined values, so an absent option is left out rather than passed.
+ * @param values - the values
+ * @returns the defined ones
+ */
+function definedOnly<T extends Record<string, unknown>>(values: T): { [K in keyof T]?: Exclude<T[K], undefined> } {
+    return Object.fromEntries(Object.entries(values).filter(([, value]) => value !== undefined)) as {
+        [K in keyof T]?: Exclude<T[K], undefined>;
+    };
+}
+
+/**
+ * Sort the nodes a collapse touches: removed, or kept because they are pinned or edited.
+ * @param host - the session pieces
+ * @param seedId - the collapsed node
+ * @param only - whether a record came only from the seed's expansions
+ * @returns the removed and the kept nodes
+ */
+function collapsedNodes(
+    host: SourceHost,
+    seedId: NodeId,
+    only: (record: Readonly<Record<string, unknown>>) => boolean,
+): { removed: NodeId[]; kept: { pinned: NodeId[]; edited: NodeId[] } } {
+    const removed: NodeId[] = [];
+    const kept = { pinned: [] as NodeId[], edited: [] as NodeId[] };
+    for (const nodeId of host.nodeIds()) {
+        const record = host.node(nodeId);
+        if (record === undefined || String(nodeId) === String(seedId) || !only(record)) {
+            continue;
+        }
+
+        const key = sourceLoadsOf(record).at(-1) ?? "";
+        const wrote = host.expansions.written.get(key)?.get(String(nodeId));
+        if (host.placement(nodeId).pinned) {
+            kept.pinned.push(nodeId);
+        } else if (wrote !== undefined && wrote !== editable(record)) {
+            kept.edited.push(nodeId);
+        } else {
+            removed.push(nodeId);
+        }
+    }
+
+    return { removed, kept };
+}
+
+/**
+ * The edges a collapse removes: every edge of a removed node goes with it, and an edge the
+ * expansions alone brought goes unless it touches a kept node.
+ * @param host - the session pieces
+ * @param gone - the removed nodes
+ * @param stays - the kept nodes
+ * @param only - whether a record came only from the seed's expansions
+ * @returns the edges to remove explicitly, and how many edges go in all
+ */
+function collapsedEdges(
+    host: SourceHost,
+    gone: ReadonlySet<string>,
+    stays: ReadonlySet<string>,
+    only: (record: Readonly<Record<string, unknown>>) => boolean,
+): { edges: EdgeId[]; removedEdges: number } {
+    const edges: EdgeId[] = [];
+    let removedEdges = 0;
+    for (const edge of host.edges()) {
+        if (gone.has(String(edge.source)) || gone.has(String(edge.target))) {
+            removedEdges++;
+        } else if (only(edge.record) && !stays.has(String(edge.source)) && !stays.has(String(edge.target))) {
+            edges.push(edge.id);
+            removedEdges++;
+        }
+    }
+
+    return { edges, removedEdges };
+}
+
+/**
  * Remove what a node's expansions alone brought, as one undoable step.
  * @param host - the session pieces
  * @param id - the node
@@ -410,37 +484,14 @@ export async function collapseNode(host: SourceHost, id: NodeId): Promise<Collap
         return loads.length > 0 && loads.every((key) => mine.has(key));
     };
 
-    const removed: NodeId[] = [];
-    const kept = { pinned: [] as NodeId[], edited: [] as NodeId[] };
-    for (const nodeId of host.nodeIds()) {
-        const record = host.node(nodeId);
-        if (record === undefined || String(nodeId) === String(seed.id) || !only(record)) {
-            continue;
-        }
-
-        const key = sourceLoadsOf(record).at(-1) ?? "";
-        const wrote = host.expansions.written.get(key)?.get(String(nodeId));
-        if (host.placement(nodeId).pinned) {
-            kept.pinned.push(nodeId);
-        } else if (wrote !== undefined && wrote !== editable(record)) {
-            kept.edited.push(nodeId);
-        } else {
-            removed.push(nodeId);
-        }
-    }
-
+    const { removed, kept } = collapsedNodes(host, seed.id, only);
     const gone = new Set(removed.map(String));
-    const stays = new Set([...kept.pinned, ...kept.edited].map(String));
-    const edges: EdgeId[] = [];
-    let removedEdges = 0;
-    for (const edge of host.edges()) {
-        if (gone.has(String(edge.source)) || gone.has(String(edge.target))) {
-            removedEdges++;
-        } else if (only(edge.record) && !stays.has(String(edge.source)) && !stays.has(String(edge.target))) {
-            edges.push(edge.id);
-            removedEdges++;
-        }
-    }
+    const { edges, removedEdges } = collapsedEdges(
+        host,
+        gone,
+        new Set([...kept.pinned, ...kept.edited].map(String)),
+        only,
+    );
 
     const facts = sourceFactsOf(seed);
     const degree = typeof facts.degree === "number" ? facts.degree : null;

@@ -92,23 +92,43 @@ export class CredentialStore {
      *     rejected promise leaves the store in memory only
      */
     constructor(ai?: ApiKeyManager | Promise<ApiKeyManager>) {
-        const attach = (manager: ApiKeyManager): void => {
-            this.#ai = manager;
-            const saved = manager.getStoredItem(SOURCE_ITEM);
-            for (const entry of Array.isArray(saved) ? (saved as Entry[]) : []) {
-                const key = keyOf(entry.source, entry.origin, entry.parts);
-                if (!this.#entries.has(key)) {
-                    this.#entries.set(key, entry);
-                }
-            }
-        };
+        this.#ready = this.#attachWhenLoaded(ai);
+    }
+
+    /**
+     * Attach the key manager now, or once its promise settles.
+     * @param ai - the key manager, a promise of it, or nothing
+     * @returns settles once attached, or once the promise rejected
+     */
+    async #attachWhenLoaded(ai?: ApiKeyManager | Promise<ApiKeyManager>): Promise<void> {
         if (ai === undefined) {
-            this.#ready = Promise.resolve();
-        } else if (ai instanceof Promise) {
-            this.#ready = ai.then(attach, () => undefined);
-        } else {
-            attach(ai);
-            this.#ready = Promise.resolve();
+            return;
+        }
+        if (!(ai instanceof Promise)) {
+            this.#attach(ai);
+            return;
+        }
+        let manager: ApiKeyManager;
+        try {
+            manager = await ai;
+        } catch {
+            return; // a rejected promise leaves the store in memory only
+        }
+        this.#attach(manager);
+    }
+
+    /**
+     * Take the key manager and the source credentials it persisted.
+     * @param manager - the key manager
+     */
+    #attach(manager: ApiKeyManager): void {
+        this.#ai = manager;
+        const saved = manager.getStoredItem(SOURCE_ITEM);
+        for (const entry of Array.isArray(saved) ? (saved as Entry[]) : []) {
+            const key = keyOf(entry.source, entry.origin, entry.parts);
+            if (!this.#entries.has(key)) {
+                this.#entries.set(key, entry);
+            }
         }
     }
 

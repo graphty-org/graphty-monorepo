@@ -486,7 +486,7 @@ export interface ImportIssue {
      * A stable code; E_ for errors, W_ for warnings ("E_UNKNOWN_NODE", "W_WIDENED"). The network
      * source codes (`SOURCE_ISSUE`) autocomplete; every other code is a string.
      */
-    readonly code: SourceIssueCode | (string & {});
+    readonly code: SourceIssueCode | (string & {}); // NOSONAR(S4335): open string union, keeps the known names autocompleting
     /**
      * The issue's machine-readable values (`{ status: 401 }`), when it has any. Every network source
      * issue has them (`SourceIssueParams` maps each code to its shape); an application writes its

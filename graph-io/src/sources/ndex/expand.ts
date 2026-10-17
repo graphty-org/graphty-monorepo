@@ -24,7 +24,8 @@ const MAX_DEPTH = 10;
  * @returns the quoted term
  */
 function term(value: string): string {
-    return `"${value.replace(/["\\]/g, "\\$&")}"`;
+    const escaped = value.replaceAll(/["\\]/g, String.raw`\$&`);
+    return `"${escaped}"`;
 }
 
 /**

@@ -32,12 +32,15 @@ export interface SourceRecordMember {
     readonly loads: readonly SourceLoadRecord[];
 }
 
+/** Where a load read from: a URL, its text, or nothing. */
+type Endpoint = URL | string | null;
+
 /** What a finished load tells the ledger. */
 export interface LoadFacts {
     readonly source: string;
     readonly version: number;
     readonly config: Readonly<Record<string, unknown>>;
-    readonly endpoint: URL | string | null;
+    readonly endpoint: Endpoint;
     readonly options?: Readonly<Record<string, unknown>>;
     readonly pages?: number;
     readonly next?: SourceCursor | null;
@@ -63,7 +66,7 @@ export interface ExpansionFacts {
  * @param endpoint - the endpoint
  * @returns origin plus path, or null
  */
-function originPath(endpoint: URL | string | null): string | null {
+function originPath(endpoint: Endpoint): string | null {
     if (endpoint === null) {
         return null;
     }
@@ -78,7 +81,7 @@ function originPath(endpoint: URL | string | null): string | null {
  * @returns the copy
  */
 function plain<T>(value: T): T {
-    return JSON.parse(JSON.stringify(value)) as T;
+    return JSON.parse(JSON.stringify(value)) as T; // NOSONAR(S7784): the JSON round trip applies toJSON, so a credential copy keeps no secret
 }
 
 /**
@@ -87,10 +90,7 @@ function plain<T>(value: T): T {
  * @param endpoint - the load's endpoint
  * @returns the identity, or null
  */
-function identityOf(
-    credential: Credential | null | undefined,
-    endpoint: URL | string | null,
-): SourceCredentialIdentity | null {
+function identityOf(credential: Credential | null | undefined, endpoint: Endpoint): SourceCredentialIdentity | null {
     if (credential === null || credential === undefined) {
         return null;
     }

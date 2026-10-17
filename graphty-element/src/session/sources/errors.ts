@@ -41,7 +41,7 @@ export function toGraphtyError(error: unknown, extra: Readonly<Record<string, un
         message: error.message,
         source: "data",
         recoverable: RECOVERABLE.has(code),
-        details: { ...(error.issue.params ?? {}), ...(code === "E_SOURCE_AUTH" ? extra : {}) },
+        details: { ...(error.issue.params ?? {}), ...(code === "E_SOURCE_AUTH" ? extra : undefined) },
         cause: error,
     });
 }

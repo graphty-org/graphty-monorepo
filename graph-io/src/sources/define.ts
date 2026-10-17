@@ -6,7 +6,13 @@
 
 import { type ImportReportBuilder } from "../common/report.js";
 import { failAlone, failOn } from "./fail.js";
-import { type GraphSource, type LazySource, type SourceDescriptor, type SourceFeature } from "./types.js";
+import {
+    type GraphSource,
+    type LazySource,
+    type SourceDescriptor,
+    type SourceFeature,
+    type SourceParamDescriptor,
+} from "./types.js";
 
 /** Lowercase letters, digits and single dashes between them. */
 const ID_FORM = /^[a-z0-9]+(-[a-z0-9]+)*$/;
@@ -106,6 +112,59 @@ export function defineSource<P>(source: GraphSource<P>): GraphSource<P> {
 }
 
 /**
+ * Why a number or integer param is wrong, if it is.
+ * @param p - the param's descriptor
+ * @param value - the value given
+ * @returns the reason, or null when it is fine
+ */
+function numberProblem(p: SourceParamDescriptor, value: unknown): string | null {
+    if (typeof value !== "number" || Number.isNaN(value) || (p.type === "integer" && !Number.isInteger(value))) {
+        return "type";
+    }
+    if ((p.min !== undefined && value < p.min) || (p.max !== undefined && value > p.max)) {
+        return "range";
+    }
+    return null;
+}
+
+/**
+ * Why a URL param is wrong, if it is.
+ * @param value - the value given
+ * @returns the reason, or null when it is fine
+ */
+function urlProblem(value: unknown): string | null {
+    let url: URL;
+    try {
+        url = new URL(typeof value === "string" ? value : "");
+    } catch {
+        return "type";
+    }
+    return url.username !== "" || url.password !== "" ? "credentials-in-url" : null;
+}
+
+/**
+ * Why a present param value is wrong for its descriptor, if it is.
+ * @param p - the param's descriptor
+ * @param value - the value given (not undefined or null)
+ * @returns the reason, or null when it is fine
+ */
+function paramProblem(p: SourceParamDescriptor, value: unknown): string | null {
+    switch (p.type) {
+        case "integer":
+        case "number":
+            return numberProblem(p, value);
+        case "boolean":
+            return typeof value === "boolean" ? null : "type";
+        case "enum":
+            return p.values !== undefined && !p.values.some((v) => v.value === value) ? "enum" : null;
+        case "url":
+            return urlProblem(value);
+        default:
+            return null;
+    }
+}
+
+/**
  * Check params against a descriptor before any request: required ones present, numbers and
  * integers in range, booleans, enums, URLs (never with a user name or password in them).
  * @param params - the caller's params
@@ -122,55 +181,15 @@ export function checkParams(
     }
     for (const p of descriptor?.params ?? []) {
         const value = params[p.name];
-        const bad = (reason: string): never =>
-            failOn(report, "E_SOURCE_PARAM", `parameter ${p.name}: ${reason}`, { name: p.name, reason });
-        if (value === undefined || value === null) {
-            if (p.required === true && p.default === undefined) {
-                bad("required");
-            }
-            continue;
+        const missing = value === undefined || value === null;
+        let reason: string | null = null;
+        if (!missing) {
+            reason = paramProblem(p, value);
+        } else if (p.required === true && p.default === undefined) {
+            reason = "required";
         }
-        switch (p.type) {
-            case "integer":
-            case "number":
-                if (
-                    typeof value !== "number" ||
-                    Number.isNaN(value) ||
-                    (p.type === "integer" && !Number.isInteger(value))
-                ) {
-                    bad("type");
-                }
-                if (
-                    (p.min !== undefined && (value as number) < p.min) ||
-                    (p.max !== undefined && (value as number) > p.max)
-                ) {
-                    bad("range");
-                }
-                break;
-            case "boolean":
-                if (typeof value !== "boolean") {
-                    bad("type");
-                }
-                break;
-            case "enum":
-                if (p.values !== undefined && !p.values.some((v) => v.value === value)) {
-                    bad("enum");
-                }
-                break;
-            case "url": {
-                let url: URL | null = null;
-                try {
-                    url = new URL(typeof value === "string" ? value : "");
-                } catch {
-                    bad("type");
-                }
-                if (url !== null && (url.username !== "" || url.password !== "")) {
-                    bad("credentials-in-url");
-                }
-                break;
-            }
-            default:
-                break;
+        if (reason !== null) {
+            failOn(report, "E_SOURCE_PARAM", `parameter ${p.name}: ${reason}`, { name: p.name, reason });
         }
     }
 }

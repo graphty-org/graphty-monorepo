@@ -88,7 +88,7 @@ export const NEO4J_DESCRIPTOR: SourceDescriptor = Object.freeze({
             plainName: "Neo4j demo: movies",
             endpoint: "https://demo.neo4jlabs.com:7473",
             params: { database: "movies", mode: "all" },
-            publicLogin: { username: "movies", password: "movies" },
+            publicLogin: { username: "movies", password: "movies" }, // NOSONAR(S2068): the public login Neo4j publishes for its demo server
             counts: { nodes: 171, edges: 253 },
         },
         {

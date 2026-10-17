@@ -6,6 +6,7 @@
  * issue. A source never sees the credential.
  */
 
+import { throwIfAborted } from "../common/input.js";
 import { type ImportReportBuilder } from "../common/report.js";
 import { type ImportReport } from "../types.js";
 import { type SourceBlockedCause } from "./codes.js";
@@ -91,7 +92,7 @@ function originPath(url: URL): string {
  * @returns true for localhost, 127.0.0.0/8 and ::1
  */
 export function isLoopback(hostname: string): boolean {
-    const host = hostname.replace(/^\[|\]$/g, "").toLowerCase();
+    const host = hostname.replaceAll(/(?:^\[)|(?:\]$)/g, "").toLowerCase();
     return host === "localhost" || host.endsWith(".localhost") || /^127(\.\d{1,3}){3}$/.test(host) || host === "::1";
 }
 
@@ -102,7 +103,7 @@ export function isLoopback(hostname: string): boolean {
  * @returns true for a local-network host
  */
 export function isLocalNetwork(hostname: string): boolean {
-    const host = hostname.replace(/^\[|\]$/g, "").toLowerCase();
+    const host = hostname.replaceAll(/(?:^\[)|(?:\]$)/g, "").toLowerCase();
     return (
         isLoopback(host) ||
         host.endsWith(".local") ||
@@ -589,9 +590,7 @@ class SourceFetcher {
             await response.body?.cancel().catch(() => undefined);
             return response.type === "opaqueredirect";
         } catch {
-            if (this.signal.aborted) {
-                throw this.signal.reason as Error;
-            }
+            throwIfAborted(this.signal);
             return false;
         }
     }
@@ -619,9 +618,7 @@ class SourceFetcher {
             });
             return "cors";
         } catch {
-            if (this.signal.aborted) {
-                throw this.signal.reason as Error;
-            }
+            throwIfAborted(this.signal);
             return "unreachable";
         }
     }
@@ -632,7 +629,8 @@ class SourceFetcher {
      * @returns milliseconds
      */
     private backoff(attempt: number): number {
-        return Math.random() * Math.min(this.retry.maxDelayMs, this.retry.baseDelayMs * 2 ** attempt);
+        const jitter = Math.random(); // NOSONAR(S2245): retry jitter, not a security value
+        return jitter * Math.min(this.retry.maxDelayMs, this.retry.baseDelayMs * 2 ** attempt);
     }
 
     /**
@@ -653,9 +651,7 @@ class SourceFetcher {
         statuses: (number | null)[],
         probeRedirect: boolean,
     ): Promise<boolean> {
-        if (this.signal.aborted) {
-            throw this.signal.reason as Error;
-        }
+        throwIfAborted(this.signal);
         if (!(err instanceof TypeError)) {
             throw err;
         }
@@ -737,9 +733,7 @@ class SourceFetcher {
      * @returns the response
      */
     async fetch(target: string | URL, init: SourceRequestInit = {}): Promise<Response> {
-        if (this.signal.aborted) {
-            throw this.signal.reason as Error;
-        }
+        throwIfAborted(this.signal);
         const url = this.resolve(target);
         const method = (init.method ?? "GET").toUpperCase();
         const idempotent = method === "GET" || method === "HEAD" || init.idempotent === true;
@@ -810,9 +804,7 @@ class SourceFetcher {
         try {
             text = await response.text();
         } catch (err) {
-            if (this.signal.aborted) {
-                throw this.signal.reason as Error;
-            }
+            throwIfAborted(this.signal);
             throw err;
         }
         try {
@@ -871,7 +863,7 @@ export function transportOptions(
  */
 export function createSourceContext(input: ContextInput): CreatedContext {
     const f = new SourceFetcher(input);
-    const limits: SourceLimits = Object.freeze({ ...(input.options.limits ?? {}), reached: () => f.reached() });
+    const limits: SourceLimits = Object.freeze({ ...input.options.limits, reached: () => f.reached() });
     const ctx: SourceContext = Object.freeze({
         fetch: (target: string | URL, init?: SourceRequestInit) => f.fetch(target, init),
         fetchJson: <T>(target: string | URL, init?: SourceRequestInit) => f.fetchJson<T>(target, init),

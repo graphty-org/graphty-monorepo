@@ -116,7 +116,7 @@ await recordCase("expand", async (f) => {
         { params: { uuid: WP5483 }, ids: [EZH2], depth: 1 },
         { fetch: f },
     );
-    check("expand EZH2", snapshot.ids.indexOf(EZH2) !== -1 && snapshot.nodeCount === 2, [...snapshot.ids]);
+    check("expand EZH2", snapshot.ids.has(EZH2) && snapshot.nodeCount === 2, [...snapshot.ids]);
 });
 
 await recordCase("pcnet-summary", async (f) => {

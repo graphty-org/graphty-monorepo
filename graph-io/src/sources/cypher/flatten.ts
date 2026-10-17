@@ -162,6 +162,26 @@ export function writeCollected(
     if (sink.edgeCount === 0 && !sink.directedLocked && !sink.directed) {
         sink.setDirected(true);
     }
+    const ids = writeNodes(c, sink, idProperty, report, signal);
+    writeRels(c, sink, ids, report, signal, c.nodes.size);
+}
+
+/**
+ * Write the collected nodes into the sink.
+ * @param c - the collector
+ * @param sink - the sink
+ * @param idProperty - the id property, or null
+ * @param report - the load's report
+ * @param signal - the load's signal
+ * @returns each element id's node id
+ */
+function writeNodes(
+    c: Collector,
+    sink: GraphSink,
+    idProperty: string | null,
+    report: ImportReportBuilder,
+    signal: AbortSignal,
+): Map<string, NodeId> {
     const ids = new Map<string, NodeId>();
     let n = 0;
     for (const node of c.nodes.values()) {
@@ -186,6 +206,27 @@ export function writeCollected(
             report.counts.skippedNodes++;
         }
     }
+    return ids;
+}
+
+/**
+ * Write the collected relationships into the sink, adding any end the result did not return.
+ * @param c - the collector
+ * @param sink - the sink
+ * @param ids - each element id's node id
+ * @param report - the load's report
+ * @param signal - the load's signal
+ * @param written - how many elements were written before, for the abort check cadence
+ */
+function writeRels(
+    c: Collector,
+    sink: GraphSink,
+    ids: Map<string, NodeId>,
+    report: ImportReportBuilder,
+    signal: AbortSignal,
+    written: number,
+): void {
+    let n = written;
     for (const rel of c.rels.values()) {
         if (n++ % 64 === 0) {
             throwIfAborted(signal);
@@ -217,11 +258,21 @@ export function writeCollected(
  * @param b - another
  * @returns negative, zero or positive
  */
-function compareText(a: string, b: string): number {
+export function compareText(a: string, b: string): number {
     if (a === b) {
         return 0;
     }
     return a < b ? -1 : 1;
+}
+
+/**
+ * One canonical object member.
+ * @param key - the key
+ * @param value - the value
+ * @returns `"key":value`
+ */
+function member(key: string, value: unknown): string {
+    return `${JSON.stringify(key)}:${canonical(value)}`;
 }
 
 /**
@@ -235,7 +286,8 @@ function canonical(value: unknown): string {
     }
     if (value !== null && typeof value === "object") {
         const entries = Object.entries(value).sort(([a], [b]) => compareText(a, b));
-        return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${canonical(v)}`).join(",")}}`;
+        const members = entries.map(([k, v]) => member(k, v));
+        return `{${members.join(",")}}`;
     }
     return JSON.stringify(value) ?? "null";
 }
@@ -253,7 +305,7 @@ export function canonicalRows(c: Collector, idProperty: string | null): string[]
     for (const node of c.nodes.values()) {
         const id = nodeIdOf(node, idProperty);
         ids.set(node.id, id);
-        lines.push(canonical(["n", id, [...node.labels].sort(), node.properties]));
+        lines.push(canonical(["n", id, [...node.labels].sort(compareText), node.properties]));
     }
     for (const rel of c.rels.values()) {
         lines.push(

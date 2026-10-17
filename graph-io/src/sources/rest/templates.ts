@@ -31,7 +31,7 @@ export function templateNames(template: string): string[] | null {
         names.push(m[1]);
     }
     // a brace left over after the slots is malformed
-    return /[{}]/.test(template.replace(SLOT, "")) ? null : names;
+    return /[{}]/.test(template.replaceAll(SLOT, "")) ? null : names;
 }
 
 /**
@@ -48,7 +48,7 @@ function fill(
     encode: (value: string) => string,
     report: ImportReportBuilder,
 ): string {
-    return template.replace(SLOT, (_, name: string) => {
+    return template.replaceAll(SLOT, (_, name: string) => {
         const value = values[name];
         if (value === undefined) {
             failOn(report, "E_SOURCE_PARAM", `the mapping's template needs ${name}`, { name, reason: "required" });

@@ -99,7 +99,7 @@ function integer(digits: string, column: string, m: MapContext): number | string
  * @returns milliseconds, or the text
  */
 function epoch(text: string, type: string, column: string, m: MapContext): number | string {
-    const ms = Date.parse(text.replace(/\[[^\]]*\]$/, ""));
+    const ms = Date.parse(withoutZoneName(text));
     if (Number.isNaN(ms)) {
         warnOn(m.report, "W_SOURCE_VALUE", `column ${column}: a ${type} kept as text`, { type, column, as: "string" });
         return text;
@@ -291,6 +291,52 @@ interface DriverPoint {
 }
 
 /**
+ * The text without a trailing bracketed zone name (`...+01:00[Europe/Paris]`).
+ * @param text - the ISO text
+ * @returns the text without the zone name
+ */
+function withoutZoneName(text: string): string {
+    const end = text.length - 1;
+    if (text[end] !== "]") {
+        return text;
+    }
+    const open = text.indexOf("[", text.lastIndexOf("]", end - 1) + 1);
+    return open === -1 || open >= end ? text : text.slice(0, open);
+}
+
+/**
+ * Map a driver node or relationship.
+ * @param e - the driver entity
+ * @param node - whether it is a node
+ * @param m - the map context
+ * @param t - the driver's type checks
+ * @returns a GraphNode or a GraphRel
+ */
+function fromEntity(e: DriverEntity, node: boolean, m: MapContext, t: DriverTypes): GraphNode | GraphRel {
+    const props = mapEntries(e.properties, (x, k) => fromDriver(x, k, m, t));
+    const id = e.elementId ?? String(e.identity);
+    return node
+        ? new GraphNode(id, [...(e.labels ?? [])], props)
+        : new GraphRel(
+              id,
+              e.startNodeElementId ?? String(e.start),
+              e.endNodeElementId ?? String(e.end),
+              e.type ?? "",
+              props,
+          );
+}
+
+/**
+ * Map a driver point.
+ * @param p - the point
+ * @returns srid, x, y and z when it has one
+ */
+function fromPoint(p: DriverPoint): { srid: number; x: number; y: number; z?: number } {
+    const srid = Number(String(p.srid));
+    return p.z === undefined ? { srid, x: p.x, y: p.y } : { srid, x: p.x, y: p.y, z: p.z };
+}
+
+/**
  * Map a value neo4j-driver returned. Its lossless Integer keeps every digit, so `long` decides.
  * @param v - the driver value
  * @param column - the result column or property key
@@ -311,18 +357,7 @@ export function fromDriver(v: unknown, column: string, m: MapContext, t: DriverT
         return integer(text(), column, m);
     }
     if (t.isNode(v) || t.isRelationship(v)) {
-        const e = v as DriverEntity;
-        const props = mapEntries(e.properties, (x, k) => fromDriver(x, k, m, t));
-        const id = e.elementId ?? String(e.identity);
-        return t.isNode(v)
-            ? new GraphNode(id, [...(e.labels ?? [])], props)
-            : new GraphRel(
-                  id,
-                  e.startNodeElementId ?? String(e.start),
-                  e.endNodeElementId ?? String(e.end),
-                  e.type ?? "",
-                  props,
-              );
+        return fromEntity(v as DriverEntity, t.isNode(v), m, t);
     }
     if (t.isPath(v)) {
         const p = v as DriverPath;
@@ -338,9 +373,7 @@ export function fromDriver(v: unknown, column: string, m: MapContext, t: DriverT
         return text();
     }
     if (t.isPoint(v)) {
-        const p = v as DriverPoint;
-        const srid = Number(String(p.srid));
-        return p.z === undefined ? { srid, x: p.x, y: p.y } : { srid, x: p.x, y: p.y, z: p.z };
+        return fromPoint(v as DriverPoint);
     }
     if (v instanceof Uint8Array || v instanceof ArrayBuffer) {
         dropped("ByteArray", column, m);

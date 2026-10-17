@@ -140,7 +140,7 @@ class SourceCredential implements Credential {
 function base64(text: string): string {
     let binary = "";
     for (const b of new TextEncoder().encode(text)) {
-        binary += String.fromCharCode(b);
+        binary += String.fromCodePoint(b);
     }
     return btoa(binary);
 }
@@ -271,7 +271,8 @@ export async function applyCredential(credential: Credential, request: Request):
         }
         case "basic": {
             const headers = new Headers(request.headers);
-            headers.set("Authorization", `Basic ${base64(`${secret.username}:${secret.password}`)}`);
+            const pair = `${secret.username}:${secret.password}`;
+            headers.set("Authorization", `Basic ${base64(pair)}`);
             return new Request(request, { headers });
         }
         case "api-key": {

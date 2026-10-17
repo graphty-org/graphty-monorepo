@@ -49,7 +49,7 @@ export function cypherIdentifier(name: string): string {
             reason: "identifier",
         });
     }
-    return `\`${name.replace(/`/g, "``")}\``;
+    return `\`${name.replaceAll("`", "``")}\``;
 }
 
 /**
@@ -131,7 +131,8 @@ function idExpression(v: string, profile: CypherProfile, filters: QueryFilters, 
 function nodePredicate(v: string, filters: QueryFilters): string | null {
     const parts: string[] = [];
     if (filters.labels.length > 0) {
-        parts.push(`(${filters.labels.map((l) => `${v}:${l}`).join(" OR ")})`);
+        const prefix = `${v}:`;
+        parts.push(`(${filters.labels.map((l) => prefix + l).join(" OR ")})`);
     }
     if (filters.idProperty !== null) {
         parts.push(`${v}.${filters.idProperty} IS NOT NULL`);
@@ -182,7 +183,7 @@ export function nodePage(
         where === null ? null : `WHERE ${where}`,
         `WITH n, ${idExpression("n", profile, filters)} AS key`,
         after ? "WHERE key > $after" : null,
-        `RETURN n, key${degree ? `, ${degreeOf("n")} AS degree` : ""}`,
+        degree ? `RETURN n, key, ${degreeOf("n")} AS degree` : "RETURN n, key",
         `ORDER BY key LIMIT ${pageSize}`,
     ]
         .filter((l) => l !== null)
@@ -253,7 +254,7 @@ export function neighborhood(
     // (parallel relationships, or depth > 1) drops the later paths; page on (key, path) if that matters.
     const head = [
         `MATCH (s) WHERE ${idExpression("s", profile, filters)} IN $ids`,
-        `OPTIONAL MATCH p = (s)${pattern}(x)${x === null ? "" : ` WHERE ${x}`}`,
+        `OPTIONAL MATCH p = (s)${pattern}(x)${whereClause(x)}`,
     ];
     if (shape.limit === null) {
         return [...head, "WITH s, p", `RETURN s, p${degrees}`].join(" ");
@@ -270,6 +271,15 @@ export function neighborhood(
 }
 
 /**
+ * A ` WHERE` clause for a predicate.
+ * @param predicate - the predicate, or null
+ * @returns the clause with its leading space, or "" for no predicate
+ */
+function whereClause(predicate: string | null): string {
+    return predicate === null ? "" : ` WHERE ${predicate}`;
+}
+
+/**
  * The counts of mode "all", for a progress total.
  * @param filters - the filters
  * @returns two statements: the nodes, then the relationships
@@ -278,7 +288,7 @@ export function counts(filters: QueryFilters): readonly [string, string] {
     const n = nodePredicate("n", filters);
     const where = [nodePredicate("a", filters), nodePredicate("b", filters)].filter((p) => p !== null);
     return [
-        `MATCH (n)${n === null ? "" : ` WHERE ${n}`} RETURN count(n) AS c`,
-        `MATCH (a)-[r${typesPattern(filters)}]->(b)${where.length === 0 ? "" : ` WHERE ${where.join(" AND ")}`} RETURN count(r) AS c`,
+        `MATCH (n)${whereClause(n)} RETURN count(n) AS c`,
+        `MATCH (a)-[r${typesPattern(filters)}]->(b)${whereClause(where.length === 0 ? null : where.join(" AND "))} RETURN count(r) AS c`,
     ];
 }

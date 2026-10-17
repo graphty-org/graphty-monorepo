@@ -68,7 +68,7 @@ export type SourceIssueCode = keyof typeof SOURCE_ISSUE;
  * Why `E_SOURCE_BLOCKED` was raised, as far as a page can tell. Open: handle unknown values.
  * @category Network sources
  */
-export type SourceBlockedCause = "cors" | "unreachable" | "local-network" | "unknown" | (string & {});
+export type SourceBlockedCause = "cors" | "unreachable" | "local-network" | "unknown" | (string & {}); // NOSONAR(S4335): open string union, keeps the known names autocompleting
 
 /**
  * The `params` of each source issue code. Every URL is origin and path only. Experimental.

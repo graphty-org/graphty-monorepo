@@ -73,6 +73,27 @@ async function loadDriver(input: TransportInput): Promise<DriverModule> {
 }
 
 /**
+ * Fail when an https page would open a plain Bolt WebSocket to another machine, which the browser
+ * blocks.
+ * @param ctx - the context
+ * @param url - the endpoint
+ */
+function refuseMixedContent(ctx: TransportInput["ctx"], url: URL): void {
+    const page = (globalThis as { location?: { protocol?: string } }).location;
+    if (
+        ctx.runtime === "browser" &&
+        page?.protocol === "https:" &&
+        url.protocol === "bolt:" &&
+        !isLoopback(url.hostname)
+    ) {
+        failOn(ctx.report, "E_SOURCE_RUNTIME", "an https page cannot open a plain Bolt WebSocket", {
+            runtime: ctx.runtime,
+            reason: "insecure-endpoint",
+        });
+    }
+}
+
+/**
  * Check the endpoint and the credential before connecting, and turn the credential into the
  * driver's auth token.
  * @param input - the transport input
@@ -88,18 +109,7 @@ async function connection(input: TransportInput, neo4j: DriverModule): Promise<{
     if (!DIRECT_SCHEMES.has(url.protocol)) {
         bad(url.protocol.startsWith("neo4j") ? "routing" : "scheme", `${url.protocol} is not a direct Bolt scheme`);
     }
-    const page = (globalThis as { location?: { protocol?: string } }).location;
-    if (
-        ctx.runtime === "browser" &&
-        page?.protocol === "https:" &&
-        url.protocol === "bolt:" &&
-        !isLoopback(url.hostname)
-    ) {
-        failOn(report, "E_SOURCE_RUNTIME", "an https page cannot open a plain Bolt WebSocket", {
-            runtime: ctx.runtime,
-            reason: "insecure-endpoint",
-        });
-    }
+    refuseMixedContent(ctx, url);
     const { credential, allowInsecure } = transportOptions(ctx);
     const origin = originOf(url);
     const bound = credential !== undefined && (credential.origins.length === 0 || credential.origins.includes(origin));
@@ -159,9 +169,7 @@ export async function boltTransport(input: TransportInput): Promise<Transport> {
     ctx.signal.addEventListener("abort", onAbort, { once: true });
 
     const fail = (err: unknown): never => {
-        if (ctx.signal.aborted) {
-            throw ctx.signal.reason as Error;
-        }
+        throwIfAborted(ctx.signal);
         const e = err as { code?: unknown; message?: unknown };
         const code = typeof e.code === "string" ? e.code : null;
         if (code === null || code === "ServiceUnavailable" || code === "SessionExpired") {

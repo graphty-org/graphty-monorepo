@@ -98,6 +98,49 @@ function prepare(
     const { descriptor } = source;
     const version = descriptor?.version ?? 1;
     const report = new ImportReportBuilder(sourceFormat(source.id), options.errorLimit ?? 100);
+    checkRuntime(source, report);
+    checkParams(rawParams, descriptor, report);
+    const params: Record<string, unknown> = {};
+    for (const p of descriptor?.params ?? []) {
+        if (p.default !== undefined) {
+            params[p.name] = p.default;
+        }
+    }
+    Object.assign(params, rawParams);
+
+    const endpoint = resolveEndpoint(options.endpoint ?? descriptor?.defaultEndpoint ?? null, report);
+    if (options.credential?.origins.length === 0 && endpoint === null) {
+        failOn(report, "E_SOURCE_PARAM", "a credential needs an endpoint or its own origins", {
+            name: "credential",
+            reason: "credential-unbound",
+        });
+    }
+    const cursor = resumeCursor(options.cursor, version, report);
+
+    const counts: Prepared["counts"] = { nodes: new Set<number>(), edgesAtStart: 0, sink: null };
+    const created = createSourceContext({
+        id: source.id,
+        descriptor,
+        options,
+        report,
+        endpoint,
+        cursor,
+        unit,
+        counts: () => ({
+            nodes: counts.nodes.size,
+            edges: counts.sink === null ? 0 : counts.sink.edgeCount - counts.edgesAtStart,
+        }),
+    });
+    return { report, created, params, counts };
+}
+
+/**
+ * Refuse a source that cannot run here: a runtime it does not support, or a secure context it needs.
+ * @param source - the loaded source
+ * @param report - the load's report
+ */
+function checkRuntime(source: GraphSource<never>, report: ImportReportBuilder): void {
+    const { descriptor } = source;
     const runtime = detectRuntime();
     const support = descriptor?.runtimes?.[runtime];
     if (support?.supported === false) {
@@ -116,64 +159,56 @@ function prepare(
             reason: "needs-secure-context",
         });
     }
-    checkParams(rawParams, descriptor, report);
-    const params: Record<string, unknown> = {};
-    for (const p of descriptor?.params ?? []) {
-        if (p.default !== undefined) {
-            params[p.name] = p.default;
-        }
-    }
-    Object.assign(params, rawParams);
+}
 
-    const given = options.endpoint ?? descriptor?.defaultEndpoint ?? null;
-    let endpoint: URL | null = null;
-    if (given !== null) {
-        try {
-            endpoint = new URL(given);
-        } catch {
-            failOn(report, "E_SOURCE_PARAM", "the endpoint is not a URL", { name: "endpoint", reason: "type" });
-        }
-        if (endpoint.username !== "" || endpoint.password !== "") {
-            failOn(report, "E_SOURCE_PARAM", "the endpoint may not carry a user name or password", {
-                name: "endpoint",
-                reason: "credentials-in-url",
-            });
-        }
+/**
+ * The endpoint as a URL, refusing one that is not a URL or carries a user name or password.
+ * @param given - the endpoint given, if any
+ * @param report - the load's report
+ * @returns the URL, or null without one
+ */
+function resolveEndpoint(given: string | URL | null, report: ImportReportBuilder): URL | null {
+    if (given === null) {
+        return null;
     }
-    if (options.credential !== undefined && options.credential.origins.length === 0 && endpoint === null) {
-        failOn(report, "E_SOURCE_PARAM", "a credential needs an endpoint or its own origins", {
-            name: "credential",
-            reason: "credential-unbound",
+    let endpoint: URL;
+    try {
+        endpoint = new URL(given);
+    } catch {
+        failOn(report, "E_SOURCE_PARAM", "the endpoint is not a URL", { name: "endpoint", reason: "type" });
+    }
+    if (endpoint.username !== "" || endpoint.password !== "") {
+        failOn(report, "E_SOURCE_PARAM", "the endpoint may not carry a user name or password", {
+            name: "endpoint",
+            reason: "credentials-in-url",
         });
     }
+    return endpoint;
+}
 
-    let cursor: SourceCursor | null = null;
-    if (options.cursor !== undefined && options.cursor !== null) {
-        const { [CURSOR_VERSION_KEY]: recorded, ...rest } = options.cursor;
-        if (recorded !== undefined && recorded !== version) {
-            failOn(report, "E_SOURCE_PARAM", "the cursor was made by another version of the source", {
-                name: "cursor",
-                reason: "stale-cursor",
-            });
-        }
-        cursor = Object.freeze(rest);
+/**
+ * The source's own cursor from the caller's, refusing one another descriptor version made.
+ * @param given - the caller's cursor, if any
+ * @param version - the descriptor version
+ * @param report - the load's report
+ * @returns the source's cursor, or null
+ */
+function resumeCursor(
+    given: SourceCursor | null | undefined,
+    version: number,
+    report: ImportReportBuilder,
+): SourceCursor | null {
+    if (given === undefined || given === null) {
+        return null;
     }
-
-    const counts: Prepared["counts"] = { nodes: new Set<number>(), edgesAtStart: 0, sink: null };
-    const created = createSourceContext({
-        id: source.id,
-        descriptor,
-        options,
-        report,
-        endpoint,
-        cursor,
-        unit,
-        counts: () => ({
-            nodes: counts.nodes.size,
-            edges: counts.sink === null ? 0 : counts.sink.edgeCount - counts.edgesAtStart,
-        }),
-    });
-    return { report, created, params, counts };
+    const { [CURSOR_VERSION_KEY]: recorded, ...rest } = given;
+    if (recorded !== undefined && recorded !== version) {
+        failOn(report, "E_SOURCE_PARAM", "the cursor was made by another version of the source", {
+            name: "cursor",
+            reason: "stale-cursor",
+        });
+    }
+    return Object.freeze(rest);
 }
 
 /**
@@ -287,8 +322,6 @@ function writeBatch(
     prepared: Prepared,
     first: boolean,
 ): void {
-    const { report } = prepared;
-    const { signal } = prepared.created.ctx;
     const idKey = source.idKey ?? "id";
     const sourceKey = source.sourceKey ?? "source";
     const targetKey = source.targetKey ?? "target";
@@ -297,6 +330,21 @@ function writeBatch(
         sink.setDirected(meta.directed);
     }
     writeMeta(sink, meta);
+    const n = writeNodes(batch, sink, idKey, prepared);
+    writeEdges(batch, sink, sourceKey, targetKey, prepared, n);
+}
+
+/**
+ * Write a page's node records.
+ * @param batch - the page
+ * @param sink - the wrapped sink
+ * @param idKey - the record key holding the id
+ * @param prepared - the call
+ * @returns how many records were visited, for the abort check's cadence
+ */
+function writeNodes(batch: RecordBatch, sink: GraphSink, idKey: string, prepared: Prepared): number {
+    const { report } = prepared;
+    const { signal } = prepared.created.ctx;
     let n = 0;
     for (const record of batch.nodes ?? []) {
         if (n++ % 64 === 0) {
@@ -316,6 +364,29 @@ function writeBatch(
             report.counts.skippedNodes++;
         }
     }
+    return n;
+}
+
+/**
+ * Write a page's edge records.
+ * @param batch - the page
+ * @param sink - the wrapped sink
+ * @param sourceKey - the record key holding the source id
+ * @param targetKey - the record key holding the target id
+ * @param prepared - the call
+ * @param start - records visited so far, for the abort check's cadence
+ */
+function writeEdges(
+    batch: RecordBatch,
+    sink: GraphSink,
+    sourceKey: string,
+    targetKey: string,
+    prepared: Prepared,
+    start: number,
+): void {
+    const { report } = prepared;
+    const { signal } = prepared.created.ctx;
+    let n = start;
     let edgeIds: ReturnType<GraphSink["declareEdgeColumn"]> | null = null;
     for (const record of batch.edges ?? []) {
         if (n++ % 64 === 0) {
@@ -389,6 +460,28 @@ function pages(out: Promise<RecordBatch> | AsyncIterable<RecordBatch>): AsyncIte
 }
 
 /**
+ * Decide what a failed page means: a cap reached or a later page needing a credential stops the
+ * load and keeps what was read (warning for the credential); anything else is rethrown.
+ * @param err - what the page threw
+ * @param page - how many pages were written before it
+ * @param prepared - the call
+ */
+function stopOrThrow(err: unknown, page: number, prepared: Prepared): void {
+    if (err instanceof LimitStop) {
+        return;
+    }
+    if (page > 0 && err instanceof ImportError && AUTH_CODES.has(String(err.issue?.code))) {
+        const p = err.issue?.params ?? {};
+        warnOn(prepared.report, "W_SOURCE_AUTH", "a later page needs a credential; the pages before it are kept", {
+            origin: typeof p.origin === "string" ? p.origin : endpointOrigin(prepared.created.ctx.endpoint),
+            status: typeof p.status === "number" ? p.status : null,
+        });
+        return;
+    }
+    throw err;
+}
+
+/**
  * Run a records source into a sink.
  * @param source - the source
  * @param sink - the wrapped sink
@@ -412,25 +505,9 @@ async function runRecords(
             try {
                 step = await iterator.next();
             } catch (err) {
-                if (err instanceof LimitStop) {
-                    stopped = true;
-                    return next;
-                }
-                if (page > 0 && err instanceof ImportError && AUTH_CODES.has(String(err.issue?.code))) {
-                    const p = err.issue?.params ?? {};
-                    warnOn(
-                        prepared.report,
-                        "W_SOURCE_AUTH",
-                        "a later page needs a credential; the pages before it are kept",
-                        {
-                            origin: typeof p.origin === "string" ? p.origin : endpointOrigin(ctx.endpoint),
-                            status: typeof p.status === "number" ? p.status : null,
-                        },
-                    );
-                    stopped = true;
-                    return next;
-                }
-                throw err;
+                stopOrThrow(err, page, prepared);
+                stopped = true;
+                return next;
             }
             if (step.done === true) {
                 return page === 0 ? null : next;

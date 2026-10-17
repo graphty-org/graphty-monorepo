@@ -18,32 +18,32 @@ import { type CommonImportOptions, type ImportInput, type ImportReport } from ".
  * @category Network sources
  */
 export type SourceKind =
-    "repository" | "database" | "sparql" | "rest" | "graphql" | "file-host" | "other" | (string & {});
+    "repository" | "database" | "sparql" | "rest" | "graphql" | "file-host" | "other" | (string & {}); // NOSONAR(S4335): open string union, keeps the known names autocompleting
 
 /**
  * An optional capability a source has. Open union.
  * @category Network sources
  */
-export type SourceFeature = "expand" | "probe" | "list" | "page" | "validate" | (string & {});
+export type SourceFeature = "expand" | "probe" | "list" | "page" | "validate" | (string & {}); // NOSONAR(S4335): open string union, keeps the known names autocompleting
 
 /**
  * Where code runs. Open union.
  * @category Network sources
  */
-export type SourceRuntime = "browser" | "node" | "worker" | "other" | (string & {});
+export type SourceRuntime = "browser" | "node" | "worker" | "other" | (string & {}); // NOSONAR(S4335): open string union, keeps the known names autocompleting
 
 /**
  * The type of one source parameter, for a form. Open union.
  * @category Network sources
  */
 export type SourceParamType =
-    "string" | "text" | "query" | "integer" | "number" | "boolean" | "enum" | "url" | "node-id" | (string & {});
+    "string" | "text" | "query" | "integer" | "number" | "boolean" | "enum" | "url" | "node-id" | (string & {}); // NOSONAR(S4335): open string union, keeps the known names autocompleting
 
 /**
  * The language of a `query` parameter. Open union.
  * @category Network sources
  */
-export type QueryLanguage = "cypher" | "opencypher" | "gremlin" | "sparql" | "graphql" | "jmespath" | (string & {});
+export type QueryLanguage = "cypher" | "opencypher" | "gremlin" | "sparql" | "graphql" | "jmespath" | (string & {}); // NOSONAR(S4335): open string union, keeps the known names autocompleting
 
 /**
  * Why a source cannot run in a runtime. Open union.
@@ -56,13 +56,13 @@ export type SourceRuntimeReason =
     | "insecure-endpoint"
     | "needs-node"
     | "needs-peer-dependency"
-    | (string & {});
+    | (string & {}); // NOSONAR(S4335): open string union, keeps the known names autocompleting
 
 /**
  * The kind of a credential. Open union.
  * @category Network sources
  */
-export type CredentialKind = "bearer" | "basic" | "api-key" | "aws-sigv4" | "custom" | (string & {});
+export type CredentialKind = "bearer" | "basic" | "api-key" | "aws-sigv4" | "custom" | (string & {}); // NOSONAR(S4335): open string union, keeps the known names autocompleting
 
 /**
  * A credential made by one of the `credentials` factories. The secret is held where no code can

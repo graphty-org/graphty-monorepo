@@ -173,22 +173,52 @@ class PageWriter {
     private runRule(rule: RestEdgeRule, record: unknown, entityName: string, recordId: string | null): void {
         const scopes = rule.each === undefined ? [record] : select(record, rule.each);
         if ("pairs" in rule) {
-            const entityOf = rule.entity ?? entityName;
-            const entity = this.mapping.entities[entityOf];
-            for (const scope of scopes) {
-                const ids = [...new Set(select(scope, rule.pairs).map((v) => idText(v, entity)))].filter(
-                    (v): v is string => v !== null,
-                );
-                for (let i = 0; i < ids.length; i++) {
-                    for (let j = i + 1; j < ids.length; j++) {
-                        this.end(ids[i], entityOf);
-                        this.end(ids[j], entityOf);
-                        this.out.edges.push({ source: ids[i], target: ids[j], type: rule.type });
-                    }
+            this.runPairsRule(rule, scopes, entityName);
+        } else {
+            this.runLinkRule(rule, scopes, entityName, recordId);
+        }
+    }
+
+    /**
+     * Run a pairs rule: an edge between every two distinct ids in each scope.
+     * @param rule - the rule
+     * @param scopes - the scopes it runs over
+     * @param entityName - the record's entity
+     */
+    private runPairsRule(
+        rule: Extract<RestEdgeRule, { pairs: string }>,
+        scopes: readonly unknown[],
+        entityName: string,
+    ): void {
+        const entityOf = rule.entity ?? entityName;
+        const entity = this.mapping.entities[entityOf];
+        for (const scope of scopes) {
+            const ids = [...new Set(select(scope, rule.pairs).map((v) => idText(v, entity)))].filter(
+                (v): v is string => v !== null,
+            );
+            for (let i = 0; i < ids.length; i++) {
+                for (let j = i + 1; j < ids.length; j++) {
+                    this.end(ids[i], entityOf);
+                    this.end(ids[j], entityOf);
+                    this.out.edges.push({ source: ids[i], target: ids[j], type: rule.type });
                 }
             }
-            return;
         }
+    }
+
+    /**
+     * Run a from/to rule: an edge from the record (or a selected id) to each selected id.
+     * @param rule - the rule
+     * @param scopes - the scopes it runs over
+     * @param entityName - the record's entity
+     * @param recordId - the record's id (null for a container)
+     */
+    private runLinkRule(
+        rule: Exclude<RestEdgeRule, { pairs: string }>,
+        scopes: readonly unknown[],
+        entityName: string,
+        recordId: string | null,
+    ): void {
         const own = this.mapping.entities[entityName];
         const targetEntity = rule.entity === undefined ? own : this.mapping.entities[rule.entity];
         for (const scope of scopes) {
@@ -196,21 +226,13 @@ class PageWriter {
             if (from === null) {
                 continue;
             }
-            for (const t of select(scope, rule.to)) {
-                const to = idText(t, targetEntity);
-                if (to === null) {
-                    continue;
-                }
+            const tos = select(scope, rule.to)
+                .map((t) => idText(t, targetEntity))
+                .filter((v): v is string => v !== null);
+            for (const to of tos) {
                 this.end(from, rule.from === undefined ? entityName : undefined);
                 this.end(to, rule.entity);
-                const fields: Record<string, unknown> = {};
-                for (const [name, selector] of Object.entries(rule.fields ?? {})) {
-                    const v = fieldValue(scope, selector, 0);
-                    if (v !== undefined) {
-                        fields[name] = v;
-                    }
-                }
-                this.out.edges.push({ ...fields, source: from, target: to, type: rule.type });
+                this.out.edges.push({ ...edgeFields(rule.fields, scope), source: from, target: to, type: rule.type });
             }
         }
     }
@@ -228,6 +250,23 @@ class PageWriter {
         this.pending.length = 0;
         return this.out;
     }
+}
+
+/**
+ * An edge's fields, read from its scope.
+ * @param fields - the rule's field selectors
+ * @param scope - the scope the edge came from
+ * @returns the fields that have a value
+ */
+function edgeFields(fields: Readonly<Record<string, string>> | undefined, scope: unknown): Record<string, unknown> {
+    const out: Record<string, unknown> = {};
+    for (const [name, selector] of Object.entries(fields ?? {})) {
+        const v = fieldValue(scope, selector, 0);
+        if (v !== undefined) {
+            out[name] = v;
+        }
+    }
+    return out;
 }
 
 /**

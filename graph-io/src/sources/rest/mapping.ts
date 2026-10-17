@@ -23,7 +23,7 @@ export type RestMappingIssueCode =
     | "paging" // an unknown paging style or a bad paging field
     | "batch" // batch.max is not a positive integer, or join is not a string
     | "number" // not a positive number
-    | (string & {});
+    | (string & {}); // NOSONAR(S4335): the open-union idiom keeps the listed codes in editor completion
 
 /**
  * One problem `checkRestMapping` found. Experimental.
@@ -82,6 +82,34 @@ function checkTemplate(value: unknown, at: string, push: Push): void {
 }
 
 /**
+ * Check a request's query templates.
+ * @param query - the query field
+ * @param at - where the request is
+ * @param push - the accumulator
+ */
+function checkQuery(query: RestRequest["query"], at: string, push: Push): void {
+    if (query === undefined) {
+        return;
+    }
+    if (!isObject(query)) {
+        push("missing", `${at}.query`);
+        return;
+    }
+    for (const [k, v] of Object.entries(query)) {
+        checkTemplate(v, `${at}.query.${k}`, push);
+    }
+}
+
+/**
+ * Whether a batch field is well formed: a positive integer max and a string join.
+ * @param batch - the batch field
+ * @returns true when it is
+ */
+function isBatch(batch: RestRequest["batch"]): boolean {
+    return isObject(batch) && Number.isInteger(batch.max) && batch.max >= 1 && typeof batch.join === "string";
+}
+
+/**
  * Check one request.
  * @param r - the request
  * @param at - where it is
@@ -100,30 +128,15 @@ function checkRequest(r: RestRequest, at: string, entities: ReadonlySet<string>,
     if (typeof r.path === "string" && !r.path.startsWith("/")) {
         push("template", `${at}.path`);
     }
-    if (r.query !== undefined) {
-        if (isObject(r.query)) {
-            for (const [k, v] of Object.entries(r.query)) {
-                checkTemplate(v, `${at}.query.${k}`, push);
-            }
-        } else {
-            push("missing", `${at}.query`);
-        }
-    }
+    checkQuery(r.query, at, push);
     checkSelector(r.records, `${at}.records`, push, true);
     if (typeof r.entity !== "string") {
         push("missing", `${at}.entity`);
     } else if (!entities.has(r.entity)) {
         push("unknown-entity", `${at}.entity`);
     }
-    if (r.batch !== undefined) {
-        if (
-            !isObject(r.batch) ||
-            !Number.isInteger(r.batch.max) ||
-            r.batch.max < 1 ||
-            typeof r.batch.join !== "string"
-        ) {
-            push("batch", `${at}.batch`);
-        }
+    if (r.batch !== undefined && !isBatch(r.batch)) {
+        push("batch", `${at}.batch`);
     }
     if (r.paging !== undefined) {
         checkPaging(r.paging, `${at}.paging`, push);
@@ -356,6 +369,20 @@ export function checkRestMapping(mapping: unknown): readonly RestMappingIssue[] 
         checkEntity(e, `entities.${name}`, entityNames, push);
     }
     checkRequestNames(m, new Set(Object.keys(requests)), push);
+    checkLimits(m, push);
+    checkSelector(m.modified, "modified", push, false);
+    if (m.directed !== undefined && typeof m.directed !== "boolean") {
+        push("missing", "directed");
+    }
+    return issues;
+}
+
+/**
+ * Check the rate limit and the budget headers.
+ * @param m - the mapping
+ * @param push - the accumulator
+ */
+function checkLimits(m: RestMapping, push: Push): void {
     for (const [at, value] of [
         ["rateLimit.requests", m.rateLimit?.requests],
         ["rateLimit.perMs", m.rateLimit?.perMs],
@@ -371,9 +398,4 @@ export function checkRestMapping(mapping: unknown): readonly RestMappingIssue[] 
     ) {
         push("missing", "budgetHeaders");
     }
-    checkSelector(m.modified, "modified", push, false);
-    if (m.directed !== undefined && typeof m.directed !== "boolean") {
-        push("missing", "directed");
-    }
-    return issues;
 }

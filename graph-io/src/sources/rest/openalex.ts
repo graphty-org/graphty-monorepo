@@ -209,7 +209,7 @@ function coauthorshipMapping(include: ReadonlySet<Include>, seedIsWork: boolean)
  */
 function openalexId(value: unknown, name: string, letter: string, ctx: SourceContext): string {
     const text = typeof value === "string" ? value.trim().replace(PREFIX, "") : "";
-    if (!new RegExp(`^${letter}\\d+$`, "i").test(text)) {
+    if (!new RegExp(String.raw`^${letter}\d+$`, "i").test(text)) {
         failOn(ctx.report, "E_SOURCE_PARAM", `${name} is not an OpenAlex id`, { name, reason: "format" });
     }
     return text.toUpperCase();

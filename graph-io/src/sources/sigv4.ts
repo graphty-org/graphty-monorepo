@@ -92,7 +92,10 @@ async function hmac(key: Uint8Array | ArrayBuffer, data: string): Promise<ArrayB
  * @returns the encoded text
  */
 function encode(text: string): string {
-    return encodeURIComponent(text).replace(/[!'()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
+    return encodeURIComponent(text).replaceAll(
+        /[!'()*]/g,
+        (c) => `%${(c.codePointAt(0) ?? 0).toString(16).toUpperCase()}`,
+    );
 }
 
 /**
@@ -116,7 +119,7 @@ function canonicalQuery(url: URL): string {
 function amzDate(date: Date): string {
     return date
         .toISOString()
-        .replace(/[-:]/g, "")
+        .replaceAll(/[-:]/g, "")
         .replace(/\.\d{3}/, "");
 }
 
@@ -156,10 +159,11 @@ export async function signRequest(
     const signed = new Map<string, string>([["host", url.host]]);
     headers.forEach((value, name) => {
         if (!UNSIGNED.has(name)) {
-            signed.set(name, value.trim().replace(/\s+/g, " "));
+            signed.set(name, value.trim().replaceAll(/\s+/g, " "));
         }
     });
-    const names = [...signed.keys()].sort();
+    // SigV4 sorts header names by code unit, not by locale
+    const names = [...signed.keys()].sort((a, b) => Number(a > b) - Number(a < b));
     const signedHeaders = names.join(";");
     const canonical = [
         method,

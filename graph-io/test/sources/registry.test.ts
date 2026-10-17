@@ -1,6 +1,6 @@
 /**
  * The source registry: the six built-ins listed without loading code, lazy loading on first use,
- * unknown ids, the stubs of the sources not built yet, and the optional methods.
+ * unknown ids, and the optional methods.
  */
 
 import { describe, expect, it } from "vitest";
@@ -12,7 +12,6 @@ import {
     type LazySource,
     listSources,
     loadFromSource,
-    replayFetch,
 } from "../../src/index.js";
 import { rejection } from "./helpers.js";
 
@@ -34,24 +33,6 @@ describe("the default registry", () => {
         expect(formats.listSources().find((s) => s.id === "ndex")?.loaded).toBe(true);
         expect(formats.listSources().find((s) => s.id === "neo4j")?.loaded).toBe(false);
     });
-
-    // NDEx and the Cypher source with its presets are built; their own tests are under test/sources/
-    it.each(BUILTIN.filter((id) => !["ndex", "cypher", "neo4j", "neptune"].includes(id)))(
-        "the %s stub rejects with E_SOURCE_UNSUPPORTED until it is built",
-        async (id) => {
-            const params: Record<string, Record<string, unknown>> = {
-                rest: { mapping: { version: 1 } },
-            };
-            const err = await rejection(
-                createRegistry().loadFromSource(id, params[id] ?? {}, {
-                    endpoint: "https://db.example.com",
-                    fetch: replayFetch([]),
-                }),
-            );
-            expect(err.issue?.code).toBe("E_SOURCE_UNSUPPORTED");
-            expect(err.issue?.params).toEqual({ feature: "read", needs: id });
-        },
-    );
 
     it("answers E_SOURCE_UNKNOWN with the known ids", async () => {
         const err = await rejection(loadFromSource("nope", {}));

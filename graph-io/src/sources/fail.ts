@@ -69,20 +69,3 @@ export function warnOn(
     report.warning("unsupported", code, message, undefined, params);
 }
 
-/**
- * Reject with E_SOURCE_UNSUPPORTED: the read method of a built-in source whose code is not built
- * yet (`params: { feature: "read", needs: id }`).
- * @param id - the source id
- * @returns a rejected promise
- */
-export function notBuiltYet(id: string): Promise<never> {
-    // throwing inside the executor rejects the promise
-    return new Promise<never>(() =>
-        failAlone(
-            "E_SOURCE_UNSUPPORTED",
-            `source ${id} is not built yet`,
-            { feature: "read", needs: id },
-            `source:${id}`,
-        ),
-    );
-}

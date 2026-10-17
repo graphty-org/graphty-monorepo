@@ -18,10 +18,9 @@ a repository of networks, a graph database, a REST API. It returns the same
 | `next`          | where to continue a capped load (pass it as `cursor`), else null |
 
 The built-in sources are `ndex` (NDEx, the repository of biological networks), `cypher` with its
-`neo4j` and `neptune` presets, and `rest` with its `openalex` preset. [NDEx](./sources/ndex.md)
-is ready; the others are being built, and until each lands, loading from it fails with
-`E_SOURCE_UNSUPPORTED`. `listSources()` lists them with
-their descriptors and samples. To read from your own service, see
+`neo4j` and `neptune` presets, and `rest` with its `openalex` preset: see
+[NDEx](./sources/ndex.md), [Cypher](./sources/cypher.md) and [REST](./sources/rest.md). All of
+them are experimental. `listSources()` lists them with their descriptors and samples. To read from your own service, see
 [Writing a source](./writing-a-source.md).
 
 ## Options

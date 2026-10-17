@@ -12,105 +12,44 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Top of mind
 
-- (2026-10-17, first-use styling study review) Reviewed tier3 criteria, tasks, answers, roster,
-  README. Biggest gap: no task colors each category its own color (the commonest first styling
-  act, and the one where "twelve oranges for twelve conferences" lies); asked for T51 in T42's
-  slots. Also: T47 A "twice as big as now" cannot be read on screen when Size sits behind "+";
-  T45 B "black" ties look like the dark gray default (false done, ungradeable); T41 "has no phone
-  number" echoes "Has no value" (say "is missing"); B prompts say "your sources / your story /
-  your sports page" to non-reporters; T48 "as they did before" is ambiguous; Tom (opens only what
-  others send) is on core T47 B and T48 B against the roster's own rule; "10,000" with a comma is
-  an unwalked detour. Watch: whether T51's colors are distinct and its key names every value.
-
-- (2026-10-16, combined V7 + cards + bulk review) The owner chose V7 (Node | Edge tabs, a
-  collapsible picker of typed condition cards at the top of each tab) over the studio's V5; I
-  accept it and drop my 2026-10-12 "groups, never tabs". My asks: a new or empty layer opens with
-  its picker open on "Add a condition" (a state rule, not a first-run aid); Close is not Cancel,
-  so every card edit is one undo step and the row's count is live; a card that leaves 0 says so;
-  the tab follows the kind (stay on the current tab when the next layer styles it); the Edge
-  tab of a node-picked layer offers "Touching / Between the picked nodes" as its first card;
-  "From selection" makes a fixed Named card (live Selected and Hovered are not subset picks);
-  a selector the cards cannot draw shows a read-only Expression card, never nothing. Bulk picker:
-  cards every layer holds alike are shown and edited for all; cards that differ show as one card
-  with the purple <<Layer>> token, which opens the same per-layer rows (one row per layer, its
-  chips and count, click to open that layer); Add a condition adds to every layer; values of a
-  differing card are not written in bulk (ten groups picking community 3 is never meant). Watch
-  in the study: does anyone open the collapsed picker unprompted; does anyone think Close undid
-  their edit; does anyone hunt edges on the Node tab.
-
-- (2026-10-16, bulk iteration 7 frozen) Frozen as `tier3-bulk7-457aa9f0f2`, served by servherd
-  design-studio-tier3 at https://dev.ato.ms:9373/?next. Bulk field whose layers differ now draws
-  BoundValue (SpreadValues deleted): strip in the pill, <<Layer>> in the component purple where the
-  source name goes, detail "N layers", the same line of chits under it as one layer bound to data.
-  Color sets: strip of up to 4 hard stops or a gradient for a ramp; line shows every chit up to 6,
-  else 5 and "+N" (never "+1"), gray Other last and uncounted; ramp ends under the strip; the count
-  is in the pill's spoken name. Elena test: one look for one layer or ten, the purple token says the
-  colors come from each layer. Alex test: 35 clusters read as 5 chits + "+30" with the count spoken;
-  the full list is in the popover.
-
-- 2026-10-13 -- Tier 3 build paused for the owner's review after three iterations; the fourth is
-  planned (`design/ui/studio/tier3/iterations/3/review.md`). Built: one line per property, Clear
-  that names what comes back plus an announced Undo, a painted-over mark naming the layer above,
-  Figma-style effect and category rows, one name per value, kind changes that keep the layer, new
-  layers that say what they hold before painting, generic picking that gives true counts. No sev 4
-  findings; 9 sev 3 remain, and iteration 4 targets all of them.
-- 2026-10-13 -- My answers to the owner's three questions, and why. (1) Unset vs cover: an empty
-  field writes nothing, so "unset" is Clear (minus at rest, tooltip names what comes back, Undo).
-  Covering what a layer beneath draws is a different act: add your own entry set to nothing ("Hide
-  label from Key people" in the "+" menu). Two acts, two controls -- I accept this only if a layer
-  lists ONLY its own entries (iteration 4); today lower layers' entries appear on every layer
-  above, so Elena cannot tell "mine" from "beneath", and that is the real confusion behind the
-  owner's question. (2) No "split parent": it was never built; Louvain is an ordinary layer whose
-  color varies by Community, each group an ordinary category entry, and the same rows serve any
-  grouping column (College football's conference). Two row kinds only, layer and folder -- the
-  owner's consistency rule is mine too: one more row kind is one more thing Elena must learn.
-  (3) Figma: taken -- one-line rows, effect rows, Mixed only for multi-select, popovers beside the
-  panel; next -- never-cut names with one settings button per section (Type settings), opacity
-  inline, swatch borders, icon grid for shapes. Kept against Figma: the vary glyph at rest (hidden
-  doors were found only by guessing in tier 1) and the painted-over mark (Figma does not stack).
-- 2026-10-13 -- Watch at the owner's review: does a painted-over value drawn dimmed read as "not
-  what is drawn"; is the "+" menu where a reader looks to hide something beneath (my doubt: a
-  reader who sees a label they do not want looks at the label, not at "+"; if the owner agrees,
-  the beneath entry's own row menu could offer "Hide on this layer" -- same act, second door);
-  does one settings button per section read as Figma's.
-- 2026-10-13 -- Watch in the study: Elena unsetting a value she did not mean to set (does she find
-  Clear, or empty the field); Alex moving a layer between kinds and expecting nothing lost; trust
-  failures first -- twelve oranges for twelve conferences, a key reading "6" to "5", a font named
-  Verdana drawn in serif. Any picture that says one thing while the canvas shows another is sev 3.
-- 2026-10-12 -- Tier 3 (unified styles) started: build the style panel in the real app from the
-  mock, the owner approves the UI before any study. My answers to the owner's twelve questions:
-  `design/ui/studio/tier3/decide/user.md`. Watch: nothing looks set unless it is; a row's empty
-  placeholder must state what is really painted, not only the floor.
-- 2026-10-11 -- Round 4 closed (Director): 12 changes, study first. Round 5 waits until the gate
-  refuses a gateless session and briefings name files and kinds only, each shown on a planted fault.
-  Watch round 5: T22 A "10" on bus-stops (no refused suggestion; "is 10 or more" offered), T17
-  table under a filter step, and the owed r4-s05b, r4-s20b, r4-s28b scored first.
-- 2026-10-11 -- Round 4 after checks: 53 of 53 valid sessions passed; bar 10 fails on two sev 3s
-  (drawn names over ties and dots; find box offering a rule it refuses), bar 9 (b) by two words.
-- 2026-10-11 -- Find box: the element's "add backticks" suggestion for a bare "10" is "`10`", a
-  literal that is no condition, so the box offers it and then refuses it. Fix it in the element
-  (suggest only a rewrite that reads), plus an additive "or more" row for any number inside a
-  numeric column's range. T22 A's own number (10 on bus-stops) is not a value in the file.
-- 2026-10-11 -- With a filter step on, the table should list what is showing: the element already
-  has the "visible" scope; TableDock passes "graph". One line, no new words.
-- 2026-10-11 -- Bar 9 (b): do not cut trust words ("full graph" under a filter: a path can run
-  through hidden nodes) to pass a word count; check round 1 measured that screen in the same state.
-- 2026-10-11 -- Briefings leak (file table with contents, --shift-click, toolbar-pointing
-  histories). Every "noticed unprompted" claim from rounds 3-4 is discounted until fixed.
-- 2026-10-11 -- Kept, do not touch: Shift-click adds (T24 7 of 7), toolbar Filters icon (7 of 7
-  first door), second path replacing the first with no notice, Analyze name ranking, Replace page.
-- 2026-10-11 -- Rule language is copied, never discovered (0 of 16 typed "=" in rounds 2-3).
-  Every T22 route must work without knowing it; the syntax itself stays on the owner's list.
-- 2026-10-11 -- One variant per problem, every one-specialist claim scripted first, words at rest
-  never rise.
-- 2026-10-09 -- Simulated passes are weak; failures and script repros count. One model's seven
-  matching asides are one voice, not seven.
-- 2026-10-09 -- Drawn names overlapping ties and dots (element label placement, owner's list). The
-  app must not hide it with small fonts, a seed or setups that turn names off.
-- 2026-10-07 -- Top risk still: a picture that looks right and answers wrong (stale key, stale
-  "Made with", overlapping names, a table that disagrees with the drawing).
-- 2026-10-06 -- No tours, hint panels or first-run aids; same screens for everyone. Grade from what
-  ended on screen; task wording never reuses the target's screen words.
+- (2026-10-17, second review of the tier 3 first-use styling study) The first review's asks all
+  landed (T51 added, "is missing", blue ties, "clearly bigger", reporter colleague's sources, T48
+  count, Tom off T47/T48). Eight new asks: the color-by-category route (its popover and the key)
+  and a colleague's project opened are on no scripted screen, so bars 6 and 8, the wording check
+  and the expert walks never see T51's or T50's route; the expert walks and screenshot audit must
+  also check every session's last screenshot for key vs drawing agreement; "must not rise" needs a
+  bar; T47 A "clearly bigger" vs a key that grades "above 1, the same for all"; Tom on T51 B (the
+  only B session for question 6, and his persona quits at "discrete or continuous?"); Maren on T39
+  B inside bar 4's newcomer median; T48 says "clusters" in both halves and T46 B / T47 B / T48
+  echo the Groups row's info line ("Cluster nodes that interact more with each other"); T45's
+  halves test different cards, so its per-half rule compares unlike things.
+- (2026-10-17) Watch in round 1: whether T51's colors are distinct and its key names every value;
+  whether anyone opens the collapsed picker unprompted; whether anyone thinks Close undid an edit;
+  whether anyone hunts ties on the Node tab; touches of the purple <<Layer>> token on T47.
+- (2026-10-16) V7 accepted (Node | Edge tabs, a collapsible picker of typed condition cards). My
+  standing asks: a new or empty layer opens with its picker on "Add a condition"; Close is not
+  Cancel, one undo step per card edit; a card that leaves 0 says so; the Edge tab of a node-picked
+  layer offers "Touching / Between the picked nodes" first; a selector the cards cannot draw shows
+  a read-only Expression card, never nothing; a bulk card that differs shows <<Layer>> and is never
+  written in bulk.
+- (2026-10-16) Bulk field whose layers differ draws as one bound value: strip in the pill,
+  <<Layer>> where the source goes, "N layers", chits under it (up to 6, else 5 and "+N", gray Other
+  last). One look for one layer or ten.
+- Top risk, every tier: a picture that looks right and answers wrong (stale key, twelve oranges for
+  twelve values, a count that disagrees with the drawing). Any such screen is severity 3.
+- Expert walks and the screenshot audit were the bar that failed every round of tier 2 while
+  sessions passed near 100%: their coverage decides what tier 3 can find. Walk the routes the tasks
+  take, not only the screens the scripts know.
+- A dry run must walk the commonest detours and the keyboard route, not only the answer key.
+- Task wording never reuses the target's screen words, including tooltips and info lines; every
+  wording at stake runs on two domains.
+- No tours, hint panels or first-run aids; the same screens for everyone.
+- Grade from what ended on screen and in the style tree, never from a participant's rating.
+- Simulated passes are weak; failures and scripted repros count. One model's matching asides are
+  one voice.
+- Personas whose files script a quit are placed only where the quit is the finding, never as the
+  sole session of a study question.
+- Drawn names overlapping ties and dots stays an element and owner item; the app must not hide it.
 
 ## Priorities and values
 
@@ -169,74 +108,49 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Decisions and reasons
 
-- **2026-10-14, round 6:** Round 6: the owner's confusions (empty palette, vanishing new layer, "Top 10" selecting nothing, "End" not drawn, Highlight read as Headlight) were each a screen that said nothing true. Decisions favor words that say what happened (count lines that explain ties, "Draws nothing", Add Leiden layer). Watch: does an empty Layer 1 read as broken?
-
-- 2026-10-13 (me, tier 3 pause) -- Agree with the iteration 4 plan. Additions I hold to: a layer
-  shows only its own entries; nothing is lost by passing through a kind; focus never falls to the
-  page; "one color per value" must give distinct colors. Reason: each is a screen that lies or a
-  loss of work, which Elena never forgives. No new row kind for runs, ever, without a second use.
-
-- 2026-10-12 (me, tier 3 open questions) -- Core single-value properties (node shape, size,
-  color; edge color, width, head, tail) always present as empty fields whose placeholder is what
-  the layers beneath paint, not "+" (Figma's always-present opacity); "+" only for lists (labels,
-  effects) and rare properties, its menus with pictures and the color picker opening at once.
-  Nodes and Edges as collapsible groups with a summary, never tabs; a group the rule cannot match
-  is hidden. Field picker ranked in use, then fits, with one fact per field. Gradient as one
-  picture (histogram, aligned ramp, handles) with the number fields kept. A run's categories
-  arrive unsplit; a split parent never looks like a folder. One "which elements" rule with an
-  edge clause (between / touching / none). Find-box value rows make live rules first; selection
-  and "=" expressions second (0 of 16 typed "=" in tier 2). Label looks as presets with previews
-  plus saved looks. Every field can vary where the element binds it, disabled with its reason
-  elsewhere. Reason: Elena fears breaking things and reads pictures; Alex wants fewer clicks and
-  saved patterns; no control may look set when it is not. Element asks, all additive: a
-  "beneath this layer" reading of `styles.agreement`, kind previews, the kinds a rule can match,
-  channel-fit codes per column, a binding preview (bins, colors, clamped count), a selector
-  taking a rule tree with an edge reading, a text leaf in rule trees, label looks as catalog
-  data, bindable label size and colors.
-
-- 2026-10-11 (Design Director, round 4 close; my position after) -- Twelve changes: study gate
-  and slot start (sev 4); briefings name file and kind only, leak check reads briefings (sev 4);
-  element refusal suggests only a rule the selector accepts; "is N or more" for a number in a
-  numeric column's range (element + app); off filter step stays off after an editor with no
-  edit; New project then Discard no error page; three single-source claims scripted first; table
-  lists what a filter step keeps; the "or more" rule names its column like a typed rule; note
-  Cancel focus on "+"; T17 histories stop naming the toolbar; bar 9 (b) added words named by
-  diff before any cut. Held: one load-warning look, "out of date" accessible name, second-path
-  notice, Degree arrow, Ctrl/Meta. Not changed: label overlap (owner). My view: all four of my
-  asks landed, and the bar 9 rule matches mine (diff first, no trust words cut).
-
-- 2026-10-11 (me, tier 2 round 4 critique) -- Four changes, smallest first: (1) the element's
-  `number-needs-backticks` refusal suggests a rewrite only when it reads as a condition (a bare
-  "10" gives "`10`", which the box then refuses: expert/figma/find/08.png); (2) additive optional
-  "or more" rows in `find()` for a number inside a numeric column's range, rendered by FindBox like
-  today's row; (3) the table reads scope "visible" (r4-s27/09.png: "41 edges" under "12 of 41");
-  (4) study: gate enforced, slot-aware start, file table names files only, histories stop naming
-  the toolbar, owed re-runs. Not changed: label overlap (element, owner), scope words, every sev 2
-  load/direction/Degree/save item, Shift-click, Filters icon. Reason: each targets a confirmed
-  failure on the route a returning user takes from memory (type the number; check the table).
-
-- 2026-10-11 (Design Director, round 3 close; summarized 2026-10-12) -- Twelve changes, study
-  first: gate and leak check, T24 prompt reworded, Shift-click adds, find box "at least" row,
-  Analyze name ranking, toolbar Filters icon, focus fixes. I agreed with each difference from my
-  critique (prompt over key, icon over layer row, no second-path notice). Held: per-name hop
-  distance, "4 hops", Ctrl/Meta.
-
-- 2026-10-10 (me, tier 2 round 3 critique) -- Seven changes, smallest first; folded 2026-10-11 into
-  the entry above (5 of 7 matched the final list).
-- 2026-10-10 (Design Director, round 2 close; summarized 2026-10-11) -- Fifteen changes, study
-  first; one per confirmed problem in its owning package (element highlight look, repeat-edge
-  count, rule-named layers, focus faults). Matched my four asks; I dropped opt-in bare numbers.
-- 2026-10-09 (me, tier 2 round 2 critique; summarized 2026-10-11) -- Asked: a visible starting
-  look for a new line row, element facts for a bare number and an unknown column, a repeat-edge
-  count with Replace on the Add page, rule-named layers. Three of four landed in round 3.
-- 2026-10-09 (Design Director, round 1 close; my position after) -- Round 2 starts only after the
-  study tool is fixed, the bar scripts are built and a detour dry run (pointer and keyboard) is
-  written on the new build. App changes: find refusal words; "..." with Replace on the source
-  inspector; start-screen Open of a data file goes through the Data page; filter focus and Enter;
-  true load words; find-list ellipsis; ", out of date" on the key; no silent Everything for style
-  lines; halo ring without tint (element); Weight list starts on the loaded weight. Reason: one
-  door per confirmed problem so round 2 can credit each change alone. I drop my column-menu
-  "higher means" and undoable "Back to start" (second home; Back already asks when unsaved).
+- **2026-10-17 (me, second review of tier 3 criteria and tasks):** Eight changes (above, Top of
+  mind). Reason: every one is a route a first-time user will take that no bar, check or walk
+  currently sees, a grade the key cannot give from the prompt's words, or a placement that spends
+  a study question's only session on a scripted quit. Evidence: `../tool/bars.mjs` WALKS3 lists no
+  color-binding popover, no key and no opened project; `graphty/src/components/shell/panel/
+AnalyzePanel.tsx` Groups info "Cluster nodes that interact more with each other than with the
+  rest"; `P/recipe-recipient.md` "What makes him abandon a tool" ("Discrete or continuous?", a
+  second failure); `answers.md` T47 success "above its starting 1 and the same for all".
+- **2026-10-17 (me, first review of tier 3):** Asked for T51 (each kind its own color) in T42's
+  slots; T47 A not "twice as big"; T45 B not black; T41 "is missing"; B prompts a reporter
+  colleague's, not "your"; T48 "when the file first opened"; Tom off the several-layer tasks;
+  `10,000` as a detour. All landed (tasks.md change log 2026-10-17).
+- **2026-10-16 (me, combined V7 + cards + bulk review):** Accepted the owner's V7 and dropped my
+  2026-10-12 "groups, never tabs". Asks recorded in Top of mind.
+- **2026-10-16 (bulk iteration 7 frozen as `tier3-bulk7-457aa9f0f2`):** SpreadValues deleted; a
+  bulk field whose layers differ draws BoundValue with <<Layer>>. Elena test: one look for one
+  layer or ten. Alex test: 35 clusters read as 5 chits + "+30", count spoken.
+- **2026-10-14, round 6:** The owner's confusions (empty palette, vanishing new layer, "Top 10"
+  selecting nothing, "End" not drawn, Highlight read as Headlight) were each a screen that said
+  nothing true. Decisions favor words that say what happened ("Draws nothing", count lines that
+  explain ties, Add Leiden layer).
+- **2026-10-13 (tier 3 pause, my answers to the owner):** Unset is Clear (minus at rest, tooltip
+  names what comes back, Undo); covering a lower layer is a separate act (own entry set to
+  nothing), acceptable only if a layer lists only its own entries. No "split parent" row: two row
+  kinds only, layer and folder. Figma: one-line rows, effect rows, Mixed only for multi-select,
+  popovers beside the panel; kept against Figma: the vary glyph at rest and the painted-over mark.
+  Also: nothing lost passing through a kind; focus never falls to the page; "one color per value"
+  gives distinct colors. Reason: each is a screen that lies or lost work.
+- **2026-10-12 (tier 3 open questions, `tier3/decide/user.md`):** Core single-value properties
+  always present as empty fields whose placeholder is what lies beneath; "+" only for lists and
+  rare properties; field picker ranked in use then fits; gradient as one picture with number
+  fields kept; one "which elements" rule with an edge clause; label looks as presets. Element asks,
+  all additive (agreement beneath a layer, kind previews, channel-fit codes, binding preview,
+  rule-tree selector with an edge reading, text leaf, label looks as catalog data).
+- **2026-10-08 to 2026-10-11 (tier 2, summarized 2026-10-17):** Criteria: a bar for expert and
+  screenshot findings, no round cap, "not scored" is not met, no door removed on fewer than 8
+  sessions. Rounds 1-4 critiques and closes: the gate and leak check enforced by the command every
+  session runs (a written rule failed twice); briefings name files and kinds only; Shift-click
+  adds; toolbar Filters icon; find box "or more" rows and only suggestions that read as a
+  condition (element); the table lists what a filter step keeps; one door per confirmed problem so
+  a round can credit each change; trust words never cut to pass a word count. Kept: Shift-click,
+  Filters icon, Analyze name ranking, Replace page. Rule language is copied, never discovered (0
+  of 16 typed "=").
 - 2026-10-09 (me) -- A dry run must walk the commonest detours, not only the answer key. Reason:
   round 1's dry run cleared every walked route (0 broken controls met there), and every build
   fault participants did meet was on a detour (styling Edges while a run layer was open, the
@@ -311,6 +225,12 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Tried: worked / did not work
 
+- 2026-10-17 -- WORKED: a first review of study materials that names each ask with its reason;
+  all eight landed in one pass. DID NOT (found on the second pass): a new task (T51) added
+  without adding its route's screens to the scripted walk, so the wording check and bars 6 and 8
+  were blind to the very screen the task exists to test. Lesson: a new task brings its screens
+  into WALKS3 in the same change.
+
 - 2026-10-11 -- TIER 2 ROUND 4. WORKED: Shift-click adds (T24 2 of 4 to 7 of 7, median 4 steps);
   toolbar Filters icon (7 of 7 first door, 0 wrong turns); Les Miserables "or more" row taken. DID
   NOT: the gate again (not run, not enforced); 3 sessions lost to the browser-slot wait; briefings
@@ -371,6 +291,11 @@ something, or change my mind. Summarize when it passes about 25 KB.
   wording; whether a run's suggested style lands above a hand-written layer that colors everything.
 
 ## Sources
+
+- `design/ui/studio/tier3/criteria.md`, `tasks.md`, `answers.md`, `roster.md`; `../tool/bars.mjs`
+  (WALKS3); `graphty/src/components/shell/panel/AnalyzePanel.tsx` (SUGGESTED_CARDS);
+  `graphty/src/workspace/style/words.ts` (LAYER_TOKEN, bindingTitle); `P/recipe-recipient.md`
+  (2026-10-17).
 
 - `design/ui/studio/tier3/decide/user.md`; mock design `design/ui/style-panel-organization.md`
   (branch `mock/style-panel`); `tmp/style-catalog/catalog.md`; element `catalog/types.ts`

@@ -1687,7 +1687,8 @@ function arraySection(value: unknown, what: string, report: ImportReportBuilder)
     if (!Array.isArray(value)) {
         return report.fail(JSON_ISSUE.SHAPE, `${what} must be an array, found ${describe(value)}`, { element: what });
     }
-    return value;
+    const items: readonly unknown[] = value;
+    return items;
 }
 
 /**

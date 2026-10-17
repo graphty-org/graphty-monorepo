@@ -88,6 +88,8 @@ const KINDS: Readonly<Record<SessionCommand["op"], JournalEntry["kind"]>> = {
     "data.apply": "data",
     "data.declare": "data",
     "data.expand": "data",
+    "data.source-expand": "data",
+    "data.collapse": "data",
     "data.import": "data",
     "data.setSource": "data",
     "layout.scope": "layout",

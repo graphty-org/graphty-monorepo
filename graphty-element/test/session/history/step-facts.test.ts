@@ -38,6 +38,8 @@ const CODES_BY_OP: Readonly<Record<UndoableOp, readonly HistoryCode[]>> = {
     ],
     "data.import": ["data.import"],
     "data.expand": ["data.expand"],
+    "data.source-expand": ["data.source-expand"],
+    "data.collapse": ["data.collapse"],
     "data.declare": ["data.declare"],
     "data.setSource": ["data.set-source"],
     "style.patch": [
@@ -93,6 +95,8 @@ const PARAMS: Readonly<Record<HistoryCode, readonly string[]>> = {
     "data.replace-edges": [],
     "data.import": ["name", "type"],
     "data.expand": ["node"],
+    "data.source-expand": ["edges", "nodes", "seeds"],
+    "data.collapse": ["node", "nodes"],
     "data.declare": ["column", "kind"],
     "data.set-source": ["name"],
     "style.add-layer": ["layer"],

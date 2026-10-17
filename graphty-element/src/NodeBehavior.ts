@@ -818,10 +818,12 @@ export class NodeBehavior {
                 () => {
                     const { fetchNodes, fetchEdges } = graph;
 
-                    // No fetchers means no on-demand expansion, which is the default and is not
-                    // an error: a graph that holds everything it is ever going to hold has
-                    // nothing to expand.
+                    // No fetchers: the node's own network source expands it, when the consumer
+                    // switched that on (`behavior.expand.trigger`). Neither is the default, and
+                    // neither is an error: a graph that holds everything it is ever going to
+                    // hold has nothing to expand.
                     if (!fetchNodes || !fetchEdges) {
+                        this.expandFromSource(node, "double-click");
                         return;
                     }
 
@@ -873,6 +875,31 @@ export class NodeBehavior {
                 },
             ),
         );
+        node.mesh.actionManager.registerAction(
+            new ExecuteCodeAction({ trigger: ActionManager.OnPickTrigger }, () => {
+                if (!graph.fetchNodes || !graph.fetchEdges) {
+                    this.expandFromSource(node, "click");
+                }
+            }),
+        );
+    }
+
+    /**
+     * Expand a node from the network source that loaded it, when `behavior.expand.trigger` names
+     * the gesture that just happened. A failure is published as `source:expand-failed`, so nothing
+     * more is done with it here.
+     * @param node - the node
+     * @param gesture - what the reader did
+     */
+    private static expandFromSource(node: GraphNode, gesture: "click" | "double-click"): void {
+        const context = this.getContext(node);
+        const { trigger, ...options } = context.getStyles().config.behavior.expand;
+        const session = context.getSession?.();
+        if (trigger !== gesture || session === undefined) {
+            return;
+        }
+
+        session.data.expand([node.id], options).catch(() => undefined);
     }
 
     /**

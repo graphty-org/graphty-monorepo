@@ -71,6 +71,12 @@ describe("Automatic Layout Updates", () => {
                 camera: {
                     pivotOnSelection: false,
                 },
+                expand: {
+                    trigger: "none",
+                    depth: 1,
+                    direction: "both",
+                    layout: "continue",
+                },
             },
             data: {
                 knownFields: {

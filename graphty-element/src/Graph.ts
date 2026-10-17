@@ -1803,6 +1803,7 @@ export class Graph implements GraphContext {
             labels: { ...current.labels, ...behavior.labels },
             rendering: { ...current.rendering, ...behavior.rendering },
             camera: { ...current.camera, ...behavior.camera },
+            expand: { ...current.expand, ...behavior.expand },
         };
 
         // Checked whole, the project half over the settings in force, before anything is written.

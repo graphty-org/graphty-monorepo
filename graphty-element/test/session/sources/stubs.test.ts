@@ -1,5 +1,5 @@
 /**
- * Until loading, expanding and the credential store land, the session's source calls reject with
+ * Until loading and the credential store land, the session's source calls reject with
  * E_SOURCE_UNSUPPORTED and change nothing, and the records and pending list are empty.
  */
 
@@ -16,8 +16,6 @@ describe("session.data source calls before they land", () => {
                 session.data.import({ source: "ndex", config: { uuid: "u" } }),
                 session.data.testSource({ source: "ndex", config: { uuid: "u" } }),
                 session.data.listSource({ source: "ndex", config: {} }),
-                session.data.expand(["a"]),
-                session.data.collapse("a"),
                 session.data.more(),
                 session.data.runPendingSourceLoad("load-1"),
             ];

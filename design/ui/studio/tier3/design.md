@@ -1324,6 +1324,93 @@ The owner approves the UI before any study runs.
 
 ---
 
+## 2026-10-16 -- The combined Style panel: Node and Edge tabs, condition cards, several layers
+
+Owner-fixed: layout V7 (Node and Edge tabs, a collapsible picker at the top of each), typed
+condition cards combined with AND, and the approved bulk editor. This section decides the rest.
+
+**Tabs.** compact-mantine `Tabs`, list named "Style for", labels "Node" and "Edge" (the owner's
+words). Selecting a tab only changes the view; arrows, Home and End move. A kind that is off keeps
+its label plus an "off" badge in `text-secondary`, never dimmed or disabled; its panel holds the
+"Style edges" (or "Style nodes") button. Under the tabs, one line about the other kind ("Edges: 2
+styles" with Edit, or "Style edges"), one Tab stop. The "Paints: Nodes / Edges / Both" control is
+deleted. One tab state for the panel: when the selection changes it stays on the current tab if
+the new selection styles that kind, else moves to the kind it styles (Node on a tie). The pill
+tab's selected state gets a 3:1 cue in compact-mantine (team).
+
+**Each kind has its own pick.** Each row part (`styles.parts(row)`) already holds its own
+selector; the Node tab writes the node part's, the Edge tab the edge part's. No element change.
+On the Edge tab of a layer that also styles nodes, the "Ends" card keeps today's behavior: "Ends:
+both in this layer's nodes" or "either", written as the edge part's rule = the node cards ANDed
+with the edge cards, reading `clipped` (both) or `incident` (either). Changing a node card
+rewrites the edge part in the same step. Turning edges on for a layer with node cards adds the
+Ends card (both); with no node cards, no card.
+
+**The Which row (collapsed).** A disclosure button, name first: "Which nodes, 11 of 77". It shows
+every card as a chip with its own count ("Degree 5 to 12, 22"), an unfinished card as a dashed
+chip ("Community: pick values"). No cards: warning chip "All 77 nodes: add a condition to narrow".
+Chips are pointer shortcuts that open their card; nothing inside the button takes focus. Open on
+arrival: a new layer, or a kind just turned on with no cards (focus "Add a condition"). Otherwise
+collapsed. One picker open at a time; open state is not remembered.
+
+**Expanded.** One line "Elements that pass every card", the cards, "+ Add a condition", "Done".
+The add menu is a compact-mantine Combobox with search over `data.readableValues()` grouped Data,
+Results, Structure; a field with a card is marked and picking it focuses that card. One card per
+field. Focus: added card's first control; after removal the next card, else the previous, else
+"+ Add a condition"; Done or Escape returns to the row. Escape closes the innermost open thing
+and keeps edits; each open-and-close is one undo step "Which nodes". The total reads "11 of 77";
+at 0 a line says why ("Degree leaves none" or "Each card leaves some; together none"). One polite
+debounced status speaks the total; per-card counts are plain text.
+
+**Card types**, from the field's `kind`. Every card: header (field name, its count, x; Delete on
+the header removes), group named "Degree, 22 nodes", a Match select whose last two options are
+"Has a value" and "Has no value" (these hide the body).
+
+- Number: histogram (hidden from readers), `RangeSlider` with thumbs "Degree from" / "Degree to",
+  two NumberInputs, unclamped; "Top" option "highest N" or "lowest N" (a `threshold` leaf, ranked
+  over the whole graph; the card says "of all nodes"). "N have no value and are left out."
+- Category: checklist "3, 11 nodes" by count; over 8 values a search, top 8 and "Show all N"; a
+  "(no value) N" row when there are gaps. Ticked values are alternatives.
+- Text: Select "contains / starts with / ends with / is exactly", TextInput, "Match case"
+  checkbox; maps to `substring`, `starts-with`, `ends-with`, `exact`.
+- Yes/no: Select "Yes / No" (No means false).
+- Name: the text card on the node's id, plus "Use the selected nodes" filling a fixed id list.
+- Fixed cards, not in the add menu: a set ("In a saved selection: X"), Selected and Hovered
+  layers ("On the canvas: selected", stands alone), and any rule the cards cannot draw ("A rule
+  set elsewhere" with its text and remove). Locked layers show cards read-only with the reason.
+
+Left out: Include/Exclude, OR across fields, same-or-different ends, Data > Filters rows (they
+keep their editor). A bulk edit never renames a layer.
+
+**Several layers or a folder.** The same tabs, row and cards; the scope line ("12 layers in
+Louvain; layers added later are not changed") sits above the tabs. A folder has no pick of its own.
+
+- Kind switch: indeterminate Checkbox "Style edges, on in 3 of 10 layers"; checking it adds the
+  part to each layer (Ends card as above), one undo step, receipt.
+- A card is keyed by field (Ends by "ends"). Same card in every layer: drawn normally, an edit
+  writes all (`updateMany`, one undo step). Values differ: one card whose value slot is the
+  <<Layer>> token with "10 layers" and the usual chit line ("Group 1, Group 2, ... +N"); it opens
+  to one row per layer (name, chips, count), and a row click selects that layer. Its values are
+  not written in bulk: a card's value is what makes each group a group. Its x removes the field's
+  card from every layer.
+- "+ Add a condition" ANDs the card into every reached layer. The receipt names layers left at 0
+  ("2 layers now match nothing: Group 5, Group 6").
+- Row: "10 layers, 77 of 77 nodes" (the union).
+- A re-run keeps an added card: `realignRule` maps through `all` and leaves other leaves alone.
+
+**graphty-element, additive (team):** a presence leaf and `data.valueCounts` (see
+`owner-decisions.md`). Per-card counts use `scope.count`; no other change.
+
+**Tests.** Real input, `*.real-element.test.tsx`: arrows over tabs change nothing in the layer;
+each card type writes its leaf and its chip count matches `scope.count`; Escape keeps an edit and
+Undo restores it in one step; turning edges on a node-picked layer paints only edges between its
+nodes; editing a node card moves the Ends edges; bulk shared card edits every layer in one undo;
+<<Layer>> card is read-only and its x removes from all; Add in bulk then a Louvain re-run keeps the
+card; an expression layer opens as "A rule set elsewhere", unchanged on close; focus after
+add, remove and Done.
+
+---
+
 ## Change log
 
 - **2026-10-12, first version.** The twelve decisions, the panel, the coverage table, the element
@@ -1353,3 +1440,7 @@ The owner approves the UI before any study runs.
   one "+" item per drawn part; "Arrowheads" with Target end and Source end; one Label noun with
   three edge places; View, Layout and Highlight color leave the graph Style tab; one Values-tab
   structure for every layer; degree as separate statistics.
+- **2026-10-16, the combined Style panel.** Node and Edge tabs with a per-kind pick, typed
+  condition cards and their editors, the Ends card that keeps "edges between the picked nodes",
+  and what a card means on several layers (shared cards edit all; differing cards read <<Layer>>
+  and are not written in bulk; Add ANDs into every layer).

@@ -5,10 +5,21 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-10-13 (tier 3 build phase: draft study materials committed; the push is blocked
-by the SonarQube gate, so no pull request yet).
+Last updated: 2026-10-16 (combined Style panel spec decided).
 
 ## Top of mind
+
+- (2026-10-16, combined Style panel spec) DECIDED in `tier3/design.md`, section "2026-10-16 --
+  The combined Style panel". Tabs "Node"/"Edge" (owner's words beat IA's plural); Paints control
+  deleted; each row part writes its own selector (already true in the element, so not breaking --
+  red team's worry was unfounded); the Ends card keeps "edges between the picked nodes" using the
+  existing `clipped`/`incident` reading, no new leaf. Escape keeps edits; "Done" only. One card
+  per field; presence is a Match option on every card, not a second card. Bulk: shared cards edit
+  all; differing cards read <<Layer>> and are NOT written in bulk (three reviewers' "writable" lost
+  to "a card's value is the group's identity"); Add ANDs into every layer. Verified in code:
+  `realignRule` maps through `all`, so an added card survives a Louvain re-run. Element adds
+  (team): `present` leaf, `data.valueCounts`. For the study, watch: opening the collapsed picker
+  unprompted, Escape expected to cancel, edges sought on the Node tab, chip count read as total.
 
 - (2026-10-16, bulk iteration 7 frozen) Frozen as `tier3-bulk7-457aa9f0f2`, served by servherd
   design-studio-tier3 at https://dev.ato.ms:9373/?next. Bulk field whose layers differ now draws

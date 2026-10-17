@@ -4,6 +4,29 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-16 -- Decided by the team: a has-value rule and value counts for any readable value
+
+Additive API in graphty-element (`./session`), for the Style panel's condition cards:
+
+- **RuleTree leaf `{ kind: "present"; reads: Path }`.** The elements that carry a value for the
+  path (`not` of it: those that have none). Speaks each half whose elements carry the path, as a
+  `text` leaf does. RuleTree is an open union, so a new leaf kind is additive. Replaces the app's
+  empty-regex stand-in.
+- **`session.data.valueCounts(path, options?: { kind?: "node" | "edge" })`** returns `{ values:
+readonly { value: Scalar; count: number }[]; missing: number; total: number }`, largest first,
+  for any path `data.readableValues()` lists (data columns, run results, an edge's ends).
+  `data.histogram` takes data columns only, so a category card on a run's groups had no counted
+  list; counting in the app is forbidden.
+
+Also decided by the team, no API change: each style row's node part and edge part keep their own
+selector (they already do; the app stops writing one selector to both), and "edges between /
+touching the picked nodes" is the edge part's rule holding the node conditions with the `clipped`
+or `incident` reading, which `EdgeReading` already defines. Not built: a leaf for "same or
+different value at both ends" (no study task needs it).
+
+For the owner, not blocking: OR across fields and Exclude stay out of the cards' simple path for
+this study; a rule that needs them opens as "A rule set elsewhere" and is never dropped.
+
 ## 2026-10-16 -- The owner's decision: Layer is a temporary value; a data field is copied as is
 
 The owner approved this design for several layers edited together (a folder, recursively, or a

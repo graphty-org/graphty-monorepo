@@ -36,7 +36,7 @@ import {
 import type { BatchCommand } from "./session/commands/index";
 import { DEFAULT_LAYOUT, type LayoutSetCommand } from "./session/commands/layout";
 import { recordsInRowOrder } from "./session/data";
-import { dispatcherOf } from "./session/GraphSession";
+import { dispatcherOf, DISPOSED_STATUS } from "./session/GraphSession";
 import type { NoteChange } from "./session/notes/types";
 import type { GraphSlice } from "./session/project/state";
 import {
@@ -1070,6 +1070,13 @@ export class Graphty extends LitElement {
      */
     #records(target: "node" | "edge"): readonly unknown[] {
         const session = this.#graph.getSession();
+        // A removed element's session is disposed, and Lit can still run an update it had already
+        // scheduled -- one that reads this property. The getter answers with nothing then, rather
+        // than an unhandled rejection from inside Lit that reaches nobody.
+        if (session.status === DISPOSED_STATUS) {
+            return [];
+        }
+
         const { graph } = dispatcherOf(session).state;
         if (this.#rowRecords?.token !== graph.token) {
             this.#rowRecords = { token: graph.token };

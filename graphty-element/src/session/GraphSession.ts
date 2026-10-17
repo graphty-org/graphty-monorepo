@@ -253,7 +253,7 @@ const PLANNED_CAVEATS: Caveats = Object.freeze({
 });
 
 /** The status a disposed session reports, so a teardown path can still ask and get an answer. */
-const DISPOSED_STATUS: SessionStatus = Object.freeze({
+export const DISPOSED_STATUS: SessionStatus = Object.freeze({
     ready: false,
     counts: Object.freeze({ nodes: 0, edges: 0, visibleNodes: 0, visibleEdges: 0 }),
     directed: false,

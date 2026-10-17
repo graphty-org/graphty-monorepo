@@ -10,9 +10,8 @@ import "@graphty/graphty-element";
 
 import { channelsFor } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
-import userEvent from "@testing-library/user-event";
 import { assert, beforeAll, describe, it } from "vitest";
-import { page } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
@@ -473,7 +472,10 @@ describe("editing lines on the real element", () => {
     it("the Edges side lists its own sections and lines", async () => {
         await openWithGraph();
         const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
-        await userEvent.click(within(tab).getByRole("radio", { name: "Edges" }));
+        // A reader presses the segment's visible label; the radio itself is drawn invisible.
+        const edges = within(tab).getByRole<HTMLInputElement>("radio", { name: "Edges" }).labels?.[0];
+        assert.isDefined(edges);
+        await userEvent.click(edges);
         await waitFor(() => {
             const sections = within(styleTab())
                 .getAllByRole("group")

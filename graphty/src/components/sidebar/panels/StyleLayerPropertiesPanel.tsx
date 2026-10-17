@@ -34,11 +34,10 @@ import {
     CompactColorInput,
     ControlGroup,
     ControlSection,
-    ControlSubGroup,
     FieldRow,
     PanelField,
-    StyleNumberInput,
-    StyleSelect,
+    PanelLabelsProvider,
+    ResetButton,
     ToggleRow,
 } from "@graphty/compact-mantine";
 import { toColorValue } from "@graphty/graphty-element/catalog";
@@ -246,35 +245,52 @@ export function StyleLayerPropertiesPanel(props: StyleLayerPropertiesPanelProps)
             );
         } else if (control.kind === "number") {
             rows.push(
-                <StyleNumberInput
+                <NumberRow
                     key={channel}
                     label={control.label}
                     value={typeof value === "number" ? value : undefined}
-                    defaultValue={typeof control.fallback === "number" ? control.fallback : 0}
-                    {...(control.min === undefined ? {} : { min: control.min })}
-                    {...(control.max === undefined ? {} : { max: control.max })}
-                    {...(control.step === undefined ? {} : { step: control.step })}
+                    fallback={typeof control.fallback === "number" ? control.fallback : 0}
+                    min={control.min}
+                    max={control.max}
+                    step={control.step}
                     disabled={disabled}
-                    {...(disabledReason === undefined ? {} : { disabledReason })}
-                    onChange={(next) => {
+                    disabledReason={disabledReason}
+                    onWrite={(next) => {
                         writeChannel(channel, next);
                     }}
                 />,
             );
         } else if (control.kind === "enum") {
+            const chosen = typeof value === "string" ? value : undefined;
+            const fallback = typeof control.fallback === "string" ? control.fallback : "";
             rows.push(
-                <StyleSelect
-                    key={channel}
-                    label={control.label}
-                    value={typeof value === "string" ? value : undefined}
-                    defaultValue={typeof control.fallback === "string" ? control.fallback : ""}
-                    options={[...(control.options ?? [])]}
-                    disabled={disabled}
-                    {...(disabledReason === undefined ? {} : { disabledReason })}
-                    onChange={(next) => {
-                        writeChannel(channel, next);
-                    }}
-                />,
+                <PanelLabelsProvider key={channel} showLabels>
+                    <FieldRow
+                        trailing={
+                            chosen !== undefined && (
+                                <ResetButton
+                                    label={control.label}
+                                    disabled={disabled}
+                                    onClick={() => {
+                                        writeChannel(channel, undefined);
+                                    }}
+                                />
+                            )
+                        }
+                    >
+                        <PanelField
+                            label={control.label}
+                            kind="select"
+                            data={[...(control.options ?? [])]}
+                            value={chosen ?? fallback}
+                            disabled={disabled}
+                            disabledReason={disabledReason}
+                            onChange={(next) => {
+                                writeChannel(channel, String(next));
+                            }}
+                        />
+                    </FieldRow>
+                </PanelLabelsProvider>,
             );
         } else if (control.kind === "boolean") {
             rows.push(
@@ -431,14 +447,14 @@ function LabelStyleRows(props: LabelStyleRowsProps): React.JSX.Element {
     };
 
     return (
-        <ControlSubGroup label="Label style">
-            <StyleNumberInput
+        <>
+            <NumberRow
                 label="Text size"
                 value={style?.sizePx}
-                defaultValue={48}
+                fallback={48}
                 min={1}
                 disabled={disabled}
-                onChange={(next) => {
+                onWrite={(next) => {
                     write({ sizePx: next });
                 }}
             />
@@ -472,16 +488,76 @@ function LabelStyleRows(props: LabelStyleRowsProps): React.JSX.Element {
                     write({ outline: next });
                 }}
             />
-            <StyleNumberInput
+            <NumberRow
                 label="Padding"
                 value={style?.padding}
-                defaultValue={0}
+                fallback={0}
                 min={0}
                 disabled={disabled}
-                onChange={(next) => {
+                onWrite={(next) => {
                     write({ padding: next });
                 }}
             />
-        </ControlSubGroup>
+        </>
+    );
+}
+
+/** What one number row needs. */
+interface NumberRowProps {
+    /** The row's word, drawn as its caption and read as the field's name. */
+    readonly label: string;
+    /** What the layer sets, or undefined when it sets nothing here. */
+    readonly value: number | undefined;
+    /** What the field shows while the layer sets nothing. */
+    readonly fallback: number;
+    readonly min?: number | undefined;
+    readonly max?: number | undefined;
+    readonly step?: number | undefined;
+    readonly disabled: boolean;
+    /** Why the field is off, while it is. */
+    readonly disabledReason?: string | undefined;
+    /** Writes a number, or undefined when the reader resets the row. */
+    readonly onWrite: (value: number | undefined) => void;
+}
+
+/**
+ * One number the layer may set: the value, or the fallback while the layer sets nothing, with a
+ * reset in the trailing slot once it does.
+ * @param props - the row's word, value, fallback, bounds and writer.
+ * @returns the row.
+ */
+function NumberRow(props: NumberRowProps): React.JSX.Element {
+    const { label, value, fallback, min, max, step, disabled, disabledReason, onWrite } = props;
+
+    return (
+        <PanelLabelsProvider showLabels>
+            <FieldRow
+                trailing={
+                    value !== undefined && (
+                        <ResetButton
+                            label={label}
+                            disabled={disabled}
+                            onClick={() => {
+                                onWrite(undefined);
+                            }}
+                        />
+                    )
+                }
+            >
+                <PanelField
+                    label={label}
+                    kind="number"
+                    value={value ?? fallback}
+                    min={min}
+                    max={max}
+                    step={step}
+                    disabled={disabled}
+                    disabledReason={disabledReason}
+                    onChange={(next) => {
+                        onWrite(Number(next));
+                    }}
+                />
+            </FieldRow>
+        </PanelLabelsProvider>
     );
 }

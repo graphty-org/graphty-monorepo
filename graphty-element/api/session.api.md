@@ -1746,6 +1746,18 @@ export interface MachineCalibration {
 }
 
 // @public
+export interface MarkSpec extends HighlightSpec {
+    readonly set: StaticStyle;
+}
+
+// @public
+export interface MarkSuggestion {
+    readonly as: "mark";
+    readonly channels: readonly Channel[];
+    readonly spec: MarkSpec;
+}
+
+// @public
 export type Measurement = "categorical" | "ordinal" | "quantitative" | "time" | (string & {});
 
 // @public
@@ -3593,6 +3605,7 @@ export interface StylesApi {
     legend(): readonly LegendBlock[];
     legendOf(id: LayerId): readonly LegendBlock[];
     list(): readonly Layer[];
+    mark(spec: MarkSpec, options?: RunOptions): Run<readonly Layer[]>;
     move(id: LayerId, before: LayerId | null, options?: RunOptions): Run<void>;
     proposeEncoding(spec: EncodingSpec | ColumnEncodingSpec): EncodingProposal;
     remove(id: LayerId, options?: RunOptions): Run<void>;
@@ -3609,7 +3622,7 @@ export interface StylesApi {
 }
 
 // @public
-export type StyleSuggestion = EncodingSuggestion | HighlightSuggestion;
+export type StyleSuggestion = EncodingSuggestion | HighlightSuggestion | MarkSuggestion;
 
 // @public
 export type SuggestionOutcome = {

@@ -1,3 +1,41 @@
+## 3.28.5 (2026-10-17)
+
+### 🩹 Fixes
+
+- **graphty-element:** draw labels with the arrow caps, after node outlines ([2cfe015e4](https://github.com/graphty-org/graphty-monorepo/commit/2cfe015e4))
+- **graphty-element:** draw arrowheads over node outlines ([138551424](https://github.com/graphty-org/graphty-monorepo/commit/138551424))
+- **graphty-element:** draw a 2D curve at the straight edge's line width ([ba38a2eb7](https://github.com/graphty-org/graphty-monorepo/commit/ba38a2eb7))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.57
+- Updated graph-samples to 0.1.35
+- Updated graph-format to 1.4.3
+- Updated algorithms to 3.4.10
+- Updated graph-io to 0.3.42
+- Updated layout to 2.5.6
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.28.4 (2026-10-16)
+
+### 🩹 Fixes
+
+- **graphty-element:** paint algorithm results as ordinary layers, not highlights ([c2757912e](https://github.com/graphty-org/graphty-monorepo/commit/c2757912e))
+- **graphty-element:** draw no halo on a node the selection cap refused ([#2978](https://github.com/graphty-org/graphty-monorepo/issues/2978))
+- **graphty-element:** input recording keeps the pointer button for playback ([#3002](https://github.com/graphty-org/graphty-monorepo/issues/3002))
+- **graphty-element:** stop the canvas taking focus on load ([#2424](https://github.com/graphty-org/graphty-monorepo/issues/2424))
+
+### 🔥 Performance
+
+- **graphty-element:** switch between 2D and 3D in time linear in the graph ([#2895](https://github.com/graphty-org/graphty-monorepo/issues/2895), [#1643](https://github.com/graphty-org/graphty-monorepo/issues/1643))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.28.3 (2026-10-16)
 
 ### 🩹 Fixes

@@ -1,3 +1,63 @@
+## 0.8.85 (2026-10-17)
+
+### 🚀 Features
+
+- **compact-mantine:** replace legacy number, select and fold controls with Figma rows ([968d8fd6b](https://github.com/graphty-org/graphty-monorepo/commit/968d8fd6b))
+
+### 🧱 Updated Dependencies
+
+- Updated compact-mantine to 0.9.27
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.84 (2026-10-17)
+
+### 🚀 Features
+
+- **graphty:** open the workspace by default ([#3056](https://github.com/graphty-org/graphty-monorepo/issues/3056))
+
+### 🩹 Fixes
+
+- **graphty:** show copy feedback at once, and let Enter on Copy all copy ([2b67499c0](https://github.com/graphty-org/graphty-monorepo/commit/2b67499c0))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.57
+- Updated graphty-element to 3.28.5
+- Updated graph-samples to 0.1.35
+- Updated graph-format to 1.4.3
+- Updated graph-io to 0.3.42
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.83 (2026-10-16)
+
+### 🧱 Updated Dependencies
+
+- Updated compact-mantine to 0.9.26
+
+## 0.8.82 (2026-10-16)
+
+### 🩹 Fixes
+
+- **graphty:** apply a held-back mark suggestion with styles.mark() ([6d56a198c](https://github.com/graphty-org/graphty-monorepo/commit/6d56a198c))
+- **graphty:** keep focus where a panel More row moved it ([#2950](https://github.com/graphty-org/graphty-monorepo/issues/2950))
+- **compact-mantine:** report one segmented control change per click ([#2944](https://github.com/graphty-org/graphty-monorepo/issues/2944))
+- **graphty:** keep the device-lost toast clear of the activity rail ([#2949](https://github.com/graphty-org/graphty-monorepo/issues/2949))
+
+### 🧱 Updated Dependencies
+
+- Updated compact-mantine to 0.9.25
+- Updated graphty-element to 3.28.4
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.8.81 (2026-10-16)
 
 ### 🩹 Fixes

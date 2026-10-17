@@ -80,6 +80,7 @@ import { RenderSettingsOpts } from "./config/GraphBehavior";
 import { type PartialXRConfig, xrConfigSchema } from "./config/xr-config-schema";
 import { type ExportGraphOptions, type ExportResult, exportSession } from "./data/export";
 import { sampleOf } from "./data/source-bytes";
+import type { Edge } from "./Edge";
 import { GraphtyError } from "./errors";
 import {
     EventCallbackType,
@@ -113,7 +114,7 @@ import {
     UpdateManager,
     type ViewMasks,
 } from "./managers";
-import { dataManagerInternals } from "./managers/DataManager";
+import { dataManagerInternals, disposeReleased } from "./managers/DataManager";
 import { animatesEveryFrame } from "./managers/everyFrameAnimations";
 import { LabelDeclutter, NO_NODE_LABELS, type NodeLabel, type NodeLabelCounts } from "./managers/LabelDeclutter";
 import { layoutManagerInternals } from "./managers/LayoutManager";
@@ -127,7 +128,7 @@ import { bootstrapEdgePaint, bootstrapNodePaint } from "./managers/StylePainter"
 import { payLabelAnimations } from "./meshes/labelAnimationDebt";
 import { MeshCache } from "./meshes/MeshCache";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
-import { Node } from "./Node";
+import { Node, releaseNodeMesh } from "./Node";
 import { nodeActionManagerOf, nodePointerRosterOf, pickNodeId, pointerEventTime } from "./NodeBehavior";
 import { ScreenshotCapture } from "./screenshot/ScreenshotCapture.js";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
@@ -197,6 +198,28 @@ const DEFAULT_PROJECT: ProjectConfig = readProjectConfig(new Map(), DataConfig.p
  */
 function isAbort(error: unknown): boolean {
     return (error as { name?: unknown } | null)?.name === "AbortError";
+}
+
+/**
+ * Dispose an edge's line and arrowheads for a 2D/3D switch, after the mesh cache was cleared.
+ *
+ * A batched line is not disposed here: clearing the cache disposed the batch it belongs to, and
+ * `edge.mesh` then points at that disposed mesh, which is what tells `updateStyle()` to build the
+ * line again. A line the cache does not track (Simple2DLineRenderer, a patterned line) is.
+ * @param edge - The edge.
+ */
+function disposeEdgeMeshes(edge: Edge): void {
+    if (edge.drawnLine === null && (edge.mesh instanceof PatternedLineMesh || !edge.mesh.isDisposed())) {
+        edge.mesh.dispose();
+    }
+
+    if (edge.arrowCap && !edge.arrowCap.isDisposed()) {
+        edge.arrowCap.dispose();
+    }
+
+    if (edge.arrowTailCap && !edge.arrowTailCap.isDisposed()) {
+        edge.arrowTailCap.dispose();
+    }
 }
 
 /** The three layout-behaviour settings a project file saves. The others are the view's. */
@@ -2733,7 +2756,8 @@ export class Graph implements GraphContext {
      * DERIVED, NOT WRITTEN OUT. A run already declares its result shape and its fields, and that
      * is everything a first picture needs: a node metric suggests a sequential colour over the
      * nodes it measured, a community suggests a categorical one, a route or a chosen set suggests
-     * a highlight, and a table of pairs suggests nothing at all. There is one derivation for
+     * a mark (an ordinary layer setting a colour, and an edge width, on what it chose), and a
+     * table of pairs suggests nothing at all. There is one derivation for
      * every algorithm rather than a block per algorithm, so there is no per-algorithm branch that
      * can paint the elements its own run measured nothing about.
      *
@@ -3966,10 +3990,27 @@ export class Graph implements GraphContext {
      * @param twoD - Whether the scene becomes 2D.
      */
     private enterDimension(twoD: boolean): void {
-        // Clear mesh cache if switching between 2D and 3D modes, once the meshes of nodes just
-        // removed are gone: the cache disposes the source meshes they are instances of.
+        // The meshes of nodes just removed go first: the cache disposes the source meshes they
+        // are instances of.
         dataManagerInternals.flushReleasing(this.dataManager);
-        this.dataManager.meshCache.clear();
+        const nodes = [...this.getNodes()];
+        const edges = [...this.dataManager.edges.values()];
+
+        // Every mesh goes in one bulk teardown, then every mesh is built again. Disposed one
+        // element at a time, each mesh, action manager and drag handler left scene-wide lists by
+        // a search, so the switch cost the size of the scene per element (issue #2895).
+        disposeReleased(nodes, edges, () => {
+            // Disposes every cached source mesh and line batch, and with them each instance and
+            // batched line drawn from them.
+            this.dataManager.meshCache.clear();
+            for (const node of nodes) {
+                releaseNodeMesh(node);
+            }
+
+            for (const edge of edges) {
+                disposeEdgeMeshes(edge);
+            }
+        });
         this.writeSceneDimension(twoD);
 
         // Activate camera BEFORE mesh recreation so that is2DMode() checks
@@ -3980,36 +4021,11 @@ export class Graph implements GraphContext {
         // Reset flag so initial camera state gets re-captured after layout settles
         this.initialCameraStateCaptured = false;
 
-        // Force all nodes to recreate their meshes (they were disposed when cache was cleared)
-        for (const node of this.getNodes()) {
+        for (const node of nodes) {
             node.updateStyle();
         }
 
-        // Force all edges to recreate their meshes
-        // Note: Edge meshes from Simple2DLineRenderer are NOT tracked by MeshCache,
-        // so we must explicitly dispose them before calling updateStyle()
-        for (const edge of this.dataManager.edges.values()) {
-            // Dispose edge mesh if not already disposed (handles non-cached meshes like Simple2DLineRenderer).
-            // A batched line is not disposed here: `meshCache.clear()` above disposed the
-            // batch it belongs to, and `edge.mesh` then points at that disposed mesh, which
-            // is what tells `updateStyle()` below to build the line again.
-            if (edge.drawnLine !== null) {
-                // the batch this edge was drawn from is already gone
-            } else if (edge.mesh instanceof PatternedLineMesh) {
-                edge.mesh.dispose();
-            } else if (!edge.mesh.isDisposed()) {
-                edge.mesh.dispose();
-            }
-
-            // Dispose arrow meshes too
-            if (edge.arrowCap && !edge.arrowCap.isDisposed()) {
-                edge.arrowCap.dispose();
-            }
-
-            if (edge.arrowTailCap && !edge.arrowTailCap.isDisposed()) {
-                edge.arrowTailCap.dispose();
-            }
-
+        for (const edge of edges) {
             edge.updateStyle();
         }
 

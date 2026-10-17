@@ -231,3 +231,13 @@ field, held until it closes; closing copies the binding into each layer that hol
 undo step, receipt). Vary by Layer uses the same popover component: the same sections, labels and
 order, worded by its source ("More layers than colors", "Color by layer"), except No value, which a
 layer cannot use. The per-layer preview with Apply is gone.
+
+## Owner decision 2026-10-16: Layer is temporary, a data field is a real copy
+
+A property whose layers hold different plain values shows each layer's value at rest (chit,
+picture or words, the first 8 then "+N"); a click opens the binding popover by Layer with each row
+on its layer's current value. Layer exists only while the popover is open; closing writes plain
+values, closed unchanged writes nothing. A data field is copied into every layer the write reaches
+exactly as one layer gets it, layers of several groups included. No value shows for every source.
+The Vary list's "One value for all" gives every layer one value. Recorded in
+`design/ui/studio/owner-decisions.md`.

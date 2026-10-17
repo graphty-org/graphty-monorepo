@@ -11,6 +11,20 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-16) **Layer is temporary; a data field is a real copy (owner decision).** `ManyRows.plain`
+  (MultiRowPanel) lists each target layer's plain value top first when they differ and none holds
+  a binding; `Field` then draws `SpreadValues` (chits, `CatalogGlyph`, or words; `MAX_CHITS` then
+  "+N") instead of the Mixed field, and a click opens `BulkBinding` by Layer with `prefill`: the
+  start binding's `map` holds each layer's current value (map keyed by layer id, as
+  `styles.layerGroups` reads it). Closed with the untouched prefill it calls `onCancel` and writes
+  nothing. Deleted: `holdsOneValue`, `varies`, `varyOffReason`, `bindingFor` (the per-layer value
+  table in a copied run binding), the receipt's `kept`; `many.vary` writes the binding as is to
+  `targetsOf`, the same patch `writeLine` makes on one layer. No value is a `Parts.noValue` flag
+  drawn by `BindingPopover` for every source. "One value for all" is the vary list's existing
+  `fixedLabel`/`onFixed` slot (`onOne` on `VaryButton`), writing the top layer's value.
+  Tests: `VaryByLayer.real-element` (at rest 3 and 12 layers for color, shape, size; reopen
+  pre-filled; Degree on two many-group layers equals one layer's own; sections and No value layout).
+
 - (2026-10-16) **One binding popover, one code path (owner feedback, third pass).** The old bulk
   "vary by data" preview (`VaryPreview`, `manyBinding`, "Each layer gets its own rule", Apply) and
   the duplicate `LayerBindingPopover` are deleted, with `LayerVary.tsx` and the `ws-bulk-vary`

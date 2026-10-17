@@ -4,6 +4,36 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-16 -- The owner's decision: Layer is a temporary value; a data field is copied as is
+
+The owner approved this design for several layers edited together (a folder, recursively, or a
+multi-selection):
+
+- **At rest.** Where the layers hold different plain values for a property, its row shows the
+  values themselves, one per layer in tree order (top first): a chit per color, the catalog's
+  picture per shape, pattern or arrow, else the value. The first 8, then "+N", as a group list
+  shows its groups. This replaces "Mixed" and "N layers set X, to N values" in that case; a layer
+  that does not set the property is still named in the line under the field. A click opens them.
+- **Layer is temporary.** "Layer" is a calculated value that exists only while the binding popover
+  is open: one value per selected layer, in tree order, driving the same popover as any value
+  (palette, sequence or range, each row's own value, overflow, No value). Opened where the layers
+  hold different values, each row starts on its layer's current value, rebuilt from the layers
+  every time; nothing is remembered between openings. Closing it writes each layer its own plain
+  value (one undo step, the usual write rule and receipt); closed unchanged, it writes nothing.
+  Nothing is saved or linked.
+- **A data field is a real copy.** Picking a data field (a run's group, id, Degree, ...) on several
+  layers gives each layer its own real copy of that binding, exactly as setting it on each layer
+  alone would: a shortcut for doing it N times. That includes layers holding more than one group;
+  the earlier rule that left those alone, and the per-layer value table written into a copy of a
+  run's binding, are gone. So a re-run that renumbers groups may repaint them, as it does a single
+  layer's binding.
+- **No value** shows in the popover for every source, Layer included, laid out as on a single
+  layer. This supersedes the entry below that kept No value off the Layer source.
+
+The team added, to keep "set one value on every layer" once Mixed no longer takes a typed value:
+the property's Vary list offers "One value for all" where the layers hold different values; it
+gives every layer the top layer's value, and the field then takes a typed or picked one.
+
 ## 2026-10-16 -- Decided by the team: one node drawn alone (`element.nodeThumbnail`)
 
 Additive API in graphty-element (the element, `.` entry): `element.nodeThumbnail({ shape, color?,

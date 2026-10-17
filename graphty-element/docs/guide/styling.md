@@ -229,12 +229,14 @@ A channel is one visual property with one name. These are all of them:
 | `edge.bends`              | points the line runs through, `"along,across ..."` from source to target   |
 | `edge.arrowHead`          | `normal`, `inverted`, `diamond`, `none`, ...                               |
 | `edge.arrowHeadSize`      | 0 or more, 1 being the element's own size; 0 draws no head                 |
+| `edge.arrowHeadPosition`  | 0 to 1: how far back along the line the head sits; 0 at the node, 0.5 mid  |
 | `edge.arrowHeadColor`     | a colour                                                                   |
 | `edge.arrowHeadOpacity`   | 0 to 1                                                                     |
 | `edge.arrowHeadText`      | words drawn beside the head cap                                            |
 | `edge.arrowHeadTextStyle` | as `node.labelStyle`                                                       |
 | `edge.arrowTail`          | the same arrows                                                            |
 | `edge.arrowTailSize`      | 0 or more; 0 draws no tail                                                 |
+| `edge.arrowTailPosition`  | 0 to 1: how far along the line from the source the tail sits               |
 | `edge.arrowTailColor`     | a colour                                                                   |
 | `edge.arrowTailOpacity`   | 0 to 1                                                                     |
 | `edge.arrowTailText`      | words drawn beside the tail cap                                            |
@@ -300,8 +302,10 @@ the extent along one axis in the same units, so a node of width 4 is as wide as 
 an axis left unset keeps the shape's own proportions at `node.size`.
 
 The flat shapes -- `rectangle`, `round-rectangle`, `ellipse`, `diamond`, `triangle`, `pentagon`,
-`hexagon`, `octagon`, `parallelogram`, `trapezoid`, `star` and `vee` (`FLAT_NODE_SHAPES` in
-`@graphty/graphty-element/schema`) -- are the shapes graph files from 2D tools name. They are
+`hexagon`, `octagon`, `parallelogram`, `trapezoid`, `star`, `vee`, and Pajek's `cross`, `house`,
+`man` and `woman` (`FLAT_NODE_SHAPES` in `@graphty/graphty-element/schema`) -- are the shapes graph
+files from 2D tools name. `none` is a node with no body: it keeps its size, for its label and the
+edges that meet it, and draws only its label. They are
 drawn flat in every view: in a 3D view, a thin card facing the 2D camera, with its border drawn
 round its faces. `node.depth` makes one deeper, and `node.planar` makes a solid shape thin too.
 Edges end at their outline.

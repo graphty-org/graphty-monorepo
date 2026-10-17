@@ -171,6 +171,7 @@ is kept as `other:<the file's spelling>` and noted.
 | `sourceArrowColor` |       | yes   |       | a color, `#rrggbb`                                                                                                                                      |
 | `targetArrowColor` |       | yes   |       | a color, `#rrggbb`                                                                                                                                      |
 | `arrowSize`        |       | yes   |       | a number                                                                                                                                                |
+| `arrowPosition`    |       | yes   |       | a number                                                                                                                                                |
 | `lineStyle`        |       | yes   |       | `solid`, `dashed`, `dotted`, `dash-dot`, `long-dash`, `double`, `zigzag`, `sinewave`                                                                    |
 | `sourceArrow`      |       | yes   |       | `none`, `triangle`, `triangle-open`, `vee`, `tee`, `diamond`, `diamond-open`, `circle`, `circle-open`, `square`, `crow`, `half`, `inverted`             |
 | `targetArrow`      |       | yes   |       | `none`, `triangle`, `triangle-open`, `vee`, `tee`, `diamond`, `diamond-open`, `circle`, `circle-open`, `square`, `crow`, `half`, `inverted`             |

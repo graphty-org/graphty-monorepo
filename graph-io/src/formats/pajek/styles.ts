@@ -18,8 +18,9 @@ import { canonColor, colorOpacity } from "../../styles/canon/color.js";
 import { DVIPS_COLORS } from "../../styles/canon/color-tables.js";
 import { canonEnum } from "../../styles/canon/enums.js";
 import { canonNumber } from "../../styles/canon/number.js";
-import type { CanonSite } from "../../styles/canon/site.js";
+import { type CanonSite, noteAt } from "../../styles/canon/site.js";
 import { canonText } from "../../styles/canon/text.js";
+import { STYLE_ISSUE } from "../../styles/codes.js";
 import { toolDefaults } from "../../styles/defaults.js";
 import { StyleApproximations } from "../../styles/io/approximations.js";
 import { styleBlockLosses, writeStyleBlock } from "../../styles/io/block.js";
@@ -68,6 +69,7 @@ export const PAJEK_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze({
         "lineStyle",
         "sourceArrow",
         "targetArrow",
+        "arrowPosition",
         "label",
         "labelColor",
         "labelSize",
@@ -107,7 +109,7 @@ const NODE_KEYS: readonly string[] = [
 ];
 
 /** The line parameters read as styles. */
-const EDGE_KEYS: readonly string[] = ["c", "w", "p", "l", "lc", "fos", "font"];
+const EDGE_KEYS: readonly string[] = ["c", "w", "p", "ap", "l", "lc", "fos", "font"];
 
 /** The style column marking arcs, which Pajek draws with an arrow at the target. */
 const DIRECTED_KEY = "directed";
@@ -128,7 +130,7 @@ const READ: Readonly<Record<StyleTarget, readonly string[]>> = {
         "labelFont",
         "labelPosition",
     ],
-    edge: ["color", "opacity", "width", "lineStyle", "label", "labelColor", "labelSize", "labelFont"],
+    edge: ["color", "opacity", "width", "lineStyle", "arrowPosition", "label", "labelColor", "labelSize", "labelFont"],
 };
 
 /** A parameter's value on one element, or null. */
@@ -298,10 +300,30 @@ function readLine(get: Param, put: Put, at: At): void {
     if (p !== null) {
         put("lineStyle", canonEnum("lineStyle", p, "dvips", at("lineStyle")));
     }
+    readArrowPosition(get("ap"), put, at);
     readText(get("l"), "label", put, at);
     readColor(get("lc"), "labelColor", null, put, at);
     readNumber(get("fos"), "labelSize", put, at);
     readText(get("font"), "labelFont", put, at);
+}
+
+/**
+ * Where a line's arrowhead sits, Pajek's `ap` (manual p. 90): a fraction of the line from its end up to 1 (0.5 is the
+ * middle); a value above 1 is a distance from the end, which the vocabulary does not hold, so it is noted and not read.
+ * @param raw - the parameter's value, or null
+ * @param put - receives the value
+ * @param at - the sites
+ */
+function readArrowPosition(raw: unknown, put: Put, at: At): void {
+    if (raw === null) {
+        return;
+    }
+    const ap = canonNumber(raw, at("arrowPosition"));
+    if (ap !== null && ap > 1) {
+        noteAt(at("arrowPosition"), STYLE_ISSUE.NOT_CARRIED, `ap ${String(ap)}`);
+        return;
+    }
+    put("arrowPosition", ap);
 }
 
 /**
@@ -587,6 +609,10 @@ function lineParams(get: Get, directed: boolean, approximate: Approximate): Map<
     const lineStyle = get("lineStyle");
     if (typeof lineStyle === "string" && lineStyle !== "solid" && pajekDots(lineStyle, approximate)) {
         out.set("p", "Dots");
+    }
+    const position = get("arrowPosition");
+    if (typeof position === "number" && position > 0) {
+        out.set("ap", position);
     }
     lineLabelParams(get, out, approximate);
     const target = get("targetArrow");

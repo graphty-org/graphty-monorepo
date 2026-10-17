@@ -100,8 +100,10 @@ export function requestedScene(session: GraphSession, sourceSha256: string, comm
         }
         // Node lengths are drawn SCENE_PER_UNIT.node scene units per unit (NODE_EXTENT_PER_SIZE).
         const size = num(channel(merged, "node.size"), 1);
+        // a node of shape "none" has no body: its fill is drawn at opacity 0 and it has no border (meshes/NodeMesh.ts)
+        const bodiless = channel(merged, "node.shape") === "none";
         const fill = colorOf(channel(merged, "node.color"));
-        const borderWidth = num(merged["node.borderWidth"], 0);
+        const borderWidth = bodiless ? 0 : num(merged["node.borderWidth"], 0);
         const borderStyle = merged["node.borderStyle"];
         const labelStyle = (merged["node.labelStyle"] ?? {}) as Readonly<Record<string, unknown>>;
         const text = merged["node.label"];
@@ -113,7 +115,7 @@ export function requestedScene(session: GraphSession, sourceSha256: string, comm
             h: num(merged["node.height"], size) * SCENE_PER_UNIT.node,
             shape: shapeClassOf(channel(merged, "node.shape")),
             fill: fill?.hex ?? null,
-            fillOpacity: num(channel(merged, "node.opacity"), 1) * (fill?.alpha ?? 1),
+            fillOpacity: bodiless ? 0 : num(channel(merged, "node.opacity"), 1) * (fill?.alpha ?? 1),
             border: {
                 // a border of opacity 0 is not drawn (meshes/NodeMesh.ts createBorder)
                 color:

@@ -162,6 +162,11 @@ export interface EdgeStyleValues {
     readonly labelSize: number;
     /** The arrow size as a factor: 1 is the writing tool's normal size. */
     readonly arrowSize: number;
+    /**
+     * Where along the line each arrowhead is drawn, as a fraction of the line measured from the arrow's own end: 0 (the
+     * default) at the end, 0.5 at the middle, at most 1.
+     */
+    readonly arrowPosition: number;
     /** The line style. */
     readonly lineStyle: StyleLineStyle;
     /** The arrow at the source end. */

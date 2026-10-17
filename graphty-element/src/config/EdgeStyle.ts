@@ -32,6 +32,12 @@ const ArrowStyle = z.strictObject({
     /** 0 draws no cap, and the line runs as it would with none (EdgeMesh.createArrowHead). */
     size: z.number().nonnegative().default(1).optional(),
     /**
+     * Where along the line the cap is drawn, as a fraction of the line measured from the cap's own
+     * end: unset or 0 at the end, 0.5 at the middle. Above 0 the line runs on to its node and the
+     * cap sits on it, pointing the way the line goes at that end.
+     */
+    position: z.number().min(0).max(1).optional(),
+    /**
      * The colour to draw the cap in, or unset to follow the line it caps.
      *
      * NO DEFAULT, DELIBERATELY, and the absence is load-bearing. `Edge` draws a cap with

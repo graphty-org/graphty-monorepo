@@ -88,6 +88,13 @@ export const NodeShapes = z.enum([
     "trapezoid",
     "star",
     "vee",
+    // Pajek's vertex shapes: a plus-shaped cross, a house, the man and woman figures of its
+    // genealogies, and "none", a node with no body that draws only its label (Pajek's empty).
+    "cross",
+    "house",
+    "man",
+    "woman",
+    "none",
 ]);
 
 /**
@@ -109,6 +116,11 @@ export const FLAT_NODE_SHAPES: readonly z.infer<typeof NodeShapes>[] = [
     "trapezoid",
     "star",
     "vee",
+    "cross",
+    "house",
+    "man",
+    "woman",
+    "none",
 ];
 
 /** The line styles a node border is drawn in. @public */

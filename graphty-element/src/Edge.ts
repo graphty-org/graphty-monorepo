@@ -20,6 +20,7 @@ import {
     fanSlot,
     loopTeardrop,
     parseBends,
+    pointFromEnd,
     roundCorners,
     routeOutside,
     surfaceReach,
@@ -63,6 +64,15 @@ const ARROW_CAPTION_LOCATION: AttachPosition = "top";
 
 /** How far a caption sits from its cap when its own block does not say. */
 const ARROW_CAPTION_OFFSET = 0.3;
+
+/**
+ * Points from a flat x, y, z list.
+ * @param flat - The coordinates.
+ * @returns The points.
+ */
+function points(flat: readonly number[]): Vector3[] {
+    return Array.from({ length: flat.length / 3 }, (_, i) => Vector3.FromArray(flat, 3 * i));
+}
 
 /**
  * The caption one end of an edge should be drawing, or undefined when it should draw none.
@@ -1453,12 +1463,13 @@ export class Edge {
         const start = this.leaveNode(this.srcNode, src, first);
         const end = this.leaveNode(this.dstNode, dst, last);
 
+        const path = [start, ...points(route.slice(3 * span.first, 3 * span.last + 3)), end];
         const { arrowCap } = this;
         if (arrowCap) {
-            this.placeArrowHead(arrowCap, end, end.subtract(last).normalize());
+            this.placeArrowHead(arrowCap, end, end.subtract(last).normalize(), [...path].reverse());
         }
 
-        const lineStart = this.placeArrowTail(start, first, first.subtract(start).normalize());
+        const lineStart = this.placeArrowTail(start, first, first.subtract(start).normalize(), path);
         const lineEnd = this.lineEndBefore(last, end);
         this.placeRun(batch, [
             lineStart.x,
@@ -1506,12 +1517,13 @@ export class Edge {
         const start = this.leaveNode(this.srcNode, src, first);
         const end = this.leaveNode(this.dstNode, dst, last);
 
+        const path = [start, ...points(mid), end];
         const { arrowCap } = this;
         if (arrowCap) {
-            this.placeArrowHead(arrowCap, end, end.subtract(last).normalize());
+            this.placeArrowHead(arrowCap, end, end.subtract(last).normalize(), [...path].reverse());
         }
 
-        const lineStart = this.placeArrowTail(start, first, first.subtract(start).normalize());
+        const lineStart = this.placeArrowTail(start, first, first.subtract(start).normalize(), path);
         const lineEnd = this.lineEndBefore(last, end);
         const flat = [lineStart.x, lineStart.y, lineStart.z, ...mid, lineEnd.x, lineEnd.y, lineEnd.z];
         this.placeRun(batch, this.drawnStyle?.line?.bezier === true ? roundCorners(flat) : flat);
@@ -1590,10 +1602,10 @@ export class Edge {
         const direction = dstPoint.subtract(srcPoint).normalize();
 
         if (arrowCap) {
-            this.placeArrowHead(arrowCap, dstPoint, direction);
+            this.placeArrowHead(arrowCap, dstPoint, direction, [dstPoint, srcPoint]);
         }
 
-        const adjustedSrcPoint = this.placeArrowTail(srcPoint, dstPoint, direction);
+        const adjustedSrcPoint = this.placeArrowTail(srcPoint, dstPoint, direction, [srcPoint, dstPoint]);
 
         return {
             srcPoint: adjustedSrcPoint,
@@ -1602,15 +1614,28 @@ export class Edge {
     }
 
     /**
-     * Place the arrow head with its tip where the line meets the target node.
+     * Place the arrow head with its tip where the line meets the target node, or, with a
+     * position, that fraction of the way back along the line.
      * @param arrowCap - This edge's arrow head.
      * @param dstPoint - Where the line meets the target node's surface.
      * @param direction - The unit direction the line arrives in.
+     * @param path - The line's points from the target end, for a head drawn part-way along it.
      */
-    private placeArrowHead(arrowCap: ArrowCap, dstPoint: Vector3, direction: Vector3): void {
+    private placeArrowHead(
+        arrowCap: ArrowCap,
+        dstPoint: Vector3,
+        direction: Vector3,
+        path: readonly Vector3[] = [],
+    ): void {
         // Use common arrow geometry functions for positioning
         this.context.getStatsManager().startMeasurement("Edge.transformArrowCap.mainPath");
         const arrowStyle = this.currentStyle;
+        const along = pointFromEnd(path, arrowStyle.arrowHead?.position ?? 0);
+        if (along !== null) {
+            dstPoint = new Vector3(along.tip.x, along.tip.y, along.tip.z);
+            direction = new Vector3(along.toward.x, along.toward.y, along.toward.z);
+        }
+
         const arrowType = arrowStyle.arrowHead?.type;
         const arrowSize = arrowStyle.arrowHead?.size ?? 1;
         const arrowLength = EdgeMesh.calculateArrowLength() * arrowSize;
@@ -1700,9 +1725,16 @@ export class Edge {
      * @param srcPoint - Where the line leaves the source node's surface.
      * @param dstPoint - Where the line meets the destination node's surface.
      * @param direction - The unit direction from source to destination.
-     * @returns Where the line starts: past the tail, or the source surface with no tail.
+     * @param path - The line's points from the source end, for a tail drawn part-way along it.
+     * @returns Where the line starts: past the tail, or the source surface with no tail or a tail
+     *   drawn part-way along.
      */
-    private placeArrowTail(srcPoint: Vector3, dstPoint: Vector3, direction: Vector3): Vector3 {
+    private placeArrowTail(
+        srcPoint: Vector3,
+        dstPoint: Vector3,
+        direction: Vector3,
+        path: readonly Vector3[] = [],
+    ): Vector3 {
         const { arrowTailCap } = this;
         if (!arrowTailCap) {
             return srcPoint;
@@ -1726,6 +1758,15 @@ export class Edge {
         // PHASE 4: Override scaleFactor for 2D tail arrows
         if (arrowTailCap.is2D && tailGeometry.scaleFactor !== undefined) {
             tailGeometry.scaleFactor = 1;
+        }
+
+        // A tail part-way along sits on the line, which runs on to the source node.
+        const along = pointFromEnd(path, tailStyle.arrowTail?.position ?? 0);
+        if (along !== null) {
+            const toward = new Vector3(along.toward.x, along.toward.y, along.toward.z);
+            const tip = new Vector3(along.tip.x, along.tip.y, along.tip.z);
+            arrowTailCap.place(EdgeMesh.calculateArrowPosition(tip, toward, tailLength, tailGeometry), toward);
+            return srcPoint;
         }
 
         // Calculate tail position using common function
@@ -1893,8 +1934,8 @@ export class Edge {
         const style = this.currentStyle;
         const hasArrowHead = style.arrowHead?.type && style.arrowHead.type !== "none";
 
-        if (!hasArrowHead) {
-            // No arrow head, edge goes all the way to the node surface
+        // No arrow head, or one drawn part-way along: the line goes all the way to the node surface
+        if (!hasArrowHead || (style.arrowHead?.position ?? 0) > 0) {
             return dstPoint;
         }
 

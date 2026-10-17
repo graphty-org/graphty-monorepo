@@ -514,9 +514,25 @@ function readClusterFill(n: NodeRead): void {
  * @param n - the node
  */
 function readNodeFill(n: NodeRead): void {
-    const { shape, point } = n;
+    const { point } = n;
     const fillcolor = nonEmpty(n.get("fillcolor"));
-    const filled =
+    if (isFilled(n)) {
+        const raw = fillcolor ?? n.color ?? (point ? "black" : "lightgrey");
+        readColor(raw, n.scheme, "fill", "fill", "fillOpacity", n.put, n.at);
+    } else if (fillcolor !== null) {
+        noteAt(n.at("fill"), STYLE_ISSUE.UNFILLED, fillcolor.slice(0, MAX_STYLE_VALUE_LENGTH));
+    }
+}
+
+/**
+ * Whether Graphviz fills a node: a point always; `filled` and `radial` any shape, `striped` a box and `wedged` an
+ * ellipse only.
+ * @param n - the node
+ * @returns true when its box or shape is filled
+ */
+function isFilled(n: NodeRead): boolean {
+    const { shape, point } = n;
+    return (
         point ||
         n.tokens.some(
             (t) =>
@@ -524,13 +540,8 @@ function readNodeFill(n: NodeRead): void {
                 t === "radial" ||
                 (t === "striped" && BOX_LIKE.has(shape)) ||
                 (t === "wedged" && ELLIPSE_LIKE.has(shape)),
-        );
-    if (filled) {
-        const raw = fillcolor ?? n.color ?? (point ? "black" : "lightgrey");
-        readColor(raw, n.scheme, "fill", "fill", "fillOpacity", n.put, n.at);
-    } else if (fillcolor !== null) {
-        noteAt(n.at("fill"), STYLE_ISSUE.UNFILLED, fillcolor.slice(0, MAX_STYLE_VALUE_LENGTH));
-    }
+        )
+    );
 }
 
 /**
@@ -569,12 +580,12 @@ function readNodeShape(n: NodeRead): void {
     if (n.cx.cluster) {
         n.put("shape", rounded ? "round-rectangle" : "rectangle");
     } else if (n.shapeRaw !== null) {
-        n.put(
-            "shape",
+        const shape =
             rounded && BOX_LIKE.has(n.shape)
                 ? "round-rectangle"
-                : canonEnum("shape", n.shapeRaw, "graphviz", n.at("shape")),
-        );
+                : canonEnum("shape", n.shapeRaw, "graphviz", n.at("shape"));
+        // a filled shape=none is its box filled, with no outline (its border is 0): a rectangle, not a node with no body
+        n.put("shape", shape === "none" && isFilled(n) ? "rectangle" : shape);
     }
 }
 

@@ -537,6 +537,7 @@ function channelPlans(
         ["targetArrowColor", [id("edge.arrowHeadColor")]],
         ["sourceArrowColor", [id("edge.arrowTailColor")]],
         ["arrowSize", [id("edge.arrowHeadSize"), id("edge.arrowTailSize")]],
+        ["arrowPosition", [id("edge.arrowHeadPosition"), id("edge.arrowTailPosition")]],
         ["curved", [id("edge.curvature")]],
         ["bends", [id("edge.bends")]],
         ["label", [id("edge.label")]],

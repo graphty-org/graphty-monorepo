@@ -25,7 +25,7 @@ UNIT = 500.0
 BASE = 5.0
 DEFAULT_FILL = "#ffff00"  # assumed: Yellow
 DEFAULT_FONT_SIZE = 10.0  # assumed
-SHAPES = {"ellipse", "box", "diamond", "triangle", "cross", "empty", "man", "woman"}
+SHAPES = {"ellipse", "box", "diamond", "triangle", "cross", "empty", "house", "man", "woman"}
 VERTEX_KEYS = {"x_fact": 1, "y_fact": 1, "s_size": 1, "phi": 1, "r": 1, "q": 1, "ic": 1, "bc": 1, "bw": 1, "lc": 1, "la": 1,
                "lr": 1, "lphi": 1, "fos": 1, "font": 1, "w": 1}
 LINE_KEYS = {"w": 1, "c": 1, "p": 1, "s": 1, "a": 1, "ap": 1, "a1": 1, "k1": 1, "k2": 1, "l": 1, "lp": 1, "lr": 1, "lphi": 1,
@@ -108,6 +108,8 @@ def scene(path):
             size = float(k.get("s_size", 1))
             w, h = BASE * size * float(k.get("x_fact", 1)), BASE * size * float(k.get("y_fact", 1))
             fill, border = (colors(k["ic"]) if "ic" in k else DEFAULT_FILL), colors(k.get("bc", "Black"))
+            if shape == "empty":
+                fill, border = None, None  # Pajek's empty vertex has no body: it draws only its label
             pos[vid] = (x * UNIT, y * UNIT)
             lab = None
             if label:

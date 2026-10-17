@@ -69,6 +69,7 @@ export const STYLE_PROPERTIES: {
         ["width", "number"],
         ["labelSize", "number"],
         ["arrowSize", "number"],
+        ["arrowPosition", "number"],
         ["lineStyle", "lineStyle"],
         ["sourceArrow", "arrow"],
         ["targetArrow", "arrow"],

@@ -12,7 +12,8 @@
 /**
  * The element shape each 2D node shape of a file is drawn as, keyed by the neutral shape name
  * (`ellipse`, `rectangle`, `round-rectangle`, `triangle`, `diamond`, `pentagon`, `hexagon`,
- * `octagon`, `parallelogram`, `trapezoid`, `star`, `vee`, `none`). A shape the table leaves out
+ * `octagon`, `parallelogram`, `trapezoid`, `star`, `vee`, `none`, and the `other:` shapes a file's
+ * own vocabulary keeps, such as Pajek's `other:cross`). A shape the table leaves out
  * is not drawn from the file, and the load notes it. A shape drawn as the element shape of the same
  * name is drawn exactly; any other is noted as drawn as the nearest.
  */
@@ -20,8 +21,9 @@ export type FileStyleShapeTable = Readonly<Record<string, string>>;
 
 /**
  * The default shape table. Every 2D shape is drawn as the element's own flat shape of the same
- * name, exactly; `none` (a node with no body of its own) is drawn as the flat ellipse, and the load
- * notes every element drawn that way.
+ * name, exactly: `none` as a node with no body, which draws only its label, and Pajek's cross,
+ * house, man and woman (`other:cross`, `other:house`, `other:man`, `other:woman`) as the element's
+ * shapes of those names.
  */
 export const FILE_STYLE_SHAPES: FileStyleShapeTable = Object.freeze({
     ellipse: "ellipse",
@@ -36,7 +38,11 @@ export const FILE_STYLE_SHAPES: FileStyleShapeTable = Object.freeze({
     trapezoid: "trapezoid",
     star: "star",
     vee: "vee",
-    none: "ellipse",
+    none: "none",
+    "other:cross": "cross",
+    "other:house": "house",
+    "other:man": "man",
+    "other:woman": "woman",
 });
 
 /** The element's line pattern for each line style of a file. */

@@ -128,7 +128,7 @@ Tool values are elements drawn with the writing program's default.
 | dot/fidelity/real-siblings.gv | ok | 200 | 284 | 7 | 2 | 157 | 0% | 0% | 0 | 4156 | 0 |  |
 | dot/fidelity/real-softmaint.gv | ok | 213 | 269 | 5 | 3 | 202 | 0% | 0% | 0 | 3441 | 0 | W_STYLE_SIZE_MINIMUM |
 | dot/fidelity/synth-edges-clusters.gv | ok | 80 | 102 | 8 | 7 | 149 | 70% | 26% | 0 | 1111 | 0 | W_STYLE_ALPHA_DROPPED, W_STYLE_COLOR_LIST, W_STYLE_GRADIENT, W_STYLE_HTML_LABEL, W_STYLE_NOT_CARRIED, W_STYLE_RECORD_LABEL, W_STYLE_UNKNOWN_VALUE |
-| dot/fidelity/synth-nodes.gv | ok | 106 | 109 | 5 | 3 | 162 | 100% | 0% | 0 | 1378 | 0 | W_STYLE_ALPHA_DROPPED, W_STYLE_GRADIENT, W_STYLE_HTML_LABEL, W_STYLE_NOT_CARRIED, W_STYLE_RECORD_LABEL, W_STYLE_SIZE_MINIMUM, W_STYLE_UNFILLED, W_STYLE_UNKNOWN_VALUE |
+| dot/fidelity/synth-nodes.gv | ok | 106 | 109 | 5 | 3 | 160 | 100% | 0% | 0 | 1378 | 0 | W_STYLE_ALPHA_DROPPED, W_STYLE_GRADIENT, W_STYLE_HTML_LABEL, W_STYLE_NOT_CARRIED, W_STYLE_RECORD_LABEL, W_STYLE_SIZE_MINIMUM, W_STYLE_UNFILLED, W_STYLE_UNKNOWN_VALUE |
 | dot/generated/clusters-200.gv | ok | 1200 | 0 | 4 | 1 | 995 | 0% | 0% | 0 | 11800 | 0 |  |
 | dot/generated/clusters-40.gv | ok | 160 | 39 | 4 | 2 | 117 | 0% | 0% | 0 | 1911 | 0 |  |
 | dot/generated/colors-and-scopes.gv | ok | 33 | 3 | 4 | 5 | 49 | 100% | 2% | 0 | 288 | 0 | W_STYLE_ALPHA_DROPPED, W_STYLE_BAD_VALUE, W_STYLE_COLOR_LIST, W_STYLE_GRADIENT, W_STYLE_HTML_LABEL, W_STYLE_UNKNOWN_VALUE |
@@ -395,7 +395,7 @@ Tool values are elements drawn with the writing program's default.
 | pajek/fidelity/football.net | ok | 35 | 118 | 2 | 3 | 69 | 0% | 0% | 0 | 940 | 0 |  |
 | pajek/fidelity/kdorola.net | ok | 127 | 152 | 3 | 3 | 51 | 2% | 0% | 0 | 2024 | 0 |  |
 | pajek/fidelity/lin-rel4.net | ok | 234 | 604 | 3 | 2 | 280 | 0% | 0% | 0 | 5528 | 0 | W_STYLE_BAD_VALUE |
-| pajek/fidelity/synth-lines.net | ok | 40 | 111 | 3 | 4 | 92 | 24% | 0% | 0 | 744 | 0 | W_STYLE_BAD_VALUE |
+| pajek/fidelity/synth-lines.net | ok | 40 | 111 | 3 | 4 | 94 | 23% | 0% | 0 | 744 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NOT_CARRIED |
 | pajek/fidelity/synth-vertices.net | ok | 81 | 112 | 2 | 1 | 258 | 100% | 0% | 0 | 1071 | 0 | W_STYLE_BAD_VALUE, W_STYLE_UNKNOWN_VALUE |
 | pajek/generated/b98-trailing-zero.net | ok | 12 | 26 | 3 | 4 | 21 | 81% | 0% | 0 | 202 | 0 |  |
 | pajek/generated/color-forms.net | ok | 8 | 5 | 3 | 3 | 11 | 100% | 0% | 0 | 93 | 0 | W_STYLE_BAD_VALUE |
@@ -407,7 +407,7 @@ Tool values are elements drawn with the writing program's default.
 | pajek/generated/tamper-block-truncated.net | ok | 6 | 7 | 3 | 3 | 15 | 100% | 0% | 0 | 65 | 0 | W_STYLE_BLOCK_IGNORED, W_STYLE_UNKNOWN_VALUE |
 | pajek/generated/tamper-native-edited.net | ok | 6 | 7 | 3 | 3 | 30 | 80% | 0% | 0 | 20 | 0 | W_STYLE_UNKNOWN_VALUE |
 | pajek/generated/tamper-node-added.net | ok | 7 | 7 | 3 | 3 | 15 | 100% | 0% | 0 | 75 | 0 | W_STYLE_BLOCK_IGNORED, W_STYLE_UNKNOWN_VALUE |
-| pajek/graphstream_gs-core__B.net | ok | 111 | 193 | 5 | 3 | 62 | 0% | 0% | 0 | 1699 | 0 | W_STYLE_BAD_VALUE |
+| pajek/graphstream_gs-core__B.net | ok | 111 | 193 | 5 | 4 | 62 | 0% | 0% | 0 | 1699 | 0 | W_STYLE_BAD_VALUE |
 | pajek/kjhealy_kjhnet__iliad_killedby.net | ok | 311 | 292 | 4 | 2 | 75 | 76% | 76% | 0 | 4551 | 0 |  |
 | roles/by-group-0 | ok | 0 | 0 | 0 | 0 | 0 | - | - | 0 | 0 | 0 |  |
 | roles/by-group-1 | ok | 1 | 0 | 1 | 0 | 0 | - | - | 0 | 0 | 0 |  |

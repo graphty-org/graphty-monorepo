@@ -321,10 +321,10 @@
         },
         "pajek-synth-vertices": {
             "position": 1,
-            "shape": 0.5555555555555556,
+            "shape": 1,
             "fillOpacity": 1,
             "borderColor": 1,
-            "borderWidth": 0.9629629629629629,
+            "borderWidth": 0.9876543209876543,
             "borderStyle": 1,
             "labelText": 1,
             "labelColor": 0.96,
@@ -454,7 +454,7 @@
         },
         "dot-synth-nodes": {
             "position": 0,
-            "shape": 0.6132075471698113,
+            "shape": 0.6226415094339622,
             "fillOpacity": 1,
             "borderColor": 1,
             "borderStyle": 1,
@@ -929,8 +929,8 @@
         "json-vis-synth": {
             "position": 1,
             "size": 0.8732394366197183,
-            "shape": 0.9295774647887324,
-            "fill": 0.9859154929577465,
+            "shape": 0.9436619718309859,
+            "fill": 1,
             "fillOpacity": 1,
             "borderColor": 1,
             "borderWidth": 1,
@@ -1754,7 +1754,7 @@
         },
         "pajek-lin-rel4": {
             "position": 1,
-            "shape": 0.9615384615384616,
+            "shape": 1,
             "fillOpacity": 1,
             "borderColor": 1,
             "borderWidth": 1,
@@ -1888,5 +1888,7 @@
             "edgeLabel": 1
         }
     },
-    "allowedDrops": {}
+    "allowedDrops": {
+        "json-vis-synth/borderStyle": "reference corrected: vis-network's text shape (node 4) draws no border, so its border style is no longer judged; 68 of 69 pass where 69 of 70 did, the same one failing node (20)"
+    }
 }

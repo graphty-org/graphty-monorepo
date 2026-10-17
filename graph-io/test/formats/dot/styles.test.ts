@@ -158,11 +158,13 @@ describe("DOT styles: Graphviz's rules", () => {
         const { snapshot, styles } = await load(`graph {
             p [shape=plain]; t [shape=plaintext, color=red]; n [shape=none];
             s [style="setlinewidth(3),dashed"]; b [style=bold]; w [penwidth=0.5, style=" dotted"];
-            k [style="dotted "]; r [shape=box, style=rounded];
+            k [style="dotted "]; r [shape=box, style=rounded]; f [shape=none, style=filled, fillcolor=red];
             p -- t [style="setlinewidth(4),dashed"]; t -- n [style=bold];
         }`);
         const width = byId(styles, snapshot, "borderWidth");
-        expect(["p", "t", "n"].map((id) => width.get(id))).toEqual([0, 0, 0]);
+        expect(["p", "t", "n", "f"].map((id) => width.get(id))).toEqual([0, 0, 0, 0]);
+        // an unfilled none draws only its label; a filled one is its box, filled, with no outline
+        expect(["n", "f"].map((id) => byId(styles, snapshot, "shape").get(id))).toEqual(["none", "rectangle"]);
         expect(["s", "b", "w"].map((id) => width.get(id))).toEqual([3, 2, 0.5]);
         const style = byId(styles, snapshot, "borderStyle");
         expect(["s", "w", "k"].map((id) => style.get(id))).toEqual(["dashed", "dotted", null]);

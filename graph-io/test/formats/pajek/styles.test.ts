@@ -228,6 +228,21 @@ describe("Pajek styles: sizes, label placement and line labels", () => {
         expect(drawn(styles, snapshot, "edge", "width")).toEqual([0.6, 1]);
     });
 
+    it("reads an arc's arrow position ap as a fraction from its end, notes a distance above 1, and writes it back", async () => {
+        const arcs = "*Vertices 3\n1 a\n2 b\n3 c\n*Arcs\n1 2 1 ap 0.5\n2 3 1 ap 20\n3 1 1\n";
+        const { snapshot, styles } = await load(arcs);
+        expect(drawn(styles, snapshot, "edge", "arrowPosition")).toEqual([0.5, null, null]);
+        expect(
+            styles.styles.notes.filter(
+                (n) => n.code === "W_STYLE_NOT_CARRIED" && n.params.property === "arrowPosition",
+            ),
+        ).toHaveLength(1);
+        const out = await registry.exportGraphToString(snapshot, "pajek", { styles });
+        expect(out).toMatch(/^1 2 .*\bap 0\.5\b/m);
+        const back = await load(out.replace(/^% graphty\.styles .*\n/m, ""));
+        expect(drawn(back.styles, back.snapshot, "edge", "arrowPosition")).toEqual([0.5, null, null]);
+    });
+
     it("writes the same sizes, label places and line labels back, read without the block as with it", async () => {
         const { snapshot, styles } = await load(doc);
         const out = await registry.exportGraphToString(snapshot, "pajek", { styles });

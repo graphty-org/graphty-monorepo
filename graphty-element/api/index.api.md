@@ -885,6 +885,7 @@ export const EdgeStyle: z.ZodObject<{
             vee: "vee";
         }>>>;
         size: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        position: z.ZodOptional<z.ZodNumber>;
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
         opacity: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         text: z.ZodOptional<z.ZodObject<{
@@ -1054,6 +1055,7 @@ export const EdgeStyle: z.ZodObject<{
             vee: "vee";
         }>>>;
         size: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        position: z.ZodOptional<z.ZodNumber>;
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
         opacity: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         text: z.ZodOptional<z.ZodObject<{
@@ -3372,6 +3374,7 @@ export interface NodeScreenPosition {
 
 // @public
 export const NodeShapes: z.ZodEnum<{
+    none: "none";
     diamond: "diamond";
     box: "box";
     vee: "vee";
@@ -3409,6 +3412,10 @@ export const NodeShapes: z.ZodEnum<{
     octagon: "octagon";
     parallelogram: "parallelogram";
     trapezoid: "trapezoid";
+    cross: "cross";
+    house: "house";
+    man: "man";
+    woman: "woman";
 }>;
 
 // @public
@@ -3420,6 +3427,7 @@ export const NodeStyle: z.ZodObject<{
             diameter: "diameter";
         }>>;
         type: z.ZodOptional<z.ZodEnum<{
+            none: "none";
             diamond: "diamond";
             box: "box";
             vee: "vee";
@@ -3457,6 +3465,10 @@ export const NodeStyle: z.ZodObject<{
             octagon: "octagon";
             parallelogram: "parallelogram";
             trapezoid: "trapezoid";
+            cross: "cross";
+            house: "house";
+            man: "man";
+            woman: "woman";
         }>>;
         width: z.ZodOptional<z.ZodNumber>;
         height: z.ZodOptional<z.ZodNumber>;

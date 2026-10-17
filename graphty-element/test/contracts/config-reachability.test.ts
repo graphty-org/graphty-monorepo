@@ -167,12 +167,16 @@ function painterOf(style: ResolvedStyle): StylePainter {
  * @param run - Which of the two probe runs this is.
  * @returns The probe.
  */
-function labelProbe(run: 0 | 1): Record<string, string> {
-    const probe: Record<string, string> = {};
+function labelProbe(run: 0 | 1): Record<string, string | boolean> {
+    const probe: Record<string, string | boolean> = {};
 
     for (const field of LABEL_STYLE_FIELDS) {
         probe[field] = `probe-${String(run)}-${field}`;
     }
+
+    // The one switch in the vocabulary that the painter reads as on or off rather than passing
+    // through, so it needs two values that differ as switches do.
+    probe.italic = run === 0;
 
     return probe;
 }

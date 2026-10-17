@@ -60,6 +60,7 @@ import {
 
 export { gmlExporter, type GmlExportOptions } from "./exporter.js";
 export { gmlImporter, type GmlImportOptions } from "./importer.js";
+export { GML_STYLE_BLOCK_KEY, GML_STYLE_CAPABILITIES } from "./styles.js";
 
 /**
  * The issue codes the GML importer records, by name: the codes shared with
@@ -193,7 +194,7 @@ export const GML_LOSS = Object.freeze({
     INVALID_KEY: INVALID_KEY_CODE,
     /** A column named like a structural key. */
     RESERVED_KEY: RESERVED_KEY_CODE,
-    /** A key rewritten under sanitizeKeys "mangle". */
+    /** A key rewritten under sanitizeKeys "mangle", or a column renamed because its key would read back as a style value. */
     KEY_MANGLED: KEY_MANGLED_CODE,
     /** A position column with more than three components. */
     POSITION_COMPONENTS: POSITION_COMPONENTS_CODE,

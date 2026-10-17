@@ -6,6 +6,9 @@
 
 import type { DuplicatePolicy } from '@graphty/graph-format';
 import type { NodeId as NodeId_2 } from '@graphty/graph-format';
+import type { StyleRuleOrigin } from '@graphty/graph-io/styles';
+import type { StyleRuleReason } from '@graphty/graph-io/styles';
+import type { StyleRuleRole } from '@graphty/graph-io/styles';
 import { z } from 'zod/v4';
 
 // @public
@@ -43,6 +46,9 @@ export const COMMANDS: Readonly<{
         readonly undo: "undoable";
     };
     readonly "data.setSource": {
+        readonly undo: "undoable";
+    };
+    readonly "data.setFileStyles": {
         readonly undo: "undoable";
     };
     readonly "style.patch": {

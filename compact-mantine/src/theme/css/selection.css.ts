@@ -408,6 +408,9 @@ const css = `
     color: var(--cm-text);
     background-color: var(--cm-bg-secondary);
     font-weight: 550;
+    /* The selected segment's inset edge: 3:1 against the panel in the AA mode (WCAG 1.4.11),
+       so the selected pill is not told by its fill alone. */
+    box-shadow: inset 0 0 0 1px var(--cm-segment-edge);
 }
 .cm-tabs[data-variant="pills"] .cm-tab:focus-visible {
     outline: 1px solid var(--cm-border-selected);

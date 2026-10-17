@@ -511,7 +511,13 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
         color = m ? hex(m.rgb) : null;
         // A flat line's style opacity, not its material's alpha: a sub-pixel line is drawn one pixel
         // wide with its alpha scaled by its width, the same ink as its own width at full opacity.
-        const meta = batch.mesh.metadata as { lineOpacity?: number; joinedLine?: boolean } | null;
+        const meta = batch.mesh.metadata as {
+            lineOpacity?: number;
+            joinedLine?: boolean;
+            pattern?: { kind: string };
+        } | null;
+        // a dashed or dotted line through bends or round a loop is a joined line that draws its own pattern
+        pattern = meta?.pattern?.kind ?? null;
         const styled = meta?.lineOpacity;
         // A joined line's shader draws its own `opacity` and never reads the mesh's visibility, which
         // it sets only to be drawn in the transparent pass, so the visibility is not ink.

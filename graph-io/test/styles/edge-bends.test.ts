@@ -7,7 +7,7 @@
 import { describe, expect, it } from "vitest";
 
 import { createRegistry } from "../../src/registry.js";
-import { bendsToPoints, canonBends, resolveStyles } from "../../src/styles/internal.js";
+import { bendsToPoints, canonBends, flattenCubic, resolveStyles } from "../../src/styles/internal.js";
 
 const registry = createRegistry();
 
@@ -107,5 +107,52 @@ graph [ directed 1
 
     it("reads the Line points between its two ends, and none for a line of only its ends", async () => {
         expect(await bends(doc, "gml")).toEqual(["0,-0.5 1,-0.5", null]);
+    });
+});
+
+describe("flattenCubic", () => {
+    it("samples each cubic segment, sharing the joins, and refuses a count that is not 3n + 1", () => {
+        const flat = flattenCubic(
+            [
+                [0, 0],
+                [0, 40],
+                [100, 40],
+                [100, 0],
+            ],
+            2,
+        );
+        expect(flat).toEqual([
+            [0, 0],
+            [50, 30],
+            [100, 0],
+        ]);
+        expect(
+            flattenCubic([
+                [0, 0],
+                [1, 1],
+                [2, 2],
+            ]),
+        ).toBeNull();
+    });
+});
+
+describe("bends: Graphviz", () => {
+    const laid = (pos: string): string => `digraph { a [pos="0,0"]; b [pos="100,0"]; a -> b [pos="${pos}"]; }`;
+
+    it("reads the spline Graphviz laid an edge along in its pos, flattened, relative to the node centers", async () => {
+        const [value] = await bends(laid("e,100,0 0,0 0,40 100,40 100,0"), "dot");
+        expect(typeof value).toBe("string");
+        const pairs = String(value)
+            .split(" ")
+            .map((p) => p.split(",").map(Number));
+        expect(pairs).toHaveLength(9);
+        // the middle sample of the arc: half way along, 30 of 100 above the line (y up)
+        expect(pairs[4]).toEqual([0.5, 0.3]);
+    });
+
+    it("has no bends for an edge Graphviz drew straight or without a usable pos", async () => {
+        expect(await bends(laid("e,100,0 0,0 33,0 66,0 100,0"), "dot")).toEqual([null]);
+        expect(await bends(laid("0,0 10,10"), "dot")).toEqual([null]);
+        expect(await bends('digraph { a -> b [pos="0,0 0,40 100,40 100,0"]; }', "dot")).toEqual([null]);
     });
 });

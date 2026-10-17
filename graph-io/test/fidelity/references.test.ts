@@ -335,6 +335,36 @@ describe("per-tool readers", () => {
         expect(s.gaps[0].property).toBe("labelText");
     });
 
+    it("Cytoscape desktop: fans the parallel edges after a bundle's first round ding's anchors", async () => {
+        const { autoAnchors, anchoredPath } = await load<{
+            autoAnchors: (t: unknown, rows: unknown[], geo: Map<string, unknown[]>) => Map<string, number[]>;
+            anchoredPath: (s: number[], a: number[], t: number[], curved: boolean) => number[][];
+        }>("cyrest.mjs");
+        const geo = new Map<string, unknown[]>([
+            ["1", [0, 0, 30, 20, "rect"]],
+            ["2", [100, 0, 40, 10, "rect"]],
+        ]);
+        const edge = (suid: number, source: number, target: number) => ({
+            data: { SUID: suid, source: String(source), target: String(target) },
+        });
+        const topology = { elements: { edges: [edge(13, 1, 2), edge(11, 2, 1), edge(12, 1, 2), edge(14, 1, 1)] } };
+        const rows = [11, 12, 13, 14].map((SUID) => ({ SUID }));
+        // SUID order 11, 12, 13: the first straight, then 40 (the largest side) to either side of x = 50
+        expect([...autoAnchors(topology, rows, geo)]).toEqual([
+            ["12", [50, 40]],
+            ["13", [50, -40]],
+        ]);
+        const bentFirst = rows.map((r) => (r.SUID === 11 ? { ...r, EDGE_BEND: "0.5,0.5,0.5" } : r));
+        expect(autoAnchors(topology, bentFirst, geo).size).toBe(0);
+        const path = anchoredPath([0, 0], [50, 40], [100, 0], true);
+        expect(path[8]).toEqual([50, 20]);
+        expect(anchoredPath([0, 0], [50, 40], [100, 0], false)).toEqual([
+            [0, 0],
+            [50, 40],
+            [100, 0],
+        ]);
+    });
+
     it("Cytoscape desktop: names, locked sizes, label anchors, transparency and annotations", async () => {
         const { sceneFromCyrest } = await load<{ sceneFromCyrest: (v: unknown) => SceneParts }>("cyrest.mjs");
         const row = (suid: number, x: number, label: string) => ({

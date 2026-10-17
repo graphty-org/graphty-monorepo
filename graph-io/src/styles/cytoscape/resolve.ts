@@ -59,6 +59,11 @@ export interface CytoscapeElements {
     value(column: string, i: number): unknown;
     /** Each element's bypasses, by element index. */
     readonly bypasses?: readonly CytoscapeBypass[];
+    /**
+     * Edges only: each edge's source and target node index, in the order Cytoscape created the edges. With them,
+     * the edges Cytoscape desktop fans apart (parallel edges without bends) are marked curved.
+     */
+    readonly ends?: { readonly source: ArrayLike<number>; readonly target: ArrayLike<number> };
 }
 
 /**
@@ -76,6 +81,8 @@ export interface CytoscapeResolveOptions {
      * element the style says nothing about is null. Defaults to null.
      */
     readonly defaults?: StyleTool | null;
+    /** `resolveCytoscapeBypasses()` only: the edges' ends, as `CytoscapeElements.ends`. */
+    readonly ends?: CytoscapeElements["ends"];
 }
 
 /** Locked node sizes with no `NODE_SIZE` anywhere draw at Cytoscape's lexicon default. */
@@ -321,7 +328,7 @@ function resolver(
 /**
  * Every element's value per neutral property under a Cytoscape style, the way Cytoscape draws it: per visual
  * property a bypass, else the mapping's value, else the default; `nodeSizeLocked` and `arrowColorMatchesEdge`
- * applied (under `nodeSizeLocked` a node's own `NODE_WIDTH` or `NODE_HEIGHT` bypass still sets that dimension). `EDGE_CURVED` only rounds an edge's bends, so an edge without bends is `curved: false`. Visual properties
+ * applied (under `nodeSizeLocked` a node's own `NODE_WIDTH` or `NODE_HEIGHT` bypass still sets that dimension). `EDGE_CURVED` only rounds an edge's bends, so an edge without bends is `curved: false` unless desktop fans it out of a bundle of parallel edges (given `elements.ends`). Visual properties
  * no neutral property carries are noted as `W_STYLE_NOT_CARRIED`.
  * @param target - nodes or edges
  * @param style - the style
@@ -374,21 +381,50 @@ export function resolveCytoscape(
     noteUncarried(target, s, used, bypassed, notes);
     fillToolDefaults(target, out, n, options.defaults ?? null);
     if (target === "edge") {
-        straightenBendless(out, one);
+        straightenBendless(out, one, elements.ends);
     }
     return out;
 }
 
 /**
- * Marks straight every curved edge without bends: `EDGE_CURVED` only rounds the bends an edge has.
+ * Marks straight every curved edge without bends, except where Cytoscape desktop fans it: `EDGE_CURVED` only
+ * rounds the bends an edge has, and the bends Cytoscape adds itself. Among the edges joining the same two nodes
+ * (either way round, not loops), it draws the first it created straight and bends each later one without bends
+ * of its own round an anchor beside the line (`DEdgeDetails.getAnchors`, `EDGE_STACKING` `AUTO_BEND`, the default)
+ * -- unless the first has bends, when every anchor falls on the line.
  * @param out - the values per property, changed in place
  * @param one - reads one visual property of one element
+ * @param ends - each edge's source and target node index, in creation order, when known
  */
-function straightenBendless(out: Partial<Record<string, StyleColumn>>, one: Resolver["one"]): void {
+function straightenBendless(
+    out: Partial<Record<string, StyleColumn>>,
+    one: Resolver["one"],
+    ends: CytoscapeElements["ends"],
+): void {
     const { curved } = out;
-    if (curved !== undefined) {
-        out.curved = curved.map((c, i) => (c === true ? one(EDGE_BEND_VP, bendParser, "curved", i) === true : c));
+    if (curved === undefined) {
+        return;
     }
+    const bent = (i: number): boolean => one(EDGE_BEND_VP, bendParser, "curved", i) === true;
+    const fanned = new Set<number>();
+    if (ends !== undefined) {
+        // ponytail: EDGE_STACKING is taken as AUTO_BEND (the default); HAYSTACK draws these edges straight
+        const first = new Map<string, number>();
+        for (let i = 0; i < curved.length; i++) {
+            const [s, t] = [ends.source[i], ends.target[i]];
+            if (s === t) {
+                continue;
+            }
+            const key = s < t ? `${s},${t}` : `${t},${s}`;
+            const f = first.get(key);
+            if (f === undefined) {
+                first.set(key, i);
+            } else if (!bent(f)) {
+                fanned.add(i);
+            }
+        }
+    }
+    out.curved = curved.map((c, i) => (c === true ? fanned.has(i) || bent(i) : c));
 }
 
 /** An edge's bend handles. */
@@ -502,7 +538,7 @@ export function resolveCytoscapeBypasses(
 ): Partial<Record<string, StyleColumn>> {
     const notes = options.notes ?? new StyleNotes();
     const style = emptyCytoscapeStyle();
-    const elements: CytoscapeElements = { count: maps.length, value: () => null, bypasses: maps };
+    const elements: CytoscapeElements = { count: maps.length, value: () => null, bypasses: maps, ends: options.ends };
     const out = resolveCytoscape(target, style, elements, { notes, budget: options.budget });
     if (target === "node" && out.width === undefined) {
         const size = maps.map((m) => {

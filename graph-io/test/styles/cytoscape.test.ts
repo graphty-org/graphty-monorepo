@@ -92,7 +92,8 @@ function elementsOf(s: GraphSnapshot, target: StyleTarget, namespace: string): C
         }
         bypasses.push(m);
     }
-    return { count: n, value: (c, i) => cell(s, target, c, i), bypasses };
+    const ends = target === "edge" ? { ends: { source: s.edgeList().src, target: s.edgeList().dst } } : {};
+    return { count: n, value: (c, i) => cell(s, target, c, i), bypasses, ...ends };
 }
 
 /** A fixture's style, from what the importer kept, as the CX and CX2 readers build it. */

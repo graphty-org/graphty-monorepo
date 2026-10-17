@@ -392,7 +392,9 @@ void main(void) {
         this.blendInPlace(mesh);
         mesh.metadata = {
             joinedLine: true,
-            pattern: pattern ? { elementLength: pattern.elementLength, count: pattern.count } : undefined,
+            pattern: pattern
+                ? { kind: pattern.kind, elementLength: pattern.elementLength, count: pattern.count }
+                : undefined,
         };
 
         return mesh;

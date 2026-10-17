@@ -157,6 +157,9 @@ export function readDeclaredStyles(
             count: n,
             value: (column, i) => (table.has(column) ? plainCell(table.value(column, i)) : null),
             bypasses: maps,
+            ...(target === "edge"
+                ? { ends: { source: snapshot.edgeList().src, target: snapshot.edgeList().dst } }
+                : {}),
         };
         const values = resolveCytoscape(target, style, elements, { notes, budget: context.budget });
         // a file graphty wrote: a value its style writes as the nearest Cytoscape value is the block's

@@ -82,3 +82,32 @@ export function bendsToPoints(source: BendPoint, target: BendPoint, value: strin
     }
     return out.length === 0 ? null : out;
 }
+
+/**
+ * The points a piecewise cubic Bezier curve passes through, sampled evenly in its parameter: the first control point,
+ * then `steps` points along each segment, its last control point included. The input is `3n + 1` control points
+ * (a Graphviz spline, a cubic path), each segment sharing its first point with the one before.
+ * @param controls - the control points
+ * @param steps - how many points each segment is sampled at
+ * @returns the points, or null when the count is not `3n + 1` for some n >= 1
+ * @category Styles
+ */
+export function flattenCubic(controls: readonly BendPoint[], steps = 8): BendPoint[] | null {
+    if (controls.length < 4 || (controls.length - 1) % 3 !== 0) {
+        return null;
+    }
+    const out: BendPoint[] = [controls[0]];
+    for (let s = 0; s + 3 < controls.length; s += 3) {
+        const [p0, p1, p2, p3] = controls.slice(s, s + 4);
+        for (let k = 1; k <= steps; k++) {
+            const t = k / steps;
+            const u = 1 - t;
+            const w = [u * u * u, 3 * u * u * t, 3 * u * t * t, t * t * t];
+            out.push([
+                w[0] * p0[0] + w[1] * p1[0] + w[2] * p2[0] + w[3] * p3[0],
+                w[0] * p0[1] + w[1] * p1[1] + w[2] * p2[1] + w[3] * p3[1],
+            ]);
+        }
+    }
+    return out;
+}

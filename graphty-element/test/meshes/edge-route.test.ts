@@ -5,7 +5,7 @@
  */
 import { assert, describe, it } from "vitest";
 
-import { bendPoints, fanArc, fanArcPieces, parseBends, roundCorners, surfaceReach } from "../../src/meshes/edgeRoute";
+import { bendPoints, fanArc, fanArcPieces, fanSlot, parseBends, roundCorners, surfaceReach } from "../../src/meshes/edgeRoute";
 
 const at = (x: number, y: number, z = 0): { x: number; y: number; z: number } => ({ x, y, z });
 
@@ -73,5 +73,16 @@ describe("edge route geometry", () => {
         assert.deepEqual(arc.slice(0, 3), [0, 0, 0]);
         assert.deepEqual(arc.slice(-3), [30, 0, 0]);
         assert.closeTo(arc[3 * 2 + 1], 2, 1e-9);
+    });
+
+    it("fans only curved edges: evenly with no straight sibling, else alternating out from the line", () => {
+        const slots = (curved: boolean[]): number[] => curved.map((_, rank) => fanSlot(curved, rank));
+        assert.deepEqual(slots([false, false, false]), [0, 0, 0]);
+        assert.deepEqual(slots([true, true]), [-0.5, 0.5]);
+        assert.deepEqual(slots([true, true, true, true]), [-1.5, -0.5, 0.5, 1.5]);
+        // the middle of an odd bundle drawn straight (Cytoscape.js)
+        assert.deepEqual(slots([true, true, false, true, true]), [-2, -1, 0, 1, 2]);
+        // the first edge drawn straight (Cytoscape desktop)
+        assert.deepEqual(slots([false, true, true, true]), [0, -1, 1, -2]);
     });
 });

@@ -173,21 +173,49 @@ const FAN_SPREAD_MAX = 1.2;
 const LOOP_EXTENT_RADII = 1.5;
 
 /**
- * How far one edge of a bundle bows to the side at its middle: the bundle's edges spread evenly
- * either side of the straight line, the middle one of an odd bundle on it.
+ * Where a curved edge sits in its bundle's fan, in steps to the left of the bundle's first edge's
+ * direction (negative is to the right). Only curved edges fan; a straight edge stays on the line
+ * between the nodes, so its slot is 0.
+ *
+ * With no straight edge in the bundle, or only one in its middle, the edges spread evenly either
+ * side of the line, in bundle order (as Cytoscape.js fans `bezier` edges). Otherwise the line is
+ * taken, and the curved edges alternate sides outward from it, first to the right (as Cytoscape
+ * desktop fans the edges after the first).
+ * @param curved - Whether each edge of the bundle is curved, in bundle order.
  * @param rank - The edge's place in the bundle, from zero.
+ * @returns The slot.
+ */
+export function fanSlot(curved: readonly boolean[], rank: number): number {
+    if (!curved[rank]) {
+        return 0;
+    }
+
+    const n = curved.length;
+    const straight = curved.filter((c) => !c).length;
+    if (straight === 0 || (straight === 1 && n % 2 === 1 && !curved[(n - 1) / 2])) {
+        return rank - (n - 1) / 2;
+    }
+
+    const k = curved.slice(0, rank).filter(Boolean).length;
+    return (Math.floor(k / 2) + 1) * (k % 2 === 0 ? -1 : 1);
+}
+
+/**
+ * How far one edge of a bundle bows to the side at its middle: its {@link fanSlot} times the step
+ * between neighboring edges.
+ * @param slot - The edge's slot, from {@link fanSlot}.
  * @param count - How many edges the bundle holds.
  * @param radius - The larger endpoint's radius.
  * @param distance - The distance between the two node centers.
  * @returns The offset, to the left of the bundle's first edge's direction.
  */
-export function fanOffset(rank: number, count: number, radius: number, distance: number): number {
+export function fanOffset(slot: number, count: number, radius: number, distance: number): number {
     if (count < 2) {
         return 0;
     }
 
     const step = Math.min(FAN_STEP_RADII * radius, (FAN_SPREAD_MAX * distance) / (count - 1));
-    return (rank - (count - 1) / 2) * step;
+    return slot * step;
 }
 
 /**

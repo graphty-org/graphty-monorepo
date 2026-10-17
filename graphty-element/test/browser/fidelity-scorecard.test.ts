@@ -39,6 +39,8 @@ const EPSILON = 1e-9;
  *   groups and Pajek arcs.
  * - pajek-c, pajek-graphstream-b, pajek-synth-vertices, pajek-synth-lines: Pajek's sizes, line widths
  *   and label sizes against the spacing of its 0..1 coordinates.
+ * - graphml-synthetic-edges, json-cyjs-synth-edges, gexf-qvge-mine-airing, gml-synthetic-coverage:
+ *   parallel edges (fanned only where the style asks for a curve) and dashed lines along routes.
  */
 const DRAWN = [
     "gml-yed-pmodel",
@@ -64,6 +66,10 @@ const DRAWN = [
     "pajek-synth-lines",
     "cx2-synthetic-lethal",
     "gml-dunnart-autobahn",
+    "graphml-synthetic-edges",
+    "json-cyjs-synth-edges",
+    "gexf-qvge-mine-airing",
+    "gml-synthetic-coverage",
 ];
 
 interface Floors {

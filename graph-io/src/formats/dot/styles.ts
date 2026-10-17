@@ -30,6 +30,7 @@ import type { GraphSnapshot } from "@graphty/graph-format";
 
 import { isWritableDotText } from "../../common/escape.js";
 import { inferTextDtype } from "../../common/text.js";
+import { type BendPoint, canonBends, flattenCubic } from "../../styles/canon/bends.js";
 import { canonColor, colorOpacity } from "../../styles/canon/color.js";
 import { canonEnum } from "../../styles/canon/enums.js";
 import { canonNumber, DOT_POINTS_PER_INCH, num6 } from "../../styles/canon/number.js";
@@ -55,7 +56,7 @@ import type {
 } from "../../styles/types.js";
 import type { LossNote } from "../../types.js";
 import { type ValueColumns, valueColumns } from "../graphml/styles-yed.js";
-import { CLUSTER_COLUMN, LABEL_ATTRIBUTE } from "./names.js";
+import { CLUSTER_COLUMN, LABEL_ATTRIBUTE, POS_ATTRIBUTE } from "./names.js";
 
 /**
  * The graph attribute holding the `graphty.styles` block of a DOT file graphty wrote.
@@ -667,6 +668,52 @@ function readEdge(get: Attr, cx: EdgeContext, put: Put, at: At): void {
 }
 
 /**
+ * The route Graphviz laid an edge along, from its `pos`: `[e,x,y] [s,x,y]` arrow tips, then the B-spline's `3n + 1`
+ * control points (y up), flattened into bends between the two nodes' centers. Null for an edge Graphviz drew
+ * straight, a `pos` that is not a spline, or nodes without positions.
+ * @param snapshot - the graph
+ * @param e - the edge
+ * @param pos - its `pos` text
+ * @returns the `bends` value, or null
+ */
+function splineBends(snapshot: GraphSnapshot, e: number, pos: string | null): string | null {
+    if (pos === null) {
+        return null;
+    }
+    const column = snapshot.nodes.byRole("position");
+    const center = (i: number): BendPoint | null => {
+        const v = column?.isSet(i) === true ? (column.value(i) as ArrayLike<number>) : null;
+        return v === null ? null : [v[0], v[1]];
+    };
+    const [source, target] = [center(snapshot.edgeSource(e)), center(snapshot.edgeTarget(e))];
+    if (source === null || target === null) {
+        return null;
+    }
+    // ponytail: the splines of a concentrated edge (";"-separated) are joined end to end
+    const points: BendPoint[] = [];
+    for (const spline of pos.split(";")) {
+        const controls = spline
+            .trim()
+            .split(/\s+/)
+            .filter((t) => !/^[es],/.test(t))
+            .map((t): BendPoint => {
+                const [x, y] = t.split(",").map(Number);
+                return [x, y];
+            });
+        const flat = flattenCubic(controls);
+        if (flat === null || flat.some(([x, y]) => !Number.isFinite(x) || !Number.isFinite(y))) {
+            return null;
+        }
+        points.push(...flat);
+    }
+    const [dx, dy] = [target[0] - source[0], target[1] - source[1]];
+    const length = Math.hypot(dx, dy);
+    const off = Math.max(...points.map(([x, y]) => Math.abs((x - source[0]) * dy - (y - source[1]) * dx)));
+    // a route on the line between the centers is the straight edge it looks like
+    return length > 0 && off / (length * length) > 1e-3 ? canonBends(source, target, points, false) : null;
+}
+
+/**
  * Reads an edge's line: its width and dashes.
  * @param get - its attributes
  * @param tokens - its style tokens
@@ -899,6 +946,10 @@ export function dotStyles(snapshot: GraphSnapshot, context: StyleReadContext): I
             },
             at,
         );
+        const bends = splineBends(snapshot, e, get(POS_ATTRIBUTE));
+        if (bends !== null) {
+            edge.put(e, "bends", bends);
+        }
     }
     const graph: Record<string, StyleValue> = {};
     const bg = nonEmpty(cellText(snapshot.graph, "bgcolor", 0));

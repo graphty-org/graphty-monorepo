@@ -68,4 +68,3 @@ export function warnOn(
 ): void {
     report.warning("unsupported", code, message, undefined, params);
 }
-

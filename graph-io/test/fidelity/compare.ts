@@ -661,7 +661,9 @@ const NODE_JUDGES: Partial<Record<Property, NodeJudge>> = {
     shape: (r, s) => equal(r.shape, s.shape),
     // a fill of opacity 0 draws nothing, so it is no fill on either side (yEd's hasColor="false", an
     // unfilled DOT node), whichever color the scene still carries
-    fill: (r, s) => color(r.fillOpacity === 0 ? null : r.fill, s.fillOpacity === 0 ? null : s.fill),
+    // a node the reference does not draw shows no fill to judge; whether it is drawn is `visible`'s
+    fill: (r, s) =>
+        r.visible ? color(r.fillOpacity === 0 ? null : r.fill, s.fillOpacity === 0 ? null : s.fill) : null,
     // with no reference fill there is nothing for an opacity to apply to; `fill` judges the missing fill
     fillOpacity: (r, s) => {
         if (r.fill === null) {

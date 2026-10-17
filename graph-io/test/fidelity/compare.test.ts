@@ -264,6 +264,12 @@ describe("fill of opacity 0", () => {
         const shown = scene("graphty", [node("a", 0, 0, { fill: "#ffcc00" }), node("b", 10, 0, { fillOpacity: 0 })]);
         expect(compareScenes(ref, shown).properties.fill.passRate).toBe(0.5);
     });
+
+    it("is not judged on a node the reference does not draw", () => {
+        const ref = scene("yed-file", [node("a", 0, 0, { fill: null, visible: false }), node("b", 10, 0)]);
+        const sub = scene("graphty", [node("a", 0, 0, { fill: "#ffcc00" }), node("b", 10, 0)]);
+        expect(compareScenes(ref, sub).properties.fill).toMatchObject({ passRate: 1, n: 1 });
+    });
 });
 
 describe("scene comparison", () => {

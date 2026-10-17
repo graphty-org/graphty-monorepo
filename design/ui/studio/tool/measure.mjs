@@ -57,6 +57,24 @@ export function styleTree(withCounts = true) {
         layers: s.styles.list().map((l) => (withCounts ? { ...plain(l), counts: counts(l.id) } : plain(l))),
     };
 }
+// The node colors drawn now, distinct and sorted, read through graphty-element's public explain (the
+// color every layer together gives each node); null when no graph is open. Bar 4 stops its clock at
+// the first screenshot where this holds one color that is not the start's. Self-contained: it runs
+// in the page.
+export function nodeColors() {
+    const s = document.querySelector("graphty-element")?.session;
+    if (!s) return null;
+    const seen = new Set();
+    for (const n of s.data.nodes()) {
+        try {
+            const c = s.styles.explain({ node: n.id }).merged["node.color"];
+            seen.add(String(c?.hex ?? c ?? "none").toLowerCase());
+        } catch {
+            seen.add("unreadable");
+        }
+    }
+    return [...seen].sort();
+}
 // What the layers look like, with nothing that names or counts them: every "id" and "row" key (a
 // layer's place in the tree, by id) and the counts left out, so the same looks under new ids (a sample opened again) read the same
 export function styleContent(tree) {

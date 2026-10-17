@@ -10,6 +10,18 @@ made and evidence comes in.
 
 ## Top of mind
 
+- (2026-10-17, review applied to the first-use styling study) Round 1 is now 13 tasks: T37 and T42
+  out, T51 "each kind its own color" in at 2, T48 a core task at 6 (core: T39, T40, T47, T48).
+  score.mjs: a task under 4 sessions does NOT hold bar 1; T47 holds only when half its successes
+  carry `Route:` folder/several/one by one (grade.md line; a T47 success without it is a problem);
+  bar 4 stops at every node in ONE new color, read from the new `colors` field real.mjs writes
+  per screenshot (graphty-element `styles.explain(...).merged["node.color"].hex`, piloted), and a
+  session that never gets there counts as Infinity. bars.mjs: new `folder-picker` walk (its
+  control names are UNWALKED: `role=button:Which nodes` -- read its MISS lines at preflight 6) and
+  `--record-limits` keeps the lower count. wording.mjs: ten common words removed, and a kept line's
+  second line is now read (`$` under /m had ended it at the first line end). Still owed at
+  preflight: what the from box does with `10,000` and `$10,000`; T51's step count and the key's
+  three colors; T42 at 4 in round 2.
 - (2026-10-17, first-use styling study written) Tier 3 is now FIRST USE + STYLING: 14 tasks
   T37-T50, 56 sessions, 9 first-time personas, every start `empty` (Sam `empty --keys`). The tool
   is tier-aware (folder under tier3/ -> tier 3 files; REAL_TIER in the briefing command), has a
@@ -105,6 +117,16 @@ reasons, in short:
 
 ## Decisions and reasons
 
+- **2026-10-17 (review of the tier 3 materials):** Where reviewers differed I applied the
+  Director's call: T37's slots to T48, not T42; T50 keeps its project file and question 5 is
+  reported per half (A's names give the rule away) rather than re-making the file with a new
+  column. T51 took T42's slots as the user advocate asked, so number cards on people are not in
+  round 1 at all; the red team's "no unjudged task" rule forces T42 into round 2 at 4. The
+  Director added Grace to T48 A, but the user advocate's Tom swap gave Grace T48 B, so Ruth took
+  the A slot (no persona on both halves). T41 A says "finished the training", not "trained": the
+  column is `trained`. T48 says "the way they did", not "goes back": "Back" is on the run's screen.
+  T48's counts (15, 12) are not in "Facts no briefing may hold": a bare number matches unrelated
+  persona text.
 - **2026-10-17 (first-use styling study):** Bar 4 (time to first styled graph) is judged on T39 only,
   in STEPS from 01.png (key 6, limit 12); minutes are a trend, since the clock holds model thinking.
   Tasks at fewer than 4 sessions are reported, not judged. No setups: brought files come in by the
@@ -171,6 +193,11 @@ reasons, in short:
 
 ## Tried: worked / did not work
 
+- 2026-10-17 (review applied) -- Worked: asserted (old, new) edit scripts per file in
+  `tmp/style-study/researcher/`, a roster script that asserts 56 and no persona on both halves,
+  the wording check after every prompt edit (it caught "trained", "Back" and the kept-line bug),
+  and a 4-step pilot to confirm a new field before scoring on it. Did not work: trusting the
+  wording tool's kept-line regex; my first T47 fixture (5 sessions, 1 of 2 in a half).
 - 2026-10-17 -- Worked: writing the bars walk first and letting its MISS lines name each wrong
   control name (placeholders are not text: `--expect role=option:...`); briefing all 56 planned
   rows in a test, which surfaced Maren's hypotheses and the README leak. Did not work: chaining

@@ -7,7 +7,9 @@ Participants never see this file. Tasks: `tasks.md`. Bars: `criteria.md`. Partic
 - **Grades:** S (succeeded on the success path or a route as short), SD (succeeded by a detour or
   with help the screen gave after a wrong turn), F (did not reach the success state, or reached it
   and said something wrong about it), G (gave up). Success = S or SD. VOID only when the tool or
-  the run failed, or the participant opened a file outside its own folder (`leaks.json`).
+  the run failed, or the participant opened a file outside its own folder (`leaks.json`). A
+  give-up the persona file scripts ("scripted exit") is graded G with the line `Scripted exit: yes`
+  after the first three; it is never VOID and stays in bar 1's denominator.
 - **From what:** the last screenshot, the files in `downloads/` and `saved/`, the transcript, and
   the style tree `real.mjs` writes: `styles-start.json` and `styles.json` (the whole tree at the
   start and the end, every layer's conditions, values and counts, and `changes`: layers gone,
@@ -24,7 +26,8 @@ Participants never see this file. Tasks: `tasks.md`. Bars: `criteria.md`. Partic
   person does -- a click, a typed entry with its Enter, one key, picking one option. Typing and
   picking the offered match is one step. A click the tool refused (keyboard-only mode) is none.
 - **`grade.md` starts with three lines**, which `../tool/score.mjs` reads:
-  `Grade: S|SD|F|G|VOID`, `False done: yes|no`, `Wrong turns: <n>`.
+  `Grade: S|SD|F|G|VOID`, `False done: yes|no`, `Wrong turns: <n>`. A T47 success adds a fourth,
+  `Route: folder|several|one by one|around` (T47 below); a scripted exit adds `Scripted exit: yes`.
 - **Severity** 0-4 (Nielsen) for every problem, with the step and screenshot. Not new findings:
   a new name drawn too small at the default framing, and the default label font naming no fallback
   (open owner decisions, `../owner-decisions.md`).
@@ -149,6 +152,11 @@ difference is a finding.
 - **Success path (A, 13 steps):** file in (3 steps as T41), "+", Layer, "Add a condition",
   `hours`, the "from" box (`hours from, number`), type `20`, Tab ("11 of 24"), Done, Fill "+",
   Color, type `orange`, Enter.
+- **The number as the prompt writes it:** B's "10,000 dollars" may be typed `10,000` or `$10,000`
+  into the from box. Read on the frozen build before round 1 (preflight 5) what the box shows and
+  keeps after each, with Tab. From the code (a Mantine NumberInput with no thousands separator) both
+  are expected to keep only the digits, 10000. If the box rejects either without a word, or reads
+  `10`, that is a finding before round 1. Grade the session on the line the card ends with.
 - **Final screen:** the picker reads "hours 20 to 52, 11".
 
 ## T43. Bigger for more
@@ -176,7 +184,8 @@ difference is a finding.
 
 - **Success (S):** A: exactly the 8 family ties drawn thick (wider than the 8 they start at) and
   red, every person and every other tie unchanged. B: exactly the 51 ties with 5 or more shared
-  chapters thick and black, every character and every other tie unchanged.
+  chapters thick and blue (any color a reader calls blue), every character and every other tie
+  unchanged.
 - **Stacks that count:** a layer whose Edge tab has a category card on `kind` = family (A) or a
   number card on `shared_chapters` from 5 (B), with width and color on its Edge tab, and no node
   value. A layer that also writes a node look is F (people changed).
@@ -202,24 +211,32 @@ difference is a finding.
 
 ## T47. Every cluster at once, colors kept
 
-- **Success (S):** A: every node twice its starting size (2), every cluster's color unchanged.
-  B: every node drawn as Box, every cluster's color unchanged.
+- **Success (S):** A: every node's size above its starting 1 and the same for all, every cluster's
+  color unchanged. B: every node drawn as Box, every cluster's color unchanged.
 - **Stacks that count:** the run's folder edited once (its Shape line, written to every group
-  layer: S); each group layer edited one by one (S, steps counted); the Everything layer's size or
-  shape (S, recorded as "around the folder": the group layers write only color, so it shows). Any
-  cluster's color changed, or all clusters given one color through the folder's color field: F.
+  layer: S, `Route: folder`); two or more group layers picked together and edited once (S,
+  `Route: several`); each group layer edited one by one (S, steps counted, `Route: one by one`);
+  the Everything layer's size or shape (S, `Route: around`: the group layers write only color, so
+  it shows, but the bulk edit was not used). Any cluster's color changed, or all clusters given
+  one color through the folder's color field: F. A route on the file's conference column (`value`)
+  instead of a run: F (not the program's clusters). Bar 1 holds for T47 only when at least half
+  its S and SD sessions are not `around`; the stall rule and question 3 count only `folder` and
+  `several`.
 - **Success path (B, 13 steps, piloted in `pilot-materials/T47B/`):** 1. "No thanks". 2. College
   football. 3. Analyze. 4. `louvain`. 5. Enter. 6. Run (10 clusters). 7. The Louvain folder
   (Style shows "10 layers in Louvain", the Color line reads the purple "Layer" token with the
   clusters' swatches). 8. Shape "+". 9. Shape. 10. Open the shape list ("Node shape"). 11. Box.
-  A: as B to step 9, then Size, type `2`, Enter.
+  A: as B to step 8, then Size, type a size above 1, Enter.
 - **Final screen:** cubes (B) or bigger dots (A) in ten (six) colors; `styles.json` shows each
   group layer with its own `node.color` and the new `node.shape` (or `node.size`).
 
 ## T48. Cluster colors on only some people
 
 - **Success (S):** the clusters' colors drawn only on trained people (A, 15) or sources on the
-  record (B, 12); every other node in the starting color; no cluster's color changed.
+  record (B, 12); every other node in the starting color; no cluster's color changed; and the
+  count said from the screen: 15 (A) or 12 (B). A number read off one cluster's line, or the
+  chip's total taken as everyone, is F. (The two counts are not added to "Facts no briefing may
+  hold": a bare 15 or 12 matches unrelated text in persona files, and no briefing names T48.)
 - **Stacks that count:** a `trained` (A) or `on_record` (B) card set to Yes on every cluster layer,
   added once on the folder's picker (S) or on each layer (S); a new layer above that paints the
   others back to `#6366F1` (SD: it covers, it does not pick).
@@ -233,6 +250,9 @@ difference is a finding.
 - **Success (S):** after the follow-up, the drawing and the style tree are as they were when the
   sample opened: the last line of `styles-steps.jsonl` has the same `look` as its first line with
   `graph: true`, and the red (A) or yellow (B) is gone.
+- **The change must have been made:** S requires a line of `styles-steps.jsonl` before the
+  follow-up whose look has every node red (A) or yellow (B) (its `colors` holds that one color);
+  without it, F, whatever the last look.
 - **Routes:** Undo (the arrow at the top, or Control+Z): S. Typing the old color back (`6366F1`):
   S only when the look matches exactly; a near color is F. Removing a layer the participant made:
   S when the look matches.
@@ -249,15 +269,43 @@ difference is a finding.
   layer's conditions. Both read from the screen.
 - **SD:** the right rule after a wrong first reading corrected on screen. **F:** a rule guessed from
   the names alone (A) with no look at the conditions is F only if it is wrong; a right reading from
-  the names alone (all three start "Mlle") is SD, recorded as "rule not read".
+  the names alone (all three start "Mlle") is SD under bar 1, recorded as "rule not read", and counts
+  as not read (F) for question 5, which is reported per half: A's names give the rule away.
 - **Success path (A, 6 steps):** 1. "No thanks". 2. "Open project or file", choose
   lesmis-poster.graphty.json. 3. The "Poster" layer. 4. Style: the picker's line reads "name
   contains Mlle, 3". 5-6. Hover the orange dots (or open the picker) to read the names.
 - **Final screen:** the Poster layer's Style with its conditions shown; nothing changed
   (`changes.changed` empty).
 
+## T51. Each kind its own color
+
+- **Success (S):** three distinct colors on `role` (A) or `kind` (B), every node of a value in its
+  value's color; the color named for the board (A) or the agencies (B) read from the key or the
+  panel at or before the step it is said; the ties and every other look unchanged. A color named
+  from the drawing alone, with no look at the key or the panel, is SD if right and F if wrong.
+- **Stacks that count:** a color bound to `role` (A) or `kind` (B), one color per value, on
+  Everything or a new layer (S); three layers, each a category card on one value with its own
+  color (S); hand-picked selections colored (SD: they hold node ids, not the rule). Two values in
+  one color, or one value left in the starting color: F.
+- **Success path (A, about 8 steps; walked and recounted by the dry run, preflight 4):** 1. "No
+  thanks". 2. "Open project or file", choose volunteers.graphml. 3. Load. 4. Everything. 5. Style. 6. The link icon beside Color ("Node color by attribute"). 7. `role`. 8. Read the board's color
+  from the Color line's chits or the key.
+- **Reference values:** the color each value gets, and whether the key shows three lines with three
+  distinct colors, are read on the frozen build (preflight 5). A key that shows two values in one
+  color is a finding before round 1.
+- **Final screen:** three colors on the drawing; `styles.json` shows a `node.color` binding
+  reading `data.role` (or `data.kind`).
+
 ## Change log
 
+- 2026-10-17 (after the review of the tier 3 materials): T51 added. T45 B blue, not black. T47 A's
+  success is "bigger than the start, the same for all", not "twice" (the starting size is never on
+  screen); T47 grades carry a `Route:` line and bar 1 holds only when most successes went through
+  the clusters; a route on the file's conferences is F. T48 needs the count. T49 needs the change
+  to have been made. T50 A's names-only reading counts as not read for question 5. A scripted exit
+  is G, never VOID. T42 records what the box does with `10,000` and `$10,000`. Not taken: giving
+  lesmis-poster a rule its names do not show (the file holds names only; a new column means
+  re-making and re-reading the project), so question 5 is reported per half instead.
 - 2026-10-17: Written for the first-use styling study; replaces the returning-user key of the
   earlier tier 3 drafts (git history only). Values checked on build `31e8c2387` by the pilots
   T41A, T46A, T47B and T49A in `pilot-materials/` and by `../tool/bars.mjs --tier 3`. T46 B names

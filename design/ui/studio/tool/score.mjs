@@ -1,14 +1,17 @@
 #!/usr/bin/env node
 // Scores a tier 3 round's sessions against the scripted bars of ../tier3/criteria.md:
 //   bar 1: each task's success (S or SD) at least 80% of its valid sessions, and each dataset half at
-//          least 2 of 3 (67%); a task run at fewer than 4 sessions is reported, not judged
+//          least 2 of 3 (67%); a task run at fewer than 4 sessions does not hold (the study cannot
+//          pass while a task is unjudged). A task in ROUTE_TASKS (T47) holds only when at least half
+//          its successes went through the layers under study (grade.md "Route:" not "around"), and
+//          its successes on the bulk route (folder or several) are reported for the stall rule
 //   bar 2: no false "done" (a grade that says the participant claimed done while the screen showed
 //          otherwise)
 //   bar 3: the median wrong turns of each task's valid sessions at most 2
 //   bar 4: time to the first styled graph on T39 (--task), whose sessions start with no graph open:
-//          the median steps from 01.png to the first screenshot whose layers look different from the
-//          first graph the session showed, at most twice the answer key's steps (--key-steps, default
-//          6). Minutes between the two screenshots' own clocks are reported beside it, as a trend
+//          the median steps from 01.png to the first screenshot where every node is drawn in one
+//          color that is not the start's (T39's success state), at most twice the answer key's steps
+//          (--key-steps, default 6); a session that never got there counts as never (Infinity). Minutes between the two screenshots' own clocks are reported beside it, as a trend
 //          only: a simulated participant's thinking time is in them. The same median over every
 //          other task's empty-start sessions is reported, not judged
 //
@@ -16,7 +19,9 @@
 //   node score.mjs --self-test                     plants a failing and a passing round and checks both
 //
 // Reads <round dir>/plan.md (one row per session: | id | task | A or B: dataset | persona | `start` |),
-// each sessions/<id>/grade.md's first lines ("Grade: S", "False done: no", "Wrong turns: 1"), and
+// each sessions/<id>/grade.md's first lines ("Grade: S", "False done: no", "Wrong turns: 1", and
+// "Route: folder|several|one by one|around" on a ROUTE_TASKS success, "Scripted exit: yes" on a G
+// the persona file scripted), and
 // each session's styles-steps.jsonl (written by real.mjs). A re-run <id>b replaces a VOID <id>.
 // A session with no readable grade fails the run: a bar measured on zero sessions does not hold.
 import assert from "node:assert/strict";
@@ -24,6 +29,10 @@ import { existsSync, mkdtempSync, readFileSync, statSync, utimesSync } from "nod
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+
+// tasks whose success counts only when most of it went through the layers under study
+const ROUTE_TASKS = new Set(["T47"]);
+const BULK_ROUTES = new Set(["folder", "several"]);
 
 const median = (xs) => {
     if (!xs.length) return null;
@@ -55,21 +64,28 @@ function readGrade(dir) {
     const grade = t.match(/^Grade: (S|SD|F|G|VOID)\b/m)?.[1];
     const falseDone = t.match(/^False done: (yes|no)\b/im)?.[1]?.toLowerCase();
     const turns = t.match(/^Wrong turns: (\d+)/m)?.[1];
+    const route = t.match(/^Route: (folder|several|one by one|around)\b/im)?.[1]?.toLowerCase() ?? null;
+    const scriptedExit = /^Scripted exit: yes\b/im.test(t);
     if (!grade || !falseDone || turns === undefined) return { unreadable: f };
-    return { grade, falseDone: falseDone === "yes", wrongTurns: Number(turns) };
+    return { grade, falseDone: falseDone === "yes", wrongTurns: Number(turns), route, scriptedExit };
 }
 
 // Steps and minutes from 01.png to the first screenshot whose layers look different from the first
-// graph the session showed; null when the session never changed a look
-export function firstStyled(dir) {
+// graph the session showed; with oneColor, to the first whose nodes are all drawn in one color that
+// is not the start's (bar 4, T39's success state). null when the session never got there
+export function firstStyled(dir, oneColor = false) {
     const f = join(dir, "styles-steps.jsonl");
     if (!existsSync(f)) return null;
     const lines = readFileSync(f, "utf8")
         .split("\n")
         .filter(Boolean)
         .map((l) => JSON.parse(l));
-    const base = lines.find((l) => l.graph)?.look;
-    const hit = lines.find((l) => l.graph && l.look !== base);
+    const start = lines.find((l) => l.graph);
+    const hit = oneColor
+        ? lines.find(
+              (l) => l.graph && l.colors?.length === 1 && JSON.stringify(l.colors) !== JSON.stringify(start?.colors),
+          )
+        : lines.find((l) => l.graph && l.look !== start?.look);
     if (!hit) return null;
     const clock = (shot) => {
         const p = join(dir, shot);
@@ -99,7 +115,11 @@ export function score(rd, keySteps = 6, firstTask = "T39") {
             problems.push(`${row.id}: no valid grade (${tries.join(", ") || "no session folder"})`);
             continue;
         }
-        const fs = row.start.startsWith("empty") ? firstStyled(join(rd, "sessions", used.id)) : null;
+        if (ROUTE_TASKS.has(row.task) && (used.grade === "S" || used.grade === "SD") && !used.route)
+            problems.push(`${used.id}: a ${row.task} success needs a "Route:" line in grade.md`);
+        const fs = row.start.startsWith("empty")
+            ? firstStyled(join(rd, "sessions", used.id), row.task === firstTask)
+            : null;
         sessions.push({ ...row, ...used, firstStyled: fs });
     }
     if (!sessions.length) problems.push("no valid session, so no bar was measured");
@@ -107,15 +127,26 @@ export function score(rd, keySteps = 6, firstTask = "T39") {
     const tasks = [...new Set(sessions.map((s) => s.task))].sort();
     for (const t of tasks) {
         const of = sessions.filter((s) => s.task === t);
-        const ok = of.filter((s) => s.grade === "S" || s.grade === "SD").length;
-        // a task run at fewer than 4 sessions is reported, not judged (criteria.md, bar 1)
+        const wins = of.filter((s) => s.grade === "S" || s.grade === "SD");
+        const ok = wins.length;
+        // a task run at fewer than 4 sessions is not judged, so it does not hold (criteria.md, bar 1)
         const judged = of.length >= 4;
         bars.push({
             bar: 1,
-            what: `${t} success${judged ? "" : " (reported, not judged: fewer than 4 sessions)"}`,
+            what: `${t} success${judged ? "" : " (not judged: fewer than 4 sessions, so it does not hold)"}`,
             value: `${ok} of ${of.length}`,
-            holds: !judged || ok / of.length >= 0.8,
+            holds: judged && ok / of.length >= 0.8,
         });
+        if (ROUTE_TASKS.has(t)) {
+            const through = wins.filter((s) => s.route && s.route !== "around").length;
+            const bulk = wins.filter((s) => BULK_ROUTES.has(s.route)).length;
+            bars.push({
+                bar: 1,
+                what: `${t} successes through the layers under study (folder, several or one by one; at least half)`,
+                value: `${through} of ${ok}; on the bulk route (folder or several, the stall rule's count) ${bulk}`,
+                holds: ok > 0 && through * 2 >= ok,
+            });
+        }
         for (const h of judged ? ["A", "B"] : []) {
             const hs = of.filter((s) => s.half === h);
             if (!hs.length) continue;
@@ -137,11 +168,12 @@ export function score(rd, keySteps = 6, firstTask = "T39") {
         value: fd.length ? fd.map((s) => s.id).join(", ") : "0",
         holds: fd.length === 0 && sessions.length > 0,
     });
-    const firstStyledOf = (of) => {
+    // a session that never got there counts as never, so it pulls the median up instead of out
+    const firstStyledOf = (of, never = Infinity) => {
         const timed = of.filter((s) => s.firstStyled);
         return {
             timed,
-            steps: median(timed.map((s) => s.firstStyled.steps)),
+            steps: median((never === null ? timed : of).map((s) => s.firstStyled?.steps ?? never)),
             minutes: median(timed.map((s) => s.firstStyled.minutes).filter((m) => m !== null)),
         };
     };
@@ -149,13 +181,19 @@ export function score(rd, keySteps = 6, firstTask = "T39") {
     const f = firstStyledOf(own);
     bars.push({
         bar: 4,
-        what: `${firstTask}: steps to the first styled graph (${f.timed.length} of ${own.length} sessions styled something; limit ${2 * keySteps})`,
+        what: `${firstTask}: steps to every node in one new color (${f.timed.length} of ${own.length} sessions got there; limit ${2 * keySteps})`,
         value: `median ${f.steps}; minutes median ${f.minutes} (trend only)`,
-        holds: f.timed.length > 0 && f.steps <= 2 * keySteps,
+        holds: own.length > 0 && f.steps <= 2 * keySteps,
     });
-    const rest = firstStyledOf(sessions.filter((s) => s.task !== firstTask && s.start.startsWith("empty")));
+    // reported only: other tasks' first change of any look, over the sessions that made one
+    const rest = firstStyledOf(
+        sessions.filter((s) => s.task !== firstTask && s.start.startsWith("empty")),
+        null,
+    );
     const reported = {
         otherTasksFirstStyled: { sessions: rest.timed.length, steps: rest.steps, minutes: rest.minutes },
+        // a give-up the persona file scripted: graded G, kept in bar 1's denominator
+        scriptedExits: sessions.filter((s) => s.scriptedExit).map((s) => s.id),
     };
     return { problems, bars, reported, sessions, holds: !problems.length && bars.every((b) => b.holds) };
 }
@@ -174,14 +212,19 @@ async function selfTest() {
             if (s.grade)
                 await writeFile(
                     join(d, "grade.md"),
-                    `Grade: ${s.grade}\nFalse done: ${s.falseDone ? "yes" : "no"}\nWrong turns: ${s.turns ?? 0}\n\nnotes\n`,
+                    `Grade: ${s.grade}\nFalse done: ${s.falseDone ? "yes" : "no"}\nWrong turns: ${s.turns ?? 0}\n` +
+                        (s.route ? `Route: ${s.route}\n` : "") +
+                        (s.scripted ? "Scripted exit: yes\n" : "") +
+                        "\nnotes\n",
                 );
+            // one color per look by default: "b" is every node in one new color
             const looks = s.looks ?? [null, "a", "a", "b"];
             const lines = looks.map((look, i) => ({
                 shot: `${String(i + 1).padStart(2, "0")}.png`,
                 at: "",
                 graph: look !== null,
                 look,
+                colors: look === null ? null : (s.colors?.[i] ?? [look]),
             }));
             await writeFile(join(d, "styles-steps.jsonl"), lines.map((l) => JSON.stringify(l)).join("\n") + "\n");
             for (const [i, l] of lines.entries()) {
@@ -227,6 +270,39 @@ async function selfTest() {
         ],
         "a session with no grade.md": [...good.slice(0, 4), { id: "r1-s05", task: "T40", half: "B" }],
         "a VOID with no re-run": [...good.slice(0, 4), { id: "r1-s05", task: "T40", half: "B", grade: "VOID" }],
+        "a task run at fewer than 4 sessions": [
+            ...good,
+            { id: "r1-s06", task: "T41", half: "A", grade: "S" },
+            { id: "r1-s07", task: "T41", half: "B", grade: "S" },
+        ],
+        "one session of five got to one new color, the rest never did": good.map((s, i) => ({
+            ...s,
+            looks: i ? [null, "a", "a"] : undefined,
+        })),
+        "the look changed but the nodes never all took one new color": good.map((s) => ({
+            ...s,
+            colors: [null, ["x"], ["x", "y"], ["x", "y"]],
+        })),
+        "T47 passed only around the clusters": [
+            ...good,
+            ...["r1-s06", "r1-s07", "r1-s08", "r1-s09"].map((id, i) => ({
+                id,
+                task: "T47",
+                half: i < 2 ? "A" : "B",
+                grade: "S",
+                route: i ? "around" : "folder",
+            })),
+        ],
+        "a T47 success with no Route line": [
+            ...good,
+            ...["r1-s06", "r1-s07", "r1-s08", "r1-s09"].map((id, i) => ({
+                id,
+                task: "T47",
+                half: i < 2 ? "A" : "B",
+                grade: "S",
+                route: i ? "folder" : undefined,
+            })),
+        ],
     };
     for (const [what, sessions] of Object.entries(planted)) {
         const r = score(await round(what.replaceAll(" ", "-"), sessions), 6, "T40");
@@ -246,6 +322,28 @@ async function selfTest() {
         "T40",
     );
     assert.ok(rerun.holds && rerun.sessions.some((s) => s.id === "r1-s05b"), "a re-run does not replace its VOID");
+    // T47 through the clusters, and a scripted exit kept in the denominator as G
+    const routed = score(
+        await round("routed", [
+            ...good,
+            ...["r1-s06", "r1-s07", "r1-s08", "r1-s09", "r1-s10", "r1-s11"].map((id, i) => ({
+                id,
+                task: "T47",
+                half: i < 3 ? "A" : "B",
+                grade: i === 5 ? "G" : "S",
+                route: ["folder", "several", "around", "one by one", "folder"][i],
+                scripted: i === 5,
+            })),
+        ]),
+        6,
+        "T40",
+    );
+    assert.ok(
+        routed.holds,
+        `a T47 passed through the clusters fails: ${JSON.stringify(routed.bars.filter((b) => !b.holds))}`,
+    );
+    assert.deepEqual(routed.reported.scriptedExits, ["r1-s11"], "a scripted exit was not reported");
+    assert.match(routed.bars.find((b) => b.what.startsWith("T47 successes")).value, /bulk route .* 3$/);
     await rm(base, { recursive: true, force: true });
     console.log("score.mjs self-test: every planted failure caught, the passing round passes");
 }

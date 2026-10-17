@@ -280,8 +280,9 @@ What the tool keeps in every session folder for the graders (the participant nev
   (`styles.tree()` and every layer's spec and counts, read through graphty-element's public API)
   and `--end` writes `styles.json`: the start, the end, and `changes` -- the layers gone, added and
   changed by id (a changed count alone is no change). `styles-steps.jsonl` has one line per
-  screenshot: whether a graph was open and a hash of what its layers look like (ids and counts
-  left out), from which `score.mjs` reads the time to the first styled graph.
+  screenshot: whether a graph was open, a hash of what its layers look like (ids and counts
+  left out) and `colors`, the distinct node colors drawn, from which `score.mjs` reads the time to
+  the first styled graph (every node in one new color).
 
 `--end` on a participant's folder (one under `tmp/studio-sessions/`) copies the whole folder,
 screenshots, `transcript.md`, `saved/` and `downloads/` included, to the round's session folder it
@@ -451,7 +452,8 @@ node --test design/ui/studio/tool/tier3.test.mjs                               #
 `wording.mjs` lists every word a prompt shares with the screens, except common English words and
 the words `tasks.md` keeps on purpose ("Kept in every task", each task's "Kept on purpose"); exit 1
 on any. `score.mjs` reads the round's `plan.md`, each session's `grade.md` (its first three lines:
-`Grade:`, `False done:`, `Wrong turns:`) and `styles-steps.jsonl`, and writes `score.json`.
+`Grade:`, `False done:`, `Wrong turns:`, plus `Route:` on a T47 success and `Scripted exit: yes`
+on a scripted give-up) and `styles-steps.jsonl`, and writes `score.json`.
 
 Measures the scripted bars of `criteria.md` and `../tier2/criteria.md` on a production build, in
 about 15 minutes, and writes `<out dir>/bars.json`; it exits 1 when a bar fails or a screen was not

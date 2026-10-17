@@ -14,12 +14,12 @@ import { readFileSync } from "node:fs";
 // ponytail: a fixed list of common words; a word missing here shows up as a shared word to keep
 const COMMON = new Set(
     `a about after again all also an and any are as at be been before but by can could do does done
-    each else every for from get give go has have he her his how i if in into is it its just keep
-    know last let like make many may me more most much must my new no not now of off on one only or
+    each else every for from get give go has have he her his how i if in into is it its just
+    know last let like make many may me most much must my no not now of off on one only or
     other our out over own same say see she so some still than that the their them then there these
     they this those through to too two up us use want was way we were what when where which while
-    who whom why will with without would you your yours already open opened ready-made tell how
-    many number numbers people person show shows looks look first time never once again`
+    who whom why will with without would you your yours already tell how many people person time
+    never once again`
         .split(/\s+/)
         .filter(Boolean),
 );
@@ -50,7 +50,8 @@ export function check(tasksText, vocab) {
     let prompts = 0;
     for (const sec of tasksText.split(/^(?=### T\d+)/m).filter((x) => x.startsWith("### T"))) {
         const task = sec.match(/^### (T\d+)/)[1];
-        const ownKept = kept(sec.match(/^- \*\*Kept on purpose:\*\*([\s\S]*?)(?=\n- |\n\s*\n|\n#|$)/m)?.[1]);
+        // to the next bullet, blank line or heading, or the section's end ($ under /m is a line end)
+        const ownKept = kept(sec.match(/^- \*\*Kept on purpose:\*\*([\s\S]*?)(?=\n- |\n\s*\n|\n#|(?![\s\S]))/m)?.[1]);
         const said = [...sec.matchAll(/^\s*- (?:\*\*)?(?:Prompt [AB][^*]*|[AB])(?:\*\*)?:? "([^"]+)"/gm)].map(
             (m) => m[1],
         );
@@ -86,6 +87,11 @@ function selfTest() {
         vocab,
     );
     assert.deepEqual(keptOnPurpose.shared, [], "a word kept on purpose was still reported");
+    const keptOnTwoLines = check(
+        `### T93. D\n\n- **Prompt A (z):** "Add a condition."\n- **Kept on purpose:** \`condition\` -- reason\n  \`add\` -- reason\n`,
+        vocab,
+    );
+    assert.deepEqual(keptOnTwoLines.shared, [], "a kept word on the kept line's second line was still reported");
     console.log("wording.mjs self-test: every planted echo caught, kept words pass");
 }
 

@@ -752,6 +752,35 @@ const WALKS3 = [
             { do: steps("--key Escape"), focus: "Escape from the size popover" },
         ],
     },
+    {
+        // where bulk editing and picking by data meet: one card added to every layer of a run's folder
+        name: "folder-picker",
+        moves: [
+            {
+                do: steps(
+                    "--click No thanks",
+                    "--click Open project or file",
+                    "--upload volunteers.graphml",
+                    "--click Load",
+                    "--expect Style layers",
+                ),
+            },
+            { do: steps("--click Analyze", "--type louvain", "--key Enter", "--click Run", "--expect Group 1") },
+            {
+                do: steps(
+                    "--click role=treeitem:Louvain",
+                    "--click role=button:Which nodes",
+                    "--click Add a condition",
+                    "--click role=option:trained",
+                    "--expect Yes",
+                ),
+                focus: "adding a card on a folder",
+                screen: "a run's folder, its picker open, a card added to every layer",
+                words: "a run's folder, its picker open, a card added to every layer",
+            },
+            { do: steps("--click Done"), focus: "Done in a folder's picker" },
+        ],
+    },
 ];
 
 async function walkTier2(base) {
@@ -891,7 +920,13 @@ async function outer() {
             about: "Bar 9 for tier 3: the app's words at rest on tier 3's screens, counted by bars.mjs --tier 3 --record-limits; a later build's count may not rise above these",
             build: build0,
             measured: new Date().toISOString().slice(0, 10),
-            words: Object.fromEntries(Object.entries(t2.words).map(([k, v]) => [k, v.words.length])),
+            // a limit only falls: a screen keeps the lower of its recorded count and this build's
+            words: Object.fromEntries(
+                Object.entries(t2.words).map(([k, v]) => [
+                    k,
+                    Math.min(v.words.length, allLimits.tier3?.words?.[k] ?? Infinity),
+                ]),
+            ),
         };
         await writeFile(join(here, "bars-limits.json"), JSON.stringify(allLimits, null, 4) + "\n");
     }

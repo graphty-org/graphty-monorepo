@@ -84,6 +84,7 @@ import {
     focusOnPage,
     LAUNCH,
     NAME_CHARS,
+    nodeColors,
     openWork,
     plant,
     sameNames,
@@ -189,7 +190,7 @@ const sectionOf = (text, head) => {
     return end < 0 ? rest : rest.slice(0, end);
 };
 const oneLine = (t) => t.replace(/\s+/g, " ").trim();
-// The half's prompt and its follow-up (T17 and T18 have one), word for word from tasks.md
+// The half's prompt and its follow-up (any task with a Follow-up block), word for word from tasks.md
 function taskWords(t) {
     const sec = sectionOf(tasksText(t.tier), t.task);
     if (!sec) return null;
@@ -765,7 +766,7 @@ async function start(dir, how, sr, task, keys) {
         );
         return 2;
     }
-    // T17 and T18 hold a follow-up prompt, given at --end (see "op end" in serve)
+    // any task with a Follow-up block holds a follow-up prompt, given at --end (see "op end" in serve)
     const t = sessionTask(dir, task);
     const followUp = t ? taskWords(t)?.followUp : null;
     // the session process holds a browser slot for its whole life, so it runs inside the gate
@@ -1314,7 +1315,7 @@ async function opStart(s, setup) {
     return { out, code };
 }
 
-// The first --end of a T17 or T18 session does not end it: it hands the participant the follow-up,
+// The first --end of a session of any task with a Follow-up block does not end it: it hands the participant the follow-up,
 // word for word, and the session carries on. In round 1 two sessions that left the follow-up to the
 // participant's own reading of tasks.md never got it (r1-s22, r1-s23). A second --end ends.
 async function giveFollowUp(s) {
@@ -1551,6 +1552,7 @@ async function recordStyles(s, file) {
         at: new Date().toISOString(),
         graph: content !== null,
         look: content && createHash("sha1").update(content).digest("hex").slice(0, 12),
+        colors: await s.page.evaluate(nodeColors).catch(() => null),
     };
     await appendFile(join(s.dir, "styles-steps.jsonl"), JSON.stringify(line) + "\n");
 }

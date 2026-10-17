@@ -97,6 +97,12 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.borderOpacity": "mesh",
     "node.borderStyle": "mesh",
     "node.cornerRadius": "mesh",
+    // How a node grows to hold its label: the fitted extents are baked into the source mesh, and
+    // Node keys the mesh by them as well, since nodes of one style differ by their label's box.
+    "node.labelFit": "mesh",
+    "node.labelPaddingX": "mesh",
+    "node.labelPaddingY": "mesh",
+    "node.labelFitSquare": "mesh",
     // An effect's COLOUR is geometry here, and the renderer is why. Babylon draws an instanced
     // node through its SOURCE mesh: a glow layer's `customEmissiveColorSelector` is handed the
     // source, and a highlight layer keys its per-mesh colour by the source's uniqueId. So two

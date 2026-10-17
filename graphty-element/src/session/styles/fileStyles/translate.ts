@@ -524,6 +524,10 @@ function channelPlans(
             ["labelFont", [label("labelFont")]],
             ["labelWeight", [label("labelWeight")]],
             ["labelItalic", [label("labelItalic")]],
+            ["labelFit", [id("node.labelFit")]],
+            ["labelPaddingX", [length("node.labelPaddingX")]],
+            ["labelPaddingY", [length("node.labelPaddingY")]],
+            ["labelFitSquare", [id("node.labelFitSquare")]],
         ]);
     }
 
@@ -699,6 +703,15 @@ export const SCENE_PER_UNIT = {
  * `sizePx^2 / (48 (LINE sizePx + MARGIN))` scene units tall, which is not in proportion to `sizePx`.
  */
 const LABEL = { perScene: 48, line: 1.33, margin: 10 } as const;
+
+/**
+ * How tall a label of a `sizePx` draws its letters, in scene units: the inverse of `labelSizePx`.
+ * @param sizePx - The label's `sizePx`.
+ * @returns The height of its letters (one font size) in the scene.
+ */
+export function labelLetterHeight(sizePx: number): number {
+    return (sizePx * sizePx) / (LABEL.perScene * (LABEL.line * sizePx + LABEL.margin));
+}
 
 /**
  * The `sizePx` that draws a label's letters a given height in the scene: the root of

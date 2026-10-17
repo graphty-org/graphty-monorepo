@@ -209,6 +209,7 @@
         "Styles/Node::Default",
         "Styles/Node::Flat",
         "Styles/Node::Label",
+        "Styles/Node::LabelFit",
         "Styles/Node::Opacity",
         "Styles/Node::PlanarShapes",
         "Styles/Node::Shape",

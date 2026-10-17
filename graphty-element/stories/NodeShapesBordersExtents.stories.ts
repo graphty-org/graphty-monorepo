@@ -213,3 +213,77 @@ export const WidthAndHeight: Story = {
         edgeData: EXTENT_NODES.slice(1).map(({ id }, index) => ({ src: EXTENT_NODES[index].id, dst: id })),
     },
 };
+
+/**
+ * Nodes that grow to hold their labels, as Graphviz and vis-network draw them: one row per way of
+ * fitting, each with a short, a middling and a long label.
+ */
+const LABEL_FIT_NODES = grid(
+    [
+        ["ellipse", "inside", false],
+        ["rectangle", "inside", false],
+        ["diamond", "inside", false],
+        ["round-rectangle", "bounds", false],
+        ["ellipse", "bounds", true],
+    ].flatMap(([shape, fit, square]) =>
+        ["A", "Middling", "A much longer label"].map((text) => ({
+            id: `${String(shape)} ${String(fit)}${square === true ? " square" : ""}: ${text}`,
+            label: text,
+            shape,
+            fit,
+            square,
+        })),
+    ),
+    3,
+    5,
+);
+
+/**
+ * `node.labelFit` grows a node to hold its label: its size is the least it is drawn at, and its
+ * label's box, padded by `node.labelPaddingX` and `node.labelPaddingY`, decides the rest. "inside"
+ * fits the box inside the outline, as Graphviz does, so the ellipse and the diamond reach past its
+ * corners; "bounds" makes the padded box the node's width and height, as vis-network does; and
+ * `node.labelFitSquare` keeps the last row round.
+ */
+export const LabelFit: Story = {
+    play: async ({ canvasElement }) => {
+        const scene = await drawn(canvasElement, "Styles/Node LabelFit");
+
+        await assertGraphLoaded(scene, { nodes: LABEL_FIT_NODES.length, edges: 0 });
+
+        const width = (id: string): number =>
+            scene.graph.getNode(id)?.mesh.getBoundingInfo().boundingBox.extendSize.x ?? 0;
+        const rows = LABEL_FIT_NODES.filter((_node, index) => index % 3 === 0);
+        const narrow = rows.filter((row, index) => {
+            const longer = LABEL_FIT_NODES[index * 3 + 2];
+            return !(width(longer.id) > 2 * width(row.id));
+        });
+
+        await holds(
+            narrow.length === 0,
+            `Styles/Node LabelFit: a long label's node is not twice as wide as its row's shortest: ${narrow.map((row) => row.id).join(", ")}`,
+        );
+    },
+    args: {
+        setup: storySetup({
+            viewMode: "2d",
+            node: {
+                "node.color": "#FBD38D",
+                "node.borderWidth": 0.05,
+                "node.borderColor": "#7B341E",
+                "node.size": 0.6,
+                "node.labelPaddingX": 0.2,
+                "node.labelPaddingY": 0.1,
+                "node.labelStyle": { location: "center", sizePx: 24, color: "#000000" },
+            },
+            nodeEncode: {
+                "node.shape": { by: "data.shape", scale: "passthrough" },
+                "node.labelFit": { by: "data.fit", scale: "passthrough" },
+                "node.labelFitSquare": { by: "data.square", scale: "passthrough" },
+                "node.label": { by: "data.label", scale: "passthrough" },
+            },
+        }),
+        nodeData: LABEL_FIT_NODES,
+        edgeData: [],
+    },
+};

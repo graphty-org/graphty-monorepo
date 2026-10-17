@@ -21,7 +21,9 @@ import {
 } from "../../../graph-io/test/fidelity/scene";
 import { channelDescriptor } from "../../catalog";
 import type { GraphSession } from "../../session";
-import { SCENE_PER_UNIT } from "../../src/session/styles/fileStyles/translate";
+import type { NodeStyleConfig } from "../../src/config/NodeStyle";
+import { labelFitExtent } from "../../src/meshes/labelFit";
+import { labelLetterHeight, SCENE_PER_UNIT } from "../../src/session/styles/fileStyles/translate";
 import { arrowClassOf, colorOf, labelPositionOf, lineStyleOf, shapeClassOf } from "./extract-scene";
 
 /** The properties a requested scene can judge. */
@@ -61,6 +63,47 @@ const num = (value: unknown, fallback: number): number =>
     typeof value === "number" && Number.isFinite(value) ? value : fallback;
 
 const BORDER_STYLES = new Set(["solid", "dashed", "dotted"]);
+
+/**
+ * How wide a label's letters are on average, in font sizes: what the Node tier, which measures no
+ * text, takes a label's width to be. The browser tier measures it.
+ */
+const AVERAGE_LETTER_WIDTH = 0.55;
+
+/**
+ * The width and height a node that grows to hold its label is asked to be drawn at, in the units
+ * of `node.size`, with its label's box estimated from its letters; null when it does not grow.
+ * @param merged - `explain().merged`
+ * @param size - its `node.size`
+ * @param text - its label, or undefined
+ * @param sizePx - its label's `sizePx`
+ * @returns The width and height, or null
+ */
+function fittedExtent(
+    merged: Readonly<Record<string, unknown>>,
+    size: number,
+    text: unknown,
+    sizePx: number,
+): { width: number; height: number } | null {
+    const fit = merged["node.labelFit"];
+    if (fit !== "inside" && fit !== "bounds") {
+        return null;
+    }
+    const lines = typeof text === "string" && text !== "" ? text.split("\n") : [];
+    const em = labelLetterHeight(sizePx) / SCENE_PER_UNIT.node;
+    const widest = Math.max(0, ...lines.map((line) => line.length));
+    const shape: NodeStyleConfig["shape"] = {
+        size,
+        type: channel(merged, "node.shape") as NonNullable<NodeStyleConfig["shape"]>["type"],
+        labelFit: fit,
+        labelPaddingX: num(merged["node.labelPaddingX"], 0),
+        labelPaddingY: num(merged["node.labelPaddingY"], 0),
+        labelFitSquare: merged["node.labelFitSquare"] === true,
+        ...(typeof merged["node.width"] === "number" ? { width: merged["node.width"] } : {}),
+        ...(typeof merged["node.height"] === "number" ? { height: merged["node.height"] } : {}),
+    };
+    return labelFitExtent(shape, { width: widest * AVERAGE_LETTER_WIDTH * em, height: lines.length * em });
+}
 
 /**
  * The scene's line style of a requested `node.borderStyle`.
@@ -105,12 +148,14 @@ export function requestedScene(session: GraphSession, sourceSha256: string, comm
         const borderStyle = merged["node.borderStyle"];
         const labelStyle = (merged["node.labelStyle"] ?? {}) as Readonly<Record<string, unknown>>;
         const text = merged["node.label"];
+        const sizePx = num(labelStyle.sizePx ?? channel(merged, "node.labelSize"), 12);
+        const fitted = fittedExtent(merged, size, text, sizePx);
         return {
             id,
             x: placed ? at.x * scale : 0,
             y: placed ? -at.y * scale : 0,
-            w: num(merged["node.width"], size) * SCENE_PER_UNIT.node,
-            h: num(merged["node.height"], size) * SCENE_PER_UNIT.node,
+            w: (fitted?.width ?? num(merged["node.width"], size)) * SCENE_PER_UNIT.node,
+            h: (fitted?.height ?? num(merged["node.height"], size)) * SCENE_PER_UNIT.node,
             shape: shapeClassOf(channel(merged, "node.shape")),
             fill: fill?.hex ?? null,
             fillOpacity: num(channel(merged, "node.opacity"), 1) * (fill?.alpha ?? 1),
@@ -127,7 +172,7 @@ export function requestedScene(session: GraphSession, sourceSha256: string, comm
                 typeof text === "string" && text !== ""
                     ? {
                           text,
-                          fontSize: num(labelStyle.sizePx ?? channel(merged, "node.labelSize"), 12),
+                          fontSize: sizePx,
                           color: colorOf(labelStyle.color ?? channel(merged, "node.labelColor"))?.hex ?? "#000000",
                           position: labelPositionOf(labelStyle.location),
                           visible: labelStyle.enabled !== false,

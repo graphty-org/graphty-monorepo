@@ -11,6 +11,13 @@ import { RichTextStyle } from "./RichTextStyle";
 export const NodeSizeModes = z.enum(["scale", "diameter"]);
 
 /**
+ * How a node grows to hold its label, when `shape.labelFit` is set: "inside" fits the label's
+ * padded box inside the node's outline, so an ellipse or a diamond reaches past the box's corners;
+ * "bounds" makes the padded box the node's width and height, whatever its shape.
+ */
+export const NodeLabelFits = z.enum(["inside", "bounds"]);
+
+/**
  * The single source of truth for the node shape vocabulary.
  *
  * WHY THIS IS EXPORTED, and what went wrong when it was not: this enum used to be an internal
@@ -158,6 +165,15 @@ export const NodeStyle = z.strictObject({
             // A round-rectangle's largest corner radius, in the units of `size`. Unset, the
             // corners are a quarter of the shorter side; set, they are never larger than that.
             cornerRadius: z.number().nonnegative().optional(),
+            // Grow the node to hold its label (see NodeLabelFits): `width` and `height` (or `size`)
+            // become its least size, and its label's box -- as wide as its widest line, as tall as
+            // its lines at one font size each -- plus `labelPaddingX` on the left and right and
+            // `labelPaddingY` above and below, in the units of `size`, decides the rest. With
+            // `labelFitSquare` it stays as wide as it is tall. Unset, the node is the size it states.
+            labelFit: NodeLabelFits.optional(),
+            labelPaddingX: z.number().nonnegative().optional(),
+            labelPaddingY: z.number().nonnegative().optional(),
+            labelFitSquare: z.boolean().optional(),
             // custom mesh https://doc.babylonjs.com/features/featuresDeepDive/mesh/creation/custom/custom
             // import mesh https://doc.babylonjs.com/typedoc/functions/BABYLON.ImportMeshAsync
         })

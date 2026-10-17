@@ -269,6 +269,38 @@ export class RichTextLabel {
     private undoesStretch = false;
     private animationStarted = false;
 
+    /** Set while {@link RichTextLabel.measureWords} builds a label that is only measured, never drawn. */
+    private static measuring = false;
+
+    /**
+     * How big a label's words would be drawn, without drawing them: as wide as its widest line and
+     * as tall as its lines at one font size each, in world units, by the same measurement a drawn
+     * label makes. No texture, material or mesh is made.
+     * @param scene - Babylon.js scene
+     * @param userOptions - Label configuration options
+     * @returns The width and height in world units
+     */
+    static measureWords(scene: Scene, userOptions: RichTextLabelOptions): { width: number; height: number } {
+        RichTextLabel.measuring = true;
+        try {
+            const label = new RichTextLabel(scene, { ...userOptions, attachTo: undefined, animation: "none" });
+            const { width, height } = label.actualDimensions;
+            if (width <= 0 || height <= 0) {
+                return { width: 0, height: 0 };
+            }
+
+            // One canvas pixel in the world, as `_createMesh` sizes the plane.
+            const perPixel = (label.lineHeightInWorld() * label.heightInLines) / height;
+            const lines = Math.max(1, label.parsedContent.length);
+            return {
+                width: label.textSize.width * perPixel,
+                height: lines * label.options.fontSize * perPixel,
+            };
+        } finally {
+            RichTextLabel.measuring = false;
+        }
+    }
+
     /**
      * Factory method to create a rich text label
      * @param scene - Babylon.js scene
@@ -414,6 +446,12 @@ export class RichTextLabel {
                 animation: this.options.animation,
                 animationSpeed: this.options.animationSpeed,
             });
+        }
+
+        if (RichTextLabel.measuring) {
+            this._parseRichText();
+            this._calculateDimensions();
+            return;
         }
 
         this._create();
